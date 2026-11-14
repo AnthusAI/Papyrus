@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5d443fc5-9334-4638-93c1-24e2e7d5491e",
+  "issue_id": "PPY-ef909129-4ca0-4757-afcb-376ce89d6c98",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T17:09:03.775Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus images search returns not_implemented while help lists it as available",
+    "description": "papyrus images search --story ... --use cover --query '...' returned not_implemented, but the help lists search, selection and application as available and the docs say they are still being built. Help, the MCP tool list and any capability check must separate implemented operations from planned ones (hide or mark planned operations, and make a planned one fail with a clear message that names the issue that will build it). Gherkin: help lists only implemented operations; a planned one says so.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+    "labels": []
+  }
+}

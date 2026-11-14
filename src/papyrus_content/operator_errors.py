@@ -25,6 +25,10 @@ class GraphQLRequestError(RuntimeError):
         self.status_code = status_code
 
 
+class GraphQLTimeoutError(GraphQLRequestError):
+    """The client gave up waiting for the answer. The server may still be working: this is not a failure of the request (PPY-4611d5)."""
+
+
 def credential_recovery_guidance() -> str:
     from .user_auth_mode import user_auth_requested
     if user_auth_requested():

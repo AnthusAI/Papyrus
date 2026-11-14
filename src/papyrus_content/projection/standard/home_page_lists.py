@@ -51,6 +51,9 @@ def list_id(attributes: Mapping) -> str:
     if attributes.get("id"):
         return attributes["id"]
     words = [_word(attributes[name]) for name in ("select", "section", "medium", "bucket") if attributes.get(name)]
+    for name, prefix in (("notSection", "not-"), ("notMedium", "not-")):
+        if attributes.get(name):
+            words.append(prefix + _word(str(attributes[name]).replace("|", " ")))
     return "-".join(word for word in words if word) or "list"
 
 

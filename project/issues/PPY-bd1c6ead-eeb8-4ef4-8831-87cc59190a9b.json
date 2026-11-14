@@ -1,0 +1,37 @@
+{
+  "id": "PPY-bd1c6ead-eeb8-4ef4-8831-87cc59190a9b",
+  "title": "Payment lifecycle moves a tenant through active, past due, suspended and deleted",
+  "description": "What: payment events change tenant state. Suspension keeps content and export available; deletion follows a stated grace period, never silently.\nAcceptance:\nScenario: A failed payment suspends writes, not reading or export",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3cb97be6-c577-4191-9f21-0c045057b2f3",
+      "author": "home",
+      "text": "Implemented by PPY-d7274f (state applied through token claims). Prospectus billing today never suspends an entitlement on its own (Prospectus docs/BILLING.md); whether past due suspends automatically is owner decision 5 in the design note, asked of Prospectus in PPY-6d9a6d.",
+      "created_at": "2026-11-08T18:48:44.370590Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "fb8da7a6-2137-4725-879c-404dfb743aec",
+      "author": "home",
+      "text": "Rule accepted by Ryan 2026-11-08; Prospectus side is PPY-6cb44b; Papyrus side PPY-d7274f.",
+      "created_at": "2026-11-08T21:19:02.619006Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:42:49.388714Z",
+  "updated_at": "2026-11-08T21:19:02.619321Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

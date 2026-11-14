@@ -33,11 +33,12 @@ type Draft = {
   compliesText: string;
 };
 
-function emptyPolicy(): EditorialPolicyRecord {
+function emptyPolicy(language: string): EditorialPolicyRecord {
   return {
     id: "",
     policyKey: "",
     scope: "publication",
+    language,
     version: 1,
     title: "",
     guidance: "",
@@ -58,6 +59,11 @@ function draftFrom(record: EditorialPolicyRecord, isNew: boolean): Draft {
     violatesText: (record.examples?.violates ?? []).join("\n"),
     compliesText: (record.examples?.complies ?? []).join("\n"),
   };
+}
+
+/** A check drawn from writing guidelines stops being synced the moment an admin edits it by hand (PPY-457028). */
+function handEditedSource(source: string): string {
+  return source.startsWith("writing-guidelines:") ? "custom" : source;
 }
 
 function lines(text: string): string[] {
@@ -136,11 +142,12 @@ export function EditorialChecksAdminPanel() {
       const policy = humanusPolicy(draft);
       const record: EditorialPolicyRecord = {
         ...draft.record,
-        id: draft.isNew ? `${draft.record.scope}#${key}` : draft.record.id,
+        id: draft.isNew ? `${draft.record.scope}#${draft.record.language}#${key}` : draft.record.id,
         policyKey: key,
         version: draft.isNew ? 1 : draft.record.version + 1,
         detectors: policy.detectors as unknown[],
         examples: (policy.examples as EditorialPolicyRecord["examples"]) ?? null,
+        source: draft.isNew ? draft.record.source : handEditedSource(draft.record.source),
       };
       await savePolicy(record, draft.isNew);
       setDraft(null);
@@ -161,7 +168,7 @@ export function EditorialChecksAdminPanel() {
 
       <h4>Policies</h4>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => { setDraft(draftFrom(emptyPolicy(), true)); setTryResult(null); }} size="sm" type="button">New policy</Button>
+        <Button onClick={() => { setDraft(draftFrom(emptyPolicy(settings.languages.primary), true)); setTryResult(null); }} size="sm" type="button">New policy</Button>
         <select aria-label="Starter pack" onChange={(event) => setStarterPack(event.target.value)} value={starterPack}>
           {starterPacks.map((pack) => (
             <option key={pack.name} value={pack.name}>
@@ -212,13 +219,14 @@ export function EditorialChecksAdminPanel() {
       {policies === null ? <p>Loading…</p> : policies.length === 0 ? <p>No policies yet. Add the starter pack or write one.</p> : (
         <table data-editorial-policies>
           <thead>
-            <tr><th scope="col">Policy</th><th scope="col">Applies to</th><th scope="col">Severity</th><th scope="col">Detectors</th><th scope="col">On</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+            <tr><th scope="col">Policy</th><th scope="col">Applies to</th><th scope="col">Language</th><th scope="col">Severity</th><th scope="col">Detectors</th><th scope="col">On</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {policies.map((policy) => (
               <tr data-editorial-policy-row={policy.id} key={policy.id}>
                 <td>{policy.title}<br /><small>{policy.policyKey} · v{policy.version}</small></td>
                 <td>{policy.scope === "publication" ? "Whole publication" : `Section: ${policy.scope}`}</td>
+                <td>{policy.language === "*" ? "Every language" : policy.language}</td>
                 <td>{policy.severity}</td>
                 <td>{policy.detectors.length === 0 ? "Guidance only" : policy.detectors.length}</td>
                 <td>
@@ -226,7 +234,7 @@ export function EditorialChecksAdminPanel() {
                     aria-label={`${policy.title} enabled`}
                     checked={policy.enabled}
                     onChange={(event) => void run("toggle", async () => {
-                      await savePolicy({ ...policy, enabled: event.target.checked, version: policy.version + 1 }, false);
+                      await savePolicy({ ...policy, enabled: event.target.checked, version: policy.version + 1, source: handEditedSource(policy.source) }, false);
                       await refresh();
                     })}
                     type="checkbox"
@@ -253,6 +261,10 @@ export function EditorialChecksAdminPanel() {
           <label>
             Applies to (publication, or a section key){" "}
             <Input disabled={!draft.isNew} onChange={(event) => patchDraft({ scope: event.target.value.trim() || "publication" })} value={draft.record.scope} />
+          </label>
+          <label>
+            Language (a language the site writes in, or * for every language){" "}
+            <Input disabled={!draft.isNew} onChange={(event) => patchDraft({ language: event.target.value.trim() })} value={draft.record.language} />
           </label>
           <label>
             Severity{" "}
@@ -308,7 +320,7 @@ export function EditorialChecksAdminPanel() {
             <Button
               disabled={working !== null || !tryText.trim()}
               onClick={() => run("try", async () => {
-                setTryResult(await tryPolicy(humanusPolicy(draft), tryText));
+                setTryResult(await tryPolicy(humanusPolicy(draft), tryText, draft.record.language === "*" ? settings.languages.primary : draft.record.language));
               })}
               size="sm"
               type="button"
@@ -355,6 +367,14 @@ export function EditorialChecksAdminPanel() {
         <label>Input-token budget per check <Input min={1} onChange={(event) => setSettings({ ...settings, maxInputTokens: Number(event.target.value) })} type="number" value={settings.maxInputTokens} /></label>
         <label>Past decisions shown to each judgment question <Input max={32} min={0} onChange={(event) => setSettings({ ...settings, maxExamplesPerQuestion: Number(event.target.value) })} type="number" value={settings.maxExamplesPerQuestion} /></label>
         <label>House guidance for rewrites <Textarea onChange={(event) => setSettings({ ...settings, guidance: event.target.value })} rows={3} value={settings.guidance} /></label>
+        <label>Primary language (the language Stories are first written in) <Input onChange={(event) => setSettings({ ...settings, languages: { ...settings.languages, primary: event.target.value.trim() } })} value={settings.languages.primary} /></label>
+        <label>
+          Languages the site writes in, comma separated, each the exact variant (for example en, es-419, zh-Hans){" "}
+          <Input
+            onChange={(event) => setSettings({ ...settings, languages: { ...settings.languages, enabled: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) } })}
+            value={settings.languages.enabled.join(", ")}
+          />
+        </label>
         <Button disabled={working !== null} type="submit">Save settings</Button>
       </form>
     </section>

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a2b5eba8-ee85-4d6d-9cc1-e581cd4168d9",
+  "issue_id": "PPY-457028e0-049e-4fd7-b5fd-9788fb8970b2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T00:15:34.293Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5 Saving writing guidelines updates the checks drawn from them",
+    "description": "What: the writer and the checker read the same data.\n\nFiles:\n- src/papyrus_content/guidelines/derived_policies.py: humanus.policy_pack_from_style_profile on the saved document; publication scope for the site document, desk scope for a section document; plan_policies / apply_plan from editorial_policy_pack.py\n- source writing-guidelines:<slug>:v<N> on derived policies; only those are created, updated or disabled; an admin's edit of a derived policy sets source custom (editorial-checks panel save path: lib/editorial-checks-client.ts, components/editorial-checks-admin-panel.tsx)\n- guidelines_diff includes the policy plan\n- src/papyrus_content/editorial_commands.py: `editorial import --profile` points at `papyrus guidelines save --kind writing`\n- features_backend/guidelines-derived-policies.feature\n\nAcceptance checks:\n- Saving a document with a new avoided word creates or updates exactly one derived policy.\n- A starter-pack policy and a hand-written policy are untouched by any save.\n- Removing a word disables the derived policy it produced (kept for history).\n\nGherkin scenarios:\n- Saving site writing guidelines creates the checks drawn from them\n- Saving section writing guidelines creates desk checks for that section\n- A check an admin wrote is never changed by saving guidelines\n- Editing a derived check by hand stops it being synced\n- The diff shows check changes before anything is saved\n\nDesign: docs/plans/guidelines-as-data.md. Gherkin specs are required and ship in the same PR. Text lives in S3, never inline in DynamoDB; no new GSI; no subscriptions. Style and voice wording is data, never code.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+    "labels": []
+  }
+}

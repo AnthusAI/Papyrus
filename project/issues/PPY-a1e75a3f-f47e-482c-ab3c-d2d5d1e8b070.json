@@ -10,9 +10,24 @@
   "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2439aec3-8cee-46cd-88d6-73151c4e8e17",
+      "author": "home",
+      "text": "The shared tier adds asks beyond this task (one 'papyrus' product with a deployment per site, usage-priced plans, payment-failed and cancellation events, pairwise reader subjects per deployment): spike PPY-6d9a6d turns them into Prospectus issues.",
+      "created_at": "2026-11-08T18:48:44.824063Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "7ead6bac-2316-4573-8b5b-9e27ec07c1cc",
+      "author": "home",
+      "text": "Superseded in part by Ryan's decision of 2026-11-08: shared-tier sites are deployments of one 'papyrus' product created by API (PPY-966ef5); lifecycle events PPY-6cb44b; invites by email are kanbus-59284c, kanbus-4c99c6, kanbus-b09c91, kanbus-db57cb.",
+      "created_at": "2026-11-08T21:19:03.075132Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T12:42:39.062069Z",
-  "updated_at": "2026-10-31T12:42:39.062095Z",
+  "updated_at": "2026-11-08T21:19:03.075371Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

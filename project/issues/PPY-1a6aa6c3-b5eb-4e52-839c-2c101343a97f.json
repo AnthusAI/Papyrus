@@ -1,0 +1,52 @@
+{
+  "id": "PPY-1a6aa6c3-b5eb-4e52-839c-2c101343a97f",
+  "title": "A deployment in another AWS organisation needs nothing from ours",
+  "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-e9e96f.\n\nRemove default domains, the family footer registry and the default privacy link from core; make the monitoring stack and its seed scripts take the account from configuration; let Cyclotron support run in the deployment's own account.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "5e3fee71-d369-4794-bf23-bcf2f8f9539c",
+      "author": "home",
+      "text": "From Humorus, 2026-11-11, first real attempt on a new account in another organisation: infra/pipeline/bootstrap.sh could not be used. Its default --repo is this repository, so step 4 would overwrite this repository's AWS_ACCOUNT_ID variable with the new account and redirect our own releases; with --repo set to the site's repository the roles trust a repository that has none of the workflows. stacks.json also names our own domain for the operators stack. Only the CDK bootstrap was run. Needed: a way to bootstrap a second account without touching this repository's variables, with the domain taken from configuration.",
+      "created_at": "2026-11-11T17:37:32.883850Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Fable 5.2",
+        "name": "Humorus Planning"
+      }
+    },
+    {
+      "id": "4a3e8204-dfbe-4cb3-8481-5780eb650d98",
+      "author": "home",
+      "text": "From Humorus, 2026-11-11, Ryan's standing rule: nobody creates a cloud resource by hand; every resource is defined in Git and applied by a pipeline on merge, and agents use the AWS CLI to read only.\n\nFor this story that means `infra/pipeline/bootstrap.sh` should stop being a script a person runs per account and become a template a pipeline applies:\n- The account's GitHub OIDC provider, the pipeline roles (today `papyrus-pipeline-approver.yaml` and `papyrus-stack-pipeline.yaml`) and the per-site deploy roles are CloudFormation (or CDK) stacks in Git, seeded into a new account from a template, with repository, domain and account taken from configuration. Nothing in it names AnthusAI/Papyrus, anth.us or our account variable.\n- Where a stack must exist before any pipeline can (the very first role), the one-time person step is a single documented `aws cloudformation deploy` of the same template, not a bespoke script that writes repository variables.\n- Hand-made roles, zones and providers in the running Anthus deployments are imported into those stacks (CloudFormation import with Retain), not replaced.\nHumorus has drafted the full epic; it will be agreed with Ryan and the Papyrus session before it is filed here.",
+      "created_at": "2026-11-11T20:24:32.101096Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "7d75758e-d948-4c45-b15a-e8861da3c8ec",
+      "author": "home",
+      "text": "Linked, not moved, to epic PPY-9bd776 (A Papyrus deployment needs no hand-made cloud resources): story PPY-a73cd8 there covers this story's bootstrap complaint. The other parts of this story (domains, footer registry, privacy link, monitoring account) stay here.",
+      "created_at": "2026-11-11T20:37:05.121077Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T17:16:00.428184Z",
+  "updated_at": "2026-11-11T20:37:05.121280Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

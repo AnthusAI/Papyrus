@@ -253,3 +253,63 @@ def step_one_each(context, count, drafted):
     held = state(context)
     assert len([line for line in held.logs if "monitorStoriesStep" in line]) == count == len(held.sqs.sent)
     step_finished(context, drafted)
+
+
+@given("the site holds {count:d} other Items in every stage, and refuses to list a table")
+def step_strict(context, count):
+    held = state(context)
+    held.strict_items = count
+
+
+@when("the story worker takes every step off the queue and files for real")
+def step_work_for_real(context):
+    from unittest import mock
+
+    from field_recorder import FieldRecorder
+
+    held = state(context)
+    held.strict = queue.strict_world_of(held.client)
+    held.strict.tables["Item"] = {row["id"]: row for row in queue.many_other_items(held.strict_items)}
+    held.recorder = FieldRecorder(held.strict)
+    with mock.patch("papyrus_content.ideas.items.ItemStore", queue.ItemStore):   # the real class, imported before the scenario replaced it
+        logs, failures = queue.work(held.store, held.recorder, held.model, held.sqs.sent, fetch=pages(*range(1, 60)))
+    held.logs += logs
+    held.failures += failures
+    assert not failures, (failures, logs)
+
+
+@then("{count:d} ideas are filed as Items at the idea stage")
+def step_items_filed(context, count):
+    filed = [row for row in state(context).strict.tables["Item"].values() if row["id"].startswith("item-idea-")]
+    assert len(filed) == count and all(row["stage"] == "idea" for row in filed), filed
+
+
+@then("no step read a whole table")
+def step_no_scan(context):
+    held = state(context)
+    assert not set(held.recorder.unbounded) - queue.SMALL_CONFIGURATION_TABLES, held.recorder.unbounded
+
+
+@then("every field the steps asked of the site is granted to the story worker's role")
+def step_granted(context):
+    held = state(context)
+    granted = queue.story_worker_policy()
+    assert held.recorder.fields <= granted, sorted(held.recorder.fields - granted)
+
+
+@then("the story worker's role grants no listing of Items or of review requests")
+def step_no_list_grant(context):
+    assert not {field for _, field in queue.story_worker_policy()} & {"listItems", "listReviewRequests"}
+
+
+@then("the plan's head row holds the existing ideas")
+def step_head(context):
+    held = state(context)
+    plan_id = held.sqs.sent[0]["body"]["planId"]
+    head = held.store.get_any("hn", story_plan.head_key(held.publication, plan_id))
+    assert isinstance(story_plan.decode(head["proposals"]), list)
+
+
+@then("no step asked for the site's stories by stage")
+def step_no_stage_read(context):
+    assert not {name for _, name in state(context).recorder.fields} & {"listItems", "listItemsByStageAndUpdatedAt"}

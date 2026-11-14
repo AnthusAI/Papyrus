@@ -20,7 +20,9 @@ from test_monitoring_packs import PACKS_ON, FilingRecorder, RouterModel, pack_wo
 from test_monitoring_stories import PUBLICATION, fake_idea_sink, iam_auth, quiet_gate, router  # noqa: E402,F401  (the autouse fixtures of the daily task's tests)
 
 from papyrus_content.ideas import connections as connection_rules, story_plan  # noqa: E402
+from papyrus_content.ideas.items import ItemStore  # noqa: E402
 from papyrus_content.ideas.synthesis import SynthesisError  # noqa: E402
+from fake_client import FakeAuthoringClient  # noqa: E402
 from papyrus_content.monitoring_router import handle_story_queue, is_story_queue_event, run_router  # noqa: E402
 
 QUEUE_URL = "https://sqs.example/papyrus-monitoring-stories.fifo"
@@ -280,26 +282,99 @@ def story_worker_policy():
     return {(kind, field) for kind, field in re.findall(r"apis/\*/types/(Query|Mutation)/fields/(\w+)\"", role)}
 
 
-def test_the_story_workers_role_grants_every_field_a_step_asks_for(world_of_two):
-    from field_recorder import FieldRecorder
+FILING_AND_GATE = {("Query", name) for name in ("getItem", "getPublishedItem", "getReference", "getSemanticRelation", "itemByTenantSlug", "listItemsByLineageAndVersion", "listNewsroomSections",
+                                                "listReferencesByLineageAndVersion", "getEditorialCheckSettings", "getEditorialContext", "getEditorialCheckRun", "listEditorialFeedbacks",
+                                                "listEditorialPolicies", "getReviewRequest", "listItemsByParentAndOrder", "listAssignmentsByItemLineageAndCreatedAt",
+                                                "listReferenceAttachmentsByReferenceLineageAndSortKey")} | {
+    ("Mutation", name) for name in ("createItem", "updateItem", "createSemanticRelation", "updateSemanticRelation", "createEditorialCheckRun", "updateEditorialCheckRun",
+                                    "createReviewRequest", "updateReviewRequest")}
+SMALL_CONFIGURATION_TABLES = {"NewsroomSection"}   # the section vocabulary: a handful of rows, granted to the worker as listNewsroomSections
 
-    client, filing = world_of_two
+
+class StrictStepClient(FakeAuthoringClient):
+    """The site's backend as a step sees it, with the real ``ItemStore`` and filing code on top: a table of tables that holds a lot of other Items, and that REFUSES any
+    read of a whole table (``list_records``) apart from the small configuration tables, so a step that scans the site fails here as it fails with the worker's role."""
+
+    def list_records(self, model_name):
+        assert model_name in SMALL_CONFIGURATION_TABLES, f"a step listed the whole {model_name} table"
+        return super().list_records(model_name)
+
+    def list_published_item_summaries(self):
+        raise AssertionError("a step listed every published item")
+
+
+def many_other_items(count=120):
+    """Stories people wrote, ideas the pipeline made and checklist steps, in every stage: the table a step must not read."""
+    stages = ("idea", "reporting", "copywriting", "published", "spiked", "held")
+    rows = []
+    for number in range(count):
+        rows.append({"id": f"item-other-{number}-v1", "lineageId": f"item-other-{number}", "versionState": "current", "versionNumber": 1, "type": "article",
+                     "stage": stages[number % len(stages)], "title": f"Another story {number}", "status": "draft", "section": "analysis",
+                     "frontMatterYaml": "title: Another\n" if number % 2 else "generated:\n  origin: monitor\n  targets: []\n"})
+    rows.append({"id": "item-subtask-1-v1", "lineageId": "item-subtask-1", "versionState": "current", "versionNumber": 1, "type": "sub-task", "stage": "idea", "title": "A step"})
+    return rows
+
+
+def strict_world_of(world):
+    """A StrictStepClient holding the monitored world's References, its sections and many other Items."""
+    client = StrictStepClient()
+    client.tables["Reference"] = {row["id"]: row for row in world.references}
+    client.tables["NewsroomSection"] = {section["id"]: dict(section) for section in world.sections}
+    client.tables["Item"] = {row["id"]: row for row in many_other_items()}
+    return client
+
+
+@pytest.fixture
+def real_filing(monkeypatch):
+    """The step files through the real ItemStore and the real ``file_idea_item`` (the daily tests' autouse fixtures replace both with recording doubles, which is how the
+    scan of the Item table went unseen)."""
+    monkeypatch.setattr("papyrus_content.ideas.items.ItemStore", ItemStore)
+
+
+def planned_world():
+    """The daily task's plan for a pack and a single item (made with the recording doubles, as the daily task's own tests do), and the steps it queued."""
+    world = pack_world(2, lively=(1,))
     table, store = router(settings={PUBLICATION: PACKS_ON})
     sqs = FakeSqs()
-    plan(store, client, sqs)
+    plan(store, world, sqs)
+    return world, store, sqs
+
+
+def test_a_step_never_lists_a_table_and_the_worker_role_grants_every_field_it_asks_for(monkeypatch):
+    from field_recorder import FieldRecorder
+
+    world, store, sqs = planned_world()
+    monkeypatch.setattr("papyrus_content.ideas.items.ItemStore", ItemStore)
+    client = strict_world_of(world)
     recorder = FieldRecorder(client)
-    work(store, recorder, RouterModel(), sqs.sent)
+    lines, failures = work(store, recorder, RouterModel(), sqs.sent)
+    assert not failures, failures
+    steps = [line for line in lines if "monitorStoriesStep" in line]
+    assert [(line["kind"], line["monitorStoriesStep"]) for line in steps] == [("pack", "drafted"), ("item", "drafted")]   # the whole path ran: read, dedupe, filing, linking
+    filed = [row for row in client.tables["Item"].values() if row["id"].startswith("item-idea-")]
+    assert len(filed) == 3 and all(row["stage"] == "idea" for row in filed)   # two ideas from the pack and one from the item
+    assert not any(call[0] == "list" and call[1] == "Item" for call in client.calls)
+    assert not set(recorder.unbounded) - SMALL_CONFIGURATION_TABLES, recorder.unbounded
     granted = story_worker_policy()
-    stand_in_only = {("Mutation", "fileProposal"), ("Query", "listStoryDrafts")}   # the test double files through a Proposal; the real sink files an Item
-    asked = recorder.fields - stand_in_only
-    assert asked <= granted, sorted(asked - granted)
-    # What the recorded run cannot show: filing an idea as an Item and linking it (items.py, pack_stories.py, story_reporting.py), the Humanus gate (gate.py) and the plan's
-    # review request and curation flag (review_requests.py, review.py).
-    filing_and_gate = {("Query", name) for name in ("getItem", "getPublishedItem", "getReference", "getSemanticRelation", "itemByTenantSlug", "listItemsByLineageAndVersion", "listNewsroomSections",
-                                                   "listReferencesByLineageAndVersion", "getEditorialCheckSettings", "getEditorialContext", "getEditorialCheckRun", "listEditorialFeedbacks",
-                                                   "listEditorialPolicies", "getReviewRequest", "listReviewRequests")} | {
-        ("Mutation", name) for name in ("createItem", "updateItem", "createSemanticRelation", "updateSemanticRelation", "createEditorialCheckRun", "updateEditorialCheckRun",
-                                        "createReviewRequest", "updateReviewRequest")}
-    assert filing_and_gate <= granted, sorted(filing_and_gate - granted)
-    # A step reads no more of the site than it was given: no walk of its References, its stories or its Messages.
-    assert not {field for _, field in granted} & {"listReferences", "listItems", "listMessageThreads", "listSemanticNodes", "listReferencesByCurationStatusKeyAndUpdatedAt"}
+    assert recorder.fields <= granted, sorted(recorder.fields - granted)
+    assert not {name for _, name in recorder.fields} & {"listItems", "listItemsByStageAndUpdatedAt"}   # nor does it read the site's stories by stage: the plan handed it the ideas
+    assert FILING_AND_GATE <= granted, sorted(FILING_AND_GATE - granted)
+    assert not {field for _, field in granted} & {"listReferences", "listItems", "listReviewRequests", "listMessageThreads", "listSemanticNodes", "listReferencesByCurationStatusKeyAndUpdatedAt"}
+
+
+def test_a_store_given_its_plans_ideas_reads_nothing_to_know_the_existing_ideas():
+    client = StrictStepClient()
+    client.tables["Item"] = {row["id"]: row for row in many_other_items()}
+    ideas = [{"id": "item-idea-1", "title": "An idea", "summary": "", "state": "draft", "targets": "[]"}]
+    assert ItemStore(client, drafts=ideas).story_drafts() == ideas and client.calls == []
+
+
+def test_the_idea_rows_the_plan_reads_come_from_the_stage_indexes_not_the_item_table():
+    client = StrictStepClient()
+    client.tables["Item"] = {row["id"]: row for row in many_other_items()}
+    from papyrus_content.ideas.items import idea_rows
+
+    rows = idea_rows(client)   # StrictStepClient raises on list_records("Item")
+    assert rows == [] or all(row["kind"] == "story_draft" for row in rows)
+    assert not [call for call in client.calls if call[0] == "list"]
+    assert {call[2] for call in client.calls if call[0] == "list_by_index"} == {"idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "held", "spiked"}

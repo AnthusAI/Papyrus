@@ -54,7 +54,11 @@ def convert_text_in_process(text: str, *, theme: str | None = None, registry=Non
     """
     import markusmd
 
+    from .wiki_directives import base_registry
+
     assert_supported_markus_version(markusmd.__version__)
+    if registry is None:
+        registry = base_registry()
     fragment = markusmd.convert(
         text, registry=registry, allow_html=False, include_css=False, full_document=False, theme=theme
     )

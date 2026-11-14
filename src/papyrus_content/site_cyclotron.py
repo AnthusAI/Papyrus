@@ -25,7 +25,9 @@ SECTION_FIT_POSITIVE_LABEL = "fits"
 SECTION_SELECTOR_CLASSIFIER_PREFIX = "section-selector-"
 SECTION_FIT_CLASSIFIER_PREFIX = "section-fit-"
 SECTION_SELECTOR_QUESTION = "Which newsroom Section is the best home for this candidate source?"
-SITE_CYCLOTRON_FIELDS = {"cyclotronId", "enabled", "maxDecisionsPerDay", "approvedProofPath", "store"}
+SITE_CYCLOTRON_FIELDS = {"cyclotronId", "enabled", "maxDecisionsPerDay", "approvedProofPath", "store", "autoSection"}
+AUTO_SECTION_KEYS = ("enabled", "precision", "proofPath")
+DEFAULT_AUTO_SECTION_PRECISION = 0.9
 
 
 def normalize_site_cyclotron_config(raw: Any, relevance_block: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -63,9 +65,33 @@ def normalize_site_cyclotron_config(raw: Any, relevance_block: Mapping[str, Any]
         "enabled": enabled,
         "maxDecisionsPerDay": maximum_per_day,
         "approvedProofPath": approved_proof_path,
+        "autoSection": normalize_auto_section_policy(raw.get("autoSection")),
         "store": {"localPath": _string(store.get("localPath", f"var/cyclotrons/{cyclotron_id}"), f"{FIELD}.store.localPath"),
                   "s3Prefix": s3_prefix},
     }
+
+
+def normalize_auto_section_policy(raw: Any) -> dict[str, Any]:
+    """The ``siteCyclotron.autoSection`` policy (docs/reference-auto-section.md). Absent means on, with the default target precision and no proof:
+    with no approved Section proof there is no learned threshold, so nothing is set until one is named."""
+    path = f"{FIELD}.autoSection"
+    if raw is None:
+        return {"enabled": True, "precision": DEFAULT_AUTO_SECTION_PRECISION, "proofPath": None}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must be an object.")
+    unknown = sorted(set(raw) - set(AUTO_SECTION_KEYS))
+    if unknown:
+        raise ValueError(f"{path} has unknown fields: {', '.join(unknown)}.")
+    enabled = raw.get("enabled", True)
+    if type(enabled) is not bool:
+        raise ValueError(f"{path}.enabled must be true or false.")
+    precision = raw.get("precision", DEFAULT_AUTO_SECTION_PRECISION)
+    if type(precision) not in (int, float) or not 0 < precision < 1:
+        raise ValueError(f"{path}.precision must be a number above 0 and below 1.")
+    proof_path = raw.get("proofPath")
+    if proof_path is not None and (not isinstance(proof_path, str) or not proof_path.strip()):
+        raise ValueError(f"{path}.proofPath must be a file path.")
+    return {"enabled": enabled, "precision": float(precision), "proofPath": proof_path.strip() if proof_path else None}
 
 
 def tenant_site_cyclotron_steering(steering_config: Mapping[str, Any], tenant_id: str | None) -> Mapping[str, Any]:

@@ -11,6 +11,23 @@ const editors = ["editor", "admin"];
  * `actorKind` may declare the caller an agent, which can only make the call stricter.
  */
 export const imageServiceSchemaDefinitions = {
+  /**
+   * The same door for guidelines (writing, image, video, any registered kind; docs/plans/guidelines-as-data.md). `guidelinesRead` runs an operation that
+   * only reads, `guidelinesWrite` one that saves. Both admit editors and admins at the door; the function lets only an admin save, and only a person change
+   * a binding constraint. Same arguments, same caller rules, same function and data source as the image fields.
+   */
+  guidelinesRead: a
+    .query()
+    .arguments({ op: a.string().required(), input: a.json(), actorKind: a.string() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("imageService", imageService)),
+  guidelinesWrite: a
+    .mutation()
+    .arguments({ op: a.string().required(), input: a.json(), requestId: a.id().required(), actorKind: a.string() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("imageService", imageService)),
   imageRead: a
     .query()
     .arguments({ op: a.string().required(), input: a.json(), actorKind: a.string() })

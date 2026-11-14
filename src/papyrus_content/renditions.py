@@ -26,6 +26,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
 from .markus_renderer.images import (
+    _SUFFIX_FOR_FORMAT,
     PASSTHROUGH_SUFFIXES,
     RASTER_SUFFIXES,
     ImageBuilder,
@@ -389,6 +390,33 @@ def make_directory_renditions(settings: RenditionSettings, store: RenditionStore
         make_renditions(settings, store, source, data)
         made.append(source)
     return made
+
+
+def picture_href(record: dict, source: str, pipeline: ImagePipeline) -> str | None:
+    """The site-relative file a page's ``<img src>`` shows for a picture: the one the article page itself uses.
+
+    The article page's ``<img>`` is the original format's rendition at the pipeline's fallback width (a legacy record), the fallback
+    format's rendition at the display width (a gatsby record), or the file itself (a passthrough one). A card draws that same file, so
+    it never depends on the original upload (``media.originals``) being in the site store. None when the record holds no such file."""
+    kind = record.get("kind")
+    if kind == "passthrough":
+        return record.get("href")
+    renditions = record.get("renditions") or []
+    if kind == "gatsby":
+        group = [item for item in renditions if item["format"] == record.get("fallbackFormat")]
+        chosen = next((item for item in group if item["width"] == record.get("displayWidth")), group[-1] if group else None)
+        return chosen["href"] if chosen else None
+    suffix = PurePosixPath(source).suffix.lower()
+    suffix = ".jpg" if suffix == ".jpeg" else suffix
+    by_format: dict[str, list[dict]] = {}
+    for item in renditions:
+        by_format.setdefault(item["format"], []).append(item)
+    original = next((fmt for fmt in by_format if _SUFFIX_FOR_FORMAT.get(fmt) == suffix), None) or (list(by_format)[-1] if by_format else None)
+    if original is None:
+        return None
+    pool = sorted(by_format[original], key=lambda item: item["width"])
+    chosen = next((item for item in reversed(pool) if item["width"] <= pipeline.fallback_width), pool[0])
+    return chosen["href"]
 
 
 class RenditionCatalog:

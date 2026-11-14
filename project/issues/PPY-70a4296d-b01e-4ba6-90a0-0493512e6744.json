@@ -1,0 +1,68 @@
+{
+  "id": "PPY-70a4296d-b01e-4ba6-90a0-0493512e6744",
+  "title": "Provisioning workflow: a paid entitlement creates the tenant, idempotently",
+  "description": "Outcome: Implements PPY-8bb56d. When Prospectus says an Account holds a paid shared-tier site (the event or route named by PPY-6d9a6d), one workflow, keyed by a replay id, creates: the Tenant row (state active), the first TenantMembership (the buyer as admin), the TenantDomain for the chosen subdomain and its KVS entry, the default SiteDocuments from the starter template (PPY-3aa10f), the tenant's NewsroomSections, its canonical KnowledgeCorpus (\"<tenant>.canonical\"), its Cyclotron id (\"<cyclotronId>-<tenant>\", docs/multi-tenancy.md \"Site cyclotron\"), zeroed usage counters, and queues the first full projection. Each step is idempotent; a failure resumes from the last finished step. Payment comes first: no tenant exists before it.\n\nData-only trigger (Ryan, 2026-11-08; Prospectus kanbus-271b4a): the trigger is a Prospectus deployment record for product papyrus, created by an operator for the partner and by self-serve checkout from M8; the design partner's three deployments at M7 are its first production runs, delivered as a deployment.changed event (asked on PPY-966ef5) with a reconcile sweep over deployments changed since a cursor as the backstop. The workflow never trusts the event body: it re-reads the deployment and the Account's entitlement and billing standing from Prospectus. Idempotency key: deployment id plus revision. Nothing in it edits a file, deploys, changes the Cognito callback list or issues a certificate. The first scenario is renamed from \"A paid sign-up creates one tenant even when the event repeats\" to \"A deployment record creates one tenant even when the event repeats\".\n\nTouches (verified at origin/develop 23fabe1d): new amplify/functions/tenant-provisioning/ (a Step Functions state machine or a resumable Lambda), src/papyrus_content/tenancy.py, the Prospectus events consumer (amplify/plugins/prospectus-events/, as specified in PPY-a1e75a part C).\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature):\nScenario: A deployment record creates one tenant even when the event repeats\n    Given Prospectus sends the deployment.changed event for \"harbour-news\" twice\n    When provisioning runs\n    Then one Tenant, one admin membership and one subdomain exist and the first projection was queued once\n\nScenario: A half-finished provisioning resumes\n    Given provisioning stopped after creating the sections\n    When the event is delivered again\n    Then it continues from the corpus step and finishes\n\nDependencies: blocked by PPY-6d9a6d, PPY-31c45c, PPY-c020ce, PPY-3aa10f, PPY-82de58, PPY-0bb0fd. Blocks PPY-810f42. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-8bb56d, PPY-e54eca.\n\nTesting: Behave with a fake Prospectus event source; staging end to end.\nRollout: Staging first; production for internal test tenants, then the design partner's three deployments at M7; self-serve from M8.\nRisk and mitigation: Risk: a tenant is created without payment through a replayed or forged event. Mitigation: the consumer verifies the event's signature or source and re-reads the entitlement from Prospectus before creating.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged (runs with the platform provisioning role).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-31c45ce2-7681-453e-a4e1-22bccdbf9ad2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-c020ce4b-3eb9-4046-9bc3-d1f0555a0bb7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3aa10fde-ea1d-437c-b0f5-6fb8e38630b0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-82de5876-dc01-4894-b1d7-fb7a90c188da",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8bb56db6-1771-4c5d-aa84-f20c3a211256",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-966ef544-07bb-4129-91e5-36fe9e681c95",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "0a164cf6-e6e6-44b0-9e27-5eaf472358b3",
+      "author": "home",
+      "text": "Owner decision A (2026-11-08): provisioning must be a data change only. Now blocked by PPY-966ef5 (Prospectus deployment created by API, no file entry, no deploy); its controls are reviewed in PPY-1da916.",
+      "created_at": "2026-11-08T21:19:02.438614Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T18:46:22.081743Z",
+  "updated_at": "2026-11-09T00:29:55.409809Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

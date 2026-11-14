@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "1d69b5aa-e799-4dc6-b9de-acbd1951aa30",
+  "issue_id": "PPY-2f1bb2af-3dfd-4518-9505-ffa97b85681b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:10.679Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Tenant ownership statement in strong plain language",
+    "description": "What: \"You own 100% of your content and everything you put in. Our code is open. What we sell is running it and improving it constantly.\" Appears in the terms, the docs and p.apyr.us, with how to export everything and what happens on cancellation. No legal jargon.\nAcceptance:\nScenario: The statement is on all three\n  Given the terms, the docs and p.apyr.us\n  Then each carries the ownership statement and the export instructions",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-02227e22-29ee-45dd-93aa-1e2bfc1b1b49",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

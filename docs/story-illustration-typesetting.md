@@ -4,7 +4,7 @@ The two stages between copywriting and publication. This page says what each sta
 
 ## What exists
 
-Both are values of `Item.stage` (`illustration`, then `typesetting`, then `published`) and both are columns on the stories board. In [the Story procedure](story-procedure.md) each is a step marked "not built, optional". `papyrus stories next` reports them as `unknown` and never lists them as skipped, and the context pack says "(not built)" next to them. Nothing checks that either stage was done before a Story is published; publishing is the only hard gate.
+Both are values of `Item.stage` (`illustration`, then `typesetting`, then `published`) and both are columns on the stories board. In [the Story procedure](story-procedure.md) typesetting is a step marked "not built, optional": `papyrus stories next` reports it as `unknown`, never lists it as skipped, and the context pack says "(not built)" next to it. Illustration is a live step (template version 5): required for the Story types that need a cover, closed by an approved cover or by a person's recorded exception, and checked when a Story publishes ([The Illustration step](story-procedure.md#the-illustration-step)). The illustration and typesetting stages themselves are still places an editor moves a Story to by hand.
 
 Nothing moves a Story into either stage by itself, and no agent or procedure works in them. An editor places a Story there by hand.
 
@@ -12,10 +12,11 @@ Nothing moves a Story into either stage by itself, and no agent or procedure wor
 
 **What it should produce.** (Intent only.) The pictures a Story needs: a hero or inline image, diagram or chart, each with alt text and a credit, stored as `MediaAsset` rows and referenced from the Markus body. Where a Story was made from a Reference, a post carries the Reference's preview image as a remote, credited address; the illustration stage is the place to replace it or host a licensed copy ([reference-curation-pipeline.md](reference-curation-pipeline.md)).
 
-**Who does it.** An editor, by hand. There is no illustration agent and no image generation in the repository.
+**Who does it.** An editor, by hand, or an agent following the [figures skill](../.agents/skills/figures/SKILL.md) for a diagram, chart or illustration ([figures.md](figures.md)); a person approves each figure. There is no image generation in the repository.
 
 **What the CLI can do today.**
 
+- Draw a figure: `papyrus figures render FOLDER --design-system DIR` writes a light and a dark picture from one SVG source and checks both; `papyrus figures directive FOLDER` prints the `::image{}` line. See [figures.md](figures.md).
 - Move the Story: `papyrus stories move --story LINEAGE --stage illustration [--reason "why"]`, or `stories save-version ... --stage illustration`.
 - Save pictures with a draft: `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures` uploads each local picture the text uses, with an optional dark version, exactly as the editor's "Insert image" does ([saving a draft with its pictures](story-reporting.md#saving-a-draft-with-its-pictures)). This is the same command at any stage; it is not specific to illustration.
 - In the newsroom editor, "Insert image" does the same by hand.
@@ -31,7 +32,7 @@ Nothing moves a Story into either stage by itself, and no agent or procedure wor
 
 **What it should produce.** (Intent only; the editor review's plan fields name tables on phones, figures and pull-outs.) The reader-facing form of the copy: tables that work on a phone, figures placed, pull-outs chosen, so the Markus body renders as the editor intends before publication.
 
-**Who does it.** An editor, by hand, in the newsroom editor. Publishing follows: `papyrus ops content publish --id ITEM_ID`, which is what makes a Story live; moving a Story to `published` does not.
+**Who does it.** An editor, by hand, in the newsroom editor, or an agent trusted with a whole article under the [editorial improvement skill](../.agents/skills/editorial-improvement/SKILL.md), which places pull quotes, two-column comparisons, notes and figures, publishes and checks the live page. Publishing follows: `papyrus ops content publish --id ITEM_ID`, which is what makes a Story live; moving a Story to `published` does not.
 
 **What the CLI can do today.**
 

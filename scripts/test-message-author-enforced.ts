@@ -195,7 +195,7 @@ test("the browser writes only through postMessage: no author, no timestamps, on 
   assert.doesNotMatch(forum, /createMessage\(input/, "no createMessage from the news desk client");
   assert.doesNotMatch(forum, /authorSub: author\.sub/, "and no author named");
   const chat = read("lib/console-chat-client.ts");
-  assert.match(chat, /postMessageMutation\(args, selectionSet\)/, "console chat user turns");
+  assert.match(chat, /postMessageMutation\(args, CONSOLE_MESSAGE_FIELDS\)/, "console chat user turns");
   assert.doesNotMatch(chat, /createMessage\(input/, "no createMessage from the console chat client");
   assert.doesNotMatch(chat, /authorSub:/, "and no author named");
 });

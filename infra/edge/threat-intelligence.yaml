@@ -1,6 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: papyrus-edge-threat-intelligence CloudFront distributions for threat-intelligence.anth.us. The main distribution serves the S3 projection bucket by default (OAC) and sends /newsroom*, /_next/*, /api/* and /cyclotron* to the Amplify CMS app. Staging stays on Amplify.
 Parameters:
+  CostDeployment:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}$"
+    Description: >-
+      The site ID, tagged as anthus:deployment. Resources are tagged account "owner": Prospectus charges whichever Account
+      holds the papyrus-<site> entitlement (Prospectus docs/COST_ACCOUNTING.md).
   CertificateArn:
     Type: String
   SiteBucketRegionalDomainName:
@@ -204,6 +210,11 @@ Resources:
   NotFoundPageRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -216,6 +227,11 @@ Resources:
   NotFoundPageFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       Description: Origin-response function of the default behavior only. Turns an S3 miss (403 or 404) into the site's own 404.html with status 404.
       Runtime: nodejs22.x
       Handler: index.handler
@@ -288,6 +304,11 @@ Resources:
   CmsMainDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       DistributionConfig:
         Enabled: true
         Comment: threat-intelligence.anth.us (main)
@@ -397,6 +418,11 @@ Resources:
   CmsStagingDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      Tags:
+        - { Key: "anthus:account", Value: owner }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:deployment", Value: !Ref CostDeployment }
+        - { Key: "anthus:cost-key", Value: !Sub "owner/papyrus/${CostDeployment}" }
       DistributionConfig:
         Enabled: true
         Comment: threat-intelligence-staging.anth.us (staging)

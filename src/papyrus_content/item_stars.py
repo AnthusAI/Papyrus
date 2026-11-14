@@ -32,6 +32,34 @@ def item_stars(item: Mapping[str, Any] | None) -> int | None:
     return int(value)
 
 
+UNRATED_SOURCE = "none"
+EDITOR_SOURCE = "editor"
+
+
+def aggregate_rating(item: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """SEAM for a rating that is an aggregation of votes: ``{"stars": 1-5, "source": "<name>", "votes": N}``, or None.
+
+    Nothing in the data model aggregates votes onto a Story today (Cyclotron votes and reader votes exist only on References), so this returns None and
+    ``effective_rating`` falls back to the editor's value. When an aggregate exists, read it here and nowhere else.
+    """
+    return None
+
+
+def effective_rating(item: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The quality rating a listing ranks by: ``{"stars": 0-5, "source": "editor" | "<aggregate>" | "none", "votes": N}``; 0 stars means unrated.
+
+    Today it is the editor's ``starRating`` (source ``editor``, one vote). Every reader of a Story's quality (``stories list``, ``stories show``, the MCP tools)
+    goes through this one function, so an aggregate (``aggregate_rating``) changes them all together.
+    """
+    aggregate = aggregate_rating(item)
+    if aggregate:
+        return {"stars": int(aggregate["stars"]), "source": str(aggregate["source"]), "votes": int(aggregate["votes"])}
+    stars = item_stars(item)
+    if stars is None:
+        return {"stars": 0, "source": UNRATED_SOURCE, "votes": 0}
+    return {"stars": stars, "source": EDITOR_SOURCE, "votes": 1}
+
+
 def assert_no_item_stars(record: Mapping[str, Any]) -> None:
     """Raises when a row bound for public output carries a rating: stars change order in the newsroom and are never published."""
     leaked = [name for name in ITEM_STAR_FIELDS if name in record]

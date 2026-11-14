@@ -1,0 +1,25 @@
+{
+  "id": "PPY-df65d3b7-7d99-43b9-ac82-f7a9d5d98ce9",
+  "title": "Spikes before freezing the multilingual design",
+  "description": "As the planner of multilingual publishing, I want cheap experiments to answer the questions that decide the design, so we freeze the version model, alignment, edge redirect and budget on evidence rather than guesses.\n\nPlan: docs/plans/multilingual-publishing.md (PR #1450), section 'Spikes before the design is frozen'. No live publishing, nothing made by hand in the cloud; any deployed experiment goes through the pipeline to a sandbox or preview stack.\n\nAcceptance: each child task records its measurements and a recommendation as a comment on this epic, and the plan document is updated where the evidence changes it.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-12T15:37:55.150944Z",
+  "updated_at": "2026-11-12T15:39:04.774496Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Opus 5.5",
+    "name": "multilingual planner"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

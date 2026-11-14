@@ -10,6 +10,7 @@ import { conceptSlug, editorConceptItem, editorConceptLineageId } from "../lib/r
 import { createLinkResolver } from "../lib/reference-links-resolve";
 import { conceptKeysForHashtag } from "../lib/wiki";
 import type { ReferenceLinksStore, SuggestOutcome } from "./reference-links-context";
+import { REFERENCE_LINK_FEED_KEY, globalKey } from "../lib/tenant-knowledge-keys";
 import {
   LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY, LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
   loadNewsroomReferencePage, loadNewsroomSemanticNodePage, loadReferenceRecordByLineageId, loadSemanticNodeByLineageId, loadSemanticRelationsByState, runGraphql,
@@ -37,7 +38,6 @@ const SUGGESTED_LINKS_QUERY = `
   }
 `;
 /** The feed key every reference-link row is written under (amplify/functions/category-action/reference-links.ts). */
-const REFERENCE_LINK_FEED_KEY = "reference-links";
 /** How many open suggestions one page of the queue aims for. The filter runs after DynamoDB reads a page, so a page reads on until it has this many or the feed ends. */
 const SUGGESTION_PAGE_SIZE = 50;
 const SUGGESTION_READ_LIMIT = 200;
@@ -82,7 +82,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
       let next = cursor;
       do {
         const data = await runGraphql<{ listSemanticRelationsByNewsroomFeedAndCreatedAt?: { items?: Array<SuggestionRow | null>; nextToken?: string | null } }>(SUGGESTED_LINKS_QUERY, {
-          newsroomFeedKey: REFERENCE_LINK_FEED_KEY, sortDirection: "DESC", limit: SUGGESTION_READ_LIMIT, nextToken: next, filter: { relationState: { eq: "suggested" } },
+          newsroomFeedKey: globalKey(REFERENCE_LINK_FEED_KEY), sortDirection: "DESC", limit: SUGGESTION_READ_LIMIT, nextToken: next, filter: { relationState: { eq: "suggested" } },
         });
         const connection = data.listSemanticRelationsByNewsroomFeedAndCreatedAt;
         rows.push(...(connection?.items ?? []).filter((row): row is SuggestionRow => Boolean(row)));
@@ -94,7 +94,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
     },
     async listForReference(referenceLineageId) {
       const relations = (await relationsAround("reference", referenceLineageId, "both")) as RelationRow[];
-      const candidates = relations.filter(row => row.predicate === "related_to");
+      const candidates = relations.filter(row => row.predicate === "related_to" || (row.predicate === "tagged_with" && row.objectKind === "semanticNode"));
       const conceptIds: string[] = [];
       const referenceIds: string[] = [];
       for (const row of candidates) {
@@ -112,7 +112,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
       const entries: RelatedEntry[] = [];
       for (const found of linked) {
         const item = resolve("reference", found.lineageId);
-        if (item) entries.push({ relationId: found.relationId, state: "current", provenance: "human", predicate: "related_to", direction: "incoming", item, similarity: null, label: null, explanation: found.explanation });
+        if (item) entries.push({ relationId: found.relationId, state: "current", provenance: "human", predicate: "tagged_with", direction: "incoming", item, similarity: null, label: null, explanation: found.explanation });
       }
       return entries;
     },
@@ -149,7 +149,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
       if (!slug) throw new Error("A concept needs a name.");
       const lineageId = editorConceptLineageId(slug);
       const data = await runGraphql<{ createReferenceLink?: { ok: boolean; relationId: string } }>(CREATE_CONCEPT_AND_LINK_MUTATION, {
-        subjectLineageId: referenceLineageId, objectKind: "semanticNode", objectLineageId: lineageId, predicate: "related_to", newConceptName: slug,
+        subjectLineageId: referenceLineageId, objectKind: "semanticNode", objectLineageId: lineageId, predicate: "tagged_with", newConceptName: slug,
       });
       if (!data.createReferenceLink?.ok) throw new Error("The concept could not be created.");
       return { relationId: data.createReferenceLink.relationId, item: editorConceptItem(slug) };

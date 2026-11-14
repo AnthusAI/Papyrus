@@ -130,3 +130,19 @@ Feature: Published Stories rank by recency bucket and then by the editors' priva
     Given a rating store that refuses every write
     When a Story rated four stars is looked up for the first time
     Then the listing still has its four stars, and the next render reads it again
+
+  Scenario: A hook that draws its own listing asks the page for the ranking
+    A site's hooks module builds some pages itself (Machines on Machines draws /articles/ and /posts/ in its own sections). Those hooks call
+    page.ranked(entries) and get the same order the home page and the generated listings use, instead of the plain newest-first page.entries.
+    Given a site whose hook page lists the Stories through page.ranked
+    Then the hook page lists the Stories newest first
+    Given the editors rated "three" 5 stars
+    When the site is projected again
+    Then the hook page starts with three, eight
+
+  Scenario: A rating that moves the order re-renders the hook page that ranks
+    Given a site whose hook page lists the Stories through page.ranked
+    And the site has been projected
+    When an editor rates "three" 5 stars and the story-stars task runs
+    Then the page "hooked/index.html" was rewritten
+    And the hook page starts with three, eight

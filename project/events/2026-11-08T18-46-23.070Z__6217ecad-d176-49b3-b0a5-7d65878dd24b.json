@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "6217ecad-d176-49b3-b0a5-7d65878dd24b",
+  "issue_id": "PPY-889ab50e-2a12-4081-9382-34aec0b5f565",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:23.070Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Model spend is checked before and recorded after every call, with a hard ceiling per tenant",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

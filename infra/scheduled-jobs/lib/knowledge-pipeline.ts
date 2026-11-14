@@ -2,6 +2,7 @@ import { CfnParameter, Stack, StackProps, Tags } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3assets from "aws-cdk-lib/aws-s3-assets";
 import { Construct } from "constructs";
+import { siteCostTags } from "../../amplify-app-shell/lib/cost-attribution";
 import { KNOWLEDGE_STAGE_NAMES, DEFAULT_STAGE_TIMEOUT_SECONDS, type KnowledgeRunConfig } from "./knowledge-run-config";
 import { PROJECTION_LOCK_PARAMETER_NAME, PROJECTION_LOCK_TABLE_NAME } from "./projection-lock-stack";
 import { ScheduledContainerJob, type PipelineDefinition } from "./scheduled-container-job";
@@ -222,6 +223,8 @@ export class KnowledgeRunStack extends Stack {
     });
     Tags.of(this).add("Project", "Papyrus");
     Tags.of(this).add("Publication", config.publication);
+    // The knowledge run serves one site (its publication is the site ID): its owner Account pays for it.
+    for (const [key, value] of Object.entries(siteCostTags(config.publication))) Tags.of(this).add(key, value);
 
     // Off by default. The three values are parameters so that enabling the step is a change set, not a code change.
     const trendDrafts = {

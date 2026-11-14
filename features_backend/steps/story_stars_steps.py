@@ -111,7 +111,7 @@ def _leak(context) -> None:
     item = {**newest(context.client), "bodyIr": {"papyrus": {"images": {}}}}
     context.error = None
     try:
-        row, _media = project_item_to_published(item, [], published_at=NOW, version_number=1)
+        row, _media = project_item_to_published(item, [], published_at=NOW, version_published_at=NOW, version_published_by="behave", version_number=1)
         assert_no_item_stars({**row, "starRating": 4})
     except AssertionError as error:
         context.error = error

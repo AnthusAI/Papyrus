@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "f466c98d-09ae-4e77-b0f1-394ee34b6118",
+  "issue_id": "PPY-3b3cc320-6ca0-4fd7-adc4-3be1a2b5f201",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:43.593Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Answer with a throwaway stack: which serving shape do we build for many tenants? Option 1: one standard distribution, a viewer-request CloudFront Function that maps the Host header to a tenant prefix through a KeyValueStore (the edge already uses a KeyValueStore for redirects), a wildcard certificate for default subdomains and one ACM certificate per custom domain. Option 2: CloudFront's multi-tenant distribution with one distribution tenant per site (AWS's SaaS feature; not checked against current AWS documentation). Questions, each answered with evidence: (1) does an invalidation path match the path the reader asked for or the rewritten path, i.e. can one tenant's purge be limited to that tenant? (2) how are custom-domain certificates issued and renewed, and what are the quotas (domains per distribution, certificates per account, KeyValueStore size)? (3) per-tenant request and byte metrics or logs for metering? (4) list price per tenant per month at 0, 10,000 and 1,000,000 requests? (5) can each tenant get its own redirects and 404 page? Recommendation recorded with the numbers.\n\nTouches (verified at origin/develop 23fabe1d): A throwaway CDK stack in a personal sandbox account; reads amplify/publication/redirect-and-index.js, redirect-rules.ts, markdown-content-type.js and src/papyrus_content/edge_invalidation.py to reuse the current edge logic.\n\nAcceptance (Gherkin feature file: features_backend/shared-edge-spike.feature):\nScenario: Purging one tenant's page leaves another tenant's copy cached\n    Given tenants \"alpha\" and \"beta\" both have a page at \"/about/\" cached at the edge\n    When \"alpha\" purges \"/about/\"\n    Then the next request to beta's \"/about/\" is a cache hit\n\nDependencies: blocked by nothing. Blocks PPY-3bbbf9, PPY-966722, PPY-ca247b. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Measured with curl and x-cache headers against the throwaway stack.\nRollout: None: nothing ships.\nRisk and mitigation: Risk: choosing option 1 and finding later that invalidations cannot be limited per tenant. Mitigation: question 1 is answered first; if invalidations cannot be scoped, freshness for the shared tier is TTL-only plus versioned keys.\n\nReleasable on its own: not applicable (spike).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

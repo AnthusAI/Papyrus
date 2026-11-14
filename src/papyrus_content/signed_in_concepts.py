@@ -44,7 +44,7 @@ CREATE_CONCEPT_LINK_MUTATION = (
 APPLY_KNOWLEDGE_REVIEW_MUTATION = (
     "mutation ApplyKnowledgeReview($patches: AWSJSON!) { applyKnowledgeReview(patches: $patches) { ok applied origin } }"
 )
-REFERENCE_LINK_PREDICATES = ("related_to", "cites", "supports", "contradicts")
+REFERENCE_LINK_PREDICATES = ("related_to", "cites", "supports", "contradicts", "tagged_with")   # tagged_with: only to a concept
 PATCHES_PER_CALL = 200
 
 
@@ -132,7 +132,7 @@ REFERENCES_LINK_USAGE = (
     "                        [--note TEXT] [--dry-run]\n"
     "  Links a Reference to another Reference or to a concept, as the Related section does, with the words that say why. REF is a Reference id or lineage id.\n"
     "  NAME is a concept's name, alias, #hashtag or node key; with --create an unknown name makes a concept (the capitals you type are kept). A concept is\n"
-    "  linked with related_to only. Writes unless --dry-run; the site records that the link was made from the CLI."
+    "  tagged with tagged_with (related_to is accepted for it and means the same). Writes unless --dry-run; the site records that the link was made from the CLI."
 )
 KNOWLEDGE_ENTITIES_LINK_USAGE = (
     "papyrus knowledge entities link --key CONCEPT --to CONCEPT --note TEXT [--dry-run]\n"
@@ -165,13 +165,16 @@ def references_link(flags: list[str], *, client: Any = None) -> None:
 
         client = create_authoring_client()[0]
     if other_reference:
+        if predicate == "tagged_with":
+            raise ValueError("tagged_with tags a Reference with a concept; between two References use related_to, cites, supports or contradicts.")
         print(f"references\tlink\t{reference}\t{predicate}\t{other_reference}\t{mode}")
         if apply:
             answer = create_reference_link(client, reference=reference, object_kind="reference", object_id=other_reference, predicate=predicate, note=note)
             print(f"references\tlink\t{answer.get('outcome')}\t{answer.get('relationId')}")
         return
-    if predicate != "related_to":
-        raise ValueError("A concept is linked with related_to.")
+    if predicate not in ("related_to", "tagged_with"):
+        raise ValueError("A Reference is tagged with a concept with tagged_with (related_to is accepted and means the same).")
+    predicate = "tagged_with"
     nodes = current_concept_nodes(client)
     node = resolve_concept(nodes, concept)
     created = False
@@ -193,7 +196,7 @@ def references_link(flags: list[str], *, client: Any = None) -> None:
     if created:
         made = create_editor_concept(client, concept, normalize_string(options.get("display-name")))
         lineage = str(made.get("lineageId") or lineage)
-    answer = create_reference_link(client, reference=reference, object_kind="semanticNode", object_id=lineage, predicate="related_to", note=note)
+    answer = create_reference_link(client, reference=reference, object_kind="semanticNode", object_id=lineage, predicate=predicate, note=note)
     print(f"references\tlink\t{answer.get('outcome')}\t{answer.get('relationId')}")
 
 

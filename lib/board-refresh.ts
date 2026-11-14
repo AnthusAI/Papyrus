@@ -88,17 +88,24 @@ export function newestUpdatedAt(versions: readonly ContentItemVersionRecord[]): 
  * Merge rows that changed since the last refresh into the stage buckets. A changed row replaces the copy with the same id, and also
  * leaves any other stage's bucket that still holds it (its stage changed). Pages already loaded, and their tokens, are kept.
  * A row that was deleted cannot be seen this way; a reload shows it gone.
+ *
+ * With `oneRowPerLineage` (the board reads the head stage index, where a story has one row) a changed row stands for its whole story: every
+ * loaded row of the same lineage leaves, whatever its id, so a story saved as a new version in another stage shows once, in its new stage.
  */
 export function applyChangedVersions(
   buckets: Record<string, VersionBucket>,
   changedByStage: Record<string, ContentItemVersionRecord[]>,
+  options: { oneRowPerLineage?: boolean } = {},
 ): Record<string, VersionBucket> {
-  const changedIds = new Set(Object.values(changedByStage).flatMap(rows => rows.map(row => row.id)));
-  if (!changedIds.size) return buckets;
+  const changedRows = Object.values(changedByStage).flat();
+  if (!changedRows.length) return buckets;
+  const changedIds = new Set(changedRows.map(row => row.id));
+  const changedLineages = new Set(options.oneRowPerLineage ? changedRows.map(row => row.lineageId) : []);
+  const isReplaced = (version: ContentItemVersionRecord) => changedIds.has(version.id) || changedLineages.has(version.lineageId);
   const next: Record<string, VersionBucket> = {};
   for (const [stageKey, bucket] of Object.entries(buckets)) {
-    next[stageKey] = bucket.versions.some(version => changedIds.has(version.id))
-      ? { ...bucket, versions: bucket.versions.filter(version => !changedIds.has(version.id)) } : bucket;
+    next[stageKey] = bucket.versions.some(isReplaced)
+      ? { ...bucket, versions: bucket.versions.filter(version => !isReplaced(version)) } : bucket;
   }
   for (const [stageKey, rows] of Object.entries(changedByStage)) {
     if (!rows.length) continue;

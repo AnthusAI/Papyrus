@@ -17,8 +17,10 @@ corpora/*
 !corpora/papyrus-semantic-relation-types.yml
 !corpora/papyrus-lexical-steering.yml
 !corpora/example-newsroom-sections.yml
+!corpora/threat-intelligence-newsroom-sections.yml
 !corpora/papyrus-public-topics.yml
 !corpora/example-publication-doctrine.yml
+!corpora/threat-intelligence-publication-doctrine.yml
 !corpora/papyrus-required-procedures.json
 !corpora/pilobol-us-steering.yml
 !corpora/pilobol-us-analysis-profiles.yml

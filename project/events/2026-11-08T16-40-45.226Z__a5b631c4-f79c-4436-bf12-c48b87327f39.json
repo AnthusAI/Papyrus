@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "a5b631c4-f79c-4436-bf12-c48b87327f39",
+  "issue_id": "PPY-2745c198-31e0-4400-a320-7b4d5ccbec6f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T16:40:45.226Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Publish invalidates exactly the pages it rewrote, in both URL forms, when invalidation is set to targeted",
+    "description": "Today publication.cache.invalidation is off or on for everything. Add a targeted mode that invalidates only the paths a single story publish rewrote (the story page and twin, the index and section pages that list it), with both /dir/ and /dir/index.html forms. Check that invalidation_paths_for is the code on the publish path and that the deployed Lambda includes it. A deploy never invalidates in targeted mode. The publish result reports three outcomes separately: pages written, projection, and invalidation (ok, failed with reason, or skipped by config); an invalidation failure must not look like a failed write. Default stays eventually consistent at one hour until a site opts in. Gherkin plus a unit test over the path list; document the cost (a typical publish touches under 10 paths).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+    "labels": [
+      "static-projection"
+    ]
+  }
+}

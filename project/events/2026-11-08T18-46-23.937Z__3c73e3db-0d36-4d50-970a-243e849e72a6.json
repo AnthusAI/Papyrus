@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "3c73e3db-0d36-4d50-970a-243e849e72a6",
+  "issue_id": "PPY-4135762a-5ff9-4015-9858-3304d316e47e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:23.937Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "On the shared stack the renderer reads the site store at run time and never loads hooks",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

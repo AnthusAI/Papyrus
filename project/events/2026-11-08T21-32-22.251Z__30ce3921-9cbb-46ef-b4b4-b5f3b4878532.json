@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "30ce3921-9cbb-46ef-b4b4-b5f3b4878532",
+  "issue_id": "PPY-46635e53-2ba7-4791-ab0a-47180a1ba82b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:22.251Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Tenancy mode setting: one synth-time switch, 'dedicated' (default) or 'shared'",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

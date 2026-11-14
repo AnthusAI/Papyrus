@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "98fd982b-856b-4560-b72d-38eec3ba96eb",
+  "issue_id": "PPY-91fb6809-4acb-417c-bd12-3d8f06ae7e29",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:24.063Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Live preview of site settings and brand in the newsroom",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

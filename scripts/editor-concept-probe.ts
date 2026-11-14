@@ -13,7 +13,7 @@ const store: ReferenceLinkStore & { updateSemanticNode(node: Record<string, unkn
   putRelation: async (relation) => { relations.set(relation.id as string, relation); },
 };
 async function main() {
-  for (const name of input.names) await createReferenceLink(store, { subjectLineageId: "reference-1", objectKind: "semanticNode", objectLineageId: "x", predicate: "related_to", newConceptName: name, callerSub: "editor-1", now: "2026-11-02T12:00:00Z" });
+  for (const name of input.names) await createReferenceLink(store, { subjectLineageId: "reference-1", objectKind: "semanticNode", objectLineageId: "x", predicate: "tagged_with", newConceptName: name, callerSub: "editor-1", now: "2026-11-02T12:00:00Z" });
   if (input.describe) await describeEditorConcept(store, { lineageId: [...nodes.keys()][0], description: input.describe, callerSub: "editor-2", now: "2026-11-02T13:00:00Z" });
   console.log(JSON.stringify({ nodes: [...nodes.values()], relations: [...relations.values()].map((row) => ({ ...row, metadata: JSON.parse(row.metadata) })) }));
 }

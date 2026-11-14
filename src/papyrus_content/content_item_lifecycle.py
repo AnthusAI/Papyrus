@@ -25,6 +25,12 @@ CONTENT_ITEM_STAGES = (
     "held",
     "spiked",
 )
+#: The stage a Story is in after `papyrus stories retire`: its page is down and its address redirects to another Story. Not a board column; it is the
+#: same value `machine_writes.RETIRED_STAGE` gives an Item whose machine write was undone.
+RETIRED_STAGE = "retired"
+#: The key in a retired Story's head-row `metadata` that says where its address goes: `{"toLineageId", "liveItemId", "at", "by", "previousStage"}`.
+#: Written by `papyrus stories retire`; read by the projection (`PublishedContentSource.retirement`) and by `stories retire --undo`.
+RETIRED_INTO_KEY = "retiredInto"
 LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS = {
     "research": "reporting",
     "report": "reporting",
@@ -54,6 +60,32 @@ def without_sub_tasks(rows):
 
 def is_untyped(item_type: str | None) -> bool:
     return item_type == UNTYPED_ITEM_TYPE
+
+
+#: The sparse attribute only the head row of a lineage carries (docs/plans/story-head-stage-index.md). It equals the row's stage (tenant-prefixed by
+#: the authoring client on a tenant backend), so the index ``listItemsByHeadStageAndUpdatedAt`` holds one row per story. The same rule is
+#: contentItemHeadStageKey in lib/content-item-lifecycle.ts.
+HEAD_STAGE_KEY_FIELD = "headStageKey"
+
+
+def head_stage_key(row: dict[str, Any]) -> str | None:
+    """The head stage key a row should carry: its stage while it is the head of its lineage (any version state but ``superseded``: a story whose
+    only row is a ``draft`` is still on the board), else None. A row with no stage (a sub-task, a doctrine page) is in no stage index."""
+    if row.get("versionState") == "superseded":
+        return None
+    return str(row["stage"]) if row.get("stage") else None
+
+
+def head_stage_fields(row: dict[str, Any], *, head: bool = True) -> dict[str, Any]:
+    """The field to put in the create or update a writer already makes: ``{"headStageKey": stage}`` for the head row, ``{"headStageKey": None}`` for a
+    row being superseded (an update with null removes the attribute, so the row leaves the index). ``row`` is the row as it will be after the write."""
+    return {HEAD_STAGE_KEY_FIELD: head_stage_key(row) if head else None}
+
+
+def with_stage(item: dict[str, Any], stage: str) -> dict[str, Any]:
+    """The row with a new stage and the head stage key that goes with it."""
+    moved = {**item, "stage": stage}
+    return {**moved, **head_stage_fields(moved)}
 
 
 def require_content_item_stage(stage: str) -> str:
@@ -117,6 +149,7 @@ def build_new_content_item_version(
         "pullQuotes": [],
         "layout": None,
         "updatedAt": now,
+        HEAD_STAGE_KEY_FIELD: require_content_item_stage(stage),   # the first row of a lineage is its head
     }
 
 
@@ -180,7 +213,7 @@ def plan_undrafted_backfill_story_demotion(
             and item.get("title") in reporting_titles_by_lineage.get(lineage_id, set())
         )
         if is_unedited_placeholder:
-            changes.append({"modelName": "Item", "current": item, "expected": {**item, "stage": "assignment"}})
+            changes.append({"modelName": "Item", "current": item, "expected": with_stage(item, "assignment")})
     return changes
 
 
@@ -190,7 +223,7 @@ def plan_content_item_stage_migration(*, items: list[dict[str, Any]]) -> list[di
         {
             "modelName": "Item",
             "current": item,
-            "expected": {**item, "stage": LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS[item["stage"]]},
+            "expected": with_stage(item, LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS[item["stage"]]),
         }
         for item in items
         if item.get("stage") in LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS
@@ -217,7 +250,7 @@ def plan_content_item_backfill(
     for item in items:
         if not item.get("stage"):
             changes.append(
-                {"modelName": "Item", "current": item, "expected": {**item, "stage": stage_for_existing_item_without_stage(item)}}
+                {"modelName": "Item", "current": item, "expected": with_stage(item, stage_for_existing_item_without_stage(item))}
             )
 
     drafted_lineage_by_reporting_assignment: dict[str, str] = {}

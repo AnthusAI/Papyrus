@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8c31a3d0-8a45-4a3f-a23c-10374c4f412e",
+  "title": "Citation policy per site and Story type, plus the free sources checklist step",
+  "description": "First slice. Per-site citation policy saved as data (a Story procedure profile doctrine, like the visual style profile; no policy = warn and continue). Free code-only step, runs on every save: every [@key] is a current accepted Reference linked to the Story; citation style follows the policy for the Story type (Machines on Machines: numbered superscripts plus reference list, phrase links only for internal pages; post: one direct source link); links answer; no cited source copied closely. Findings to S3, counts on the checklist. No triggers, no model calls. Design: ~/Projects/knowledge-runs/architecture/story-automation-design-20261108.md",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T16:58:27.939792Z",
+  "updated_at": "2026-11-08T16:58:27.940154Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

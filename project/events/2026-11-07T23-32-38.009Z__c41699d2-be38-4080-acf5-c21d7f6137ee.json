@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "c41699d2-be38-4080-acf5-c21d7f6137ee",
+  "issue_id": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T23:32:38.009Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Remake Threat Intelligence on the standard front end",
+    "description": "Dependencies: Papyrus initiative PPY-25ffa3 (draft board branch board/standard-frontend-plan): the core preset (PPY-cf7e6e), brand pack (PPY-88a883), native tokens (PPY-2a44b2), one ordering rule (PPY-c446fe). Related existing: PPY-332889 and PPY-386123 (TI onto the CMS app shell; separate from the public layout).\nWhat: Threat Intelligence goes first onto the standard publication layout and ends up just like Machines on Machines with a different editorial focus and brand. It runs with no site hooks. It may drop animated pictograms (hard to maintain) and keep still pictograms through the image-style slot (PPY-1f68bf).\nDone when: TI builds and passes the shared Gherkin suite with zero TI Python or CSS beyond the brand pack, no Machines on Machines file changed, and every live URL still resolves.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan",
+      "threat-intelligence"
+    ]
+  }
+}

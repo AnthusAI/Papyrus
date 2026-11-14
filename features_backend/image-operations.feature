@@ -15,7 +15,7 @@ Feature: One table of image operations that every front end is generated from
 
   Scenario: Each front end covers exactly the operations in the table
     Then the command spec, the MCP tool schema, the TypeScript types, the skill block and the docs each list the same operations as the table, in the same order
-    And the table has the 24 operations the design describes
+    And the table has the 25 operations the design describes
     And the generate operation offers a speed of auto, standard or batch
 
   Scenario Outline: The command and the MCP tool give identical JSON for the same request

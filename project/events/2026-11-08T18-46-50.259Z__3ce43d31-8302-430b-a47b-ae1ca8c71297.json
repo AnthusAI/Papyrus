@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "3ce43d31-8302-430b-a47b-ae1ca8c71297",
+  "issue_id": "PPY-cf9039f1-fbd0-4ec0-9aa4-abadba8c51b5",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:50.259Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M7; Stripe live in Prospectus (Prospectus scope).\nExit criteria: Security gate 2 (external review) passed; terms with the ownership statement (PPY-2f1bb2) and acceptable use; PPY-bd73b2 and the p.apyr.us pages (PPY-c7244c) published; one outside tenant live and billed by usage.\nCustomer-visible: Public sign-up on p.apyr.us.\nIndex-adding deploys in this milestone: None.\nContains: PPY-bd73b2, PPY-2f1bb2, PPY-c7244c, PPY-3ff465 (gate 2)\nFollows: M7."
+      }
+    }
+  }
+}

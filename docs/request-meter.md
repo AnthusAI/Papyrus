@@ -4,13 +4,14 @@ AppSync bills per request, and the bad days came from loops that sent one reques
 
 ## What is counted
 
-One count per HTTP attempt to AppSync made through `PapyrusGraphQLAuthoringClient` (a retry is a second request, as AppSync bills it). Each count is tagged with the caller, the model and the GraphQL operation name. TypeScript Lambdas (content-actions, the site backends) are not covered here.
+One count per HTTP attempt to AppSync made through `PapyrusGraphQLAuthoringClient` (a retry is a second request, as AppSync bills it). Each count is tagged with the caller, the model and the GraphQL operation name. TypeScript Lambdas (the site backends) are not covered here; the content-actions function is Python and is covered.
 
 | Process | Caller name | Summary goes to |
 |---|---|---|
 | `papyrus <group> <command>` | `cli:<group> <command>` | one line on stderr |
 | Router Lambda | `lambda:router:<task>` (`lambda:router` with no task) | JSON log line |
 | Procedure runner Lambda | `lambda:procedure-runner:<procedureKey>` | JSON log line |
+| Content-actions Lambda (each site) | `lambda:content-actions:<GraphQL field or projection task>` (`publishItem`, `item`, `item-pages`, `drain`; `all`, `deploy-render` and `page-refresh-rerender` are sweeps) | JSON log line, one per invocation |
 | A stage's own child process | `stage:<procedureKey>` (the runner sets `PAPYRUS_REQUEST_CALLER`) | JSON log line |
 | Any other process that sends a request | `process:<script>` | at exit |
 

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "a98d208a-26e9-495e-a8ae-66ef9fea3a01",
+  "issue_id": "PPY-6cb791aa-03c1-4804-9626-35a9707148dc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:26.769Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M3 Isolation enforced on the staging shared stack",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

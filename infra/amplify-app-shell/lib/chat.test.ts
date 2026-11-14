@@ -131,6 +131,12 @@ assert.throws(() => new PapyrusChatStack(new App(), { config: parseSiteConfig(ex
   const normalize = (resource: any) => {
     const copy = JSON.parse(JSON.stringify(resource));
     delete copy.Metadata;
+    // The cost tags (an in-place update, never a replacement) were added after the candidate was reviewed.
+    const tags = copy.Properties?.Tags;
+    if (Array.isArray(tags)) {
+      copy.Properties.Tags = tags.filter((tag: any) => !String(tag.Key).startsWith("anthus:"));
+      if (copy.Properties.Tags.length === 0) delete copy.Properties.Tags;
+    }
     const statements = copy.Properties?.PolicyDocument?.Statement;
     if (statements) copy.Properties.PolicyDocument.Statement = [...statements].sort((a: any, b: any) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
     return copy;

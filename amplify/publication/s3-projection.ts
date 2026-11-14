@@ -185,7 +185,7 @@ export function addS3ProjectionPublication(
   };
   const invalidatedDistributionId = distribution?.distributionId
     ?? (props.edgeDistributionArn !== undefined ? distributionIdFromArn(props.edgeDistributionArn) : undefined);
-  if (invalidatedDistributionId !== undefined && props.cache?.invalidation !== "off") {
+  if (invalidatedDistributionId !== undefined) {   // explicit page refreshes purge even when saves do not (PPY-105508), so the path alarm stays
     addInvalidationPathAlarm(scope, "EdgeInvalidationPaths", invalidatedDistributionId);
   }
   return {

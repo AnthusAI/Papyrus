@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus account stack: the TLS certificate for a site's domain, validated through the
+  Route 53 zone. RESERVED SLOT: disabled in infra/stacks.json until the
+  registrar delegates the domain to the zone (a DNS-validated certificate
+  cannot validate before that). CloudFront certificates must live in
+  us-east-1, which is this account's region.
+
+Parameters:
+  DomainName:
+    Type: String
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Supplied by the pipeline from the DNS stack's zone.
+
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub "www.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub "www.${DomainName}"
+          HostedZoneId: !Ref HostedZoneId
+
+Outputs:
+  CertificateArn:
+    Value: !Ref Certificate

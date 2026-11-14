@@ -1,0 +1,28 @@
+{
+  "id": "PPY-d0a3d54c-8dd1-4c9f-81dc-6ac9c93702fb",
+  "title": "Consent and analytics per tenant",
+  "description": "Outcome: What must be true: the consent banner, its words and its region policy come from the tenant's SiteConfig; analytics use the tenant's own measurement id; no Anthus analytics run on a tenant's site unless disclosed (owner decision 8 in the design note). The region-aware consent behaviour in core applies to every tenant by default.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/standard (consent chrome, chrome.consent_mode), SiteConfig analytics fields (PPY-1252ce), docs/region-aware-consent.md.\n\nAcceptance (Gherkin feature file: features/tenant-consent.feature):\nScenario: A tenant's site loads only its own analytics after consent\n    Given \"alpha\" set its own measurement id\n    When a reader in a consent region accepts\n    Then only alpha's measurement id is loaded\n\nDependencies: blocked by PPY-1252ce. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Browser test of the banner per region.\nRollout: Shared stack.\nRisk and mitigation: Risk: a tenant without an analytics id still loads a script. Mitigation: no id means no script.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-1252ceae-7c20-426b-bccd-8970e7950fa0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:25.507796Z",
+  "updated_at": "2026-11-08T18:47:11.310952Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

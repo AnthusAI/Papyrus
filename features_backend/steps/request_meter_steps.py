@@ -312,3 +312,28 @@ def _(context):
 def _(context):
     for (votes, pending), (_requests, result) in zip(context.passes, context.outcomes):
         assert result["votes"] == votes and result["candidates"] == pending
+
+
+@given("a signed-in site with one canonical publication corpus")
+def _(context):
+    from fake_appsync import FakeAppSync
+    corpus = {"id": "knowledge-corpus-demo", "role": "canonical", "name": "Demo"}
+    backend = FakeAppSync(indexes={"listKnowledgeCorporaByRoleAndName": {"canonical": [corpus]}, "listKnowledgeCorpora": {"": [corpus]}})
+    context.corpus_client = PapyrusGraphQLAuthoringClient(endpoint=ENDPOINT, header_factory=lambda body: {}, site_tenant=False)
+    context.corpus_client._open_connection = lambda: backend
+
+
+@when("capture-transcripts, capture-thumbnails and repair-titles resolve their corpus without a --corpus-key")
+def _(context):
+    from papyrus_content import references_thumbnails, references_titles, references_transcripts
+    request_meter.reset_for_tests()
+    with request_meter.run("cli:references capture-transcripts", emit="log") as run:
+        context.corpus_answers = [module.corpus_ids_of(context.corpus_client, None)
+                                  for module in (references_transcripts, references_thumbnails, references_titles)]
+    context.run_result = run
+
+
+@then("each covers the canonical corpus and the request meter records no unbounded list of KnowledgeCorpus")
+def _(context):
+    assert context.corpus_answers == [["knowledge-corpus-demo"]] * 3
+    assert context.run_result.unbounded == {}

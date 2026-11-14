@@ -5,7 +5,8 @@ from .reference_feed_keys import (accept_probability, content_needed_key, feed_k
                                   original_prediction_fields, public_feed_keys, public_key_patch, stale_feed_keys, stale_star_feed_key, star_feed_key)
 
 PUBLIC_VECTORS = json.loads((Path(__file__).resolve().parents[2] / "scripts" / "fixtures" / "public-feed-key-vectors.json").read_text())
-VECTORS = json.loads((Path(__file__).resolve().parents[2] / "scripts" / "fixtures" / "reference-feed-key-vectors.json").read_text())
+_VECTOR_FILE = json.loads((Path(__file__).resolve().parents[2] / "scripts" / "fixtures" / "reference-feed-key-vectors.json").read_text())
+VECTORS = _VECTOR_FILE["feed"]
 
 
 def test_the_keys_match_the_vectors_the_typescript_twin_is_tested_against():

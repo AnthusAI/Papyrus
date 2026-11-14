@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "f3effe42-4682-4c49-b8b0-2a2add56c83f",
+  "issue_id": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-11-08T18:49:25.910Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Spike (2 days): what Prospectus must add before a shared-tier site can be sold with no human step",
+    "issue_type": "task",
+    "status": "open"
+  }
+}

@@ -106,6 +106,7 @@ def test_the_command_needs_a_reference_a_section_and_a_hub_model(monkeypatch):
     client.tables["Reference"]["reference-org--tuned"]["sourceUri"] = "https://example.test/post"
     with pytest.raises(ValueError, match="not a monitor record"):
         run_cli(client, monkeypatch, "reference-org--tuned", "--section", "models")
+    client.tables["KnowledgeCorpus"] = {"knowledge-corpus-demo": {"id": "knowledge-corpus-demo", "role": "canonical", "name": "Demo"}}
     with pytest.raises(ValueError, match="was not found"):
         run_cli(client, monkeypatch, "reference-nope", "--section", "models")
 

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c1575c32-c896-43c2-a3bc-606d46cd1420",
+  "issue_id": "PPY-4653fe7e-64e4-40ea-983b-4c2fd61e5580",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T16:32:30.690Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Message threads carry an optional section; threads include filters by section",
+    "description": "Thread entries in threads.json and per-thread files get an optional section title (derived from the Reference or Story, overridden by MessageThread.sectionId). ::include{kind=threads section=...} filters; the Markdown twin applies the same filter. Docs in docs/home-page.md.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

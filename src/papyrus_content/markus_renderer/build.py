@@ -28,6 +28,7 @@ from .pages import (
 from .security import assert_markus_version
 from .shell import DEFAULT_CHROME, NavItem, SiteChrome
 from .transforms import FragmentTransform
+from .video import VideoRendering
 from .vendor_css import vendor_markus_css
 
 DEFAULT_CONTENT_DIR = PAPYRUS_ROOT / "web" / "content"
@@ -45,6 +46,30 @@ def slugify(name: str) -> str:
     """
     folded = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", "-", folded.lower()).strip("-")
+
+
+#: A page's directory name is at most 255 bytes of UTF-8 on the file systems a site is built on (language_serving.SLUG_MAX_BYTES).
+SCRIPT_SLUG_MAX_BYTES = 255
+_SCRIPT_SLUG = re.compile(r"^[^\W_]+(?:-[^\W_]+)*$")
+
+
+def _folds_to_ascii(character: str) -> bool:
+    return unicodedata.category(character).startswith("M") or bool(unicodedata.normalize("NFKD", character).encode("ascii", "ignore"))
+
+
+def page_slug(name: str) -> str:
+    """The URL slug of a stored slug or a file stem: :func:`slugify`, except for a slug written in a script that has no ASCII form.
+
+    A name whose every character folds to ASCII (English, Spanish with its accents) gets :func:`slugify` exactly as before. A name that
+    is already a slug in another script, lowercase letters and digits joined by single hyphens with at least one character that does not
+    fold (Chinese characters), is kept as it is, in Unicode NFC: ``能泄露你住在哪里的声音`` stays, where ASCII folding would leave nothing."""
+    normalized = unicodedata.normalize("NFC", name)
+    if not all(_folds_to_ascii(character) for character in normalized) and normalized == normalized.lower() and _SCRIPT_SLUG.match(normalized):
+        if len(normalized.encode("utf-8")) > SCRIPT_SLUG_MAX_BYTES:
+            raise ValueError(f"The slug {normalized!r} is {len(normalized.encode('utf-8'))} bytes of UTF-8; a page's directory name is at most "
+                             f"{SCRIPT_SLUG_MAX_BYTES} bytes (85 Chinese characters). Give it a shorter slug.")
+        return normalized
+    return slugify(name)
 
 
 def _discover_markdown(directory: Path) -> list[tuple[str, Path]]:
@@ -130,6 +155,7 @@ def render_fragment_text(
     citations: CitationRendering | None = None,
     transform: FragmentTransform | None = None,
     equations: str = "mathml",
+    videos: VideoRendering | None = None,
 ) -> str:
     """Convert one Markdown text, resolving Papyrus content markup around it.
 
@@ -146,11 +172,11 @@ def render_fragment_text(
     attributes strictly and would reject anything it does not own. See
     ``content_markup`` for the full rationale.
     """
-    if image_builder is None and citations is None:
+    if image_builder is None and citations is None and videos is None:
         fragment = render_equations(convert(text), mode=equations)
         return fragment if transform is None else transform.apply(fragment)
 
-    page = prepare_page(text, images=images, citations=citations)
+    page = prepare_page(text, images=images, citations=citations, videos=videos)
     fragment = render_equations(convert(page.markdown), mode=equations)
     if image_builder is not None:
         image_builder.start_page()
@@ -160,6 +186,7 @@ def render_fragment_text(
         depth=depth,
         image_builder=image_builder,
         citations=citations,
+        videos=videos,
     )
     # Last, so a publication's transform sees the final markup, images and
     # bibliography included.

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "eb1dacc6-fd22-4e1c-b2f0-e0eb18e33d67",
+  "issue_id": "PPY-aabf1e10-3699-4265-abc4-2d8287c1883f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T01:56:31.848Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Flaky: mobile chat bar renders 660px wide in the ts browser acceptance job",
+    "description": "features/newsroom-mobile-chat.feature scenarios 'Open and close chat across phone sizes and orientation' (line 10) and 'Use chat with a reduced keyboard viewport' (line 20) fail intermittently in the ts job (Shared chat browser acceptance): AssertionError {x:66.5,y:856,width:660,height:44}, the chat bar is 660px wide and does not fit the phone viewport. Seen on Papyrus develop push run 42545576859 (2026-11-09 01:31 UTC) and once on PR #1310 (passed on rerun). Not caused by those changes (Python-only). Needs a deterministic fix in scripts/private-chat-ui-fixture.mjs / the chat bar layout.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

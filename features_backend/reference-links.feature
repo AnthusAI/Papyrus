@@ -4,7 +4,7 @@ Feature: References are linked to each other and tagged with concepts, and a sug
   query and the wiki see it. A link a machine suggests is only a suggestion: it is stored with the state suggested, so
   every reader that asks for current links skips it, until a person accepts it. A person can also reject it, and the
   rejection is kept so the same suggestion is not offered again. Whoever decided, when, and why are recorded on the row.
-  Writing the same link twice updates the one row. Tagging a Reference with a concept uses the "related to" relation;
+  Writing the same link twice updates the one row. Tagging a Reference with a concept uses the "tagged with" relation (the old "related to" tag rows are still read until they are migrated);
   the "mentions" relation stays for concepts the enrichment found in the text.
 
   Background:
@@ -31,13 +31,21 @@ Feature: References are linked to each other and tagged with concepts, and a sug
     Then the link is rejected
     And "reference-a" has no current links
 
-  Scenario: Tagging a Reference with a concept is a related-to link, not a mention
+  Scenario: Tagging a Reference with a concept is a tagged-with link, not a mention
     When an editor tags "reference-a" with the concept "node-voice"
     Then the link goes from the Reference to the concept
-    And the link uses the "related_to" relation
+    And the link uses the "tagged_with" relation
 
   Scenario: A human concept link counts in the concept report and on the concept page data
-    Given the accepted Reference "reference-a" is linked to the concept "node-voice" only by an editor's related-to link
+    Given the accepted Reference "reference-a" is linked to the concept "node-voice" only by an editor's tag
+    And the accepted Reference "reference-b" is linked to "reference-a" by a related-to link
+    When the concept report is built
+    Then the concept "node-voice" has 1 distinct Reference in the report
+    And the concept page data for "node-voice" lists "reference-a" as a linking Reference
+    And the Reference-to-Reference link is not counted as a concept mention
+
+  Scenario: A tag written before the rename still counts until it is migrated
+    Given the accepted Reference "reference-a" is linked to the concept "node-voice" only by an editor's legacy related-to tag
     And the accepted Reference "reference-b" is linked to "reference-a" by a related-to link
     When the concept report is built
     Then the concept "node-voice" has 1 distinct Reference in the report

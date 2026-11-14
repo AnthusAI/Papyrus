@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "03d733d3-13a7-4989-b823-c66eb9c32420",
+  "issue_id": "PPY-0818ceeb-aa71-4ffa-83bd-7402c7acba08",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T22:07:26.744Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "ops content publish: usable --help and clear errors (--story, --id is a version id, --slug fails with several versions)",
+    "description": "From the Anthus news desk editing session 2026-11-08: papyrus ops content publish --help prints only the usage line; --story is rejected; --id wants the VERSION id (content-item-...-v13), not the lineage; --slug fails once a story has several versions. Make --help list every option with one example; accept --story LINEAGE (publish its current version); when --id gets a lineage id say 'this is a story id: use --story or --id <story>-vN'; when --slug is ambiguous list the versions. Apply the same to unpublish. Gherkin for help text and each error message. Ties to PPY-f3b296 (stages, exit codes) and PPY-105508 (update-live --story).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+    "labels": []
+  }
+}

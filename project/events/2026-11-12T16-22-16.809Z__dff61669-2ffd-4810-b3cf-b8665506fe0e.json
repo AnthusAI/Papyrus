@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dff61669-2ffd-4810-b3cf-b8665506fe0e",
+  "issue_id": "PPY-ef71cd9f-d3c1-46d6-ba42-3757242e509c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T16:22:16.809Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Correctors subscribe to translation notifications and fix pages from the link",
+    "description": "As a person responsible for catching translation flaws in a language, I want to subscribe to that language's translation notifications and correct a page from the link in as few steps as possible, so translations improve without blocking publication.\n\nDesign (Ryan's decision 2): notification kind translation.published (class admin; facts title, language, page URL, correction link), subscriptions per site and language (needs Caducus scoped subscriptions, PPY task filed). Corrector role: managed role translator with a list of languages, granted through manage-user-role; the Cognito group opens only the correction view; the correction mutation checks the language list; editors and admins correct every language. Flow: link to /newsroom/translations/{localization}?block=N, Google sign-in returns to the link, source and translation side by side with check findings, edit a block and save, or Looks right. A correction is a new localization version by that person, changed blocks pinned, rule checks re-run on them, published at once; Looks right records a review and updates the label. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Correcting translations\n\nScenario: A Spanish corrector gets a link and fixes a paragraph\n  Given a person with the translator role for Spanish subscribed to Spanish translation notifications\n  When a Spanish localization is published\n  Then they receive a notification with a link to correct it\n  And after signing in from the link they reword a paragraph and save\n  And a new Spanish version by them is published with that paragraph pinned\n\nScenario: A corrector for one language cannot change another\n  Given a person with the translator role for Spanish only\n  When they try to save a change to a Chinese localization\n  Then the change is refused with a message naming the languages they may correct\n\nScenario: Reviewing without edits\n  Given a Spanish corrector reads a localization and finds nothing to change\n  When they press Looks right\n  Then the review is recorded on that version and the page label says it was reviewed by a person",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+    "labels": []
+  }
+}

@@ -7,6 +7,8 @@ Subcommands (all read `infra/pipeline/stacks.json`):
   requirements                    pip requirements for the vendored packages at the poetry.lock versions (a reproducible zip)
   plan [--stack NAME ...]         READ-ONLY dry run: what a release would change, as a job summary (pull requests)
   deploy [--stack NAME ...]       build, upload, create a change set, read it, execute it, watch it (push to main)
+  delegation [--config PATH]      are the public name servers of each zone in the config the expected ones? Needs NO AWS credentials and no
+                                  AWS_ACCOUNT_ID; writes `delegated=` and `zones=` to $GITHUB_OUTPUT; always exits 0
   pipeline-check                  does the deployed papyrus-stack-pipeline match infra/pipeline/papyrus-stack-pipeline.yaml (exit 1 if not)
 
 Safety, in this file and nowhere else:
@@ -15,6 +17,19 @@ Safety, in this file and nowhere else:
   * a change set that would Remove or Replace anything not on `allowed-changes.json` is deleted unexecuted and the run stops;
   * progress is polled (never `aws cloudformation wait`), and a failed update fails the run with the first failure's cause;
   * nothing is retried. The workflow's concurrency group allows one run at a time.
+
+A deployment repository (another organisation, a client account) uses the same file with its own config: `--config PATH`, optional
+`--allowed PATH`. The config may set `root` (where templates and paths resolve; a template `papyrus:<path>` resolves in this repository),
+`pipelineCheck`, `changeSetPrefix`; omit `templateBucketFrom` to pass templates inline; and per stack `enabled`/`reason`, parameters from the
+environment (`fromEnv`) or another stack's output (`fromStackOutput`), `import` (adopt a hand-made resource by CloudFormation IMPORT, then
+update, never replace) and `checks` (name servers of a zone against an expected file) and `when` (see below). Nothing here changes for a config without them.
+
+A stack may wait for DNS delegation: `"when": {"delegated": {"zone": "<domain>", "expectedFile": "<path relative to the config dir>"}}`. A
+DNS-validated certificate cannot validate while the registrar still points at old name servers, and CloudFormation would wait for hours and
+roll back. The stack is in scope only when the PUBLIC name-server answers for the zone (`dig +short NS`, through 1.1.1.1 then 8.8.8.8) equal,
+as a lowercase set without trailing dots, the list in expectedFile[zone] (the file the nameservers check uses). Until then `scope`, `changed`,
+`plan` and `deploy` skip the stack with a notice and a summary row ("waiting for delegation: ..."); that is not an error and does not change
+the exit code. A stack that reads a `fromStackOutput` from a skipped stack that does not exist is skipped too ("needs <stack>").
 
 Exit codes: 0 done or nothing to do, 1 an update failed, 2 a safety check refused.
 Needs the AWS CLI. `plan` and `scope` need PyYAML only for templates.
@@ -27,6 +42,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import sys
 import time
 from pathlib import Path
@@ -46,7 +62,8 @@ BUCKET = re.compile(r"^[a-z0-9][a-z0-9.-]{2,62}$")
 # Stack states: where a change may start, and where it must not.
 UPDATABLE = {"CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE", "IMPORT_COMPLETE", "IMPORT_ROLLBACK_COMPLETE"}
 FIRST_CREATE = {"REVIEW_IN_PROGRESS"}
-SUCCESS = {"CREATE_COMPLETE", "UPDATE_COMPLETE"}
+SUCCESS = {"CREATE_COMPLETE", "UPDATE_COMPLETE", "IMPORT_COMPLETE"}
+INLINE_TEMPLATE_LIMIT = 51200  # bytes: the most `--template-body` accepts
 NOT_STARTED = {"AVAILABLE", "UNAVAILABLE", "OBSOLETE"}
 
 
@@ -122,8 +139,9 @@ def is_replacement(change: dict) -> bool:
     return any(detail.get("Target", {}).get("RequiresRecreation") == "Always" for detail in change.get("Details", []))
 
 
-def review_changes(stack: str, changes: list[dict], allowed: list[dict]) -> tuple[list[str], list[str]]:
-    """(violations, report lines). A violation is a Remove or a Replace not listed for this stack and logical id."""
+def review_changes(stack: str, changes: list[dict], allowed: list[dict], importing: bool = False) -> tuple[list[str], list[str]]:
+    """(violations, report lines). A violation is a Remove or a Replace not listed for this stack and logical id.
+    For an IMPORT change set, anything whose Action is not Import is a violation (unless allowed-changes.json lists that Action)."""
     permitted = {(entry["stack"], entry["logicalId"], entry["change"]) for entry in allowed}
     violations, lines = [], []
     for item in changes:
@@ -131,6 +149,16 @@ def review_changes(stack: str, changes: list[dict], allowed: list[dict]) -> tupl
             continue
         change = item["ResourceChange"]
         logical, action = change["LogicalResourceId"], change["Action"]
+        if importing:
+            flag = ""
+            if action != "Import":
+                if (stack, logical, action) in permitted:
+                    flag = f" ({action} allowed by allowed-changes.json)"
+                else:
+                    violations.append(f"{logical} ({change.get('ResourceType', '?')}) would be {action} by an IMPORT change set, which may only import")
+                    flag = " (NOT ALLOWED)"
+            lines.append(f"| {action} | `{logical}` | {change.get('ResourceType', '')} | {change.get('Replacement', '')}{flag} |")
+            continue
         kinds = (["Remove"] if action == "Remove" else []) + (["Replace"] if is_replacement(change) else [])
         flag = ""
         for kind in kinds:
@@ -173,6 +201,8 @@ EXISTENCE_HINT = ("A resource this template creates with a fixed name already ex
 def changed_stacks(config: dict, files: list[str]) -> list[str]:
     names = []
     for stack in config["stacks"]:
+        if not stack.get("enabled", True):
+            continue
         if any(file == path or (path.endswith("/") and file.startswith(path)) for file in files for path in stack["paths"]):
             names.append(stack["name"])
     return names
@@ -306,9 +336,14 @@ class AwsCli:
     def list_change_sets(self, name: str) -> list[dict]:
         return self._aws("cloudformation", "list-change-sets", "--stack-name", name)["Summaries"]
 
-    def create_change_set(self, stack: str, name: str, kind: str, template_url: str, parameters: list[dict], capabilities: list[str], tags: dict, role_arn: str) -> None:
+    def create_change_set(self, stack: str, name: str, kind: str, template_url: str | None, parameters: list[dict], capabilities: list[str], tags: dict, role_arn: str,
+                          template_path: Path | None = None, resources: list[dict] | None = None) -> None:
+        """`template_url` for a template uploaded to S3; `template_path` (and no URL) passes the file as `--template-body`. `resources` is for kind 'import'."""
+        source = ["--template-body", f"file://{template_path}"] if template_path is not None else ["--template-url", template_url]
         args = ["cloudformation", "create-change-set", "--stack-name", stack, "--change-set-name", name, "--change-set-type", kind.upper(),
-                "--template-url", template_url, "--parameters", json.dumps(parameters), "--role-arn", role_arn]
+                *source, "--parameters", json.dumps(parameters), "--role-arn", role_arn]
+        if resources:
+            args += ["--resources-to-import", json.dumps(resources)]
         if capabilities:
             args += ["--capabilities", *capabilities]
         if kind == "create" and tags:
@@ -338,16 +373,44 @@ class AwsCli:
         zones = self._aws("route53", "list-hosted-zones-by-name", "--dns-name", dns_name, "--max-items", "5")["HostedZones"]
         return [z for z in zones if z["Name"] == dns_name and not z.get("Config", {}).get("PrivateZone")]
 
+    def zone_name_servers(self, zone_id: str) -> list[str]:
+        return self._aws("route53", "get-hosted-zone", "--id", zone_id)["DelegationSet"]["NameServers"]
+
+    def budget(self, name: str) -> dict | None:
+        """The budget called `name` in this account, or None when there is none (read-only)."""
+        try:
+            return self._aws("budgets", "describe-budget", "--account-id", self.account(), "--budget-name", name)["Budget"]
+        except AwsError as error:
+            if "NotFound" in str(error):
+                return None
+            raise
+
 
 # ------------------------------------------------------------------------------------------------------------------ the deploy
 
 
 class Context:
     def __init__(self, cloud, config: dict, allowed: list[dict], run_tag: str, root: Path = ROOT, runner=subprocess.run, out=print,
-                 summary: Path | None = None, check_pipeline: bool = False, change_set_timeout: float = 600, execute_timeout: float = 3000, poll: float = 10, start_grace: float = 180):
+                 summary: Path | None = None, check_pipeline: bool = False, change_set_timeout: float = 600, execute_timeout: float = 3000, poll: float = 10, start_grace: float = 180,
+                 config_dir: Path | None = None, env=None, resolver=None):
         self.cloud, self.config, self.allowed, self.run_tag, self.root, self.runner, self.out = cloud, config, allowed, run_tag, root, runner, out
+        self.config_dir = config_dir if config_dir is not None else root
+        self.env = os.environ if env is None else env
+        # resolver(zone) -> list of public name servers; late-bound so a test can replace public_name_servers or pass its own.
+        self.resolver = resolver if resolver is not None else (lambda zone: public_name_servers(zone))
+        self.dns_answers: dict[str, list[str]] = {}
+        self.failed_checks: list[str] = []
         self.summary, self.check_pipeline, self.pipeline_said = summary, check_pipeline, None
         self.change_set_timeout, self.execute_timeout, self.poll, self.start_grace = change_set_timeout, execute_timeout, poll, start_grace
+
+    @property
+    def prefix(self) -> str:
+        return self.config.get("changeSetPrefix", CHANGE_SET_PREFIX)
+
+    @property
+    def inline(self) -> bool:
+        """No `templateBucketFrom`: templates are passed with --template-body and nothing goes to S3."""
+        return "templateBucketFrom" not in self.config
 
     def write_summary(self, text: str) -> None:
         self.out(text)
@@ -399,7 +462,7 @@ def build_keys(ctx: Context, cfg: dict, bucket: str) -> dict[str, str]:
 def delete_own_stale_change_sets(ctx: Context, stack: str) -> None:
     for item in ctx.cloud.list_change_sets(stack):
         name = item["ChangeSetName"]
-        if name.startswith(CHANGE_SET_PREFIX):
+        if name.startswith(ctx.prefix):
             if item.get("ExecutionStatus") in NOT_STARTED:
                 ctx.cloud.delete_change_set(stack, name)
                 ctx.out(f"deleted our own unexecuted change set {name}")
@@ -449,34 +512,212 @@ def wait_for_execution(ctx: Context, stack: str, name: str, known: set[str]) -> 
         ctx.cloud.sleep(ctx.poll)
 
 
-def deploy_stack(ctx: Context, cfg: dict) -> str:
+def template_file(ctx: Context, cfg: dict) -> Path:
+    """`template` resolves under the config's root; `papyrus:<path>` resolves in this (the Papyrus) repository."""
+    value = cfg["template"]
+    return ROOT / value.removeprefix("papyrus:") if value.startswith("papyrus:") else ctx.root / value
+
+
+def resolve_parameters(ctx: Context, cfg: dict, strict: bool) -> tuple[dict[str, str], list[str]]:
+    """Configured parameter values: a string, {"fromEnv": NAME} or {"fromStackOutput": {"stack", "output", "default"?}}; with a "default" a missing stack or output yields the default instead of a Stop (a fresh account whose source stack is not deployed yet).
+    strict (deploy): an unset or empty variable, a missing stack or output is a Stop. Not strict (plan): it becomes a note and the parameter is left out."""
+    values, notes = {}, []
+    for name, spec in cfg.get("parameters", {}).items():
+        if isinstance(spec, dict) and "fromEnv" in spec:
+            var = spec["fromEnv"]
+            value = ctx.env.get(var, "")
+            if not value:
+                if strict:
+                    raise Stop(f"parameter {name} comes from the environment variable {var}, which is unset or empty")
+                notes.append(f"parameter `{name}`: environment variable `{var}` is unset")
+                continue
+            values[name] = value
+        elif isinstance(spec, dict) and "fromStackOutput" in spec:
+            source = spec["fromStackOutput"]
+            stack = ctx.cloud.describe_stack(source["stack"])
+            if stack is None and "default" in source:
+                values[name] = str(source["default"])   # the source does not exist yet (a fresh account): use the stated default
+                continue
+            if stack is None:
+                if strict:
+                    raise Stop(f"parameter {name} comes from stack {source['stack']}, which does not exist")
+                notes.append(f"parameter `{name}`: stack `{source['stack']}` does not exist yet, so output `{source['output']}` is not known")
+                continue
+            found = [o["OutputValue"] for o in stack.get("Outputs", []) if o.get("OutputKey") == source["output"]]
+            if not found and "default" in source:
+                values[name] = str(source["default"])
+                continue
+            if not found:
+                if strict:
+                    raise Stop(f"parameter {name} comes from output {source['output']} of stack {source['stack']}, which has no such output")
+                notes.append(f"parameter `{name}`: stack `{source['stack']}` has no output `{source['output']}`")
+                continue
+            values[name] = found[0]
+        elif isinstance(spec, str):
+            values[name] = spec
+        else:
+            raise Stop(f"parameter {name} must be a string, {{\"fromEnv\": NAME}} or {{\"fromStackOutput\": {{...}}}}")
+    return values, notes
+
+
+def find_import(ctx: Context, imp: dict) -> str | None:
+    """Read-only lookup of the hand-made resource to adopt: its CloudFormation identifier, or None when there is none."""
+    lookup = imp["lookup"]
+    kind = lookup["kind"]
+    if kind == "hostedZoneByName":
+        zones = ctx.cloud.hosted_zones(lookup["name"].rstrip(".") + ".")
+        if len(zones) > 1:
+            raise Stop(f"expected at most one public hosted zone for {lookup['name']}, found {len(zones)}")
+        return zones[0]["Id"].removeprefix("/hostedzone/") if zones else None
+    if kind == "budgetByName":
+        return lookup["name"] if ctx.cloud.budget(lookup["name"]) else None
+    raise Stop(f"unknown import lookup kind {kind}")
+
+
+def import_resources(imp: dict, identifier: str) -> list[dict]:
+    return [{"ResourceType": imp["resourceType"], "LogicalResourceId": imp["logicalId"], "ResourceIdentifier": {imp["identifierKey"]: identifier}}]
+
+
+def normalise_hosts(hosts) -> set[str]:
+    return {str(h).strip().lower().rstrip(".") for h in hosts}
+
+
+def nameserver_check(ctx: Context, check: dict) -> tuple[bool | None, str]:
+    """(True | False | None for the zone not existing, message). Compares the zone's delegation set with expectedFile[zone]."""
+    zone = check["zone"]
+    zones = ctx.cloud.hosted_zones(zone.rstrip(".") + ".")
+    if not zones:
+        return None, f"zone {zone} does not exist"
+    if len(zones) > 1:
+        return False, f"expected exactly one public hosted zone for {zone}, found {len(zones)}"
+    live = normalise_hosts(ctx.cloud.zone_name_servers(zones[0]["Id"].removeprefix("/hostedzone/")))
+    expected = normalise_hosts(load_json(ctx.config_dir / check["expectedFile"]).get(zone, []))
+    if live == expected:
+        return True, f"name servers of {zone} match"
+    return False, f"name servers of {zone} differ: live {sorted(live)}, expected {sorted(expected)}"
+
+
+class Answers(list):
+    """The public name servers found for a zone (sorted, lowercase, no trailing dot); `note` says why there are none, when that is known."""
+
+    def __init__(self, items=(), note: str = ""):
+        super().__init__(items)
+        self.note = note
+
+
+def public_name_servers(zone: str, run=subprocess.run) -> Answers:
+    """NS answers for `zone` from public resolvers: 1.1.1.1 first, then 8.8.8.8 when that gives nothing. [] when neither does or dig is missing."""
+    for server in ("1.1.1.1", "8.8.8.8"):
+        try:
+            done = run(["dig", "+short", "NS", zone.rstrip("."), f"@{server}"], capture_output=True, text=True, timeout=30)
+        except FileNotFoundError:
+            return Answers(note="dig is not installed")
+        except subprocess.TimeoutExpired:
+            continue
+        if done.returncode != 0:
+            continue
+        hosts = normalise_hosts(line for line in (done.stdout or "").splitlines() if line.strip() and not line.lstrip().startswith(";"))
+        if hosts:
+            return Answers(sorted(hosts))
+    return Answers()
+
+
+def expected_name_servers(ctx: Context, spec: dict) -> list[str]:
+    zone = spec["zone"]
+    expected = sorted(normalise_hosts(load_json(ctx.config_dir / spec["expectedFile"]).get(zone, [])))
+    if not expected:
+        raise Stop(f"{spec['expectedFile']} lists no name servers for {zone}")
+    return expected
+
+
+def zone_answers(ctx: Context, zone: str) -> list[str]:
+    if zone not in ctx.dns_answers:
+        ctx.dns_answers[zone] = ctx.resolver(zone)
+    return ctx.dns_answers[zone]
+
+
+def delegation_state(ctx: Context, spec: dict) -> tuple[bool, str, list[str]]:
+    """(delegated, message, public answers). Delegated only when the public answers equal the expected set exactly: a mix of old and new does not count."""
+    expected = expected_name_servers(ctx, spec)
+    answers = zone_answers(ctx, spec["zone"])
+    note = getattr(answers, "note", "")
+    if answers and normalise_hosts(answers) == set(expected):
+        return True, f"name servers of {spec['zone']} are delegated", list(answers)
+    return False, f"waiting for delegation: public NS answers are {sorted(normalise_hosts(answers))} (expected {expected})" + (f"; {note}" if note else ""), list(answers)
+
+
+def skip_reason(ctx: Context, cfg: dict, dependents: bool = True) -> str | None:
+    """Why this stack is out of scope right now (None when it is in): its own delegation gate, or a `fromStackOutput` source that the gate
+    skips and that does not exist yet. `dependents` needs ctx.cloud (the source's existence is read from AWS)."""
+    when = cfg.get("when")
+    if when:
+        ok, message, _ = delegation_state(ctx, when["delegated"])
+        if not ok:
+            return message
+    if dependents and ctx.cloud is not None:
+        by_name = {s["name"]: s for s in ctx.config["stacks"]}
+        for spec in cfg.get("parameters", {}).values():
+            if isinstance(spec, dict) and "fromStackOutput" in spec:
+                source = spec["fromStackOutput"]["stack"]
+                if source in by_name and skip_reason(ctx, by_name[source]) is not None and ctx.cloud.describe_stack(source) is None:
+                    return f"needs {source}"
+    return None
+
+
+def in_scope(ctx: Context, stacks: list[dict], dependents: bool = True) -> list[dict]:
+    """The stacks that are not waiting for something; each skipped one gets a notice line and a summary row. Never an error."""
+    kept = []
+    for cfg in stacks:
+        reason = skip_reason(ctx, cfg, dependents)
+        if reason is None:
+            kept.append(cfg)
+            continue
+        ctx.out(f"::notice::{cfg['name']} skipped: {reason}")
+        ctx.write_summary(f"| {cfg['name']} | skipped | {reason} |")
+    return kept
+
+
+def run_checks(ctx: Context, cfg: dict) -> None:
+    """After a deploy: a failed check fails the run."""
+    for check in cfg.get("checks", []):
+        if check["kind"] != "nameservers":
+            raise Stop(f"unknown check kind {check['kind']}")
+        ok, message = nameserver_check(ctx, check)
+        if ok is not True:
+            ctx.write_summary(f"### {cfg['name']}: check FAILED\n{message}")
+            raise Failed(f"check nameservers failed for {cfg['name']}: {message}")
+        ctx.write_summary(f"{cfg['name']}: check passed: {message}")
+
+
+def import_template_text(text: str) -> str:
+    """CloudFormation refuses an IMPORT change set that adds Outputs ("you cannot modify or add [Outputs]"). The import template is the
+    template without its top-level Outputs section; the follow-up UPDATE change set carries the whole template (found on 2026-11-11 by
+    previewing the Humorus zone import)."""
+    return re.sub(r"(?ms)^Outputs:.*?(?=^[A-Za-z]|\Z)", "", text).rstrip() + "\n"
+
+
+def run_change_set(ctx: Context, cfg: dict, stack: dict | None, kind: str, text: str, overrides: dict[str, str], bucket: str | None, suffix: str = "",
+                   resources: list[dict] | None = None) -> str:
+    """One change set, from creating it to watching its execution. kind: 'create' | 'update' | 'import'."""
     cloud, name = ctx.cloud, cfg["name"]
-    pipeline_notice(ctx)
-    stack = cloud.describe_stack(name)
-    kind, status = classify_stack(stack)
-    ctx.out(f"{name}: {status}, will {kind}")
-    if stack is not None:
-        delete_own_stale_change_sets(ctx, name)
-    bucket = template_bucket(ctx)
-
-    overrides = dict(cfg.get("parameters", {}))
-    overrides.update(lookup_parameters(ctx, cfg))
-    overrides.update(build_keys(ctx, cfg, bucket))
-    source = ctx.config["templateBucketFrom"]
-    if stack is None and cfg["name"] == source["stack"]:
-        overrides[source["parameter"]] = bucket  # the first create takes the bucket from the bootstrap name; later runs keep the live value
-    validate_parameters(overrides)
-
-    template_path = ctx.root / cfg["template"]
-    text = template_path.read_text(encoding="utf-8")
+    template_path = template_file(ctx, cfg)
+    if kind == "import" and import_template_text(text) != text.rstrip() + "\n":
+        scratch = Path(tempfile.mkdtemp(prefix="stack-deploy-import-"))
+        template_path = scratch / template_path.name
+        template_path.write_text(import_template_text(text), encoding="utf-8")
     plan = parameter_plan(parse_template(text).get("Parameters", {}), param_map(stack), overrides, cfg.get("keepPrevious", False))
     validate_parameters({p["ParameterKey"]: p["ParameterValue"] for p in plan if "ParameterValue" in p})
 
-    key = f"papyrus-monitoring/templates/{name}-{hashlib.sha256(text.encode()).hexdigest()[:16]}.yaml"
-    cloud.upload(template_path, bucket, key)
-    change_set = f"{CHANGE_SET_PREFIX}{ctx.run_tag}"[:128]
-    cloud.create_change_set(name, change_set, kind, f"https://{bucket}.s3.{cloud.region}.amazonaws.com/{key}", plan, cfg.get("capabilities", []), cfg.get("tags", {}),
-                           f"arn:aws:iam::{cloud.account()}:role/{ctx.config['serviceRoleName']}")
+    change_set = (f"{ctx.prefix}{ctx.run_tag}"[:128 - len(suffix)]) + suffix
+    role = f"arn:aws:iam::{cloud.account()}:role/{cfg.get('serviceRoleName', ctx.config['serviceRoleName'])}"
+    if ctx.inline:
+        cloud.create_change_set(name, change_set, kind, None, plan, cfg.get("capabilities", []), cfg.get("tags", {}), role, template_path=template_path,
+                                **({"resources": resources} if resources else {}))
+    else:
+        key = f"papyrus-monitoring/templates/{name}-{hashlib.sha256(text.encode()).hexdigest()[:16]}.yaml"
+        cloud.upload(template_path, bucket, key)
+        cloud.create_change_set(name, change_set, kind, f"https://{bucket}.s3.{cloud.region}.amazonaws.com/{key}", plan, cfg.get("capabilities", []), cfg.get("tags", {}), role,
+                                **({"resources": resources} if resources else {}))
     described = wait_for_change_set(ctx, name, change_set)
     if described["Status"] == "FAILED":
         reason = described.get("StatusReason", "")
@@ -496,7 +737,7 @@ def deploy_stack(ctx: Context, cfg: dict) -> str:
         message = "\n".join([f"change set failed to create: {reason}", *detail, *hints])
         raise Failed(message)   # main() puts the message in the job summary and the annotation
 
-    violations, lines = review_changes(name, described.get("Changes", []), ctx.allowed)
+    violations, lines = review_changes(name, described.get("Changes", []), ctx.allowed, importing=kind == "import")
     table = "| Action | Logical id | Type | Replacement |\n| --- | --- | --- | --- |\n" + "\n".join(lines)
     if violations:
         cloud.delete_change_set(name, change_set)
@@ -504,15 +745,61 @@ def deploy_stack(ctx: Context, cfg: dict) -> str:
                           "\n\nTo go ahead on purpose, add the entry to `infra/pipeline/allowed-changes.json` in a reviewed pull request, release, and remove it afterwards.")
         raise Stop("; ".join(violations))
 
-    ctx.write_summary(f"### {name}: executing\n{table}")
+    ctx.write_summary(f"### {name}: {'importing' if kind == 'import' else 'executing'}\n{table}")
     try:
         known = {e["EventId"] for e in cloud.stack_events(name)}
     except AwsError:
         known = set()
     cloud.execute_change_set(name, change_set)
     wait_for_execution(ctx, name, change_set, known)
-    ctx.write_summary(f"{name}: done.")
+    ctx.write_summary(f"{name}: {'imported' if kind == 'import' else 'done'}.")
     return "deployed"
+
+
+def deploy_stack(ctx: Context, cfg: dict) -> str:
+    result = deploy_changes(ctx, cfg)
+    run_checks(ctx, cfg)
+    return result
+
+
+def deploy_changes(ctx: Context, cfg: dict) -> str:
+    cloud, name = ctx.cloud, cfg["name"]
+    pipeline_notice(ctx)
+    stack = cloud.describe_stack(name)
+    kind, status = classify_stack(stack)
+    ctx.out(f"{name}: {status}, will {kind}")
+    if stack is not None:
+        delete_own_stale_change_sets(ctx, name)
+    bucket = None if ctx.inline else template_bucket(ctx)
+
+    overrides, _ = resolve_parameters(ctx, cfg, strict=True)
+    overrides.update(lookup_parameters(ctx, cfg))
+    if cfg.get("builds"):
+        if bucket is None:
+            raise Stop(f"{name} has builds, which need templateBucketFrom in the config")
+        overrides.update(build_keys(ctx, cfg, bucket))
+    if not ctx.inline:
+        source = ctx.config["templateBucketFrom"]
+        if stack is None and cfg["name"] == source["stack"]:
+            overrides[source["parameter"]] = bucket  # the first create takes the bucket from the bootstrap name; later runs keep the live value
+    validate_parameters(overrides)
+
+    text = template_file(ctx, cfg).read_text(encoding="utf-8")
+    if ctx.inline and len(text.encode("utf-8")) >= INLINE_TEMPLATE_LIMIT:
+        raise Stop(f"template of {name} is {len(text.encode('utf-8'))} bytes; an inline template must be under {INLINE_TEMPLATE_LIMIT}")
+
+    imp = cfg.get("import")
+    # A stack left in REVIEW_IN_PROGRESS by an earlier change set that failed to create is still a stack that does not exist yet: import, never create.
+    identifier = find_import(ctx, imp) if imp and (stack is None or status in FIRST_CREATE) else None
+    if identifier is not None:
+        ctx.out(f"{name}: the existing {imp['resourceType']} {identifier} will be imported, not replaced")
+        run_change_set(ctx, cfg, None, "import", text, overrides, bucket, suffix="-import", resources=import_resources(imp, identifier))
+        # The import adopts the resource as it is; the normal update now applies the template's properties, with the usual Remove/Replace safety.
+        stack = cloud.describe_stack(name)
+        kind, status = classify_stack(stack)
+        ctx.out(f"{name}: {status}, will {kind}")
+        return run_change_set(ctx, cfg, stack, kind, text, overrides, bucket)
+    return run_change_set(ctx, cfg, stack, kind, text, overrides, bucket)
 
 
 # ------------------------------------------------------------------------------------------------------------------- dry run
@@ -530,8 +817,9 @@ def plan_stack(ctx: Context, cfg: dict) -> None:
     except Stop as stop:
         lines.append(f"**A release would STOP here:** {stop}")
         kind = "blocked"
-    text = (ctx.root / cfg["template"]).read_text(encoding="utf-8")
+    text = template_file(ctx, cfg).read_text(encoding="utf-8")
     new = parse_template(text)
+    resolved, notes = resolve_parameters(ctx, cfg, strict=False)
     permitted = {(e["stack"], e["logicalId"], e["change"]) for e in ctx.allowed}
     if kind == "blocked":
         pass
@@ -549,11 +837,27 @@ def plan_stack(ctx: Context, cfg: dict) -> None:
         if cfg.get("builds"):
             lines.append("Code: the zips are built on the release, not here; a changed zip modifies its function. Which changes replace a resource is only known from the release's change set, which stops on any Replace not on the list.")
         current = param_map(stack) or {}
-        literals = {**cfg.get("parameters", {}), **lookup_parameters(ctx, cfg)}
+        literals = {**resolved, **lookup_parameters(ctx, cfg)}
         lines += [f"- parameter `{k}` would change" for k, v in literals.items() if current.get(k) != v]
     else:
         count = len(new.get("Resources", {}))
         lines.append(f"A release would create this stack with {count} resources.")
+        imp = cfg.get("import")
+        if imp and stack is None:
+            found = find_import(ctx, imp)
+            lines.append(f"A release would IMPORT the existing {imp['resourceType']} (read-only lookup found it), then update it from the template." if found is not None
+                         else "A release would CREATE (no existing resource found).")
+    lines += [f"- {note}" for note in notes]
+    for check in cfg.get("checks", []):
+        if check["kind"] != "nameservers":
+            raise Stop(f"unknown check kind {check['kind']}")
+        ok, message = nameserver_check(ctx, check)
+        if ok is None:
+            lines.append(f"Check nameservers {check['zone']}: skipped ({message})")
+        else:
+            lines.append(f"Check nameservers {check['zone']}: {'PASS' if ok else '**FAIL**'}: {message}")
+            if not ok:
+                ctx.failed_checks.append(f"{cfg['name']}: {message}")
     ctx.write_summary("\n".join(lines))
 
 
@@ -564,11 +868,105 @@ def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def selected(config: dict, names: list[str] | None) -> list[dict]:
+def selected(config: dict, names: list[str] | None, group: str | None = None) -> list[dict]:
+    """Enabled stacks, in config order. `group` (None = every group) limits them to one `group` (a stack's default is "default");
+    a stack named explicitly must belong to that group."""
     chosen = [s for s in config["stacks"] if not names or s["name"] in names]
     if names and len(chosen) != len(set(names)):
         raise Stop(f"unknown stack in {names}")
-    return chosen
+    if group is not None:
+        outside = [s["name"] for s in chosen if s.get("group", "default") != group]
+        if names and outside:
+            raise Stop(f"stack {', '.join(outside)} is not in group {group}")
+        chosen = [s for s in chosen if s.get("group", "default") == group]
+    return [s for s in chosen if s.get("enabled", True)]
+
+
+def changed_stack(ctx: Context, cfg: dict) -> tuple[bool, str]:
+    """Read-only: does the live stack differ from Git and the config? A missing stack counts as changed. NoEcho values (shown as ****)
+    cannot be compared and are ignored; a parameter that cannot be resolved here (an unset fromEnv) counts as unchanged."""
+    name = cfg["name"]
+    stack = ctx.cloud.describe_stack(name)
+    if stack is None:
+        return True, "stack does not exist"
+    reasons = []
+    live = ctx.cloud.get_template(name).replace("\r\n", "\n")
+    if live != template_file(ctx, cfg).read_text(encoding="utf-8").replace("\r\n", "\n"):
+        reasons.append("template differs")
+    current = param_map(stack) or {}
+    resolved, _ = resolve_parameters(ctx, cfg, strict=False)
+    for key, value in resolved.items():
+        if current.get(key, "") != "****" and current.get(key) != value:
+            reasons.append(f"parameter {key} differs")
+    return bool(reasons), ", ".join(reasons) or "same as Git and the config"
+
+
+def validate_when(name: str, when) -> None:
+    if not isinstance(when, dict) or set(when) != {"delegated"}:
+        raise Stop(f"stack {name}: `when` must be {{\"delegated\": {{\"zone\": ..., \"expectedFile\": ...}}}}")
+    spec = when["delegated"]
+    if not isinstance(spec, dict) or set(spec) != {"zone", "expectedFile"}:
+        raise Stop(f"stack {name}: `when.delegated` must have exactly the keys zone and expectedFile")
+    for key in ("zone", "expectedFile"):
+        if not isinstance(spec[key], str) or not spec[key].strip():
+            raise Stop(f"stack {name}: `when.delegated.{key}` must be a non-empty string")
+
+
+def config_zones(config: dict) -> list[tuple[str, str]]:
+    """(zone, expectedFile) for each distinct zone named by a `when.delegated` or a nameservers check, in config order (disabled stacks included)."""
+    found: dict[str, str] = {}
+    for stack in config["stacks"]:
+        specs = ([stack["when"]["delegated"]] if "when" in stack else []) + [c for c in stack.get("checks", []) if c.get("kind") == "nameservers"]
+        for spec in specs:
+            found.setdefault(spec["zone"], spec["expectedFile"])
+    return list(found.items())
+
+
+def delegation_command(ctx: Context) -> int:
+    """No AWS: ask the public resolvers about each zone. Always exits 0; the answer is in the output."""
+    lines, states = [], {}
+    for zone, expected_file in config_zones(ctx.config):
+        try:
+            ok, _, answers = delegation_state(ctx, {"zone": zone, "expectedFile": expected_file})
+        except (Stop, OSError, ValueError):
+            ok, answers = False, list(zone_answers(ctx, zone))
+        states[zone] = ok
+        note = getattr(ctx.dns_answers.get(zone), "note", "")
+        lines.append(f"{zone}: {'delegated' if ok else 'waiting'} (public answers {sorted(normalise_hosts(answers))})" + (f" [{note}]" if note else ""))
+    print("\n".join(lines) or "no zones in the config")
+    github_output("delegated", "true" if all(states.values()) else "false")
+    github_output("zones", ",".join(states))
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary and states:
+        with open(summary, "a", encoding="utf-8") as handle:
+            handle.write("**Delegation:** " + "; ".join(f"`{z}` {'delegated' if ok else 'waiting'}" for z, ok in states.items()) + "\n")
+    return 0
+
+
+def validate_config(config: dict) -> None:
+    """Config rules that only the optional keys have; a config without them passes untouched."""
+    seen = set()
+    all_names = {stack["name"] for stack in config["stacks"]}
+    for stack in config["stacks"]:
+        if not stack.get("enabled", True) and not str(stack.get("reason", "")).strip():
+            raise Stop(f"stack {stack['name']} is disabled and needs a non-empty reason")
+        if "when" in stack:
+            validate_when(stack["name"], stack["when"])
+        for pname, spec in stack.get("parameters", {}).items():
+            # A source stack in this config must come earlier; a stack outside the config (deployed by another workflow, e.g. the app shell)
+            # is only read.
+            source = spec["fromStackOutput"]["stack"] if isinstance(spec, dict) and "fromStackOutput" in spec else None
+            if source is not None and source in all_names and source not in seen:
+                raise Stop(f"parameter {pname} of {stack['name']} reads the output of {source}, which must come earlier in the config")
+        seen.add(stack["name"])
+
+
+def load_config(path: Path) -> tuple[dict, Path]:
+    """(config, root). `root` is relative to the config file's directory; absent means the Papyrus repository."""
+    config = load_json(path)
+    validate_config(config)
+    root = (path.parent / config["root"]).resolve() if config.get("root") else ROOT
+    return config, root
 
 
 def github_output(key: str, value: str) -> None:
@@ -581,21 +979,39 @@ def github_output(key: str, value: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    scope = sub.add_parser("scope")
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--config", type=Path, default=CONFIG_PATH, help="stacks config (default infra/pipeline/stacks.json)")
+    common.add_argument("--allowed", type=Path, default=None, help="allowed-changes.json (default: next to the config file)")
+    scope = sub.add_parser("scope", parents=[common])
     scope.add_argument("--base", required=True)
     scope.add_argument("--head", required=True)
-    sub.add_parser("requirements")
-    sub.add_parser("pipeline-check")
+    sub.add_parser("requirements", parents=[common])
+    sub.add_parser("pipeline-check", parents=[common])
+    sub.add_parser("delegation", parents=[common])
     for command in ("plan", "deploy"):
-        p = sub.add_parser(command)
+        p = sub.add_parser(command, parents=[common])
         p.add_argument("--stack", action="append")
+        p.add_argument("--group", default="default")
+    sub.add_parser("changed", parents=[common]).add_argument("--group", default="default")
     args = parser.parse_args(argv)
-    config = load_json(CONFIG_PATH)
+    config_path = args.config.resolve()
+    try:
+        config, root = load_config(config_path)
+    except Stop as stop:
+        print(f"::error::STOPPED, nothing executed: {stop}")
+        return 2
+    enabled = [s for s in config["stacks"] if s.get("enabled", True)]
 
     if args.command == "scope":
-        done = subprocess.run(["git", "diff", "--name-only", args.base, args.head], capture_output=True, text=True, cwd=ROOT)
+        done = subprocess.run(["git", "-C", str(root), "diff", "--name-only", "--relative", args.base, args.head], capture_output=True, text=True)
         # A base git cannot resolve (first run, force push) means every stack is in scope; the live comparison then decides.
-        names = [s["name"] for s in config["stacks"]] if done.returncode != 0 else changed_stacks(config, done.stdout.split())
+        names = [s["name"] for s in enabled] if done.returncode != 0 else changed_stacks(config, done.stdout.split())
+        try:
+            gate = Context(None, config, [], "scope", root=root, config_dir=config_path.parent)   # no cloud: only a stack's own delegation gate applies
+            names = [s["name"] for s in in_scope(gate, [s for s in enabled if s["name"] in names], dependents=False)]
+        except Stop as stop:
+            print(f"::error::STOPPED, nothing executed: {stop}")
+            return 2
         github_output("stacks", ",".join(names))
         github_output("deploy", "true" if names else "false")
         print(f"stacks in scope: {names or 'none'}")
@@ -607,6 +1023,9 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(vendored_requirements((ROOT / "poetry.lock").read_text(encoding="utf-8"), build.VENDORED)))
         return 0
 
+    if args.command == "delegation":
+        return delegation_command(Context(None, config, [], "delegation", root=root, config_dir=config_path.parent))
+
     cloud = AwsCli(config["region"])
     expected = os.environ.get("AWS_ACCOUNT_ID", "")
     if not expected or cloud.account() != expected:
@@ -614,14 +1033,27 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     tag = f"{os.environ.get('GITHUB_SHA', 'local')[:12]}-{os.environ.get('GITHUB_RUN_ID', '0')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-    ctx = Context(cloud, config, load_json(ALLOWED_PATH)["allowed"], tag, summary=Path(summary) if summary else None, check_pipeline=True)
+    allowed_path = args.allowed or (config_path.parent / "allowed-changes.json")
+    ctx = Context(cloud, config, load_json(allowed_path)["allowed"], tag, root=root, summary=Path(summary) if summary else None,
+                  check_pipeline=config.get("pipelineCheck", True), config_dir=config_path.parent)
     if args.command == "pipeline-check":
         state, detail = pipeline_state(cloud, PIPELINE_TEMPLATE.read_text(encoding="utf-8"))
         print(f"{state}: {detail}")
         return 0 if state == "same" else 1
     try:
-        for cfg in selected(config, args.stack):
+        if args.command == "changed":
+            flags = []
+            for cfg in in_scope(ctx, selected(config, None, args.group)):
+                differs, why = changed_stack(ctx, cfg)
+                flags.append(differs)
+                print(f"{cfg['name']}: {'changed' if differs else 'unchanged'} ({why})")
+            github_output("changed", "true" if any(flags) else "false")
+            return 0
+        for cfg in in_scope(ctx, selected(config, args.stack, args.group)):
             (plan_stack if args.command == "plan" else deploy_stack)(ctx, cfg)
+        if ctx.failed_checks:
+            print("::error::CHECK FAILED: " + "; ".join(ctx.failed_checks))
+            return 1
     except Stop as stop:
         print(f"::error::STOPPED, nothing executed: {stop}")
         return 2

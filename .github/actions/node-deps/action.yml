@@ -1,0 +1,35 @@
+name: node-deps
+description: Node 22 with the root (and optionally the app-shell) dependencies installed, node_modules restored from a cache keyed on the lockfile.
+inputs:
+  app-shell:
+    description: Also install infra/amplify-app-shell dependencies ("true"/"false").
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+    - id: root-cache
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ runner.os }}-22-${{ hashFiles('package-lock.json') }}
+    - if: steps.root-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci
+    - id: shell-cache
+      if: inputs.app-shell == 'true'
+      uses: actions/cache@v4
+      with:
+        path: infra/amplify-app-shell/node_modules
+        key: node-modules-app-shell-${{ runner.os }}-22-${{ hashFiles('infra/amplify-app-shell/package-lock.json') }}
+    - if: inputs.app-shell == 'true' && steps.shell-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: infra/amplify-app-shell
+      run: npm ci
+    # amplify_outputs.json is generated per deployment and git-ignored; typecheck
+    # only needs the module to resolve, so an empty stub stands in. No secrets.
+    - shell: bash
+      run: echo '{}' > amplify_outputs.json

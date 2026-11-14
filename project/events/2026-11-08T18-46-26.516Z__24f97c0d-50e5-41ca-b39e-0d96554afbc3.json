@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "24f97c0d-50e5-41ca-b39e-0d96554afbc3",
+  "issue_id": "PPY-b5fab67c-3fbf-4b1d-83ad-01a2f8d5338b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:26.516Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M1 Cost fixes that would multiply by tenants, and the standard layout track",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

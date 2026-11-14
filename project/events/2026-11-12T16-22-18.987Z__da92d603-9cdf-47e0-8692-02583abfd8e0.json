@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "da92d603-9cdf-47e0-8692-02583abfd8e0",
+  "issue_id": "PPY-61ee477f-6840-4b78-8cea-aac85ce966ea",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T16:22:18.987Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Translations spend has its own weekly budget per site",
+    "description": "As a publication owner, I want translation spend tracked separately and capped by a budget learned from measured spend, so costs stay predictable and never stop silently.\n\nDesign (Ryan's decision 11): spend category translations per site (model_cost.py, price table, cost tag papyrus:spend=translations); budget per rolling week set from measured spend and publishing rate; when reached, jobs wait, the console shows the pause with backlog and amount, operators are notified; an operator can raise it. No fixed cap in code. Plan: docs/plans/multilingual-publishing.md (PR #1450), revised 2026-11-12 with Ryan's decisions.\n\nFeature: Translations budget\n\nScenario: The budget is reached\n  Given a site's translations budget for this week is spent\n  When another Story is published\n  Then its translation jobs wait\n  And the console says translations are paused because the weekly budget was reached, with the backlog and amount\n  And operators are notified",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+    "labels": []
+  }
+}

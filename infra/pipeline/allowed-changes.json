@@ -17,6 +17,48 @@
       "logicalId": "DecisionReadyInvokePermission",
       "change": "Replace",
       "reason": "Its template is unchanged; CloudFormation reports a possible replacement because it depends on the router function. Recreated in the same update."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorEmailMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorEmailQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads OperatorEmailQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorIngestMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorIngestQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads OperatorIngestQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "StoryEventSourceMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to StoryQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads StoryQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "SuggestEventSourceMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to SuggestQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads SuggestQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorDeadmanSeed",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorDeadmanSeedFunction, and CloudFormation reports a possible replacement because its ServiceToken reads OperatorDeadmanSeedFunction's Arn, which a tag update does not change. Remove after the release that carries the cost tags. Recreated, it would only write one more HeartbeatDelivered datapoint."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorRecipientKey",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorRecipientKeyFunction, and CloudFormation reports a possible replacement because its ServiceToken reads OperatorRecipientKeyFunction's Arn, which a tag update does not change. Remove after the release that carries the cost tags. Recreated, its provider never overwrites the existing key (Overwrite=False) and the old resource is retained (UpdateReplacePolicy Retain), so the pseudonym key is unchanged."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorSesEventsPermission",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorSesEventsRule, and CloudFormation reports a possible replacement because its SourceArn reads OperatorSesEventsRule's Arn, which a tag update does not change. Remove after the release that carries the cost tags. Recreated in the same update, as DecisionReadyInvokePermission is."
     }
   ]
 }

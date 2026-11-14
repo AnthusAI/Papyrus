@@ -285,7 +285,7 @@ def test_an_admin_adding_a_rule_gets_it_stamped_and_an_agent_may_edit_everything
 def test_diff_shows_changes_and_constraint_changes_without_saving():
     backend = FakeBackend(profile=profile_copy())
     envelope = run(backend, "image_profile_diff", {"document": {"identity": {"mood": ["dry"]}, "constraints": []}})
-    assert envelope["result"]["changes"][0] == {"path": "identity.mood", "from": ["calm"], "to": ["dry"]}
+    assert {"path": "identity.mood", "from": ["calm"], "to": ["dry"]} in envelope["result"]["changes"]
     assert [c["change"] for c in envelope["result"]["constraintChanges"]] == ["removed"] and envelope["result"]["wouldCreateVersion"] == 2
     assert len(backend.items) == 1
     bad = run(backend, "image_profile_diff", {"document": {"imageTypes": {"cover-illustration": {"extends": "social-card"}}}})

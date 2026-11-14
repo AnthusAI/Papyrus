@@ -21,6 +21,7 @@ class FieldRecorder:
     def __init__(self, inner: Any) -> None:
         self.inner = inner
         self.fields: set[tuple[str, str]] = set()
+        self.unbounded: list[str] = []   # the models read whole (every row, page after page): a step must not do this
 
     def __getattr__(self, name: str) -> Any:
         if name == "inner" or (name.startswith("__") and name.endswith("__")):
@@ -37,7 +38,15 @@ class FieldRecorder:
 
     def note(self, name: str, arguments: tuple[Any, ...]) -> None:
         if name == "list_records":
+            self.unbounded.append(arguments[0])
             self.fields.add(("Query", LIST_DEFINITIONS[arguments[0]]["field"]))
+        elif name == "list_published_item_summaries":
+            self.unbounded.append("PublishedItemSummary")
+            self.fields.add(("Query", LIST_DEFINITIONS["PublishedItem"]["field"]))
+        elif name == "get_records_by_id":
+            self.fields.add(("Query", GET_DEFINITIONS[arguments[0]]["field"]))
+        elif name == "iterate_newest_first":
+            self.fields.add(("Query", INDEX_DEFINITIONS[arguments[0]]["field"]))
         elif name == "get_record":
             self.fields.add(("Query", GET_DEFINITIONS[arguments[0]]["field"]))
         elif name == "list_by_index":

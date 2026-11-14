@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "62f60647-af7e-43d3-9407-f4d82083b2e4",
+  "issue_id": "PPY-21bb36fb-66e2-46d5-aa5f-d77cd95db488",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T17:09:04.008Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Citation markers with no citations directive render numbered links to anchors that do not exist",
+    "description": "A hacking article had [@key] citations but no ::citations{} directive. Papyrus rendered numbered links to anchors that did not exist. Before publication, flag a body with citation markers and no bibliography directive (the story checklist citation check), or supply the bibliography automatically. The standard bibliography also adds direct external links; make the format publication-configurable so a site with an internal-links-only policy (Machines on Machines) can render the bibliography without outbound hyperlinks (title, publisher and date as plain text, or links to the site's own Reference pages). Gherkin: marker without directive is flagged; a configured internal-only bibliography has no external href.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+    "labels": []
+  }
+}

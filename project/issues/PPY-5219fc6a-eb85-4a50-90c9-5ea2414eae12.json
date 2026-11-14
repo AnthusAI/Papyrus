@@ -1,0 +1,36 @@
+{
+  "id": "PPY-5219fc6a-eb85-4a50-90c9-5ea2414eae12",
+  "title": "Reader identity is separate per site: one site cannot link its readers to another's",
+  "description": "Outcome: What must be true: a reader who signs in on two tenants' sites gets two unrelated reader ids (pairwise subject per site), handles are unique per site, and no tenant's export or files carry a cross-site identifier. Today the pairwise siteSubject comes from Prospectus per product (one product per site); with one shared product this needs a per-deployment subject from Prospectus (question 5 of PPY-6d9a6d).\n\nTouches (verified at origin/develop 23fabe1d): amplify/plugins/reader-steering (ReaderProfile, ReaderHandle), lib/prospectus-session.ts, Prospectus reader sign-in (PPY-1546fc, PPY-445274).\n\nAcceptance (Gherkin feature file: features_backend/reader-identity-per-site.feature):\nScenario: One person is two unrelated readers on two sites\n    Given Ada signs in as a reader on \"alpha\" and on \"beta\"\n    When both tenants export their reader data\n    Then the two reader ids differ and nothing in either export links them\n\nDependencies: blocked by PPY-6d9a6d, PPY-ef2c57. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-1546fc.\n\nTesting: Behave with a fake Prospectus.\nRollout: With reader features on the shared stack.\nRisk and mitigation: Risk: Prospectus cannot give per-deployment subjects soon. Mitigation: reader features stay off for shared tenants until it can (they are not needed for TI's move).\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ef2c5747-a0ad-461a-8d3c-175c394553a4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:25.383617Z",
+  "updated_at": "2026-11-08T18:47:11.173196Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

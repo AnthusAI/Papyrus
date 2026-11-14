@@ -192,7 +192,7 @@ Names are the MCP tool names. "Target" is `{"kind": "story" | "reference", "line
 | Operation | CLI | Effect | Input | Result |
 | --- | --- | --- | --- | --- |
 | `image_search` | `papyrus images search --story L [--image-type K] [--query "..."] [--source wikimedia-commons] [--cursor C]` | read | `target`, `use?`, `imageType?`, `query?`, `source?`, `cursor?`, `exclude?` | `{imageType, imageTypeChosenBy, candidates: [StockCandidate + {candidateRef}], nextCursor, searched, searchedFromStory}`. Four per page, as today. Not stored until selected or applied. A type whose sources lack `stock`: `source_not_allowed`. |
-| `image_generate` | `papyrus images generate --story L --use cover [--image-type K] --brief "..." [--count 4] [--spread variations|types] [--image-types K ...] [--model M] [--accept-fallback F]` | spend | `target`, `use`, `imageType?` (default per 5.3; inline requires it), `brief`, `count` (default 1; more than 1 only for a person, see 3.6), `spread`, `imageTypes?` (for `spread: types`), `model?` (must be a configured, approved model; recorded as requested, never swapped), `acceptFallback?`, `references?` (example ids of that type only), `speed?` | `{roundId, imageType, imageTypeChosenBy, candidates: [{id, position, status: "queued", imageType}], estimate}` returned at once; pictures arrive later. A type whose sources lack `generated` (a diagram type): `source_not_allowed`. |
+| `image_generate` | `papyrus images generate --story L --use cover [--image-type K] --brief "..." [--count 4] [--spread variations|types] [--image-types K ...] [--model M] [--accept-fallback F]` | spend | `target`, `use`, `imageType?` (default per 5.3; inline requires it), `brief`, `count` (default 1; multiple Day options require a person’s authorization for the round, see 3.6), `spread`, `imageTypes?` (for `spread: types`), `model?` (must be a configured, approved model; recorded as requested, never swapped), `acceptFallback?`, `references?` (example ids of that type only), `speed?` | `{roundId, imageType, imageTypeChosenBy, candidates: [{id, position, status: "queued", imageType}], estimate}` returned at once; pictures arrive later. A type whose sources lack `generated` (a diagram type): `source_not_allowed`. |
 | `image_figure_add` | `papyrus images figure add --story L --image-type cover-diagram --light F.png --dark F.dark.png --figure figure.json` | write | `target`, `imageType`, `uploadIds: {light, dark?}` or `figureId` (once PPY-cd4585 lands), `figure` (the figure.json acceptance fields: audience, shows, complements, approvedBy?) | `{candidateId, origin: "figure", checks}`. Records a figure drawn and rendered with the publication's figure system as a candidate so it can be previewed, reviewed and applied like any other picture. It never draws or generates anything. A type whose sources lack `figure-system`: `source_not_allowed`. |
 | `image_round_get` | `papyrus images round R [--wait]` | read | `roundId` | `{roundId, target, use, brief, candidates: [CandidateSummary], done: bool}`. `--wait` polls until `done`. |
 | `image_candidate_get` | `papyrus images show C` | read | `candidateId` | Full `ImageCandidate` (7.2) with a short-lived signed `previewUrl`. |
@@ -216,7 +216,7 @@ Names are the MCP tool names. "Target" is `{"kind": "story" | "reference", "line
 - Read and write: `editor` or `admin` of this site (an agent acting through Ryan's session is that user, recorded with `byKind: "agent"` and `delegatedBy`).
 - Spend: same, and only when the site's generation is configured and approved (`approvedForSpend`).
 - `image_review` and binding-constraint edits: a person; constraint edits also need `admin`.
-- Spend with `count` above 1: a person only (3.6).
+- Spend with `count` above 1: a person starts or explicitly authorizes that round (3.6).
 - `image_apply` and `image_unapply`: editor or admin; an agent's apply makes a Story version (a draft) marked `unreviewed`, never a publication.
 
 ### 3.5 Relation to the agreed MCP contract
@@ -224,13 +224,13 @@ Names are the MCP tool names. "Target" is `{"kind": "story" | "reference", "line
 The image tools add no new auth. They sit inside PR #1244's site-bound grant: same Principal, same per-call permission check, same 503 rule, same conditional-write style (`expectedCurrentVersionId`). The one change is how a tool runs: image tools forward to `imageRead`/`imageWrite` with the grant's fresh Cognito ID token (PPY-cc5b44 already plans "the minimum fresh ID token needed by the private staff tool handler"), so AppSync applies the user's own group rules. Two dependencies: PR #1244 has to merge first, and `image_apply` with `save: true` needs the image-safe Story save that `story_save_draft` refuses today (see PR 7).
 
 
-### 3.6 One image when nobody is there to choose
+### 3.6 One composition when nobody is there to choose
 
-A set of four exists so a person can compare and pick. An unattended agent cannot pick in any meaningful way, so it gets one image.
+A set of three or four gives a person options to compare and pick from. The unattended default is one composition.
 
-- **The rule:** `count` above 1 (on `image_generate` and `image_iterate`) needs a person. The service decides who is asking from the identity, never from the input: the newsroom UI's browser session is a person; the CLI is a person unless it runs as an agent (procedures, automations, and agent shells set the CLI's actor kind to `agent`, which `requestedByKind` already records); an MCP call is an agent when PR #1244's `Principal.is_agent` is true. An agent asking for more gets `set_needs_person`, and nothing is generated.
+- **The rule:** `count` above 1 (on `image_generate` and `image_iterate`) needs a person. The service decides who is asking from the identity, never from the input: the newsroom UI's browser session is a person; the CLI is a person unless it runs as an agent (procedures, automations, and agent shells set the CLI's actor kind to `agent`, which `requestedByKind` already records); an MCP call is an agent when PR #1244's `Principal.is_agent` is true. An agent asking for more gets `set_needs_person` before spending unless Papyrus records a person’s authorization for that specific round. A CLI flag alone cannot grant approval.
 - **The profile** keeps `generation.interactiveCount` (what the UI offers first, 4) and has no count for unattended work: it is always 1.
-- **An agent working with a person present** (a chat) offers to open the newsroom panel, or the MCP App card where the person's own click starts the set, rather than generating four itself.
+- **An agent working with a person present** can prepare the round and return the approval action. A person can start or authorize that specific set through the newsroom panel, MCP App or a supported CLI approval flow. The agent can then use the same round ID to show the options and act on the person's choice.
 - **Honest limit:** this rests on agents being labelled as agents. An agent acting through Ryan's session that does not mark itself would look like Ryan. The CLI's agent marker and the MCP principal make that labelling the default, and the skill requires it.
 
 Why this shape: the number of options follows from whether someone will choose, so it is decided by who is asking rather than by a setting that could drift from reality.
@@ -369,7 +369,7 @@ A site needs several kinds of picture, and the same family needs different rules
     "social": ["social-card"]
   },
 
-  "attribution": {"generatedCredit": "Drafted by AI. Approved by {approvedBy}.", "disclosure": "Generated illustrations are labelled in the credit."},
+  "attribution": {"generatedCredit": null, "disclosure": "A generated image has no credit line at all (Ryan, 2026-11-08); a machine-made credit is dropped on render."},
   "constraints": [ /* publication only, 5.4 */ ],
   "designSources": [ /* 5.5 */ ],
   "generation": {"interactiveCount": 4, "defaultSpread": "types", "variationDirectives": ["wide view", "close view", "from the side", "a single object"]}
@@ -691,6 +691,12 @@ ImageCandidate: modelWithoutSubscriptions({
 ```
 
 `review` records `{status, bySub, byLabel, at, how: "picked-from-options" | "review-queue", note}` and is only ever written from a person's own action. Rounds are just a shared `roundId`; there is no round model. All `count` rows are written `queued` in one call, so a round's size is known from its rows.
+
+### 7.2.1 Day and Night pairs and option labels
+
+PPY-5377ad specifies the terminal workflow. One request for a matched pair creates Day first and uses that stored image as the reference for the Night edit. A single tracked job carries both previews, the combined estimate and the source relationship. If the Night edit fails, the Day image stays available for retry.
+
+A comparison round generates three or four Day options, with stable labels A–D and numeric positions assigned when the round starts. The caller can request a Night edit by round ID and option label or number. The service resolves the original Day image for that option and attaches the Night result to it. Requests for the same option reuse a pending or completed Night edit unless the caller explicitly requests a replacement. The pair can then be applied to one draft revision using the same selection. A file-based route takes a local Day image and a Night output path for editors who manage assets directly.
 
 ### 7.3 Storage
 

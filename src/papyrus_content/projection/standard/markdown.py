@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 
+from ...markus_renderer.content_markup import drop_machine_credits
 from ...authors import absolute_author_url, normalize_authors
 
 FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
@@ -73,13 +74,17 @@ def byline_markdown(authors, origin: str | None = None) -> str:
     return ", ".join(names)
 
 
-def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None) -> str:
-    body = body_of(source_text)
+def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None) -> str:
+    """``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
+    body = drop_machine_credits(body_of(source_text))
     lines = []
     if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
     facts = []
-    if entry.author_details:
+    if byline is not None:
+        if byline:   # a site hook that returns an empty string says this item has NO byline (a post): the authors are not a fallback
+            facts.append(byline)
+    elif entry.author_details:
         facts.append("By " + byline_markdown(entry.author_details, origin))
     if entry.date:
         facts.append(f"Published {entry.date}")
@@ -102,7 +107,7 @@ def home_markdown(title: str, description: str, source_text: str) -> str:
 
     A home page written as page blocks opens with ``::band`` and carries its own H1, so a second title in front of it
     would not be in the source."""
-    body = body_of(source_text)
+    body = drop_machine_credits(body_of(source_text))
     lines = [] if _opens_with_heading(body) else [f"# {title}", ""]
     if description:
         lines += [f"> {description}", ""]

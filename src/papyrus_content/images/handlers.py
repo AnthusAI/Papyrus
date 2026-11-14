@@ -45,6 +45,7 @@ Handler = Callable[[dict, Caller], Outcome]
 def _not_implemented(name: str) -> Handler:
     def handler(arguments: dict, caller: Caller) -> Outcome:
         raise ImageOperationError("not_implemented", f"{name} is described but not built yet.", details={"operation": name})
+    handler.not_implemented = True
     return handler
 
 
@@ -135,3 +136,16 @@ def execute(name: str, arguments: Any, caller: Caller | None = None, handlers: d
 from .profile_handlers import signed_in_handlers  # noqa: E402  (after the names above, which profile_handlers imports)
 
 HANDLERS.update(signed_in_handlers())
+
+
+# Generation is built too (project/wiki/image-toolchain.md section 9, step 5). Nothing spends from here unless the site's image guidelines configure a model and a person
+# has approved spending; the check is made before a provider or the store is touched.
+from .generation_binding import signed_in_generation_handlers  # noqa: E402
+
+HANDLERS.update(signed_in_generation_handlers())
+
+
+# The announcement operations (PPY-09ee86) run on the same lane: the person's own authoring client.
+from papyrus_content.announcements.handlers import signed_in_handlers as _announcement_handlers  # noqa: E402
+
+HANDLERS.update(_announcement_handlers())

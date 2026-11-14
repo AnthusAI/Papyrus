@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "376f02ad-b16c-4df8-8a08-14e9fd3a990b",
+  "issue_id": "PPY-1f6e7349-ab4a-43ac-9a4e-a128fb6e6b65",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:36:49.476Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A client-owned account is operated with one access stack",
+    "description": "```gherkin\nFeature: A client grants access with one stack\n\n  Scenario: The client launches one stack\n    Given a client with their own AWS account\n    When they launch the access stack from a link, giving a deployment name\n    Then it creates one role our pipeline can assume, requiring an external id, with the same permission ceiling as the seeded roles\n    And the client can delete the stack to revoke all access\n\n  Scenario: Our pipeline does the rest\n    Given the access stack exists\n    When we merge a change in the operating repository\n    Then the pipeline seeds the baseline and deploys the stacks in the client's account\n    And the client's data and keys stay in the client's account\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+    "labels": []
+  }
+}

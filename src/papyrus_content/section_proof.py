@@ -31,6 +31,7 @@ from .site_cyclotron import (SECTION_FIT_POSITIVE_LABEL, build_site_cyclotron, e
 from .site_sweep import SECTION_DOES_NOT_FIT_LABEL, _human_section_references, human_labels_for_section
 
 SECTION_PROOF_SCHEMA = "cyclotron-section-proof/v1"
+SECTION_CALIBRATION_SCHEMA = "cyclotron-section-calibration/v1"
 MINIMUM_POSITIVE_EXAMPLES_FOR_FIT_PROOF = 2
 MINIMUM_NEGATIVE_EXAMPLES_FOR_FIT_PROOF = 2
 MINIMUM_PLACED_REFERENCES_FOR_SELECTOR_PROOF = 10
@@ -114,21 +115,33 @@ def plan_for_one_classifier(plan, classifier_id: str):
 
 
 def pooled_outcomes_without_and_with_teaching(cross_validation_set: Mapping[str, Any], *, classifier_plan, model,
-                                              publication: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]] | None]:
-    """The (human label, classifier label) pairs of every fold, decided with no teaching and with the other folds' labels."""
+                                              publication: str, calibration_sink: list[tuple[float, bool]] | None = None
+                                              ) -> tuple[list[tuple[str, str]], list[tuple[str, str]] | None]:
+    """The (human label, classifier label) pairs of every fold, decided with no teaching and with the other folds' labels.
+
+    A calibration sink gets one (confidence, agreed with the editor) pair per held-out Reference, decided with the other folds' teaching: the
+    held-out evidence the automatic Section learns its confidence threshold from (docs/reference-auto-section.md). It stays empty unless every
+    fold was taught."""
     without_teaching: list[tuple[str, str]] = []
     with_teaching: list[tuple[str, str]] = []
+    calibration: list[tuple[float, bool]] = []
     every_fold_was_taught = True
     for fold in cross_validation_set["folds"]:
         teaching_examples = teaching_examples_from_reviews(fold)
         outcome_sink: list[tuple[int, list[tuple[str, str]]]] = []
+        confidence_sink: list[tuple[int, list[tuple[str, str, float | None]]]] = []
         run_priming_proof(fold, plan=classifier_plan, priming_examples=teaching_examples, model=model,
-                          label_schedule=[len(teaching_examples)], publication=publication, outcome_sink=outcome_sink)
+                          label_schedule=[len(teaching_examples)], publication=publication, outcome_sink=outcome_sink,
+                          confidence_sink=confidence_sink)
         without_teaching.extend(outcome_sink[0][1])
         if len(outcome_sink) > 1:
             with_teaching.extend(outcome_sink[-1][1])
+            calibration.extend((float(confidence), human == suggested) for human, suggested, confidence in confidence_sink[-1][1]
+                               if confidence is not None)
         else:
             every_fold_was_taught = False
+    if calibration_sink is not None and every_fold_was_taught:
+        calibration_sink.extend(calibration)
     return without_teaching, (with_teaching if every_fold_was_taught else None)
 
 
@@ -274,8 +287,10 @@ def _proven_report(skeleton: dict[str, Any], is_selector: bool, labeled, plan, s
     effective_fold_count = max(2, min(fold_count, len(labeled) // 2))
     cross_validation_set = freeze_section_folds(labeled, plan=classifier_plan, proof_id=f"{proof_id}/{specification.id}",
                                                 fold_count=effective_fold_count, frozen_at=ran_at)
+    calibration: list[tuple[float, bool]] = []
     without_teaching, with_teaching = pooled_outcomes_without_and_with_teaching(
-        cross_validation_set, classifier_plan=classifier_plan, model=model, publication=publication)
+        cross_validation_set, classifier_plan=classifier_plan, model=model, publication=publication,
+        calibration_sink=calibration if is_selector else None)
     human_labels = [human for human, _suggested in without_teaching]
     summarize = ((lambda outcomes: selector_metrics(outcomes, enabled_section_ids)) if is_selector
                  else fit_classifier_metrics)
@@ -290,6 +305,10 @@ def _proven_report(skeleton: dict[str, Any], is_selector: bool, labeled, plan, s
         "withTeaching": summarize(with_teaching) if with_teaching is not None else None,
         "sampleSizeCaveats": (sample_size_caveats_for_selector(skeleton["humanPlacedReferences"]) if is_selector
                               else sample_size_caveats_for_fit(skeleton["labelCounts"])),
+        # The selector's held-out (confidence, agreed) pairs: numbers only, no Reference. The automatic Section learns its threshold from them.
+        **({"calibration": {"schema": SECTION_CALIBRATION_SCHEMA, "arm": "withTeaching",
+                            "pairs": sorted([round(confidence, 6), agreed] for confidence, agreed in calibration)}}
+           if is_selector and calibration else {}),
     }
 
 

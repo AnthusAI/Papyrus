@@ -34,6 +34,7 @@ const WHOLE_TOKEN_PATTERN = /^PAPYRUSMARKUP\d{5}END$/;
 
 type PapyrusSidecar = {
   images: Record<string, Record<string, unknown>>;
+  videos: Record<string, Record<string, unknown>>;
   citations: Record<string, string[]>;
   citationLists: Record<string, unknown>;
   bibliography: string[];
@@ -60,11 +61,14 @@ function readSidecar(envelope: Record<string, unknown>): PapyrusSidecar {
   const sidecar = envelope.papyrus;
   if (!isRecord(sidecar)) throw new BodyIrError("bodyIr.papyrus is missing");
   const { images, citations, citationLists, bibliography } = sidecar;
+  const videos = sidecar.videos ?? {};
+  if (!isRecord(videos)) throw new BodyIrError("bodyIr.papyrus.videos must be an object");
   if (!isRecord(images) || !isRecord(citations) || !isRecord(citationLists) || !Array.isArray(bibliography)) {
     throw new BodyIrError("bodyIr.papyrus must contain images, citations, citationLists and bibliography");
   }
   return {
     images: images as PapyrusSidecar["images"],
+    videos: videos as PapyrusSidecar["videos"],
     citations: citations as PapyrusSidecar["citations"],
     citationLists: citationLists,
     bibliography: bibliography.map(String),
@@ -87,6 +91,15 @@ function resolveCitationTokens(text: string, sidecar: PapyrusSidecar, numbers: M
     if (!keys) return token;
     return keys.map((key) => `[${numbers.get(key)}]`).join("");
   });
+}
+
+/** A video has no printed form; its title, credit and address read as one plain paragraph, as the Markdown copy would say it. */
+function videoParagraph(token: string, sidecar: PapyrusSidecar): string {
+  const entry = sidecar.videos[token];
+  const title = typeof entry?.title === "string" ? entry.title : "";
+  const credit = typeof entry?.credit === "string" ? entry.credit : "";
+  const src = typeof entry?.src === "string" ? entry.src : "";
+  return `Video: ${title} (${credit}) ${src}`.trim();
 }
 
 function imageFromSidecar(token: string, sidecar: PapyrusSidecar): BodyProjectionImage {
@@ -130,6 +143,10 @@ export function projectBodyIr(raw: unknown): BodyProjection {
   for (const paragraph of projected.body) {
     if (WHOLE_TOKEN_PATTERN.test(paragraph) && paragraph in sidecar.images) {
       imageSrcs.push(imageFromSidecar(paragraph, sidecar));
+      continue;
+    }
+    if (WHOLE_TOKEN_PATTERN.test(paragraph) && paragraph in sidecar.videos) {
+      body.push(videoParagraph(paragraph, sidecar));
       continue;
     }
     if (WHOLE_TOKEN_PATTERN.test(paragraph) && paragraph in sidecar.citationLists) {

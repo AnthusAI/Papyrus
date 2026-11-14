@@ -113,3 +113,27 @@ Feature: A publication's visual style profile lives in the backend as versioned 
     When the illustrator agent's context pack is built for the Story
     Then the visual style layer is empty because the publication has no image style guidelines
     And the pack warns that the style of generated images will be undefined and unpredictable
+
+  Scenario: A saved visual style profile keeps its text in S3
+    Given an image publication "ours" with no style profile
+    When an editor saves the first style document with the reason "First profile"
+    Then the profile's catalog row holds no style text and the style document is one file in S3
+    And reading the profile returns the document that was saved
+
+  Scenario: A profile saved in the old shape is still read
+    Given an image publication "ours" whose style profile was saved in the old inline shape with the master prompt "Old flat shapes."
+    And a Story "story-1" in each publication
+    And the request names the image type "inline-illustration"
+    When the style is resolved for the "inline" use of "story-1" in "ours"
+    Then the answer from "ours" names the publication "ours" and its plan holds "Old flat shapes" and never "neon"
+    And the old profile is read from its row with no file in S3
+
+  Scenario: Saving an old-shape profile again moves it to S3 and resolves the same
+    Given an image publication "ours" whose style profile was saved in the old inline shape with the master prompt "Old flat shapes."
+    And a Story "story-1" in each publication
+    And the request names the image type "inline-illustration"
+    When the style is resolved for the "inline" use of "story-1" in "ours"
+    And an editor saves the profile as it is with the reason "Moved to the new storage"
+    Then the profile is at version 2 and its text is in S3
+    And version 1 can still be read as the old shape
+    And resolving the "inline" use of "story-1" again gives the same effective guidance as before the move

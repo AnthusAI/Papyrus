@@ -264,3 +264,43 @@ def _asks(context):
 def _not_used(context):
     requested, publication_found = _requested(context)
     assert requested is True and publication_found == {}
+
+
+def _run_references_command(context, name, arguments):
+    from papyrus.operator.commands import references as reference_commands
+    from papyrus.operator.config import OperatorConfig
+
+    config = OperatorConfig("cloud", None, None, None, None, None, None, None)
+    cloud, patches = support.backend(context.client)
+    context.failure, context.result = None, None
+    with patches[0], patches[1], mock.patch.object(reference_commands, "create_backend", return_value=cloud), contextlib.redirect_stdout(io.StringIO()) as out:
+        try:
+            getattr(reference_commands, f"run_references_{name}")(config, arguments.split())
+        except OperatorError as error:
+            context.failure = error
+    context.output = out.getvalue()
+
+
+@when('a signed-in person runs references show with "{arguments}"')
+def _run_show(context, arguments):
+    _run_references_command(context, "show", arguments)
+
+
+@when("a signed-in person runs references show with no arguments")
+def _run_show_bare(context):
+    _run_references_command(context, "show", "")
+
+
+@when('a signed-in person runs references text with "{arguments}"')
+def _run_text(context, arguments):
+    _run_references_command(context, "text", arguments)
+
+
+@then('the command fails with exit code 2 saying "{message}"')
+def _exit_two(context, message):
+    assert context.failure is not None and context.failure.exit_code == 2 and message in str(context.failure), context.failure
+
+
+@then('the command prints the Reference with the record id "{record}"')
+def _printed(context, record):
+    assert context.failure is None and record in context.output, (context.failure, context.output)

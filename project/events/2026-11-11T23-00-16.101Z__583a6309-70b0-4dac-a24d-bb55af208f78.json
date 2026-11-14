@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "583a6309-70b0-4dac-a24d-bb55af208f78",
+  "issue_id": "PPY-60e360e7-8a19-4f78-8a9d-9d5eda6b1267",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T23:00:16.101Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Retire a story and redirect its address to another story",
+    "description": "Merging two Stories into one article leaves the retired Stories' public addresses with no redirect. Add papyrus stories retire --story X --redirect-to Y [--dry-run] [--undo].",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

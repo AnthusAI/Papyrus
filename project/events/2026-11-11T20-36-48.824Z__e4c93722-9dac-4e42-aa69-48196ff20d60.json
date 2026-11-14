@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e4c93722-9dac-4e42-aa69-48196ff20d60",
+  "issue_id": "PPY-9bd776ab-8690-4a0a-8007-ad062adbefa8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-11T20:36:48.824Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A Papyrus deployment needs no hand-made cloud resources",
+    "description": "Ryan's rule (2026-11-11): nobody creates a cloud resource by hand. Every resource is defined in Git and applied by a pipeline on merge; agents read with the AWS CLI and never create or change. Person-only steps: the one seed apply, registrar name servers, the Google OAuth client, and secret values (CloudFormation cannot create SecureString parameters). Humorus issue: HUM-be87f4 (design draft in its comments). Must not regress the running Anthus deployments: the papyrus-pipeline-approver stack, the AWS_ACCOUNT_ID variable and the role-change approval workflow keep working. New pieces are additive: infra/account/ (account baseline and account stack templates), stack_deploy.py with --config, CloudFormation IMPORT, the reusable workflow account-stacks.yml.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

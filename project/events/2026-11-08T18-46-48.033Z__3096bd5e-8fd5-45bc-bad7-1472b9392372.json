@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "3096bd5e-8fd5-45bc-bad7-1472b9392372",
+  "issue_id": "PPY-272c84d1-cc26-4982-bc8d-4e071563e85f",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:48.033Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Machines on Machines is the design reference for the publication layout but stays a dedicated site with its own repository and hooks for now (owner decision 13). Core gets a fictional fixture tenant with MoM's structure (sections, home includes, cards) and a made-up brand, used by golden renders and the browser matrix, so the publication preset is tested without MoM's data or code and without MoM becoming a tenant. A second fixture uses TI's structure.\n\nTouches (verified at origin/develop 23fabe1d): new fixtures under features_backend/fixtures/ or tests (SiteConfig + BrandPack + sample content), the golden render suite (PPY-e59af0), the browser matrix (PPY-a526ee).\n\nAcceptance (Gherkin feature file: features_backend/reference-layout-fixture.feature):\nScenario: The publication preset renders the reference fixture\n    Given the MoM-shaped fixture with a fictional brand\n    When the golden renders run\n    Then they match the accepted renders and no MoM file is read\n\nDependencies: blocked by PPY-1252ce. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-e59af0.\n\nTesting: Golden renders.\nRollout: Tests only.\nRisk and mitigation: Low. Risk: the fixture drifts from MoM. Mitigation: MoM's own parity check compares its pages with the preset when it adopts it (PPY-31efef).\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

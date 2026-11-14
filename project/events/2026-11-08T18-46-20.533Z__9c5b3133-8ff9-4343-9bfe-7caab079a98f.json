@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "9c5b3133-8ff9-4343-9bfe-7caab079a98f",
+  "issue_id": "PPY-ef2c5747-a0ad-461a-8d3c-175c394553a4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:20.533Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Plugin models, the tables outside AppSync and the vector index carry the tenant",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

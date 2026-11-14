@@ -1,0 +1,28 @@
+{
+  "id": "PPY-c1682909-a32a-4bd1-a2f1-e0b7aca24b82",
+  "title": "P3 Image guidelines: profile document in S3 and section image documents",
+  "description": "What: the visual style profile and section image overrides follow the same storage; the image resolver's rules do not change.\n\nFiles:\n- src/papyrus_content/images/profile_store.py: read and write the profile document as a doctrine_document attachment; read the old inline shape (metadata.visualStyle + bodyMarkus) until a site is migrated\n- src/papyrus_content/images/profile_handlers.py, visual_style.py: section layer from desk-doctrine-<sectionKey>-visual-style, falling back to NewsroomSection.visualStyle/visualGuidance; the CLI lane reads the section layer too (closes the CLI/door difference noted in docs/image-style-profiles.md)\n- docs/image-style-profiles.md (where it lives)\n- features_backend/image-profile.feature (new scenarios), features_backend/guidelines-image-sections.feature\n\nAcceptance checks:\n- Example images (PPY-6d878b) still resolve from the profile after the move.\n- A resolve gives the same effective guidance before and after a site's profile is re-saved in the new shape.\n- No new reads per Reference or Story; section layer is one indexed read.\n\nGherkin scenarios:\n- A saved visual style profile keeps its text in S3\n- A profile saved in the old shape is still read\n- A section image document narrows the site's palette\n- A section image document cannot add a source the site does not allow\n- A section without an image document falls back to its old visual guidance field\n- The command line and the door resolve a section's image guidance the same way\n\nDesign: docs/plans/guidelines-as-data.md. Gherkin specs are required and ship in the same PR. Text lives in S3, never inline in DynamoDB; no new GSI; no subscriptions. Style and voice wording is data, never code.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-8d41d7b8-455c-4370-9564-a8845c739e68",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-09T00:15:34.044029Z",
+  "updated_at": "2026-11-09T00:16:31.913099Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

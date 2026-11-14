@@ -72,6 +72,14 @@ class MonitorClient(FakeClient):
             return list(self.automations)
         return list(self.items) if model == "Item" else super().list_records(model)
 
+    def list_by_index(self, index, key):
+        if index == "itemsByStage":
+            return [row for row in self.items if row.get("stage") == key]
+        return super().list_by_index(index, key)
+
+    def get_records_by_id(self, model, ids):
+        return {row["id"]: row for row in self.items if row["id"] in ids}
+
     def list_semantic_relations_by_object_state(self, key):
         self.calls.append(("incoming", key))
         return self.incoming.get(key.split("#")[1], [])

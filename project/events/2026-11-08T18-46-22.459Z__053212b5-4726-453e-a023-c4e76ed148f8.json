@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "053212b5-4726-453e-a023-c4e76ed148f8",
+  "issue_id": "PPY-2321aab5-a7c7-4c55-8eef-737203f4dcf9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:22.459Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Plan entitlements are flags on the Tenant row, read on the write path without counting",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-613a2934-26fe-47ce-b593-d2cc6b435cef",
+  "title": "One core card set for stories, references, threads and wiki entries",
+  "description": "What: cards rendered from data by core, ported once from MoM's components. Cards carry what they need on the row (no further lookups; see PPY-7f1e54).\nAcceptance:\nScenario: A card renders from its data alone\n  Given a Reference row with prediction, image and summary\n  When a listing renders\n  Then no extra lookup is made and the card matches the golden render",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-31efef9d-7906-42d8-a6c5-b071ca5814d9",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:25.330154Z",
+  "updated_at": "2026-11-07T21:42:25.330192Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

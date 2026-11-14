@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d188b43f-63e7-47bd-a58f-ac8f64937108",
+  "issue_id": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:25.717Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Site as data: the site store and the tenant context",
+    "description": "Why: a tenant has no repository. Core reads site configuration, brand pack, pages and nav through one SiteStore and carries identity through one TenantContext. The repository becomes a seed, so the dedicated tier cannot drift into a second code path. Text lives in S3; DynamoDB holds only the catalogue.\nDone when: output from a file-seeded store and from the database-backed store is byte identical. Ends with a p.apyr.us page.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

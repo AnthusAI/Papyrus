@@ -1,0 +1,23 @@
+{
+  "id": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+  "title": "Automated, steerable Story checklist: citation check, proofreading, triggered procedures, monitoring and human touchpoints",
+  "description": "Planning not finished (Ryan 2026-11-08). Vision: new checklist steps (citation check in three parts: real sources, sources support claims, citation style per story type read from site editorial-policy data; real proofreading, since copy_edit is only the Humanus rule check and fact_check is not built, PPY-719a02; quotes and numbers, links, plagiarism, headline accuracy, legal screen, disclosure, corrections). Each step run by a Tactus procedure whose agent system prompt is a per-site admin setting beside mission and policies; commands generated from one operation table for CLI and MCP; procedures triggered by Story stage transitions; monitoring; and human touchpoints at the right moments through branded Caducus notification emails that link to the newsroom pages. Related: PPY-59c772 (four-lens review), PPY-9ff95b (automation), PPY-719a02 (fact-check). Opus design review: ~/Projects/knowledge-runs/architecture/story-automation-design-20261108.md (in progress). Stories are added after Ryan answers the open questions.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "newsroom",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T16:48:40.917108Z",
+  "updated_at": "2026-11-08T16:48:40.917365Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

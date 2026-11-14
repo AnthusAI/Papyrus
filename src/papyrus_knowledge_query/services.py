@@ -422,6 +422,15 @@ class S3VectorsProvider:
             return None
         return list((vectors[0].get("data") or {}).get("float32") or []) or None
 
+    def existing_keys(self, keys: list[str]) -> list[str]:
+        """The subset of ``keys`` that has a vector in the index (``GetVectors`` without data, 100 keys to a request)."""
+        client = self._s3vectors_client()
+        found: list[str] = []
+        for start in range(0, len(keys), 100):
+            response = client.get_vectors(indexArn=self.vector_index_arn, keys=keys[start:start + 100], returnData=False)
+            found.extend(str(vector.get("key")) for vector in response.get("vectors") or [])
+        return found
+
     def query_by_vector(self, vector: list[float], top_k: int, metadata_filter: dict[str, Any] | None) -> list[dict[str, Any]]:
         """``QueryVectors`` with a ready vector; each match is ``{key, distance, metadata}``."""
         client = self._s3vectors_client()
@@ -469,6 +478,7 @@ class S3VectorsProvider:
         )
         with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - fixed OpenAI endpoint
             payload = json.loads(response.read().decode("utf-8"))
+        _record_embedding_usage(payload)
         return payload["data"][0]["embedding"]
 
     def _metadata_filter(self, scope: dict[str, Any], vector_kind: str | None = None) -> dict[str, Any] | None:
@@ -1170,3 +1180,12 @@ def _bucket_from_amplify_outputs() -> str:
             if isinstance(entry, dict) and isinstance(entry.get("bucket_name"), str) and entry["bucket_name"]:
                 return entry["bucket_name"]
     return ""
+
+
+def _record_embedding_usage(payload: dict[str, Any]) -> None:
+    """Reports the embedding's tokens to the site's Prospectus usage sender (inactive outside a deployed site)."""
+    try:
+        from papyrus_cost_usage import site_usage
+    except ImportError:  # a bundle without the sender reports nothing
+        return
+    site_usage().record_openai(payload.get("usage"))

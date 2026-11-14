@@ -11,6 +11,7 @@ from typing import Any
 
 from papyrus_newsroom import reference_actions as newsroom_reference_actions
 
+from .tenant_knowledge_keys import REFERENCE_REVIEWED_FEED_KEY, corpus_id_for_key, global_key, is_corpus_id
 from .assignments import apply_assignment_action
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import create_authoring_client
@@ -261,6 +262,33 @@ def references_set_stars_on_behalf_of(flags: list[str], *, graphql: Any = None) 
           f"{recorded.get('status') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
 
 
+def references_set_section(flags: list[str], *, client: Any = None) -> None:
+    """papyrus references set-section --reference <lineage id> (--section <name|slug|publication#slug> | --clear) [--agent <your name>] [--dry-run] [--json]
+
+    Changes only the Reference's section and records who changed it and when. The acceptance, its note, the feedback and the star rating are not touched,
+    so there is nothing to approve again. A section is named by display name, slug (for example security) or the qualified form machines-on-machines#security;
+    an unknown or disabled one is an error that lists the accepted forms and the sections available. --clear removes the section. It writes unless you pass
+    --dry-run, which reads the Reference and the sections, prints the change it would make, and writes nothing. Run it signed in (papyrus login, editor or admin)
+    or with an operator's AWS credentials (PAPYRUS_GRAPHQL_AUTH=iam).
+    """
+    from .reference_section import format_line, set_reference_section
+
+    options = parse_options(flags)
+    if options.get("help"):
+        print(references_set_section.__doc__)
+        return
+    apply = resolve_mutation_apply(options, "references set-section")
+    if client is None:
+        client = create_authoring_client()[0]
+    result = set_reference_section(
+        client, reference=options.get("reference") or options.get("reference-id"), section=options.get("section"),
+        clear=parse_boolean_option(options.get("clear"), False, "--clear"), dry_run=not apply, agent_label=_agent_option(options))
+    if parse_boolean_option(options.get("json"), False, "--json"):
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(format_line(result))
+
+
 DELEGATION_REQUEST_POLL_INTERVAL_SECONDS = 5.0
 DELEGATION_REQUEST_WAIT_TIMEOUT_SECONDS = 660.0
 
@@ -387,7 +415,7 @@ def references_auto_accept(flags: list[str]) -> None:
                 raise ValueError(f"--{flag} must be a number above 0 and below 1.") from error
     policy = validate_auto_accept(site, policy_input)
     corpus_key = normalize_string(options.get("corpus-key")) or site
-    publication = {"publicationId": site, "corpusId": f"knowledge-corpus-{corpus_key}",
+    publication = {"publicationId": site, "corpusId": corpus_id_for_key(corpus_key),
                    "positiveLabel": normalize_string(options.get("positive-label")) or "include"}
     client, _ = create_authoring_client()
     result = run_auto_accept(client, publication, policy, now=datetime.now(timezone.utc), dry_run=bool(options.get("dry-run")))
@@ -632,7 +660,7 @@ def references_retire_citation_stubs(flags: list[str]) -> None:
     key = normalize_string(options.get("corpus-key"))
     if not key or "," in key:
         raise ValueError("references retire-citation-stubs needs --corpus-key KEY (one corpus).")
-    corpus_id = key if key.startswith("knowledge-corpus-") else f"knowledge-corpus-{key}"
+    corpus_id = key if is_corpus_id(key) else corpus_id_for_key(key)
     client, _ = create_authoring_client()
     result = retire_citation_stubs(client, corpus_id=corpus_id, dry_run=not apply,
                                    progress=lambda line: print(f"references\tretire-citation-stubs\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
@@ -672,7 +700,7 @@ def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     changes: list[dict[str, Any]] = []
     for reference in references:
         curation_status = str(reference.get("curationStatus") or "pending").strip().lower() or "pending"
-        expected_reviewed_feed_key = None if curation_status == "pending" else "references#reviewed"
+        expected_reviewed_feed_key = None if curation_status == "pending" else global_key(REFERENCE_REVIEWED_FEED_KEY)
         if (reference.get("reviewedFeedKey") or None) == expected_reviewed_feed_key:
             continue
         expected = {**reference, "reviewedFeedKey": expected_reviewed_feed_key}
@@ -1541,7 +1569,6 @@ def references_fetch_url_text(flags: list[str]) -> None:
     )
     print(f"references\tprocess-fetch-url-text\tcitation-graph-warnings\t{len(result.get('citationGraphWarnings') or [])}")
     print(f"references\tprocess-fetch-url-text\tfiltered\t{result.get('filteredCount', 0)}")
-    print(f"references\tprocess-fetch-url-text\tfallback-raw\t{result.get('fallbackRawCount', 0)}")
     print(f"references\tprocess-fetch-url-text\tchanges\t{result['changeCount']}")
     print(f"references\tprocess-fetch-url-text\tgraph-changes\t{result.get('graphChangeCount', 0)}")
     print(f"references\tprocess-fetch-url-text\treference-metadata-changes\t{result.get('referenceMetadataChangeCount', 0)}")
@@ -1577,12 +1604,6 @@ def references_fetch_url_text(flags: list[str]) -> None:
         print(
             f"reference-url-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    for fallback in (result.get("filterFallbacks") or [])[:print_limit]:
-        print(
-            f"reference-url-text\tfilter-fallback\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t"
-            f"{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
         )
     needs_find_rows = [
         item for item in (result.get("items") or [])
@@ -1907,7 +1928,6 @@ def references_filter_extracted_text(flags: list[str]) -> None:
     print(f"references\tprocess-filter-text\tplanned\t{result['plannedCount']}")
     print(f"references\tprocess-filter-text\tplanned-attachments\t{result['plannedAttachmentCount']}")
     print(f"references\tprocess-filter-text\tfiltered\t{result['filteredCount']}")
-    print(f"references\tprocess-filter-text\tfallback-raw\t{result['fallbackRawCount']}")
     print(f"references\tprocess-filter-text\tskipped-missing-source\t{result['skippedMissingSourceCount']}")
     print(f"references\tprocess-filter-text\tchanges\t{result['changeCount']}")
     print(f"references\tprocess-filter-text\tfailures\t{len(result['failures'])}")
@@ -1939,11 +1959,6 @@ def references_filter_extracted_text(flags: list[str]) -> None:
         print(
             f"reference-filter-text\tfailed\t{failure.get('referenceId') or '-'}\t"
             f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    for fallback in (result.get("filterFallbacks") or [])[:print_limit]:
-        print(
-            f"reference-filter-text\tfallback-raw\t{fallback.get('referenceId') or '-'}\t"
-            f"{fallback.get('sourceUri') or '-'}\t{json.dumps(fallback.get('reason') or {}, sort_keys=True)}"
         )
     if len(result["failures"]) > print_limit:
         print(

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "77021a76-a69c-48dc-8d48-5193de668d35",
+  "issue_id": "PPY-9f929e1a-a487-4185-b896-8ef1409628b7",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:44.939Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Per-tenant meters are counters, never counts made by reading tables. TenantUsageCounter: id \"<tenant>#<meter>#<period>\" (period = the Prospectus week start YYYYMMDD, or a UTC day for daily meters), tenantId, meter, period, value (integer, in the meter's unit), lastOperationId, updatedAt; index tenantId sorted by period. Every writer adds with one atomic UpdateItem ADD at the moment the work happens, with the operation id kept to make a retry harmless. Read by the newsroom usage panel and by the daily report to Prospectus (PPY-49d059). Model spend authority stays in Prospectus's quota; this table is Papyrus's local view and the source for shared-resource attribution.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts, src/papyrus_content (new usage module), lib/ twin for the newsroom panel.\n\nAcceptance (Gherkin feature file: features_backend/tenant-usage-counters.feature):\nScenario: One unit of work adds once\n    Given \"alpha\" publishes one story\n    When the publish is retried with the same operation id\n    Then the pages-written meter for this week rose once\n\nScenario: Showing usage reads only the tenant's counters\n    Given 50 tenants with counters\n    When \"alpha\"'s usage panel opens\n    Then one query on the tenantId index runs\n\nDependencies: blocked by PPY-31c45c. Blocks PPY-3fd951, PPY-f40a02. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-ea3f08.\n\nTesting: pytest with a DynamoDB fake; request meter assertion.\nRollout: Releasable alone.\nRisk and mitigation: Risk: hot key on a busy meter. Mitigation: per-period rows, and high-volume meters (AppSync requests) are batched in memory per invocation before one ADD.\n\nReleasable on its own: yes.\nDynamoDB index: new table only: TenantUsageCounter (tenantId + period).\nAppSync authorisation: changes: new model (tenant admin read, functions write).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

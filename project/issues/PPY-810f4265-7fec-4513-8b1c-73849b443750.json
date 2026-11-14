@@ -1,0 +1,36 @@
+{
+  "id": "PPY-810f4265-7fec-4513-8b1c-73849b443750",
+  "title": "First-run onboarding in the newsroom: name, logo, colours, fonts, sections, subdomain",
+  "description": "Outcome: The v1 customisation surface (owner decision 7) as a short first-run flow: site name and tagline, logo upload, colours for light and dark, fonts from the allow-list, sections, nav order, home template, and the subdomain. Every step validates with the shared validator and shows the live preview (PPY-91fb68). Plain buttons and Lucide icons; one Accept/Reject vocabulary.\n\nTouches (verified at origin/develop 23fabe1d): app/newsroom (new onboarding route and components/), lib/ validator twin, the site store save mutation, TenantDomain change for the subdomain.\n\nAcceptance (Gherkin feature file: features/tenant-onboarding.feature):\nScenario: A new admin sets up their site in one sitting\n    Given a freshly provisioned tenant and its admin signed in\n    When she sets the name, uploads a logo, picks colours and a font and renames a section\n    Then the preview shows each change and saving publishes them within the TTL\n\nDependencies: blocked by PPY-91fb68, PPY-e572de, PPY-70a429. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Browser tests at 375, 820 and 1440 px.\nRollout: Shared stack.\nRisk and mitigation: Risk: colour choices fail contrast and the user is stuck. Mitigation: the validator suggests the nearest passing colour.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-91fb6809-4acb-417c-bd12-3d8f06ae7e29",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e572de82-352c-4456-9232-6594f3f49bc4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-70a4296d-b01e-4ba6-90a0-0493512e6744",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:22.333540Z",
+  "updated_at": "2026-11-08T18:47:02.402999Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -5,6 +5,7 @@ Before a Story is published it is looked at four ways: as people read it, as AI 
 ## What this is for
 
 - **The lens steps are mainly for agents.** An agent does them before a person reviews the Story, so obvious problems are fixed before any human time is spent. An agent may finish a lens step, and it is recorded by name. Only a person gives the final approval.
+- **A generated image has no credit line at all; leave credit off.** P10 and C6 pass for it. A local picture with no credit that is not the stock cover record and not a Reference's picture counts as ours, so leaving credit off is the right way to mark a picture as ours. (`credit="Generated."` still works: it is dropped and the picture counts as ours, but it is no longer needed.) A picture at a web address, the stock cover record or a Reference's picture is third-party and must be credited; a real third-party credit is never rewritten.
 - **Three failures are errors.** A step cannot be closed as done while one stands: an image with no alt text, a third-party image with no credit, and a Markdown copy that differs from the Story's source. Closing a step despite one (as "done, accepted risk" with a reason) is a later piece of work; for now the checks report them clearly.
 - **The checklist and the final review matter even more for sites that publish without a person's approval.**
 - **No new gate.** Findings are advice. The checklist's own rule (an open step blocks publishing) is the gate.
@@ -43,7 +44,7 @@ blocked	review_people	P7	fix this before the step can close as done	1 of 1 image
 notrun	28 checks were not run (they need a model, the rest of the site or a person): P3, P4, ...
 ```
 
-The three error-level problems (P7, P10 with its mirror C6, A2) are reported as `Problem` and `blocked`. Refusing to close the step while one stands, and the "done, accepted risk" way round it, belong to the checklist and the final review, not to this command. A check that could not be made is never a pass. The preview and Markdown copy the checks judge are built by the projector's own functions (`projection/standard/share_preview.py`, `item_markdown`), so a check never judges a stand-in. Where the check works from the Story's Markus source (the opening paragraph, the first picture) it is an approximation of what the page renders; the description tier (the Story's dek, its first paragraph or the site description) is the same.
+The error-level problems (P7, P10 with its mirror C6, P16 for a video with no title or credit, A2) are reported as `Problem` and `blocked`. Refusing to close the step while one stands, and the "done, accepted risk" way round it, belong to the checklist and the final review, not to this command. A check that could not be made is never a pass. The preview and Markdown copy the checks judge are built by the projector's own functions (`projection/standard/share_preview.py`, `item_markdown`), so a check never judges a stand-in. Where the check works from the Story's Markus source (the opening paragraph, the first picture) it is an approximation of what the page renders; the description tier (the Story's dek, its first paragraph or the site description) is the same.
 
 What it does not do yet: the model-judged checks, comparing a title with the site's other titles (there is no title index), links in from the rest of the site, the picture file's size, the editorial check (P11), the fact check (P13) and the checks after publishing. They are listed in `notRun`.
 
@@ -66,7 +67,7 @@ Audience: people reading or skimming the page.
 | Check | What it asks | Method | Severity | Evidence | Runs in lens-check |
 | --- | --- | --- | --- | --- | --- |
 | P1 | The headline is present, is not a placeholder and is not another Story's headline | checked by code | warn | the title, and the other Story if duplicated | yes |
-| P2 | The Story has a dek (the summary line under the headline) | checked by code | warn | which field was used, or that the page will use the first paragraph | yes |
+| P2 | The Story has a dek (the summary line under the headline) | checked by code | warn | which field was used, that the page will use the first paragraph, or that the dek is a verbatim copy of the blurb (a dek that merely differs from the blurb is expected) | yes |
 | P3 | The dek adds something the headline does not | judged by Jev | info | the question, the answer and its probability | not yet |
 | P4 | The headline does not promise what the Story does not deliver | judged by Jev | warn | the question, the answer and the sentence compared | not yet |
 | P5 | The opening paragraph works as an opening | judged by Jev | info | the question and the answer | not yet |
@@ -80,6 +81,9 @@ Audience: people reading or skimming the page.
 | P13 | Every claim a model wrote has been fact-checked | checked by code | warn | claims held, by group, or that the draft check has not run | not yet |
 | P14 | The Story is fair, engaging and worth reading | a person decides | n/a | the person's findings note | not yet |
 | P15 | The readability is typical for this site | checked by code | info | the Story's value against the site's own median and spread | not yet |
+| P16 | Every video has a title (its accessible name) and a credit | checked by code | error | each video, its title and credit, and whatever is missing | yes |
+| P17 | Every video has a caption | checked by code | warn | the videos with no caption | yes |
+| P18 | A video plays on this site: the site lists its provider | checked by code | warn | the site's embeds setting, each video's provider | yes |
 
 ### Reviewed for AI reader agents (`review_reader_agents`)
 
@@ -103,6 +107,7 @@ Audience: AI agents that read the page for a person.
 | A12 | After publishing: the Markdown copy is served and the page links to it | checked by code | warn | the addresses fetched, their status and content type | not yet |
 | A13 | The site is live and open to readers | checked by code | info | whether the site asks readers to stay away | yes |
 | A14 | The Story does not claim access to a source it did not read | a person decides | n/a | the person's findings note | not yet |
+| A15 | A credited video is one of the Story's citations | checked by code | warn | the credited videos whose address is not among the citations | yes |
 
 ### Reviewed for search (`review_search`)
 
@@ -138,7 +143,7 @@ Audience: people who see a link card before they click.
 | C1 | The preview resolves: the page and picture addresses can be built | checked by code | warn | the resolved addresses | yes |
 | C2 | The description is the Story's own, not the site fallback | checked by code | warn | which source the description came from | yes |
 | C3 | The Story has its own picture, or is knowingly using the site's | checked by code | info | where the picture came from | yes |
-| C4 | The picture file exists and its size and shape are known | checked by code | warn | the path, size and ratio | not yet |
+| C4 | The share picture file exists, is a JPEG or PNG and its size and shape are known | checked by code | warn | the address, status, Content-Type, format, size and ratio | yes |
 | C5 | The picture has a description for the share card | checked by code | warn | the description used, or that none is emitted | yes |
 | C6 | A third-party picture is credited | checked by code | error | as P10 | yes |
 | C7 | Every name, number and quotation in the title and description is in the Story | checked by code | warn | the terms not found | yes |
@@ -146,7 +151,7 @@ Audience: people who see a link card before they click.
 | C9 | The preview stands alone as information | judged by Jev | info | the answer | not yet |
 | C10 | The preview is not a teaser that withholds the point | judged by Jev | info | the choice and its probability | not yet |
 | C11 | A drawn approximation of the card is shown to the approver | checked by code | info | the approximation and its inputs | not yet |
-| C12 | After publishing: the live tags equal the predicted ones | checked by code | warn | the fetch results | not yet |
+| C12 | After publishing: the live og:image and twitter:image equal the tested picture and it can be fetched | checked by code | warn | the fetch results | not yet |
 | C13 | The picture is tasteful, on brand and relevant | a person decides | n/a | the person's findings note | not yet |
 
 <!-- lenses:end -->

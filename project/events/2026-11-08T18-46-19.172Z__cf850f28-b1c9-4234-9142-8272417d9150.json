@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "cf850f28-b1c9-4234-9142-8272417d9150",
+  "issue_id": "PPY-e01d8265-67b7-45c9-9804-4a2f789c476d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:19.172Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Realtime subscriptions off on the shared stack",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

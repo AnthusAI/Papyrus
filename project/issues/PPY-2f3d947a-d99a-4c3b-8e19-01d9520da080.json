@@ -1,0 +1,23 @@
+{
+  "id": "PPY-2f3d947a-d99a-4c3b-8e19-01d9520da080",
+  "title": "Stop-gap: board stage queries skip superseded versions (PR #1361)",
+  "description": "PR #1361 (branch fix/board-stage-published) adds filter versionState ne superseded to the two console stage queries in components/news-desk-taxonomy-client.ts. It fixes the 26 wrong Machines on Machines cards now, with no backend or schema change, at the cost of reading about 4.7x more rows in the Published column (456 superseded of 580). Removed by the cleanup task once the head-stage index is read. Acceptance: on MoM, no card shows a version that is not the head of its lineage; the Gherkin scenario in the PR passes; a site bump ships it (front end only).",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "labels": [
+    "deploy:frontend",
+    "stop-gap"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-10T02:38:29.069951Z",
+  "updated_at": "2026-11-10T02:38:57.159742Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -40,7 +39,7 @@ from .options import (
     parse_options,
     resolve_mutation_apply,
 )
-from .records import apply_record_changes, build_record_changes, build_record_changes_tolerating_optional_models
+from .records import apply_record_changes, build_record_changes
 from .reference_policy import normalize_reference_curation_status
 from .publication import publication_corpus_key
 
@@ -61,18 +60,18 @@ ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_ASSIGNMENT_TYPES = ("research.*", "repo
 
 
 def writable_run_dir(run_id: str) -> Path:
-    """The directory for one run's files: under the repository's ``.papyrus-runs``, or under the system temporary directory when that place cannot be written
-    (a Lambda's code directory is read-only), so a run that has nothing to do with the disk never dies on it."""
-    preferred = PAPYRUS_ROOT / ".papyrus-runs" / run_id
+    """The directory for one run's files: ``PAPYRUS_RUNS_DIR`` when the environment sets it (a Lambda sets it to a directory under /tmp,
+    because its code directory is read-only), else the repository's ``.papyrus-runs``. A directory that cannot be written is an error."""
+    configured = str(os.environ.get("PAPYRUS_RUNS_DIR") or "").strip()
+    base = Path(configured) if configured else PAPYRUS_ROOT / ".papyrus-runs"
+    run_dir = base / run_id
     try:
-        preferred.mkdir(parents=True, exist_ok=True)
-        if os.access(preferred, os.W_OK):
-            return preferred
-    except OSError:
-        pass
-    fallback = Path(tempfile.gettempdir()) / ".papyrus-runs" / run_id
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+        run_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise OSError(f"Cannot create the run directory {run_dir}: {error}. Set PAPYRUS_RUNS_DIR to a writable directory.") from error
+    if not os.access(run_dir, os.W_OK):
+        raise OSError(f"The run directory {run_dir} is not writable. Set PAPYRUS_RUNS_DIR to a writable directory.")
+    return run_dir
 
 
 def normalize_research_mode(value: Any) -> str:
@@ -2648,7 +2647,7 @@ def review_reporting_packet(
         actor_sub=auth_claims.get("sub"),
         semantic_relations=relations,
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments review-reporting-packet")
     if apply:
         apply_record_changes(client, changes)
@@ -2707,7 +2706,7 @@ def run_copywriting_assignment(
         actor_label=actor_label,
         actor_sub=auth_claims.get("sub"),
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments run-copywriting")
     from .story_from_reference import check_body_against_references, current_reference
     from .story_reporting import BASED_ON, link_reference_to_story

@@ -1,0 +1,40 @@
+{
+  "id": "PPY-4a79f900-8843-4125-a9e4-e2093cd51311",
+  "title": "Load test of the shared stack, including the index-backed home page and one noisy tenant",
+  "description": "Outcome: Before TI moves: 50 synthetic tenants on staging, each with stories and References; readers hitting home, section and story pages through the edge; editors publishing; monitors delivering 30 References a run; one tenant doing a full re-render. Measure: p95 publish-to-live, AppSync requests per change (must stay proportional to the change; PPY-3fd0aa), Lambda concurrency, queue wait per tenant, edge hit ratio, cost per tenant per day. The home page must use the index-backed blocks (PPY-7f1e54), not the whole-corpus snapshot (PPY-ee02b8).\n\nTouches (verified at origin/develop 23fabe1d): a load script (k6 or Python) under scripts/load/, staging shared stack, request meter, CloudWatch dashboards.\n\nAcceptance (Gherkin feature file: features_backend/shared-stack-load.feature):\nScenario: One noisy tenant does not slow the others\n    Given 50 tenants and one running a full re-render\n    When the other tenants publish\n    Then their p95 publish-to-live stays within the agreed bound and AppSync calls per change do not grow with tenant count\n\nDependencies: blocked by PPY-3bbbf9, PPY-994bd0, PPY-413576, PPY-7f1e54. Blocks PPY-04ce84. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: It is the test; results on this issue.\nRollout: Staging.\nRisk and mitigation: Risk: the load test costs money. Mitigation: a bounded run with a stated budget, approved beforehand.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3bbbf9e2-2ddf-4c10-b19e-e7b65f36f5a3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-994bd093-b3f2-442c-9711-0ac8e5819220",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4135762a-5ff9-4015-9858-3304d316e47e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-7f1e5496-6d3b-4ebf-a58e-515406813fde",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:25.883202Z",
+  "updated_at": "2026-11-08T18:47:12.525285Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

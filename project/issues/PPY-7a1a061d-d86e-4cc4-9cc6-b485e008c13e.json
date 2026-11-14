@@ -1,0 +1,22 @@
+{
+  "id": "PPY-7a1a061d-d86e-4cc4-9cc6-b485e008c13e",
+  "title": "Versioned contract tests for site config, brand pack and the dedicated hooks API",
+  "description": "Acceptance:\nScenario: A removed option warns for two minors, then errors",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:43:10.432417Z",
+  "updated_at": "2026-11-07T21:43:10.432460Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

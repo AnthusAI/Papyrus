@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
+import yaml
 from behave import given, then, when
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +18,7 @@ from papyrus_content.knowledge_snapshot import commands as snapshot_commands  # 
 from papyrus_content.knowledge_snapshot.keys import slug  # noqa: E402
 from papyrus_content.knowledge_wiki import commands as wiki_commands  # noqa: E402
 from papyrus_content.knowledge_wiki.sync import front_matter_of  # noqa: E402
-from papyrus_content.publishing import published_item_id_for  # noqa: E402
+from papyrus_content.publishing import ItemFields, published_item_id_for, save_item, unpublish_item  # noqa: E402
 from papyrus_content.wiki_stamp import WIKI_PAGE_ITEM_TYPE  # noqa: E402
 from procedures.newsroom.tests.test_knowledge_wiki import WikiClient, publish_article  # noqa: E402
 
@@ -34,7 +35,7 @@ def _scene(context):
             patcher = mock.patch.object(module, "create_authoring_client", lambda *args, **kwargs: (client, {}))
             patcher.start()
             context.add_cleanup(patcher.stop)
-        context.scene = {"client": client, "dir": Path(directory.name), "entities": [], "out": "", "error": None, "retired": None}
+        context.scene = {"client": client, "dir": Path(directory.name), "entities": [], "out": "", "error": None}
     return context.scene
 
 
@@ -121,17 +122,29 @@ def step_synced_and_published(context, kinds):
     _publish_all(_scene(context))
 
 
-@when('the wiki sync runs with a vocabulary of the kinds "{kinds}" and retiring')
-@given('the wiki sync ran with a vocabulary of the kinds "{kinds}" and retiring')
-def step_retiring(context, kinds):
-    scene = _scene(context)
-    scene["retired_file"] = scene["dir"] / "retired.json"
-    _sync(context, kinds, "--retire", "--retired-out", str(scene["retired_file"]))
+@given('the wiki sync ran with a vocabulary of the kinds "{kinds}"')
+def step_ran(context, kinds):
+    _sync(context, kinds)
 
 
-@when('the wiki sync dry run is made with a vocabulary of the kinds "{kinds}" and retiring')
+@when('the wiki sync dry run is made with a vocabulary of the kinds "{kinds}"')
 def step_dry_run(context, kinds):
-    _sync(context, kinds, "--retire", apply=False)
+    scene = _scene(context)
+    scene["writes_before"] = len(scene["client"].write_calls())
+    _sync(context, kinds, apply=False)
+
+
+@given('the page for "{title}" was taken down and marked retired by an earlier version of the sync')
+def step_marked_retired(context, title):
+    scene = _scene(context)
+    page = _page_titled(scene, title)
+    unpublish_item(scene["client"], page["id"], actor="earlier-sync")
+    marked = {**front_matter_of(page), "retired": True}
+    save_item(
+        scene["client"],
+        ItemFields(type=WIKI_PAGE_ITEM_TYPE, slug=page["slug"], section="wiki", front_matter_yaml=yaml.safe_dump(marked, sort_keys=False), body_markus=page["bodyMarkus"], aliases=[], id=page["id"]),
+        actor="earlier-sync",
+    )
 
 
 @when("the wiki sync runs with a vocabulary that declares no kinds")
@@ -188,22 +201,15 @@ def step_no_entity(context, name):
     assert name not in _scene(context)["snapshot"]
 
 
-@then('the page for "{title}" is no longer live and is marked retired')
-def step_down(context, title):
-    page = _page_titled(_scene(context), title)
-    assert not _live(_scene(context), title) and page["status"] == "draft" and front_matter_of(page)["retired"] is True
-
-
 @then('the pages for "{a}" and "{b}" are still live')
 def step_others_live(context, a, b):
     assert _live(_scene(context), a) and _live(_scene(context), b)
 
 
-@then("the sync reports one page to remove from the site")
+@then("the sync reports no page to take down")
 def step_reports(context):
-    scene = _scene(context)
-    page = _page_titled(scene, "Aaron Cohen")
-    assert json.loads(scene["retired_file"].read_text()) == [page["id"]]
+    out = _scene(context)["out"]
+    assert "retire" not in out and "taken down" not in out, out
 
 
 @then('the page for "{title}" is not live')
@@ -222,10 +228,16 @@ def step_warns(context, title):
     assert f"warning\twiki/{slug_text}: no longer generated" in _scene(context)["out"], _scene(context)["out"]
 
 
-@then('the dry run lists the page for "{title}" as live and to be taken down')
-def step_dry_lists(context, title):
-    out = _scene(context)["out"]
-    assert "mode\tdry-run" in out and "retire\twiki/personauthor-aaroncohen\tlive: taken down" in out, out
+@then("the dry run changes nothing and lists no page to retire")
+def step_dry_changes_nothing(context):
+    scene = _scene(context)
+    assert "mode\tdry-run" in scene["out"] and "retire" not in scene["out"], scene["out"]
+    assert len(scene["client"].write_calls()) == scene["writes_before"]
+
+
+@then('the page for "{title}" is still live and not marked retired')
+def step_still_live_unmarked(context, title):
+    assert _live(_scene(context), title) and "retired" not in front_matter_of(_page_titled(_scene(context), title))
 
 
 @then('the page for "{title}" is live and not marked retired')
