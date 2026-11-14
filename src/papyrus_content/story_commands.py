@@ -1234,7 +1234,8 @@ def stories_localize(flags: list[str]) -> None:
     dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
     ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
     client, _ = create_authoring_client()
-    request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling)
+    request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling,
+                      automation_id=options.get("automation"))
     from .localize.blocks import blocks_of
     from .localize.engine import plan_slots
 
