@@ -76,21 +76,20 @@ def stored_design_system() -> DesignSystem:
 
 
 def rules_text(*, packaged_only: bool = False) -> str:
-    """The figure rules of the signed-in site (its own, when it saved them), or the packaged general rules. Where the site cannot be reached the packaged
-    rules are printed and the reason goes to stderr, so a person or agent never takes them for the site's own."""
+    """The figure rules of the signed-in site (its own, when it saved them), or the packaged general rules when the site saved none. A site that cannot be
+    read raises: the packaged rules are printed only for a site that has none of its own, or when ``--packaged`` asks for them."""
     packaged = packaged_text("rules.md")
     if packaged_only:
         return packaged
     from papyrus_content.guidelines.figure_rules import figure_rules
 
-    try:
-        from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.graphql_authoring import create_authoring_client
 
+    try:
         client, _ = create_authoring_client()
         found = figure_rules(client, packaged)
-    except Exception as error:  # noqa: BLE001 - not signed in, no endpoint, offline
-        print(f"figures: could not read the site's figure rules ({error}); these are the packaged general rules.", file=sys.stderr)
-        return packaged
+    except Exception as error:  # noqa: BLE001 - not signed in, no endpoint, offline: say so and stop; the packaged rules are not a stand-in
+        raise ValueError(f"could not read the site's figure rules ({error}). Sign in, or pass --packaged for the general rules.") from error
     whose = "the site's own" if found["source"] == "site" else "the packaged general"
     version = f", version {found['reference']['versionNumber']}" if found["reference"] else ""
     print(f"figures: using {whose} figure rules{version}", file=sys.stderr)
