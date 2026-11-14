@@ -8,6 +8,7 @@ import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
 import { applySiteCostTags } from "./cost-attribution";
+import { addSharedStackDeny } from "./shared-stack-deny";
 import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
@@ -107,8 +108,10 @@ export class AmplifyAppShellStack extends Stack {
   public readonly cmsAppId?: string;
   public readonly readerAppId?: string;
 
-  constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
+  constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps, options: { sharedStackDeny?: boolean } = {}) {
     super(scope, id, props);
+    // Every role of a dedicated site denies the shared tier's resources (PPY-daf673); no resource is added.
+    addSharedStackDeny(this, options.sharedStackDeny);
     // Prospectus cost accounting: every resource carries the site's owner Account, app papyrus and the site ID.
     // On unless site.json says costAccounting false. These stacks are small; the backend's tags go in waves.
     if (config.costAccounting) applySiteCostTags(this, config.siteId);

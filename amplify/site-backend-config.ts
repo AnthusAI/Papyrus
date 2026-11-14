@@ -1,4 +1,5 @@
 import type { PluginRequest } from "./plugins/types";
+import { isSharedTier, type SharedTier } from "./shared-stack/names";
 
 /**
  * Per-site backend configuration: the argument of `defineSiteBackend(site)`.
@@ -209,17 +210,22 @@ export function assertValidPublicationConfig(publication: unknown): void {
  * helpers `papyrus_content.tenancy` (Python) and `lib/tenant-keys.ts` (TypeScript) may read.
  */
 export type PapyrusTenancyMode = "dedicated" | "shared";
-export type PapyrusTenancyConfig = { mode?: PapyrusTenancyMode };
+/** `tier` names which shared stack this backend is (docs/shared-stack.md); required with mode "shared", refused without it. */
+export type PapyrusTenancyConfig = { mode?: PapyrusTenancyMode; tier?: SharedTier };
 
 export const TENANCY_MODE_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANCY_MODE";
 
 export function validateTenancyConfig(tenancy: unknown): string[] {
   if (tenancy === undefined) return [];
   if (typeof tenancy !== "object" || tenancy === null || Array.isArray(tenancy)) return ["tenancy must be an object"];
-  const mode = (tenancy as { mode?: unknown }).mode;
+  const { mode, tier } = tenancy as { mode?: unknown; tier?: unknown };
   if (mode !== undefined && mode !== "dedicated" && mode !== "shared") {
     return [`tenancy.mode must be "dedicated" or "shared" (got ${JSON.stringify(mode)})`];
   }
+  if (mode === "shared" && !isSharedTier(tier)) {
+    return [`tenancy.tier must be "production" or "staging" for a shared stack (got ${JSON.stringify(tier)})`];
+  }
+  if (mode !== "shared" && tier !== undefined) return ["tenancy.tier is only for tenancy.mode \"shared\""];
   return [];
 }
 

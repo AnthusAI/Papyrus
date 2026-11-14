@@ -26,7 +26,13 @@ import {
   validateRevalidateDistributionIds,
 } from "./revalidate-invalidation-settings";
 import { enablePointInTimeRecoveryOnDataTables } from "./data-table-recovery";
-import { applySiteBackendCostTags, siteCostAttribution, wireSiteUsageSender } from "./cost-attribution";
+import { applySiteBackendCostTags, sharedStackCostAttribution, siteCostAttribution, wireSiteUsageSender } from "./cost-attribution";
+import { addSharedStackAlarms } from "./shared-stack/alarms";
+import { addSharedStackDeny, isModelDataStack } from "./shared-stack/deny";
+import { isInfrastructureConstructId } from "./shared-stack/inline-policy";
+import { applySharedStackIsolation } from "./shared-stack/isolation";
+import { sharedTierPlan } from "./shared-stack/names";
+import { sharedStackSettings } from "./shared-stack/settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
@@ -86,13 +92,20 @@ import { addStorageBackups } from "./storage-backups/construct";
 import { storage } from "./storage/resource";
 import type { PapyrusSite } from "../lib/define-site";
 
-export function defineSiteBackend(papyrusSite: PapyrusSite) {
+export type DefineSiteBackendOptions = {
+  /**
+   * Add the deny on the shared tier's resources to every dedicated role (default true). Only the synth test that proves the deny is
+   * the whole difference turns it off, to get the template without it.
+   */
+  dedicatedSharedStackDeny?: boolean;
+};
+
+export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteBackendOptions = {}) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
   // the default brand id namespaces account-global resources.
   const site = { brandId: papyrusSite.defaultBrand, ...papyrusSite.backend };
   // Prospectus cost accounting: on when `papyrus-infra backend-deploy` asks for a cost tag wave (PAPYRUS_COST_TAG_WAVE).
-  // Null, from a plain `ampx pipeline-deploy`, leaves the backend untouched.
-  const costAttribution = siteCostAttribution();
+  // Null, from a plain `ampx pipeline-deploy`, leaves the backend untouched. A shared stack is always tagged (see below).
   const knowledgeVectorDimension = 1536;
   const knowledgeEmbeddingModel = "text-embedding-3-small";
 
@@ -130,10 +143,19 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   assertValidMonitoringConfig(site.monitoring);
   assertValidTenancyConfig(site.tenancy);
   const tenancyMode = resolveTenancyMode(site.tenancy);
+  // A shared stack is one of two fixed tiers (docs/shared-stack.md). Its settings (reserved concurrency, alarm thresholds) come from
+  // amplify/shared-stack/settings.json, and a tier whose numbers are not measured yet refuses to synthesise.
+  const sharedTier = tenancyMode === "shared" ? sharedTierPlan(site.tenancy!.tier!) : undefined;
+  const sharedSettings = sharedTier ? sharedStackSettings(sharedTier.tier) : undefined;
+  const costAttribution = sharedTier ? sharedStackCostAttribution(sharedTier) : siteCostAttribution();
+  if (sharedTier && (publication?.projector !== undefined || publication?.staticDir !== undefined)) {
+    throw new Error("A shared stack serves many sites, so its publication cannot name one site's projector or static directory.");
+  }
   const emailMonitorId = site.monitoring?.emailMonitorId ?? "hn";
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
-  setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
+  // The shared stack bundles no site's files: its configuration comes from the site store, one site per tenant.
+  setSiteFilesForContentActionsBundle(sharedTier ? [] : publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
   const plugins = resolvePlugins(site.plugins, { staticDir: publication?.staticDir });
   const pluginDefinitions = Object.assign({}, ...plugins.map(({ plugin }) => plugin.schemaDefinitions()));
   const pluginFunctions: Record<never, never> = Object.assign({}, ...plugins.map(({ plugin }) => plugin.functions()));
@@ -896,7 +918,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   });
   wireEditorialChecks(backend);
   // The functions that call models report their tokens to the site's Prospectus usage queue.
-  if (costAttribution) {
+  if (costAttribution && !sharedTier) {
     const editorialChecksLambda = backend.editorialChecks.resources.lambda as LambdaFunction;
     wireSiteUsageSender(editorialChecksLambda, costAttribution);
     wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
@@ -904,6 +926,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     // each fit one CloudFormation operation; the usage senders' stacks change in the first pass, so they go first.
     applySiteBackendCostTags(backend.stack, costAttribution, [Stack.of(editorialChecksLambda), Stack.of(knowledgeQueryLambda)]);
   }
+  // The shared stack reports usage per tenant through Prospectus later (kanbus-f45f7f); until then its resources are only tagged.
+  if (costAttribution && sharedTier) applySiteBackendCostTags(backend.stack, costAttribution);
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
   wireImageService(backend);
@@ -911,6 +935,31 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
   wireAnnouncements(backend, siteBackendIdentity.brandId);
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
+
+  if (tenancyMode === "shared") {
+    // The loop at the top reaches the functions Amplify defines. A shared stack also has functions that wires and plugins make with `new Function`
+    // (the console chat responder, the reference word index consumer, the public forms handler); each must know it is shared.
+    for (const node of backend.stack.node.findAll()) {
+      if (!(node instanceof LambdaFunction) || isInfrastructureConstructId(node.node.id)) continue;
+      for (const [name, value] of Object.entries(tenancyFunctionEnvironment(tenancyMode))) node.addEnvironment(name, value);
+    }
+  }
+  if (sharedTier && sharedSettings) {
+    // Layers 2, 3 and 5 of the shared tier's isolation (the key, the boundary, reserved concurrency, alarms); the foundation stack holds the key and the boundary policy.
+    const isolation = applySharedStackIsolation(backend, sharedTier, sharedSettings);
+    const alarmsStack = backend.createStack("shared-alarms");
+    addSharedStackAlarms(alarmsStack, sharedTier, sharedSettings, {
+      functions: isolation.functionTargets,
+      appSyncApiId: backend.data.resources.graphqlApi.apiId,
+      tableNames: Object.values(backend.data.resources.tables).map((table) => table.tableName),
+      projectionDeadLetterQueueName: s3ProjectionPublication?.deadLetterQueue.queueName,
+      distributionId: s3ProjectionPublication?.distributionId,
+    });
+  } else if (options.dedicatedSharedStackDeny !== false) {
+    // A dedicated site's roles may not touch the shared tier. Roles of the per-model data stacks are left alone (see addSharedStackDeny).
+    const modelNames = new Set(Object.keys(backend.data.resources.tables));
+    addSharedStackDeny(backend.stack, (stack) => isModelDataStack(stack, modelNames));
+  }
 
   return backend;
 }

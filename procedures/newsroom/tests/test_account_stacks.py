@@ -629,7 +629,8 @@ def test_the_default_config_keeps_the_defaults_for_the_new_keys(tmp_path):
     config, _ = sd.load_config(sd.CONFIG_PATH)
     ctx = make(tmp_path, AccountCloud(), config["stacks"], templateBucketFrom=config["templateBucketFrom"])
     assert ctx.prefix == sd.CHANGE_SET_PREFIX == "papyrus-release-" and ctx.inline is False
-    assert sd.selected(config, None) == config["stacks"]
+    default = [s for s in config["stacks"] if s.get("group", "default") == "default"]
+    assert sd.selected(config, None) == default   # the shared-tier stacks are held, so a plain deploy leaves them out
     assert sd.changed_stacks(config, ["infra/pipeline/stacks.json"]) == [s["name"] for s in config["stacks"]]
     for stack in config["stacks"]:
         assert sd.template_file(ctx, stack) == tmp_path / stack["template"]   # relative templates still resolve under the context root
@@ -717,8 +718,9 @@ def test_changed_counts_a_missing_stack_as_changed_and_still_exits_zero(tmp_path
 
 def test_default_group_and_role_leave_the_existing_config_alone():
     config, _ = sd.load_config(sd.CONFIG_PATH)
-    assert sd.selected(config, None, "default") == config["stacks"] == sd.selected(config, None)
-    assert all("group" not in s and "serviceRoleName" not in s for s in config["stacks"])
+    default = [s for s in config["stacks"] if s.get("group", "default") == "default"]
+    assert sd.selected(config, None, "default") == default == sd.selected(config, None)
+    assert all("group" not in s and "serviceRoleName" not in s for s in default)
 
 
 # ---------------------------------------------------------------------------------------------------------- the shipped account templates
