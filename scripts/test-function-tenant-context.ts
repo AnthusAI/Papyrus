@@ -17,6 +17,7 @@ import { TenantContextRefusal } from "../amplify/functions/shared/tenant-context
 const ROOT = path.resolve(import.meta.dirname, "..");
 const registry = JSON.parse(readFileSync(path.join(ROOT, "features_backend/fixtures/function-tenant-context/handlers.json"), "utf8")) as {
   moved: string[];
+  exempt: Record<string, string>;
   pending: Record<string, string>;
 };
 const functions = readFunctions(ROOT);
@@ -43,12 +44,16 @@ const infoOf = (directory: string) => functions.find((info) => info.directory ==
 const handlerFile = (directory: string) => ["handler.py", "handler.ts"].map((name) => path.join(ROOT, infoOf(directory).relativePath, name)).find(existsSync);
 
 test("every function of the schema's function list is moved or on the pending list, once", () => {
-  const listed = [...registry.moved, ...Object.keys(registry.pending)];
+  const listed = [...registry.moved, ...Object.keys(registry.exempt), ...Object.keys(registry.pending)];
   const missing = functions.map((info) => info.directory).filter((directory) => !listed.includes(directory));
   assert.deepEqual(missing, [], `function(s) with no tenant context and no pending entry: ${missing.join(", ")}. Build the context in the handler (docs/multi-tenancy.md) and add it to "moved" in features_backend/fixtures/function-tenant-context/handlers.json`);
   assert.deepEqual(listed.filter((name, index) => listed.indexOf(name) !== index), [], "a function is both moved and pending, or listed twice");
   const unknown = listed.filter((directory) => !functions.some((info) => info.directory === directory));
   assert.deepEqual(unknown, [], `listed but not a function any more: ${unknown.join(", ")}`);
+});
+
+test("every exempt function says why it has no caller to take a tenant from", () => {
+  for (const [directory, reason] of Object.entries(registry.exempt)) assert.ok(reason.trim().length > 20, `${directory} needs a reason it is exempt`);
 });
 
 test("every pending function names the board sub-task that moves it", () => {
