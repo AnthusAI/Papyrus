@@ -132,7 +132,7 @@ reached" is raised once. Raise `maxHops` on the automation to let the bots conti
 the `startFailed` rewrite, the router-config read and the `STAGE#` prefix query; `UpdateItem` on the run rows was already there), and
 `lambda:InvokeFunction` on `papyrus-procedure-runner` itself, to start the next stage. The existing `appsync:GraphQL` grant on every
 Query and Mutation field of the Distinctive API already covers `listAutomations`, `getAutomation`, the Item fields, Messages and
-review-request mutations; no other API is needed. What remains is the operator's: rebuild the image (`infra/procedures/build_image.sh`)
+review-request mutations; no other API is needed. What remains is the operator's: rebuild the image (the release (it builds the image from `infra/procedures/build_image.py`))
 and update the `papyrus-procedure-runner` stack with the new `ImageUri` (see docs/procedure-runner.md, "Deploying").
 
 **Not built yet:** the per-story budget cap from recorded cost (`botChain.costUsd` is reserved), a group lock, firing from the
@@ -322,7 +322,7 @@ Distinctive's record (`distinctive.ttab`) exists already. Releasing this change 
    `maxConcurrent: 1` (the slice 1 default). With this change that would run TTAB decisions one at a time, deferring the
    rest to later router runs. If that is not wanted, run `papyrus automations update --id distinctive.ttab --max-concurrent none`
    (today's behaviour: no limit).
-3. **Build and deploy the runner image** (`infra/procedures/build_image.sh`, then the `papyrus-procedure-runner`
+3. **Build and deploy the runner image** (the release (it builds the image from `infra/procedures/build_image.py`), then the `papyrus-procedure-runner`
    stack). It must come after step 1, or runs are recorded without their cost. It needs nothing else changed in the stack.
 4. **Deploy the router** (`papyrus-monitoring`): a new router zip, and the changed template with
    `RouterAutomationReadPolicy` (one read field) and `dynamodb:UpdateItem` on the table for the router role. This step waits

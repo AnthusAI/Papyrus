@@ -574,7 +574,7 @@ touches only Reference rows that still need a stage; `--dry-run` reads cards and
 
 Nothing here changes a model or a stored shape. To turn it on for a site:
 
-1. **Procedure-runner image**: rebuild and deploy `infra/procedures` (`build_image.sh`, then the
+1. **Procedure-runner image**: rebuild and deploy `infra/procedures` (`build_image.py`, run by the release, then the
    `papyrus-procedure-runner` stack), so the runner has `papyrus_curate_reference`.
 2. **Runner access**: the runner's role grants AppSync only for Distinctive's API
    (`PublicationNewsrooms` in `infra/procedures/papyrus-procedure-runner.yaml`). Add each site's AppSync API
