@@ -88,15 +88,16 @@ class LanguageSite:
         report = project_all(self.context)
         assert report.ok, report.errors
 
-    def publish(self, item_id: str, *, lineage: str, slug: str, title: str, language: str, group: str, date: str = "2026-11-01",
-                item_type: str = "article", section: str = "articles", entity_key: str | None = None) -> None:
+    def publish(self, item_id: str, *, lineage: str, slug: str, title: str, language: str, group: str, date: str | None = "2026-11-01",
+                item_type: str = "article", section: str = "articles", entity_key: str | None = None, published_at: str = NOW) -> None:
+        dated = f"date: '{date}'\n" if date else ""   # a translation made without one has no date of its own
         item = {"id": item_id, "lineageId": lineage, "type": item_type, "slug": slug, "section": section, "title": title, "status": "published",
                 "language": language, "languageGroupId": group, "contentHash": f"{slug}-{language}",
-                "metadata": {"frontMatterYaml": f"title: {json.dumps(title, ensure_ascii=False)}\ndate: '{date}'\ndescription: {json.dumps(title, ensure_ascii=False)}\n"
+                "metadata": {"frontMatterYaml": f"title: {json.dumps(title, ensure_ascii=False)}\n{dated}description: {json.dumps(title, ensure_ascii=False)}\n"
                                           + (f"entityKey: {entity_key}\n" if entity_key else "")},
                 "bodyMarkus": f"{title}.\n"}
         self.client.tables.setdefault("Item", {})[item_id] = item
-        published, _media = project_item_to_published(item, [], published_at=NOW, version_published_at=NOW, version_published_by="t", version_number=1)
+        published, _media = project_item_to_published(item, [], published_at=published_at, version_published_at=published_at, version_published_by="t", version_number=1)
         self.client.tables.setdefault("PublishedItem", {})[published["id"]] = published
 
     def unpublish(self, item_id: str) -> None:
@@ -566,3 +567,70 @@ def step_concept_translated(context, slug, spanish):
 @then('the Spanish article has the chip "{slug}" linked at "{href}"')
 def step_chip_spanish(context, slug, href):
     assert [(link["slug"], link["href"]) for link in _chips(context, "es-419", "el-sonido")] == [(slug, href)], _chips(context, "es-419", "el-sonido")
+
+
+# ---------------------------------------------------------------------------------------------- a language edition ranks its Stories as their originals rank
+
+RANKED_DATES = {"alpha-star": "2026-11-09", "mid-plain": "2026-11-11", "new-plain": "2026-11-12"}
+
+
+def _ranked_site(context):
+    from papyrus_content.projection.story_stars import MemoryStarStore
+
+    _ensure_built(context)
+    site = _site(context)
+    site.context.source.star_store = MemoryStarStore()
+    site.context.projector.clock = lambda: __import__("datetime").date(2026, 11, 13)
+    return site
+
+
+@given('the English articles "alpha-star", "mid-plain" and "new-plain" are published on the 9th, the 11th and the 12th')
+def step_ranked_english(context):
+    site = _ranked_site(context)
+    for slug, day in RANKED_DATES.items():
+        site.publish(f"{slug}-v1", lineage=slug, slug=slug, title=slug, language="en", group=slug, date=day)
+        site.project(f"{slug}-v1")
+
+
+@given('the editors rated "alpha-star" 5 stars')
+def step_ranked_stars(context):
+    _site(context).context.source.star_store.record({"alpha-star": 5})
+
+
+@when('their Spanish translations are published on the 15th without a date of their own, "new-plain" first and "alpha-star" last')
+def step_ranked_spanish(context):
+    site = _site(context)
+    for slug in ("new-plain", "mid-plain", "alpha-star"):
+        lineage = localization_lineage_id(slug, "es-419")
+        site.publish(f"{lineage}-v1", lineage=lineage, slug=f"es-{slug}", title=f"es {slug}", language="es-419", group=slug, date=None,
+                     published_at="2026-11-15T00:00:00Z")
+        site.project(f"{lineage}-v1")
+    site.deploy()   # a release renders every page again, with the rating
+
+
+def _listed(html: str, prefix: str) -> list[str]:
+    seen: list[str] = []
+    for link in re.findall(r'href="(/[^"]*)"', html):
+        if link.startswith(prefix) and link.count("/") == prefix.count("/") + 1 and link not in seen:
+            seen.append(link)
+    return seen
+
+
+@then('the English articles listing and home list "alpha-star", "new-plain", "mid-plain" in that order')
+def step_ranked_english_order(context):
+    for key in ("articles/index.html", "index.html"):
+        assert _listed(_site(context).text(key), "/articles/") == [f"/articles/{slug}/" for slug in ("alpha-star", "new-plain", "mid-plain")], (key, _listed(_site(context).text(key), "/articles/"))
+
+
+@then("the Spanish articles listing and home list their translations in that same order")
+def step_ranked_spanish_order(context):
+    for key in ("es/articles/index.html", "es/index.html"):
+        found = _listed(_site(context).text(key), "/es/articles/")
+        assert found == [f"/es/articles/es-{slug}/" for slug in ("alpha-star", "new-plain", "mid-plain")], (key, found)
+
+
+@then('the Spanish card of "alpha-star" shows the date of its original, the 9th')
+def step_ranked_date(context):
+    html = _site(context).text("es/articles/index.html")
+    card = re.search(r'es-alpha-star/.*?datetime="([^"]+)"', html, re.S)
+    assert card and card.group(1) == "2026-11-09", card and card.group(1)
