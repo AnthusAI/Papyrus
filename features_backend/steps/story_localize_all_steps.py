@@ -154,6 +154,18 @@ def step_held_translation(context, story):
     _translation(context, story, "es-419", "held")
 
 
+@given('"{story}" has a Spanish translation that is held, though its request says only that a run started')
+def step_held_but_started(context, story):
+    _request(context, story, "es-419", "started")   # the run saved and held the translation, then ended before it wrote its outcome on the request
+    _translation(context, story, "es-419", "held")
+
+
+@given('"{story}" has a Spanish translation that is held, though its request was written again and not yet run')
+def step_held_but_wanted(context, story):
+    _request(context, story, "es-419", "wanted")
+    _translation(context, story, "es-419", "held")
+
+
 @given('the Spanish request for "{story}" names this text and its run failed')
 def step_failed_request(context, story):
     _request(context, story, "es-419", "failed", reason="ModelUnavailable: the model service could not be reached")
@@ -195,6 +207,13 @@ def step_up_to_date(context, story):
 def step_up_to_date_held(context, story):
     job = _job(context, story)
     assert job.status == backfill.UP_TO_DATE and job.state == "held" and "person" in job.detail, job
+
+
+@then('"{story}" is up to date, held for a person, and its request record is left as it was')
+def step_held_vouched(context, story):
+    job = _job(context, story)
+    assert job.status == backfill.UP_TO_DATE and job.state == "held" and "person" in job.detail and "request record says" in job.detail, job
+    assert not [call for call in context.client.calls if call[0] in ("create", "update", "upsert")], context.client.calls
 
 
 @then('"{story}" is to do because nothing was ever requested')

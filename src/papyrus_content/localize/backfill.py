@@ -29,7 +29,7 @@ from .. import request_meter
 from ..content_item_lifecycle import is_story_item_type
 from ..item_language import bare_group_id, localization_lineage_id
 from ..language_serving import serving_languages
-from ..story_reporting import published_story_version
+from ..story_reporting import published_story_version, story_versions
 from . import desired_state
 from .publish import publishable
 
@@ -99,8 +99,27 @@ def survey(client, settings: dict[str, Any], languages: list[str], *, now: float
                 job.state, job.status, job.detail = record["state"], QUEUED, f"{record['state']} on {record['automationId']}"
             elif current and record.get("state") in ("failed", "stopped", "waiting"):
                 job.state, job.detail = record["state"], f"last run {record['state']}: {record.get('reason') or 'no reason recorded'}"[:300]
+            elif current:   # the request names this very text, yet does not say its run finished
+                _vouched_by_translation(client, job, record, source_hash)
             jobs.append(job)
     return jobs
+
+
+def _vouched_by_translation(client, job: Job, record: dict[str, Any], source_hash: str) -> None:
+    """A request record that does not say its run finished (a run that crashed after saving, or a newer request that never ran) is not the whole story:
+    the translation itself says which text it was made from and how its run ended. When the translation of exactly this text exists and its run saved it
+    or held it, there is nothing for a machine to do, and above all a held one is never run again (a new run could replace what a person has yet to answer).
+    Only Stories that have a record are read, one lineage each, so this is not a read per Story."""
+    versions = story_versions(client, localization_lineage_id(job.story, job.language))
+    version = next((row for row in versions if row.get("versionState") == "current"), versions[0] if versions else None)
+    if version is None or str(version.get("sourceContentHash") or "") != source_hash:
+        return
+    outcome = _metadata(version).get("localization", {}).get("outcome")
+    if outcome not in ("saved", "held"):
+        return
+    job.state, job.status = outcome, UP_TO_DATE
+    job.detail = (f"held: a person answers its review request (its request record says {record.get('state')})" if outcome == "held"
+                  else f"saved (its request record says {record.get('state')})")
 
 
 def plan_cost(client, jobs: list[Job], *, procedure_key: str | None, ceiling_usd: float | None, collect: Callable[..., Any]) -> dict[str, Any]:
