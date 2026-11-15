@@ -114,6 +114,7 @@ class SiteIdentity:
     notice_text: str = ""
     notice_prominence: str = "normal"  # "quiet": only the sentence, small and muted at the lowest contrast that passes WCAG AA (the label stays in the machine-readable markers); "normal": label and sentence
     notice_placement: str = "inline"  # "inline": one small line under the masthead; "fixed-footer": a slim bar fixed to the bottom of the viewport
+    alternate_names: tuple[str, ...] = ()   # the site's name in its other public languages (and the primary's, on an edition): schema.org alternateName, so search engines join the editions
 
 
 @dataclass(frozen=True)

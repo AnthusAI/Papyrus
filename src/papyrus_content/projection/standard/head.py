@@ -53,6 +53,7 @@ class PageHead:
     language: str = ""
     alternates: tuple[tuple[str, str], ...] = ()
     x_default: str = ""
+    site_data: bool = False        # the site's home on a site that serves several languages: it also carries the WebSite structured data (name and alternateName)
     translation_of: tuple[str, str] | None = None   # a translation: ``(absolute URL, tag)`` of the original it was translated from (JSON-LD translationOfWork)
 
 
@@ -170,6 +171,8 @@ class HeadBuilder:
                 lines.append(f'<meta property="article:tag" content="{_q(tag)}">')
         if page.json_ld_type:
             lines.append(json_ld_script(self._article_json_ld(page, canonical or own_url, image, description, title)))
+        if page.site_data and identity.alternate_names:
+            lines.append(json_ld_script(self._site_json_ld(page, canonical or own_url)))
         if page.breadcrumbs and seo.breadcrumbs_json_ld and self.environment.origin:
             lines.append(json_ld_script(self._breadcrumb_json_ld(page.breadcrumbs)))
         if page.extra:
@@ -195,7 +198,7 @@ class HeadBuilder:
             data["dateModified"] = page.modified
         if page.authors:
             data["author"] = [self._person(author) for author in normalize_authors(page.authors)]
-        data["publisher"] = {"@type": "Organization", "name": self.settings.seo.publisher_name}
+        data["publisher"] = self._publisher()
         if url:
             data["mainEntityOfPage"] = url
         if image:
@@ -206,6 +209,24 @@ class HeadBuilder:
             data["inLanguage"] = page.language
         if page.translation_of:
             data["translationOfWork"] = {"@type": page.json_ld_type, "url": page.translation_of[0], "inLanguage": page.translation_of[1]}
+        return data
+
+    def _publisher(self) -> dict:
+        publisher = {"@type": "Organization", "name": self.settings.seo.publisher_name}
+        names = tuple(name for name in self.settings.identity.alternate_names if name != publisher["name"])
+        if names:
+            publisher["alternateName"] = list(names)
+        return publisher
+
+    def _site_json_ld(self, page: PageHead, url: str | None) -> dict:
+        """The WebSite of a site that serves several languages: its name in this language, and its name in every other as ``alternateName``, so a search engine joins the editions."""
+        identity = self.settings.identity
+        data: dict = {"@context": "https://schema.org", "@type": "WebSite", "name": identity.name, "alternateName": list(identity.alternate_names)}
+        if url:
+            data["url"] = url
+        if page.language:
+            data["inLanguage"] = page.language
+        data["publisher"] = self._publisher()
         return data
 
     def _breadcrumb_json_ld(self, crumbs) -> dict:

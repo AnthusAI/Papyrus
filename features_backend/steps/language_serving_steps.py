@@ -37,14 +37,15 @@ PROJECTION = {
     "urls": {"style": "directory", "sections": {"articles": {"base": "articles", "label": "Articles"}, "wiki": {"base": "wiki", "label": "Wiki", "listEmpty": True}}},
     "sitemap": {"style": "index"},
     "environment": {"guard": False},
+    "seo": {"defaultImage": "/assets/share/default.png", "defaultImageAlt": "Machines on Machines, in white capitals on navy."},
 }
 STRINGS = {
     "en": {"language.name": "English", "switcher.label": "Language"},
-    "es-419": {"language.name": "Español", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
+    "es-419": {"language.name": "Español", "site.name": "Máquinas Sobre Máquinas", "seo.defaultImage": "/assets/share/default-es.png", "seo.defaultImageAlt": "Máquinas Sobre Máquinas, en mayúsculas blancas sobre azul marino.", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
                "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos",
                "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés",
                "listing.untranslated": "Todavía no hay traducciones aquí. Lee el {original}.", "listing.untranslatedOriginal": "índice en inglés"},
-    "zh-Hans": {"language.name": "中文", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
+    "zh-Hans": {"language.name": "中文", "site.name": "机器论机器", "seo.defaultImage": "/assets/share/default-zh.png", "seo.defaultImageAlt": "机器论机器，白色大字，深蓝底。", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
                 "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念",
                 "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文",
                 "listing.untranslated": "这里还没有译文。请阅读{original}。", "listing.untranslatedOriginal": "英文索引页"},
@@ -671,3 +672,46 @@ def step_notice_english(context):
     assert '"genre":"Satire"' in site.text("articles/the-sound/index.html")
     assert "> **Satire.** Everything on this site is invented." in site.text("articles/the-sound/index.md")
     assert "Satire. " in site.text("feed.xml")
+
+
+@when('its Spanish translation "{slug}" and its Chinese translation "{chinese}" are published')
+def step_both_published(context, slug, chinese):
+    _publish_translation(context, "es-419", slug)
+    _publish_translation(context, "zh-Hans", chinese)
+
+
+@then('the {edition} home says its name "{name}" in its title, og:site_name, structured data and feed')
+def step_name_everywhere(context, edition, name):
+    site = _site(context)
+    prefix = {"English": "", "Spanish": "es/", "Chinese": "zh/"}[edition]
+    home = site.text(f"{prefix}index.html")
+    assert f'<meta property="og:site_name" content="{name}">' in home, home[:2500]
+    assert re.search(rf"<title>[^<]*{re.escape(name)}</title>", home), re.search(r"<title>[^<]*", home)
+    assert f'"@type":"WebSite","name":"{name}"' in home.replace(" ", "") or f'"name":"{name}"' in home, home
+    assert f"<title>{name}" in site.text(f"{prefix}feed.xml"), site.text(f"{prefix}feed.xml")[:400]
+
+
+@then('the {edition} home lists "{first}" and "{second}" as alternate names')
+def step_alternate_names(context, edition, first, second):
+    prefix = {"English": "", "Spanish": "es/", "Chinese": "zh/"}[edition]
+    home = _site(context).text(f"{prefix}index.html")
+    block = next(m for m in re.findall(r'<script type="application/ld\+json">(.*?)</script>', home, re.S) if '"WebSite"' in m)
+    names = json.loads(block)["alternateName"]
+    assert first in names and second in names, names
+
+
+@then('the Spanish article says its publisher "{name}" with alternate names "{english}" and "{chinese}"')
+def step_publisher(context, name, english, chinese):
+    page = _site(context).text("es/articles/el-sonido/index.html")
+    block = next(m for m in re.findall(r'<script type="application/ld\+json">(.*?)</script>', page, re.S) if '"publisher"' in m)
+    publisher = json.loads(block)["publisher"]
+    assert publisher["name"] == name and publisher["alternateName"] == [english, chinese], publisher
+
+
+@then("each home shares its own language's picture, with alt text in that language")
+def step_share_picture(context):
+    site = _site(context)
+    for prefix, image, alt in (("", "/assets/share/default.png", "Machines on Machines, in white"), ("es/", "/assets/share/default-es.png", "Máquinas Sobre Máquinas, en mayúsculas"), ("zh/", "/assets/share/default-zh.png", "机器论机器，白色大字")):
+        home = site.text(f"{prefix}index.html")
+        assert f'<meta property="og:image" content="{ORIGIN}{image}">' in home, (prefix, re.findall(r'og:image" content="[^"]*', home))
+        assert f'<meta property="og:image:alt" content="{alt}' in home, prefix
