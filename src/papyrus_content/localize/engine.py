@@ -28,7 +28,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 
-from .blocks import Block, PlaceholderError, Protected, blocks_of, join_body, protect, protect_like
+from .blocks import FIELD_PREFIX, Block, PlaceholderError, Protected, blocks_of, join_body, protect, protect_like
 from .budget import Prediction
 from .checks import BlockChecker, Finding, apply_fixes, closing_emphasis, faithfulness_worse, tally
 from .models import PROMPT_VERSION, LocalizeModels, Spend, StructuredOutputMissing
@@ -67,6 +67,7 @@ class SourceVersion:
     deck: str
     body: str
     section: str | None = None
+    fields: tuple[tuple[str, str], ...] = ()   # (front matter key, text) of the reader-facing fields (blocks.FRONT_MATTER_FIELDS) the Story has
 
 
 @dataclass(frozen=True)
@@ -171,7 +172,7 @@ class Localizer:
         finished = self.stages.get(f"run/{request.run_key}")
         if finished is not None:
             return {**finished, "repeated": True}
-        source_blocks = blocks_of(request.source.body, title=request.source.title, deck=request.source.deck)
+        source_blocks = blocks_of(request.source.body, title=request.source.title, deck=request.source.deck, fields=request.source.fields)
         slots = plan_slots(source_blocks, request.previous)
         to_translate = [slot for slot in slots if slot.translate]
         characters = sum(len(slot.source.text) for slot in to_translate)
@@ -353,7 +354,8 @@ class Localizer:
         request = self.request
         title = next((slot.text for slot in slots if slot.source.kind == "title"), "")
         deck = next((slot.text for slot in slots if slot.source.kind == "deck"), "")
-        body_slots = [slot for slot in slots if slot.source.kind not in ("title", "deck")]
+        translated_fields = {slot.source.kind[len(FIELD_PREFIX):]: slot.text for slot in slots if slot.source.kind.startswith(FIELD_PREFIX)}
+        body_slots = [slot for slot in slots if slot.source.kind not in ("title", "deck") and not slot.source.kind.startswith(FIELD_PREFIX)]
         body = join_body([slot.text for slot in body_slots])
         findings = [f for slot in slots for f in slot.findings]
         document: list[Finding] = []
@@ -394,7 +396,7 @@ class Localizer:
         result = {"story": request.localization_lineage, "language": request.language, "hold": outcome == "held", "reason": provenance["reason"],
                   "outcome": outcome, "published": False, "rounds": len(self.rounds), "revertedBlocks": self.reverted, "costUsd": round(cost, 6),
                   "findings": provenance["findings"], "runKey": request.run_key,
-                  "translation": {"title": title, "deck": deck, "body": body, "blocks": [s.text for s in slots]},
+                  "translation": {"title": title, "deck": deck, "fields": translated_fields, "body": body, "blocks": [s.text for s in slots]},
                   "provenance": provenance}
         return result
 
