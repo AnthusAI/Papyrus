@@ -46,14 +46,23 @@ def scope_for(section: str | None) -> str:
     return section if section else PUBLICATION_SCOPE
 
 
-def drawn_policies(document: dict) -> list[dict]:
-    """The Humanus policies the document yields (a section document has no publication key, so a stand-in is given for the reader)."""
+def drawn_policies(document: dict, language: str | None = None) -> list[dict]:
+    """The Humanus policies the document yields (a section document has no publication key, so a stand-in is given for the reader).
+
+    A language overlay that chooses a ``register`` also yields the policies of the Humanus pack that register brings (``usted`` in Spanish:
+    ``register-es-usted``), so a site that addresses its readers formally has them checked, and a site that changes its mind has them disabled by
+    the next save. ``register`` is not a field of the style profile Humanus reads, so it is left out of what that reads."""
     import humanus
 
+    from papyrus_content.editorial_languages import register_pack_for
+
+    profile = {key: value for key, value in document.items() if key != "register"}
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "writing-guidelines.json"
-        path.write_text(json.dumps({"publicationKey": STAND_IN_PUBLICATION_KEY, **document}), encoding="utf-8")
-        return humanus.policy_pack_from_style_profile(path)["policies"]
+        path.write_text(json.dumps({"publicationKey": STAND_IN_PUBLICATION_KEY, **profile}), encoding="utf-8")
+        policies = humanus.policy_pack_from_style_profile(path)["policies"]
+    pack = register_pack_for(language, document.get("register")) if language else None
+    return policies + (humanus.builtin_pack(pack)["policies"] if pack else [])
 
 
 def plan_derived_policies(store, document: dict, section: str | None, version_number: int, language: str | None = None) -> list[dict]:
@@ -69,7 +78,7 @@ def plan_derived_policies(store, document: dict, section: str | None, version_nu
     existing = {policy_identity(row): row for row in rows}
     steps: list[dict] = []
     wanted: set[str] = set()
-    for policy in drawn_policies(document):
+    for policy in drawn_policies(document, language):
         record = record_from_policy(policy, scope=scope, language=written_for, source=source)
         current = existing.get(policy_identity(record))
         if current is not None:

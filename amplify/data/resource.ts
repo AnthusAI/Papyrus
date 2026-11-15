@@ -2652,8 +2652,13 @@ const schema = a.schema({
       requestedAt: a.datetime(),
       runKey: a.string(),
       reason: a.string(),
+      automationId: a.string(),
+      publish: a.boolean(),
       updatedAt: a.datetime(),
     })
+    .secondaryIndexes((index) => [
+      index("state").sortKeys(["requestedAt"]).queryField("listLocalizationRequestsByStateAndRequestedAt"),
+    ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
     ]),

@@ -12,7 +12,7 @@ Every writer after that sets the fields itself. All of them (`papyrus stories sa
 
 ## The setting
 
-There is one languages setting: the editorial check settings' `languages` (Administration > Editorial checks, stored in `EditorialCheckSettings`). `primary` and `enabled` say which languages the site writes in ([editorial checks](editorial-checks.md)). Three more keys say how they are served (`src/papyrus_content/language_serving.py`):
+There is one languages setting: the editorial check settings' `languages` (Administration > Editorial checks, stored in `EditorialCheckSettings`). `primary` and `enabled` say which languages the site writes in ([editorial checks](editorial-checks.md)). Three more keys say how they are served, and a fourth (`auto`) whether translations are made on publish (`src/papyrus_content/language_serving.py`):
 
 ```json
 {"languages": {
@@ -28,6 +28,7 @@ There is one languages setting: the editorial check settings' `languages` (Admin
 | --- | --- | --- |
 | `prefixes` | URL prefix of each enabled language other than the primary: a lowercase path segment (`es`, `zh`, `zh-hant`). Paths use the prefix; `<html lang>`, `hreflang`, `og:locale` and JSON-LD `inLanguage` use the tag. | the tag's base subtag, lowercased (`es-419` to `es`, `zh-Hans` to `zh`) |
 | `public` | Languages the public site serves; the primary is always one. An enabled language that is not public is written, translated and checked, but its published localizations get no page (the plan's "preview" state). | only the primary |
+| `auto` | `{"enabled": true, "automation": "SITE.story-localize", "publish": true}`: translate every Story into every enabled language when it is published or republished, on the site's runner, and publish the translations a run saved cleanly (`publish`, default true). The Automation runs the registered translation procedure. Set with `papyrus editorial languages --auto on --auto-automation ID [--auto-publish off]`. [Translating on publish](story-translation-procedure.md#translating-on-publish). | off |
 | `slugs` | How a localization's slug is drafted at its first publish: `translated` (the translated title in plain letters), `characters` (the title in its own script; Chinese characters kept), `pinyin` (the title romanized by a romanizer the caller supplies), `primary` (the original's slug). | `characters` for a language Humanus counts in characters (Chinese), `translated` for every other |
 
 A setting that breaks a rule is refused with a message naming it when the projection reads it (a refusal stops every projection until it is corrected, so the console and the CLI check a change before saving it; see below): a prefix two languages share, a public or slug language the site does not write in, a public list without the primary, an unknown slug policy. The projection reads the setting once per run (one record read).

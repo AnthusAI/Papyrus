@@ -293,10 +293,14 @@ class Localizer:
     def _proposals(self, candidates: list[_Slot]) -> dict[str, str]:
         """Each candidate's next text: certain repairs applied by code, then the model's repair for findings that may drive a rewrite."""
         proposals: dict[str, str] = {}
+        remaining: dict[str, list[Finding]] = {}
         for slot in candidates:
             fixed, applied = apply_fixes(slot.text, slot.findings)
             proposals[slot.source.id] = self._normalize(fixed) if applied else slot.text
-        needing = [slot for slot in candidates if any(f.drives_rewrite for f in slot.findings)]
+            # A repair by code can settle a finding that would otherwise ask the model (the glossary's "IA" for a kept "AI"): the model is asked
+            # only about what the repaired text still has. The check of that text is stored, so the round's own check of it costs nothing more.
+            remaining[slot.source.id] = self._findings(slot.source.text, proposals[slot.source.id]) if applied else slot.findings
+        needing = [slot for slot in candidates if any(f.drives_rewrite for f in remaining[slot.source.id])]
         if not needing:
             return proposals
         pending = {slot.source.id: slot for slot in needing}
@@ -307,7 +311,7 @@ class Localizer:
                 current = protect_like(slot.protected, proposals[block_id])
                 entry = {"id": block_id, "source": slot.protected.text, "current": current.text,
                          "problems": [f"{f.message}" + (f" (translation: {f.excerpt!r})" if f.excerpt else "") + (f" (source: {f.source_excerpt!r})" if f.source_excerpt else "")
-                                      for f in slot.findings if f.drives_rewrite]}
+                                      for f in remaining[block_id] if f.drives_rewrite]}
                 if block_id in problems:
                     entry["problem"] = f"Your previous repair of this block was refused: {problems[block_id]}."
                 blocks.append(entry)

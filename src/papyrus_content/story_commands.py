@@ -12,7 +12,7 @@ from .console_links import print_console_rows, story_links
 from .audience_lenses import lens_lines, lens_payload, lens_step_states
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
-from .options import normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
+from .options import normalize_positive_integer, normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
 from .story_reporting import (
     STAGE_MOVES_KEY,
     STORY_MESSAGE_KINDS,
@@ -1213,6 +1213,78 @@ def stories_fire_triggers(flags: list[str]) -> None:
     deliver_from_environment(client, _required_option(options, "story"))
 
 
+def stories_localize_all(options: dict) -> None:
+    """``papyrus stories localize --all``: the whole-site backfill (``localize/backfill.py``). One tab-separated row per Story and language, then a totals row."""
+    from .editorial_checks import GraphQLEditorialStore, settings_from
+    from .editorial_languages import site_language
+    from .language_serving import serving_languages
+    from .localize import backfill
+    from .localize.record import collect
+    from .localize.start import default_procedure_key, openai_key, run_from_cli
+    from .projection_trigger import item_task, trigger_projection
+    from .site_selection import host_for
+    from .user_auth_mode import iam_requested
+
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    publish_clean = parse_boolean_option(options.get("publish-clean"), default=False, label="--publish-clean")
+    as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
+    every_language = parse_boolean_option(options.get("all-languages"), default=False, label="--all-languages")
+    if options.get("story"):
+        raise ValueError("--all translates every Story; to translate one, leave --all out.")
+    if bool(every_language) == bool(normalize_string(options.get("language"))):
+        raise ValueError("--all needs exactly one of --language TAG and --all-languages.")
+    ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
+    concurrency = normalize_positive_integer(options.get("concurrency"), "--concurrency") or backfill.DEFAULT_CONCURRENCY
+    automation = normalize_string(options.get("automation"))
+    client, _ = create_authoring_client()
+    settings = settings_from(GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
+    serving = serving_languages(settings)
+    languages = [tag for tag in serving.enabled if tag != serving.primary] if every_language else [site_language(options["language"], settings)]
+    if not languages:
+        raise ValueError(f"The site writes only in {serving.primary}: there is no language to translate into.")
+    if serving.primary in languages:
+        raise ValueError(f"{serving.primary} is the site's primary language; Stories are written in it.")
+    procedure = normalize_string(options.get("procedure"))
+    if not automation:
+        procedure = procedure or default_procedure_key(host_for(client.endpoint))
+    jobs = backfill.survey(client, settings, languages)
+    todo = [job for job in jobs if job.status == backfill.PLANNED]
+    summary: dict = {}
+    if dry_run:
+        procedure = procedure or (backfill_procedure_of(client, automation) if automation else None)
+        summary = backfill.plan_cost(client, jobs, procedure_key=procedure, ceiling_usd=ceiling, collect=collect)
+    elif todo or publish_clean:
+        if not iam_requested() and (publish_clean or not automation):
+            raise ValueError("This runs or publishes as the operator: use `papyrus --auth iam` (AWS credentials for the site)."
+                             + (" To only queue the runs for the site's runner, name it with --automation." if not automation else ""))
+        project = lambda worker, version_id, published_id: trigger_projection(item_task(version_id, unpublished=False, published_item_id=published_id))  # noqa: E731
+        if automation:
+            backfill.queue_all(client, jobs, automation_id=automation, publish=publish_clean)
+            if publish_clean:
+                backfill.publish_saved(client, jobs, settings, project=project)
+        else:
+            backfill.run_all(client, jobs, client_factory=lambda: create_authoring_client()[0], run=run_from_cli, settings=settings,
+                             publish_clean_results=publish_clean, concurrency=concurrency, ceiling_usd=ceiling, procedure_key=procedure,
+                             key=openai_key(options.get("openai-key-parameter")), project=project)
+    if as_json:
+        print(json.dumps({"dryRun": dry_run, "languages": languages, "rows": [job.row() for job in jobs], **summary}, ensure_ascii=False))
+    else:
+        for line in backfill.table(jobs):
+            print("\t".join(["stories", "localize", line]))
+        if dry_run:
+            print("\t".join(["stories", "localize", "plan", f"{len(todo)} to do, predicted ${summary['predictedUsd']:.4f}"
+                            + (f", {summary['withoutPrediction']} with no measured run of their language to predict from" if summary["withoutPrediction"] else "")]))
+    failed = [job for job in jobs if job.status == backfill.FAILED]
+    if failed:
+        raise ValueError(f"{len(failed)} of {len(jobs)} translations failed. Run the same command again: it does only what remains, and a failed run continues from its finished stages.")
+
+
+def backfill_procedure_of(client, automation_id: str) -> str | None:
+    from .localize.record import automation_procedure_key
+
+    return automation_procedure_key(client, automation_id)
+
+
 def stories_localize(flags: list[str]) -> None:
     """papyrus stories localize --story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run] [--json]
 
@@ -1227,12 +1299,19 @@ def stories_localize(flags: list[str]) -> None:
     Either way the procedure's earlier runs give the cost prediction.
 
     Writes by default; --dry-run prints the plan (blocks to translate, glossary terms the translator will be given, the predicted cost from this
-    language's measured runs) and writes nothing."""
+    language's measured runs) and writes nothing.
+
+    Whole site: ``papyrus stories localize --all (--language TAG | --all-languages) [--publish-clean] [--dry-run] [--concurrency N] [--ceiling-usd N]
+    [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--json]`` finds every published primary-language Story with no up-to-date
+    translation in the language (or in every enabled language) and runs them all, printing one row per Story and language (saved, held, failed,
+    up to date, cost). See ``localize/backfill.py``."""
     from .localize.desired_state import want
     from .localize.record import collect
     from .story_reporting import published_story_version
 
     options = parse_options(flags)
+    if parse_boolean_option(options.get("all"), default=False, label="--all"):
+        return stories_localize_all(options)
     story = _required_option(options, "story")
     language = _required_option(options, "language")
     dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
@@ -1253,15 +1332,9 @@ def stories_localize(flags: list[str]) -> None:
         key = openai_key(options.get("openai-key-parameter"))
     request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling,
                       automation_id=automation, procedure_key=procedure)
-    from .localize.blocks import blocks_of
-    from .localize.engine import plan_slots
+    from .localize.plan import plan_of
 
-    slots = plan_slots(blocks_of(request.source.body, title=request.source.title, deck=request.source.deck, fields=request.source.fields), request.previous)
-    to_translate = [slot for slot in slots if slot.translate]
-    terms = [entry["term"] for entry in request.glossary.entries_in([slot.source.text for slot in to_translate], request.source.language)]
-    prediction = request.prediction.payload() if request.prediction else {}
-    plan = {"story": story, "language": request.language, "localization": request.localization_lineage, "sourceVersion": request.source.version_number,
-            "blocksToTranslate": len(to_translate), "blocksKept": len(slots) - len(to_translate), "glossaryTerms": terms, "prediction": prediction}
+    plan = plan_of(request, story=story)
     if dry_run:
         print("\t".join(["stories", "localize", "plan", json.dumps(plan, ensure_ascii=False)]))
         return
@@ -1280,7 +1353,7 @@ def stories_localize(flags: list[str]) -> None:
     from .automations_signed_in import RUN_MUTATION
 
     answer = client.graphql(RUN_MUTATION, {"automationId": automation, "input": json.dumps({"story": story, "language": request.language,
-                                                                                               "ceilingUsd": ceiling or 0})})
+                                                                                               "ceiling_usd": ceiling or 0})})
     started = answer.get("runAutomation")
     started = json.loads(started) if isinstance(started, str) else (started or {})
     if started.get("state") != "started":

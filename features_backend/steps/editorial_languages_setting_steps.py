@@ -175,3 +175,55 @@ def step_defaults(context, tag, prefix, policy):
 @then('the console form is told the default slug policy of "{tag}" is "{policy}"')
 def step_default_slug(context, tag, policy):
     assert _language(context, tag)["defaultSlugPolicy"] == policy
+
+
+@then("the listing says translating on publish is off")
+def step_auto_off(context):
+    assert "translate on publish\toff" in context.output.splitlines(), context.output
+
+
+@then('the listing says translating on publish is on with the automation "{automation}"')
+def step_auto_on(context, automation):
+    line = next(line for line in context.output.splitlines() if line.startswith("translate on publish\t"))
+    assert line.split("\t")[1].startswith(f"on, automation {automation}"), line
+
+
+@then("the command is refused saying to name the Automation that runs the translation procedure")
+def step_refused_automation(context):
+    assert context.refusal and "names the Automation that runs the translation procedure" in context.refusal, context.refusal
+
+
+@then("the command is refused saying the site has no language to translate into")
+def step_refused_no_language(context):
+    assert context.refusal and "has none" in context.refusal and "other than the primary" in context.refusal, context.refusal
+
+
+@given('the stored auto setting has the key "{key}"')
+def step_stored_auto_key(context, key):
+    settings = context.store.stored
+    settings["languages"]["auto"] = {"enabled": False, key: True}
+    context.store.row = {"id": "settings", "settings": json.dumps(settings)}
+
+
+@then('the command is refused naming the key "{key}"')
+def step_refused_key(context, key):
+    assert context.refusal and key in context.refusal, context.refusal
+
+
+def _auto(context):
+    return context.store.stored["languages"]["auto"]
+
+
+@then('the stored auto setting is on, with the automation "{automation}", publishing clean translations')
+def step_stored_on_publishing(context, automation):
+    assert _auto(context)["enabled"] is True and _auto(context)["automation"] == automation and _auto(context).get("publish", True) is True, _auto(context)
+
+
+@then('the stored auto setting is on, with the automation "{automation}", saving translations for a person to publish')
+def step_stored_on_saving(context, automation):
+    assert _auto(context)["enabled"] is True and _auto(context)["automation"] == automation and _auto(context)["publish"] is False, _auto(context)
+
+
+@then('the stored auto setting is off, with the automation "{automation}" kept')
+def step_stored_off(context, automation):
+    assert _auto(context)["enabled"] is False and _auto(context)["automation"] == automation and _auto(context)["publish"] is False, _auto(context)

@@ -7,7 +7,7 @@
     papyrus editorial policies list | import-starter NAME | ensure-defaults
     papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
     papyrus editorial policies export --file PACK [--language TAG] [--pack-id ID] [--pack-version V]
-    papyrus editorial languages [--set-public TAGS] [--set-prefix TAG=PREFIX ...] [--set-slug TAG=POLICY ...] [--dry-run] [--json]
+    papyrus editorial languages [--set-public TAGS] [--set-prefix TAG=PREFIX ...] [--set-slug TAG=POLICY ...] [--auto on|off] [--auto-automation ID] [--auto-publish on|off] [--dry-run] [--json]
     papyrus editorial check-version --item VERSION_ID [--json]
     papyrus editorial check-drafts [--limit N] [--dry-run]
 
@@ -243,6 +243,9 @@ def format_languages(languages: dict[str, Any]) -> list[str]:
             f"{row['tag']}\t{'public' if row['public'] else 'not public (written, translated and checked; no page)'}"
             f"\t/{row['prefix']}/{'' if custom_prefix else ' (default)'}\t{row['slugPolicy']}{'' if custom_slug else ' (default)'}"
         )
+    auto = description.get("auto")
+    lines.append("translate on publish\toff" if auto is None else
+                 f"translate on publish\ton, automation {auto['automation']}, {'publishes clean translations' if auto['publish'] else 'saves them for a person to publish'}")
     return lines
 
 
@@ -255,13 +258,20 @@ def editorial_languages(flags: list[str]) -> None:
     parser.add_argument("--set-public", default=None, metavar="TAGS", help="Comma-separated languages the public site serves, besides the primary (which always is). An empty list makes only the primary public.")
     parser.add_argument("--set-prefix", action="append", default=[], metavar="TAG=PREFIX", help="URL prefix of one language (repeat for several). TAG= returns it to the default, its base subtag.")
     parser.add_argument("--set-slug", action="append", default=[], metavar="TAG=POLICY", help="Slug policy of one language: translated, characters, pinyin or primary. TAG= returns it to the default.")
+    parser.add_argument("--auto", choices=("on", "off"), default=None,
+                        help="Translate every Story into every enabled language when it is published or republished (docs/story-translation-procedure.md). Off by default.")
+    parser.add_argument("--auto-automation", default=None, metavar="ID", help="The Automation that runs the registered translation procedure (papyrus automations list); needed to turn --auto on.")
+    parser.add_argument("--auto-publish", choices=("on", "off"), default=None,
+                        help="Publish the translations a run saved cleanly (default on). A held translation is never published until a person answers its review request.")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change; write nothing.")
     parser.add_argument("--json", action="store_true", help="Print the resulting settings as JSON.")
     args = parser.parse_args(flags)
     store = GraphQLEditorialStore()
     before = settings_from(store)["languages"]
     checked_serving(before)   # a stored setting that breaks a rule is said first; edits are checked on top of it
-    editing = args.set_public is not None or args.set_prefix or args.set_slug
+    auto_edit = {key: value for key, value in (("enabled", None if args.auto is None else args.auto == "on"), ("automation", args.auto_automation),
+                                                ("publish", None if args.auto_publish is None else args.auto_publish == "on")) if value is not None}
+    editing = args.set_public is not None or args.set_prefix or args.set_slug or auto_edit
     after = before
     if editing:
         after = edit_serving(
@@ -269,6 +279,7 @@ def editorial_languages(flags: list[str]) -> None:
             public=None if args.set_public is None else [tag.strip() for tag in args.set_public.split(",") if tag.strip()],
             prefixes=_tag_values(args.set_prefix, "--set-prefix") or None,
             slugs=_tag_values(args.set_slug, "--set-slug") or None,
+            auto=auto_edit or None,
         )
     if args.json:
         _emit({"languages": after, "serving": describe_serving(after), "written": bool(editing and not args.dry_run and after != before)}, None)

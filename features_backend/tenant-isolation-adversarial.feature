@@ -642,6 +642,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listLexicalSteeringRulesByStatusAndTerm              | returns nothing of "beta"        |
       | listLexicalSteeringRulesByCorpusAndTerm              | returns nothing of "beta"        |
       | listLexicalSteeringRulesBySetAndTerm                 | returns nothing of "beta"        |
+      | listLocalizationRequestsByStateAndRequestedAt        | returns nothing of "beta"        |
       | listMediaAssetsByItemAndSortKey                      | returns nothing of "beta"        |
       | listMediaAssetsByRoleAndItem                         | returns nothing of "beta"        |
       | listMessagesByKindAndCreatedAt                       | returns nothing of "beta"        |
@@ -982,6 +983,8 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | image-service              | iam-call-without-tenant          | refused before any read            |
       | knowledge-query            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | knowledge-query            | iam-call-without-tenant          | refused before any read            |
+      | localization-dispatch      | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | localization-dispatch      | iam-call-without-tenant          | refused before any read            |
       | manage-user-role           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | manage-user-role           | iam-call-without-tenant          | refused before any read            |
       | model-attachment-upload    | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |

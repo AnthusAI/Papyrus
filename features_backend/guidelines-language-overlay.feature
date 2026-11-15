@@ -51,3 +51,28 @@ Feature: The publication's voice applies in every language; a language overlay a
   Scenario: An overlay for a language Humanus cannot read is refused
     When an admin saves a writing guidelines overlay for "ko"
     Then the save is refused as invalid input naming "ko"
+
+  Scenario: A Spanish overlay that addresses readers as usted brings the formal-imperative checks
+    Given a Spanish overlay for "es-419" chooses the register "usted"
+    Then a publication check "usted-imperative-links" written for "es-419" exists with the source "writing-guidelines:editorial-doctrine-writing-lang-es-419:v1"
+    And checking Spanish text "[Lee la fuente](https://example.test)" finds "Lee" with the repair "Lea"
+    And checking Spanish text "[Lee la fuente](https://example.test)" for a site that never chose a register finds nothing
+
+  Scenario: A site that changes its register back to tu has the formal-imperative checks switched off
+    Given a Spanish overlay for "es-419" chooses the register "usted"
+    When the Spanish overlay changes its register to "tu"
+    Then the check "usted-imperative-links" for "es-419" is disabled and kept
+    And checking Spanish text "[Lee la fuente](https://example.test)" finds nothing under the site's checks
+
+  Scenario: The register is the overlay's own choice
+    When an admin saves the shared writing guidelines with the register "usted"
+    Then the save is refused as invalid input naming "register"
+    When an admin saves the Chinese overlay with the register "usted"
+    Then the save is refused as invalid input naming "register"
+    When an admin saves the Spanish overlay with the register "vos"
+    Then the save is refused as invalid input naming "register"
+
+  Scenario: The translator is told the register the overlay chose
+    Given a Spanish overlay for "es-419" chooses the register "usted"
+    When the guidelines are resolved for a Spanish Story in the "security" section
+    Then the translator's register notes include "register: usted"

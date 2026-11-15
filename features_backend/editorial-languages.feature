@@ -90,8 +90,17 @@ Feature: Each language of a publication is checked against its own rules
       | ai-writing-tells-zh-hans | zh-Hans  |
       | typography-es            | es       |
       | ai-writing-tells-es      | es       |
+      | initialisms-es           | es       |
       | word-choice-es-419       | es-419   |
     And the starter pack catalog marks those packs as defaults and "plain-language" as not
+
+  Scenario: A starter pack added to a language after the site enabled it arrives on the next deploy, once
+    Given a site that writes in "en, es-419" with English as its primary language
+    And its starter rules were imported before the pack "initialisms-es" existed
+    When the deploy ensures the default policies
+    Then the site has the policy "ia" from the starter pack "initialisms-es" written for "es"
+    And the earlier Spanish starter policies were not imported a second time
+    And running the deploy's default policies again writes nothing
 
   Scenario: Policies saved before policies had a language get theirs written once
     Given an older policy "no-hype" from the panel with no language

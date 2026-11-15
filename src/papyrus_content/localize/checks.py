@@ -32,7 +32,7 @@ REWRITE_PRECISION_BAR = 0.9   # Ryan, 2026-11-13 (decision 5): a rule drives rew
 FAITHFULNESS_PACK = "translation-faithfulness"
 SEVERITY_ORDER = ("error", "warn", "info")
 CATEGORY_BY_PACK_PREFIX = (("typography", "typography"), ("word-choice", "typography"), ("translationese", "translationese"),
-                           ("ai-writing-tells", "slop"))
+                           ("ai-writing-tells", "slop"), ("initialisms", "initialisms"), ("register", "register"))
 
 
 @dataclass(frozen=True)
@@ -95,11 +95,12 @@ def category_map(pack_names: Iterable[str]) -> dict[str, str]:
     return out
 
 
-def starter_pack(language: str) -> dict[str, Any]:
-    """The pack a site checks text in ``language`` with when its policies are the language's starter packs (``editorial_languages``)."""
-    from ..editorial_languages import starter_packs_for
+def starter_pack(language: str, register: str | None = None) -> dict[str, Any]:
+    """The pack a site checks text in ``language`` with when its policies are the language's starter packs (``editorial_languages``), and the
+    pack of its ``register`` when it chose one (``usted``)."""
+    from ..editorial_languages import register_pack_for, starter_packs_for
 
-    names = starter_packs_for(language)
+    names = starter_packs_for(language) + tuple(name for name in (register_pack_for(language, register),) if name)
     policies = [policy for name in names for policy in humanus.builtin_pack(name)["policies"]]
     version = hashlib.sha256(json.dumps({"names": names, "policies": policies}, sort_keys=True).encode()).hexdigest()[:12]
     return {"schemaVersion": 1, "packId": "papyrus-starters", "version": f"{language}-starters-{version}", "language": language, "policies": policies,

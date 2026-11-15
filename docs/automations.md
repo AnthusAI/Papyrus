@@ -138,6 +138,13 @@ and update the `papyrus-procedure-runner` stack with the new `ImageUri` (see doc
 **Not built yet:** the per-story budget cap from recorded cost (`botChain.costUsd` is reserved), a group lock, firing from the
 console board, and a sweeper that retries `deferred` starts without a new delivery.
 
+## Translating on publish
+
+A site's translation procedure (`procedures/newsroom/story_localize.tac`) is started by an automation in two more ways: `papyrus stories localize --story ... --automation ID`
+and, for a site that turned on `languages.auto`, by the site's dispatcher when a Story is published ([translating on publish](story-translation-procedure.md#translating-on-publish)).
+Both use the same "Run now" code, so the automation's `enabled`, timeout and `maxConcurrent` apply; an automation at its limit leaves the request `wanted` and
+the dispatcher starts it when a run ends. The procedure's inputs are snake_case, as every procedure input name must be (`^[a-z_][a-z0-9_]*$`).
+
 ## Cost
 
 `procedure_runner_child` reports the model usage of each call (agent, model, prompt, completion and cached tokens)

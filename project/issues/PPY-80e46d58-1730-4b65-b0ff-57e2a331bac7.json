@@ -1,0 +1,20 @@
+{
+  "id": "PPY-80e46d58-1730-4b65-b0ff-57e2a331bac7",
+  "title": "Translate the whole site, and translate on publish",
+  "description": "",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-15T07:19:26.246471Z",
+  "updated_at": "2026-11-15T07:19:35.057825Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

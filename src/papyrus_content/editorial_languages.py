@@ -32,9 +32,16 @@ DEFAULT_LANGUAGES: dict[str, Any] = {"primary": "en", "enabled": ["en"]}
 # A language Humanus serves but this table does not name brings none until a pack is chosen for it here.
 DEFAULT_STARTER_PACKS: dict[str, tuple[str, ...]] = {
     "en": ("ai-writing-tells",),
-    "es": ("typography-es", "ai-writing-tells-es"),
+    "es": ("typography-es", "ai-writing-tells-es", "initialisms-es"),
     "es-419": ("word-choice-es-419",),
     "zh-Hans": ("typography-zh-hans", "translationese-zh-hans", "ai-writing-tells-zh-hans"),
+}
+
+# The registers a language's writing can take, and the pack each one brings (Humanus 0.37). A site chooses its register per language, in that language's
+# writing guidelines overlay (``register``); it is not a default, because a site's readers are addressed one way or the other. A register with no pack
+# (``tu`` in Spanish) is the language's ordinary writing: nothing is checked for it. A language not named here has no register choice.
+REGISTER_PACKS: dict[str, dict[str, str | None]] = {
+    "es": {"usted": "register-es-usted", "tu": None},
 }
 
 
@@ -107,3 +114,28 @@ def languages_served(language: str) -> tuple[str, ...]:
 def starter_packs_for(language: str) -> tuple[str, ...]:
     """The default starter packs of one enabled language: its base language's, then its own."""
     return tuple(name for tag in languages_served(language)[1:] for name in DEFAULT_STARTER_PACKS.get(tag, ()))
+
+
+def registers_for(language: str) -> dict[str, str | None]:
+    """The registers ``language`` offers, each with the Humanus pack it brings (None for a register that is the language's ordinary writing).
+
+    Empty for a language with no register choice. A variant offers its base language's registers (``es-419`` offers Spanish's)."""
+    for tag in reversed(languages_served(language)[1:]):
+        if tag in REGISTER_PACKS:
+            return dict(REGISTER_PACKS[tag])
+    return {}
+
+
+def register_pack_for(language: str, register: str | None) -> str | None:
+    """The pack a site that writes ``language`` in ``register`` adds to its checks, or None when that register brings none."""
+    if register is None:
+        return None
+    offered = registers_for(language)
+    if register not in offered:
+        raise ValueError(f"{language} has no register {register!r}" + (f" (it offers {', '.join(offered)})." if offered else "; it offers no register choice."))
+    return offered[register]
+
+
+def register_packs_for(language: str) -> tuple[str, ...]:
+    """Every pack any register of ``language`` brings, whether or not the site chose it (to name the category of a finding)."""
+    return tuple(name for name in registers_for(language).values() if name)

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e75d85dc-5595-4983-9b28-db7de0404e3a",
+  "issue_id": "PPY-80e46d58-1730-4b65-b0ff-57e2a331bac7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-15T07:19:26.246Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Translate the whole site, and translate on publish",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+    "labels": []
+  }
+}

@@ -150,11 +150,13 @@ def automation_procedure_key(client, automation_id: str | None) -> str | None:
 
 
 def collect(client, *, story: str, language: str, judge, procedure_version: str, ceiling_usd: float | None = None,
-            decision_model: Any = None, automation_id: str | None = None, procedure_key: str | None = None) -> LocalizeRequest:
+            decision_model: Any = None, automation_id: str | None = None, procedure_key: str | None = None,
+            history: list[dict[str, Any]] | None = None) -> LocalizeRequest:
     """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize.
-    ``procedure_key`` (or the procedure of ``automation_id``) names the registered procedure whose earlier runs give the cost prediction."""
+    ``procedure_key`` (or the procedure of ``automation_id``) names the registered procedure whose earlier runs give the cost prediction; a caller that
+    plans many Stories reads those runs once and passes them as ``history``."""
     from ..editorial_checks import GraphQLEditorialStore, settings_from
-    from ..editorial_languages import site_language, starter_packs_for, story_language
+    from ..editorial_languages import register_packs_for, site_language, starter_packs_for, story_language
     from ..editorial_model_context import editing_pack_and_context
     from ..guidelines import GuidelineStore
     from ..guidelines.layering import resolve_guidelines
@@ -182,7 +184,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     guidelines = GuidelineStore(client)
     glossary = resolve_glossary(guidelines, target, source.section)
     pack, _ = editing_pack_and_context(store, source.section, settings, target)
-    pack["papyrusStarterPacks"] = list(starter_packs_for(target))
+    pack["papyrusStarterPacks"] = [*starter_packs_for(target), *register_packs_for(target)]   # names the category of each finding; the policies come from the site
     source_pack, _ = editing_pack_and_context(store, source.section, settings, source_language)
     source_pack["papyrusStarterPacks"] = list(starter_packs_for(source_language))
     lanes = {"rules": bool(settings["lanes"].get("rules", True)), "classifier": bool(settings["lanes"].get("classifier", False))}
@@ -190,8 +192,8 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
                            lanes=lanes, decision_model=decision_model)
     english = BlockChecker(source_language=source_language, target_language=source_language, glossary=glossary, copy_edit_pack=source_pack,
                            judge=None, lanes={"rules": True, "classifier": False})
-    procedure_key = procedure_key or automation_procedure_key(client, automation_id)
-    history = spend_history(client, procedure_key) if procedure_key else []
+    procedure_key = procedure_key or (automation_procedure_key(client, automation_id) if history is None else None)
+    history = history if history is not None else (spend_history(client, procedure_key) if procedure_key else [])
     key = run_key(source, target, procedure_version=procedure_version, checker_versions=checker.versions)
     characters = sum(len(block.text) for block in blocks_of(source.body, title=source.title, deck=source.deck, fields=source.fields) if block.translated)
     return LocalizeRequest(

@@ -12,7 +12,7 @@ Feature: A published Story is translated, checked and polished by one procedure
 
   A run starts only from the desired-state record for its Story and language (LocalizationRequest, `{languageGroupId}#{language}`), which
   names the newest published source version to translate. `papyrus stories localize` writes it and starts the site's translation automation;
-  the English publish will write the same record. A run for an older source than the record names stops without writing anything, and every
+  on a site that translates on publish the English publish writes the same record (story-localize-on-publish.feature), and `papyrus stories localize --all` writes it for every Story that lacks one (story-localize-all.feature). A run for an older source than the record names stops without writing anything, and every
   run records its outcome on the record.
 
   Background:
@@ -60,6 +60,26 @@ Feature: A published Story is translated, checked and polished by one procedure
     Then the saved translation says "68 %"
     And the run records one round that changed one block
     And the run is saved, not held
+
+  Scenario: A site that addresses readers as usted has its translation corrected by code, with no model call
+    Given the site's "es-419" writing guidelines choose the register "usted"
+    And the English Story's second paragraph says "Read [the source](https://example.test/source): OpenAI says the AI system improved."
+    And the translator writes "[Lee la fuente]⟦1⟧: OpenAI dice que el sistema de AI mejoró." for the second paragraph
+    When the translation run for "es-419" runs
+    Then the saved translation says "[Lea la fuente](https://example.test/source)"
+    And the saved translation says "el sistema de IA mejoró"
+    And the saved translation says "OpenAI dice"
+    And the repairer was never asked
+    And the run is saved, not held
+
+  Scenario: A site that addresses readers as tu keeps its imperative, and the initialism is still corrected
+    Given the English Story's second paragraph says "Read [the source](https://example.test/source): OpenAI says the AI system improved."
+    And the translator writes "[Lee la fuente]⟦1⟧: OpenAI dice que el sistema de AI mejoró." for the second paragraph
+    When the translation run for "es-419" runs
+    Then the saved translation says "[Lee la fuente](https://example.test/source)"
+    And the saved translation says "el sistema de IA mejoró"
+    And the saved translation says "OpenAI dice"
+    And the repairer was never asked
 
   Scenario: Polishing never changes the facts
     Given the translator drops the attribution "the company says"
@@ -131,6 +151,13 @@ Feature: A published Story is translated, checked and polished by one procedure
     When a run started for version 3 runs
     Then the run stops saying a newer source is requested
     And no model is called for it
+
+  Scenario: A Story republished while a run works is not overwritten by the older run
+    Given the English Story is republished as version 4 while the version 3 run is translating
+    When the translation run for "es-419" runs
+    Then the run stops saying a newer source is requested
+    And no translation is saved
+    And the request "story-waymo#es-419" still names source version 4 and is wanted
 
   Scenario: A dry run prints the plan and writes nothing
     Given nobody asked for a translation

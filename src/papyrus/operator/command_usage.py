@@ -171,7 +171,7 @@ _ENTRIES = dict([
   _e("stories head-index", "Fill in and check the head stage key (one row per Story in the head stage index). A dry run unless --apply.",
      "[--apply] [--dry-run] [--stage STAGE ...] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories localize", "Ask for a translation of a published Story into one language: writes the translation request and runs the site's registered translation procedure (here with `--auth iam`, or through --automation). Never publishes.",
-     "--story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run]  (without --automation the run happens in this process: operator lane, key in OPENAI_API_KEY or the parameter)", "both", _DRY, ""),
+     "--story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run]  (without --automation the run happens in this process: operator lane, key in OPENAI_API_KEY or the parameter)  |  --all (--language TAG | --all-languages) [--publish-clean] [--concurrency N] [--dry-run] [--json]  (every published primary-language Story with no up-to-date translation; one row per Story and language)", "both", _DRY, ""),
   _e("stories languages", "Write the language and the language group on every Item row written before those fields existed (the site's primary language).",
      "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
   _e("stories decks", "Bring every Item's and published row's deck column to the dek its front matter holds. Writes only the derived column.",
@@ -244,7 +244,7 @@ _ENTRIES = dict([
   _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
   _e("editorial check-drafts", "Check every unpublished draft version not yet checked.", "[--limit N] [--dry-run]", "operator", _DRY, ""),
   _e("editorial languages", "Show how the site serves its languages (public, URL prefix, slug policy per language), or change them. The same rules as Administration > Editorial checks.",
-     "[--set-public TAGS] [--set-prefix TAG=PREFIX] [--set-slug TAG=POLICY] [--dry-run] [--json]", "both", _DRY, ""),
+     "[--set-public TAGS] [--set-prefix TAG=PREFIX] [--set-slug TAG=POLICY] [--auto on|off] [--auto-automation ID] [--auto-publish on|off] [--dry-run] [--json]", "both", _DRY, ""),
   _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--story LINEAGE] [--section KEY] [--language TAG]", "both", "reads", ""),
   # ---- sign-in ----------------------------------------------------------------------------------------------------
   _e("login", "Sign in with Google in a browser; prints nothing secret.", "SITE_HOST", "editor", "writes", "orientation"),
