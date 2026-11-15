@@ -8,7 +8,11 @@ publishes: the result is published by a person, or by the site's own switches fo
 ## The record model
 
 - Every Item version has `language` (BCP 47, Humanus spelling: `en`, `es-419`, `zh-Hans`) and `languageGroupId` (the primary Story's lineage; on a tenant backend the stored row carries the tenant prefix, `machines-on-machines#{lineage}`, which readers remove with `bare_group_id` before comparing it with a lineage).
-- A localization is a sibling lineage `{primaryLineageId}--{language}`. Each version names the primary version it came from
+- A localization is a sibling lineage `{primaryLineageId}--{language}`. The primary's own id may contain `--` (a Story with a long headline gets an id that ends
+  `--{16-character hash}`, and its Spanish translation is `...--{hash}--es-419`): the id is never parsed. Whether a row is a translation is read from the row,
+  a `languageGroupId` that is another lineage than its own (`is_localization_of`, `translation_original`), and a translation is refused as the source of a
+  translation by that test. The derivation is one-to-one because a language tag never contains `--`; `localization_lineage_id` refuses one that does. Ids made
+  before this rule (`{slug}--es`, `{slug}--zh`) are unchanged: there is nothing to migrate. Each version names the primary version it came from
   (`sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`) and has `syncState`.
 - A translation has no board stage and stays out of the board and the English listings until the listing keys carry the language (plan, deploy 2).
 - Its address (`slug`) is drafted once, at its first version, by the language's slug policy (`languages.slugs`: `translated` for Spanish, `characters`
@@ -82,7 +86,12 @@ papyrus stories localize --all --language es-419 --automation SITE.story-localiz
   translation, not marked do not localize) has an up-to-date translation in a language when the record there names this very text and its state is
   `saved`, `held`, `unchanged` or `published`. A held translation counts: it waits for a person. A record for older text, a run that `failed`, `stopped` or
   never started (a `started` record older than an automation's longest run), and a Story with no record are remaining work. Running the command again
-  does only that.
+  does only that. When the record names this very text but does not say its run finished (`wanted` or `started`: a run that ended after saving and before
+  writing its outcome, or a request written again and not yet run), the survey reads that one translation: if it was made from exactly this text and its
+  run saved or held it, the row is up to date (held translations are reported held, with the record's own state in the detail) and is never run again, since a
+  new run could replace what a person has yet to answer. Only Stories that have such a record are read this way; the survey never reads one lineage per Story.
+  The same transient-failure rule covers every read of the command: a read is sent again with a growing pause on a reset connection, a timeout or a data-store
+  timeout, up to five attempts, and a failure that persists is that row's `cannot be planned` reason (or `failed`) with its real message.
 - **In this process** (the default; needs `--auth iam`) each remaining Story is requested and run through the registered procedure exactly as
   `papyrus stories localize --story` does, `--concurrency` at a time (default 3; each run mostly waits for the model). One line per Story and language:
   `saved`, `held` (a person answers its review request), `failed` (its reason; the others go on), `up to date`, `published`, `not published`, with the run's

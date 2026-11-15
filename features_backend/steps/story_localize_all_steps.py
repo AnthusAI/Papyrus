@@ -72,7 +72,7 @@ def _hash(story: str, text: int) -> str:
 
 def _publish_story(context, story: str, text: int = 1, *, language="en", do_not_localize=False) -> dict:
     """The Story's published version ``text`` as the CMS keeps it: the Item version, the PublishedItem row that names it."""
-    group = _stored_group(story.split("--")[0])
+    group = _stored_group(story)
     metadata = {"doNotLocalize": True} if do_not_localize else {}
     item = {"id": f"{story}-v{text}", "lineageId": story, "versionNumber": text, "versionState": "current", "type": "article", "status": "published",
             "stage": "published", "slug": story, "section": "machines", "title": f"Title of {story}", "bodyMarkus": f"Body {text}\n", "contentHash": _hash(story, text),
@@ -154,6 +154,18 @@ def step_held_translation(context, story):
     _translation(context, story, "es-419", "held")
 
 
+@given('"{story}" has a Spanish translation that is held, though its request says only that a run started')
+def step_held_but_started(context, story):
+    _request(context, story, "es-419", "started")   # the run saved and held the translation, then ended before it wrote its outcome on the request
+    _translation(context, story, "es-419", "held")
+
+
+@given('"{story}" has a Spanish translation that is held, though its request was written again and not yet run')
+def step_held_but_wanted(context, story):
+    _request(context, story, "es-419", "wanted")
+    _translation(context, story, "es-419", "held")
+
+
 @given('the Spanish request for "{story}" names this text and its run failed')
 def step_failed_request(context, story):
     _request(context, story, "es-419", "failed", reason="ModelUnavailable: the model service could not be reached")
@@ -195,6 +207,13 @@ def step_up_to_date(context, story):
 def step_up_to_date_held(context, story):
     job = _job(context, story)
     assert job.status == backfill.UP_TO_DATE and job.state == "held" and "person" in job.detail, job
+
+
+@then('"{story}" is up to date, held for a person, and its request record is left as it was')
+def step_held_vouched(context, story):
+    job = _job(context, story)
+    assert job.status == backfill.UP_TO_DATE and job.state == "held" and "person" in job.detail and "request record says" in job.detail, job
+    assert not [call for call in context.client.calls if call[0] in ("create", "update", "upsert")], context.client.calls
 
 
 @then('"{story}" is to do because nothing was ever requested')
@@ -435,6 +454,12 @@ def step_plan(context, language):
 def step_plan_lists(context, first, second):
     assert _job(context, first).costUsd == 0.02 and _job(context, second).costUsd == 0.02, context.jobs
     assert context.summary["predictedUsd"] == 0.04 and context.summary["withoutPrediction"] == 0, context.summary
+
+
+@then('"{story}" has a predicted cost and no reason it cannot be planned')
+def step_planned(context, story):
+    job = _job(context, story)
+    assert job.costUsd == 0.02 and "cannot be planned" not in job.detail, job
 
 
 @then("no request, translation or publish was written")
@@ -817,6 +842,9 @@ def _command(context, words, *, iam: bool):
         def __init__(self, *args, **kwargs):
             pass
 
+    from papyrus_content import request_meter
+
+    context.units_before = request_meter.current_run().units
     with mock.patch.object(story_commands, "create_authoring_client", lambda *a, **k: (context.client, None)), \
             mock.patch.object(editorial_checks, "GraphQLEditorialStore", Quiet), \
             mock.patch.object(editorial_checks, "settings_from", lambda store: context.settings), \
@@ -839,7 +867,9 @@ def _command(context, words, *, iam: bool):
 def _planning_collect(context):
     from papyrus_content.localize.budget import predict
 
-    def collect(client, *, story, language, **_):
+    def collect(client, *, story, language, shared=None, **_):
+        context.shared_seen = [*getattr(context, "shared_seen", []), shared]
+
         class Request:
             pass
 
@@ -898,6 +928,19 @@ def step_refused_lane(context):
 @then("no request was written by the command")
 def step_command_wrote_nothing(context):
     assert json.dumps(context.client.tables.get("LocalizationRequest", {}), sort_keys=True) == context.before and not context.runs
+
+
+@then("every Story of the plan was planned with the same shared reads")
+def step_shared(context):
+    seen = context.shared_seen
+    assert len(seen) >= 2 and seen[0] is not None and all(entry is seen[0] for entry in seen), seen
+
+
+@then("the request budget of the command allows for the {count:d} translations to do")
+def step_units(context, count):
+    from papyrus_content import request_meter
+
+    assert request_meter.current_run().units - context.units_before == count, request_meter.current_run().units
 
 
 @then("the output ends with a plan line for {count:d} Stories to do")

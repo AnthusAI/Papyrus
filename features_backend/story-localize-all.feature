@@ -39,6 +39,18 @@ Feature: A whole site is translated by one command, and only what remains is don
     And "story-a" is up to date
     And "story-b" is listed exactly once
 
+  Scenario: A held translation is held whatever its request record says, and is never planned again
+    A held translation waits for a person. The request record is where its run is meant to say so, but a run can end after saving the translation and before
+    writing that, and the record can be written again for the same text. The translation itself says which text it was made from and that it is held, so the
+    survey believes it, reports it held and leaves the record and the translation alone: a new run could replace what a person has yet to answer.
+    Given the published English Stories "story-f" and "story-g"
+    And "story-f" has a Spanish translation that is held, though its request says only that a run started
+    And "story-g" has a Spanish translation that is held, though its request was written again and not yet run
+    When the whole site is planned for "es-419"
+    Then "story-f" is up to date, held for a person, and its request record is left as it was
+    And "story-g" is up to date, held for a person, and its request record is left as it was
+    And "story-f" and "story-g" are not run
+
   Scenario: A run that failed is remaining work, and one that is still going is not
     Given the Spanish request for "story-b" names this text and its run failed
     And the Spanish request for "story-c" names this text and its run is queued on an automation
@@ -91,6 +103,15 @@ Feature: A whole site is translated by one command, and only what remains is don
     Then the Spanish requests of "story-b" and "story-c" are wanted, name that automation and ask for a clean result to be published
     And no procedure was run here
 
+  Scenario: A Story whose lineage id contains the separator is surveyed and planned like any other
+    The ids the site gives a Story with a long headline end in a hash after a double hyphen. Such a Story is a primary Story: its translation is
+    the same id with the language after one more double hyphen, and neither the survey nor the plan treats it as anything else.
+    Given the published English Story "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" at its first text
+    And the procedure has measured Spanish runs
+    When the whole site is planned for "es-419"
+    Then "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" is to do because nothing was ever requested
+    And "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" has a predicted cost and no reason it cannot be planned
+
   Scenario: Every enabled language is covered by --all-languages
     Given the site also writes in "zh-Hans"
     When the whole site is surveyed for every enabled language
@@ -118,3 +139,12 @@ Feature: A whole site is translated by one command, and only what remains is don
     When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --dry-run"
     Then the output ends with a plan line for 2 Stories to do
     And no request was written by the command
+
+  Scenario: A plan reads what depends only on the section and the language once, and the request budget allows for the work
+    A plan reads each Story's own text and translation, but the settings, the editing packs, the glossary and the register guidelines depend only on the site,
+    the section and the language, so they are read once for the whole plan and shared by every Story. Each translation still to do is a unit of work in the
+    command's request budget (200 plus 8 for each), so a plan of hundreds of Stories is not reported as a runaway loop.
+    Given the procedure has measured Spanish runs
+    When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --dry-run"
+    Then every Story of the plan was planned with the same shared reads
+    And the request budget of the command allows for the 2 translations to do

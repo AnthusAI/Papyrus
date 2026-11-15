@@ -65,7 +65,23 @@ Feature: Every Story version knows its language, and translations are sibling St
 
   Scenario: A translation's lineage is derived from its primary and its language
     Then the translation of "story-rivers" into "zh-Hans" has the lineage "story-rivers--zh-Hans"
-    And a translation lineage cannot itself be translated
+
+  Scenario: A Story whose own lineage id contains the separator has derived translations too
+    The ids the site generates for a Story with a long headline end in a hash after the separator, and such a Story is an ordinary primary Story.
+    Whether a row is a translation is read from its language group, never from the shape of its id.
+    Then the translation of "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" into "es-419" has the lineage "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8--es-419"
+    And the translation of "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" into "zh-Hans" has the lineage "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8--zh-Hans"
+    And the translation of "item-agents-shopify-sidekick-prompt-compression" into "zh-Hans" has the lineage "item-agents-shopify-sidekick-prompt-compression--zh-Hans"
+
+  Scenario: The derived id is one-to-one, so a language is never read out of a primary's id
+    Then the lineage "content-item-a-free-driving-game-demo-ran-up-a-1-000-a-day-ai-bill-d5d5f549b245433e--es-419" is the translation into "es-419" of "content-item-a-free-driving-game-demo-ran-up-a-1-000-a-day-ai-bill-d5d5f549b245433e" and of nothing else
+    And the lineage "content-item-a-free-driving-game-demo-ran-up-a-1-000-a-day-ai-bill-d5d5f549b245433e" is not a translation of anything
+    And a language tag containing the separator is refused
+
+  Scenario: A translation is recognised by its row, not its id, and cannot itself be translated
+    Then the row of "story-rivers--zh-Hans" in the group "mom#story-rivers" is a translation of "story-rivers"
+    And the row of "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" in its own group is not a translation
+    And asking to translate the translation "story-rivers--zh-Hans" is refused, naming the original "story-rivers"
 
   Scenario: The members of a language group in one language are one index query
     Given the Story "story-rivers" in "en" and its translations into "es-419" and "zh-Hans"
