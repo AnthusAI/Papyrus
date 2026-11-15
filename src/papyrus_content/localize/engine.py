@@ -313,7 +313,7 @@ class Localizer:
             for block_id, slot in pending.items():
                 current = protect_like(slot.protected, proposals[block_id])
                 entry = {"id": block_id, "source": slot.protected.text, "current": current.text,
-                         "problems": [f"{f.message}" + (f" (translation: {f.excerpt!r})" if f.excerpt else "") + (f" (source: {f.source_excerpt!r})" if f.source_excerpt else "")
+                         "problems": [slot.protected.mask(f"{f.message}" + (f" (translation: {f.excerpt!r})" if f.excerpt else "") + (f" (source: {f.source_excerpt!r})" if f.source_excerpt else ""))
                                       for f in remaining[block_id] if f.drives_rewrite]}
                 if block_id in problems:
                     entry["problem"] = f"Your previous repair of this block was refused: {problems[block_id]}."
