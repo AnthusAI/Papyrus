@@ -58,7 +58,7 @@ answers the language questions in one module, `src/papyrus_content/editorial_lan
   language once (`DEFAULT_STARTER_PACKS`): English `ai-writing-tells`; Spanish `typography-es`, `ai-writing-tells-es` and `initialisms-es` (standalone "AI" becomes "IA"; DNA, HIV, GDP, NATO and WHO become ADN, VIH, PIB, OTAN and OMS; "OpenAI" and other English names stay), plus
   `word-choice-es-419` for `es-419`; Simplified Chinese `typography-zh-hans`, `translationese-zh-hans` and
   `ai-writing-tells-zh-hans`. They run on the next deploy after the setting changes, or at once with `papyrus editorial policies
-  ensure-defaults`. All of them are advice (`info` or `warn`): Humanus marks each policy's evidence grade (measured, normative,
+  ensure-defaults`; `papyrus editorial languages --enable TAG` changes the setting and imports them in one step. All of them are advice (`info` or `warn`): Humanus marks each policy's evidence grade (measured, normative,
   folk), and a rule may only drive rewrites once it is about 9 in 10 correct on held-out examples in that language. A pack added to a
   language's starters later reaches a site that enabled the language earlier on its next deploy, once (the packs applied are recorded in the
   settings' `defaultStarterPacks`); a policy an admin edited or deleted is never added back.

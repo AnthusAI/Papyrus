@@ -31,13 +31,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 import humanus
 
-from .editorial_languages import canonical, site_languages
+from .editorial_languages import ANY_LANGUAGE, canonical, site_languages
 from .markus_renderer.build import page_slug, slugify
 
 SLUG_POLICIES = ("translated", "characters", "pinyin", "primary")
@@ -285,6 +285,50 @@ def edit_serving(languages: Mapping[str, Any], *, public: list[str] | None = Non
             result["auto"] = {**(result.get("auto") or {}), **auto}
     except LookupError as error:
         raise _unreadable(error) from error
+    checked_serving(result)
+    return result
+
+
+def edit_enabled(languages: Mapping[str, Any], *, enable: Iterable[str] = (), disable: Iterable[str] = ()) -> dict[str, Any]:
+    """``languages`` with the languages in ``enable`` added to ``enabled`` and the ones in ``disable`` taken out, every other key kept as stored, checked
+    by :func:`serving_languages`.
+
+    A tag is validated against the installed Humanus's language packs and stored in its spelling (``zh-CN`` is ``zh-Hans``); a tag it has no pack for is
+    refused naming the supported ones. An enabled language is never public: ``public`` is left as it is (:func:`edit_serving` changes it). Enabling an
+    enabled language and disabling one that is not enabled change nothing. Taking a language out takes its public flag, prefix, slug policy and segments
+    with it (the console form does the same), and the primary cannot be taken out. Whether the language has translations is not known here: the caller
+    asks before it disables."""
+    result = dict(languages)
+    try:
+        primary = canonical(result.get("primary") or "")
+        enabled = [canonical(tag) for tag in result.get("enabled") or []]
+        adding = [canonical(tag) for tag in enable]
+        removing = [canonical(tag) for tag in disable]
+    except LookupError as error:
+        raise _unreadable(error) from error
+    if ANY_LANGUAGE in adding or ANY_LANGUAGE in removing:
+        raise ValueError("A site writes in named languages; * is only a policy's language.")
+    both = sorted(set(adding) & set(removing))
+    if both:
+        raise ValueError(f"{', '.join(both)} cannot be enabled and disabled in one command.")
+    if primary in removing:
+        raise ValueError(f"{primary} is the site's primary language, the language its Stories are written in; it cannot be disabled.")
+    for tag in adding:
+        if tag not in enabled:
+            enabled.append(tag)
+    enabled = [tag for tag in enabled if tag not in removing]
+    result["enabled"] = enabled
+    for tag in removing:
+        if isinstance(result.get("public"), list):
+            result["public"] = [kept for kept in result["public"] if canonical(kept) != tag]
+        for key in ("prefixes", "slugs", "segments"):
+            if isinstance(result.get(key), dict):
+                kept = {name: value for name, value in result[key].items() if canonical(name) != tag}
+                result[key] = kept
+                if not kept:
+                    result.pop(key)
+    if result.get("public") == [primary]:
+        result.pop("public")
     checked_serving(result)
     return result
 

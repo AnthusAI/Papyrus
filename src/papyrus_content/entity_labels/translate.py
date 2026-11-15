@@ -138,6 +138,20 @@ def check_label(source: LabelSource, draft: Draft, checker: Any | None) -> list[
     return [{"policy": f.policy, "severity": f.severity, "message": f.message} for f in findings]
 
 
+def save_approved(client: Any, source: LabelSource, target: str, *, name: str, description: str, reviewed_by: str, now: str | None = None) -> Outcome:
+    """Save wording a person has read and approved as the label: the machine's translation kept as it is (origin ``machine``, labelled AI-translated), pinned so no
+    run overwrites it, current, with the reviewer recorded. A person's later correction through the console is origin ``human``."""
+    store = LabelStore(client)
+    stamp = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    draft = Draft(name=name, aliases=[], description=description, equivalence="near", origin=MACHINE)
+    outcome = Outcome(CURRENT, draft=draft)
+    clashes = collisions(store, source, target, draft)
+    if clashes:
+        raise ValueError("; ".join(clashes))
+    _write(store, source, target, draft, outcome, {row["id"]: row for row in store.of_entity(source.key, target)}, stamp, pinned=True, reviewed_by=reviewed_by)
+    return outcome
+
+
 def localize_label(client: Any, models: Any, source: LabelSource, target: str, *, glossary: Any, checker: Any | None, register_notes: list[str],
                    language_names: Mapping[str, str], neighbour_keys: tuple[str, ...] = (), dry_run: bool = False, now: str | None = None) -> Outcome:
     """Make (or refuse to make) the label of ``source`` in ``target`` and write its rows. A pinned label and a current label made from these words are left alone."""
@@ -164,11 +178,13 @@ def localize_label(client: Any, models: Any, source: LabelSource, target: str, *
     return outcome
 
 
-def _write(store: LabelStore, source: LabelSource, target: str, draft: Draft, outcome: Outcome, existing: dict[str, dict[str, Any]], now: str) -> None:
+def _write(store: LabelStore, source: LabelSource, target: str, draft: Draft, outcome: Outcome, existing: dict[str, dict[str, Any]], now: str, *, pinned: bool = False,
+           reviewed_by: str | None = None) -> None:
     tenant = store.tenant_id
     preferred = {"id": label_id(source.key, target), "entityKind": source.kind, "entityId": source.entity_id, "entityKey": source.key, "language": target,
                  "role": PREFERRED, "text": draft.name, "nameKey": name_key(target, draft.name, tenant, source.kind), "sortKey": sort_key(target, PREFERRED, draft.name),
-                 "description": draft.description or None, "equivalence": draft.equivalence, "origin": draft.origin, "pinned": False,
+                 "description": draft.description or None, "equivalence": draft.equivalence, "origin": draft.origin, "pinned": pinned,
+                 "reviewedBy": reviewed_by, "reviewedAt": now if reviewed_by else None,
                  "sourceContentHash": source.content_hash, "syncState": outcome.state, "workKey": work_key(target, outcome.state, tenant, source.kind), "updatedAt": now}
     wanted_aliases = {} if outcome.state == HELD else {label_id(source.key, target, ALIAS, alias): alias for alias in draft.aliases}
     have = existing.get(preferred["id"])
@@ -188,4 +204,4 @@ def _write(store: LabelStore, source: LabelSource, target: str, draft: Draft, ou
             store.delete(row_id)
 
 
-__all__ = ["Draft", "LabelSource", "Outcome", "check_label", "collisions", "draft_label", "glossary_decision", "localize_label"]
+__all__ = ["Draft", "LabelSource", "Outcome", "check_label", "collisions", "draft_label", "glossary_decision", "localize_label", "save_approved"]

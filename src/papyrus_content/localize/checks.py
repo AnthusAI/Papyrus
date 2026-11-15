@@ -24,7 +24,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import humanus
 
@@ -120,7 +120,7 @@ class BlockChecker:
     """Runs the two checks on one block. The judge is the run's model; the copy-edit pack is the site's pack for the language."""
 
     def __init__(self, *, source_language: str, target_language: str, glossary, copy_edit_pack: Mapping[str, Any], judge: Callable | None,
-                 lanes: Mapping[str, bool], decision_model: Any = None):
+                 lanes: Mapping[str, bool], decision_model: Any = None, notes: Sequence[str] = ()):
         self.source_language, self.target_language = source_language, target_language
         self.glossary = glossary
         self.copy_edit_pack = dict(copy_edit_pack)
@@ -129,6 +129,9 @@ class BlockChecker:
         self.precise = {policy["id"] for policy in copy_edit_pack["policies"] if _precise(policy)}
         self.faithfulness_pack = humanus.builtin_pack(FAITHFULNESS_PACK)
         self.judge = judge
+        #: The site's translation notes for the language (its writing overlay's register, tone and wording): the lines the translator is given. The
+        #: bilingual judge reads them too, so a rendering they permit (an equivalent for a pun or an idiom) is not held as a mistranslation.
+        self.notes = tuple(notes)
         self.lanes = dict(lanes)
         self.decision_model = decision_model
 
@@ -139,12 +142,14 @@ class BlockChecker:
                 "faithfulnessPack": pack_fingerprint(self.faithfulness_pack), "copyEditPack": pack_fingerprint(self.copy_edit_pack),
                 "glossary": self.glossary.version, "sourceLanguagePack": humanus.resolve_language(self.source_language).version,
                 "targetLanguagePack": humanus.resolve_language(self.target_language).version,
-                "lanes": ",".join(sorted(name for name, on in self.lanes.items() if on))}
+                "lanes": ",".join(sorted(name for name, on in self.lanes.items() if on)),
+                **({"translationNotes": hashlib.sha256("\n".join(self.notes).encode("utf-8")).hexdigest()[:16]} if self.notes else {})}
 
     def faithfulness(self, source: str, target: str) -> tuple[list[Finding], dict[str, Any]]:
         request = {"schemaVersion": 1, "content": {"text": target, "format": "markdown", "language": self.target_language},
                    "source": {"text": source, "format": "markdown", "language": self.source_language},
                    "glossary": self.glossary.humanus(self.glossary.entries_in([source], self.source_language)),
+                   **({"translationNotes": list(self.notes)} if self.notes else {}),
                    "pack": self.faithfulness_pack, "options": {"lanes": {"rules": False, "classifier": False, "parity": True, "judge": True}}}
         result = humanus.check(request, decision_model=None, bilingual_judge=self.judge)
         judge = result["lanes"].get("judge") or {}

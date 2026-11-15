@@ -8,11 +8,18 @@ The keys the standard front end itself needs on a language edition are derived f
 always has its translation:
 
 * ``language.name``: the language's name in itself (``Español``, ``中文``), what a language switcher shows;
+* ``site.name``: the publication's name in the language (masthead, ``<title>`` suffix, ``og:site_name``, feeds, Markdown twins, structured data; the primary
+  language's name is ``site.name`` of ``projection.json`` and is listed as ``alternateName`` in the structured data of every edition); ``site.shortName`` when the
+  site sets one, ``site.publisher`` when the site sets a publisher and ``feeds.title`` when the site gives its feeds a title other than the site's name;
+* ``seo.defaultImage`` (a site path or URL) and ``seo.defaultImageAlt`` when the site sets a default share picture and its alt text: the picture usually carries the
+  name, so each language has its own;
 * ``site.description`` and ``site.tagline`` when the site sets them;
 * ``home.label``: the name of the home link (``listings`` breadcrumbs);
 * ``listing.pageSuffix``: what follows the title of page 2 and later of a listing, with ``{page}`` (`` — página {page}``);
 * ``section.<name>.label`` and, when set, ``section.<name>.description``, for every section with a listing page;
 * ``nav.<href>.label`` for every navigation link the edition keeps (home and section listings);
+* ``notice.label`` and ``notice.text`` when the site sets ``site.notice`` (the publication's statement, for satire: it is said in the language on its pages, its
+  Markdown twins, its feeds and its structured data, never in the primary language's words);
 * ``footer.text`` when the site sets ``footer.text``;
 * ``translation.label`` and ``translation.original``: the line every translated page carries ("Traducido por IA del {original}", with ``{original}`` the
   link to the original, whose words are ``translation.original``: "original en inglés").
@@ -29,6 +36,12 @@ from pathlib import Path
 
 STRINGS_DIRECTORY = "strings"
 LANGUAGE_NAME_KEY = "language.name"
+SITE_NAME_KEY = "site.name"
+SITE_SHORT_NAME_KEY = "site.shortName"
+SITE_PUBLISHER_KEY = "site.publisher"
+FEEDS_TITLE_KEY = "feeds.title"
+SEO_IMAGE_KEY = "seo.defaultImage"
+SEO_IMAGE_ALT_KEY = "seo.defaultImageAlt"
 TRANSLATION_LABEL_KEY = "translation.label"
 TRANSLATION_ORIGINAL_KEY = "translation.original"
 UNTRANSLATED_LABEL_KEY = "listing.untranslated"
@@ -57,7 +70,17 @@ def read_interface_strings(static_directory: Path | None) -> dict[str, dict[str,
 
 def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_hrefs: tuple[str, ...]) -> tuple[str, ...]:
     """Every key a language edition needs: the standard front end's own (from the settings) and every key of the primary language's file."""
-    keys = [LANGUAGE_NAME_KEY, "home.label", "listing.pageSuffix", TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY, UNTRANSLATED_LABEL_KEY, UNTRANSLATED_ORIGINAL_KEY]
+    keys = [LANGUAGE_NAME_KEY, SITE_NAME_KEY, "home.label", "listing.pageSuffix", TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY, UNTRANSLATED_LABEL_KEY, UNTRANSLATED_ORIGINAL_KEY]
+    if standard.identity.short_name:
+        keys.append(SITE_SHORT_NAME_KEY)
+    if standard.identity.publisher:
+        keys.append(SITE_PUBLISHER_KEY)
+    if standard.feeds.title and standard.feeds.title != standard.identity.name:
+        keys.append(FEEDS_TITLE_KEY)
+    if standard.seo.default_image:
+        keys.append(SEO_IMAGE_KEY)   # the share picture carries the name, so each language has its own
+    if standard.seo.default_image_alt:
+        keys.append(SEO_IMAGE_ALT_KEY)
     if standard.identity.description:
         keys.append("site.description")
     if standard.identity.tagline:
@@ -68,6 +91,10 @@ def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_href
             if section.description:
                 keys.append(f"section.{section.name}.description")
     keys.extend(f"nav.{href}.label" for href in edition_nav_hrefs)
+    if standard.identity.notice_label:
+        keys.append("notice.label")
+    if standard.identity.notice_text:
+        keys.append("notice.text")
     if standard.footer_text:
         keys.append("footer.text")
     keys.extend(primary_strings)

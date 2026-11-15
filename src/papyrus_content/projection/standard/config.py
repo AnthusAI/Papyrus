@@ -112,6 +112,7 @@ class SiteIdentity:
     lede_field: str = ""              # front matter field whose text is printed as the article's lede (standfirst) under its title
     notice_label: str = ""            # a short label ("Satire") and sentence about the whole publication, said on every page, Markdown twin, feed entry and in the structured data
     notice_text: str = ""
+    alternate_names: tuple[str, ...] = ()   # the site's name in its other public languages (and the primary's, on an edition): schema.org alternateName, so search engines join the editions
 
 
 @dataclass(frozen=True)

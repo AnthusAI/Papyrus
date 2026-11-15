@@ -46,6 +46,16 @@ Feature: A publication decides how its terms are translated
     When a block saying "Congress passed the law." is translated as "El parlamento aprobó la ley."
     Then the faithfulness check reports that "Congress" should be "Congreso"
 
+  Scenario: A translated headline that keeps a run of English words is reported
+    Given the Latin American Spanish starter glossary
+    When a block saying "The Red Team Is Moving Into the Build" is translated as "The Red Team está Moving Into the Build"
+    Then the faithfulness check reports that the words "Moving Into the Build" were left untranslated
+
+  Scenario: A short name in a headline is kept without a report
+    Given the Latin American Spanish starter glossary
+    When a block saying "Death by AI needed different models" is translated as "Death by AI necesitó distintos modelos"
+    Then the faithfulness check reports no untranslated words
+
   Scenario: A do-not-translate term must stay as written
     Given the Simplified Chinese starter glossary
     When a block saying "The edits are often called abliteration." is translated as "这类改动通常称为消融。"
