@@ -40,9 +40,11 @@ def test_a_change_that_is_not_the_concepts_text_does_nothing_and_a_removed_conce
     assert not site.tables["EntityLabel"]
 
 
-def test_the_consumer_bundles_humanus_because_reading_the_primary_language_checks_the_tag_against_its_language_packs():
+def test_the_consumer_reads_the_primary_language_from_the_settings_row_not_through_humanus():
     from pathlib import Path
 
-    folder = Path(__file__).resolve().parents[3] / "amplify" / "functions" / "entity-label-sync"
-    assert any(line.startswith("humanus") for line in (folder / "requirements.txt").read_text().splitlines())
-    assert "ENTITY_LABEL_SYNC_REQUIREMENTS" in (folder / "wire.ts").read_text()
+    import papyrus_content.entity_labels.stream as stream
+
+    assert stream.site_primary_language(FakeSite(primary="es-419")) == "es-419"
+    source = Path(stream.__file__).read_text(encoding="utf-8")
+    assert "editorial_languages" not in source and "primary_language()" not in source   # Humanus is not in the consumer's bundle, so nothing here may need it
