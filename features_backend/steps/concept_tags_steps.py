@@ -156,3 +156,17 @@ def _still_rejected(context):
 @then('the audit lists the problem "{problem}"')
 def _problem(context, problem):
     assert problem in {finding["problem"] for finding in context.findings}, context.findings
+
+
+@given('the story "big" has a Spanish translation "{lineage}"')
+def _translation(context, lineage):
+    context.site.tables["Item"][f"{lineage}-v1"] = {
+        "id": f"{lineage}-v1", "lineageId": lineage, "versionNumber": 1, "versionState": "current", "headline": "Una gran historia", "title": "Una gran historia",
+        "stage": "published", "slug": "una-gran-historia", "type": "article", "section": "news", "language": "es-419", "languageGroupId": "item-big"}
+    context.site.tables["Item"]["item-big-v1"].update(language="en", languageGroupId="item-big")
+
+
+@then('the only story edge is on "{lineage}" and none is on the translation')
+def _edge_on_original(context, lineage):
+    rows = _relations(context)
+    assert [row["subjectLineageId"] for row in rows] == [lineage], rows

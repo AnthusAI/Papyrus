@@ -563,8 +563,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     if entry is not None and entry.url and not entry.draft and wiki.is_wiki_entry(entry, self.standard):
                         pages[slug] = entry
             uses: dict[str, int] = {}
-            for slugs in site.relations.concepts.values():
-                for slug in slugs:
+            here = {summary.item_id for summary in site.items}   # Stories of this site only: an edition counts its own, and an English count never includes translations
+            for item_id, slugs in site.relations.concepts.items():
+                for slug in slugs if item_id in here else ():
                     uses[slug] = uses.get(slug, 0) + 1
             self._surf_memo = (site.items, pages, uses)
         return self._surf_memo[1], self._surf_memo[2]
@@ -576,7 +577,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         found = [
             {"slug": slug, "name": pages[slug].title, "href": pages[slug].url, "stories": uses.get(slug, 0)}
             for slug in site.relations.concepts.get(summary.item_id, ())
-            if slug in pages
+            if slug in pages   # on a language edition, only a Concept that has a page in this language (no chip leads out of the language)
         ]
         return tuple(sorted(found, key=lambda link: (-link["stories"], link["name"].casefold())))
 
