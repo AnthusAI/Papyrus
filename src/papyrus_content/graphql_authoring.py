@@ -4,7 +4,9 @@ import contextlib
 import json
 import os
 import re
+import random
 import sys
+import time
 import http.client
 import urllib.parse
 from typing import Any, Callable
@@ -825,6 +827,22 @@ def _without_medium_fields(variables: dict[str, Any] | None) -> dict[str, Any] |
     return {**variables, "input": {key: value for key, value in variables["input"].items() if key not in MEDIUM_REFERENCE_FIELDS}}
 
 
+#: A read (a ``query``) changes nothing, so it is sent again, with a growing pause, when the failure is the network's or the data store's and not the request's:
+#: a reset connection, a timeout, a throttled or briefly unavailable service, or an answer whose only errors are the store's own transient ones (AppSync
+#: reports a DynamoDB client timeout inside a 200 answer). A rejected request (validation, credentials, authorization) is never repeated. A mutation is
+#: never repeated by this rule: it may already have run.
+READ_ATTEMPTS = 5
+READ_BACKOFF_SECONDS = 0.5   # the pause before the second attempt; it doubles each time (to a ceiling of 8 seconds) and is spread by random jitter
+TRANSIENT_STATUS_CODES = (408, 429, 500, 502, 503, 504)
+TRANSIENT_ERROR_TYPES = ("DynamoDB:SdkClientException", "DynamoDB:ProvisionedThroughputExceededException", "DynamoDB:ThrottlingException",
+                         "DynamoDB:InternalServerError")
+
+
+def _only_transient_errors(errors: list[Any]) -> bool:
+    """Whether every error of an answer is one of the data store's transient kinds (so the same read may succeed a moment later)."""
+    return bool(errors) and all(isinstance(entry, dict) and entry.get("errorType") in TRANSIENT_ERROR_TYPES for entry in errors)
+
+
 class PapyrusGraphQLAuthoringClient:
     def __init__(
         self,
@@ -883,7 +901,8 @@ class PapyrusGraphQLAuthoringClient:
         last_error: Exception | None = None
         from .user_auth_mode import user_auth_requested
         # An uncertain user-authenticated mutation must not be submitted again.
-        attempts = 1 if user_auth_requested() else 2
+        is_read = query.lstrip().startswith("query")
+        attempts = READ_ATTEMPTS if is_read else (1 if user_auth_requested() else 2)
         for attempt in range(attempts):
             try:
                 request_meter.record_request(query, aliases=aliases)
@@ -897,6 +916,11 @@ class PapyrusGraphQLAuthoringClient:
                         message = f"{message}\n{credential_recovery_guidance()}"
                     raise GraphQLRequestError(message, status_code=response.status)
                 body = json.loads(response_body)
+                if is_read and attempt < attempts - 1 and _only_transient_errors(body.get("errors") or []):
+                    last_error = GraphQLRequestError("GraphQL request failed: " + "; ".join(str(entry.get("message") or entry) for entry in body["errors"]))
+                    body = None
+                    self._pause_before_retry(attempt)
+                    continue
                 break
             except (TimeoutError, OSError, http.client.HTTPException, json.JSONDecodeError, RuntimeError) as error:
                 last_error = error
@@ -907,6 +931,10 @@ class PapyrusGraphQLAuthoringClient:
                     if isinstance(error, TimeoutError):
                         raise GraphQLTimeoutError(f"GraphQL request failed: {error}") from error
                     raise GraphQLRequestError(f"GraphQL request failed: {error}") from error
+                if is_read:
+                    if isinstance(error, GraphQLRequestError) and error.status_code not in TRANSIENT_STATUS_CODES:
+                        raise   # the request itself was refused: sending it again cannot change the answer
+                    self._pause_before_retry(attempt)
                 continue
         if body is None:
             raise GraphQLRequestError(f"GraphQL request failed: {last_error}")
@@ -919,6 +947,10 @@ class PapyrusGraphQLAuthoringClient:
         if not isinstance(data, dict):
             raise GraphQLRequestError("GraphQL response did not include data.")
         return data
+
+    def _pause_before_retry(self, attempt: int) -> None:
+        """The wait before attempt ``attempt + 2`` of a read: exponential, with jitter so many workers do not come back together."""
+        time.sleep(min(READ_BACKOFF_SECONDS * 2 ** attempt, 8.0) * (0.5 + random.random()))
 
     @contextlib.contextmanager
     def long_call(self, seconds: float):

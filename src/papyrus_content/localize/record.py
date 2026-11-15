@@ -12,12 +12,14 @@
 """
 from __future__ import annotations
 
+from copy import deepcopy
+
 import hashlib
 import json
 from typing import Any
 
 from ..item_front_matter import DEK_KEYS
-from ..item_language import localization_lineage_id
+from ..item_language import localization_lineage_id, translation_original
 from ..localization_publish import hold_request_id
 from ..publishing import utc_now_iso
 from ..record_helpers import compact_dict, to_aws_json
@@ -151,10 +153,18 @@ def automation_procedure_key(client, automation_id: str | None) -> str | None:
 
 def collect(client, *, story: str, language: str, judge, procedure_version: str, ceiling_usd: float | None = None,
             decision_model: Any = None, automation_id: str | None = None, procedure_key: str | None = None,
-            history: list[dict[str, Any]] | None = None) -> LocalizeRequest:
+            history: list[dict[str, Any]] | None = None, shared: dict[Any, Any] | None = None) -> LocalizeRequest:
     """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize.
     ``procedure_key`` (or the procedure of ``automation_id``) names the registered procedure whose earlier runs give the cost prediction; a caller that
-    plans many Stories reads those runs once and passes them as ``history``."""
+    plans many Stories reads those runs once and passes them as ``history``, and one ``shared`` dict, in which what depends only on the site, the section and
+    the language (the settings, the editing packs, the glossary, the register guidelines) is read once for the whole plan instead of once per Story."""
+    def once(key, read):
+        if shared is None:
+            return read()
+        if key not in shared:
+            shared[key] = read()
+        return shared[key]
+
     from ..editorial_checks import GraphQLEditorialStore, settings_from
     from ..editorial_languages import register_packs_for, site_language, starter_packs_for, story_language
     from ..editorial_model_context import editing_pack_and_context
@@ -167,13 +177,16 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     from .checks import BlockChecker
     from .blocks import blocks_of
 
-    store = GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))
-    settings = settings_from(store)
     row = published_story_version(client, story)
     if row is None:
         raise NothingToDo(f"Story {story} is not published; a Story is translated from its published version.")
+    original = translation_original(row, getattr(client, "tenant_id", None))
+    if original is not None:
+        raise ValueError(f"Story {story} is itself a translation of {original}; translate the original, not its translation.")
     if _metadata(row).get("doNotLocalize"):
         raise NothingToDo(f"Story {story} is marked do not localize.")
+    store = GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))
+    settings = once("settings", lambda: settings_from(store))
     source_language = story_language(row, settings)
     target = site_language(language, settings)
     if target == source_language:
@@ -182,10 +195,10 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     lineage = localization_lineage_id(story, target)
     current, previous = previous_alignment(client, lineage)
     guidelines = GuidelineStore(client)
-    glossary = resolve_glossary(guidelines, target, source.section)
-    pack, _ = editing_pack_and_context(store, source.section, settings, target)
+    glossary = once(("glossary", target, source.section), lambda: resolve_glossary(guidelines, target, source.section))
+    pack = deepcopy(once(("pack", source.section, target), lambda: editing_pack_and_context(store, source.section, settings, target))[0])
     pack["papyrusStarterPacks"] = [*starter_packs_for(target), *register_packs_for(target)]   # names the category of each finding; the policies come from the site
-    source_pack, _ = editing_pack_and_context(store, source.section, settings, source_language)
+    source_pack = deepcopy(once(("pack", source.section, source_language), lambda: editing_pack_and_context(store, source.section, settings, source_language))[0])
     source_pack["papyrusStarterPacks"] = list(starter_packs_for(source_language))
     lanes = {"rules": bool(settings["lanes"].get("rules", True)), "classifier": bool(settings["lanes"].get("classifier", False))}
     checker = BlockChecker(source_language=source_language, target_language=target, glossary=glossary, copy_edit_pack=pack, judge=judge,
@@ -199,7 +212,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     return LocalizeRequest(
         source=source, language=target, localization_lineage=lineage, run_key=key, glossary=glossary, checker=checker,
         slug_policy=serving_languages(settings).slugs[target],
-        register_notes=register_notes(resolve_guidelines(guidelines, "writing", source.section, target)),
+        register_notes=once(("register", source.section, target), lambda: register_notes(resolve_guidelines(guidelines, "writing", source.section, target))),
         previous=previous, previous_source_hash=_metadata(current).get("localization", {}).get("sourceContentHash") if current else None,
         prediction=predict(target, characters, history), ceiling_usd=ceiling_usd,
         procedure_version=procedure_version, source_checker=lambda text: english.copy_edit(text)[0])

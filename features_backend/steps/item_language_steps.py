@@ -10,6 +10,8 @@ import sys
 import uuid
 from pathlib import Path
 
+from unittest import mock
+
 from behave import given, then, when
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -183,13 +185,61 @@ def step_derived(context, lineage, language, expected):
     assert localization_lineage_id(lineage, language) == expected
 
 
-@then("a translation lineage cannot itself be translated")
-def step_not_twice(context):
-    try:
-        localization_lineage_id("story-rivers--zh-Hans", "es-419")
-    except ValueError:
-        return
-    raise AssertionError("a translation of a translation was accepted")
+@then('the lineage "{lineage}" is the translation into "{language}" of "{primary}" and of nothing else')
+def step_one_to_one(context, lineage, language, primary):
+    from papyrus_content.item_language import is_localization_of
+
+    assert localization_lineage_id(primary, language) == lineage
+    assert is_localization_of(lineage, primary, language)
+    assert not is_localization_of(lineage, primary + "--es-419", language)   # the translation is not the translation of its own translation
+    assert not is_localization_of(lineage, primary, "zh-Hans")   # another language of the same Story is another lineage
+
+
+@then('the lineage "{lineage}" is not a translation of anything')
+def step_not_a_translation(context, lineage):
+    from papyrus_content.item_language import localization_original
+
+    assert localization_original({"lineageId": lineage, "languageGroupId": lineage, "language": "en"}) is None
+
+
+@then("a language tag containing the separator is refused")
+def step_bad_tag(context):
+    for tag in ("es--419", "", "es#419"):
+        try:
+            localization_lineage_id("story-rivers", tag)
+        except ValueError:
+            continue
+        raise AssertionError(f"{tag!r} was accepted as a language tag")
+
+
+@then('the row of "{lineage}" in the group "{group}" is a translation of "{original}"')
+def step_row_is_translation(context, lineage, group, original):
+    from papyrus_content.item_language import translation_original
+
+    tenant, _, _ = group.partition("#")
+    assert translation_original({"lineageId": lineage, "languageGroupId": group, "language": "zh-Hans"}, tenant) == original
+
+
+@then('the row of "{lineage}" in its own group is not a translation')
+def step_row_is_not_translation(context, lineage):
+    from papyrus_content.item_language import translation_original
+
+    assert translation_original({"lineageId": lineage, "languageGroupId": f"mom#{lineage}", "language": "en"}, "mom") is None
+
+
+@then('asking to translate the translation "{lineage}" is refused, naming the original "{original}"')
+def step_refuse_translation(context, lineage, original):
+    from papyrus_content.localize import record
+
+    row = {"id": f"{lineage}-v1", "lineageId": lineage, "languageGroupId": f"mom#{original}", "language": "zh-Hans", "status": "published"}
+    client = type("Client", (), {"tenant_id": "mom"})()
+    with mock.patch("papyrus_content.story_reporting.published_story_version", lambda client, story: row):
+        try:
+            record.collect(client, story=lineage, language="es-419", judge=None, procedure_version="x")
+        except ValueError as error:
+            assert f"translation of {original}" in str(error), error
+            return
+    raise AssertionError("a translation was accepted as the source of a translation")
 
 
 @given('the Story "{lineage}" in "{language}" and its translations into "{first}" and "{second}"')
