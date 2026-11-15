@@ -7,6 +7,9 @@ order inside each bucket, on any selection. A bucket is a ROLLING window counted
 place a Reference keeps it, and a later one refills up to its ``count`` from its own ordering. ``count`` defaults to
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
 
+``minStars="3"`` keeps out the References an editor rated below that many stars (a Reference nobody rated stays in); it filters before ``count``,
+the page ledger and paging, so excluded References take no slot and no page.
+
 ``medium="video"`` keeps only the References whose medium is video (a videos block or page): accepted ones with ``select="recent"``. The cards
 show the video's own thumbnail (a copy in the site's storage, published as ``image``; never an address on the platform) and link out to the source (no per-card "Video" label: every card is one); nothing is embedded and no third-party
 script is loaded.
@@ -21,7 +24,7 @@ from datetime import date
 from typing import Any
 
 from ...home_page.export import clip_summary
-from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records, utc_today
+from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records, utc_today, valid_stars
 from ...home_page.settings import HomePageSettings
 from ...reference_medium import MEDIUMS
 from . import home_page_components as parts
@@ -38,10 +41,11 @@ THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty", "section"
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
-ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "notMedium", "notSection", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
+ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "notMedium", "minStars", "notSection", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
 LIST_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
+MIN_STARS_CHOICES = ("2", "3", "4", "5")
 DEFAULT_COUNT = 6
 LEDGER_PREFIX = "reference:"
 NOT_CONFIGURED = "homePage is not configured in projection.json"
@@ -72,6 +76,8 @@ def check(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include references notMedium must be one of {', '.join(MEDIUMS)}, got {attributes['notMedium']!r}")
     if attributes.get("medium") and attributes.get("notMedium"):
         raise ValueError(f"{source}: ::include references cannot use medium and notMedium together")
+    if "minStars" in attributes and str(attributes["minStars"]) not in MIN_STARS_CHOICES:
+        raise ValueError(f"{source}: ::include references minStars must be one of {', '.join(MIN_STARS_CHOICES)}, got {attributes['minStars']!r}")
     if attributes.get("card", "tile") not in CARDS:
         raise ValueError(f"{source}: ::include references card must be one of {', '.join(CARDS)}, got {attributes['card']!r}")
     if "more" in attributes and not safe_href(attributes["more"]):
@@ -165,7 +171,7 @@ def candidates_of(document: Mapping | None, attributes: Mapping, section_labels:
     bucket = attributes.get("bucket")
     labels = section_labels or {}
     day = (as_of or utc_today()) if bucket else as_of
-    key = ("candidates", id(records), len(records), attributes["select"], bucket, day, attributes.get("medium"), attributes.get("image"),
+    key = ("candidates", id(records), len(records), attributes["select"], bucket, day, attributes.get("medium"), attributes.get("image"), attributes.get("minStars"),
            attributes.get("section"), labels.get(attributes.get("section") or "", ""))
     found = _ordered_cache.get(key)
     if found is not None and found[0] is records:
@@ -182,6 +188,9 @@ def _candidates(records: list, attributes: Mapping, section_labels: Mapping[str,
     candidates = ordered(records, attributes["select"], attributes.get("bucket"), as_of)
     if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches
         candidates = [record for record in candidates if record.get("medium") == attributes["medium"]]
+    if attributes.get("minStars"):   # an editor's rating below the minimum keeps a Reference out; one nobody rated passes
+        minimum = int(attributes["minStars"])
+        candidates = [record for record in candidates if valid_stars(record.get("stars")) is None or valid_stars(record.get("stars")) >= minimum]
     if attributes.get("image") == "none":   # only the References with no picture: text-only cards
         candidates = [record for record in candidates if not _text(record, "image")]
     elif attributes.get("image") == "any":   # only the References with a picture
