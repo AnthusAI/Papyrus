@@ -42,8 +42,8 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
   sectionStatus: tenantPrefixed("open"),
   tenantSlug: tenantPrefixed("open"),
   languageGroupId: tenantPrefixed("open"),   // the primary Story's lineage id (src/papyrus_content/item_language.py)
-  nameKey: tenantPrefixed("open"),   // `<tenant>#<language>#<folded name>` of a EntityLabel (src/papyrus_content/entity_labels/keys.py, tenant_knowledge_keys.global_key)
-  workKey: tenantPrefixed("closed"),   // `<tenant>#<language>#<syncState>` of a EntityLabel that needs work, absent otherwise
+  nameKey: open,   // `<kind>#<language>#<folded name>` of an EntityLabel; a shared stack puts the tenant in front with tenant_knowledge_keys.global_key, like the feed keys
+  workKey: closed,   // `<kind>#<language>#<syncState>` of an EntityLabel that needs work, absent otherwise (tenant in front on a shared stack, as nameKey)
 
   // corpus-prefixed: "<corpusId>" or "<corpusId>#..." (src/papyrus_content/reference_feed_keys.py and the knowledge import keys).
   // The corpus id itself: one partition per corpus, and a tenant's corpora are its own KnowledgeCorpus rows.

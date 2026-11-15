@@ -18,7 +18,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 ## Counts
 
 - 72 models, 222 indexes.
-- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 70, global 95.
+- Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 70, global 97.
 - Indexes that list a tenant once prefixed: 72; dense indexes: 103.
 - Models: 58 with an index that lists a tenant, 5 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 6 with no tenantId field.
 
@@ -153,7 +153,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `messageDomain` | global | closed | `Message` |
 | `messageKind` | global | closed | `Message` |
 | `moderation` | global | closed | `ReaderComment`, `ReaderSubmission` |
-| `nameKey` | tenant-prefixed | open | `EntityLabel` |
+| `nameKey` | global | open | `EntityLabel` |
 | `newsroomFeedKey` | global | one | `Assignment`, `Message`, `MessageThread`, `ProcedureDefinition`, `ProcedureRun`, `Reference`, `SemanticNode`, `SemanticRelation` |
 | `nodeKey` | global | open | `SemanticNode` |
 | `normalizedKeyword` | global | open | `CategoryKeyword` |
@@ -215,7 +215,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `userProfileId` | record-id | open | `UserIdentity`, `UserRoleAssignment` |
 | `userSub` | global | open | `TenantMembership`, `UserRoleAssignment` |
 | `versionState` | global | closed | `CategorySet`, `Edition`, `Item`, `Reference`, `SemanticNode` |
-| `workKey` | tenant-prefixed | closed | `EntityLabel` |
+| `workKey` | global | closed | `EntityLabel` |
 
 ## Indexes
 
@@ -268,8 +268,8 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `EditorialFeedback` | `listEditorialFeedbackByItem` | `itemId` | none | record-id | open | yes | no |
 | `EditorialPolicy` | `listEditorialPoliciesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `EntityLabel` | `listEntityLabelsByEntityAndSortKey` | `entityKey` | `sortKey` | record-id | open | yes | no |
-| `EntityLabel` | `listEntityLabelsByNameKey` | `nameKey` | none | tenant-prefixed | open | yes | no |
-| `EntityLabel` | `listEntityLabelsByWorkKeyAndUpdatedAt` | `workKey` | `updatedAt` | tenant-prefixed | closed | no | no |
+| `EntityLabel` | `listEntityLabelsByNameKey` | `nameKey` | none | global | open | yes | no |
+| `EntityLabel` | `listEntityLabelsByWorkKeyAndUpdatedAt` | `workKey` | `updatedAt` | global | closed | no | no |
 | `Item` | `listItemsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Item` | `listItemsByVersionStateAndUpdatedAt` | `versionState` | `updatedAt` | global | closed | no | no |
 | `Item` | `listItemsByStageAndUpdatedAt` | `stage` | `updatedAt` | global | closed | no | no |
