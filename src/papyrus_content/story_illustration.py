@@ -154,10 +154,14 @@ def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
         if not dark and policy["requireDark"]:
             return NOT_DONE, f"the figure cover {cover} has no dark picture, and this site requires one (requireDarkFigures): run `papyrus figures render` and save SLUG.dark.png with it"
     recorded = (inputs.get("mediaAlts") or {}).get(cover, {})
-    for label, alt in (("the cover's image directive", (directive or {}).get("alt") if (directive or {}).get("hasAlt") else None), ("the cover's media record", recorded.get("alt"))):
+    brief = recorded.get("brief", "")
+    shown = (directive or {}).get("alt") if (directive or {}).get("hasAlt") else None
+    # What a reader's page shows is the directive's alt, else the stored picture's. Empty alt there fails; the brief may not appear in either copy.
+    effective = shown if shown is not None else recorded.get("alt")
+    for label, alt in (("the cover's image directive", shown), ("the cover's media record", recorded.get("alt"))):
         if alt is None:
             continue
-        problem = alt_problem(alt, recorded.get("brief", ""))
+        problem = alt_problem(alt, brief) if alt.strip() or alt is effective else ""
         if problem:
             return NOT_DONE, f"{label} {problem}: write the alt text from the picture itself (a person or agent who has seen it) and save a new version"
     who = (f", stock picture picked by {approver}" if picked_by else f", approved by {approver}") + (f" on {approved_at}" if approved_at else "") if approver else ""

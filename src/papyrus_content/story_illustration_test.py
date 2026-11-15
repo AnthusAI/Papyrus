@@ -102,8 +102,10 @@ def test_a_cover_whose_directive_alt_is_the_brief_is_not_done():
 
 def test_a_cover_whose_media_record_alt_is_the_brief_or_empty_is_not_done():
     assert cover_evidence(with_media_alt(BRIEF))[0] == NOT_DONE
-    assert cover_evidence(with_media_alt(""))[0] == NOT_DONE
+    no_directive_alt = '::image{src="assets/a/cover.png"}'
+    assert cover_evidence(with_media_alt("", body=no_directive_alt))[0] == NOT_DONE
     assert cover_evidence(with_media_alt("A steel cabinet."))[0] == DONE
+    assert cover_evidence(with_media_alt(""))[0] == DONE   # the directive's alt is what the page shows
 
 
 def test_a_directive_with_an_empty_alt_is_not_done():
