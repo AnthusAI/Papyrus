@@ -48,6 +48,7 @@ from papyrus_content.item_deck_backfill import ensure_item_decks
 from papyrus_content.item_language_backfill import ensure_item_languages
 from papyrus_content.reference_intake import IntakeError, intake_email_submission_references, intake_references
 from papyrus_content.publish_alerts import PUBLISHED_TASK_KEY, announce_published
+from papyrus_content.localize.dispatch import PUBLISH_TASK as PUBLISH_LOCALIZATION_TASK
 from papyrus_content.publishing import (
     ItemFields,
     PublishError,
@@ -201,7 +202,7 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     is live, here when the projection succeeds, or by the scheduled retry (which carries the same marker) when it did not."""
     if not projection_configured():
         if published_item_id:
-            announce_published(item_id, published_item_id)
+            announce_published_story(client, item_id, published_item_id)
         return {}
     liveness = {} if unpublished else {"live": False}
     task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
@@ -238,7 +239,7 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if report.follow_up_item_pages:
         schedule_item_pages(item_id)
     if report.ok and published_item_id:
-        announce_published(item_id, published_item_id)
+        announce_published_story(client, item_id, published_item_id)
     return response
 
 
@@ -477,7 +478,7 @@ def build_item_job(client, context, jobs, item_id: str, job_id: str | None, *, u
         jobs.finish(item_id, job_id, ok=report.ok, outcome=outcome)
     if report.ok and not unpublished and isinstance(published, dict):
         # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
-        announce_published(item_id, published.get("publishedItemId"))
+        announce_published_story(client, item_id, published.get("publishedItemId"))
     return report
 
 
@@ -644,6 +645,8 @@ def _run_projection_task(task: dict, lambda_context=None) -> dict:
         return run_page_refresh_rerender_task(client, task)
     elif task.get("task") == PUBLISH_SCHEDULED_TASK:
         return publish_scheduled_action(client, task)
+    elif task.get("task") == PUBLISH_LOCALIZATION_TASK:
+        return publish_localization_action(client, task)
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:
@@ -916,6 +919,49 @@ def schedule_item_action(arguments: dict, event: dict) -> dict:
     except ScheduleError as error:
         return error.to_response()
     return run_schedule_operation(str(arguments.get("operation") or ""), arguments.get("arguments") or {}, service, caller_from_event(event))
+
+
+def announce_published_story(client, item_id: str, published_item_id: str | None) -> None:
+    """A Story is live: tell the newsletter and the notifications function, and ask for its translations when the site translates on publish
+    (``languages.auto``; docs/story-translation-procedure.md). Neither can fail the publish, which is already done. A translation request that could
+    not be written is logged and left for ``papyrus stories localize --all``, which finds every Story with no up-to-date translation."""
+    announce_published(item_id, published_item_id)
+    try:
+        from papyrus_content.localize.auto import request_translations
+
+        requested = request_translations(client, item_id)
+        if requested["requested"]:
+            print(json.dumps({"event": "papyrus_translations_requested", "itemId": item_id, "requests": requested["requested"]}))
+    except Exception as error:  # noqa: BLE001 - the publish stands; the log names the cause and the backfill command repairs it
+        print(json.dumps({"event": "papyrus_translation_request_failed", "itemId": item_id, "error": f"{type(error).__name__}: {error}"[:500]}))
+
+
+def publish_localization_action(client, task: dict) -> dict:
+    """The dispatcher's ``publish-localization`` task: publish the translation a run saved cleanly, through the ordinary publish path (``publish_item_action``).
+
+    ``localize.publish.publishable`` decides (language enabled, the original still published at this very text, the run saved it cleanly, not live
+    already). A refusal of the publish itself (the site's approval gate, an unrendered page) is recorded on the request and is not retried: retrying
+    cannot change a decision a person has to make. The language's public gate is the projection's: a language that is not public gets no page."""
+    from papyrus_content.editorial_checks import settings_from
+    from papyrus_content.localize import desired_state
+    from papyrus_content.localize.publish import publishable
+
+    request = client.get_record("LocalizationRequest", str(task["requestId"]))
+    if request is None or request.get("publish") is not True:
+        return {"ok": True, "published": False, "reason": "no request asks for this translation to be published"}
+    decision = publishable(client, request, settings_from(GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))))
+    if decision.version is None:
+        return {"ok": True, "published": False, "reason": decision.reason}
+    if decision.done:
+        desired_state.record_outcome(client, request, state="published", run_key=request.get("runKey"))
+        return {"ok": True, "published": True, "alreadyLive": True}
+    try:
+        result = publish_item_action({"id": decision.version["id"], "async": True}, "AI (translation on publish)")
+    except PublishError as error:
+        client.update_record("LocalizationRequest", {"id": request["id"], "reason": f"not published [{error.code}]: {error.message}"[:1000]})
+        return {"ok": True, "published": False, "reason": error.message, "code": error.code}
+    desired_state.record_outcome(client, request, state="published", run_key=request.get("runKey"))
+    return {"ok": True, "published": bool(result.get("ok")), "versionId": decision.version["id"]}
 
 
 def publish_scheduled_action(client, task: dict) -> dict:

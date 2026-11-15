@@ -705,3 +705,25 @@ def step_fields_fixed(context):
 
     front = yaml.safe_load(json.loads(_latest(context)["metadata"])["frontMatterYaml"])
     assert front["image"] == "/assets/waymo/cover.png" and front["sources"] == [{"title": "The report", "url": "https://example.test/report"}], front
+
+
+@given("the English Story is republished as version 4 while the version 3 run is translating")
+def step_republished_mid_run(context):
+    translate = context.models.translate
+
+    def translate_then_republish(request):
+        answer = translate(request)
+        if not getattr(context, "republished_mid_run", False):
+            context.republished_mid_run = True
+            context.client.tables["Item"][context.primary["id"]]["versionState"] = "superseded"
+            _publish(context, 4)
+            desired_state.want(context.client, source=context.primary, language=context.language, requested_by="publish")
+        return answer
+
+    context.models.translate = translate_then_republish
+
+
+@then('the request "{request_id}" still names source version {number:d} and is wanted')
+def step_request_still_wanted(context, request_id, number):
+    row = context.client.tables["LocalizationRequest"][request_id]
+    assert row["sourceVersionNumber"] == number and row["state"] == "wanted", row

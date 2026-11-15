@@ -31,6 +31,7 @@ INDEX_MODELS = {
     "itemHeadFieldsByStage": "Item",
     "itemHeadFieldsWithKeyByStage": "Item",
     "itemsByLanguageGroup": "Item",
+    "localizationRequestsByState": "LocalizationRequest",
     "itemLanguageFieldsByVersionState": "Item",
     "itemDeckFieldsByVersionState": "Item",
     "publishedItemsByTypeStatus": "PublishedItem",

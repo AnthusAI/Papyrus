@@ -50,7 +50,7 @@ def test_the_registered_procedure_runs_through_the_runner_with_the_story_and_lan
     assert result["runId"] == "r1"
     request = run.call_args.args[0]
     assert request["procedureKey"] == "site.story-localize" and request["appsyncEndpoint"] == ENDPOINT
-    assert request["input"] == {"story": "s", "language": "es-419", "ceilingUsd": 2.0, "procedureKey": "site.story-localize"}
+    assert request["input"] == {"story": "s", "language": "es-419", "ceiling_usd": 2.0, "procedure_key": "site.story-localize"}
     assert "timeoutSeconds" not in request and run.call_args.kwargs["environment"]["OPENAI_API_KEY"] == "k"
 
 

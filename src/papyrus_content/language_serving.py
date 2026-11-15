@@ -15,6 +15,11 @@ which languages the site writes in; the keys below say how they are served. Ther
               kept), ``pinyin`` (the title romanized by the romanizer the caller supplies) or ``primary`` (the primary Story's slug). Default by the
               language's script: ``characters`` for a language Humanus counts in characters (Chinese), ``translated`` for every other.
 
+``auto``      ``{"enabled": true, "automation": "SITE.story-localize", "publish": true}``: translate every Story into every enabled language when it is
+              published or republished (``localize/auto.py``). Off by default (no key, or ``enabled`` false). ``automation`` names the Automation that
+              runs the registered translation procedure on the site's runner; ``publish`` (default true) publishes the translations a run saved
+              cleanly, never a held one. The public gate still decides whether a published translation gets a page.
+
 A setting that breaks a rule is refused with a message naming it; nothing is read as a default when it is wrong.
 """
 from __future__ import annotations
@@ -44,6 +49,14 @@ class EmptySlug(ValueError):
 
 
 @dataclass(frozen=True)
+class AutoTranslation:
+    """The site's switch for translating on publish: the Automation that runs the translation procedure, and whether clean results publish."""
+
+    automation: str
+    publish: bool = True
+
+
+@dataclass(frozen=True)
 class ServingLanguages:
     """The languages a site serves, as the projection and the slug drafting read them."""
 
@@ -52,6 +65,7 @@ class ServingLanguages:
     public: tuple[str, ...]
     prefixes: Mapping[str, str] = field(default_factory=dict)   # every enabled language; the primary's is ""
     slugs: Mapping[str, str] = field(default_factory=dict)      # every enabled language other than the primary
+    auto: AutoTranslation | None = None                         # None: nothing is translated on publish (the default)
 
     def prefix(self, tag: str) -> str:
         return self.prefixes[tag]
@@ -123,7 +137,31 @@ def serving_languages(settings: Mapping[str, Any]) -> ServingLanguages:
         if policy not in SLUG_POLICIES:
             raise ValueError(f"languages.slugs: {policy!r} for {tag} is not one of {', '.join(SLUG_POLICIES)}.")
         slugs[tag] = policy
-    return ServingLanguages(primary=primary, enabled=enabled, public=public, prefixes=prefixes, slugs=slugs)
+    return ServingLanguages(primary=primary, enabled=enabled, public=public, prefixes=prefixes, slugs=slugs, auto=_auto_translation(raw.get("auto"), others))
+
+
+def _auto_translation(raw: Any, others: list[str]) -> AutoTranslation | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError('languages.auto is {"enabled": true, "automation": ID, "publish": true}.')
+    unknown = sorted(set(raw) - {"enabled", "automation", "publish"})
+    if unknown:
+        raise ValueError(f"languages.auto has no key {', '.join(unknown)} (its keys are enabled, automation and publish).")
+    enabled = raw.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ValueError("languages.auto.enabled is true or false.")
+    publish = raw.get("publish", True)
+    if not isinstance(publish, bool):
+        raise ValueError("languages.auto.publish is true or false.")
+    automation = raw.get("automation")
+    if not enabled:
+        return None
+    if not isinstance(automation, str) or not automation.strip():
+        raise ValueError("languages.auto.automation names the Automation that runs the translation procedure (papyrus automations list), for example SITE.story-localize.")
+    if not others:
+        raise ValueError("languages.auto translates into the enabled languages other than the primary, and the site has none.")
+    return AutoTranslation(automation=automation.strip(), publish=publish)
 
 
 def _unreadable(error: Exception) -> ValueError:
@@ -166,17 +204,19 @@ def describe_serving(languages: Any) -> dict[str, Any]:
             for tag in serving.enabled
         ],
         "slugPolicies": list(SLUG_POLICIES),
+        "auto": None if serving.auto is None else {"automation": serving.auto.automation, "publish": serving.auto.publish},
     }
 
 
 def edit_serving(languages: Mapping[str, Any], *, public: list[str] | None = None, prefixes: Mapping[str, str | None] | None = None,
-                 slugs: Mapping[str, str | None] | None = None) -> dict[str, Any]:
+                 slugs: Mapping[str, str | None] | None = None, auto: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """``languages`` with the serving keys edited, every other key kept as stored, and checked by :func:`serving_languages`. Refuses (``ValueError``)
     what the projection would refuse.
 
     ``public`` replaces the list of public languages; the primary is always public, so it is added when missing, and a list of only the primary is no
     key at all (the default). ``prefixes`` and ``slugs`` set the named languages' values and leave the others alone; a value of ``None`` or ``""``
-    returns that language to its default."""
+    returns that language to its default. ``auto`` merges the given keys (``enabled``, ``automation``, ``publish``) into ``languages.auto``; turning it off
+    keeps the automation and the publish choice stored, so turning it on again needs nothing more."""
     result = dict(languages)
     try:
         primary = canonical(result.get("primary") or "")
@@ -196,6 +236,8 @@ def edit_serving(languages: Mapping[str, Any], *, public: list[str] | None = Non
             result[key] = kept
             if not kept:
                 result.pop(key)
+        if auto is not None:
+            result["auto"] = {**(result.get("auto") or {}), **auto}
     except LookupError as error:
         raise _unreadable(error) from error
     checked_serving(result)

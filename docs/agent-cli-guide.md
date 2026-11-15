@@ -477,9 +477,26 @@ papyrus stories localize --story LINEAGE --language es-419 --automation SITE.sto
 
 - Without `--automation` the run happens in this process and needs the operator lane (lead with `papyrus --auth iam`) and a model key (`OPENAI_API_KEY` or `--openai-key-parameter`); the command waits and prints the run's id, cost and outcome; through `--automation`, follow the run in the automation's history (`automations runs`).
 
-- Writes the translation request (`LocalizationRequest`, one per Story and language: the newest published source version) and runs the site's registered translation procedure for it: in this process on the operator lane, or through the site's automation with `--automation`. Setup: docs/story-translation-procedure.md. The run translates the changed blocks, checks every block against the English (parity rules and a bilingual judge) and with the language's policies, polishes until the findings stop shrinking, and saves an unpublished version of `LINEAGE--TAG` by AI. It never publishes.
+- Writes the translation request (`LocalizationRequest`, one per Story and language: the newest published source version) and runs the site's registered translation procedure for it: in this process on the operator lane, or through the site's automation with `--automation`. (The procedure's inputs are snake_case: `ceiling_usd`, `source_version`; register the procedure again after upgrading.) Setup: docs/story-translation-procedure.md. The run translates the changed blocks, checks every block against the English (parity rules and a bilingual judge) and with the language's policies, polishes until the findings stop shrinking, and saves an unpublished version of `LINEAGE--TAG` by AI. It never publishes.
 - `--dry-run` prints the plan: blocks to translate and kept, the glossary terms the translator will be given, the predicted cost from the language's measured runs. It writes nothing.
 - A held translation (a faithfulness error remains) raises a flag review request saying why. `--ceiling-usd` caps one run's model spend.
+
+### Translate a whole site, and translate on publish (operators)
+**Lane:** the operator lane (`--auth iam`) to run or publish here; `--dry-run` and `--automation` (queue only) on either. **Version:** the release after 5.112.1. **Writes:** yes, unless `--dry-run`.
+
+```sh
+papyrus stories localize --all --language es-419 --dry-run
+papyrus stories localize --all --language es-419 [--publish-clean] [--concurrency 3] [--openai-key-parameter SSM_PARAMETER]
+papyrus stories localize --all --all-languages --publish-clean
+papyrus stories localize --all --language es-419 --automation SITE.story-localize [--publish-clean]
+papyrus editorial languages --auto on --auto-automation SITE.story-localize [--auto-publish off]
+papyrus editorial languages --auto off
+```
+
+- Run the first two on the operator lane (`papyrus --auth iam stories localize --all ...`). `--all` finds every published Story written in the primary language that has no up-to-date translation in the language (`--language TAG`, or every enabled language with `--all-languages`). A translation is up to date when its `LocalizationRequest` names this very text of the Story and its run finished (saved, held, unchanged or published); a held one waits for a person, not for the command. It reads the published summaries and the request records once each, never a table per Story, and a second run does only what remains (failed, stopped and never-started ones, and Stories published again).
+- Without `--automation` each remaining Story runs in this process, `--concurrency` at a time (default 3), and prints one row: `saved`, `held`, `failed` or `up to date`, the Story, the language, the cost and the reason. A failed Story is its own row and the others go on; the command then exits non-zero and says to run it again. `--publish-clean` publishes, through the ordinary publish path, only the translations whose run saved cleanly (including ones saved earlier and never published) while their original is still published at that text: never a held one.
+- With `--automation ID` nothing runs here: the requests are written `wanted` with the automation and `--publish-clean`'s choice, and the site's dispatcher starts them on the site's runner (needs the release's backend deployed). `--dry-run` predicts every remaining Story's cost from the procedure's measured runs of that language (a language with none has no prediction) and writes nothing.
+- `papyrus editorial languages --auto on --auto-automation ID` makes a site translate every Story into every enabled language when it is published or republished (setting `languages.auto` = `{enabled, automation, publish}`; off by default; `--auto-publish off` leaves clean translations for a person to publish). Setup and behaviour: docs/story-translation-procedure.md, "Translating on publish".
 
 ### Publish a translation (editors)
 **Lane:** both. **Version:** the release after 5.110.0. **Writes:** yes, unless `--dry-run`.
