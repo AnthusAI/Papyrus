@@ -36,6 +36,16 @@ Feature: A site's brand pack and notice are applied by the standard front end
     Then every page has one slim notice bar after the main content and the footer, and the stylesheet fixes it to the bottom, pads the page so it never covers content and clears the phone safe area
     And the Markdown twin and the structured data carry the notice as before
 
+  Scenario: A quiet notice is as faint as the accessibility floor allows
+    Given a site with the notice placement "fixed-footer" and prominence "quiet"
+    When the branded site is projected
+    Then the page shows only the sentence in small regular type in the brand's rule colour on the page background, with no tint, border or label, and the label stays in the Markdown twin and the structured data
+
+  Scenario: A single-column site reads as one column with a quiet home
+    Given a site with layout.column "single", a fixed-footer notice and no footer text
+    When the branded site is projected
+    Then the home page has no visible heading or intro under the masthead, the site name stays for assistive technology, and the static footer is left out
+
   Scenario: Placement is inline or fixed-footer
     Given a site with the notice placement "banner"
     When the branded site is projected

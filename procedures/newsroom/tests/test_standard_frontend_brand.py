@@ -131,3 +131,41 @@ def test_the_inline_notice_is_one_plain_line_under_the_masthead(branded):
     rule = re.search(r"\.papyrus-notice \{[^}]*\}", css).group(0)
     assert "background: none" in rule and "border" not in rule
     assert "position: fixed" in css and "safe-area-inset-bottom" in css and "body:has(.papyrus-notice-fixed)" in css
+
+
+def test_a_quiet_notice_shows_only_the_sentence_and_keeps_the_label_for_machines():
+    site = ProjectedSite(
+        settings=settings(site={**fixture_settings("sectioned")["site"], "notice": {**NOTICE, "placement": "fixed-footer", "prominence": "quiet"}}),
+        content=ProjectedSite.__init__.__globals__["FIXTURES"] / "sectioned" / "content",
+        extra_files={"brand.json": json.dumps(PACK)},
+    )
+    try:
+        html = page(site, "essays/slow-water/index.html")
+        assert 'papyrus-notice-quiet' in html and "papyrus-notice-label" not in html
+        assert '"genre":"Satire"' in html and "> **Satire.** Everything on this site is invented." in page(site, "essays/slow-water/index.md")
+    finally:
+        site.cleanup()
+
+
+def test_the_quiet_notice_uses_the_rule_colour_and_a_small_label_size(branded):
+    css = (branded.out / "css" / "papyrus-publication.css").read_text(encoding="utf-8")
+    rule = re.search(r"\.papyrus-notice-quiet \{[^}]*\}", css).group(0)
+    assert "var(--papyrus-rule)" in rule and "var(--papyrus-text-label-size)" in rule and "font-weight: 400" in rule
+
+
+def test_a_single_column_site_has_a_quiet_home_and_no_footer_that_only_repeats_the_name():
+    raw = settings(site={**fixture_settings("sectioned")["site"], "notice": {**NOTICE, "placement": "fixed-footer", "prominence": "quiet"}}, layout={"column": "single"})
+    raw.pop("footer", None)
+    site = ProjectedSite(settings=raw, content=ProjectedSite.__init__.__globals__["FIXTURES"] / "sectioned" / "content", extra_files={"brand.json": json.dumps(PACK)})
+    try:
+        home = page(site, "index.html")
+        assert "papyrus-single-column" in home and '<h1 class="papyrus-visually-hidden">' in home
+        assert "<h1>" not in home.split("<main")[1].split("</main>")[0]
+        assert "markus-site-footer" not in home and "papyrus-notice-fixed" in home
+    finally:
+        site.cleanup()
+
+
+def test_the_layout_column_is_default_or_single():
+    with pytest.raises(ValueError, match="layout.column"):
+        ProjectedSite(settings=settings(layout={"column": "wide"}), content=ProjectedSite.__init__.__globals__["FIXTURES"] / "sectioned" / "content", extra_files={"brand.json": json.dumps(PACK)})

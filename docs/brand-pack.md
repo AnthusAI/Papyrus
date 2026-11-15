@@ -43,3 +43,9 @@ A site names its pack in `projection.json` (`"brandPack": "brand.json"`, a file 
 `site.notice` (`{"label": "Satire", "text": "..."}`) is a publication-wide statement: one small quiet line (no fill, no box) under the masthead on every page; a site with no notice shows nothing, a quote in every Markdown twin and in `llms.txt`, a lead in each feed entry's summary and `genre` in the structured data. A language edition may give its own words in the interface strings `notice.label` and `notice.text`.
 
 Plan: `docs/plans/shared-publication-front-end.md`. Features: `features_backend/brand-pack-applied.feature`, `features_backend/front-end-tokens.feature`.
+
+### Notice placement and prominence, and one column
+
+`site.notice` takes two optional settings, both data. `placement`: `inline` (default, one small line under the masthead) or `fixed-footer` (a slim bar fixed to the bottom of the viewport, after the footer; the page is padded so it never covers content, it clears the phone safe area, and it sits below the cookie banner and the skip link). `prominence`: `normal` (label and sentence) or `quiet` (only the sentence, 13px regular, in the brand's `rule` colour on the page background, no tint or border). The label stays in every machine-readable marker. `rule` must reach 4.5:1 against `bg` in both themes for a quiet notice to meet WCAG 2.2 AA; check the pair when choosing it.
+
+`layout.column: "single"` gives every page one readable column (the measure), makes the first card on a listing bigger, gives the home page a heading only assistive technology reads and no intro under the masthead, and leaves out a static footer that has no content of its own. Breadcrumbs (`components.breadcrumbs`) and the page-action buttons (`pageActions.placement: "aside"`) are separate data switches, so the headline can come first on a phone.

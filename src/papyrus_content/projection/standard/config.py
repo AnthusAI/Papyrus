@@ -27,7 +27,7 @@ from ...story_types import story_types_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds", "brandPack",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds", "brandPack", "layout",
 )
 NO_BUCKET = "none"
 #: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
@@ -112,6 +112,7 @@ class SiteIdentity:
     lede_field: str = ""              # front matter field whose text is printed as the article's lede (standfirst) under its title
     notice_label: str = ""            # a short label ("Satire") and sentence about the whole publication, said on every page, Markdown twin, feed entry and in the structured data
     notice_text: str = ""
+    notice_prominence: str = "normal"  # "quiet": only the sentence, small and muted at the lowest contrast that passes WCAG AA (the label stays in the machine-readable markers); "normal": label and sentence
     notice_placement: str = "inline"  # "inline": one small line under the masthead; "fixed-footer": a slim bar fixed to the bottom of the viewport
 
 
@@ -468,6 +469,7 @@ class StandardSettings:
     forms: tuple[FormSpec, ...] = ()
     agents: AgentSettings = field(default_factory=AgentSettings)
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
+    single_column: bool = False       # layout.column "single": one readable column on every page; the home page has no heading echo or intro under the masthead
     mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
     embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: the providers whose ``::video`` plays (default none: ``::video`` is not core's)
     wiki: WikiSettings = field(default_factory=WikiSettings)
@@ -642,12 +644,23 @@ def _check_groups(groups) -> None:
                 raise ValueError(f"urls.types.{group.item_type}.base {group.base!r} is already the base of {other.name!r}")
 
 
+def _single_column(layout) -> bool:
+    layout = dict(layout or {})
+    _only(layout, {"column"}, "layout")
+    column = layout.get("column", "default")
+    if column not in ("default", "single"):
+        raise ValueError('layout.column must be "default" or "single"')
+    return column == "single"
+
+
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     site = raw["site"]
     _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField", "notice"}, "site")
     notice = site.get("notice") or {}
     if notice:
-        _only(notice, {"label", "text", "placement"}, "site.notice")
+        _only(notice, {"label", "text", "placement", "prominence"}, "site.notice")
+        if notice.get("prominence", "normal") not in ("normal", "quiet"):
+            raise ValueError('site.notice.prominence must be "normal" or "quiet"')
         if notice.get("placement", "inline") not in ("inline", "fixed-footer"):
             raise ValueError('site.notice.placement must be "inline" or "fixed-footer"')
         if not (_text(notice, "label") and _text(notice, "text")):
@@ -669,6 +682,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         notice_label=_text(notice, "label"),
         notice_text=_text(notice, "text"),
         notice_placement=str(notice.get("placement", "inline")),
+        notice_prominence=str(notice.get("prominence", "normal")),
     )
     if identity.date_format:
         try:
@@ -1045,6 +1059,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         forms=tuple(forms),
         agents=agents,
         page_actions=page_actions,
+        single_column=_single_column(raw.get("layout")),
         mermaid=bool(mermaid_raw.get("enabled", True)),
         embeds=embeds_from_mapping(raw.get("embeds")),
         wiki=wiki,

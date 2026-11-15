@@ -135,3 +135,39 @@ def step_fixed_machines(context):
 @then('the build stops naming the notice placement')
 def step_bad_placement(context):
     assert context.error and 'placement' in context.error, context.error
+
+
+@given('a site with the notice placement "fixed-footer" and prominence "quiet"')
+def step_quiet_fixed(context):
+    def build():
+        raw = _settings()
+        raw['site']['notice'] = {**NOTICE, 'placement': 'fixed-footer', 'prominence': 'quiet'}
+        return ProjectedSite(settings=raw, content=CONTENT, extra_files={'brand.json': json.dumps(PACK)})
+    context.build = build
+
+
+@then("the page shows only the sentence in small regular type in the brand's rule colour on the page background, with no tint, border or label, and the label stays in the Markdown twin and the structured data")
+def step_quiet_only(context):
+    html = _page(context, 'essays/slow-water/index.html')
+    assert 'papyrus-notice-quiet' in html and 'papyrus-notice-label' not in html
+    css = (context.site.out / 'css' / 'papyrus-publication.css').read_text(encoding='utf-8')
+    rule = re.search(r'\.papyrus-notice-quiet \{[^}]*\}', css).group(0)
+    assert 'var(--papyrus-rule)' in rule and 'var(--papyrus-bg)' in rule and 'border' not in rule and 'font-weight: 400' in rule
+    assert '"genre":"Satire"' in html and '> **Satire.**' in _page(context, 'essays/slow-water/index.md')
+
+
+@given('a site with layout.column "single", a fixed-footer notice and no footer text')
+def step_single(context):
+    def build():
+        raw = _settings()
+        raw['site']['notice'] = {**NOTICE, 'placement': 'fixed-footer', 'prominence': 'quiet'}
+        raw['layout'] = {'column': 'single'}
+        raw.pop('footer', None)
+        return ProjectedSite(settings=raw, content=CONTENT, extra_files={'brand.json': json.dumps(PACK)})
+    context.build = build
+
+
+@then('the home page has no visible heading or intro under the masthead, the site name stays for assistive technology, and the static footer is left out')
+def step_single_home(context):
+    home = _page(context, 'index.html')
+    assert '<h1 class="papyrus-visually-hidden">' in home and 'markus-site-footer' not in home

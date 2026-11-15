@@ -2134,6 +2134,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             twin = md_path(key) if md_key(key) else None
         described = self._described(page)
         head_html = self.head.build(dataclasses.replace(described, extra=extra, markdown_path=twin))
+        if self.standard.single_column:
+            base = dataclasses.replace(base, body_class=f"{base.body_class} papyrus-single-column")
         if self.hooks.body_class is not None:
             base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
         sheets = [] if self._brand is not None else list(base.stylesheets)
@@ -2247,8 +2249,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
         )
         main = "\n".join(part for part in (self._breadcrumbs_html(page), self._main_html(page)) if part)
         fixed = identity.notice_placement == "fixed-footer"
+        static_footer = (
+            f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>\n'
+            if not (fixed and self.standard.single_column and not self._has_footer_content())
+            else ""
+        )
+        quiet = identity.notice_prominence == "quiet"
+        label_html = "" if quiet else f'<span class="papyrus-notice-label">{components.esc(self._notice_label(page))}</span>'
+        classes = "papyrus-notice" + (" papyrus-notice-fixed" if fixed else "") + (" papyrus-notice-quiet" if quiet else "")
         notice_line = (
-            f'  <p class="papyrus-notice{" papyrus-notice-fixed" if fixed else ""}" role="note"><span class="papyrus-notice-label">{components.esc(self._notice_label(page))}</span>{components.esc(self._notice_text(page))}</p>\n'
+            f'  <p class="{classes}" role="note">{label_html}{components.esc(self._notice_text(page))}</p>\n'
             if identity.notice_label else ""
         )
         top_notice = "" if fixed else notice_line
@@ -2256,8 +2266,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return (
             f"{components.skip_link()}\n{masthead}\n{top_notice}"
             f'  <main id="main">\n{main}\n  </main>\n'
-            f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>\n{bottom_notice}{parts.scripts}'
+            f'{static_footer}{bottom_notice}{parts.scripts}'
         )
+
+    def _has_footer_content(self) -> bool:
+        """Whether the site wrote any footer of its own (text, columns, a family or a hook). Without one the footer would only repeat the site's name."""
+        return bool(self.standard.footer_text or self.standard.footer_columns or self.standard.footer_family or self.hooks.footer is not None or self._settings.chrome.footer_html)
 
     def _breadcrumbs_html(self, page: StandardPage) -> str:
         return components.breadcrumbs(page.breadcrumbs) if page.kind == "item" else ""
@@ -2443,7 +2457,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return components.section_index_html(page.section_index, lambda entry: self._card(entry, page))
         if page.kind == "home" and self.standard.sections_home:
             return components.home_sections_html(
-                identity.name, identity.description, page.home_sections, lambda entry: self._card(entry, page), lead=self.standard.home_page.home_lead,
+                identity.name, identity.description, page.home_sections, lambda entry: self._card(entry, page), lead=self.standard.home_page.home_lead, quiet=self.standard.single_column,
             )
         if page.kind == "home":
             view = page.listing
@@ -2455,9 +2469,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 if links
                 else (f'<p><a href="{components.esc(self.policy.path(f"/{self.standard.listings.flat_path}/"))}">All articles</a></p>' if page.entries and not self.standard.sectioned else "")
             )
-            intro = f"<p>{components.esc(identity.description)}</p>" if identity.description else ""
+            heading_html, intro = components.home_heading(identity.name, identity.description, self.standard.single_column)
             cards = "\n".join(self._card(entry, page) for entry in view.entries) if view else ""
-            return f'<div class="markus-document"><h1>{components.esc(identity.name)}</h1>{intro}<div class="markus-card-grid">{cards}</div>{more}</div>'
+            return f'<div class="markus-document">{heading_html}{intro}<div class="markus-card-grid">{cards}</div>{more}</div>'
         if page.kind == "archive":
             view = page.listing
             heading = f"{view.label}: {self._archive_label(view.group, self.standard.section(view.section).archive.by)}"
