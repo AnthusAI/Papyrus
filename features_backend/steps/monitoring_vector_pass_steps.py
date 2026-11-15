@@ -401,45 +401,6 @@ def step_budget_then(context, drafting, vectors):
     assert check(drafting - 1) == (True, True)
 
 
-@given('the example router configuration and the amplify_outputs.json of "{publication}"')
-def step_seed_inputs(context, publication):
-    import json
-
-    context.seed = SimpleNamespace(
-        config=json.loads((REPO_ROOT / "docs" / "monitoring-router-config.example.json").read_text()), publication=publication, outputs=tv.amplify_outputs(), filled=None)
-
-
-@when("the vector settings are filled from the outputs")
-def step_seed_fill(context):
-    seed = tv.seed_module()
-    context.seed.filled = seed.fill_vector_settings(context.seed.config, {context.seed.publication: context.seed.outputs})
-    context.seed.module = seed
-
-
-@then('the "{publication}" entry carries the index address and the storage bucket from its outputs')
-def step_seed_entry(context, publication):
-    entry = next(item for item in context.seed.filled["publications"] if item["publicationId"] == publication)
-    assert entry["monitorStories"]["vectorIndexArn"] == tv.ARN and entry["monitorStories"]["storageBucketName"] == tv.BUCKET, entry
-
-
-@then("the other entries are unchanged")
-def step_seed_others(context):
-    before = {item["publicationId"]: item for item in context.seed.config["publications"]}
-    for item in context.seed.filled["publications"]:
-        if item["publicationId"] != context.seed.publication:
-            assert item == before[item["publicationId"]], item
-
-
-@then("outputs without an index address are refused")
-def step_seed_refused(context):
-    try:
-        context.seed.module.fill_vector_settings(context.seed.config, {context.seed.publication: {"storage": {"bucket_name": tv.BUCKET}}})
-    except ValueError as error:
-        assert "s3VectorIndexArn" in str(error)
-    else:
-        raise AssertionError("outputs without an index were accepted")
-
-
 @given("the router package modules computed from this repository")
 def step_package_modules(context):
     build = tv.load_build()

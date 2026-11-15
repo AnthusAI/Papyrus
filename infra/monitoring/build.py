@@ -36,7 +36,9 @@ ROUTER_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-rout
 EMAIL_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-email-submissions.zip"
 OPERATOR_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-operator.zip"
 PACKAGE = ROOT / "src" / "papyrus_content"
-ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http",
+# The router config files (one per monitor); the zip carries them at router-config/, where the RouterConfigApplier custom resource reads them.
+ROUTER_CONFIG = Path(__file__).resolve().parent / "router-config"
+ROUTER_ROOTS = ("monitoring_router", "monitoring_router_config", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http",
                 # papyrus_knowledge_query (below) imports these from papyrus_content, which the closure cannot see from outside the package
                 "knowledge_snapshot/keys", "knowledge_wiki/pages", "corpus_storage_paths")
 # The vector pass of the monitor-stories task (monitoring_vectors.py) runs the knowledge-query package's vector index and S3 Vectors provider.
@@ -198,7 +200,7 @@ def knowledge_query_files() -> dict[str, bytes]:
     return {f"papyrus_knowledge_query/{path.name}": path.read_bytes() for path in sorted(KNOWLEDGE_QUERY_PACKAGE.glob("*.py")) if path.name not in KNOWLEDGE_QUERY_EXCLUDED}
 
 
-def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_query: bool = False) -> str:
+def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_query: bool = False, with_router_config: bool = False) -> str:
     """Worker zip: package modules, the two YAML data files they read, and the pure-Python VENDORED packages.
 
     The Lambda runtime has boto3/botocore only. PyYAML is copied without its C extension, so it
@@ -216,6 +218,8 @@ def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_qu
         entries |= knowledge_query_files()
     for relative in ROUTER_DATA:
         entries[relative] = (ROOT / relative).read_bytes()
+    if with_router_config:
+        entries |= {f"router-config/{path.name}": path.read_bytes() for path in sorted(ROUTER_CONFIG.glob("*.json"))}
     for name in VENDORED:
         root = Path(importlib.import_module(name).__file__).parent
         for path in root.rglob("*"):
@@ -230,7 +234,7 @@ def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_qu
 
 def build_router(out: Path = ROUTER_OUT, target: str = "lambda") -> str:
     """`target` is "lambda" (wheels for the function, fetched and checked against poetry.lock) or "host" (this interpreter's installed copies)."""
-    return build_package(out, ROUTER_ROOTS, wheels=target, with_knowledge_query=True)
+    return build_package(out, ROUTER_ROOTS, wheels=target, with_knowledge_query=True, with_router_config=True)
 
 
 def build_email(out: Path = EMAIL_OUT) -> str:

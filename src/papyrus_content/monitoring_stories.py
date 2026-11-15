@@ -23,7 +23,7 @@ and the key is ignored (``RETIRED_POLICY_FIELDS``).
 Before either, the publication's vector index is brought up to date with what changed since the last pass (``monitoring_vectors.py``, docs/monitoring-cloud.md#vector-index-and-suggestions):
 the order in a run is the index (the References and concepts changed since the last pass; a suggestion check is queued for each Reference summary vector stored), then packs and single items.
 Three more keys: ``suggestions`` (``{"enabled": true}`` by default), ``vectorIndexArn`` and ``storageBucketName``, both read from the site's ``amplify_outputs.json``
-by ``seed_router_config.py`` and never typed. Without ``vectorIndexArn`` the sync and the suggestions are skipped and the log line says why.
+into the monitor's router config file (``infra/monitoring/router-config``) and never invented. Without ``vectorIndexArn`` the sync and the suggestions are skipped and the log line says why.
 
 With context packs on, the publication is read once (``ideas/signal_inputs.py``) and the run walks ONE ordered queue of packs and scored single items
 (``ideas/signal_queue.py``, ``ideas/item_signals.py``): a pack goes to ``ideas/pack_stories.py``, an item to the single-item path, and both share one cost

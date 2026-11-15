@@ -580,7 +580,7 @@ Nothing here changes a model or a stored shape. To turn it on for a site:
    (`PublicationNewsrooms` in `infra/procedures/papyrus-procedure-runner.yaml`). Add each site's AppSync API
    id (anth.us: `2m5fh2nqlnfxlfg2mxepp7tdbm`).
 3. **Per site**: register the procedure (command above); add `openaiKeyParameter` and the trigger to the
-   site's publication in the router config (`infra/monitoring/seed_router_config.py`).
+   site's publication in its router config file (`infra/monitoring/router-config/hn.json`, applied by the release: [router config in Git](monitoring-cloud.md#router-config-in-git)).
 4. **content-actions**: deploy the site backends with the `correctReferenceCapture` mutation (additive
    schema change in `amplify/data/schema.ts` and `resource.ts`, and the new branch in
    `amplify/functions/content-actions/handler.py`).

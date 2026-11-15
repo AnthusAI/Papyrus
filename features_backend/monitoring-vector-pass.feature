@@ -92,13 +92,6 @@ Feature: The router keeps each site's vector index current by reading only what 
     Then the vector pass module has no plan, no owed memory, no suggestion step and no backlog task
     And the monitoring template has no suggest-backlog schedule
 
-  Scenario: Seeding copies each site's index address and storage bucket from its amplify_outputs.json
-    Given the example router configuration and the amplify_outputs.json of "anth-us"
-    When the vector settings are filled from the outputs
-    Then the "anth-us" entry carries the index address and the storage bucket from its outputs
-    And the other entries are unchanged
-    And outputs without an index address are refused
-
   Scenario: The router package carries the vector pass and the knowledge-query package it runs
     Given the router package modules computed from this repository
     Then they include the vector pass, the suggestions and the calibration
