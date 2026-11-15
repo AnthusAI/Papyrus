@@ -119,6 +119,26 @@ def step_overlay(context, language, term, form):
     context.overlay = (language, term)
 
 
+@given('the publication has saved only an "{language}" glossary rendering "{term}" as "{form}"')
+def step_only_overlay(context, language, term, form):
+    backend = FakeBackend()
+    context.store = GuidelineStore(backend, FakeFiles(backend))
+    step_overlay(context, language, term, form)
+
+
+@then("the answer says the shared glossary is missing")
+def step_shared_missing(context):
+    from papyrus_content.guidelines.layering import resolve_guidelines
+
+    answer = resolve_guidelines(context.store, "glossary", None, "es-419")
+    assert answer["found"] and [w["code"] for w in answer["warnings"]] == ["glossary_shared_document_missing"], answer["warnings"]
+
+
+@then("the resolved glossary is empty")
+def step_empty(context):
+    assert context.resolved.entries == (), context.resolved.entries
+
+
 @when('the glossary is resolved for "{language}"')
 def step_resolve(context, language):
     context.resolved = resolve_glossary(context.store, language)

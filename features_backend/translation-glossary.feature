@@ -47,6 +47,14 @@ Feature: A publication decides how its terms are translated
     Then "Congress" is rendered as "Congreso"
     And the glossary's version changes when any entry changes
 
+  Scenario: A language's glossary applies when the publication saved no shared glossary
+    Given the publication has saved only an "es-419" glossary rendering "AI" as "IA"
+    When the glossary is resolved for "es-419"
+    Then "AI" is rendered as "IA"
+    And the answer says the shared glossary is missing
+    When the glossary is resolved for "en"
+    Then the resolved glossary is empty
+
   Scenario: The starter glossaries carry the experiment's name findings
     Then the "es-419" starter glossary renders "AI" as "IA", "Paris" as "París", "Congress" as "Congreso", "Justice Department" as "Departamento de Justicia" and "North Carolina" as "Carolina del Norte"
     And the "zh-Hans" starter glossary renders "Paris" as "巴黎" and keeps "AI" and "abliteration" unchanged

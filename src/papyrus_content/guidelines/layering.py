@@ -136,10 +136,7 @@ def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = N
     answer: dict[str, Any] = {"kind": kind, "section": section, **({"language": language} if language else {}),
                               "found": False, "document": {}, "fieldSources": {}, "layers": [], "warnings": []}
     base = store.read(kind)
-    if base is None:
-        answer["warnings"].append({"code": f"{kind}_guidelines_missing", "message": f"This publication has no {kind} guidelines yet. Nothing was applied."})
-        return answer
-    layers = [_layer(PUBLICATION, base)]
+    layers = [_layer(PUBLICATION, base)] if base else []
     overlays: list[tuple[dict | None, dict]] = []
 
     def take(scope: str, found: dict | None, entry: dict) -> None:
@@ -156,8 +153,16 @@ def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = N
     if section:
         for tag in tags:
             take(SECTION_LANGUAGE, store.read(kind, section, language=tag), {"layer": SECTION_LANGUAGE, "language": tag})
+    if base is None and not overlays:
+        answer["warnings"].append({"code": f"{kind}_guidelines_missing", "message": f"This publication has no {kind} guidelines yet. Nothing was applied."})
+        return answer
+    if base is None:
+        # Overlays are laid over whatever the publication has written; a publication that saved only a language's overlay (a glossary for one language,
+        # with no shared document) still gets it. The answer says the shared document is absent.
+        answer["warnings"].append({"code": f"{kind}_shared_document_missing", "message": f"This publication has no shared {kind} document; only the overlays that exist were applied."})
+        base = {"document": {}, "reference": {"versionNumber": 0}}
     document, sources, warnings = lay_over(kind, base["document"], base["reference"]["versionNumber"], overlays)
-    answer.update(found=True, document=document, fieldSources=sources, layers=layers, warnings=warnings)
+    answer.update(found=True, document=document, fieldSources=sources, layers=layers, warnings=answer["warnings"] + warnings)
     return answer
 
 
