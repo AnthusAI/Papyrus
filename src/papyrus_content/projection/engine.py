@@ -537,13 +537,14 @@ def _project_publication(
     _write_item_pages(context, report, item_pages, {key: current.version_number for key in item_pages})
     report.item_paths = list(page_keys)
     _write_listing_pages(context, report, listing_pages, inputs)
-    if previous_state is not None:
-        _delete_pages(context, report, set(previous_state.page_keys) - set(page_keys) - set(inputs))
-    _delete_pages(context, report, removed - _item_keys(context, site))
     _apply_redirect_difference(context, report, old_redirects, new_redirects)
     _release_redirects_for_new_pages(
         context, report, set(page_keys) - (set(previous_state.page_keys) if previous_state else set())
     )
+    # Pages go last: an address that moved is already a redirect when its page is removed.
+    if previous_state is not None:
+        _delete_pages(context, report, set(previous_state.page_keys) - set(page_keys) - set(inputs))
+    _delete_pages(context, report, removed - _item_keys(context, site))
     if report.follow_up_item_pages and not context.defer_follow_up:
         _run_follow_up(context, report, current.item_id)
     _render_dependents(context, report, site_before, site, current.item_id)
@@ -817,7 +818,6 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     _write_static(context, report, projector.static_files())
     _write_item_pages(context, report, rendered, _versions_by_page(context, site))
     _write_listing_pages(context, report, listings, inputs)
-    _delete_pages(context, report, planned)
     if context.redirect_store is not None:
         current = context.redirect_store.list_all()
         changed = {source: target for source, target in redirects.items() if current.get(source) != target}
@@ -831,6 +831,9 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
         if shadowing:
             context.redirect_store.delete_all(shadowing)
             report.redirects_deleted += len(shadowing)
+    # After the redirects: a page an old address pointed at is removed only once the edge already answers that address with a redirect,
+    # so a layout change (a translated path segment) never leaves a window in which an old address is a 404.
+    _delete_pages(context, report, planned)
     if context.keep_state:
         for state in states:
             write_item_state(context.writer, state)
