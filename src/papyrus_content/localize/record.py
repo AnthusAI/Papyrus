@@ -227,8 +227,9 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     source_pack = deepcopy(once(("pack", source.section, source_language), lambda: editing_pack_and_context(store, source.section, settings, source_language))[0])
     source_pack["papyrusStarterPacks"] = list(starter_packs_for(source_language))
     lanes = {"rules": bool(settings["lanes"].get("rules", True)), "classifier": bool(settings["lanes"].get("classifier", False))}
+    notes = once(("register", source.section, target), lambda: register_notes(resolve_guidelines(guidelines, "writing", source.section, target)))
     checker = BlockChecker(source_language=source_language, target_language=target, glossary=glossary, copy_edit_pack=pack, judge=judge,
-                           lanes=lanes, decision_model=decision_model)
+                           lanes=lanes, decision_model=decision_model, notes=notes)   # the judge reads the notes the translator does
     english = BlockChecker(source_language=source_language, target_language=source_language, glossary=glossary, copy_edit_pack=source_pack,
                            judge=None, lanes={"rules": True, "classifier": False})
     procedure_key = procedure_key or (automation_procedure_key(client, automation_id) if history is None else None)
@@ -238,7 +239,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     return LocalizeRequest(
         source=source, language=target, localization_lineage=lineage, run_key=key, glossary=glossary, checker=checker,
         slug_policy=serving_languages(settings).slugs[target],
-        register_notes=once(("register", source.section, target), lambda: register_notes(resolve_guidelines(guidelines, "writing", source.section, target))),
+        register_notes=notes,
         previous=previous, previous_source_hash=_metadata(current).get("localization", {}).get("sourceContentHash") if current else None,
         prediction=predict(target, characters, history), ceiling_usd=ceiling_usd,
         procedure_version=procedure_version, source_checker=lambda text: english.copy_edit(text)[0], image_variants=variants)

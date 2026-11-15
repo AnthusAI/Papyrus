@@ -649,3 +649,79 @@ def step_register_notes(context, note):
     from papyrus_content.localize.record import register_notes
 
     assert note in register_notes(context.answer), (register_notes(context.answer), context.answer)
+
+
+# --- the bilingual judge reads the language overlay's notes (features_backend/localize-judge-notes.feature) ---
+
+
+@given('a Spanish overlay for "{tag}" sets the tone "{tone}"')
+def step_spanish_tone(context, tag, tone):
+    answer = _save(context, {"schemaVersion": 1, "tone": [tone]}, language=tag, request=f"spanish-tone-{len(context.backend.policies.rows)}")
+    assert answer["ok"], answer
+
+
+@given("a model judge that reports the idiom unless the prompt carries notes that permit an equivalent")
+def step_judge_obeys(context):
+    context.judge_prompts = []
+
+    def judge(prompt):
+        context.judge_prompts.append(prompt)
+        permitted = "A rendering these notes permit" in prompt["user"]
+        return {"issues": [] if permitted else [{"category": "mistranslation", "sourceQuote": "go to the dogs", "targetQuote": "al traste",
+                                                   "explanation": "The idiom is rendered with a different idiom."}]}
+    context.judge = judge
+
+
+@given("a model judge that reports who is mocked as changed whatever the notes say")
+def step_judge_always(context):
+    context.judge_prompts = []
+
+    def judge(prompt):
+        context.judge_prompts.append(prompt)
+        return {"issues": [{"category": "attribution-changed", "sourceQuote": "The regulators let the chatbot", "targetQuote": "El chatbot dejó que los reguladores",
+                            "explanation": "The translation mocks the chatbot where the source mocks the regulators."}]}
+    context.judge = judge
+
+
+def _faithfulness(context, source, target):
+    from papyrus_content.localize.checks import BlockChecker
+    from papyrus_content.localize.record import register_notes
+    from papyrus_content.translation_glossary import starter_glossary
+
+    notes = register_notes(context.answer) if getattr(context, "answer", None) else []
+    context.checker = BlockChecker(source_language="en", target_language="es-419", glossary=starter_glossary("es-419"), copy_edit_pack={"packId": "p", "version": "1", "policies": []},
+                                   judge=context.judge, lanes={"rules": False, "classifier": False}, notes=notes)
+    context.findings, _ = context.checker.faithfulness(source, target)
+
+
+@when('the faithfulness check reads "{source}" and its translation "{target}" with the language\'s notes')
+def step_faithfulness(context, source, target):
+    _faithfulness(context, source, target)
+
+
+@then('the judge reports nothing and its prompt lists the overlay tone "{tone}"')
+def step_nothing_reported(context, tone):
+    assert [f for f in context.findings if f.policy == "bilingual-judge"] == [], context.findings
+    assert context.judge_prompts and all(f"- tone: {tone}" in prompt["user"] for prompt in context.judge_prompts), context.judge_prompts
+
+
+@then("the translation is held for the judge's report on {quote}")
+def step_held(context, quote):
+    found = [f for f in context.findings if f.policy == "bilingual-judge" and f.severity == "error"]
+    assert found and all(quote.strip('"') in f.source_excerpt for f in found), context.findings
+
+
+@then("the judge's prompt has no notes")
+def step_prompt_no_notes(context):
+    assert context.judge_prompts and all("publication's notes" not in prompt["user"] for prompt in context.judge_prompts), context.judge_prompts
+
+
+@then('the judge prompt lists the overlay tone "{tone}"')
+def step_prompt_lists(context, tone):
+    assert context.judge_prompts and all(f"- tone: {tone}" in prompt["user"] for prompt in context.judge_prompts), context.judge_prompts
+
+
+@then("the checker's versions name the notes only when there are some")
+def step_versions(context):
+    assert "translationNotes" in context.checker.versions or context.checker.notes == ()
+    assert ("translationNotes" in context.checker.versions) == bool(context.checker.notes)
