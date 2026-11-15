@@ -22,9 +22,11 @@ a:hover { text-decoration-thickness: .16em; }
 h1, h2, h3, h4 { font-family: var(--papyrus-font-heading, inherit); font-weight: 700; margin: 0; text-wrap: balance; }
 .markus-skip-link { background: var(--papyrus-button-bg); color: var(--papyrus-button-ink); border-radius: var(--papyrus-corner-md); }
 
-/* The notice strip: what the whole publication is, said on every page. */
-.papyrus-notice { margin: 0; padding: var(--papyrus-space-2) var(--papyrus-space-gutter); background: var(--papyrus-button-bg); color: var(--papyrus-button-ink); font-size: var(--papyrus-text-caption-size); line-height: var(--papyrus-text-caption-line); text-align: center; }
-.papyrus-notice-label { display: inline-block; margin-right: var(--papyrus-space-2); padding: 0 var(--papyrus-space-2); border-radius: var(--papyrus-corner-sm); background: var(--papyrus-button-ink); color: var(--papyrus-button-bg); font-size: var(--papyrus-text-label-size); line-height: var(--papyrus-text-label-line); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+/* The notice: what the whole publication is, said once on every page as one small quiet line (no fill, no box). */
+.papyrus-notice { margin: 0; padding: var(--papyrus-space-2) var(--papyrus-space-gutter); background: none; color: var(--papyrus-ink); font-size: var(--papyrus-text-caption-size); line-height: var(--papyrus-text-caption-line); text-align: left; }
+.papyrus-notice-fixed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; padding-bottom: calc(var(--papyrus-space-2) + env(safe-area-inset-bottom)); background: var(--papyrus-band-muted-bg); text-align: center; }
+body:has(.papyrus-notice-fixed) { padding-bottom: calc(var(--papyrus-space-12) + var(--papyrus-space-2) + env(safe-area-inset-bottom)); }
+.papyrus-notice-label { margin-right: var(--papyrus-space-1); font-weight: 700; }
 
 /* Masthead */
 .markus-site-masthead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--papyrus-space-2) var(--papyrus-space-6); padding: var(--papyrus-space-6) var(--papyrus-space-gutter) var(--papyrus-space-4); background: var(--papyrus-band-bg); }
@@ -97,7 +99,7 @@ article.markus-document pre code { padding: 0; background: none; }
 
 /* Forced colours: the flat fills vanish, so the shapes get outlines back. */
 @media (forced-colors: active) {
-  .markus-card, .markus-site-nav a, .markus-tags a, .markus-pager a, .papyrus-notice, .markus-section-tabs a { outline: 1px solid CanvasText; }
+  .markus-card, .markus-site-nav a, .markus-tags a, .markus-pager a, .markus-section-tabs a { outline: 1px solid CanvasText; }
   .markus-site-nav a[aria-current="page"], .markus-section-tabs a[data-current="true"] { outline-width: 3px; }
 }
 

@@ -25,6 +25,22 @@ Feature: A site's brand pack and notice are applied by the standard front end
     When the branded site is projected
     Then it is on every kind of page, in the Markdown twin, in llms.txt, in both feeds and in the structured data
 
+  Scenario: The notice is one small quiet line, not a box
+    Given a site with the notice "Satire. Everything on this site is invented."
+    When the branded site is projected
+    Then the notice is one plain line under the masthead, and a site with no notice shows nothing
+
+  Scenario: A site may fix the notice to the bottom of the viewport
+    Given a site with the notice placement "fixed-footer"
+    When the branded site is projected
+    Then every page has one slim notice bar after the main content and the footer, and the stylesheet fixes it to the bottom, pads the page so it never covers content and clears the phone safe area
+    And the Markdown twin and the structured data carry the notice as before
+
+  Scenario: Placement is inline or fixed-footer
+    Given a site with the notice placement "banner"
+    When the branded site is projected
+    Then the build stops naming the notice placement
+
   Scenario: A site without a pack or notice is unchanged
     Given a site with no brand pack and no notice
     When the branded site is projected

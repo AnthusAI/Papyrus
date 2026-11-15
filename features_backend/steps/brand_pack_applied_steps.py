@@ -86,7 +86,7 @@ def step_unhosted(context):
 @then('it is on every kind of page, in the Markdown twin, in llms.txt, in both feeds and in the structured data')
 def step_everywhere(context):
     for key in ('index.html', 'essays/index.html', 'essays/slow-water/index.html'):
-        assert 'class="papyrus-notice"' in _page(context, key), key
+        assert 'class="papyrus-notice" role="note"' in _page(context, key), key
     for key in ('essays/slow-water/index.md', 'llms.txt'):
         assert '> **Satire.** Everything on this site is invented.' in _page(context, key), key
     assert '<description>Satire. ' in _page(context, 'feed.xml') and '<summary>Satire. ' in _page(context, 'atom.xml')
@@ -97,3 +97,41 @@ def step_everywhere(context):
 def step_unchanged(context):
     html = _page(context, 'index.html')
     assert 'papyrus-tokens' not in html and 'papyrus-brand-' not in html and 'papyrus-notice' not in html
+
+
+@given('a site with the notice placement "{placement}"')
+def step_placement(context, placement):
+    def build():
+        raw = _settings()
+        raw['site']['notice'] = {**NOTICE, 'placement': placement}
+        return ProjectedSite(settings=raw, content=CONTENT, extra_files={'brand.json': json.dumps(PACK)})
+    context.build = build
+
+
+@then('the notice is one plain line under the masthead, and a site with no notice shows nothing')
+def step_quiet(context):
+    html = _page(context, 'index.html')
+    assert html.index('class="papyrus-notice"') < html.index('<main')
+    css = (context.site.out / 'css' / 'papyrus-publication.css').read_text(encoding='utf-8')
+    rule = re.search(r'\.papyrus-notice \{[^}]*\}', css).group(0)
+    assert 'background: none' in rule and 'border' not in rule
+
+
+@then('every page has one slim notice bar after the main content and the footer, and the stylesheet fixes it to the bottom, pads the page so it never covers content and clears the phone safe area')
+def step_fixed(context):
+    for key in ('index.html', 'essays/index.html', 'essays/slow-water/index.html'):
+        html = _page(context, key)
+        assert html.count('papyrus-notice-fixed') == 1 and html.index('</footer>') < html.index('papyrus-notice-fixed'), key
+    css = (context.site.out / 'css' / 'papyrus-publication.css').read_text(encoding='utf-8')
+    assert 'position: fixed' in css and 'safe-area-inset-bottom' in css and 'body:has(.papyrus-notice-fixed)' in css
+
+
+@then('the Markdown twin and the structured data carry the notice as before')
+def step_fixed_machines(context):
+    assert '> **Satire.** Everything on this site is invented.' in _page(context, 'essays/slow-water/index.md')
+    assert '"genre":"Satire"' in _page(context, 'essays/slow-water/index.html')
+
+
+@then('the build stops naming the notice placement')
+def step_bad_placement(context):
+    assert context.error and 'placement' in context.error, context.error

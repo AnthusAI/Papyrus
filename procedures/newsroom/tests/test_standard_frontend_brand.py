@@ -63,7 +63,7 @@ def test_the_brand_stylesheet_is_small_and_carries_the_pack_in_both_themes(brand
 
 def test_the_notice_is_on_every_kind_of_page_and_in_the_twins_the_feeds_and_the_structured_data(branded):
     for key in ("index.html", "essays/index.html", "essays/slow-water/index.html"):
-        assert 'class="papyrus-notice"' in page(branded, key) and "Everything on this site is invented." in page(branded, key), key
+        assert 'class="papyrus-notice" role="note"' in page(branded, key) and "Everything on this site is invented." in page(branded, key), key
     assert "> **Satire.** Everything on this site is invented." in page(branded, "essays/slow-water/index.md")
     assert "> **Satire.** Everything on this site is invented." in page(branded, "llms.txt")
     assert "<description>Satire. " in page(branded, "feed.xml") and "<summary>Satire. " in page(branded, "atom.xml")
@@ -96,3 +96,38 @@ def test_a_site_without_a_brand_pack_or_notice_is_unchanged():
 def test_a_notice_needs_both_words():
     with pytest.raises(ValueError, match="needs both a label and a text"):
         ProjectedSite(settings=settings(site={**fixture_settings("sectioned")["site"], "notice": {"label": "Satire"}}), content=ProjectedSite.__init__.__globals__["FIXTURES"] / "sectioned" / "content", extra_files={"brand.json": json.dumps(PACK)})
+
+
+def test_a_fixed_footer_notice_is_one_bar_after_the_footer_on_every_page():
+    site = ProjectedSite(
+        settings=settings(site={**fixture_settings("sectioned")["site"], "notice": {**NOTICE, "placement": "fixed-footer"}}),
+        content=ProjectedSite.__init__.__globals__["FIXTURES"] / "sectioned" / "content",
+        extra_files={"brand.json": json.dumps(PACK)},
+    )
+    try:
+        for key in ("index.html", "essays/index.html", "essays/slow-water/index.html"):
+            html = page(site, key)
+            assert html.count("papyrus-notice-fixed") == 1, key
+            assert html.index("</footer>") < html.index("papyrus-notice-fixed") < html.index("</body>") or html.index("</footer>") < html.index("papyrus-notice-fixed"), key
+            assert html.index("</main>") < html.index("papyrus-notice-fixed"), key
+        assert "> **Satire.** Everything on this site is invented." in page(site, "essays/slow-water/index.md")
+    finally:
+        site.cleanup()
+
+
+def test_the_notice_placement_is_inline_or_fixed_footer():
+    with pytest.raises(ValueError, match="placement"):
+        ProjectedSite(
+            settings=settings(site={**fixture_settings("sectioned")["site"], "notice": {**NOTICE, "placement": "banner"}}),
+            content=ProjectedSite.__init__.__globals__["FIXTURES"] / "sectioned" / "content",
+            extra_files={"brand.json": json.dumps(PACK)},
+        )
+
+
+def test_the_inline_notice_is_one_plain_line_under_the_masthead(branded):
+    html = page(branded, "index.html")
+    assert html.index('class="papyrus-notice"') < html.index("<main")
+    css = (branded.out / "css" / "papyrus-publication.css").read_text(encoding="utf-8")
+    rule = re.search(r"\.papyrus-notice \{[^}]*\}", css).group(0)
+    assert "background: none" in rule and "border" not in rule
+    assert "position: fixed" in css and "safe-area-inset-bottom" in css and "body:has(.papyrus-notice-fixed)" in css

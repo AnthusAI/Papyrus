@@ -2246,14 +2246,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
             else (components.footer(self.standard.footer_columns, self.standard.footer_text) or self._settings.chrome.footer_html or f"<p>{components.esc(identity.name)}</p>")
         )
         main = "\n".join(part for part in (self._breadcrumbs_html(page), self._main_html(page)) if part)
-        notice = (
-            f'  <p class="papyrus-notice" role="note"><span class="papyrus-notice-label">{components.esc(self._notice_label(page))}</span>{components.esc(self._notice_text(page))}</p>\n'
+        fixed = identity.notice_placement == "fixed-footer"
+        notice_line = (
+            f'  <p class="papyrus-notice{" papyrus-notice-fixed" if fixed else ""}" role="note"><span class="papyrus-notice-label">{components.esc(self._notice_label(page))}</span>{components.esc(self._notice_text(page))}</p>\n'
             if identity.notice_label else ""
         )
+        top_notice = "" if fixed else notice_line
+        bottom_notice = notice_line if fixed else ""
         return (
-            f"{components.skip_link()}\n{masthead}\n{notice}"
+            f"{components.skip_link()}\n{masthead}\n{top_notice}"
             f'  <main id="main">\n{main}\n  </main>\n'
-            f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>{parts.scripts}'
+            f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>\n{bottom_notice}{parts.scripts}'
         )
 
     def _breadcrumbs_html(self, page: StandardPage) -> str:

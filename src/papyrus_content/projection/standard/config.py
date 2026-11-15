@@ -112,6 +112,7 @@ class SiteIdentity:
     lede_field: str = ""              # front matter field whose text is printed as the article's lede (standfirst) under its title
     notice_label: str = ""            # a short label ("Satire") and sentence about the whole publication, said on every page, Markdown twin, feed entry and in the structured data
     notice_text: str = ""
+    notice_placement: str = "inline"  # "inline": one small line under the masthead; "fixed-footer": a slim bar fixed to the bottom of the viewport
 
 
 @dataclass(frozen=True)
@@ -646,7 +647,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField", "notice"}, "site")
     notice = site.get("notice") or {}
     if notice:
-        _only(notice, {"label", "text"}, "site.notice")
+        _only(notice, {"label", "text", "placement"}, "site.notice")
+        if notice.get("placement", "inline") not in ("inline", "fixed-footer"):
+            raise ValueError('site.notice.placement must be "inline" or "fixed-footer"')
         if not (_text(notice, "label") and _text(notice, "text")):
             raise ValueError("site.notice needs both a label and a text")
     name = _text(site, "name")
@@ -665,6 +668,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         lede_field=_text(site, "ledeField"),
         notice_label=_text(notice, "label"),
         notice_text=_text(notice, "text"),
+        notice_placement=str(notice.get("placement", "inline")),
     )
     if identity.date_format:
         try:
