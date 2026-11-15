@@ -225,3 +225,17 @@ def test_a_pinned_label_is_never_overwritten_and_a_changed_source_makes_a_new_la
     site.tables["EntityLabel"]["section#agents#es-419"]["pinned"] = False
     outcome, _ = run_label(site, {"Agents": ANSWER}, source=section_source(description="Changed words."))
     assert outcome.state == "current" and site.tables["EntityLabel"]["section#agents#es-419"]["sourceContentHash"] == section_source(description="Changed words.").content_hash
+
+
+def test_a_concept_is_named_from_its_own_text_and_found_by_its_new_name():
+    from papyrus_content.entity_labels.localize_concept import concept_source
+    from papyrus_content.entity_labels.translate import localize_label
+
+    site = site_with(("c1", "editor_concept--human-oversight", "Human oversight", {"aliases": ["human control"], "description": "People keep authority."}))
+    sync_all(site)
+    source = concept_source(site.tables["SemanticNode"]["c1-v1"], "en")
+    models = ScriptedModels({"Human oversight": {**ANSWER, "name": "Supervisión humana", "aliases": ["control humano"], "description": "Las personas conservan la autoridad."}})
+    outcome = localize_label(site, models, source, "es-419", glossary=Glossary(), checker=None, register_notes=[], language_names=NAMES, now=NOW)
+    assert outcome.state == "current" and models.calls[0]["aliases"] == ["human control"] and models.calls[0]["kind"] == "concept"
+    assert [node["lineageId"] for node in find_concepts(site, "control humano", languages=["es-419"])] == ["c1"]
+    assert site.tables["EntityLabel"]["concept#c1#es-419"]["sourceContentHash"] == primary_text_hash(site.tables["SemanticNode"]["c1-v1"])
