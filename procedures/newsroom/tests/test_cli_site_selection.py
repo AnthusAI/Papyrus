@@ -324,12 +324,21 @@ def test_an_explicit_endpoint_gets_the_tenant_of_the_site_that_owns_it(monkeypat
     assert PapyrusGraphQLAuthoringClient(endpoint='https://unknown.appsync-api.us-east-1.amazonaws.com/graphql').tenant_id is None
 
 
-def test_an_iam_operator_gets_no_site_tenant(monkeypatch):
+def test_an_iam_operator_who_names_a_site_gets_that_sites_tenant_and_host(monkeypatch):
     sign_in(A)
     site_document.store('https://a.anth.us', {'tenant_id': 'machines-on-machines'})
     monkeypatch.setenv('PAPYRUS_GRAPHQL_AUTH', 'iam')
     monkeypatch.setenv('PAPYRUS_SITE', 'a.anth.us')
-    assert PapyrusGraphQLAuthoringClient().tenant_id is None
+    assert PapyrusGraphQLAuthoringClient().tenant_id == 'machines-on-machines'
+    assert site_selection.host_for() == 'a.anth.us'
+
+
+def test_an_iam_operator_who_names_no_site_gets_no_site_tenant(monkeypatch):
+    sign_in(A)
+    site_document.store('https://a.anth.us', {'tenant_id': 'machines-on-machines'})
+    monkeypatch.setenv('PAPYRUS_GRAPHQL_AUTH', 'iam')
+    monkeypatch.setenv('PAPYRUS_GRAPHQL_ENDPOINT', A.graphql_endpoint)
+    assert PapyrusGraphQLAuthoringClient().tenant_id is None and site_selection.host_for() is None
 
 
 def test_a_command_that_reads_every_row_opts_out_of_the_site_tenant():
