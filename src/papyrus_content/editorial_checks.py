@@ -243,6 +243,13 @@ def settings_from_row(stored: dict[str, Any] | None) -> dict[str, Any]:
     return settings
 
 
+def put_languages(store: EditorialStore, languages: dict[str, Any]) -> None:
+    """Store a new ``languages`` setting and keep every other stored setting exactly as it is (only what the row holds, never the defaults)."""
+    row = store.get_settings()
+    stored = _json((row or {}).get("settings"), {})
+    store.put_settings({**stored, "languages": languages}, exists=row is not None)
+
+
 class EditorialChecksDisabled(ValueError):
     """The publication turned editorial checks off in its stored settings."""
 
@@ -417,6 +424,14 @@ def try_policy(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
         "options": {"classifier": {"model": settings["classifierModel"], "deadlineSeconds": settings["deadlineSeconds"]}},
     }
     return mark_whole_story_findings(services.checked(humanus.check(request, **services.humanus_kwargs("decision_model"))))
+
+
+def describe_languages(arguments: dict[str, Any], _services: Services) -> dict[str, Any]:
+    """The ``languages`` setting as the console form holds it, checked by the one validation (``language_serving.describe_serving``): every enabled
+    language's effective and default prefix, public flag and slug policy, or the message naming the rule it breaks. Reads and writes nothing."""
+    from .language_serving import describe_serving
+
+    return describe_serving(_json(arguments["languages"], None))
 
 
 def import_starter_pack(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
@@ -733,6 +748,7 @@ OPERATIONS: dict[str, Callable[[dict[str, Any], Services], dict[str, Any]]] = {
     "recalibrateEditorialPolicies": recalibrate,
     "checkItemVersion": check_item_version,
     "listEditorialStarterPacks": list_starter_packs,
+    "describeEditorialLanguages": describe_languages,
 }
 
 

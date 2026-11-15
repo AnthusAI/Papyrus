@@ -165,6 +165,11 @@ module.exports = {
     require: ["features/step_definitions/visual-style-admin.steps.js"],
     format: ["summary"],
   },
+  editorialLanguagesAdmin: {
+    paths: ["features/newsroom-editorial-languages-admin.feature"],
+    require: ["features/step_definitions/newsroom-editorial-languages-admin.steps.js"],
+    format: ["summary"],
+  },
   writingGuidelinesAdmin: {
     paths: ["features/newsroom-writing-guidelines-admin.feature"],
     require: ["features/step_definitions/newsroom-writing-guidelines-admin.steps.js"],

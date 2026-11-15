@@ -83,6 +83,7 @@ from .editorial_commands import (
     editorial_check_drafts,
     editorial_check_version,
     editorial_import,
+    editorial_languages,
     editorial_pack,
     editorial_policies,
     editorial_suggest,
@@ -545,6 +546,7 @@ PORTED_COMMANDS = frozenset(
         "editorial:check-version",
         "editorial:copy-edit",
         "editorial:check-drafts",
+        "editorial:languages",
         "renderers:markus-build",
     }
 )
@@ -1260,6 +1262,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         editorial_check_drafts(flags)
     elif route == "editorial:import":
         editorial_import(flags)
+    elif route == "editorial:languages":
+        editorial_languages(flags)
     elif route == "renderers:markus-build":
         markus_build(flags)
     else:
