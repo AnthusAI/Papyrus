@@ -22,7 +22,7 @@ export const TENANT_FIELD_MODELS: ReadonlySet<string> = new Set([
   "Edition", "EditionItem", "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory",
   "EditorialPolicy", "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile",
   "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction",
-  "SignupEntry", "LocalizationRequest",
+  "SignupEntry", "LocalizationRequest", "EntityLabel",
 ]);
 
 const TENANT_KEY_SEPARATOR = "#";

@@ -133,6 +133,10 @@ REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
 LOCALIZATION_REQUEST_FIELDS = (
     "id tenantId languageGroupId language sourceVersionId sourceVersionNumber sourceContentHash state requestedBy requestedAt runKey reason automationId publish updatedAt"
 )
+ENTITY_LABEL_FIELDS = (
+    "id tenantId entityKind entityId entityKey language role text textLanguage nameKey sortKey description equivalence origin pinned reviewedBy reviewedAt "
+    "sourceContentHash syncState workKey slug provenanceId createdAt updatedAt"
+)
 STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
@@ -200,6 +204,8 @@ SEMANTIC_NODE_FIELDS = (
     "description aliases authorityScore authorityRank acceptedReferenceMentionCount distinctSourceKindCount relationCount pageAnswer "
     "status importRunId createdAt updatedAt newsroomFeedKey"
 )
+# The nodes that name a language need the deploy that adds SemanticNode.language; the other readers of a node do not select it.
+SEMANTIC_NODE_LANGUAGE_FIELDS = f"{SEMANTIC_NODE_FIELDS} language"
 KNOWLEDGE_ARTIFACT_FIELDS = (
     "id corpusId artifactKind artifactId snapshotId displayName createdAt importRunId"
 )
@@ -228,6 +234,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
     "LocalizationRequest": {"field": "listLocalizationRequests", "fields": LOCALIZATION_REQUEST_FIELDS},
+    "EntityLabel": {"field": "listEntityLabels", "fields": ENTITY_LABEL_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
     "Announcement": {"field": "listAnnouncements", "fields": ANNOUNCEMENT_FIELDS},
     "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
@@ -488,6 +495,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": MESSAGE_FIELDS,
     },
     "knowledgeCorporaByRoleAndName": {"field": "listKnowledgeCorporaByRoleAndName", "partitionKey": "role", "fields": KNOWLEDGE_CORPUS_FIELDS},
+    # The names of concepts (src/papyrus_content/entity_labels): every name of one concept, the concepts with one name in one language, the labels that need work.
+    "entityLabelsByEntity": {"field": "listEntityLabelsByEntityAndSortKey", "partitionKey": "entityKey", "fields": ENTITY_LABEL_FIELDS},
+    "entityLabelsByName": {"field": "listEntityLabelsByNameKey", "partitionKey": "nameKey", "fields": ENTITY_LABEL_FIELDS},
+    "entityLabelsByWork": {"field": "listEntityLabelsByWorkKeyAndUpdatedAt", "partitionKey": "workKey", "fields": ENTITY_LABEL_FIELDS},
+    "semanticNodesByLineage": {"field": "listSemanticNodesByLineageAndVersion", "partitionKey": "lineageId", "partitionType": "ID", "fields": SEMANTIC_NODE_LANGUAGE_FIELDS},
+    "semanticNodesByNodeKey": {"field": "listSemanticNodesByNodeKeyAndVersion", "partitionKey": "nodeKey", "fields": SEMANTIC_NODE_FIELDS},
     "localizationRequestsByState": {"field": "listLocalizationRequestsByStateAndRequestedAt", "partitionKey": "state", "fields": LOCALIZATION_REQUEST_FIELDS},
     "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
     "itemByTenantSlug": {"field": "itemByTenantSlug", "partitionKey": "tenantSlug", "fields": ITEM_FIELDS},

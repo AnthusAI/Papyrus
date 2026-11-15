@@ -17,12 +17,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .entity_labels.lookup import current_node
 from .operator_errors import GraphQLRequestError
 from .options import normalize_string, parse_options, resolve_mutation_apply
 from .section_concepts import (
     concept_label,
     concept_slug,
-    current_concept_nodes,
     display_name_for,
     editor_concept_lineage_id,
     resolve_concept,
@@ -175,16 +175,15 @@ def references_link(flags: list[str], *, client: Any = None) -> None:
     if predicate not in ("related_to", "tagged_with"):
         raise ValueError("A Reference is tagged with a concept with tagged_with (related_to is accepted and means the same).")
     predicate = "tagged_with"
-    nodes = current_concept_nodes(client)
-    node = resolve_concept(nodes, concept)
+    node = resolve_concept(client, concept)
     created = False
     if node is None:
         if not _flag(options, "create"):
             raise ValueError(f"No concept is named {concept!r}. Name an existing concept, or add --create to make it.")
         lineage = editor_concept_lineage_id(concept_slug(concept))
         shown = display_name_for(concept, normalize_string(options.get("display-name")))
-        rejected = next((row for row in nodes if _lineage(row) == lineage and row.get("status") == "rejected"), None)
-        if rejected is not None:
+        rejected = current_node(client, lineage)
+        if rejected is not None and rejected.get("status") == "rejected":
             raise ValueError(f"The concept {concept_label(rejected)!r} was rejected, so a Reference cannot be linked to it.")
         print(f"references\tlink\tcreate concept\t{shown}\t{lineage}\t{mode}")
         created = True

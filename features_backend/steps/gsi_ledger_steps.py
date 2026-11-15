@@ -69,6 +69,22 @@ def _tables(context, count):
     context.base, context.current = base, current
 
 
+@given('a change that adds a new table with three indexes')
+def step_new_table(context):
+    directory = tempfile.TemporaryDirectory()
+    context.add_cleanup(directory.cleanup)
+    base, current = Path(directory.name) / 'base.ts', Path(directory.name) / 'current.ts'
+    base.write_text('  Old: modelWithoutSubscriptions({\n      id: a.id(),\n    }),\n')
+    lines = ''.join(f'      index("k{i}").queryField("q{i}"),\n' for i in range(3))
+    current.write_text(base.read_text() + '  Fresh: modelWithoutSubscriptions({\n      id: a.id(),\n    })\n    .secondaryIndexes((index) => [\n' + lines + '    ]),\n')
+    context.base, context.current = base, current
+
+
+@then('no index of the new table is listed as waiting for a later release')
+def step_no_waiting(context):
+    assert 'Fresh.' not in context.result.stdout, context.result.stdout
+
+
 @given('a change that adds one new index to each of 40 tables')
 def step_forty(context):
     _tables(context, 40)

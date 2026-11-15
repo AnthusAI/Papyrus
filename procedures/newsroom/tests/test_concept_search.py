@@ -26,6 +26,7 @@ def with_extra_nodes(client):
     for key, name, kind, status in (("voice2", "Voice  Cloning", None, "accepted"), ("author", "Some Author", "personAuthor", "accepted"), ("gen", "Generated Thing", None, "generated")):
         client.tables["SemanticNode"][f"{key}-v1"] = {"id": f"{key}-v1", "lineageId": key, "nodeKey": f"editor_concept--{key}", "displayName": name, "aliases": [], "versionState": "current",
                                                       "status": status, "nodeKind": kind}
+    client.sync_concept_labels()
     return client
 
 
@@ -156,6 +157,7 @@ def add_nodes(client, *pairs):
     for key, name in pairs:
         client.tables["SemanticNode"][f"{key}-v1"] = {"id": f"{key}-v1", "lineageId": key, "nodeKey": f"editor_concept--{key}", "displayName": name, "aliases": [], "versionState": "current",
                                                       "status": "accepted", "nodeKind": None}
+    client.sync_concept_labels()
 
 
 class WikiPageTests(unittest.TestCase):

@@ -270,14 +270,8 @@ class Graph:
 
 def related_concepts(client: Any, concept: str, *, limit: int = 15) -> dict[str, Any]:
     """The concepts near one concept (read only). The concept is found by the same exact resolver as ``stories link-concept``; it is never created or guessed."""
-    from .section_concepts import current_concept_nodes
-
     before = _requests(client)
-    from . import request_meter
-
-    with request_meter.sweep("link-suggestions-concept-catalogue"):   # the exact resolver of `stories link-concept` reads the concept catalogue once
-        catalogue = current_concept_nodes(client)
-    node = resolve_concept_exact(catalogue, concept)
+    node = resolve_concept_exact(client, concept)
     graph = Graph(client)
     related = graph.related([node], limit=limit)[_lineage(node)]
     pages = concept_page_keys(client)

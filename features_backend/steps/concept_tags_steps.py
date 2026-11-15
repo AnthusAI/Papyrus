@@ -107,9 +107,14 @@ def _fails_naming(context, one, two, three):
     assert context.failure is not None and all(key in str(context.failure) for key in (one, two, three)), context.failure
 
 
-@then('it lists "{key}" as a close match')
-def _close(context, key):
-    assert key in str(context.failure), context.failure
+@then('it points at "{command}"')
+def _points(context, command):
+    assert command in str(context.failure), context.failure
+
+
+@then("the tagging read no concept table")
+def _not_listed(context):
+    assert not [call for call in context.site.calls if call[0] == "list" and call[1] == "SemanticNode"], context.site.calls
 
 
 @then('it warned that "{name}" has no public wiki page yet')

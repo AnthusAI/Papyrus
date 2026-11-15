@@ -66,7 +66,23 @@ class FakeNewsroom:
     def safe_list_records(self, model):
         return [self._bare(model, row) for row in self.records[model].values()]
 
+    def primary_language(self):
+        return "en"
+
+    def _concept_label_rows(self):
+        from papyrus_content.entity_labels.primary import primary_rows
+
+        return [row for node in self.records["SemanticNode"].values() for row in primary_rows(node, "en", tenant_id=self.tenant_id, now="2026-11-15T00:00:00Z")]
+
     def list_by_index(self, index, key, **_):
+        if index == "semanticNodesByLineage":
+            return copy.deepcopy([row for row in self.records["SemanticNode"].values() if row.get("lineageId") == key])
+        if index == "semanticNodesByNodeKey":
+            return copy.deepcopy([row for row in self.records["SemanticNode"].values() if row.get("nodeKey") == key])
+        if index == "entityLabelsByName":   # the rows the stream consumer writes, derived from the concepts as they stand
+            return [row for row in self._concept_label_rows() if row["nameKey"] == key]
+        if index == "entityLabelsByEntity":
+            return [row for row in self._concept_label_rows() if row["entityKey"] == key]
         if index == "knowledgeCorporaByRoleAndName":
             return copy.deepcopy(self.corpora)
         if index == "itemBySlug":
