@@ -7,6 +7,7 @@
     papyrus editorial policies list | import-starter NAME | ensure-defaults
     papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
     papyrus editorial policies export --file PACK [--language TAG] [--pack-id ID] [--pack-version V]
+    papyrus editorial languages [--set-public TAGS] [--set-prefix TAG=PREFIX ...] [--set-slug TAG=POLICY ...] [--dry-run] [--json]
     papyrus editorial check-version --item VERSION_ID [--json]
     papyrus editorial check-drafts [--limit N] [--dry-run]
 
@@ -40,11 +41,13 @@ from .editorial_checks import (
     ensure_default_policies,
     import_starter_pack,
     policy_identity,
+    put_languages,
     record_from_policy,
     settings_from,
     suggest_rewrite,
 )
 from .editorial_languages import ANY_LANGUAGE, primary_language, site_language
+from .language_serving import checked_serving, describe_serving, edit_serving
 
 STORY_HELP = "The story (lineage id or slug) this draft revises, so its own saved versions are not compared as other stories by the cross-story boilerplate check."
 LANGUAGE_HELP = "Language of the draft (en, es-419, zh-Hans ...). Default: the site's primary language, the language its Stories are written in."
@@ -212,6 +215,75 @@ def editorial_suggest(flags: list[str]) -> None:
         _emit(suggest_rewrite(arguments, services), args.output)
     except humanus.SuggestUnavailableError as error:
         raise ValueError(str(error)) from error
+
+
+def _tag_values(pairs: list[str], flag: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for pair in pairs:
+        tag, separator, value = pair.partition("=")
+        if not separator or not tag.strip():
+            raise ValueError(f"{flag} takes TAG=VALUE (for example {flag} es-419=es); an empty VALUE returns the language to its default.")
+        values[tag.strip()] = value.strip()
+    return values
+
+
+def format_languages(languages: dict[str, Any]) -> list[str]:
+    """One line per enabled language: whether it is public, its URL prefix and its slug policy, each marked when it is the default."""
+    description = describe_serving(languages)
+    if not description["ok"]:
+        return [f"The languages setting is refused: {description['message']}"]
+    lines = [f"primary\t{description['primary']}", "language\tpublic\tprefix\tslug policy"]
+    for row in description["languages"]:
+        if row["primary"]:
+            lines.append(f"{row['tag']}\tpublic (the primary: always)\t/ (root)\t-")
+            continue
+        custom_prefix = row["prefix"] != row["defaultPrefix"]
+        custom_slug = row["slugPolicy"] != row["defaultSlugPolicy"]
+        lines.append(
+            f"{row['tag']}\t{'public' if row['public'] else 'not public (written, translated and checked; no page)'}"
+            f"\t/{row['prefix']}/{'' if custom_prefix else ' (default)'}\t{row['slugPolicy']}{'' if custom_slug else ' (default)'}"
+        )
+    return lines
+
+
+def editorial_languages(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog="papyrus editorial languages",
+        description="Show how the site serves its languages, or change it: which enabled languages are public (the primary always is), each language's URL "
+                    "prefix and each language's slug policy. Writes unless --dry-run. The same rules as the console form, checked before anything is saved.",
+    )
+    parser.add_argument("--set-public", default=None, metavar="TAGS", help="Comma-separated languages the public site serves, besides the primary (which always is). An empty list makes only the primary public.")
+    parser.add_argument("--set-prefix", action="append", default=[], metavar="TAG=PREFIX", help="URL prefix of one language (repeat for several). TAG= returns it to the default, its base subtag.")
+    parser.add_argument("--set-slug", action="append", default=[], metavar="TAG=POLICY", help="Slug policy of one language: translated, characters, pinyin or primary. TAG= returns it to the default.")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would change; write nothing.")
+    parser.add_argument("--json", action="store_true", help="Print the resulting settings as JSON.")
+    args = parser.parse_args(flags)
+    store = GraphQLEditorialStore()
+    before = settings_from(store)["languages"]
+    checked_serving(before)   # a stored setting that breaks a rule is said first; edits are checked on top of it
+    editing = args.set_public is not None or args.set_prefix or args.set_slug
+    after = before
+    if editing:
+        after = edit_serving(
+            before,
+            public=None if args.set_public is None else [tag.strip() for tag in args.set_public.split(",") if tag.strip()],
+            prefixes=_tag_values(args.set_prefix, "--set-prefix") or None,
+            slugs=_tag_values(args.set_slug, "--set-slug") or None,
+        )
+    if args.json:
+        _emit({"languages": after, "serving": describe_serving(after), "written": bool(editing and not args.dry_run and after != before)}, None)
+    else:
+        for line in format_languages(after):
+            print(line)
+    if not editing:
+        return
+    if after == before:
+        print("Nothing to change: the setting already says this.", file=sys.stderr if args.json else sys.stdout)
+    elif args.dry_run:
+        print("Dry run: nothing was written.", file=sys.stderr if args.json else sys.stdout)
+    else:
+        put_languages(store, after)
+        print("Saved. The next projection serves the languages as above.", file=sys.stderr if args.json else sys.stdout)
 
 
 def editorial_policies_pack(store, args: argparse.Namespace) -> None:

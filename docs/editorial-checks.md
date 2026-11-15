@@ -30,6 +30,11 @@ answers the language questions in one module, `src/papyrus_content/editorial_lan
   Spanish is checked with the `es-419` overlay and the Latin American word-choice rules. A request for `es` on that site means
   `es-419`. A request for a language the site does not write in is refused, naming it; so is a setting that names a language
   Humanus has no pack for.
+  The same `languages` object also holds how the site serves each language: `prefixes`, `public` and `slugs` ([multilingual serving](multilingual-serving.md)).
+  Settings has a control for each (which enabled languages are public, each language's URL prefix and slug policy, with the defaults shown), and
+  `papyrus editorial languages [--set-public TAGS] [--set-prefix TAG=PREFIX] [--set-slug TAG=POLICY] [--dry-run]` shows and sets the same keys. Both are
+  checked by the one validation in `language_serving.py` before saving (the console through the `describeEditorialLanguages` query), and a save keeps every
+  key of the stored object that it did not edit.
 - **A Story's language.** `story_language(item, settings)` is the one place that says which language a Story is written in.
   Every Story today is a primary-language Story; when the multilingual plan's `Item.language` field exists, this function reads it
   and nothing else changes. `checkItemVersion`, the copy-edit gate, the idea gate and the agent context pack all ask it.
@@ -80,13 +85,13 @@ still run.
 | Model | Who | What |
 |---|---|---|
 | `EditorialPolicy` | editors read, admins manage | One policy: key, scope (`publication` or a section key), language (a tag or `*`), version, title, guidance, severity (`info`/`warn`/`error`), enabled, detectors (Humanus `policy-pack-v1` detectors), examples, rewrite guidance, source (`custom` or `starter:<pack>`). A section policy replaces the publication policy with the same key for that section's articles. |
-| `EditorialCheckSettings` | editors read, admins manage | One row, id `settings`: `enabled` (default true), `languages` (primary and enabled), lanes, decision and rewrite models, the judgment-check deadline (default 20 s, inside AppSync's 30 s), token budget, examples per question, house guidance, check while typing, publish warning. |
+| `EditorialCheckSettings` | editors read, admins manage | One row, id `settings`: `enabled` (default true), `languages` (primary and enabled, and how each is served: public, prefixes, slugs), lanes, decision and rewrite models, the judgment-check deadline (default 20 s, inside AppSync's 30 s), token budget, examples per question, house guidance, check while typing, publish warning. |
 | `EditorialFeedback` | editors create and read, admins manage | An editor's decision on a finding (`accepted`, `fixed`, `dismissed`, optional reason). Judgment decisions keep the sentence's text so later checks can use it as an example; `recalibrateEditorialPolicies` turns them into per-detector calibration. |
 
 **Operations.** All are handled by one function that composes the policy pack
 and calls Humanus: `checkEditorial` and `suggestEditorialRewrite` (editors),
 `tryEditorialPolicy`, `draftEditorialQuestions`, `importEditorialStarterPack` and
-`recalibrateEditorialPolicies` (admins). Nothing is open to guests. The function
+`recalibrateEditorialPolicies` (admins), and `describeEditorialLanguages` (the `languages` setting checked by the serving rules, reads and writes nothing). Nothing is open to guests. The function
 may call `appsync:GraphQL` only on the model operations it needs (the list is `EDITORIAL_CHECKS_FUNCTION_FIELDS` in `amplify/functions/editorial-checks/wire.ts`).
 
 **Newsroom.** The article body is a CodeMirror editor; when checks are on,
