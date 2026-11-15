@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a836535d-bb08-45b5-aa41-75059c61ec7f",
+  "issue_id": "PPY-7566ee83-3ac6-4986-ac10-c745d63d1ea7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-15T23:58:36.377Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A CLI older than the site's backend must refuse to write (it wrote a Story version with no language)",
+    "description": "2026-11-15, TheHallucinator.ai (backend on Papyrus 5.121.0, CLI pinned at 5.105.0): papyrus stories save-version wrote version 3 without its language fields. Publish then failed to project: 'has no language yet. The row was written before the language fields existed, or by a Papyrus older than 5.110.0'. The data was already marked published and the page stayed on the old version until a v4 was saved with the 5.121.0 CLI. Expected: every write command compares the CLI version with the site's deployed backend version and refuses to write when the CLI is older, naming the version to use (read-only commands may still run). Actual: the old CLI writes bad data and the failure appears later, at publish.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
