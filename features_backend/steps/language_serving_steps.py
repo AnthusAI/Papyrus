@@ -259,10 +259,10 @@ def step_no_en(context):
     assert not any(key.startswith("en/") for key in _site(context).keys())
 
 
-@then('the English page lists hreflang "en" and "es-419" and x-default pointing at the English page')
+@then('the English page lists hreflang "en" and "es" (never "es-419", which search engines refuse) and x-default pointing at the English page')
 def step_english_hreflang(context):
     found = _hreflang(_site(context).text(ENGLISH))
-    assert found == [("en", f"{ORIGIN}/articles/the-sound/"), ("es-419", f"{ORIGIN}/es/articles/el-sonido/"), ("x-default", f"{ORIGIN}/articles/the-sound/")], found
+    assert found == [("en", f"{ORIGIN}/articles/the-sound/"), ("es", f"{ORIGIN}/es/articles/el-sonido/"), ("x-default", f"{ORIGIN}/articles/the-sound/")], found
 
 
 @then("the Spanish page lists the same hreflang links")
@@ -343,7 +343,7 @@ def step_spanish_listings(context):
 
 @then("the English home and the Spanish home name each other in hreflang")
 def step_home_hreflang(context):
-    expected = [("en", f"{ORIGIN}/"), ("es-419", f"{ORIGIN}/es/"), ("x-default", f"{ORIGIN}/")]
+    expected = [("en", f"{ORIGIN}/"), ("es", f"{ORIGIN}/es/"), ("x-default", f"{ORIGIN}/")]
     assert _hreflang(_site(context).text("index.html")) == expected, _hreflang(_site(context).text("index.html"))
     assert _hreflang(_site(context).text("es/index.html")) == expected
 
@@ -472,7 +472,7 @@ def step_wiki_spanish(context, slug):
 def step_wiki_keys(context, key, spanish):
     site = _site(context)
     assert site.exists(key) and site.exists(spanish), site.keys()
-    assert ("es-419", f"{ORIGIN}/" + spanish[: -len("index.html")]) in _hreflang(site.text(key))
+    assert ("es", f"{ORIGIN}/" + spanish[: -len("index.html")]) in _hreflang(site.text(key))
 
 
 @given("the English home is an authored page")
@@ -507,7 +507,7 @@ def step_indexed(context, key):
 @then('the "{key}" page names the Spanish page in hreflang')
 def step_names_spanish(context, key):
     tags = dict(_hreflang(_site(context).text(key)))
-    assert "es-419" in tags and "x-default" in tags, tags
+    assert "es" in tags and "es-419" not in tags and "x-default" in tags, tags
 
 
 @then("the sitemap index lists no Spanish or Chinese sitemap")

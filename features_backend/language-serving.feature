@@ -17,7 +17,7 @@ Feature: Each language of a Story is served at its own address, and each page na
 
   Scenario: Every page lists hreflang for each published language and x-default, and is canonical to itself
     When its Spanish translation "el-sonido" is published
-    Then the English page lists hreflang "en" and "es-419" and x-default pointing at the English page
+    Then the English page lists hreflang "en" and "es" (never "es-419", which search engines refuse) and x-default pointing at the English page
     And the Spanish page lists the same hreflang links
     And neither page lists Chinese
     And each page is canonical to its own address

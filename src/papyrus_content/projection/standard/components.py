@@ -7,6 +7,7 @@ import html
 
 from .config import FooterColumn, NavLink
 from .entries import StandardEntry
+from .editions import hreflang_value
 
 
 def esc(value) -> str:
@@ -55,7 +56,7 @@ def translation_notice(strings, original: dict) -> str:
     before, found, after = strings[TRANSLATION_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
     if not found:
         raise ValueError(f"{TRANSLATION_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original goes.")
-    link = f'<a href="{esc(original["url"])}" hreflang="{esc(original["tag"])}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'
+    link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'
     return f'<p class="markus-translation">{esc(before)}{link}{esc(after)}</p>'
 
 
@@ -67,7 +68,7 @@ def untranslated_notice(strings, original: dict) -> str:
     before, found, after = strings[UNTRANSLATED_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
     if not found:
         raise ValueError(f"{UNTRANSLATED_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original language's page goes.")
-    link = f'<a href="{esc(original["url"])}" hreflang="{esc(original["tag"])}">{esc(strings[UNTRANSLATED_ORIGINAL_KEY])}</a>'
+    link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[UNTRANSLATED_ORIGINAL_KEY])}</a>'
     return f'<p class="markus-untranslated" role="note">{esc(before)}{link}{esc(after)}</p>'
 
 

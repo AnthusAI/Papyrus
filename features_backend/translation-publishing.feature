@@ -27,7 +27,7 @@ Feature: A translation is published as a person's act, with its own gates, and i
     Then the translation is published as "story-waymo--es-419" at "es/articles/bajan-los-choques-de-waymo/index.html"
     And the Spanish page says "Traducido por IA del original en inglés" and links the English page
     And the Story's own text does not contain "Traducido por IA"
-    And the Waymo English page lists hreflang "en" and "es-419" and x-default pointing at itself
+    And the Waymo English page lists hreflang "en" and "es" and x-default pointing at itself
     And the English listings do not list the translation
     And the translation has no checklist steps and no rating of its own
 
@@ -87,7 +87,7 @@ Feature: A translation is published as a person's act, with its own gates, and i
     And the translation's own record is still published
     When the English Story is published again
     Then the Spanish page is back at "es/articles/bajan-los-choques-de-waymo/index.html"
-    And the Waymo English page lists hreflang "en" and "es-419" and x-default pointing at itself
+    And the Waymo English page lists hreflang "en" and "es" and x-default pointing at itself
 
   Scenario: Publishing a translation announces nothing to the English subscribers
     Given the translation run for "es-419" has finished
