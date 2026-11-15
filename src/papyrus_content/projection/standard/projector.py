@@ -280,6 +280,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._own_sites: list[tuple[object, str, SiteIndex]] = []
         self._view_cache: tuple[object, LanguageView] | None = None
 
+    #: Where the words the site's own data gives each language come from (``PublishedContentSource.entity_label_strings``): the section names and descriptions
+    #: in each language, read once with the languages. They lay over the language's interface strings file, so a section's name in Spanish is data, not a copy in Git.
+    _labels_reader: Callable[[tuple[str, ...], tuple[str, ...]], Mapping[str, Mapping[str, str]]] | None = None
+
+    def use_labels(self, reader: Callable[[tuple[str, ...], tuple[str, ...]], Mapping[str, Mapping[str, str]]]) -> None:
+        self._labels_reader = reader
+
     def _serving_languages(self):
         if self._languages_reader is None:
             return None
@@ -302,15 +309,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
         taken = {section.base.split("/")[0] for section in self.standard.sections if section.base} | {custom.path.split("/")[0] for custom in self.standard.pages if custom.path}
         taken |= set(self.standard.static_copy) | {"assets", "css", "_data", "_plugins", self.standard.listings.tag_base, self.standard.listings.flat_path}
         primary_strings = self._interface_strings.get(serving.primary, {})
+        section_ids = tuple(dict.fromkeys(match.group(1) for key in primary_strings if (match := re.fullmatch(r"section\.(.+)\.label", key))))   # the sections the primary language names
+        labels = self._labels_reader(tuple(others), section_ids) if self._labels_reader is not None else {}
+        strings = {**self._interface_strings, **{tag: {**self._interface_strings.get(tag, {}), **labels.get(tag, {})} for tag in others}}
         problems = [f"{serving.primary}: {LANGUAGE_NAME_KEY}"] if not (primary_strings.get(LANGUAGE_NAME_KEY) or "").strip() else []
         required = required_keys(self.standard, primary_strings, edition_nav_hrefs(self.standard))
         for tag in others:
             prefix = serving.prefix(tag)
             if prefix in taken:
                 raise ValueError(f"languages.prefixes: /{prefix}/ for {tag} is already a path of this site; choose another prefix.")
-            strings = self._interface_strings.get(tag, {})
-            own_pages = edition_pages(self.standard, tag, strings, self._static_directory)
-            missing = missing_keys(strings, (*required, *page_keys(own_pages)))
+            own_pages = edition_pages(self.standard, tag, strings.get(tag, {}), self._static_directory)
+            missing = missing_keys(strings.get(tag, {}), (*required, *page_keys(own_pages)))
             if missing:
                 problems.append(f"{tag}: {', '.join(missing)}")
         if problems:
@@ -322,11 +331,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
             child = StandardMarkusProjector(
                 dataclasses.replace(self._settings, plugins=(), public_data=None),
                 {},
-                edition_settings(self.standard, tag, serving.prefix(tag), self._interface_strings[tag], self._static_directory),
+                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag), self._static_directory),
                 hooks=self.hooks,
                 environment=self.environment,
                 renditions=self._given_renditions,
-                interface_strings=self._interface_strings,
+                interface_strings=strings,
                 static_directory=self._static_directory,
             )
             child.version = self.version
@@ -398,10 +407,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
         view = self._language_view(site)
         found = [(self, self._own_site(site, serving.primary))]
         found += [(edition, self._own_site(site, tag)) for tag, edition in self._editions.items()]
-        for edition, _own in found:
+        for edition, own in found:
             edition._view = view
+            edition._check_segments_against_slugs(own)
         self._full_site = site
         return found
+
+    def _primary_page_path(self, custom: CustomPage) -> str:
+        """An authored page's path in the primary language: what joins the editions' localizations of one page (its path is translated in an edition)."""
+        owner = self._primary_edition or self
+        return next((page.path for page in owner.standard.pages if page.id == custom.id), custom.path)
 
     def _canonical_base(self, base: str, section: str | None) -> str:
         """A listing's base in the primary language: what joins the editions' listings of one section (the Concepts are ``wiki/`` there, ``concepts/`` elsewhere)."""
@@ -421,7 +436,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             own = self._own_site(site, tag)
             listed = [entry for entry in edition._entries(own) if entry.listed]
             found = [("", "", listed)] + [(self._canonical_base(base, section), base, members) for base, _label, section, members in edition._listing_groups(listed)]
-            found += [(custom.path, custom.path, [custom]) for custom in edition.standard.pages if custom.languages == "localize" and custom.path]   # an authored page a language renders is an alternate of the others
+            found += [(self._primary_page_path(custom), custom.path, [custom]) for custom in edition.standard.pages if custom.languages == "localize" and custom.path]   # an authored page a language renders is an alternate of the others
             for base, own_base, members in found:
                 bases.setdefault(base, []).append(tag)
                 if own_base != base:
@@ -1944,6 +1959,37 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """The public path of a page key (what rename redirects point at)."""
         return self.policy.url_for_key(key)
 
+    def _check_segments_against_slugs(self, site: SiteIndex) -> None:
+        """Refuses a Story whose slug, served at the root of the edition (its section has no base), is also a translated segment: one address, two pages."""
+        tops = {now.split("/")[0]: english for english, now in self.standard.moved_paths}
+        if not tops:
+            return
+        for entry in self._entries(site):
+            group = entry.section
+            if entry.key and (group is None or not group.base) and entry.summary.slug in tops:
+                raise ValueError(f"languages.segments: the Story {entry.summary.slug!r} and the translated segment of {tops[entry.summary.slug]} would both be served at /{entry.summary.slug}/.")
+
+    def _translated_segment_redirects(self, site: SiteIndex) -> dict[str, str]:
+        """On an edition whose language translates path segments (``languages.segments``): every page the edition serves under a translated path, from its
+        old address with the English segment (``/es/articles/x/``) to its address now (``/es/articulos/x/``). Keys, listing pages, paged listings, feeds and
+        Markdown twins alike; the edge keeps the query string."""
+        pairs = sorted(self.standard.moved_paths, key=lambda pair: len(pair[1]), reverse=True)
+        if not pairs:
+            return {}
+        keys = set(self._plan(site)) | {key for summary in site.items for key in self._own_item_page_paths(summary)}
+        found: dict[str, str] = {}
+        for key in keys:
+            relative = self.policy.relative_key(key)
+            if relative is None:
+                continue
+            for english, now in pairs:
+                if relative == now or relative.startswith(now + "/"):
+                    target = self.policy.url_for_key(key)
+                    for source in request_paths_for_key(self.policy.key(english + relative[len(now):])):
+                        found[source] = target
+                    break
+        return found
+
     def _own_redirects(self, site: SiteIndex) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for summary in site.items:
@@ -1955,6 +2001,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             mapping.update(self.hooks.redirects(self._hook_site(site)))
         for source, target in self.standard.exact_redirects:
             mapping[source] = target
+        mapping.update(self._translated_segment_redirects(site))
         live = {path for key in self._plan(site) for path in request_paths_for_key(key)}
         live |= {path for summary in site.items for key in self._own_item_page_paths(summary) for path in (*request_paths_for_key(key), self.policy.url_for_key(key))}
         return {source: target for source, target in mapping.items() if source not in live and source != target}
@@ -1971,7 +2018,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return ""
         if kind == "custom":   # an authored page that is a listing's own address: the home (path "") or a section's front page
             custom = next((page for page in self.standard.pages if page.id == extra.get("custom_id")), None)
-            return custom.path if custom is not None and custom.path in view.listing_bases else None
+            base = self._primary_page_path(custom) if custom is not None else None
+            return base if base is not None and base in view.listing_bases else None
         listing = extra.get("listing")
         if kind == "listing" and listing is not None and listing.page == 1 and listing.section is not None and not listing.tag and not listing.collection:
             return self._canonical_base(listing.base, listing.section)

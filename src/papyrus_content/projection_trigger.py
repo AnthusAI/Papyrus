@@ -255,5 +255,16 @@ def trigger_projection_as_user(client, task: dict[str, Any], *, sleep=None, cloc
         }
 
 
+def queue_publish_as_user(client, item_id: str) -> dict[str, Any]:
+    """Queue one Story's page build without starting it (``publishItem`` with ``queueOnly``): the answer names its job. A batch queues every Story this way and then
+    asks :func:`drain_publish_queue` once."""
+    return _ask(client, "publishItem", {"id": item_id, "async": True, "queueOnly": True})
+
+
+def drain_publish_queue(client) -> dict[str, Any]:
+    """Ask the site to build everything queued in one invocation, under one hold of the projection lease."""
+    return _ask(client, "publishItem", {"drain": True})
+
+
 def skipped_projection() -> dict[str, Any]:
     return {"skipped": True, "command": PROJECT_ALL_COMMAND}

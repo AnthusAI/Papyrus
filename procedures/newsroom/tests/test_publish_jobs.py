@@ -120,11 +120,13 @@ class FakeLease:
         self.held_by_other = held_by_other
         self.wait_seconds = 120.0
         self.depth = 0
+        self.holds = 0   # how many times the lease was taken, nested holds not counted
 
     @contextmanager
     def held(self):
         if self.held_by_other:
             raise ProjectionLeaseHeld(BUCKET, TABLE, {"owner": "deploy", "purpose": "deploy render", "expiresAt": 1}, self.wait_seconds)
+        self.holds += 1 if self.depth == 0 else 0
         self.depth += 1
         try:
             yield self
@@ -222,6 +224,25 @@ class AsynchronousPublishTest(LockTableCase):
         self.assertTrue(second["projection"]["joined"])
         self.assertEqual(second["projection"]["jobId"], first["projection"]["jobId"])
         self.assertEqual(len(self.scheduled), 1)
+
+    def queue(self, item_id: str) -> dict:
+        return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"id": item_id, "async": True, "queueOnly": True})}, "identity": {"username": "editor", "claims": {}}})
+
+    def drain(self) -> dict:
+        return handler.handler({"fieldName": "publishItem", "arguments": {"input": json.dumps({"drain": True})}, "identity": {"username": "editor", "claims": {}}})
+
+    def test_a_batch_queues_every_story_starts_no_build_and_one_drain_builds_them_all_under_one_lease(self) -> None:
+        published_story(self.client, "story-2")
+        first, second = self.queue("story-1"), self.queue("story-2")
+        self.assertTrue(first["projection"]["queued"] and second["projection"]["queued"])
+        self.assertEqual(self.scheduled, [])   # no projection task per Story: nothing takes the lease yet
+        self.assertTrue(self.drain()["scheduled"])
+        self.assertEqual([task["task"] for task in self.scheduled], ["drain"])   # one task for the whole batch
+        handler.handler({"projectionTask": self.scheduled[0]}, None)
+        self.assertEqual(sorted(self.projected), ["story-1", "story-2"])
+        self.assertEqual(self.lease.holds, 1)   # one hold of the lease built both
+        self.assertEqual(self.jobs_status("story-1")["state"], DONE)
+        self.assertEqual(self.jobs_status("story-2")["state"], DONE)
 
     def test_the_status_follows_the_build_to_its_end(self) -> None:
         published_story(self.client, "story-3", publish=False)   # a first publish: the newsletter hears of it once the page is live

@@ -169,6 +169,7 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   languages.add_argument("--set-public", help="Comma-separated languages the public site serves besides the primary.")
   languages.add_argument("--set-prefix", action="append", help="TAG=PREFIX: the URL prefix of one language.")
   languages.add_argument("--set-slug", action="append", help="TAG=POLICY: translated, characters, pinyin or primary.")
+  languages.add_argument("--set-segment", action="append", help="TAG:SEGMENT=TRANSLATED: the path segment of a section, type or page in one language.")
   languages.add_argument("--auto", choices=("on", "off"), help="Translate every Story into every enabled language when it is published.")
   languages.add_argument("--auto-automation", help="The Automation that runs the translation procedure.")
   languages.add_argument("--auto-publish", choices=("on", "off"), help="Publish the translations a run saved cleanly.")

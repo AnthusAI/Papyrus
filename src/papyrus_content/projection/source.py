@@ -149,6 +149,23 @@ class PublishedContentSource:
 
         return serving_languages(settings_from_row(self._client.get_record("EditorialCheckSettings", "settings")))
 
+    def entity_label_strings(self, tags: tuple[str, ...], section_ids: tuple[str, ...]) -> dict[str, dict[str, str]]:
+        """``{language: {"section.<id>.label": name, "section.<id>.description": text}}`` from the current section labels of each language: one query per
+        section for all its languages. The section ids are the ones the primary language's interface strings name. A held, stale or missing label gives
+        nothing, so a page never shows words nobody checked."""
+        from ..entity_labels.keys import CURRENT, PREFERRED, SECTION, entity_key
+        from ..entity_labels.store import LabelStore
+
+        found: dict[str, dict[str, str]] = {tag: {} for tag in tags}
+        store = LabelStore(self._client)
+        for section_id in section_ids:
+            for row in store.of_entity(entity_key(SECTION, section_id)):
+                if row.get("language") in found and row.get("role") == PREFERRED and row.get("syncState") == CURRENT:
+                    found[row["language"]][f"section.{section_id}.label"] = row["text"]
+                    if row.get("description"):
+                        found[row["language"]][f"section.{section_id}.description"] = row["description"]
+        return found
+
     def published_row(self, item_id: str) -> dict | None:
         item = self._client.get_record("Item", item_id)
         if item is None:

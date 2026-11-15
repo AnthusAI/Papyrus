@@ -269,7 +269,7 @@ def validate_document(kind: str, document: Any, scope: str = "publication") -> l
 
 
 GLOSSARY_KIND = "glossary"
-GLOSSARY_ENTRY_KEYS = ("term", "translations", "doNotTranslate", "note", "caseSensitive", "originalOnFirstMention")
+GLOSSARY_ENTRY_KEYS = ("term", "translations", "variants", "exceptIn", "doNotTranslate", "note", "caseSensitive", "originalOnFirstMention")
 
 
 def translation_glossary_entries(value: Any) -> str | None:
@@ -293,6 +293,11 @@ def translation_glossary_entries(value: Any) -> str | None:
             return f"entry {index} ({entry['term']}) needs either translations or doNotTranslate: true"
         if translations is not None and (not isinstance(translations, list) or not translations or not all(_is_text(t) for t in translations)):
             return f"entry {index}: translations must be a list of approved renderings, the preferred first"
+        for key, what in (("variants", "further forms the translation may use (a plural, an adjective)"), ("exceptIn", "longer names the term does not count in")):
+            if key in entry and (not isinstance(entry[key], list) or not entry[key] or not all(_is_text(t) for t in entry[key])):
+                return f"entry {index}: {key} must be a list of {what}"
+        if "variants" in entry and translations is None:
+            return f"entry {index} ({entry['term']}): variants belong to a term that is translated"
         for flag in ("caseSensitive", "originalOnFirstMention"):
             if flag in entry and not isinstance(entry[flag], bool):
                 return f"entry {index}: {flag} must be true or false"

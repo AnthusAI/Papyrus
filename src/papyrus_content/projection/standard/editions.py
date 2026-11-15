@@ -24,6 +24,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from ...item_language import is_localization_of
+from ...url_paths import encoded_path
 from ..model import ItemSummary
 from .config import NavLink, StandardSettings
 from .interface_strings import LANGUAGE_NAME_KEY
@@ -104,7 +105,7 @@ class LanguageView:
         empty = self.empty_bases.get(base, ())
         paths = self.listing_paths.get(base, {})
         return tuple(
-            Alternate(tag, self.names[tag], "/" + self.roots[tag] + (f"{paths.get(tag, base)}/" if base else ""), tag not in empty)
+            Alternate(tag, self.names[tag], encoded_path("/" + self.roots[tag] + (f"{paths.get(tag, base)}/" if base else "")), tag not in empty)
             for tag in self.public if tag in tags
         )
 
@@ -154,6 +155,25 @@ def localized(text: str, strings: Mapping[str, str], key: str) -> str:
     return strings[key] if text else text
 
 
+def translate_path(path: str, segments: Mapping[str, str]) -> str:
+    """An English edition path (``articles``, ``security/videos``, with or without slashes at the ends) with each segment replaced by its translation in
+    the language's table (``languages.segments``); a segment the table does not list keeps its English form. Applies to the segments of a section, type or
+    authored page path, never to a Story's slug."""
+    return "/".join(segments.get(part, part) for part in path.split("/"))
+
+
+def check_segment_collisions(standard: StandardSettings, tag: str, segments: Mapping[str, str]) -> None:
+    """Refuses a table under which two different top-level paths of the edition (a section's base, an authored page's path) would be served at one address,
+    for example ``posts`` translated to ``articles`` while ``articles`` stays English."""
+    owners: dict[str, str] = {}
+    paths = [edition_base(standard, section) for section in standard.sections if section.base] + [custom.path for custom in standard.pages if custom.path]
+    for path in paths:
+        english = path.split("/")[0]
+        top = segments.get(english, english)
+        if owners.setdefault(top, english) != english:
+            raise ValueError(f"languages.segments.{tag}: {owners[top]} and {english} would both be served at /{top}/.")
+
+
 def localized_source(source: str | None, tag: str) -> str | None:
     """The file of an authored page in a language: ``pages/findings.md`` is ``pages/findings.es-419.md`` in es-419."""
     if not source:
@@ -162,7 +182,7 @@ def localized_source(source: str | None, tag: str) -> str | None:
     return f"{stem}.{tag}.{suffix}" if dot else f"{source}.{tag}"
 
 
-def edition_pages(standard: StandardSettings, tag: str, strings: Mapping[str, str], static_directory) -> tuple:
+def edition_pages(standard: StandardSettings, tag: str, strings: Mapping[str, str], static_directory, segments: Mapping[str, str] | None = None) -> tuple:
     """The authored pages a language renders: those that opt in (``languages: "localize"``) and have a file in the language. Each is the page with its title and
     description from ``page.<id>.title`` and ``page.<id>.description`` and its source the language's file. A page without a file is not rendered in the language
     (no fallback to the primary's text), so it is no alternate and a site's links to it stay on the primary page."""
@@ -171,18 +191,18 @@ def edition_pages(standard: StandardSettings, tag: str, strings: Mapping[str, st
         source = localized_source(custom.source, tag) if custom.languages == "localize" else None
         if source and static_directory is not None and (static_directory / source).is_file():
             found.append(dataclasses.replace(
-                custom, source=source, title=strings.get(f"page.{custom.id}.title", custom.title),
+                custom, source=source, path=translate_path(custom.path, segments or {}), title=strings.get(f"page.{custom.id}.title", custom.title),
                 description=strings.get(f"page.{custom.id}.description", custom.description) if custom.description else custom.description, languages="localize"))
     return tuple(found)
-
-
-def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str], static_directory=None) -> StandardSettings:
+def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str], segments: Mapping[str, str] | None = None, static_directory=None) -> StandardSettings:
     """The settings of the ``tag`` edition: the site's settings, its words in the language, its pages under the prefix, and only what an edition renders.
 
     An edition renders the language's Story pages, its home and section listings (with paging and archives), its feeds and sitemap. It renders no
     authored page, collection, tag page, showcase, Reference grid, plugin page, form, page action or ``llms.txt``: their words are the primary
     language's, and an English page inside a Spanish edition is what the rule forbids. Navigation keeps the home and the section listings, named in
     the language; every other link leaves the edition and is dropped."""
+    segments = segments or {}
+    check_segment_collisions(standard, tag, segments)
     identity = dataclasses.replace(
         standard.identity, language=tag,
         description=localized(standard.identity.description, strings, "site.description"),
@@ -191,23 +211,28 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
     sections = tuple(
         dataclasses.replace(
             section,
-            base=edition_base(standard, section),
+            base=translate_path(edition_base(standard, section), segments),
             label=strings[f"section.{section.name}.label"] if section.listing and section.listing_page else section.label,
             description=localized(section.description, strings, f"section.{section.name}.description") if section.listing and section.listing_page else section.description,
             index=None,   # a section front page carries a Reference grid and authored words
         )
         for section in standard.sections
     )
-    pages = edition_pages(standard, tag, strings, static_directory)
+    pages = edition_pages(standard, tag, strings, static_directory, segments)
     home_page = dataclasses.replace(standard.home_page, forum=None) if pages and standard.home_page is not None else None   # the pages' References and threads; no thread pages of its own
     hrefs = edition_nav_hrefs(standard)
-    moved = {f"/{section.base}/": f"/{edition_base(standard, section)}/" for section in standard.sections if section.base}
-    nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href=f"/{prefix}" + moved.get(link.href, link.href), cta=link.cta)
+    moved = {f"/{section.base}/": f"/{translate_path(edition_base(standard, section), segments)}/" for section in standard.sections if section.base}
+    #: ``(the address the edition used before its segments were translated, the address now)`` for each section: the edge redirects the first to the second.
+    moved_paths = tuple((english, now) for section in standard.sections if section.base
+                        for english, now in [(edition_base(standard, section), translate_path(edition_base(standard, section), segments))] if english != now) + tuple(
+        (original.path, custom.path) for original in standard.pages for custom in pages if original.id == custom.id and original.path != custom.path)
+    nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href=encoded_path(f"/{prefix}" + moved.get(link.href, link.href)), cta=link.cta)
                 for link in standard.nav if link.href in hrefs)
     return dataclasses.replace(
         standard,
         identity=identity,
         language_prefix=prefix,
+        moved_paths=moved_paths,
         sections=sections,
         nav=nav,
         collections=(),

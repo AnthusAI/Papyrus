@@ -444,6 +444,7 @@ PORTED_COMMANDS = frozenset(
         "newsroom:set-doctrine",
         "newsroom:update-section",
         "newsroom:section-concepts",
+        "newsroom:section-labels",
         "newsroom:seed-required-procedures",
         "newsroom:register-procedure",
         "automations:list",
@@ -1093,6 +1094,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "newsroom:update-section":
         from .section_editing import sections_update
         sections_update(flags)
+    elif route == "newsroom:section-labels":
+        from .section_labels import sections_labels
+
+        sections_labels(flags)
     elif route == "newsroom:section-concepts":
         from .section_concepts import sections_concepts
         sections_concepts(flags)
@@ -2053,7 +2058,7 @@ def print_usage() -> None:
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish-gate show | set --approval required|not_required [--dry-run] [--json]  (the site's publish approval setting; default not_required),")
-    print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally; signed in with `papyrus login` it asks the newsroom's publishItem/unpublishItem mutation instead; each stage (saved, projected, cache invalidated, publicly verified) is reported on its own, --verify [--verify-seconds N] waits for the public page, and the exit code names the failed stage: 1 save, 3 checklist open (--json lists openSteps), 4 page not built, 5 page still building, 6 cache not purged, 7 public page stale (docs/site-hosting.md); publish refuses a placeholder draft-<section>-<hash> slug: run `stories set-slug` first; a translation (`<story>--<language>`) publishes only while its original is published, and a held one only after a person answers its review request: docs/story-translation-procedure.md),")
+    print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (several --id, or --batch, publish them as one batch in the signed-in lane: every version is saved, each page build is queued without starting one, and the site builds the queue once under one hold of the projection lease, so a backfill never fights a deploy; s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally; signed in with `papyrus login` it asks the newsroom's publishItem/unpublishItem mutation instead; each stage (saved, projected, cache invalidated, publicly verified) is reported on its own, --verify [--verify-seconds N] waits for the public page, and the exit code names the failed stage: 1 save, 3 checklist open (--json lists openSteps), 4 page not built, 5 page still building, 6 cache not purged, 7 public page stale (docs/site-hosting.md); publish refuses a placeholder draft-<section>-<hash> slug: run `stories set-slug` first; a translation (`<story>--<language>`) publishes only while its original is published, and a held one only after a person answers its review request: docs/story-translation-procedure.md),")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  cyclotron export-priming --publication ID --corpus-key KEY [--include-unlabeled] [--out FILE]  (read-only: a publication's editor labels as JSON Lines for a Cyclotron's priming import),")
     print("  cyclotron export-examples --classifier reference-link-fit|idea-pack-fit --corpus-id ID [--split train|held-out|all] [--held-out-share 0.3] [--out FILE]  (read-only: decisions people made as labeled examples, with their reasons, for the site Cyclotron's retraining round),")
