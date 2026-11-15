@@ -6,6 +6,7 @@ consumer itself makes (the language, the label rows) never start another round o
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -29,6 +30,17 @@ def changed(old: dict[str, Any] | None, new: dict[str, Any]) -> bool:
     return old is None or any(old.get(name) != new.get(name) for name in WATCHED)
 
 
+def site_primary_language(client: Any) -> str:
+    """The site's primary language, as the editorial check settings store it (``languages.primary``). Read straight from the row: the settings are validated
+    when they are saved, and checking the tag against Humanus's language packs here would put Humanus in the consumer's bundle for nothing."""
+    row = client.get_record("EditorialCheckSettings", "settings")
+    values = json.loads(row["settings"]) if row and isinstance(row.get("settings"), str) else (row or {}).get("settings") or {}
+    primary = (values.get("languages") or {}).get("primary")
+    if not primary:
+        raise ValueError("The editorial check settings name no primary language yet, so a concept's language cannot be set.")
+    return str(primary)
+
+
 def handle_changes(events: list[dict[str, Any]], client: Any, *, now: str | None = None) -> dict[str, int]:
     """``events`` are ``{"event": INSERT|MODIFY|REMOVE, "old": row|None, "new": row|None}``. Counts of the label rows written."""
     totals = {"nodes": 0, "created": 0, "updated": 0, "deleted": 0, "language": 0, "stale": 0}
@@ -46,7 +58,7 @@ def handle_changes(events: list[dict[str, Any]], client: Any, *, now: str | None
             continue
         if not _current(new) or not changed(old, new):
             continue
-        primary = primary or client.primary_language()
+        primary = primary or site_primary_language(client)
         counts = sync_node(client, new, primary_language=primary, now=stamp)
         totals["nodes"] += 1
         for name, value in counts.items():

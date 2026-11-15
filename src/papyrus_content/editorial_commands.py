@@ -7,7 +7,7 @@
     papyrus editorial policies list | import-starter NAME | ensure-defaults
     papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
     papyrus editorial policies export --file PACK [--language TAG] [--pack-id ID] [--pack-version V]
-    papyrus editorial languages [--set-public TAGS] [--set-prefix TAG=PREFIX ...] [--set-slug TAG=POLICY ...] [--set-segment TAG:SEGMENT=TRANSLATED ...] [--auto on|off] [--auto-automation ID] [--auto-publish on|off] [--dry-run] [--json]
+    papyrus editorial languages [--enable TAGS] [--disable TAGS] [--set-public TAGS] [--set-prefix TAG=PREFIX ...] [--set-slug TAG=POLICY ...] [--set-segment TAG:SEGMENT=TRANSLATED ...] [--auto on|off] [--auto-automation ID] [--auto-publish on|off] [--dry-run] [--json]
     papyrus editorial check-version --item VERSION_ID [--json]
     papyrus editorial check-drafts [--limit N] [--dry-run]
 
@@ -40,14 +40,16 @@ from .editorial_checks import (
     check_editorial,
     ensure_default_policies,
     import_starter_pack,
+    plan_default_policies,
     policy_identity,
     put_languages,
     record_from_policy,
     settings_from,
     suggest_rewrite,
 )
-from .editorial_languages import ANY_LANGUAGE, primary_language, site_language
-from .language_serving import checked_serving, describe_serving, edit_serving
+from .editorial_languages import ANY_LANGUAGE, canonical, primary_language, site_language
+from .editorial_languages import registers_for
+from .language_serving import checked_serving, describe_serving, edit_enabled, edit_serving
 
 STORY_HELP = "The story (lineage id or slug) this draft revises, so its own saved versions are not compared as other stories by the cross-story boilerplate check."
 LANGUAGE_HELP = "Language of the draft (en, es-419, zh-Hans ...). Default: the site's primary language, the language its Stories are written in."
@@ -269,6 +271,12 @@ def editorial_languages(flags: list[str]) -> None:
         description="Show how the site serves its languages, or change it: which enabled languages are public (the primary always is), each language's URL "
                     "prefix and each language's slug policy. Writes unless --dry-run. The same rules as the console form, checked before anything is saved.",
     )
+    parser.add_argument("--enable", default=None, metavar="TAGS",
+                        help="Comma-separated BCP 47 tags (es-419, zh-Hans) the site starts writing in. Each must be a language Humanus has a pack for. The language is enabled, never public "
+                             "(--set-public does that), and its starter policy packs are imported. Enabling an enabled language changes nothing but still brings any starter pack not yet imported.")
+    parser.add_argument("--disable", default=None, metavar="TAGS",
+                        help="Comma-separated languages the site stops writing in; takes their public flag, prefix, slug policy and segments with them. Refused for the primary language and for "
+                             "a language that has translations.")
     parser.add_argument("--set-public", default=None, metavar="TAGS", help="Comma-separated languages the public site serves, besides the primary (which always is). An empty list makes only the primary public.")
     parser.add_argument("--set-prefix", action="append", default=[], metavar="TAG=PREFIX", help="URL prefix of one language (repeat for several). TAG= returns it to the default, its base subtag.")
     parser.add_argument("--set-slug", action="append", default=[], metavar="TAG=POLICY", help="Slug policy of one language: translated, characters, pinyin or primary. TAG= returns it to the default.")
@@ -288,31 +296,122 @@ def editorial_languages(flags: list[str]) -> None:
     checked_serving(before)   # a stored setting that breaks a rule is said first; edits are checked on top of it
     auto_edit = {key: value for key, value in (("enabled", None if args.auto is None else args.auto == "on"), ("automation", args.auto_automation),
                                                 ("publish", None if args.auto_publish is None else args.auto_publish == "on")) if value is not None}
-    editing = args.set_public is not None or args.set_prefix or args.set_slug or args.set_segment or auto_edit
+    enable = _tags(args.enable, "--enable")
+    disable = _tags(args.disable, "--disable")
+    listing = args.set_public is not None or args.set_prefix or args.set_slug or args.set_segment or auto_edit
+    editing = bool(listing or enable or disable)
     after = before
-    if editing:
+    if enable or disable:
+        after = edit_enabled(after, enable=enable, disable=disable)
+        removed = [tag for tag in site_languages_of(before) if tag not in site_languages_of(after)]
+        if removed:
+            refuse_translated(removed, translation_counts(removed))
+    if listing:
         after = edit_serving(
-            before,
+            after,
             public=None if args.set_public is None else [tag.strip() for tag in args.set_public.split(",") if tag.strip()],
             prefixes=_tag_values(args.set_prefix, "--set-prefix") or None,
             slugs=_tag_values(args.set_slug, "--set-slug") or None,
             segments=_segment_values(args.set_segment) or None,
             auto=auto_edit or None,
         )
+    packs = plan_default_policies(store, after) if enable else {}
+    added = [tag for tag in site_languages_of(after) if tag not in site_languages_of(before)]
+    due = {name: step for name, step in packs.items() if not step["alreadyApplied"]}
+    notice = sys.stderr if args.json else sys.stdout
     if args.json:
-        _emit({"languages": after, "serving": describe_serving(after), "written": bool(editing and not args.dry_run and after != before)}, None)
+        _emit({"languages": after, "serving": describe_serving(after), "written": bool(editing and not args.dry_run and (after != before or due)),
+               "enabled": added, "disabled": [tag for tag in site_languages_of(before) if tag not in site_languages_of(after)],
+               "starterPacks": packs, "next": next_commands(added)}, None)
     else:
         for line in format_languages(after):
             print(line)
     if not editing:
         return
-    if after == before:
-        print("Nothing to change: the setting already says this.", file=sys.stderr if args.json else sys.stdout)
+    removed = [tag for tag in site_languages_of(before) if tag not in site_languages_of(after)]
+    nothing = after == before and not due
+    if not nothing and not args.dry_run:
+        if after != before:
+            put_languages(store, after)
+        if enable:
+            ensure_default_policies(store)
+    verb = "Would" if args.dry_run else "Did"
+    for tag in added:
+        print(f"{verb} enable {tag}: written, translated and checked, not public (no page until --set-public {tag}).", file=notice)
+    for tag in removed:
+        print(f"{verb} disable {tag}: its public flag, prefix, slug policy and segments go with it; its policies stay.", file=notice)
+    for name, step in due.items():
+        print(f"{verb} import the starter pack {name}: {step['policies']} policies not on the site yet.", file=notice)
+    if nothing:
+        print("Nothing to change: the setting already says this.", file=notice)
     elif args.dry_run:
-        print("Dry run: nothing was written.", file=sys.stderr if args.json else sys.stdout)
+        print("Dry run: nothing was written.", file=notice)
     else:
-        put_languages(store, after)
-        print("Saved. The next projection serves the languages as above.", file=sys.stderr if args.json else sys.stdout)
+        print("Saved. The next projection serves the languages as above.", file=notice)
+    if added and not args.dry_run:
+        print("Next:", file=notice)
+        for line in next_commands(added):
+            print(f"  {line}", file=notice)
+    elif added:
+        print("After it is written, the next steps are:", file=notice)
+        for line in next_commands(added):
+            print(f"  {line}", file=notice)
+
+
+def _tags(value: str | None, flag: str) -> list[str]:
+    """The tags of a comma-separated flag value; a flag with no tag in it is refused."""
+    if value is None:
+        return []
+    tags = [tag.strip() for tag in value.split(",") if tag.strip()]
+    if not tags:
+        raise ValueError(f"{flag} takes language tags such as es-419 or zh-Hans, separated by commas.")
+    return tags
+
+
+def site_languages_of(languages: dict[str, Any]) -> list[str]:
+    """The enabled languages of a ``languages`` object, in Humanus's spelling."""
+    return [canonical(tag) for tag in languages.get("enabled") or []]
+
+
+def translation_counts(tags: list[str]) -> dict[str, int]:
+    """How many Stories the site holds as translations into each of ``tags``: the translations' own rows (language group other than their lineage),
+    read through the version-state index, the same read ``papyrus stories languages`` makes. Only asked before a language is disabled."""
+    from .graphql_authoring import create_authoring_client
+    from .item_language import LANGUAGE_FIELD, localization_original
+    from .item_language_backfill import read_rows
+
+    client, _ = create_authoring_client()
+    tenant = getattr(client, "tenant_id", None)
+    lineages: dict[str, set[str]] = {tag: set() for tag in tags}
+    for row in read_rows(client):
+        language = row.get(LANGUAGE_FIELD)
+        if language and canonical(language) in lineages and localization_original(row, tenant):
+            lineages[canonical(language)].add(str(row.get("lineageId") or row["id"]))
+    return {tag: len(found) for tag, found in lineages.items()}
+
+
+def refuse_translated(tags: list[str], counts: dict[str, int]) -> None:
+    held = {tag: counts.get(tag, 0) for tag in tags if counts.get(tag, 0)}
+    if held:
+        what = "; ".join(f"{tag} has {count} translated {'Story' if count == 1 else 'Stories'}" for tag, count in held.items())
+        raise ValueError(f"Not disabled: {what}. Taking a language out of the site's languages would leave those translations with a language the site does not write in, "
+                         "and a published one without its page. Nothing was changed.")
+
+
+def next_commands(tags: list[str]) -> list[str]:
+    """What an editor does after enabling ``tags``: the language's guidelines, the translation, and going public."""
+    lines: list[str] = []
+    for tag in tags:
+        register = registers_for(tag)
+        starter = Path(__file__).parent / "data" / "glossary" / f"{tag}.json"
+        lines.append(f"papyrus guidelines save --kind writing --language {tag} --file OVERLAY.json   # {tag} tone, words to prefer and avoid"
+                     + (f", and register ({' or '.join(register)})" if register else "") + "; the translator and the judge both read it")
+        lines.append(f"papyrus guidelines save --kind glossary --language {tag} --file "
+                     + (str(starter) if starter.exists() else "GLOSSARY.json")
+                     + f" --reason \"Starter glossary\" --expected-current-version-id none")
+        lines.append(f"papyrus stories localize --story LINEAGE --language {tag} --dry-run   # the plan for one Story")
+        lines.append(f"papyrus editorial languages --set-public {tag}   # when its interface strings are complete and translations are ready for readers")
+    return lines
 
 
 def editorial_policies_pack(store, args: argparse.Namespace) -> None:

@@ -540,6 +540,24 @@ def ensure_default_policies(store: EditorialStore, packs: tuple[str, ...] | None
     return {"packs": results, "defaultStarterPacks": applied, "policyLanguagesWritten": languages_written}
 
 
+def plan_default_policies(store: EditorialStore, languages: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """What :func:`ensure_default_policies` would do for a site whose ``languages`` setting is ``languages``, writing nothing: for each default starter
+    pack of its enabled languages, ``{"alreadyApplied": True}`` or ``{"alreadyApplied": False, "policies": N}`` (the policies it would add)."""
+    stored = store.get_settings()
+    applied = list(_json((stored or {}).get("settings"), {}).get("defaultStarterPacks") or [])
+    primary = primary_language(settings_from(store))
+    existing = {policy_identity({**record, "language": record.get("language") or older_policy_language(record, primary)}) for record in store.list_policies()}
+    plan: dict[str, dict[str, Any]] = {}
+    for name in default_starter_packs({**DEFAULT_SETTINGS, "languages": languages}):
+        if name in applied:
+            plan[name] = {"alreadyApplied": True}
+            continue
+        pack = builtin_pack(name)
+        records = (record_from_policy(policy, scope=PUBLICATION_SCOPE, language=pack["language"], source=f"starter:{name}") for policy in pack["policies"])
+        plan[name] = {"alreadyApplied": False, "policies": sum(policy_identity(record) not in existing for record in records)}
+    return plan
+
+
 FINDING_SUMMARY_FIELDS = ("id", "policyId", "severity", "status", "message", "excerpt", "probability")
 
 

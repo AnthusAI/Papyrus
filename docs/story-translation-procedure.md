@@ -27,7 +27,7 @@ publishes: the result is published by a person, or by the site's own switches fo
 
 A site needs four things before a run starts; none is an Automation, a monitor or a router publication.
 
-1. **The language is enabled**: `languages.enabled` of the editorial check settings names it (`es-419`); it stays out of `languages.public` until the owner decides.
+1. **The language is enabled**: `papyrus editorial languages --enable es-419` (add `--dry-run` to see it first) puts it in `languages.enabled` of the editorial check settings and imports its starter policy packs; it stays out of `languages.public` until the owner decides (`--set-public`). The command prints the next steps below as commands.
 2. **The procedure is registered once**, under the key `SITE.story-localize` where SITE is the site's host (`newsroom.example.com.story-localize`). Register it again
    after a release that changes `procedures/newsroom/story_localize.tac` (the procedure's input is checked against the registered version):
 

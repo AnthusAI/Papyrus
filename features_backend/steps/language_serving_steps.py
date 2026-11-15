@@ -68,6 +68,8 @@ class LanguageSite:
         self.pages: list[dict] = []          # authored pages written into projection.json
         self.page_files: dict[str, str] = {}   # static-directory path -> text
 
+        self.notice = None   # the publication's notice (satire), when the scenario's site has one
+
     def build(self) -> None:
         static = self.work / "web"
         (static / "strings").mkdir(parents=True, exist_ok=True)
@@ -81,6 +83,10 @@ class LanguageSite:
         for relative, text in self.page_files.items():
             (static / relative).parent.mkdir(parents=True, exist_ok=True)
             (static / relative).write_text(text, encoding="utf-8")
+
+        if self.notice:
+            projection["site"]["notice"] = self.notice
+            projection["feeds"] = {"formats": ["rss", "atom"]}
         (static / "projection.json").write_text(json.dumps(projection), encoding="utf-8")
         for path in (static / "strings").glob("*.json"):
             path.unlink()
@@ -710,3 +716,35 @@ def step_page_absent_or_redirect(context, key):
         text = site.text(key)
         assert 'http-equiv="refresh"' in text or "/es/hallazgos/" in text, site.keys()
 
+
+@given('the site\'s notice is "{label}" and "{text}" and Spanish says "{label_es}" and "{text_es}"')
+def step_notice(context, label, text, label_es, text_es):
+    site = _site(context)
+    site.notice = {"label": label, "text": text}
+    site.strings["es-419"]["notice.label"] = label_es
+    site.strings["es-419"]["notice.text"] = text_es
+    site.strings["zh-Hans"]["notice.label"] = label_es
+    site.strings["zh-Hans"]["notice.text"] = text_es
+    site.build()
+
+
+@then("the Spanish page, its Markdown twin, the Spanish feeds and the Spanish page's structured data say the notice in Spanish and not in English")
+def step_notice_spanish(context):
+    site = _site(context)
+    page = site.text("es/articles/el-sonido/index.html")
+    assert "Sátira" in page and "Todo lo que hay en este sitio es inventado." in page
+    assert '"genre":"Sátira"' in page, "structured data"
+    twin = site.text("es/articles/el-sonido/index.md")
+    assert "> **Sátira.** Todo lo que hay en este sitio es inventado." in twin, twin
+    assert "Everything on this site is invented" not in twin
+    for key in ("es/feed.xml", "es/atom.xml"):
+        feed = site.text(key)
+        assert "Sátira. " in feed and "Satire. " not in feed, (key, feed[:600])
+
+
+@then("the English page, its Markdown twin and the English feed still say it in English")
+def step_notice_english(context):
+    site = _site(context)
+    assert '"genre":"Satire"' in site.text("articles/the-sound/index.html")
+    assert "> **Satire.** Everything on this site is invented." in site.text("articles/the-sound/index.md")
+    assert "Satire. " in site.text("feed.xml")

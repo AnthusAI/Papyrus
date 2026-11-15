@@ -26,6 +26,13 @@ class FakeSite:
     def primary_language(self) -> str:
         return self.primary
 
+    def get_record(self, model: str, record_id: str) -> dict | None:
+        if model == "EditorialCheckSettings":
+            import json as _json
+
+            return {"id": "settings", "settings": _json.dumps({"languages": {"primary": self.primary, "enabled": [self.primary]}})}
+        return copy.deepcopy(self.tables[model].get(record_id))
+
     def add_node(self, lineage: str, key: str, name: str, *, aliases: list[str] | None = None, description: str = "", status: str = "accepted", language: str | None = None) -> dict:
         row = {"id": f"{lineage}-v1", "lineageId": lineage, "versionNumber": 1, "versionState": "current", "nodeKey": key, "nodeKind": key.split("--")[0],
                "displayName": name, "aliases": aliases or [], "description": description, "status": status, **({"language": language} if language else {})}
@@ -40,9 +47,6 @@ class FakeSite:
         model, field = INDEXES[index]
         self.queries.append((index, key))
         return copy.deepcopy([row for row in self.tables[model].values() if row.get(field) == key])
-
-    def get_record(self, model: str, record_id: str) -> dict | None:
-        return copy.deepcopy(self.tables[model].get(record_id))
 
     def create_record(self, model: str, row: dict) -> None:
         assert row["id"] not in self.tables[model], f"{model} {row['id']} exists"

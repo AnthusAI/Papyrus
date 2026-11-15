@@ -81,15 +81,36 @@ def _raise_hold(client: Any, source: LabelSource, language: str, outcome: Outcom
                  raised_by="papyrus.label.localize", request_id=f"label-{source.kind}-{source.entity_id}-{language}".lower().replace("#", "-"))
 
 
+def save_approved_sections(client: Any, approved: dict[str, dict[str, Any]], *, descriptions: dict[str, dict[str, str]], reviewed_by: str) -> list[dict[str, Any]]:
+    """Save wording a person has read and approved: ``{section: {language: {"name", "description"}}}``. Each is the label (pinned, current, AI-translated, reviewer recorded)."""
+    from .editorial_checks import GraphQLEditorialStore, settings_from
+    from .editorial_languages import primary_language, site_language
+    from .entity_labels.translate import save_approved
+
+    settings = settings_from(GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
+    sources = {source.entity_id: source for source in section_sources(client, primary_language(settings), descriptions, list(approved))}
+    report = []
+    for section_id, by_language in approved.items():
+        for tag, words in by_language.items():
+            if not isinstance(words, dict) or not words.get("name"):
+                continue
+            language = site_language(tag, settings)
+            outcome = save_approved(client, sources[section_id], language, name=words["name"], description=words.get("description") or "", reviewed_by=reviewed_by)
+            report.append({"section": section_id, "language": language, "state": "current", "name": outcome.draft.name, "description": outcome.draft.description, "reasons": [], "costUsd": 0.0})
+    return report
+
+
 def sections_labels(flags: list[str], *, client: Any = None) -> None:
-    """papyrus sections labels --language TAG [--language TAG ...] [--descriptions-file FILE] [--section ID ...] [--dry-run] [--json]
+    """papyrus sections labels (--language TAG [--language TAG ...] | --approved-file FILE [--reviewed-by TEXT]) [--descriptions-file FILE] [--section ID ...] [--dry-run] [--json]
 
     Translate the name and short description of each enabled section into each language and save them as that language's section labels (clean ones are
     current and the next projection reads them; a held one raises a review request and is never published). Needs a model key (OPENAI_API_KEY) and the
     operator lane (`papyrus --auth iam`). A label made from the current words is skipped, a person's wording is never overwritten, and --dry-run
     makes the labels (and pays for them) without saving anything."""
     parser = argparse.ArgumentParser(prog="papyrus sections labels", description=sections_labels.__doc__)
-    parser.add_argument("--language", action="append", required=True)
+    parser.add_argument("--language", action="append", default=[])
+    parser.add_argument("--approved-file", help="JSON {section: {language: {name, description}}} of wording a person has read and approved; saved as the labels instead of translating")
+    parser.add_argument("--reviewed-by", default="a person's review")
     parser.add_argument("--descriptions-file")
     parser.add_argument("--section", action="append", default=[])
     parser.add_argument("--dry-run", action="store_true")
@@ -100,6 +121,14 @@ def sections_labels(flags: list[str], *, client: Any = None) -> None:
 
         client, _ = create_authoring_client()
     descriptions = read_descriptions(args.descriptions_file)
+    if args.approved_file:
+        approved = {section: {tag: words for tag, words in by_language.items() if isinstance(words, dict)} for section, by_language in json.loads(Path(args.approved_file).read_text(encoding="utf-8")).items()}
+        report = save_approved_sections(client, approved, descriptions=descriptions, reviewed_by=args.reviewed_by)
+        for row in report:
+            print("\t".join([row["section"], row["language"], row["state"], row["name"]]))
+        return
+    if not args.language:
+        raise ValueError("Give --language TAG (repeat), or --approved-file FILE.")
     ids = args.section or list(descriptions)
     if not ids:
         raise ValueError("Name the sections: --section ID (repeat), or --descriptions-file FILE, whose sections are all named.")
