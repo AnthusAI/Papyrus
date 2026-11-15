@@ -41,6 +41,8 @@ Resources:
                 Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate, cloudformation:ListChangeSets]
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner-repository/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
               - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
                 Effect: Allow
@@ -89,12 +91,16 @@ Resources:
                   - cloudformation:DeleteChangeSet
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner-repository/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
               - Sid: CreateChangeSetsOnlyThroughTheServiceRole
                 Effect: Allow
                 Action: cloudformation:CreateChangeSet
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner-repository/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
                 Condition:
                   StringEquals:
@@ -106,6 +112,16 @@ Resources:
                 Condition:
                   StringEquals:
                     "iam:PassedToService": cloudformation.amazonaws.com
+              # The release builds the procedure runner image (infra/procedures/build_image.py) and pushes it to the one repository; the lookup that
+              # finds the repository to import reads it. Pushing is the only write, and only to that repository.
+              - Sid: LogInToEcr
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: PushTheRunnerImage
+                Effect: Allow
+                Action: [ecr:DescribeRepositories, ecr:DescribeImages, ecr:BatchCheckLayerAvailability, ecr:BatchGetImage, ecr:GetDownloadUrlForLayer, ecr:InitiateLayerUpload, ecr:UploadLayerPart, ecr:CompleteLayerUpload, ecr:PutImage]
+                Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/papyrus-procedure-runner
               - Sid: ZipsAndTemplatesUnderOnePrefix
                 Effect: Allow
                 Action: [s3:PutObject, s3:GetObject]
@@ -186,6 +202,11 @@ Resources:
             Effect: Allow
             Action: s3:GetObject
             Resource: !Sub arn:${AWS::Partition}:s3:::cdk-*-assets-${AWS::AccountId}-${AWS::Region}/papyrus-monitoring/*
+          # The runner's repository (imported by the release, then kept) and the image the runner function is created from.
+          - Sid: TheRunnerRepository
+            Effect: Allow
+            Action: [ecr:DescribeRepositories, ecr:ListTagsForResource, ecr:TagResource, ecr:UntagResource, ecr:GetRepositoryPolicy, ecr:SetRepositoryPolicy, ecr:DeleteRepositoryPolicy, ecr:GetLifecyclePolicy, ecr:PutImageScanningConfiguration, ecr:PutImageTagMutability, ecr:DescribeImages, ecr:BatchGetImage, ecr:GetDownloadUrlForLayer]
+            Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/papyrus-procedure-runner
           - Sid: Schedules
             Effect: Allow
             Action: [scheduler:CreateSchedule, scheduler:UpdateSchedule, scheduler:DeleteSchedule, scheduler:GetSchedule]
@@ -211,6 +232,7 @@ Resources:
             Action: [iam:CreateRole, iam:DeleteRole, iam:GetRole, iam:UpdateRole, iam:UpdateRoleDescription, iam:UpdateAssumeRolePolicy, iam:PutRolePolicy, iam:DeleteRolePolicy, iam:GetRolePolicy, iam:AttachRolePolicy, iam:DetachRolePolicy, iam:TagRole, iam:UntagRole, iam:ListRolePolicies, iam:ListAttachedRolePolicies, iam:PassRole]
             Resource:
               - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-monitoring-*
+              - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-procedure-runner-*
               - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-newsletter-sending-*
           - Sid: TheStacksOwnManagedPolicies
             Effect: Allow
