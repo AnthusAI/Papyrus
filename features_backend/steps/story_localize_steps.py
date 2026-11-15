@@ -567,3 +567,115 @@ def step_missing_automation(context):
         assert "mom.missing" in str(error), error
     else:
         raise AssertionError("a missing automation was accepted")
+
+
+# --- a run started from the command line, with no automation ----------------------------------------------------------------
+
+def _run_here(context, *, lane="iam", key="test-key", run_status="completed", not_registered=False):
+    """`stories localize` with no --automation, the runner's code replaced by a recorder (it would load the procedure from a site)."""
+    import os
+
+    from papyrus_content import story_commands
+    from papyrus_content.localize import start
+    from papyrus_content.procedure_runner import ProcedureNotRunnable
+
+    context.runner_calls = []
+    context.started = []
+
+    def run(request, **kwargs):
+        context.runner_calls.append({"request": request, **kwargs, "request_was_written": bool(context.client.tables.get("LocalizationRequest"))})
+        if not_registered:
+            raise ProcedureNotRunnable("ProcedureDefinition not found.")
+        return {"runId": "run-9", "runStatus": run_status, "costUsd": 0.02, "error": None if run_status == "completed" else "the model was down",
+                "output": {"outcome": "saved"}}
+
+    context.client.endpoint = "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql"
+    context.client.tenant_id = "mom"
+    context.client.graphql = lambda query, variables=None: context.started.append(variables) or {}
+    environment = {"PAPYRUS_GRAPHQL_AUTH": lane} if lane else {}
+    out = io.StringIO()
+    context.error = None
+    with mock.patch.dict(os.environ, environment, clear=False), mock.patch.object(start, "run_procedure_request", run), \
+            mock.patch("papyrus_content.site_selection.host_for", lambda endpoint=None: "mom"), \
+            mock.patch.object(story_commands, "create_authoring_client", return_value=(context.client, None)), \
+            mock.patch("papyrus_content.localize.record.collect", _collect(context)), \
+            mock.patch("papyrus_content.story_reporting.published_story_version", lambda client, story: context.primary), redirect_stdout(out):
+        if lane is None:
+            os.environ.pop("PAPYRUS_GRAPHQL_AUTH", None)
+        if key is None:
+            os.environ.pop("OPENAI_API_KEY", None)
+        elif key:
+            os.environ["OPENAI_API_KEY"] = key
+        try:
+            story_commands.stories_localize(["--story", STORY, "--language", "es-419"])
+        except ValueError as error:
+            context.error = str(error)
+    context.output_lines = out.getvalue().splitlines()
+
+
+@given("a site that registered the translation procedure under SITE.story-localize and has the language enabled")
+def step_registered_site(context):
+    context.client.tables.pop("LocalizationRequest", None)
+
+
+@when('an operator signed in with AWS credentials runs "papyrus stories localize" for a published Story and the language, naming no automation')
+def step_run_here(context):
+    _run_here(context)
+
+
+@then("the translation request is written first")
+def step_request_first(context):
+    assert context.runner_calls[0]["request_was_written"] and context.client.tables["LocalizationRequest"]["story-waymo#es-419"]["state"] == "wanted"
+
+
+@then("the procedure runner's own code loads the registered procedure, records a ProcedureRun with its usage, cost and output, and runs it in a child process signed as the operator")
+def step_runner_code(context):
+    from papyrus_content.procedure_runner import execute_in_child
+
+    (call,) = context.runner_calls
+    assert call["request"]["procedureKey"] == "mom.story-localize", call["request"]
+    assert call["request"]["input"]["story"] == STORY and call["request"]["input"]["language"] == "es-419"
+    assert call["execute"] is execute_in_child
+    assert call["environment"]["PAPYRUS_GRAPHQL_AUTH"] == "iam" and call["environment"]["PAPYRUS_GRAPHQL_ENDPOINT"] == context.client.endpoint
+
+
+@then("the command waits and prints the run id, status, cost and the procedure's output")
+def step_prints_run(context):
+    (line,) = context.output_lines
+    assert "run-9" in line and "completed" in line and "$0.02" in line and "saved" in line, line
+
+
+@then("no Automation, monitor or router publication is needed")
+def step_no_automation(context):
+    assert not context.started and not context.client.tables.get("Automation")
+
+
+@then("a failed run exits non-zero and the same command continues from the finished stages")
+def step_failed_run(context):
+    _run_here(context, run_status="failed")
+    assert context.error and "run-9" in context.error and "failed" in context.error and "same command again" in context.error, context.error
+
+
+@when('"papyrus stories localize" is run without an automation on the signed-in lane')
+def step_signed_in_lane(context):
+    context.client.tables.pop("LocalizationRequest", None)
+    _run_here(context, lane="user")
+
+
+@then("it refuses, naming the operator lane")
+def step_refuses_lane(context):
+    assert context.error and "--auth iam" in context.error, context.error
+    assert not context.client.tables.get("LocalizationRequest") and not context.runner_calls
+
+
+@then("when no model key is in the process and no key parameter is named it refuses, naming both ways to give one")
+def step_refuses_key(context):
+    _run_here(context, key=None)
+    assert context.error and "OPENAI_API_KEY" in context.error and "--openai-key-parameter" in context.error, context.error
+    assert not context.client.tables.get("LocalizationRequest")
+
+
+@then("a procedure that is not registered is reported with the register command for its key")
+def step_not_registered(context):
+    _run_here(context, not_registered=True)
+    assert context.error and "procedures register --file procedures/newsroom/story_localize.tac --key mom.story-localize" in context.error, context.error

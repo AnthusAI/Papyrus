@@ -470,13 +470,13 @@ papyrus stories head-index --apply --rate 5
 
 ```sh
 papyrus stories localize --story LINEAGE --language zh-Hans --dry-run
-papyrus --auth iam stories localize --story LINEAGE --language es-419
+papyrus stories localize --story LINEAGE --language es-419 --openai-key-parameter SSM_PARAMETER
 papyrus stories localize --story LINEAGE --language es-419 --automation SITE.story-localize
 ```
 
-- Run here, the command waits and prints the run's id, cost and outcome; through `--automation`, follow the run in the automation's history (`automations runs`).
+- Without `--automation` the run happens in this process and needs the operator lane (lead with `papyrus --auth iam`) and a model key (`OPENAI_API_KEY` or `--openai-key-parameter`); the command waits and prints the run's id, cost and outcome; through `--automation`, follow the run in the automation's history (`automations runs`).
 
-- Writes the translation request (`LocalizationRequest`, one per Story and language: the newest published source version) and runs the site's registered translation procedure for it: here with `papyrus --auth iam stories localize ...` (needs the model key in `OPENAI_API_KEY` or `--openai-key-parameter`), or through the site's automation with `--automation`. Setup: docs/story-translation-procedure.md. The run translates the changed blocks, checks every block against the English (parity rules and a bilingual judge) and with the language's policies, polishes until the findings stop shrinking, and saves an unpublished version of `LINEAGE--TAG` by AI. It never publishes.
+- Writes the translation request (`LocalizationRequest`, one per Story and language: the newest published source version) and runs the site's registered translation procedure for it: in this process on the operator lane, or through the site's automation with `--automation`. Setup: docs/story-translation-procedure.md. The run translates the changed blocks, checks every block against the English (parity rules and a bilingual judge) and with the language's policies, polishes until the findings stop shrinking, and saves an unpublished version of `LINEAGE--TAG` by AI. It never publishes.
 - `--dry-run` prints the plan: blocks to translate and kept, the glossary terms the translator will be given, the predicted cost from the language's measured runs. It writes nothing.
 - A held translation (a faithfulness error remains) raises a flag review request saying why. `--ceiling-usd` caps one run's model spend.
 
