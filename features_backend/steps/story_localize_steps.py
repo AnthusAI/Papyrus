@@ -127,7 +127,7 @@ def _collect(context):
         lineage = f"{story}--{language}"
         current, previous = localize_record.previous_alignment(client, lineage)
         glossary = starter_glossary(language)
-        checker = BlockChecker(source_language="en", target_language=language, glossary=glossary, copy_edit_pack=starter_pack(language), judge=judge,
+        checker = BlockChecker(source_language="en", target_language=language, glossary=glossary, copy_edit_pack=starter_pack(language, getattr(context, "register", None)), judge=judge,
                                lanes={"rules": True, "classifier": False})
         english = BlockChecker(source_language="en", target_language="en", glossary=glossary, copy_edit_pack=starter_pack("en"), judge=None,
                                lanes={"rules": True, "classifier": False})
@@ -365,6 +365,21 @@ def step_dek(context):
 def step_second_paragraph(context, text):
     context.paragraphs[1] = text
     _publish(context, context.primary["versionNumber"])
+
+
+@given('the site\'s "{language}" writing guidelines choose the register "{register}"')
+def step_register(context, language, register):
+    context.register = register
+
+
+@given('the translator writes "{text}" for the second paragraph')
+def step_second_translation(context, text):
+    context.translations[re.sub(r"\]\((https?://[^)]+)\)", "]⟦1⟧", context.paragraphs[1])] = text
+
+
+@then("the repairer was never asked")
+def step_repairer_idle(context):
+    assert not context.models.refine_requests, context.models.refine_requests
 
 
 @given('the translator keeps the stock phrase as "{text}"')

@@ -154,7 +154,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize.
     ``procedure_key`` (or the procedure of ``automation_id``) names the registered procedure whose earlier runs give the cost prediction."""
     from ..editorial_checks import GraphQLEditorialStore, settings_from
-    from ..editorial_languages import site_language, starter_packs_for, story_language
+    from ..editorial_languages import register_packs_for, site_language, starter_packs_for, story_language
     from ..editorial_model_context import editing_pack_and_context
     from ..guidelines import GuidelineStore
     from ..guidelines.layering import resolve_guidelines
@@ -182,7 +182,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     guidelines = GuidelineStore(client)
     glossary = resolve_glossary(guidelines, target, source.section)
     pack, _ = editing_pack_and_context(store, source.section, settings, target)
-    pack["papyrusStarterPacks"] = list(starter_packs_for(target))
+    pack["papyrusStarterPacks"] = [*starter_packs_for(target), *register_packs_for(target)]   # names the category of each finding; the policies come from the site
     source_pack, _ = editing_pack_and_context(store, source.section, settings, source_language)
     source_pack["papyrusStarterPacks"] = list(starter_packs_for(source_language))
     lanes = {"rules": bool(settings["lanes"].get("rules", True)), "classifier": bool(settings["lanes"].get("classifier", False))}

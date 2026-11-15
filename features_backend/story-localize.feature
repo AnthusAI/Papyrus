@@ -61,6 +61,26 @@ Feature: A published Story is translated, checked and polished by one procedure
     And the run records one round that changed one block
     And the run is saved, not held
 
+  Scenario: A site that addresses readers as usted has its translation corrected by code, with no model call
+    Given the site's "es-419" writing guidelines choose the register "usted"
+    And the English Story's second paragraph says "Read [the source](https://example.test/source): OpenAI says the AI system improved."
+    And the translator writes "[Lee la fuente]⟦1⟧: OpenAI dice que el sistema de AI mejoró." for the second paragraph
+    When the translation run for "es-419" runs
+    Then the saved translation says "[Lea la fuente](https://example.test/source)"
+    And the saved translation says "el sistema de IA mejoró"
+    And the saved translation says "OpenAI dice"
+    And the repairer was never asked
+    And the run is saved, not held
+
+  Scenario: A site that addresses readers as tu keeps its imperative, and the initialism is still corrected
+    Given the English Story's second paragraph says "Read [the source](https://example.test/source): OpenAI says the AI system improved."
+    And the translator writes "[Lee la fuente]⟦1⟧: OpenAI dice que el sistema de AI mejoró." for the second paragraph
+    When the translation run for "es-419" runs
+    Then the saved translation says "[Lee la fuente](https://example.test/source)"
+    And the saved translation says "el sistema de IA mejoró"
+    And the saved translation says "OpenAI dice"
+    And the repairer was never asked
+
   Scenario: Polishing never changes the facts
     Given the translator drops the attribution "the company says"
     And the repairer's rewrite also drops "may"

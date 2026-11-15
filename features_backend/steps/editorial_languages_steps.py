@@ -286,6 +286,35 @@ def step_deploy_ensures(context):
     context.ensured = editorial.ensure_default_policies(context.store)
 
 
+@given('its starter rules were imported before the pack "{pack}" existed')
+def step_earlier_starters(context, pack):
+    from papyrus_content.editorial_languages import starter_packs_for
+
+    earlier = tuple(name for language in ("en", "es-419") for name in starter_packs_for(language) if name != pack)
+    editorial.ensure_default_policies(context.store, packs=earlier)
+    context.earlier_count = len(context.store.policies)
+    assert not any(row["source"] == f"starter:{pack}" for row in context.store.policies.values())
+
+
+@then('the site has the policy "{key}" from the starter pack "{pack}" written for "{language}"')
+def step_pack_arrived(context, key, pack, language):
+    rows = [row for row in context.store.policies.values() if row["source"] == f"starter:{pack}"]
+    assert [row["policyKey"] for row in rows if row["policyKey"] == key] == [key] and {row["language"] for row in rows} == {language}, rows
+
+
+@then("the earlier Spanish starter policies were not imported a second time")
+def step_not_twice(context):
+    imported = len(builtin_pack("initialisms-es")["policies"])
+    assert len(context.store.policies) == context.earlier_count + imported, (len(context.store.policies), context.earlier_count, imported)
+
+
+@then("running the deploy's default policies again writes nothing")
+def step_deploy_again_nothing(context):
+    before = json.dumps(context.store.policies, sort_keys=True)
+    result = editorial.ensure_default_policies(context.store)
+    assert all(pack.get("alreadyApplied") for pack in result["packs"].values()) and json.dumps(context.store.policies, sort_keys=True) == before, result
+
+
 @then('the policy "{key}" is written for "{language}" and keeps its id and version')
 def step_written_kept(context, key, language):
     row = context.store.policies[f"publication#{key}"]
@@ -524,3 +553,99 @@ def step_compose_changed(context):
 def step_versions_differ(context):
     first, second = context.pack_versions
     assert first != second and first.startswith("en-publication-") and second.startswith("en-publication-"), context.pack_versions
+
+
+# --- the register an overlay chooses ------------------------------------------------------------------------------------------------------------
+
+def _spanish_overlay(context, register):
+    context.spanish = {"schemaVersion": 1, "tone": ["Formal."], "register": register}
+    answer = _save(context, context.spanish, language="es-419", request=f"spanish-{register}-{len(context.backend.policies.rows)}")
+    assert answer["ok"], answer
+    context.save_answer = answer
+
+
+@given('a Spanish overlay for "{tag}" chooses the register "{register}"')
+def step_spanish_register(context, tag, register):
+    _spanish_overlay(context, register)
+
+
+@when('the Spanish overlay changes its register to "{register}"')
+def step_spanish_changes(context, register):
+    _spanish_overlay(context, register)
+
+
+def _register_row(context, key, language):
+    return next(row for row in context.backend.policies.rows if row["policyKey"] == key and row["language"] == language)
+
+
+@then('a publication check "{key}" written for "{language}" exists with the source "{source}"')
+def step_register_check(context, key, language, source):
+    row = _register_row(context, key, language)
+    assert row["scope"] == "publication" and row["source"] == source and row.get("enabled", True), row
+
+
+@then('the check "{key}" for "{language}" is disabled and kept')
+def step_register_disabled(context, key, language):
+    assert _register_row(context, key, language)["enabled"] is False
+
+
+def _spanish_findings(context, text):
+    rows = [{**row, "detectors": json.dumps(row["detectors"])} for row in context.backend.policies.rows]
+    pack = editorial.compose_pack(rows, None, {}, "es-419")
+    result = humanus.check({"schemaVersion": 1, "content": {"format": "markus", "text": text, "language": "es-419"}, "pack": pack,
+                            "options": {"lanes": {"rules": True, "classifier": False}}})
+    return [f for f in result["findings"] if f["policyId"] == "usted-imperative-links"]
+
+
+@then('checking Spanish text "{text}" finds "{excerpt}" with the repair "{repair}"')
+def step_spanish_finds(context, text, excerpt, repair):
+    found = _spanish_findings(context, text)
+    assert [(f["excerpt"], f.get("replacement")) for f in found] == [(excerpt, repair)], found
+
+
+@then('checking Spanish text "{text}" for a site that never chose a register finds nothing')
+def step_spanish_none(context, text):
+    from papyrus_content.localize.checks import starter_pack
+
+    pack = {key: value for key, value in starter_pack("es-419").items() if key != "papyrusStarterPacks"}
+    result = humanus.check({"schemaVersion": 1, "content": {"format": "markus", "text": text, "language": "es-419"}, "pack": pack,
+                            "options": {"lanes": {"rules": True, "classifier": False}}})
+    assert not [f for f in result["findings"] if f["policyId"] == "usted-imperative-links"], result["findings"]
+
+
+@then('checking Spanish text "{text}" finds nothing under the site\'s checks')
+def step_spanish_site_none(context, text):
+    assert _spanish_findings(context, text) == []
+
+
+def _refused_save(context, document, language):
+    body = {"kind": "writing", "document": document, "reason": "Change", "expectedCurrentVersionId": _guard(context, language=language),
+            **({"language": language} if language else {})}
+    context.save_answer = door(context.backend, "guidelinesWrite", ADMIN, "guidelines_save", requestId=f"refused-{language}", input=body)
+
+
+@when('an admin saves the shared writing guidelines with the register "{register}"')
+def step_shared_register(context, register):
+    _refused_save(context, {"schemaVersion": 1, "register": register}, None)
+
+
+@when('an admin saves the Chinese overlay with the register "{register}"')
+def step_chinese_register(context, register):
+    _refused_save(context, {"schemaVersion": 1, "register": register}, "zh-Hans")
+
+
+@when('an admin saves the Spanish overlay with the register "{register}"')
+def step_spanish_bad_register(context, register):
+    _refused_save(context, {"schemaVersion": 1, "register": register}, "es-419")
+
+
+@when('the guidelines are resolved for a Spanish Story in the "{section}" section')
+def step_resolve_spanish(context, section):
+    _resolve(context, section, "es-419")
+
+
+@then('the translator\'s register notes include "{note}"')
+def step_register_notes(context, note):
+    from papyrus_content.localize.record import register_notes
+
+    assert note in register_notes(context.answer), (register_notes(context.answer), context.answer)

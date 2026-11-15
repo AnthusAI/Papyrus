@@ -1066,7 +1066,7 @@ def test_the_router_zip_leaves_out_wheel_files_a_lambda_never_reads():
         import build
     finally:
         sys.path.pop(0)
-    for kept in ("humanus/check.py", "humanus/languages/zh-Hans.yml", "pydantic-2.12.5.dist-info/METADATA", "humanus-0.36.0.dist-info/entry_points.txt"):
+    for kept in ("humanus/check.py", "humanus/languages/zh-Hans.yml", "pydantic-2.12.5.dist-info/METADATA", "humanus-0.37.0.dist-info/entry_points.txt"):
         assert build.lambda_reads(kept), kept
     for dropped in ("pydantic-2.12.5.dist-info/RECORD", "pydantic_core/core_schema.pyi", "humanus/py.typed", "jsonschema/tests/test_validators.py"):
         assert not build.lambda_reads(dropped), dropped

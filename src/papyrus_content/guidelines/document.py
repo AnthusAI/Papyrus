@@ -109,6 +109,13 @@ def lexicon(value: Any) -> str | None:
     return None
 
 
+def register(value: Any) -> str | None:
+    from papyrus_content.editorial_languages import REGISTER_PACKS
+
+    known = sorted({name for registers in REGISTER_PACKS.values() for name in registers})
+    return None if value in known else f"must be one of {', '.join(known)}"
+
+
 def glossary(value: Any) -> str | None:
     if not isinstance(value, list):
         return "must be a list"
@@ -303,6 +310,7 @@ WRITING_FIELDS: dict[str, Field] = {
     "audience": Field(text, CHOICE, lockable=True),
     "headline": Field(obj, CHOICE, lockable=True),
     "editorialAim": Field(text, CHOICE, lockable=True),
+    "register": Field(register, CHOICE),   # how readers are addressed in a language (usted | tu): a language overlay's field, checked against its language
     "tone": Field(texts, PROSE),
     "sentenceStyle": Field(texts, PROSE),
     "voicePatterns": Field(texts, PROSE),
