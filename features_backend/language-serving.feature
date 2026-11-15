@@ -17,7 +17,7 @@ Feature: Each language of a Story is served at its own address, and each page na
 
   Scenario: Every page lists hreflang for each published language and x-default, and is canonical to itself
     When its Spanish translation "el-sonido" is published
-    Then the English page lists hreflang "en" and "es-419" and x-default pointing at the English page
+    Then the English page lists hreflang "en" and "es" (never "es-419", which search engines refuse) and x-default pointing at the English page
     And the Spanish page lists the same hreflang links
     And neither page lists Chinese
     And each page is canonical to its own address
@@ -110,3 +110,10 @@ Feature: Each language of a Story is served at its own address, and each page na
     Given the English Concept page "abliteration" is published in the wiki
     When its Spanish translation "abliteracion" of the Concept page is published
     Then the Concepts listing is offered in each language at "/wiki/", "/es/concepts/" and "/zh/concepts/"
+
+  Scenario: A translated Story has the concepts of its language group, as chips only where the Concept has a page in its language
+    Given the English Concept page "human-oversight" is published and the English article "the-sound" is about it
+    When its Spanish translation "el-sonido" is published
+    Then the Spanish article has no concept chip and the English article has the chip "human-oversight" counting one Story
+    When the Concept page "human-oversight" is translated into Spanish as "supervision-humana"
+    Then the Spanish article has the chip "human-oversight" linked at "/es/concepts/supervision-humana/"

@@ -18,6 +18,12 @@ Feature: An editor or an agent tags a story or a Reference with an existing conc
     And the story has one current "tagged_with" edge to "editor_concept--voice-cloning", kind "item.concept", provenance "human", added by "Grace Editor"
     And no concept was created
 
+  Scenario: A tag added to a translation attaches to the original's concept edge, which every language reads
+    Given the story "big" has a Spanish translation "big--es-419"
+    When a signed-in editor "Grace Editor" tags the story "big--es-419" with the concept "#voice-cloning"
+    Then the tagging succeeds and prints "write" for "Voice Cloning" with a public page
+    And the only story edge is on "item-big" and none is on the translation
+
   Scenario: An editor tags a Reference the same way
     When a signed-in editor "Grace Editor" tags the Reference "reference-a" with "Voice Cloning"
     Then the tagging succeeds and prints "write" for "Voice Cloning" with a public page

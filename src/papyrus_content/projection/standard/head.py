@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from ...authors import absolute_author_url, normalize_authors
 from .config import StandardSettings
+from .editions import hreflang_value
 from .environment import SiteEnvironment
 
 NOINDEX_CONTENT = "noindex, nofollow"
@@ -123,7 +124,7 @@ class HeadBuilder:
         if canonical:
             lines.append(f'<link rel="canonical" href="{_q(canonical)}">')
         for tag, href in page.alternates:   # every published language of the page, itself included, then x-default (hreflang lives in the head only)
-            lines.append(f'<link rel="alternate" hreflang="{_q(tag)}" href="{_q(href)}">')
+            lines.append(f'<link rel="alternate" hreflang="{_q(hreflang_value(tag))}" href="{_q(href)}">')
         if page.alternates and page.x_default:
             lines.append(f'<link rel="alternate" hreflang="x-default" href="{_q(page.x_default)}">')
         lines.append(f'<meta property="og:site_name" content="{_q(identity.short_name or identity.name)}">')

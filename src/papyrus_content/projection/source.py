@@ -263,7 +263,7 @@ class PublishedContentSource:
         summaries = tuple(summaries)
         return read_site_relations(
             self._client,
-            [(summary.item_id, summary.lineage_id, summary.published_at) for summary in summaries],
+            [(summary.item_id, summary.lineage_id, summary.published_at, summary.language_group_id) for summary in summaries],
             [str(summary.front_matter["entityKey"]) for summary in summaries if isinstance(summary.front_matter.get("entityKey"), str)],
         )
 

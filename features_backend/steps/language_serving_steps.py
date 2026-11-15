@@ -89,10 +89,11 @@ class LanguageSite:
         assert report.ok, report.errors
 
     def publish(self, item_id: str, *, lineage: str, slug: str, title: str, language: str, group: str, date: str = "2026-11-01",
-                item_type: str = "article", section: str = "articles") -> None:
+                item_type: str = "article", section: str = "articles", entity_key: str | None = None) -> None:
         item = {"id": item_id, "lineageId": lineage, "type": item_type, "slug": slug, "section": section, "title": title, "status": "published",
                 "language": language, "languageGroupId": group, "contentHash": f"{slug}-{language}",
-                "metadata": {"frontMatterYaml": f"title: {json.dumps(title, ensure_ascii=False)}\ndate: '{date}'\ndescription: {json.dumps(title, ensure_ascii=False)}\n"},
+                "metadata": {"frontMatterYaml": f"title: {json.dumps(title, ensure_ascii=False)}\ndate: '{date}'\ndescription: {json.dumps(title, ensure_ascii=False)}\n"
+                                          + (f"entityKey: {entity_key}\n" if entity_key else "")},
                 "bodyMarkus": f"{title}.\n"}
         self.client.tables.setdefault("Item", {})[item_id] = item
         published, _media = project_item_to_published(item, [], published_at=NOW, version_published_at=NOW, version_published_by="t", version_number=1)
@@ -258,10 +259,10 @@ def step_no_en(context):
     assert not any(key.startswith("en/") for key in _site(context).keys())
 
 
-@then('the English page lists hreflang "en" and "es-419" and x-default pointing at the English page')
+@then('the English page lists hreflang "en" and "es" (never "es-419", which search engines refuse) and x-default pointing at the English page')
 def step_english_hreflang(context):
     found = _hreflang(_site(context).text(ENGLISH))
-    assert found == [("en", f"{ORIGIN}/articles/the-sound/"), ("es-419", f"{ORIGIN}/es/articles/el-sonido/"), ("x-default", f"{ORIGIN}/articles/the-sound/")], found
+    assert found == [("en", f"{ORIGIN}/articles/the-sound/"), ("es", f"{ORIGIN}/es/articles/el-sonido/"), ("x-default", f"{ORIGIN}/articles/the-sound/")], found
 
 
 @then("the Spanish page lists the same hreflang links")
@@ -342,7 +343,7 @@ def step_spanish_listings(context):
 
 @then("the English home and the Spanish home name each other in hreflang")
 def step_home_hreflang(context):
-    expected = [("en", f"{ORIGIN}/"), ("es-419", f"{ORIGIN}/es/"), ("x-default", f"{ORIGIN}/")]
+    expected = [("en", f"{ORIGIN}/"), ("es", f"{ORIGIN}/es/"), ("x-default", f"{ORIGIN}/")]
     assert _hreflang(_site(context).text("index.html")) == expected, _hreflang(_site(context).text("index.html"))
     assert _hreflang(_site(context).text("es/index.html")) == expected
 
@@ -471,7 +472,7 @@ def step_wiki_spanish(context, slug):
 def step_wiki_keys(context, key, spanish):
     site = _site(context)
     assert site.exists(key) and site.exists(spanish), site.keys()
-    assert ("es-419", f"{ORIGIN}/" + spanish[: -len("index.html")]) in _hreflang(site.text(key))
+    assert ("es", f"{ORIGIN}/" + spanish[: -len("index.html")]) in _hreflang(site.text(key))
 
 
 @given("the English home is an authored page")
@@ -506,7 +507,7 @@ def step_indexed(context, key):
 @then('the "{key}" page names the Spanish page in hreflang')
 def step_names_spanish(context, key):
     tags = dict(_hreflang(_site(context).text(key)))
-    assert "es-419" in tags and "x-default" in tags, tags
+    assert "es" in tags and "es-419" not in tags and "x-default" in tags, tags
 
 
 @then("the sitemap index lists no Spanish or Chinese sitemap")
@@ -520,3 +521,48 @@ def step_concepts_alternates(context, english, spanish, chinese):
     site = _site(context)
     view = site.context.projector._language_view(site.context.source.site_index())
     assert [alternate.url for alternate in view.listing_alternates("wiki")] == [english, spanish, chinese], view.listing_alternates("wiki")
+
+
+@given('the English Concept page "{slug}" is published and the English article "the-sound" is about it')
+def step_concept_and_edge(context, slug):
+    _ensure_built(context)
+    site = _site(context)
+    site.publish(f"{slug}-v1", lineage=slug, slug=slug, title="Human oversight", language="en", group=slug, item_type="wiki_page", section="wiki", entity_key=slug)
+    site.project(f"{slug}-v1")
+    context.wiki_slug = slug
+    node = f"node-{slug}"
+    site.client.tables.setdefault("SemanticNode", {})[node] = {"id": node, "status": "accepted", "nodeKey": f"editor_concept--{slug}"}
+    site.client.tables.setdefault("SemanticRelation", {})["relation-1"] = {
+        "id": "relation-1", "subjectKind": "item", "subjectLineageId": "the-sound", "subjectStateKey": "item#the-sound#current", "predicate": "mentions",
+        "objectKind": "semanticNode", "objectLineageId": f"editor_concept--{slug}", "objectId": node, "relationState": "current",
+    }
+
+
+def _chips(context, tag: str, slug: str):
+    site = _site(context)
+    projector = site.context.projector
+    index = site.context.source.site_index()
+    projector._editions_of(index)
+    own = projector._own_site(index, tag)
+    page = next(summary for summary in index.items if summary.language == tag and summary.slug == slug)
+    owner = projector if tag == "en" else projector._editions[tag]
+    return owner._concept_links(own, page)
+
+
+@then('the Spanish article has no concept chip and the English article has the chip "{slug}" counting one Story')
+def step_chips_before(context, slug):
+    assert _chips(context, "es-419", "el-sonido") == ()
+    assert [(link["slug"], link["stories"]) for link in _chips(context, "en", "the-sound")] == [(slug, 1)]
+
+
+@when('the Concept page "{slug}" is translated into Spanish as "{spanish}"')
+def step_concept_translated(context, slug, spanish):
+    site = _site(context)
+    lineage = localization_lineage_id(slug, "es-419")
+    site.publish(f"{lineage}-v1", lineage=lineage, slug=spanish, title="Supervisión humana", language="es-419", group=slug, item_type="wiki_page", section="wiki", entity_key=slug)
+    site.project(f"{lineage}-v1")
+
+
+@then('the Spanish article has the chip "{slug}" linked at "{href}"')
+def step_chip_spanish(context, slug, href):
+    assert [(link["slug"], link["href"]) for link in _chips(context, "es-419", "el-sonido")] == [(slug, href)], _chips(context, "es-419", "el-sonido")

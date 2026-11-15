@@ -153,11 +153,11 @@ def step_not_in_body(context, text):
     assert text not in _translation(context)["bodyMarkus"] and text not in json.dumps(_translation(context).get("metadata"), ensure_ascii=False)
 
 
-@then('the Waymo English page lists hreflang "en" and "es-419" and x-default pointing at itself')
+@then('the Waymo English page lists hreflang "en" and "es" and x-default pointing at itself')
 def step_english_alternates(context):
     links = dict(_hreflang(_text(context, ENGLISH)))
     english = "https://machines.example.test/articles/waymo-crashes-fall/"
-    assert links == {"en": english, "es-419": "https://machines.example.test/es/articles/bajan-los-choques-de-waymo/", "x-default": english}, links
+    assert links == {"en": english, "es": "https://machines.example.test/es/articles/bajan-los-choques-de-waymo/", "x-default": english}, links
 
 
 @then("the English listings do not list the translation")

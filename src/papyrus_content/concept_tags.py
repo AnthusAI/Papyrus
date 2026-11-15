@@ -24,6 +24,7 @@ import re
 from typing import Any
 
 from .concept_link_predicates import MENTIONS
+from .item_language import translation_original
 from .reference_links import (
     CONCEPT_TAG_PREDICATE,
     CONCEPT_TAG_PREDICATES,
@@ -171,6 +172,9 @@ def tag_with_concepts(client, target_kind: str, target: str, concepts: list[str]
         raise ValueError("A tag needs to record who added it.")
     if target_kind == "story":
         story = resolve_story(client, target)
+        original = translation_original(story)
+        if original:   # a translation has no edges of its own: what a Story is about is written once, on the original, and every language reads it there
+            story = resolve_story(client, original)
         lineage, state_kind = story.get("lineageId") or story["id"], "item"
     else:
         reference = current_reference(client, target)
@@ -200,7 +204,7 @@ def tag_with_concepts(client, target_kind: str, target: str, concepts: list[str]
         rows.append(row)
         if on_row:
             on_row(row)
-    return {"target": lineage, "targetKind": target_kind, "dryRun": not apply, "concepts": rows}
+    return {"target": lineage, "targetKind": target_kind, "dryRun": not apply, "concepts": rows, **({"translationOf": original} if target_kind == "story" and original else {})}
 
 
 # ---- the audit -------------------------------------------------------------------------------------------------------------------------------------------------

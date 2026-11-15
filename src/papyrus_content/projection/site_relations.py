@@ -103,24 +103,34 @@ def _rows_by_id(client: Any, model: str, ids: list[str]) -> dict[str, dict[str, 
     return {}
 
 
-def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, str | None]], page_slugs: Iterable[str]) -> SiteRelations:
-    """``stories`` are ``(item id, lineage id, published at)`` of the published Stories; ``page_slugs`` the ``entityKey`` of every published wiki page.
+def read_site_relations(client: Any, stories: Iterable[tuple], page_slugs: Iterable[str]) -> SiteRelations:
+    """``stories`` are ``(item id, lineage id, published at)`` of the published Stories, each with a fourth member, the lineage of its language group, when it is a
+    translation (see below); ``page_slugs`` the ``entityKey`` of every published wiki page.
+
+    A translation has no relations of its own: the edges that say what a Story is about are written on the original. A translation's concepts are read through its
+    language group, so the Spanish page of a Story shows the concepts the English one has. Its other relations (the sources it is based on, its related Stories) stay
+    the original's: a translation is never the page a citation links to, and a related Story is linked from the original only.
 
     Stories are ordered newest first inside each address, so the first item id is the one a citation links to.
     """
-    published = {lineage: (item_id, published_at or "") for item_id, lineage, published_at in stories if lineage}
+    stories = [tuple(story) for story in stories]
+    published = {story[1]: (story[0], story[2] or "") for story in stories if story[1]}
+    through_group = {story[1]: story[3] for story in stories if story[1] and len(story) > 3 and story[3] and story[3] != story[1]}   # translation -> group lineage
     wanted = set(page_slugs)
     if not published or not can_read_relations(client):
         return EMPTY
-    rows = _relations_of(client, [f"item#{lineage}#current" for lineage in published])
+    rows = _relations_of(client, [f"item#{lineage}#current" for lineage in (*published, *dict.fromkeys(through_group.values()))])
     based_pairs: list[tuple[str, str]] = []
     concept_pairs: list[tuple[str, str, str]] = []   # (story lineage, slug, node row id)
     see_also: list[tuple[str, str, str, str]] = []   # (story lineage, reference row id, linked at, note)
     for lineage, (item_id, _) in published.items():
-        for relation in rows.get(f"item#{lineage}#current") or []:
+        read = through_group.get(lineage, lineage)
+        for relation in rows.get(f"item#{read}#current") or []:
             if relation.get("relationState") not in (None, "current"):
                 continue
             predicate = relation.get("predicate")
+            if read != lineage and not (predicate in CONCEPT_LINK_PREDICATES and relation.get("objectKind") == CONCEPT_KIND):
+                continue   # a translation takes its group's concepts and nothing else (docstring)
             if predicate == STORY_REFERENCE_PREDICATE and relation.get("objectKind") == "reference":
                 if _metadata(relation).get("role") == BASED_ON and relation.get("objectId"):
                     based_pairs.append((lineage, str(relation["objectId"])))

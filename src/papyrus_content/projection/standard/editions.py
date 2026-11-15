@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import dataclasses
 import functools
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
@@ -27,6 +28,13 @@ from ..model import ItemSummary
 from .config import NavLink, StandardSettings
 from .interface_strings import LANGUAGE_NAME_KEY
 from .wiki import DEFAULT_WIKI_SECTION
+
+
+def hreflang_value(tag: str) -> str:
+    """The value of ``hreflang`` for a language tag. Search engines accept a language, an optional script and an optional two-letter country region (``es``, ``zh-Hans``,
+    ``pt-BR``) and refuse a UN M.49 region such as ``es-419``, so the numeric region is left off the ``hreflang`` of a page (and of a link to it). ``<html lang>``,
+    ``og:locale`` and JSON-LD ``inLanguage`` keep the full tag: they are for readers and assistive technology, not for search engines."""
+    return re.sub(r"-\d{3}\b", "", tag)
 
 
 @dataclass(frozen=True)
@@ -38,7 +46,7 @@ class Alternate:
     indexed: bool = True
 
     def as_dict(self) -> dict[str, str]:
-        return {"tag": self.tag, "name": self.name, "url": self.url}
+        return {"tag": self.tag, "name": self.name, "url": self.url, "hreflang": hreflang_value(self.tag)}
 
 
 @dataclass(frozen=True)
