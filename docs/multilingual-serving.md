@@ -111,6 +111,7 @@ A language is public only when its interface strings are complete (`projection/s
 - `site.description` and `site.tagline`, when set;
 - `section.<name>.label` and, when set, `section.<name>.description`, for each section with a listing page;
 - `nav.<href>.label`, for each navigation link an edition keeps (the home and section listings; other links leave the edition and are dropped);
+- `notice.label` and `notice.text`, when the site has a `site.notice` (satire, AI-drafted): a language edition says the notice in its own words on its pages, its Markdown twins, its feeds' entries and its structured data (`genre`); a public language without them is refused, so the notice is never said in the primary language's words on another language's page;
 - `footer.text`, when set;
 - `listing.untranslated` and `listing.untranslatedOriginal`: the notice on an index with nothing translated yet. `listing.untranslated` has `{original}` where the link goes ("Todavía no hay traducciones aquí. Lee el {original}."); `listing.untranslatedOriginal` is the link's words ("índice en inglés").
 - `translation.label` and `translation.original`: the line every translated page carries. `translation.label` has `{original}` where the link to the original goes ("Traducido por IA del {original}"); `translation.original` is the link's words ("original en inglés").
