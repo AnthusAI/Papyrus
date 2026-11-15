@@ -178,3 +178,13 @@ def step_zh_starter(context):
     entries = {entry["term"]: entry for entry in starter_glossary("zh-Hans").entries}
     assert entries["Paris"]["translations"][0] == "巴黎"
     assert entries["AI"].get("doNotTranslate") and entries["abliteration"].get("doNotTranslate")
+
+
+@then('the faithfulness check reports that the words "{words}" were left untranslated')
+def step_untranslated(context, words):
+    assert any(words in message for message in _messages(context, "untranslated")), context.findings
+
+
+@then("the faithfulness check reports no untranslated words")
+def step_no_untranslated(context):
+    assert _messages(context, "untranslated") == [], context.findings
