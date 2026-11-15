@@ -119,3 +119,10 @@ def test_the_backfill_dry_run_writes_nothing_and_the_real_run_is_resumable():
 
 def test_a_concept_and_a_section_with_one_name_are_two_names():
     assert name_key("en", "Safety", None, "concept") != name_key("en", "Safety", None, "section")
+
+
+def test_a_concept_with_no_name_is_found_by_its_id_and_never_stops_the_consumer():
+    site = FakeSite()
+    site.tables["SemanticNode"]["bare-v1"] = {"id": "bare-v1", "lineageId": "bare", "versionState": "current", "status": "accepted"}
+    sync_node(site, site.tables["SemanticNode"]["bare-v1"], primary_language="en", now=NOW)
+    assert [row["text"] for row in site.tables["EntityLabel"].values()] == ["bare"]

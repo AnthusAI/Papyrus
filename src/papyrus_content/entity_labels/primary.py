@@ -26,7 +26,8 @@ def lineage_of(node: dict[str, Any]) -> str:
 
 
 def preferred_name(node: dict[str, Any]) -> str:
-    return str(node.get("displayName") or "").strip() or name_part(str(node.get("nodeKey") or "")).replace("-", " ") or str(node.get("nodeKey") or "")
+    """What a concept is called: its name, else the words of its key, else its key, else its id (a concept with no name at all is still found by its id)."""
+    return str(node.get("displayName") or "").strip() or name_part(str(node.get("nodeKey") or "")).replace("-", " ") or str(node.get("nodeKey") or "") or lineage_of(node)
 
 
 def primary_text(node: dict[str, Any]) -> dict[str, Any]:

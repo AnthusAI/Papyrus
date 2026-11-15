@@ -61,8 +61,15 @@ class Site:
 
     safe_list_records = list_records
 
+    READS = {"listEntityLabelsByNameKey": "entityLabelsByName", "listSemanticNodesByLineageAndVersion": "semanticNodesByLineage",
+             "listSemanticNodesByNodeKeyAndVersion": "semanticNodesByNodeKey"}
+
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         field = query.split("{", 1)[1].split("(", 1)[0].strip()
+        if field == "getEditorialCheckSettings":   # a read through a client that talks GraphQL: the stand-in answers it, and it is not something the command sent
+            return {field: {"id": "settings", "tenantId": None, "settings": "{}"}}
+        if field in self.READS:
+            return {field: {"items": self.list_by_index(self.READS[field], next(iter((variables or {}).values()))), "nextToken": None}}
         self.calls.append((field, dict(variables or {})))
         if self.fail:
             raise GraphQLRequestError(f"GraphQL request failed: {self.fail}\nsecond line", status_code=200)
