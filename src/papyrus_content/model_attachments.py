@@ -31,6 +31,27 @@ MODEL_ATTACHMENT_OWNER_MODELS = {
 }
 
 
+def _transfer(operation):
+    """Runs one transfer to or from the attachment store (a presigned URL), sending it again with a growing pause when the failure is the network's or the
+    store's: a reset connection, a timeout, a 429 or a 5xx. Both directions are safe to repeat (a download changes nothing; an upload of the same bytes to the
+    same key replaces itself). A refusal (any other HTTP status) is raised at once, and when the attempts run out the last failure is raised as it was."""
+    import random
+    import time
+
+    from .graphql_authoring import READ_ATTEMPTS, READ_BACKOFF_SECONDS, TRANSIENT_STATUS_CODES
+
+    for attempt in range(READ_ATTEMPTS):
+        try:
+            return operation()
+        except urllib.error.HTTPError as error:
+            if error.code not in TRANSIENT_STATUS_CODES or attempt == READ_ATTEMPTS - 1:
+                raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
+            if attempt == READ_ATTEMPTS - 1:
+                raise
+        time.sleep(min(READ_BACKOFF_SECONDS * 2 ** attempt, 8.0) * (0.5 + random.random()))
+
+
 def attachment_safe_id(value: Any) -> str:
     """The id segment the ModelAttachment writer makes: ``safeId`` in amplify/functions/model-attachment-upload/handler.ts (and
     amplify/functions/shared/model-payloads.ts), character for character.
@@ -146,9 +167,11 @@ def upload_attachment_body(
         method=slot.get("method") or "PUT",
     )
     try:
-        with urllib.request.urlopen(request) as response:
-            if response.status >= 400:
-                raise RuntimeError(f"Upload failed with status {response.status}")
+        def send():
+            with urllib.request.urlopen(request) as response:
+                if response.status >= 400:
+                    raise RuntimeError(f"Upload failed with status {response.status}")
+        _transfer(send)
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(
@@ -436,8 +459,10 @@ def download_attachment_buffer(
         method=slot.get("method") or "GET",
     )
     try:
-        with urllib.request.urlopen(request) as response:
-            return response.read()
+        def fetch():
+            with urllib.request.urlopen(request) as response:
+                return response.read()
+        return _transfer(fetch)
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(

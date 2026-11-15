@@ -86,11 +86,11 @@ papyrus stories localize --all --language es-419 --automation SITE.story-localiz
   translation, not marked do not localize) has an up-to-date translation in a language when the record there names this very text and its state is
   `saved`, `held`, `unchanged` or `published`. A held translation counts: it waits for a person. A record for older text, a run that `failed`, `stopped` or
   never started (a `started` record older than an automation's longest run), and a Story with no record are remaining work. Running the command again
-  does only that. When the record names this very text but does not say its run finished (`wanted` or `started`: a run that ended after saving and before
+  does only that. When the record names this very text but does not say its run finished (`wanted`, `started`, `failed`, `stopped` or `waiting`: a run that ended, for example on a reset connection, after saving and before
   writing its outcome, or a request written again and not yet run), the survey reads that one translation: if it was made from exactly this text and its
   run saved or held it, the row is up to date (held translations are reported held, with the record's own state in the detail) and is never run again, since a
   new run could replace what a person has yet to answer. Only Stories that have such a record are read this way; the survey never reads one lineage per Story.
-  The same transient-failure rule covers every read of the command: a read is sent again with a growing pause on a reset connection, a timeout or a data-store
+  The same transient-failure rule covers every read of the command, including the downloads and uploads of the attachment store: a read is sent again with a growing pause on a reset connection, a timeout or a data-store
   timeout, up to five attempts, and a failure that persists is that row's `cannot be planned` reason (or `failed`) with its real message.
 - **In this process** (the default; needs `--auth iam`) each remaining Story is requested and run through the registered procedure exactly as
   `papyrus stories localize --story` does, `--concurrency` at a time (default 3; each run mostly waits for the model). One line per Story and language:

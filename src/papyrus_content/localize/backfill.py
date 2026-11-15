@@ -97,10 +97,10 @@ def survey(client, settings: dict[str, Any], languages: list[str], *, now: float
             elif current and record.get("automationId") and (record.get("state") == "wanted" or (
                     record.get("state") == "started" and not _never_reported(record, now))):
                 job.state, job.status, job.detail = record["state"], QUEUED, f"{record['state']} on {record['automationId']}"
-            elif current and record.get("state") in ("failed", "stopped", "waiting"):
-                job.state, job.detail = record["state"], f"last run {record['state']}: {record.get('reason') or 'no reason recorded'}"[:300]
             elif current:   # the request names this very text, yet does not say its run finished
                 _vouched_by_translation(client, job, record, source_hash)
+                if job.status == PLANNED and record.get("state") in ("failed", "stopped", "waiting"):
+                    job.state, job.detail = record["state"], f"last run {record['state']}: {record.get('reason') or 'no reason recorded'}"[:300]
             jobs.append(job)
     return jobs
 
