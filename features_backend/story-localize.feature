@@ -130,3 +130,10 @@ Feature: A published Story is translated, checked and polished by one procedure
     When an editor previews the "es-419" translation of "story-waymo"
     Then the plan lists 5 blocks to translate and the glossary terms the translator will meet
     And no request was written
+
+  Scenario: The cost prediction reads the runs of the procedure the named automation runs
+    Given a site registered the translation procedure under its own key and an automation that runs it
+    When a translation is planned or run for that automation
+    Then the predicted cost comes from that procedure's measured runs, found through the automation's procedure key
+    And a plan with no automation named predicts from no history
+    And an automation that does not exist is refused naming it

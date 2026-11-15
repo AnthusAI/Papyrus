@@ -120,7 +120,7 @@ def step_models(context, language):
 
 
 def _collect(context):
-    def collect(client, *, story, language, judge, procedure_version, ceiling_usd=None, decision_model=None):
+    def collect(client, *, story, language, judge, procedure_version, ceiling_usd=None, decision_model=None, automation_id=None):
         source = localize_record.source_version(context.primary, "en")
         lineage = f"{story}--{language}"
         current, previous = localize_record.previous_alignment(client, lineage)
@@ -527,3 +527,43 @@ def step_has_picture(context, path):
 @then("the Spanish lineage has {count:d} versions")
 def step_versions_count(context, count):
     assert len(_versions(context)) == count, [row["versionNumber"] for row in _versions(context)]
+
+
+# --- the cost history is read through the automation's procedure key ------------------------------------------------------------
+
+@given("a site registered the translation procedure under its own key and an automation that runs it")
+def step_own_key(context):
+    context.client.tables.setdefault("Automation", {})["mom.story-localize"] = {"id": "mom.story-localize", "procedureKey": "mom.registered-story-localize"}
+    context.client.tables.setdefault("ProcedureRun", {})["run-1"] = {
+        "id": "run-1", "procedureKey": "mom.registered-story-localize", "runStatus": "completed", "requestedAt": "2026-11-13T10:00:00Z",
+        "output": json.dumps({"language": "es-419", "sourceCharacters": 1200, "costUsd": 0.03})}
+    context.client.tables["ProcedureRun"]["other"] = {
+        "id": "other", "procedureKey": "papyrus.story.localize", "runStatus": "completed", "requestedAt": "2026-11-13T11:00:00Z",
+        "output": json.dumps({"language": "es-419", "sourceCharacters": 9, "costUsd": 9.0})}
+
+
+@when("a translation is planned or run for that automation")
+def step_plan_for_automation(context):
+    context.procedure_key = localize_record.automation_procedure_key(context.client, "mom.story-localize")
+    context.history = localize_record.spend_history(context.client, context.procedure_key)
+
+
+@then("the predicted cost comes from that procedure's measured runs, found through the automation's procedure key")
+def step_history_from_key(context):
+    assert context.procedure_key == "mom.registered-story-localize", context.procedure_key
+    assert context.history == [{"language": "es-419", "sourceCharacters": 1200, "costUsd": 0.03}], context.history
+
+
+@then("a plan with no automation named predicts from no history")
+def step_no_automation_no_history(context):
+    assert localize_record.automation_procedure_key(context.client, None) is None
+
+
+@then("an automation that does not exist is refused naming it")
+def step_missing_automation(context):
+    try:
+        localize_record.automation_procedure_key(context.client, "mom.missing")
+    except ValueError as error:
+        assert "mom.missing" in str(error), error
+    else:
+        raise AssertionError("a missing automation was accepted")

@@ -45,7 +45,7 @@ Procedure {
     },
     function(input)
         local localize = Tool.get("papyrus_localize_story")
-        local result = localize({story = input.story, language = input.language, ceiling_usd = input.ceilingUsd, source_version = input.sourceVersion})
+        local result = localize({story = input.story, language = input.language, ceiling_usd = input.ceilingUsd, source_version = input.sourceVersion, automation_id = input.automationId})
         return {
             story = result.story,
             language = result.language,

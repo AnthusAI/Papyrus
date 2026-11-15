@@ -42,6 +42,18 @@ def run_procedure(inputs):
 def test_the_procedure_translates_through_its_tool_and_answers_with_the_contract():
     result, output, calls = run_procedure({"story": "story-a", "language": "zh-Hans", "ceilingUsd": 1})
     assert result.get("success"), result.get("error")
-    assert calls == [{"story": "story-a", "language": "zh-Hans", "ceiling_usd": 1, "source_version": None}]
+    assert calls == [{"story": "story-a", "language": "zh-Hans", "ceiling_usd": 1, "source_version": None, "automation_id": None}]
     assert output["story"] == "story-a--zh-Hans" and output["hold"] is True and output["published"] is False and output["rounds"] == 2
     assert output["sourceCharacters"] == 5200 and output["costUsd"] == 0.004
+
+
+def test_the_cost_history_is_read_from_the_procedure_the_automation_runs():
+    from papyrus_content.localize.record import automation_procedure_key
+    from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+
+    client = FakeAuthoringClient()
+    assert automation_procedure_key(client, None) is None
+    client.upsert("Automation", {"id": "site.story-localize", "procedureKey": "site.story-localize"})
+    assert automation_procedure_key(client, "site.story-localize") == "site.story-localize"
+    with pytest.raises(ValueError, match="does not exist"):
+        automation_procedure_key(client, "site.missing")

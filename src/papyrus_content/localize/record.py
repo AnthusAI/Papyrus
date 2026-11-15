@@ -129,9 +129,21 @@ def spend_history(client, procedure_key: str) -> list[dict[str, Any]]:
     return history
 
 
+def automation_procedure_key(client, automation_id: str | None) -> str | None:
+    """The key the site registered the translation procedure under: the procedureKey of the automation that runs it (a site names its keys,
+    `SITE.story-localize`). None when no automation is named (a plan), so there is no measured history to read."""
+    if not automation_id:
+        return None
+    row = client.get_record("Automation", automation_id)
+    if not row or not row.get("procedureKey"):
+        raise ValueError(f"The automation {automation_id} does not exist, or names no procedure. Create it first (docs/automations.md).")
+    return str(row["procedureKey"])
+
+
 def collect(client, *, story: str, language: str, judge, procedure_version: str, ceiling_usd: float | None = None,
-            decision_model: Any = None) -> LocalizeRequest:
-    """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize."""
+            decision_model: Any = None, automation_id: str | None = None) -> LocalizeRequest:
+    """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize.
+    ``automation_id`` names the automation that runs the procedure; its procedure's earlier runs give the cost prediction."""
     from ..editorial_checks import GraphQLEditorialStore, settings_from
     from ..editorial_languages import site_language, starter_packs_for, story_language
     from ..editorial_model_context import editing_pack_and_context
@@ -143,7 +155,6 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     from .budget import predict
     from .checks import BlockChecker
     from .blocks import blocks_of
-    from .engine import PROCEDURE_KEY
 
     store = GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))
     settings = settings_from(store)
@@ -170,6 +181,8 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
                            lanes=lanes, decision_model=decision_model)
     english = BlockChecker(source_language=source_language, target_language=source_language, glossary=glossary, copy_edit_pack=source_pack,
                            judge=None, lanes={"rules": True, "classifier": False})
+    procedure_key = automation_procedure_key(client, automation_id)
+    history = spend_history(client, procedure_key) if procedure_key else []
     key = run_key(source, target, procedure_version=procedure_version, checker_versions=checker.versions)
     characters = sum(len(block.text) for block in blocks_of(source.body, title=source.title, deck=source.deck) if block.translated)
     return LocalizeRequest(
@@ -177,7 +190,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
         slug_policy=serving_languages(settings).slugs[target],
         register_notes=register_notes(resolve_guidelines(guidelines, "writing", source.section, target)),
         previous=previous, previous_source_hash=_metadata(current).get("localization", {}).get("sourceContentHash") if current else None,
-        prediction=predict(target, characters, spend_history(client, PROCEDURE_KEY)), ceiling_usd=ceiling_usd,
+        prediction=predict(target, characters, history), ceiling_usd=ceiling_usd,
         procedure_version=procedure_version, source_checker=lambda text: english.copy_edit(text)[0])
 
 
