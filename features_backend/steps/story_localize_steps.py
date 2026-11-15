@@ -120,7 +120,7 @@ def step_models(context, language):
 
 
 def _collect(context):
-    def collect(client, *, story, language, judge, procedure_version, ceiling_usd=None, decision_model=None):
+    def collect(client, *, story, language, judge, procedure_version, ceiling_usd=None, decision_model=None, automation_id=None):
         source = localize_record.source_version(context.primary, "en")
         lineage = f"{story}--{language}"
         current, previous = localize_record.previous_alignment(client, lineage)
