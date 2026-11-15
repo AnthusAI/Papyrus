@@ -427,6 +427,9 @@ class StandardSettings:
     #: Set only on a language edition (``editions.py``), never in projection.json: the language's URL prefix. Its pages live under
     #: ``<basePath>/<prefix>/``; the site's assets stay under the base path, shared by every language.
     language_prefix: str = ""
+    #: Set only on a language edition: ``(English path, translated path)`` of each section, type and page whose segments the language translates
+    #: (``languages.segments``). The edition redirects every page under the English path to the same page under the translated one.
+    moved_paths: tuple[tuple[str, str], ...] = ()
     sections: tuple[SectionConfig, ...] = ()
     collections: tuple[CollectionConfig, ...] = ()
     not_found: NotFoundSettings = field(default_factory=NotFoundSettings)

@@ -124,6 +124,11 @@ function queryStringOf(request) {
   return parts.length === 0 ? "" : "?" + parts.join("&");
 }
 
+// A redirect keeps the request's query string (a path on this site only: an absolute target is the rule's own address).
+function withQuery(target, request) {
+  return target.charAt(0) === "/" && target.indexOf("?") === -1 ? target + queryStringOf(request) : target;
+}
+
 function wwwRedirectResponse(request) {
   const header = request.headers && request.headers.host;
   const host = header && header.value ? header.value.toLowerCase() : "";
@@ -150,7 +155,7 @@ async function handler(event) {
     return {
       statusCode: 301,
       statusDescription: "Moved Permanently",
-      headers: { location: { value: redirectTarget } },
+      headers: { location: { value: withQuery(redirectTarget, request) } },
     };
   }
   const patternRedirect = lookUpPatternRedirect(request.uri);
@@ -158,7 +163,7 @@ async function handler(event) {
     return {
       statusCode: patternRedirect.status,
       statusDescription: "Moved",
-      headers: { location: { value: patternRedirect.target } },
+      headers: { location: { value: withQuery(patternRedirect.target, request) } },
     };
   }
   request.uri = rewriteToIndexDocument(request.uri);

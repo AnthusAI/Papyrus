@@ -53,6 +53,18 @@ Feature: Which languages are public, and how each is served, are set in one plac
       | papyrus editorial languages --set-slug es-419=shortest    | is not one of translated, characters, pinyin, primary |
       | papyrus editorial languages --set-slug en=primary         | languages.slugs names en, which is not an enabled language other than the primary |
       | papyrus editorial languages --set-prefix es-419=Es_Latam  | is not a lowercase path segment                  |
+      | papyrus editorial languages --set-segment es-419:articles=art/iculos | is not a URL-safe lowercase path segment |
+      | papyrus editorial languages --set-segment es-419:articles=Artículos  | is not a URL-safe lowercase path segment |
+      | papyrus editorial languages --set-segment es-419:Articles=articulos  | is not a path segment as the English site writes it |
+      | papyrus editorial languages --set-segment es-419:articles=x --set-segment es-419:posts=x | would both be served as /x/ |
+      | papyrus editorial languages --set-segment en:articles=articles | languages.segments names en, which is not an enabled language other than the primary |
+
+  Scenario: A path segment is set for one language, shown in the listing, and cleared with an empty value
+    When the editor runs the languages command "papyrus editorial languages --set-segment es-419:posts=publicaciones --set-segment zh-Hans:posts=动态"
+    Then the stored segments are "es-419": posts is "publicaciones"; "zh-Hans": posts is "动态"
+    And the listing shows the segment "/posts/ -> /publicaciones/" for "es-419"
+    When the editor runs the languages command "papyrus editorial languages --set-segment es-419:posts="
+    Then the stored segments are "zh-Hans": posts is "动态"
 
   Scenario: The console asks the same question and gets the same words and the defaults
     When the console form describes the languages with "es-419" and "es" both enabled
