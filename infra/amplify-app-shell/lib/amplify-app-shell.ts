@@ -232,6 +232,10 @@ export class AmplifyAppShellStack extends Stack {
           target: `https://${resolveCmsHostName(config)}`,
           status: String(redirect.status),
         })),
+        // An apex production host: www is permanent-redirected to it (path and query are kept by Amplify's host redirect).
+        ...(config.cms.wwwRedirect && config.cms.domainName
+          ? [{ source: `https://www.${config.cms.domainName}`, target: `https://${config.cms.domainName}`, status: "301" }]
+          : []),
         { source: "/<*>", target: "/index.html", status: "404-200" },
       ],
     });
@@ -352,7 +356,10 @@ export class AmplifyAppShellStack extends Stack {
             })),
             ...(stagingBranch ? [{ branchName: "staging", prefix: config.cms.stagingDomainPrefix as string }] : []),
           ]
-        : [{ branchName: "main", prefix: "" }];
+        : [
+            { branchName: "main", prefix: "" },
+            ...(config.cms.wwwRedirect ? [{ branchName: "main", prefix: "www" }] : []),
+          ];
       const productionDomain = new amplify.CfnDomain(this, "Domain", {
         appId: cmsApp.attrAppId,
         domainName: config.cms.domainName,

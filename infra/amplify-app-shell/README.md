@@ -95,6 +95,8 @@ host is `staging.<zone>` unless `cms.stagingDomainName` is set. Whether Amplify 
 a second app claim a prefix on a root another app already holds is proven with a
 real deploy, not by synth (see the Threat Intelligence cutover).
 
+Redirect `www` to an apex production host: set `cms.wwwRedirect: true` on a site whose `cms.domainName` is the apex and that has no `cms.domainPrefix`. The stack adds the `www` sub-domain to the app's domain association (Amplify issues the certificate for it and writes the DNS record in the same Route 53 zone) and one app custom rule, `https://www.<domain>` to `https://<domain>`, status 301, ahead of the catch-all; path and query are kept. Off unless set, so existing sites synthesize as before. Scenarios: [`features/www-redirect.feature`](features/www-redirect.feature).
+
 Redirect the root domain apex (and optionally other hosts under the root) to the
 primary host: `cms.redirects: [{ "source": "apyr.us", "status": 301 }]` (status
 301 or 302, default 301; requires `cms.domainPrefix`).
