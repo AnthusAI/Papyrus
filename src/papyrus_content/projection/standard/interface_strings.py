@@ -74,6 +74,16 @@ def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_href
     return tuple(dict.fromkeys(keys))
 
 
+def page_keys(pages) -> tuple[str, ...]:
+    """The keys a language needs for the authored pages it renders: ``page.<id>.title`` and, when the page has a description, ``page.<id>.description``."""
+    keys = []
+    for custom in pages:
+        keys.append(f"page.{custom.id}.title")
+        if custom.description:
+            keys.append(f"page.{custom.id}.description")
+    return tuple(keys)
+
+
 def missing_keys(strings: Mapping[str, str], required: tuple[str, ...]) -> tuple[str, ...]:
     """The required keys a language's strings lack or leave empty, and a ``translation.label`` with no place for the link to the original."""
     missing = [key for key in required if not (strings.get(key) or "").strip()]

@@ -1,6 +1,6 @@
 # Authored pages in language editions
 
-Status: plan, not built (2026-11-15). Raised by Ryan's goal that a Spanish or Chinese reader can use the whole site in their language. Builds on [docs/multilingual-serving.md](../multilingual-serving.md) (editions) and [multilingual-publishing.md](multilingual-publishing.md).
+Status: items 1 and 2 built in the first slice (opt-in `languages: "localize"`, per-language page files, `page.<id>.*` strings, alternates, link map, shared References and threads snapshot); 3 (paged Reference lists in an edition), 4, 5 and translated path segments not built (2026-11-15). Raised by Ryan's goal that a Spanish or Chinese reader can use the whole site in their language. Builds on [docs/multilingual-serving.md](../multilingual-serving.md) (editions) and [multilingual-publishing.md](multilingual-publishing.md).
 
 ## Problem
 
@@ -36,7 +36,15 @@ The site's navigation reads `page.link_map` (MoM `_destination`): a destination 
 
 Order: 1, 2 (About and Corrections need only 4 on top), 3, then 5. Item 5 also fixes today's loose end that an edition's home advertises `/<prefix>/index.md`, which is not rendered.
 
-## Decisions for Ryan
+## Decided (2026-11-15)
+
+Source-language items appear in localized listings marked `lang` with the one-line notice; Conversations are localized the same way; About publishes when its translation is clean and Corrections is always held for a person; pages launch at their final, translated addresses (a per-language slug table for section, type and page path segments, with 301 redirects from the English segments under each prefix), so item 6 below precedes turning any page on.
+
+| # | Change | Size |
+| --- | --- | --- |
+| 7 | Translated path segments: a per-language slug table (settings, validated: unique, URL-safe once percent-encoded, no collision with Story slugs), used by listings, authored pages, nav, sitemap, hreflang, canonical, switcher, feeds and twins; 301 redirects from the English segments | L |
+
+## Decisions (original questions, now answered)
 
 1. Source-language items in a localized listing marked with `lang` and a notice (this plan), or the listing left in English only.
 2. Whether Conversations (people's own words) should be localized at all, or stay English-only with the localized shell linking through.

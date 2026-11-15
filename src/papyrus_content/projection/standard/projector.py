@@ -85,8 +85,8 @@ from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
 from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
-from .editions import LanguageView, edition_nav_hrefs, edition_settings, language_groups, language_name
-from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
+from .editions import LanguageView, edition_nav_hrefs, edition_pages, edition_settings, language_groups, language_name
+from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, page_keys, read_interface_strings, required_keys
 
 
 def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
@@ -308,7 +308,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
             prefix = serving.prefix(tag)
             if prefix in taken:
                 raise ValueError(f"languages.prefixes: /{prefix}/ for {tag} is already a path of this site; choose another prefix.")
-            missing = missing_keys(self._interface_strings.get(tag, {}), required)
+            strings = self._interface_strings.get(tag, {})
+            own_pages = edition_pages(self.standard, tag, strings, self._static_directory)
+            missing = missing_keys(strings, (*required, *page_keys(own_pages)))
             if missing:
                 problems.append(f"{tag}: {', '.join(missing)}")
         if problems:
@@ -320,7 +322,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             child = StandardMarkusProjector(
                 dataclasses.replace(self._settings, plugins=(), public_data=None),
                 {},
-                edition_settings(self.standard, tag, serving.prefix(tag), self._interface_strings[tag]),
+                edition_settings(self.standard, tag, serving.prefix(tag), self._interface_strings[tag], self._static_directory),
                 hooks=self.hooks,
                 environment=self.environment,
                 renditions=self._given_renditions,
@@ -328,6 +330,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 static_directory=self._static_directory,
             )
             child.version = self.version
+            child._home_page = self._home_page   # the References and threads an edition's authored pages list are the site's, not the language's
             child._edition_tag = tag
             child._is_edition = True
             child._primary_edition = self
@@ -418,6 +421,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             own = self._own_site(site, tag)
             listed = [entry for entry in edition._entries(own) if entry.listed]
             found = [("", "", listed)] + [(self._canonical_base(base, section), base, members) for base, _label, section, members in edition._listing_groups(listed)]
+            found += [(custom.path, custom.path, [custom]) for custom in edition.standard.pages if custom.languages == "localize" and custom.path]   # an authored page a language renders is an alternate of the others
             for base, own_base, members in found:
                 bases.setdefault(base, []).append(tag)
                 if own_base != base:
@@ -734,6 +738,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _forum(self):
         home_page = self.standard.home_page
         return home_page.forum if home_page is not None else None
+
+    def _thread_linker(self):
+        """How a thread include links a thread: to the site's thread page; an edition has none of its own and links to the primary language's (a link that leaves the language)."""
+        if self._forum() is not None:
+            return self._thread_href
+        owner = self._primary_edition
+        return owner._thread_href if owner is not None and owner._forum() is not None else None
 
     def _thread_href(self, key: str) -> str:
         return self.policy.path(forum_pages.thread_site_path(self._forum().thread_base, key))
@@ -2348,7 +2359,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             )
         if kind == "threads":
             return home_page_blocks.render_threads(
-                attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None,
+                attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_linker(),
                 {section.name: section.label for section in self.standard.sections},
             )
         if knowledge_blocks.is_knowledge_block(attributes):

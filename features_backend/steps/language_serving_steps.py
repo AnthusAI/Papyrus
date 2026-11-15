@@ -65,6 +65,8 @@ class LanguageSite:
         self.reports = []
         self.context = None
         self.authored_home = False
+        self.pages: list[dict] = []          # authored pages written into projection.json
+        self.page_files: dict[str, str] = {}   # static-directory path -> text
 
     def build(self) -> None:
         static = self.work / "web"
@@ -74,6 +76,11 @@ class LanguageSite:
             projection["pages"] = [{"id": "home", "path": "", "title": "Machines on Machines", "description": "Home.", "source": "pages/home.md"}]
             (static / "pages").mkdir(exist_ok=True)
             (static / "pages" / "home.md").write_text("::raw\n<p>An authored home.</p>\n::endraw\n", encoding="utf-8")
+        if self.pages:
+            projection["pages"] = [*projection.get("pages", []), *self.pages]
+        for relative, text in self.page_files.items():
+            (static / relative).parent.mkdir(parents=True, exist_ok=True)
+            (static / relative).write_text(text, encoding="utf-8")
         (static / "projection.json").write_text(json.dumps(projection), encoding="utf-8")
         for path in (static / "strings").glob("*.json"):
             path.unlink()
@@ -634,3 +641,58 @@ def step_ranked_date(context):
     html = _site(context).text("es/articles/index.html")
     card = re.search(r'es-alpha-star/.*?datetime="([^"]+)"', html, re.S)
     assert card and card.group(1) == "2026-11-09", card and card.group(1)
+
+
+# ---- authored pages in editions (features_backend/language-authored-pages.feature)
+
+def page_text(words: str) -> str:
+    return '::band{size="bare"}\n\n::raw\n<p>' + words + '</p>\n::endraw\n'
+
+
+def _page_entry(identifier: str, path: str, title: str, localize: bool) -> dict:
+    entry = {"id": identifier, "path": path, "title": title, "description": f"{title} page.", "source": f"pages/{identifier}.md"}
+    if localize:
+        entry["languages"] = "localize"
+    return entry
+
+
+def _add_page(context, identifier: str, path: str, title: str, localize: bool, spanish_title: str | None, chinese: bool = False) -> None:
+    site = _site(context)
+    site.pages.append(_page_entry(identifier, path, title, localize))
+    site.page_files[f"pages/{identifier}.md"] = page_text(title)
+    if spanish_title:
+        site.page_files[f"pages/{identifier}.es-419.md"] = page_text(spanish_title)
+        site.strings["es-419"][f"page.{identifier}.title"] = spanish_title
+        site.strings["es-419"][f"page.{identifier}.description"] = f"{spanish_title}."
+
+
+@given('an authored page "{identifier}" at "{path}" titled "{title}" that opts in to languages, with a Spanish file titled "{spanish}" and no Chinese file')
+def step_localized_page(context, identifier, path, title, spanish):
+    _add_page(context, identifier, path, title, True, spanish)
+
+
+@given('an authored page "{identifier}" at "{path}" titled "{title}" that does not opt in, with a Spanish file titled "{spanish}"')
+def step_unlocalized_page(context, identifier, path, title, spanish):
+    _add_page(context, identifier, path, title, False, spanish)
+
+
+@then('the written page "{key}" exists and its title is "{title}"')
+def step_page_title(context, key, title):
+    assert re.search(rf"<title>{re.escape(title)}\b", _site(context).text(key)), re.search(r"<title>[^<]*", _site(context).text(key))
+
+
+@then('the written page "{key}" is the English page titled "{title}"')
+def step_english_page(context, key, title):
+    html = _site(context).text(key)
+    assert '<html lang="en"' in html and re.search(rf"<title>{re.escape(title)}\b", html)
+
+
+@then('the written page "{key}" does not exist')
+def step_page_absent(context, key):
+    assert not _site(context).exists(key), key
+
+
+@then('the written page "{key}" lists hreflang "en" and "es" and not "zh-Hans"')
+def step_page_hreflang(context, key):
+    found = dict(_hreflang(_site(context).text(key)))
+    assert {"en", "es"} <= set(found) and "zh-Hans" not in found, found

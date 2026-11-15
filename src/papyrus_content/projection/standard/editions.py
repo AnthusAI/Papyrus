@@ -154,7 +154,29 @@ def localized(text: str, strings: Mapping[str, str], key: str) -> str:
     return strings[key] if text else text
 
 
-def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str]) -> StandardSettings:
+def localized_source(source: str | None, tag: str) -> str | None:
+    """The file of an authored page in a language: ``pages/findings.md`` is ``pages/findings.es-419.md`` in es-419."""
+    if not source:
+        return None
+    stem, dot, suffix = source.rpartition(".")
+    return f"{stem}.{tag}.{suffix}" if dot else f"{source}.{tag}"
+
+
+def edition_pages(standard: StandardSettings, tag: str, strings: Mapping[str, str], static_directory) -> tuple:
+    """The authored pages a language renders: those that opt in (``languages: "localize"``) and have a file in the language. Each is the page with its title and
+    description from ``page.<id>.title`` and ``page.<id>.description`` and its source the language's file. A page without a file is not rendered in the language
+    (no fallback to the primary's text), so it is no alternate and a site's links to it stay on the primary page."""
+    found = []
+    for custom in standard.pages:
+        source = localized_source(custom.source, tag) if custom.languages == "localize" else None
+        if source and static_directory is not None and (static_directory / source).is_file():
+            found.append(dataclasses.replace(
+                custom, source=source, title=strings.get(f"page.{custom.id}.title", custom.title),
+                description=strings.get(f"page.{custom.id}.description", custom.description) if custom.description else custom.description, languages="localize"))
+    return tuple(found)
+
+
+def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str], static_directory=None) -> StandardSettings:
     """The settings of the ``tag`` edition: the site's settings, its words in the language, its pages under the prefix, and only what an edition renders.
 
     An edition renders the language's Story pages, its home and section listings (with paging and archives), its feeds and sitemap. It renders no
@@ -176,6 +198,8 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
         )
         for section in standard.sections
     )
+    pages = edition_pages(standard, tag, strings, static_directory)
+    home_page = dataclasses.replace(standard.home_page, forum=None) if pages and standard.home_page is not None else None   # the pages' References and threads; no thread pages of its own
     hrefs = edition_nav_hrefs(standard)
     moved = {f"/{section.base}/": f"/{edition_base(standard, section)}/" for section in standard.sections if section.base}
     nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href=f"/{prefix}" + moved.get(link.href, link.href), cta=link.cta)
@@ -187,9 +211,9 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
         sections=sections,
         nav=nav,
         collections=(),
-        pages=(),
+        pages=pages,
         showcase=None,
-        home_page=None,
+        home_page=home_page,
         forms=(),
         footer_columns=(),
         footer_family=None,
