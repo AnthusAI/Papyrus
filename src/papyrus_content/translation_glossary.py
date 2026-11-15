@@ -11,7 +11,7 @@ An entry::
      "originalOnFirstMention": false}
     {"term": "abliteration", "doNotTranslate": true}
 
-``translations`` lists the approved renderings, the first preferred; ``doNotTranslate`` keeps the term exactly as the source writes it. One of the
+``translations`` lists the approved renderings, the first preferred; ``variants`` are further forms a translation may use (a plural, an adjective: ``estadounidense`` for ``U.S.``), accepted and never offered as the fix; ``exceptIn`` lists longer names the term does not count in (``Chaos Communication Congress`` for ``Congress``); ``doNotTranslate`` keeps the term exactly as the source writes it. One of the
 two is required. Names of people, organisations and products need no entry: Humanus's ``names`` parity check keeps every name unchanged unless the
 glossary gives an approved local form.
 
@@ -62,6 +62,7 @@ class Glossary:
         chosen = self.entries if entries is None else tuple(entries)
         return {"language": self.language, "entries": [
             {"term": entry["term"], **({"translations": list(entry["translations"])} if entry.get("translations") else {"doNotTranslate": True}),
+             **({"variants": list(entry["variants"])} if entry.get("variants") else {}), **({"exceptIn": list(entry["exceptIn"])} if entry.get("exceptIn") else {}),
              "caseSensitive": bool(entry.get("caseSensitive"))}
             for entry in chosen]}
 
