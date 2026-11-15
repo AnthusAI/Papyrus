@@ -303,6 +303,26 @@ def stories_languages(flags: list[str]) -> None:
     run_languages(client, primary=client.primary_language(), dry_run=dry_run, rate=rate)
 
 
+def stories_decks(flags: list[str]) -> None:
+    """papyrus stories decks [--dry-run] [--rate <writes per second>]
+
+    Brings the `deck` column of every Item and published row to the dek its own front matter holds (`dek`, else `deck`, `standfirst`, `description`:
+    src/papyrus_content/item_front_matter.py). Rows saved before the column was derived from `dek` can serve an older dek. Reads the version-state index
+    once (no table scan) and each published row by its id, writes only the derived `deck` of rows that differ (never front matter), each with its own
+    updatedAt, at most --rate a second (default 5). A row with no front matter is left alone.
+
+    Writes by default; --dry-run prints one line per row it would write and a summary (rows read, rows to write, already right). A second run writes nothing."""
+    from .item_deck_backfill import DEFAULT_RATE, run_decks
+
+    options = parse_options(flags)
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    client, _ = create_authoring_client()
+    run_decks(client, dry_run=dry_run, rate=rate)
+
+
 def stories_backfill_published_dates(flags: list[str]) -> None:
     """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
 
@@ -1194,13 +1214,17 @@ def stories_fire_triggers(flags: list[str]) -> None:
 
 
 def stories_localize(flags: list[str]) -> None:
-    """papyrus stories localize --story LINEAGE --language TAG [--automation ID] [--ceiling-usd N] [--dry-run] [--json]
+    """papyrus stories localize --story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run] [--json]
 
     Asks for a translation of a published Story into one language (the Story translation procedure, papyrus.story.localize): writes the
-    desired-state record for the Story and language (LocalizationRequest: the newest published source version), then starts the site's
-    translation automation (--automation, the automation that runs papyrus.story.localize) for it. The run translates only the blocks whose
-    source changed, checks every block against the English, polishes until the findings stop shrinking and saves the result as an unpublished
-    version of <story>--<language>; it never publishes. Run `papyrus automations runs --id ID` to follow it.
+    desired-state record for the Story and language (LocalizationRequest: the newest published source version), then runs the site's registered
+    ``story_localize`` procedure for it. The run translates only the blocks whose source changed, checks every block against the English, polishes
+    until the findings stop shrinking and saves the result as an unpublished version of <story>--<language>; it never publishes.
+
+    Without --automation the run happens here, through the procedure runner's own code (a ProcedureRun records its status, usage and cost; the engine
+    records the outcome on the request): it needs the operator lane (``papyrus --auth iam``), the procedure registered under --procedure (default
+    SITE.story-localize), and the model key in OPENAI_API_KEY or --openai-key-parameter. With --automation ID the site's runner starts it instead.
+    Either way the procedure's earlier runs give the cost prediction.
 
     Writes by default; --dry-run prints the plan (blocks to translate, glossary terms the translator will be given, the predicted cost from this
     language's measured runs) and writes nothing."""
@@ -1213,8 +1237,22 @@ def stories_localize(flags: list[str]) -> None:
     language = _required_option(options, "language")
     dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
     ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
+    automation = options.get("automation") or None
+    procedure = options.get("procedure") or None
     client, _ = create_authoring_client()
-    request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling)
+    if not dry_run and not automation:
+        from .localize.start import default_procedure_key, openai_key
+        from .site_selection import host_for
+
+        from .user_auth_mode import iam_requested
+
+        if not iam_requested():
+            raise ValueError("A run started here executes the procedure in a child process that signs as the operator: use `papyrus --auth iam` "
+                             "(AWS credentials for the site), or start it through an automation with --automation.")
+        procedure = procedure or default_procedure_key(host_for(client.endpoint))
+        key = openai_key(options.get("openai-key-parameter"))
+    request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling,
+                      automation_id=automation, procedure_key=procedure)
     from .localize.blocks import blocks_of
     from .localize.engine import plan_slots
 
@@ -1227,9 +1265,18 @@ def stories_localize(flags: list[str]) -> None:
     if dry_run:
         print("\t".join(["stories", "localize", "plan", json.dumps(plan, ensure_ascii=False)]))
         return
-    automation = _required_option(options, "automation")
     source = published_story_version(client, story)
     record = want(client, source=source, language=request.language, requested_by="cli")
+    if not automation:
+        from .localize.start import run_from_cli
+
+        result = run_from_cli(client, story=story, language=request.language, ceiling_usd=ceiling, procedure_key=procedure, key=key)
+        print("\t".join(["stories", "localize", "ran", record["id"], f"source v{record['sourceVersionNumber']}", "run", str(result.get("runId")),
+                         str(result.get("runStatus")), f"cost ${result.get('costUsd')}", json.dumps(result.get("output") or {}, ensure_ascii=False)]))
+        if result.get("runStatus") != "completed":
+            raise ValueError(f"The translation is requested ({record['id']}), but the run {result.get('runId')} failed: {result.get('error')}. "
+                             "Run the same command again: a failed run continues from its finished stages.")
+        return
     from .automations_signed_in import RUN_MUTATION
 
     answer = client.graphql(RUN_MUTATION, {"automationId": automation, "input": json.dumps({"story": story, "language": request.language,

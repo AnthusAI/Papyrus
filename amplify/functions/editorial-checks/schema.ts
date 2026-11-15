@@ -88,6 +88,12 @@ export const editorialChecksSchemaDefinitions = {
       .returns(a.json())
       .authorization((allow) => [allow.groups(editors)])
       .handler(functionHandler("editorialChecks", editorialChecks)),
+    describeEditorialLanguages: a
+      .query()
+      .arguments({ languages: a.json().required() })
+      .returns(a.json())
+      .authorization((allow) => [allow.groups(editors)])
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     checkItemVersion: a
       .mutation()
       .arguments({ itemId: a.id().required() })

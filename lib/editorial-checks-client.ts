@@ -3,6 +3,7 @@
 import { generateClient } from "aws-amplify/data";
 import type { EditorialCheckResult, EditorialFeedbackInput, EditorialFinding, RewriteResult, Span } from "./editorial-checks";
 import type { EditorialChecksBackend } from "./editorial-checks-backend";
+import type { LanguagesDescription } from "./editorial-languages-form";
 import { DEFAULT_EDITORIAL_SETTINGS, mergeEditorialSettings, type EditorialSettings } from "./editorial-checks-settings";
 
 export { DEFAULT_EDITORIAL_SETTINGS, type EditorialSettings };
@@ -159,6 +160,18 @@ export async function saveSettings(settings: EditorialSettings, exists: boolean)
   await call(`mutation SaveSettings($input: ${inputType}!) { ${operation}(input: $input) { id } }`, {
     input: { id: "settings", settings: JSON.stringify(settings) },
   });
+}
+
+/**
+ * The `languages` setting checked by the rules the projection applies (src/papyrus_content/language_serving.py), with each language's effective and default
+ * prefix, public flag and slug policy. Refusals come back as `{ ok: false, message }`, so the form can say them before saving.
+ */
+export async function describeLanguages(languages: EditorialSettings["languages"]): Promise<LanguagesDescription> {
+  const data = await call<{ describeEditorialLanguages: unknown }>(
+    `query DescribeEditorialLanguages($languages: AWSJSON!) { describeEditorialLanguages(languages: $languages) }`,
+    { languages: JSON.stringify(languages) },
+  );
+  return parsed<LanguagesDescription>(data.describeEditorialLanguages);
 }
 
 export async function importStarterPack(name: string): Promise<{ created: number; skipped: number }> {

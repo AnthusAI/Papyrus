@@ -6,7 +6,7 @@
     "modelCases": 491,
     "indexCases": 218,
     "subscriptionCases": 9,
-    "operationCases": 133,
+    "operationCases": 134,
     "functionCases": 64,
     "surfaceCases": 9
   },
@@ -6041,6 +6041,14 @@
       "subject": "describeConcept",
       "operation": "call-with-foreign-ids",
       "probe": "alpha calls describeConcept with \"beta\"'s ids for lineageId",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:describeEditorialLanguages",
+      "kind": "operation",
+      "subject": "describeEditorialLanguages",
+      "operation": "call-scope",
+      "probe": "alpha calls describeEditorialLanguages with languages chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

@@ -16,6 +16,7 @@ import hashlib
 import json
 from typing import Any
 
+from ..item_front_matter import DEK_KEYS
 from ..item_language import localization_lineage_id
 from ..localization_publish import hold_request_id
 from ..publishing import utc_now_iso
@@ -128,9 +129,21 @@ def spend_history(client, procedure_key: str) -> list[dict[str, Any]]:
     return history
 
 
+def automation_procedure_key(client, automation_id: str | None) -> str | None:
+    """The key the site registered the translation procedure under: the procedureKey of the automation that runs it (a site names its keys,
+    `SITE.story-localize`). None when no automation is named (a plan), so there is no measured history to read."""
+    if not automation_id:
+        return None
+    row = client.get_record("Automation", automation_id)
+    if not row or not row.get("procedureKey"):
+        raise ValueError(f"The automation {automation_id} does not exist, or names no procedure. Create it first (docs/automations.md).")
+    return str(row["procedureKey"])
+
+
 def collect(client, *, story: str, language: str, judge, procedure_version: str, ceiling_usd: float | None = None,
-            decision_model: Any = None) -> LocalizeRequest:
-    """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize."""
+            decision_model: Any = None, automation_id: str | None = None, procedure_key: str | None = None) -> LocalizeRequest:
+    """Stage 1: everything the run needs, read through indexes. Refuses a Story that is not published or is marked do-not-localize.
+    ``procedure_key`` (or the procedure of ``automation_id``) names the registered procedure whose earlier runs give the cost prediction."""
     from ..editorial_checks import GraphQLEditorialStore, settings_from
     from ..editorial_languages import site_language, starter_packs_for, story_language
     from ..editorial_model_context import editing_pack_and_context
@@ -142,7 +155,6 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     from .budget import predict
     from .checks import BlockChecker
     from .blocks import blocks_of
-    from .engine import PROCEDURE_KEY
 
     store = GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))
     settings = settings_from(store)
@@ -169,6 +181,8 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
                            lanes=lanes, decision_model=decision_model)
     english = BlockChecker(source_language=source_language, target_language=source_language, glossary=glossary, copy_edit_pack=source_pack,
                            judge=None, lanes={"rules": True, "classifier": False})
+    procedure_key = procedure_key or automation_procedure_key(client, automation_id)
+    history = spend_history(client, procedure_key) if procedure_key else []
     key = run_key(source, target, procedure_version=procedure_version, checker_versions=checker.versions)
     characters = sum(len(block.text) for block in blocks_of(source.body, title=source.title, deck=source.deck) if block.translated)
     return LocalizeRequest(
@@ -176,7 +190,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
         slug_policy=serving_languages(settings).slugs[target],
         register_notes=register_notes(resolve_guidelines(guidelines, "writing", source.section, target)),
         previous=previous, previous_source_hash=_metadata(current).get("localization", {}).get("sourceContentHash") if current else None,
-        prediction=predict(target, characters, spend_history(client, PROCEDURE_KEY)), ceiling_usd=ceiling_usd,
+        prediction=predict(target, characters, history), ceiling_usd=ceiling_usd,
         procedure_version=procedure_version, source_checker=lambda text: english.copy_edit(text)[0])
 
 
@@ -191,7 +205,7 @@ def _front_matter(primary: dict[str, Any], title: str, deck: str) -> str | None:
         return None
     if title:
         loaded["title"] = title
-    for key in ("deck", "standfirst", "description"):
+    for key in DEK_KEYS:
         if key in loaded and deck:
             loaded[key] = deck
     return yaml.safe_dump(loaded, allow_unicode=True, sort_keys=False)
@@ -213,7 +227,7 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
     """Records the translation as the next version of the localization lineage (version 1 the first time) and its provenance. Unpublished,
     no board stage, author AI. Refuses when a newer source was translated meanwhile (an older run never replaces newer work)."""
     from ..model_attachments import build_json_model_payload_attachment, upload_attachment_body
-    from ..publishing import ItemFields, _derive_or_raise, _source_content_hash, _status_keys, _without_server_fields
+    from ..publishing import ItemFields, _derive_or_raise, _load_front_matter, columns_from_front_matter, _source_content_hash, _status_keys, _without_server_fields
     from ..story_reporting import _carry_media_forward, next_version_record_id, story_versions, superseding_update
 
     now = now or utc_now_iso()
@@ -245,7 +259,7 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
         "changeReason": f"translation of version {request.source.version_number} into {request.language}",
         "stage": None, "headStageKey": None, "status": "draft", **_status_keys(fields.type, fields.section, "draft"),
         "title": translation["title"] or None, "headline": translation["title"] or None, "sortTitle": translation["title"] or None,
-        "deck": translation["deck"] or None, "body": [], "bodyMarkus": fields.body_markus, "bodyIr": to_aws_json(envelope),
+        "deck": (columns_from_front_matter(_load_front_matter(front_matter))["deck"] if front_matter else translation["deck"] or None), "body": [], "bodyMarkus": fields.body_markus, "bodyIr": to_aws_json(envelope),
         "metadata": to_aws_json(metadata), "contentHash": _source_content_hash(fields),
         "publishedAt": None, "versionPublishedAt": None, "versionPublishedBy": None,
         "language": request.language, "languageGroupId": request.source.lineage_id, "sourceLineageId": request.source.lineage_id,

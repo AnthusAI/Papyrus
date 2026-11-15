@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { EditorialLanguagesControls, useLanguagesCheck } from "./editorial-languages-controls";
+import { settleLanguages } from "../lib/editorial-languages-form";
 import { describeProbability, type EditorialCheckResult } from "../lib/editorial-checks";
 import {
   DEFAULT_EDITORIAL_SETTINGS,
   deletePolicy,
+  describeLanguages,
   draftQuestions,
   importStarterPack,
   listPolicies,
@@ -100,6 +103,7 @@ export function EditorialChecksAdminPanel() {
   const [working, setWorking] = useState<string | null>(null);
   const [tryText, setTryText] = useState("");
   const [tryResult, setTryResult] = useState<EditorialCheckResult | null>(null);
+  const languagesCheck = useLanguagesCheck(settings.languages);
 
   const refresh = useCallback(async () => {
     try {
@@ -350,7 +354,12 @@ export function EditorialChecksAdminPanel() {
         onSubmit={(event) => {
           event.preventDefault();
           void run("settings", async () => {
-            await saveSettings(settings, settingsExist);
+            // The languages are saved as settled (a language taken out of the list takes its serving keys with it) and only when the server's rules accept them.
+            const languages = settleLanguages(settings.languages);
+            const verdict = await describeLanguages(languages);
+            if (!verdict.ok) throw new Error(verdict.message);
+            await saveSettings({ ...settings, languages }, settingsExist);
+            setSettings((current) => ({ ...current, languages }));
             setSettingsExist(true);
             return "Settings saved.";
           });
@@ -375,7 +384,12 @@ export function EditorialChecksAdminPanel() {
             value={settings.languages.enabled.join(", ")}
           />
         </label>
-        <Button disabled={working !== null} type="submit">Save settings</Button>
+        <EditorialLanguagesControls
+          check={languagesCheck}
+          languages={settings.languages}
+          onChange={(languages) => setSettings((current) => ({ ...current, languages }))}
+        />
+        <Button disabled={working !== null || languagesCheck.status !== "ok"} type="submit">Save settings</Button>
       </form>
     </section>
   );

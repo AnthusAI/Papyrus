@@ -83,6 +83,7 @@ from .editorial_commands import (
     editorial_check_drafts,
     editorial_check_version,
     editorial_import,
+    editorial_languages,
     editorial_pack,
     editorial_policies,
     editorial_suggest,
@@ -390,6 +391,7 @@ PORTED_COMMANDS = frozenset(
         "stories:repair-versions",
         "stories:head-index",
         "stories:languages",
+        "stories:decks",
         "stories:localize",
         "stories:backfill-published-dates",
         "stories:repair-image-paths",
@@ -544,6 +546,7 @@ PORTED_COMMANDS = frozenset(
         "editorial:check-version",
         "editorial:copy-edit",
         "editorial:check-drafts",
+        "editorial:languages",
         "renderers:markus-build",
     }
 )
@@ -968,6 +971,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_languages
 
         stories_languages(flags)
+    elif route == "stories:decks":
+        from .story_commands import stories_decks
+
+        stories_decks(flags)
     elif route == "stories:backfill-published-dates":
         from .story_commands import stories_backfill_published_dates
 
@@ -1255,6 +1262,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         editorial_check_drafts(flags)
     elif route == "editorial:import":
         editorial_import(flags)
+    elif route == "editorial:languages":
+        editorial_languages(flags)
     elif route == "renderers:markus-build":
         markus_build(flags)
     else:

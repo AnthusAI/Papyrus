@@ -126,6 +126,82 @@ def serving_languages(settings: Mapping[str, Any]) -> ServingLanguages:
     return ServingLanguages(primary=primary, enabled=enabled, public=public, prefixes=prefixes, slugs=slugs)
 
 
+def _unreadable(error: Exception) -> ValueError:
+    """Humanus refuses a language it has no pack for with a LookupError; every refusal of this module is a ValueError naming the setting."""
+    return error if isinstance(error, ValueError) else ValueError(str(error))
+
+
+def checked_serving(languages: Any) -> ServingLanguages:
+    """:func:`serving_languages` of a ``languages`` object alone (what the console form and the CLI hold), every refusal a ``ValueError``."""
+    try:
+        return serving_languages({"languages": languages})
+    except (ValueError, LookupError) as error:
+        raise _unreadable(error) from error
+
+
+def describe_serving(languages: Any) -> dict[str, Any]:
+    """What the console shows for a ``languages`` object: ``{"ok": True, ...}`` with every enabled language's effective prefix, public flag and slug
+    policy and its defaults, or ``{"ok": False, "message": ...}`` with the refusal the projection would raise, so the form says it before saving.
+
+    This is the one validation (:func:`serving_languages`); the console form calls it through the ``describeEditorialLanguages`` query and the CLI
+    calls it directly, so neither holds a second copy of the rules."""
+    try:
+        serving = checked_serving(languages)
+    except ValueError as error:
+        return {"ok": False, "message": str(error)}
+    return {
+        "ok": True,
+        "primary": serving.primary,
+        "enabled": list(serving.enabled),
+        "languages": [
+            {
+                "tag": tag,
+                "primary": tag == serving.primary,
+                "public": serving.is_public(tag),
+                "prefix": serving.prefixes[tag],
+                "defaultPrefix": default_prefix(tag) if tag != serving.primary else "",
+                "slugPolicy": serving.slugs.get(tag),
+                "defaultSlugPolicy": default_slug_policy(tag) if tag != serving.primary else None,
+            }
+            for tag in serving.enabled
+        ],
+        "slugPolicies": list(SLUG_POLICIES),
+    }
+
+
+def edit_serving(languages: Mapping[str, Any], *, public: list[str] | None = None, prefixes: Mapping[str, str | None] | None = None,
+                 slugs: Mapping[str, str | None] | None = None) -> dict[str, Any]:
+    """``languages`` with the serving keys edited, every other key kept as stored, and checked by :func:`serving_languages`. Refuses (``ValueError``)
+    what the projection would refuse.
+
+    ``public`` replaces the list of public languages; the primary is always public, so it is added when missing, and a list of only the primary is no
+    key at all (the default). ``prefixes`` and ``slugs`` set the named languages' values and leave the others alone; a value of ``None`` or ``""``
+    returns that language to its default."""
+    result = dict(languages)
+    try:
+        primary = canonical(result.get("primary") or "")
+        if public is not None:
+            tags = [canonical(tag) for tag in public]
+            listed = tuple(dict.fromkeys([primary, *tags]))
+            result["public"] = list(listed)
+            if listed == (primary,):
+                result.pop("public")
+        for key, edits in (("prefixes", prefixes), ("slugs", slugs)):
+            if edits is None:
+                continue
+            merged = {canonical(tag): value for tag, value in (result.get(key) or {}).items()}
+            for tag, value in edits.items():
+                merged[canonical(tag)] = value
+            kept = {tag: value for tag, value in merged.items() if value not in (None, "")}
+            result[key] = kept
+            if not kept:
+                result.pop(key)
+    except LookupError as error:
+        raise _unreadable(error) from error
+    checked_serving(result)
+    return result
+
+
 # ---------------------------------------------------------------------------------------------------- slugs
 
 
