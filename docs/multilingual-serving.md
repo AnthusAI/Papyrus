@@ -65,7 +65,7 @@ The CMS's own listing keys (`typeStatus`, `sectionStatus`, `headStageKey`, read 
 On a site that serves more than one public language:
 
 - `<html lang>` is the page's own language tag.
-- The head lists `<link rel="alternate" hreflang>` for each public language the page is published in, itself included, then `x-default` (the primary language's page). A page that exists in one language only lists none.
+- The head lists `<link rel="alternate" hreflang>` for each public language the page is published in, itself included, then `x-default` (the primary language's page). A page that exists in one language only lists none. The `hreflang` value is the tag without a UN M.49 region (`es-419` is `es`; `zh-Hans`, `pt-BR` stay), because search engines refuse a numeric region (`hreflang_value` in `projection/standard/editions.py`, also `page.alternates[i]["hreflang"]` for a site's switcher and the links core draws); `<html lang>`, `og:locale` and JSON-LD `inLanguage` keep the full tag. The sitemaps carry no `xhtml:link` entries, so they need no such value.
 - `og:locale` is the page's tag with an underscore (`es_419`), with an `og:locale:alternate` for each other language; the article JSON-LD has `inLanguage`.
 - Each page is canonical to itself.
 - A translation's page also says what it is: the JSON-LD has `translationOfWork` (`{@type, url, inLanguage}` of the original) beside `inLanguage`, its Markdown twin adds `Language`, `Translation: machine` and `Translated from` to its facts line, and the page carries the AI-translation line in its own language (below the byline, from the interface strings).
@@ -91,6 +91,10 @@ Every `StandardPage` (see `hooks.py`) carries:
 | `page.link_in_language(path)` | `(path, leaves_the_language)`: where a link to a page of this site goes from this page. A page that exists in this page's language is linked there; one that does not keeps its address and `leaves_the_language` is True, so the site marks the link. |
 
 A language switcher draws `page.alternates`; the head tags are core's. The translator never chooses link targets: the published language groups decide them.
+
+## Concepts in a language
+
+A Story's concepts (`mentions`, `tagged_with` and `related_to` edges to Concept nodes) are written once, on the original, and every language reads them there: the projection reads a translation's concept edges through its language group (`read_site_relations`, the fourth member of each Story tuple), and `papyrus stories link-concept` run on a translation attaches the tag to the original and says so (`translationOf`). A translated Story page shows a concept chip only when that Concept has a published page in the page's language; it links there, and no chip leads out of the language. Every other relation (the sources a Story is based on, its related Stories) stays the original's, so a translation is never the page a citation links to. The concept popularity count of a language is over its own Stories. Concept names and descriptions in other languages (labels) are not stored yet: a Concept has a page in a language only when that page is a translated wiki page.
 
 ## Interface strings
 
