@@ -166,6 +166,15 @@ test("a release exactly at the limit passes and one more fails; indexes of a new
   assert.deepEqual(created.failures, []);
 });
 
+test("a table that is new in the release is created with all its indexes", () => {
+  const source = (names: string[]) =>
+    `  Label: modelWithoutSubscriptions({\n      id: a.id().required(),\n    })\n    .secondaryIndexes((index) => [\n${names.map((name) => `      index("${name}").queryField("by${name}"),\n`).join("")}    ]),\n`;
+  const created = compareLedgers(new Map(), parseLedger(source(["a", "b", "c"])), undefined);
+  assert.deepEqual(created.failures, []);
+  assert.deepEqual(created.releaseOrder, []);
+  assert.equal(compareLedgers(parseLedger(source(["a"])), parseLedger(source(["a", "b", "c"])), undefined).failures.length, 1);
+});
+
 test("a table's second pending index waits for the next release even inside the budget split", () => {
   const groups: [string, string][][] = [[["A", "a1"], ["B", "b1"], ["C", "c1"]], [["A", "a2"]]];
   assert.deepEqual(chunkReleases(groups, 2).map((release) => release.map(([table, id]) => `${table}.${id}`)), [["A.a1", "B.b1"], ["C.c1"], ["A.a2"]]);

@@ -180,6 +180,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | EditorialPolicy          | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | EditorialPolicy          | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | EditorialPolicy          | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | EntityLabel              | get                             | denied, or returns nothing of "beta"                                  |
+      | EntityLabel              | list                            | no row of "beta" is returned and pages are not short                  |
+      | EntityLabel              | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | EntityLabel              | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | EntityLabel              | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | EntityLabel              | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | EntityLabel              | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | Item                     | get                             | denied, or returns nothing of "beta"                                  |
       | Item                     | list                            | no row of "beta" is returned and pages are not short                  |
       | Item                     | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -614,6 +621,9 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listEditorialFeedbackByTenant                        | returns nothing of "beta"        |
       | listEditorialFeedbackByItem                          | returns nothing of "beta"        |
       | listEditorialPoliciesByTenant                        | returns nothing of "beta"        |
+      | listEntityLabelsByEntityAndSortKey                   | returns nothing of "beta"        |
+      | listEntityLabelsByNameKey                            | returns nothing of "beta"        |
+      | listEntityLabelsByWorkKeyAndUpdatedAt                | returns nothing of "beta"        |
       | listItemsByLineageAndVersion                         | returns nothing of "beta"        |
       | listItemsByVersionStateAndUpdatedAt                  | returns nothing of "beta"        |
       | listItemsByStageAndUpdatedAt                         | returns nothing of "beta"        |
@@ -977,6 +987,8 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | editorial-checks           | iam-call-without-tenant          | refused before any read            |
       | email-submission-processor | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | email-submission-processor | iam-call-without-tenant          | refused before any read            |
+      | entity-label-sync          | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | entity-label-sync          | iam-call-without-tenant          | refused before any read            |
       | home-page/function         | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | home-page/function         | iam-call-without-tenant          | refused before any read            |
       | image-service              | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |

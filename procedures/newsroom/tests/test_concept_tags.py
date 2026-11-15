@@ -13,6 +13,7 @@ for entry in (HERE.parents[2] / "src", HERE.parents[2], HERE):
 
 from fake_client import FakeAuthoringClient  # noqa: E402
 from papyrus_content import concept_tags_commands  # noqa: E402
+from papyrus_content.entity_labels.primary import sync_node  # noqa: E402
 from papyrus_content.concept_link_predicates import CONCEPT_LINK_PREDICATES  # noqa: E402
 from papyrus_content.concept_tags import audit_reference_links, audit_story_links, resolve_concept_exact, tag_with_concepts  # noqa: E402
 from papyrus_content.reference_links import CONCEPT_TAG_PREDICATE, CONCEPT_TAG_PREDICATES, ITEM_CONCEPT_KIND, REFERENCE_CONCEPT_KIND  # noqa: E402
@@ -42,6 +43,8 @@ class Site(FakeAuthoringClient):
                 node("editor_concept--unpublished", "Unpublished idea")],
         })
         self.endpoint = "https://example.test/graphql"
+        for row in list(self.tables["SemanticNode"].values()):   # the stream consumer has written each concept's name rows (entity_labels.primary)
+            sync_node(self, row, primary_language="en", now="2026-11-15T00:00:00Z")
 
 
 def nodes(site):
@@ -49,11 +52,17 @@ def nodes(site):
 
 
 class ResolutionTests(unittest.TestCase):
+    def test_a_name_is_found_without_listing_the_concept_table(self):
+        site = Site()
+        site.calls.clear()
+        self.assertEqual(resolve_concept_exact(site, "tts cloning")["nodeKey"], "editor_concept--voice-cloning")
+        self.assertEqual([call for call in site.calls if call[0] == "list" and call[1] == "SemanticNode"], [])
+
     def setUp(self):
-        self.nodes = list(nodes(Site()))
+        self.site = Site()
 
     def key(self, text):
-        return resolve_concept_exact(self.nodes, text)["nodeKey"]
+        return resolve_concept_exact(self.site, text)["nodeKey"]
 
     def test_exact_node_key_hashtag_name_and_alias_each_resolve_case_insensitively(self):
         for text in ("editor_concept--voice-cloning", "EDITOR_CONCEPT--Voice-Cloning", "#voice-cloning", "voice-cloning", "Voice Cloning", "voice  cloning", "tts CLONING"):
@@ -67,11 +76,11 @@ class ResolutionTests(unittest.TestCase):
             self.assertIn(key, message)
         self.assertEqual(self.key("task--translation"), "task--translation")
 
-    def test_no_fuzzy_matching_and_the_error_lists_the_closest_accepted_concepts(self):
+    def test_no_fuzzy_matching_and_the_error_points_at_search(self):
         with self.assertRaises(ValueError) as caught:
             self.key("voice cloner")
         self.assertIn("No accepted concept is named", str(caught.exception))
-        self.assertIn("editor_concept--voice-cloning", str(caught.exception))
+        self.assertIn("knowledge concepts search", str(caught.exception))
         for near_miss in ("voicecloning", "voice", "clon"):
             with self.assertRaises(ValueError):
                 self.key(near_miss)

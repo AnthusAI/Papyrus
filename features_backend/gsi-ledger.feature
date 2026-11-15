@@ -55,6 +55,12 @@ Feature: The GSI ledger keeps every release to one new index per table, and to w
     Then the GSI ledger check fails saying 15 index creations fit one release and naming the tables
     And it lists which indexes belong in release 1, 2 and 3
 
+  Scenario: A table that is new in the release is created with all its indexes
+    Given a change that adds a new table with three indexes
+    When CI runs the GSI ledger check
+    Then the GSI ledger check passes
+    And no index of the new table is listed as waiting for a later release
+
   Scenario: A release that fits the budget passes
     Given a change that adds one new index to each of 5 tables
     When CI runs the GSI ledger check

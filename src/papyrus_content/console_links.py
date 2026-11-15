@@ -185,11 +185,11 @@ def build_links(options: dict[str, Any], client: Any, base: str) -> list[Console
             raise ValueError(f"No Reference {wanted!r}. Give an id or lineage id that `papyrus stories show` or `papyrus references list` prints.")
         links.append(ConsoleLink("reference", reference_url(base, str(record.get("lineageId") or record["id"])), "Reference review page"))
     if options.get("concept") is not None:
-        from .section_concepts import current_concept_nodes, resolve_concept
+        from .entity_labels.lookup import current_node
+        from .section_concepts import resolve_concept
 
         text = _need(options["concept"], "--concept")
-        nodes = current_concept_nodes(client)
-        node = resolve_concept(nodes, text) or next((n for n in nodes if text in (n.get("lineageId"), n.get("id"))), None)
+        node = resolve_concept(client, text) or current_node(client, text)
         if node is None:
             raise ValueError(f"No concept is named {text!r}. Name an existing concept by its name, alias, #hashtag, node key or lineage id.")
         links.append(ConsoleLink("concept", concept_url(base, str(node.get("lineageId") or node["id"])), "concept page"))

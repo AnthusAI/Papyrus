@@ -47,7 +47,7 @@ const realtimeModel = <Fields extends Parameters<typeof a.model>[0]>(fields: Fie
 export const OPTIONAL_MODEL_GROUPS = {
   editions: ["Edition", "EditionItem", "PublishedEdition", "PublishedEditionItem"],
   knowledge: ["KnowledgeArtifact", "KnowledgeCorpus", "KnowledgeImportRun", "KnowledgeRawPayload"],
-  semantic: ["SemanticNode", "SemanticRelation", "SemanticRelationType"],
+  semantic: ["SemanticNode", "SemanticRelation", "SemanticRelationType", "EntityLabel"],
   review: ["ReviewRequest", "ReviewRecipientRule", "ReviewReadMark"],
   procedures: ["ProcedureDefinition", "ProcedureRun", "ProcedureVersion"],
   editorial: ["EditorialCheckRun", "EditorialFeedback", "EditorialPolicy", "EditorialCheckSettings"],
@@ -2148,6 +2148,8 @@ const definitions = {
       categoryKey: a.string(),
       displayName: a.string(),
       description: a.string(),
+      // The language this node's own text (name, description, aliases) is written in: the site's primary language, written on every row.
+      language: a.string(),
       aliases: a.string().array(),
       authorityScore: a.float(),
       authorityRank: a.integer(),
@@ -2173,6 +2175,44 @@ const definitions = {
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
+    ]),
+
+  /** One name of one concept in one language (docs/multilingual-labels.md). The Concept (SemanticNode) keeps its identity and its edges; each language's
+   *  preferred name, other names and short description are rows here. entityKey `{entityKind}#{entityId}`; id `{entityKey}#{language}` (preferred) or `...#alias#{folded text}`; `nameKey`
+   *  is `{language}#{folded text}` and finds a concept by name with one query; `workKey` (`{language}#{syncState}`) is present only while a label needs work. */
+  EntityLabel: modelWithoutSubscriptions({
+      id: a.id().required(),
+      tenantId: a.string(),
+      entityKind: a.string().required(),
+      entityId: a.id().required(),
+      entityKey: a.string().required(),
+      language: a.string().required(),
+      role: a.string().required(),
+      text: a.string().required(),
+      textLanguage: a.string(),
+      nameKey: a.string().required(),
+      sortKey: a.string().required(),
+      description: a.string(),
+      equivalence: a.string(),
+      origin: a.string(),
+      pinned: a.boolean(),
+      reviewedBy: a.string(),
+      reviewedAt: a.datetime(),
+      sourceContentHash: a.string(),
+      syncState: a.string(),
+      workKey: a.string(),
+      slug: a.string(),
+      provenanceId: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index("entityKey").sortKeys(["sortKey"]).queryField("listEntityLabelsByEntityAndSortKey"),
+      index("nameKey").queryField("listEntityLabelsByNameKey"),
+      index("workKey").sortKeys(["updatedAt"]).queryField("listEntityLabelsByWorkKeyAndUpdatedAt"),
+    ])
+    .authorization((allow) => [
+      allow.groups(contentWriteGroups),
     ]),
 
   Message: realtimeModel({

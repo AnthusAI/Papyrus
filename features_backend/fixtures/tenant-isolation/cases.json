@@ -1,13 +1,13 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 71,
+    "models": 72,
     "globalModels": 3,
-    "modelCases": 491,
-    "indexCases": 219,
+    "modelCases": 498,
+    "indexCases": 222,
     "subscriptionCases": 9,
     "operationCases": 134,
-    "functionCases": 66,
+    "functionCases": 68,
     "surfaceCases": 9
   },
   "cases": [
@@ -905,6 +905,62 @@
       "subject": "EditorialPolicy",
       "operation": "delete-foreign-row",
       "probe": "alpha deletes \"beta\"'s EditorialPolicy",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:EntityLabel:get",
+      "kind": "model",
+      "subject": "EntityLabel",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s EntityLabel by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:EntityLabel:list",
+      "kind": "model",
+      "subject": "EntityLabel",
+      "operation": "list",
+      "probe": "alpha lists EntityLabel rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:EntityLabel:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "EntityLabel",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists EntityLabel rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:EntityLabel:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "EntityLabel",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a EntityLabel with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:EntityLabel:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "EntityLabel",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own EntityLabel setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:EntityLabel:update-foreign-row",
+      "kind": "model",
+      "subject": "EntityLabel",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s EntityLabel",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:EntityLabel:delete-foreign-row",
+      "kind": "model",
+      "subject": "EntityLabel",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s EntityLabel",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -4308,6 +4364,30 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listEntityLabelsByEntityAndSortKey",
+      "kind": "index",
+      "subject": "listEntityLabelsByEntityAndSortKey",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEntityLabelsByEntityAndSortKey on EntityLabel with entityKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listEntityLabelsByNameKey",
+      "kind": "index",
+      "subject": "listEntityLabelsByNameKey",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEntityLabelsByNameKey on EntityLabel with nameKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listEntityLabelsByWorkKeyAndUpdatedAt",
+      "kind": "index",
+      "subject": "listEntityLabelsByWorkKeyAndUpdatedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listEntityLabelsByWorkKeyAndUpdatedAt on EntityLabel with workKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listItemsByLineageAndVersion",
       "kind": "index",
       "subject": "listItemsByLineageAndVersion",
@@ -6996,6 +7076,22 @@
       "expect": "refused before any read"
     },
     {
+      "id": "function:entity-label-sync",
+      "kind": "function",
+      "subject": "entity-label-sync",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/entity-label-sync (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:entity-label-sync:iam-without-tenant",
+      "kind": "function",
+      "subject": "entity-label-sync",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/entity-label-sync without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:home-page/function",
       "kind": "function",
       "subject": "home-page/function",
@@ -7626,6 +7722,21 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listEditorialFeedbackByItem",
       "note": "partition key itemId on EditorialFeedback is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listEntityLabelsByEntityAndSortKey",
+      "note": "partition key entityKey on EntityLabel is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listEntityLabelsByNameKey",
+      "note": "partition key nameKey on EntityLabel is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listEntityLabelsByWorkKeyAndUpdatedAt",
+      "note": "partition key workKey on EntityLabel is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",
@@ -8424,6 +8535,11 @@
     },
     {
       "code": "no-tenant-claim-rule",
+      "subject": "EntityLabel",
+      "note": "access rests on group rules, none compares tenantId with a token claim"
+    },
+    {
+      "code": "no-tenant-claim-rule",
       "subject": "Item",
       "note": "access rests on group rules, none compares tenantId with a token claim"
     },
@@ -8790,6 +8906,11 @@
     {
       "code": "tenantId-can-be-changed",
       "subject": "EditorialPolicy",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "EntityLabel",
       "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
     {

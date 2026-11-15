@@ -110,52 +110,16 @@ def name_part(node_key: str) -> str:
     return node_key[separator_at + len(CONCEPT_KEY_SEPARATOR):] if separator_at > 0 else ""
 
 
-def _flat(text: Any) -> str:
-    return " ".join(str(text or "").split()).lower()
-
-
-def matching_nodes(nodes: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
-    """The concepts a typed name, alias, ``#hashtag`` or node key can mean, from the surest reading to the loosest; the first reading that finds any wins.
-
-    A ``#hashtag`` is read as the box in the Related section reads it (``lib/wiki.ts`` ``conceptKeysForHashtag``): an exact node key, else every key with
-    that name part, narrowed by a trailing ``(kind)``."""
-    typed = _flat(re.sub(r"^#+", "", text.strip()))
-    kind_filter = None
-    suffix = re.match(r"^(.*) \(([^()]*)\)$", typed)
-    if suffix and text.strip().startswith("#"):
-        typed, kind_filter = suffix.group(1).strip(), suffix.group(2).strip()
-    if not typed:
-        return []
-    slug = concept_slug(typed)
-
-    def key_of(node: dict[str, Any]) -> str:
-        return str(node.get("nodeKey") or "").lower()
-
-    def of_kind(node: dict[str, Any]) -> bool:
-        return kind_filter is None or key_of(node).split(CONCEPT_KEY_SEPARATOR, 1)[0] == kind_filter
-
-    readings = (
-        [node for node in nodes if key_of(node) == typed],
-        [node for node in nodes if name_part(key_of(node)) == typed and of_kind(node)],
-        [node for node in nodes if _flat(node.get("displayName")) == typed],
-        [node for node in nodes if typed in {_flat(alias) for alias in node.get("aliases") or []}],
-        [node for node in nodes if slug and name_part(key_of(node)) == slug and of_kind(node)],
-    )
-    for found in readings:
-        distinct = {str(node.get("lineageId") or node["id"]): node for node in found}
-        if distinct:
-            return sorted(distinct.values(), key=lambda node: str(node.get("nodeKey") or ""))
-    return []
-
-
 def concept_label(node: dict[str, Any]) -> str:
     return str(node.get("displayName") or node.get("nodeKey") or node.get("lineageId") or node["id"])
 
 
-def resolve_concept(nodes: list[dict[str, Any]], text: str, *, allow_rejected: bool = False) -> dict[str, Any] | None:
-    """The one current concept ``text`` means; None when none does. More than one is an error that lists their node keys."""
-    usable = [node for node in nodes if allow_rejected or node.get("status") != REJECTED]
-    found = matching_nodes(usable, text)
+def resolve_concept(client: Any, text: str, *, allow_rejected: bool = False) -> dict[str, Any] | None:
+    """The one current concept ``text`` means; None when none does. More than one is an error that lists their node keys. Found with index queries
+    (``entity_labels.lookup``), never by reading the concept table."""
+    from .entity_labels.lookup import find_concepts
+
+    found = [node for node in find_concepts(client, text) if allow_rejected or node.get("status") != REJECTED]
     if len(found) > 1:
         raise ValueError(f"{text!r} means more than one concept; use a node key: " + ", ".join(str(node.get("nodeKey")) for node in found))
     return found[0] if found else None
@@ -177,7 +141,9 @@ def _list(client: Any, section: dict[str, Any]) -> None:
     if not entries:
         print(f"sections\tconcepts\t{section['id']}\tnone")
         return
-    nodes = nodes_by_lineage(current_concept_nodes(client))
+    from .entity_labels.lookup import current_nodes
+
+    nodes = current_nodes(client, [entry["conceptLineageId"] for entry in entries])
     for entry in entries:
         node = nodes.get(entry["conceptLineageId"])
         state = "no longer found" if node is None else ("rejected" if node.get("status") == REJECTED else "core")
@@ -191,12 +157,13 @@ def _add(client: Any, section: dict[str, Any], options: dict[str, Any], apply: b
     note = normalize_string(options.get("note")) if options.get("note") is not True else None
     create = options.get("create") is True or str(options.get("create")).lower() in ("true", "yes", "1")
     now = utc_now_iso()
-    nodes = current_concept_nodes(client)
-    node = resolve_concept(nodes, text)
+    from .entity_labels.lookup import current_node
+
+    node = resolve_concept(client, text)
     made = False
     if node is None:
         invented = build_editor_concept_node(text, COMMAND_ACTOR, now, display_name_for(text, normalize_string(options.get("display-name")))) if concept_slug(text) else None
-        existing = resolve_concept(nodes, text, allow_rejected=True) or (nodes_by_lineage(nodes).get(invented["lineageId"]) if invented else None)
+        existing = resolve_concept(client, text, allow_rejected=True) or (current_node(client, invented["lineageId"]) if invented else None)
         if existing is not None:
             raise ValueError(f"The concept {concept_label(existing)!r} was rejected, so a section cannot have it as a core concept.")
         if not create or invented is None:
@@ -232,7 +199,7 @@ def _remove(client: Any, section: dict[str, Any], options: dict[str, Any], apply
         raise ValueError("--concept is required.")
     entries = core_concepts(section)
     core_ids = {entry["conceptLineageId"] for entry in entries}
-    node = resolve_concept(current_concept_nodes(client), text, allow_rejected=True)
+    node = resolve_concept(client, text, allow_rejected=True)
     lineage = str(node.get("lineageId") or node["id"]) if node else (text if text in core_ids else None)
     if lineage is None or lineage not in core_ids:
         raise ValueError(f"Section {section['id']} does not have the core concept {text!r}.")

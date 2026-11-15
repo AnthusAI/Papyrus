@@ -1,0 +1,42 @@
+# Names in several languages: concept and section labels
+
+A concept (`SemanticNode`) has one identity and one set of edges, and a section has one record. What changes per language is the thing's name, its other names
+and a short description. Each of those is an `EntityLabel` row. One model serves concepts (`entityKind: concept`, `entityId` the node's lineage id) and,
+later, sections (`entityKind: section`), because the questions are the same: find a thing by its name in a language, list every name of one thing, list the
+labels that need work. A second table would need the same three indexes and the same code.
+
+The full design is in the multilingual knowledge graph recommendation (Ryan approved its defaults on 2026-11-15). This page says what is built.
+
+## The row
+
+| Field | Meaning |
+| --- | --- |
+| `id` | `{entityKey}#{language}` for the preferred name; `{entityKey}#{language}#alias#{folded text}` (or `#hidden#`) for another |
+| `entityKind`, `entityId`, `entityKey` | the thing: `concept`, its lineage id, and `concept#{lineage id}` (the partition of the by-thing index) |
+| `language`, `role`, `text` | the site's tag (`en`, `es-419`, `zh-Hans`); `preferred`, `alias` or `hidden` (the hashtag of a node key); the name |
+| `nameKey` | `{kind}#{language}#{folded text}`: finds the thing by name with one query. Folding: Unicode compatibility form, case folded, white space collapsed. A shared stack puts the tenant in front |
+| `sortKey` | `{language}#{role}#{folded text}` |
+| `origin`, `pinned` | `primary` (written from the node's own text), `machine`, `human`, `copied`, `pod`; a pinned label is a person's wording and no machine overwrites it |
+| `sourceContentHash`, `syncState`, `workKey` | on the preferred row: the hash of the words a translation was made from, `current`, `stale`, `conflict` or `held`, and, only while it needs work, `{kind}#{language}#{state}` (a sparse index) |
+| `description`, `equivalence`, `slug`, `provenanceId` | a short description in this language, the degree of equivalence, the page address, the stored provenance |
+
+Indexes: `entityKey` + `sortKey` (every name of one thing), `nameKey` (who has this name), `workKey` + `updatedAt` (what needs work).
+
+## Who writes the primary rows
+
+One writer: the stream consumer `amplify/functions/entity-label-sync`, on the `SemanticNode` table. Every change of a concept, from the console, a command, the
+knowledge run or a merge, brings its `origin: primary` rows to what its text says (`src/papyrus_content/entity_labels/primary.py`), and gives a concept with
+no language the site's primary language. It writes only when the name, other names, description, key, language or version state changed, so its own writes
+start nothing further. It marks translated labels `stale` (or `conflict`, when pinned) when the words they were made from change.
+
+Concepts that exist before the consumer was deployed are covered by one resumable pass: `papyrus --auth iam knowledge concepts label-backfill --apply` (dry run
+by default).
+
+## Finding a concept by name
+
+`stories link-concept`, `references link-concept`, `sections concepts`, `links` and `knowledge concepts related` find a concept with `entity_labels.lookup.find_concepts`:
+an exact node key, else the name in the caller's language and then the site's primary language (a name, another name or a hashtag are all label rows), else the
+hashtag spelling of the typed words. Each reading is one index query. None of them lists the concept table. When no concept is found the error points at
+`papyrus knowledge concepts search`, which finds by meaning and by words (and still reads the catalogue, because a substring search cannot use an exact index).
+
+`papyrus knowledge concepts labels --concept NAME` shows every name of one concept in every language.

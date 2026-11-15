@@ -17,10 +17,10 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Counts
 
-- 71 models, 219 indexes.
-- Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 69, global 95.
-- Indexes that list a tenant once prefixed: 72; dense indexes: 101.
-- Models: 58 with an index that lists a tenant, 4 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 6 with no tenantId field.
+- 72 models, 222 indexes.
+- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 70, global 95.
+- Indexes that list a tenant once prefixed: 72; dense indexes: 103.
+- Models: 58 with an index that lists a tenant, 5 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 6 with no tenantId field.
 
 ## Models
 
@@ -42,6 +42,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `EditorialCheckSettings` | 1 | yes | `listEditorialCheckSettingsByTenant` |
 | `EditorialFeedback` | 2 | yes | `listEditorialFeedbackByTenant` |
 | `EditorialPolicy` | 1 | yes | `listEditorialPoliciesByTenant` |
+| `EntityLabel` | 3 | no, needs a tenantId index |  |
 | `Item` | 11 | no, needs a tenantId index |  |
 | `ItemTag` | 3 | yes | `listItemTagsByTenant` |
 | `KnowledgeArtifact` | 3 | yes | `listKnowledgeArtifactsByCorpusAndKind` |
@@ -101,6 +102,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 ## Models that need a tenantId index
 
 - `SiteDocument` (no index at all)
+- `EntityLabel` (3 indexes, none lists a tenant)
 - `Item` (11 indexes, none lists a tenant)
 - `LocalizationRequest` (1 index, it does not list a tenant)
 - `SiteDocumentVersion` (1 index, it does not list a tenant)
@@ -134,6 +136,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `editionLineageId` | record-id | open | `PublishedEdition` |
 | `email` | global | open | `UserIdentity` |
 | `enabledStatus` | global | closed | `NewsroomSection`, `ProcedureDefinition` |
+| `entityKey` | record-id | open | `EntityLabel` |
 | `eventType` | global | closed | `AssignmentEvent` |
 | `feedStateKey` | corpus-prefixed | open | `Reference` |
 | `form` | global | open | `SignupEntry` |
@@ -150,6 +153,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `messageDomain` | global | closed | `Message` |
 | `messageKind` | global | closed | `Message` |
 | `moderation` | global | closed | `ReaderComment`, `ReaderSubmission` |
+| `nameKey` | tenant-prefixed | open | `EntityLabel` |
 | `newsroomFeedKey` | global | one | `Assignment`, `Message`, `MessageThread`, `ProcedureDefinition`, `ProcedureRun`, `Reference`, `SemanticNode`, `SemanticRelation` |
 | `nodeKey` | global | open | `SemanticNode` |
 | `normalizedKeyword` | global | open | `CategoryKeyword` |
@@ -211,6 +215,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `userProfileId` | record-id | open | `UserIdentity`, `UserRoleAssignment` |
 | `userSub` | global | open | `TenantMembership`, `UserRoleAssignment` |
 | `versionState` | global | closed | `CategorySet`, `Edition`, `Item`, `Reference`, `SemanticNode` |
+| `workKey` | tenant-prefixed | closed | `EntityLabel` |
 
 ## Indexes
 
@@ -262,6 +267,9 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `EditorialFeedback` | `listEditorialFeedbackByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `EditorialFeedback` | `listEditorialFeedbackByItem` | `itemId` | none | record-id | open | yes | no |
 | `EditorialPolicy` | `listEditorialPoliciesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `EntityLabel` | `listEntityLabelsByEntityAndSortKey` | `entityKey` | `sortKey` | record-id | open | yes | no |
+| `EntityLabel` | `listEntityLabelsByNameKey` | `nameKey` | none | tenant-prefixed | open | yes | no |
+| `EntityLabel` | `listEntityLabelsByWorkKeyAndUpdatedAt` | `workKey` | `updatedAt` | tenant-prefixed | closed | no | no |
 | `Item` | `listItemsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Item` | `listItemsByVersionStateAndUpdatedAt` | `versionState` | `updatedAt` | global | closed | no | no |
 | `Item` | `listItemsByStageAndUpdatedAt` | `stage` | `updatedAt` | global | closed | no | no |
