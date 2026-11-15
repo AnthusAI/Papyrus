@@ -21,6 +21,7 @@ from ..item_language import localization_lineage_id
 from ..localization_publish import hold_request_id
 from ..publishing import utc_now_iso
 from ..record_helpers import compact_dict, to_aws_json
+from .blocks import FRONT_MATTER_FIELDS
 from .engine import AlignedBlock, LocalizeRequest, SourceVersion, stage_key
 from .models import PROMPT_VERSION
 
@@ -73,10 +74,18 @@ class AttachmentStageStore:
         upload_attachment_body(self.client, entry["attachment"], entry["body"])
 
 
+def _source_fields(row: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    """The reader-facing front matter texts the Story has, in the order of ``FRONT_MATTER_FIELDS``."""
+    from ..item_front_matter import front_matter
+
+    loaded = front_matter(row)
+    return tuple((key, loaded[key]) for key in FRONT_MATTER_FIELDS if isinstance(loaded.get(key), str) and loaded[key].strip())
+
+
 def source_version(row: dict[str, Any], language: str) -> SourceVersion:
     return SourceVersion(lineage_id=row["lineageId"], version_id=row["id"], version_number=int(row.get("versionNumber") or 0),
                          content_hash=str(row.get("contentHash") or ""), language=language, title=row.get("title") or row.get("headline") or "",
-                         deck=row.get("deck") or "", body=row.get("bodyMarkus") or "", section=row.get("section"))
+                         deck=row.get("deck") or "", body=row.get("bodyMarkus") or "", section=row.get("section"), fields=_source_fields(row))
 
 
 def run_key(source: SourceVersion, language: str, *, procedure_version: str, checker_versions: dict[str, str]) -> str:
@@ -184,7 +193,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     procedure_key = procedure_key or automation_procedure_key(client, automation_id)
     history = spend_history(client, procedure_key) if procedure_key else []
     key = run_key(source, target, procedure_version=procedure_version, checker_versions=checker.versions)
-    characters = sum(len(block.text) for block in blocks_of(source.body, title=source.title, deck=source.deck) if block.translated)
+    characters = sum(len(block.text) for block in blocks_of(source.body, title=source.title, deck=source.deck, fields=source.fields) if block.translated)
     return LocalizeRequest(
         source=source, language=target, localization_lineage=lineage, run_key=key, glossary=glossary, checker=checker,
         slug_policy=serving_languages(settings).slugs[target],
@@ -194,7 +203,7 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
         procedure_version=procedure_version, source_checker=lambda text: english.copy_edit(text)[0])
 
 
-def _front_matter(primary: dict[str, Any], title: str, deck: str) -> str | None:
+def _front_matter(primary: dict[str, Any], title: str, deck: str, fields: dict[str, str] | None = None) -> str | None:
     """The primary version's front matter with the reader-facing text replaced by the translation's."""
     import yaml
 
@@ -208,6 +217,9 @@ def _front_matter(primary: dict[str, Any], title: str, deck: str) -> str | None:
     for key in DEK_KEYS:
         if key in loaded and deck:
             loaded[key] = deck
+    for key, text in (fields or {}).items():
+        if key in loaded and text:
+            loaded[key] = text
     return yaml.safe_dump(loaded, allow_unicode=True, sort_keys=False)
 
 
@@ -238,7 +250,7 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
         raise ValueError(f"{request.localization_lineage} already holds a translation of source version {latest['sourceVersionNumber']}; "
                          f"this run translated version {request.source.version_number} and saves nothing.")
     translation = outcome["translation"]
-    front_matter = _front_matter(primary, translation["title"], translation["deck"])
+    front_matter = _front_matter(primary, translation["title"], translation["deck"], translation.get("fields"))
     slug = latest["slug"] if latest is not None else _first_slug(client, request, primary, translation["title"])
     fields = ItemFields(type=primary["type"], slug=slug, section=primary.get("section"), front_matter_yaml=front_matter,
                         body_markus=translation["body"], aliases=[])

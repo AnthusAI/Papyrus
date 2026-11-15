@@ -42,6 +42,8 @@ SPANISH = {
     "The [report]⟦1⟧ covers 12 cities.": "El [informe]⟦1⟧ abarca 12 ciudades.",
     '::image{src="⟦1⟧" alt="A driverless car" credit="⟦2⟧"}': '::image{src="⟦1⟧" alt="Un auto sin conductor" credit="⟦2⟧"}',
     "Waymo cars may crash 70 percent less often, the company says.": "Los autos de Waymo pueden chocar un 70 % menos, según la empresa.",
+    "A short summary of the report.": "Un breve resumen del informe.",
+    "A white car on a road.": "Un auto blanco en una carretera.",
     "It is worth noting that the report covers 12 cities.": "Cabe destacar que el informe abarca 12 ciudades.",
 }
 USAGE = {"input_tokens": 1000, "output_tokens": 500}
@@ -679,3 +681,27 @@ def step_refuses_key(context):
 def step_not_registered(context):
     _run_here(context, not_registered=True)
     assert context.error and "procedures register --file procedures/newsroom/story_localize.tac --key mom.story-localize" in context.error, context.error
+
+
+# --- the front matter's reader-facing texts are translated with the title and the dek -------------------------------------------
+
+@given("the English Story also has a blurb and a cover picture alt text")
+def step_blurb_and_alt(context):
+    front = f"title: {TITLE}\ndeck: {DECK}\nblurb: A short summary of the report.\nimageAlt: A white car on a road.\nimage: /assets/waymo/cover.png\nsources:\n- title: The report\n  url: https://example.test/report\n"
+    context.primary["metadata"] = json.dumps({"frontMatterYaml": front})
+
+
+@then("the version's blurb and cover picture alt text are the translated ones")
+def step_translated_fields(context):
+    import yaml
+
+    front = yaml.safe_load(json.loads(_latest(context)["metadata"])["frontMatterYaml"])
+    assert front["blurb"] == "Un breve resumen del informe." and front["imageAlt"] == "Un auto blanco en una carretera.", front
+
+
+@then("its picture path and its references stay as written")
+def step_fields_fixed(context):
+    import yaml
+
+    front = yaml.safe_load(json.loads(_latest(context)["metadata"])["frontMatterYaml"])
+    assert front["image"] == "/assets/waymo/cover.png" and front["sources"] == [{"title": "The report", "url": "https://example.test/report"}], front

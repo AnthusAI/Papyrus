@@ -20,6 +20,13 @@ Feature: A published Story is translated, checked and polished by one procedure
     And a scripted translator, judge and repairer for "es-419"
     And an editor asked for the "es-419" translation of "story-waymo"
 
+  Scenario: The blurb and the cover picture alt text are translated with the title and the dek
+    Given the English Story also has a blurb and a cover picture alt text
+    When the translation run for "es-419" runs
+    Then the run is saved, not held
+    And the version's blurb and cover picture alt text are the translated ones
+    And its picture path and its references stay as written
+
   Scenario: A clean Story is saved as an unpublished translation with its provenance
     When the translation run for "es-419" runs
     Then the run is saved, not held

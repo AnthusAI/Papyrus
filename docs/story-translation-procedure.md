@@ -62,7 +62,7 @@ A run with no request, or for an older source than the request names, stops befo
    (`translation_glossary`), the language's copy-edit pack, the language overlays' register notes, earlier runs' spend; the run key.
 2. **budget**: the cost predicted from this language's measured runs (`localize/budget.py`: median cost per source character; Tukey's upper
    fence as the outlier band once four runs exist). A caller's ceiling makes the run wait when the prediction is above it.
-3. **translate**: only the blocks whose source changed. Link targets, URLs, citations, code and every directive attribute except `alt`, `caption`
+3. **translate**: only the blocks whose source changed. The blocks are the title, the dek, the front matter's reader-facing texts (`blurb`, `imageAlt`: kinds `field:blurb`, `field:imageAlt`, saved back into the translation's front matter; references and picture paths stay as written) and the body's blocks. Link targets, URLs, citations, code and every directive attribute except `alt`, `caption`
    and `title` are replaced by placeholders and put back by the system, so a translator never sets a link target or a credit.
 4. **normalize and parity**: emphasis that would not render is fixed by code (the punctuation moves outside the closing marker); the Humanus
    `translation-faithfulness` parity rules run on each block.

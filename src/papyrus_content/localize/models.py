@@ -23,7 +23,7 @@ from ..model_cost import estimate_cost
 MODEL = "gpt-6-luna"
 RESPONSES_URL = "https://api.openai.com/v1/responses"
 REQUEST_TIMEOUT_SECONDS = 300
-PROMPT_VERSION = "localize-prompts-1"
+PROMPT_VERSION = "localize-prompts-2"
 TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 Transport = Callable[[dict[str, Any]], dict[str, Any]]
@@ -87,6 +87,9 @@ TRANSLATE_SYSTEM = """You translate one news Story, block by block, from {source
 
 Input: JSON with the blocks to translate (id, kind, text), neighbouring blocks for context only, the glossary entries that occur in the blocks,
 and the language's register notes. Reply with every block to translate, by id, and its translation.
+
+Block kinds: title and deck are the headline and the dek; field:blurb is the one-sentence summary shown in listings and on social cards; field:imageAlt is the
+cover picture's alt text for people who cannot see it. Translate each as plain text of the same kind and length; the rest are the body's blocks.
 
 Rules:
 - Keep every placeholder such as ⟦3⟧ exactly once, where its content belongs in the sentence. Placeholders stand for links, URLs, citations,

@@ -1256,7 +1256,7 @@ def stories_localize(flags: list[str]) -> None:
     from .localize.blocks import blocks_of
     from .localize.engine import plan_slots
 
-    slots = plan_slots(blocks_of(request.source.body, title=request.source.title, deck=request.source.deck), request.previous)
+    slots = plan_slots(blocks_of(request.source.body, title=request.source.title, deck=request.source.deck, fields=request.source.fields), request.previous)
     to_translate = [slot for slot in slots if slot.translate]
     terms = [entry["term"] for entry in request.glossary.entries_in([slot.source.text for slot in to_translate], request.source.language)]
     prediction = request.prediction.payload() if request.prediction else {}
