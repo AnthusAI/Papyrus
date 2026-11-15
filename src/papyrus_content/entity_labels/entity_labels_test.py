@@ -126,3 +126,102 @@ def test_a_concept_with_no_name_is_found_by_its_id_and_never_stops_the_consumer(
     site.tables["SemanticNode"]["bare-v1"] = {"id": "bare-v1", "lineageId": "bare", "versionState": "current", "status": "accepted"}
     sync_node(site, site.tables["SemanticNode"]["bare-v1"], primary_language="en", now=NOW)
     assert [row["text"] for row in site.tables["EntityLabel"].values()] == ["bare"]
+
+
+# --- translating a label (translate.py) --------------------------------------------------------------------------------------------------------------
+
+class ScriptedModels:
+    """Answers the label call from a table; counts calls. Stands in for the house model."""
+
+    def __init__(self, answers):
+        self.answers, self.calls = answers, []
+
+        class Spend:
+            cost_usd = 0.0
+        self.spend = Spend()
+
+    def _structured(self, purpose, system, user, schema, name):
+        import json as _json
+
+        payload = _json.loads(user)
+        self.calls.append(payload)
+        return self.answers[payload["name"]]
+
+
+class Glossary:
+    def __init__(self, *entries):
+        self.entries = tuple(entries)
+
+    def entries_in(self, texts, language="en"):
+        joined = " ".join(texts).lower()
+        return [e for e in self.entries if e["term"].lower() in joined]
+
+    def prompt_lines(self, entries):
+        return [e["term"] for e in entries]
+
+
+NAMES = {"en": "English", "es-419": "Latin American Spanish"}
+
+
+def section_source(name="Agents", description="Machines that plan and act on their own."):
+    from papyrus_content.entity_labels.translate import LabelSource
+
+    return LabelSource("section", "agents", "en", name, description)
+
+
+def run_label(site, answers, source=None, glossary=None, **kwargs):
+    from papyrus_content.entity_labels.translate import localize_label
+
+    models = ScriptedModels(answers)
+    outcome = localize_label(site, models, source or section_source(), "es-419", glossary=glossary or Glossary(), checker=None, register_notes=[],
+                             language_names=NAMES, now=NOW, **kwargs)
+    return outcome, models
+
+
+ANSWER = {"name": "Agentes", "aliases": [], "description": "Máquinas que planean y actúan por su cuenta.", "equivalence": "exact", "keepOriginal": False, "reason": "usual term"}
+
+
+def test_a_clean_label_is_made_current_with_its_source_hash_and_a_second_run_does_nothing():
+    site = FakeSite()
+    outcome, models = run_label(site, {"Agents": ANSWER})
+    row = site.tables["EntityLabel"]["section#agents#es-419"]
+    assert outcome.state == "current" and row["text"] == "Agentes" and row["origin"] == "machine" and row["syncState"] == "current" and "workKey" not in row
+    assert row["nameKey"] == "section#es-419#agentes" and row["sourceContentHash"] == section_source().content_hash
+    again, models2 = run_label(site, {"Agents": ANSWER})
+    assert again.state == "unchanged" and models2.calls == []
+
+
+def test_a_name_another_section_already_has_is_held_and_has_no_alias_rows():
+    site = FakeSite()
+    LabelStore(site).create({"id": "section#tools#es-419", "entityKind": "section", "entityId": "tools", "entityKey": "section#tools", "language": "es-419",
+                             "role": "preferred", "text": "Agentes", "nameKey": name_key("es-419", "Agentes", None, "section"), "sortKey": "es-419#preferred#agentes", "origin": "machine"})
+    outcome, _ = run_label(site, {"Agents": {**ANSWER, "aliases": ["agentes de software"]}})
+    row = site.tables["EntityLabel"]["section#agents#es-419"]
+    assert outcome.state == "held" and "already the name of section#tools" in outcome.reasons[0]
+    assert row["syncState"] == "held" and row["workKey"] == "section#es-419#held"
+    assert not [r for r in site.tables["EntityLabel"].values() if r["role"] == "alias"]
+
+
+def test_no_equivalent_term_holds_the_label_with_the_reason():
+    site = FakeSite()
+    outcome, _ = run_label(site, {"Agents": {**ANSWER, "equivalence": "none", "reason": "no settled term"}})
+    assert outcome.state == "held" and outcome.reasons == ["no equivalent term in es-419: no settled term"]
+
+
+def test_the_glossary_decides_the_name_and_the_model_is_not_asked_for_it():
+    site = FakeSite()
+    outcome, models = run_label(site, {"Agents": {**ANSWER, "name": "Otra cosa"}}, glossary=Glossary({"term": "Agents", "translations": ["Agentes IA"]}))
+    assert outcome.draft.name == "Agentes IA" and outcome.draft.origin == "glossary" and models.calls[0]["nameIsDecided"] == "Agentes IA"
+    kept, _ = run_label(FakeSite(), {"Agents": ANSWER}, glossary=Glossary({"term": "Agents", "doNotTranslate": True}))
+    assert kept.draft.name == "Agents" and kept.draft.origin == "copied"
+
+
+def test_a_pinned_label_is_never_overwritten_and_a_changed_source_makes_a_new_label():
+    site = FakeSite()
+    run_label(site, {"Agents": ANSWER})
+    site.tables["EntityLabel"]["section#agents#es-419"]["pinned"] = True
+    outcome, models = run_label(site, {"Agents": ANSWER}, source=section_source(description="Changed words."))
+    assert outcome.state == "pinned" and models.calls == []
+    site.tables["EntityLabel"]["section#agents#es-419"]["pinned"] = False
+    outcome, _ = run_label(site, {"Agents": ANSWER}, source=section_source(description="Changed words."))
+    assert outcome.state == "current" and site.tables["EntityLabel"]["section#agents#es-419"]["sourceContentHash"] == section_source(description="Changed words.").content_hash
