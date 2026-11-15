@@ -13,6 +13,8 @@ always has its translation:
 * ``listing.pageSuffix``: what follows the title of page 2 and later of a listing, with ``{page}`` (`` — página {page}``);
 * ``section.<name>.label`` and, when set, ``section.<name>.description``, for every section with a listing page;
 * ``nav.<href>.label`` for every navigation link the edition keeps (home and section listings);
+* ``notice.label`` and ``notice.text`` when the site sets ``site.notice`` (the publication's statement, for satire: it is said in the language on its pages, its
+  Markdown twins, its feeds and its structured data, never in the primary language's words);
 * ``footer.text`` when the site sets ``footer.text``;
 * ``translation.label`` and ``translation.original``: the line every translated page carries ("Traducido por IA del {original}", with ``{original}`` the
   link to the original, whose words are ``translation.original``: "original en inglés").
@@ -68,6 +70,10 @@ def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_href
             if section.description:
                 keys.append(f"section.{section.name}.description")
     keys.extend(f"nav.{href}.label" for href in edition_nav_hrefs)
+    if standard.identity.notice_label:
+        keys.append("notice.label")
+    if standard.identity.notice_text:
+        keys.append("notice.text")
     if standard.footer_text:
         keys.append("footer.text")
     keys.extend(primary_strings)

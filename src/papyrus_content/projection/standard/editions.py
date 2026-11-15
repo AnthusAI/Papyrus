@@ -187,6 +187,8 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
         standard.identity, language=tag,
         description=localized(standard.identity.description, strings, "site.description"),
         tagline=localized(standard.identity.tagline, strings, "site.tagline"),
+        notice_label=localized(standard.identity.notice_label, strings, "notice.label"),
+        notice_text=localized(standard.identity.notice_text, strings, "notice.text"),
     )
     sections = tuple(
         dataclasses.replace(
