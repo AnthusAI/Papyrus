@@ -960,6 +960,10 @@ domain. SES identities are also account-owned, so a verified identity in one acc
 does not verify it in another. The receiving identity and active set must belong to
 the same account as the receiver resources. Nothing here is run by the deploy.
 
+The site's entry in the monitoring router config (its AppSync endpoint, vector index, bucket, and `openaiKeyParameter` for automations and translate on publish) is the
+file `infra/monitoring/router-config/hn.json` in the Papyrus repository, applied by the `papyrus-monitoring` stack deploy; nothing in AWS is edited by hand
+([router config in Git](monitoring-cloud.md#router-config-in-git), [automations](automations.md#where-the-router-config-lives)).
+
 For p.apyr.us, the current site and Monitoring router are in account
 `712236451410` (`papyrus-production`). The old active rule set
 `papyrus-inbound-p-apyr-us`, its identity and its Amplify media bucket are in

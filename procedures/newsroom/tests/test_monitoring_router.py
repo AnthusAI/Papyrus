@@ -1262,16 +1262,6 @@ def test_table_name_is_published_for_the_read_only_monitoring_page():
     assert parameter["Properties"]["Value"] == ("Ref", "MonitoringTable")
 
 
-def test_seed_cli_no_longer_accepts_ceiling_updates():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("seed_router_config", ROOT / "infra" / "monitoring" / "seed_router_config.py")
-    seed = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(seed)
-    for key, value in (("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300"), ("ceilings", "none")):
-        with pytest.raises(ValueError, match="not ceilings"):
-            seed.coerce(key, value)
-
-
 # --- not-ready outputs (criteria_pending) --------------------------------------------------------------
 
 def test_not_ready_binding_must_not_halt_the_sweep(table3):

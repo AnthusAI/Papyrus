@@ -24,7 +24,7 @@ accepts a `sourceUrl` on its own host (a `feed` on a host in `FEED_HOSTS`: `rss.
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
 `seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
-`seed_router_config.py --monitor-id ttab --file router.json` with `"decisions": "direct"`. A third value,
+a router config file `infra/monitoring/router-config/ttab.json` with `"decisions": "direct"` ([router config in Git](#router-config-in-git)). A third value,
 `hold`, is for a publication that has no Cyclotron yet: the router collects and enriches its items and never
 decides; the config needs no `cyclotron` block (see [web search](#web-search-monitors-web-search)).
 
@@ -179,8 +179,8 @@ Distinctive Mark has no Cyclotron yet, so its router config is `decisions: "hold
 that): items are collected and enriched, never decided, and its candidates are its own group. When Cyclotron bootstraps
 Distinctive's own run, re-seed its router config with `decisions: "cyclotron"` and the cyclotron block. Every web router config
 sets `holdDecisions: true` and `mode: "live"`: enrichment runs, no decide request is posted, and the receipt says
-`stoppedBy: decisions_held`. Release with `seed_router_config.py --monitor-id web-<id> --set holdDecisions=false` (all six
-shared monitors). Cyclotron items from a web monitor carry `values.source: "web-search"`; the Cyclotron must accept that source.
+`stoppedBy: decisions_held`. Release by putting each monitor's router config under Git (`infra/monitoring/router-config/web-<id>.json`, [router config in Git](#router-config-in-git)) with `holdDecisions` set to `false` (all six
+shared monitors), and releasing. Cyclotron items from a web monitor carry `values.source: "web-search"`; the Cyclotron must accept that source.
 
 **Queries (drafting).** One query per enabled newsroom section plus one for the site (see [search monitors](search-monitors.md#queries-per-section)).
 `papyrus monitors web-queries --publication <id>` (or `--all`) reads each enabled section (mission, policy, guidance, kill criteria)
@@ -317,10 +317,10 @@ Nothing here has been deployed. In account 712236451410 with `AWS_PROFILE=papyru
    ```sh
    TABLE=$(aws ssm get-parameter --name /papyrus/monitoring/table-name --query Parameter.Value --output text)
    python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id huggingface --source-type huggingface-models --file shipped-huggingface-config.json
-   python3 infra/monitoring/seed_router_config.py --table "$TABLE" --monitor-id huggingface --file shipped-huggingface-router.json   # starts in dry-run
+   # the router config is the file infra/monitoring/router-config/huggingface.json (starts in dry-run); a release applies it
    ```
 4. Check a dry run, then flip: `aws lambda invoke --function-name papyrus-monitoring-collector --cli-binary-format raw-in-base64-out --payload '{"monitorId":"huggingface","force":true}' /dev/stdout`, read the `RUN#` receipt and the router's dry-run receipts
-   (`wouldDeliver`), then `seed_router_config.py --table "$TABLE" --monitor-id huggingface --set mode=live`.
+   (`wouldDeliver`), then set `mode` to `live` in the monitor's router config file (`infra/monitoring/router-config/huggingface.json`) and release.
 5. Load history, dry run first, then apply (repeat the apply until it reports `complete`):
    ```sh
    papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z
@@ -466,7 +466,7 @@ python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id papers-hug
 ```
 
 A monitor also needs what any monitor needs: its collect and route schedules, which `papyrus-monitoring.yaml` has for these three
-(routing at minutes 6, 23 and 51), and `seed_router_config.py --monitor-id <id> --file router.json` for its publications
+(routing at minutes 6, 23 and 51), and `infra/monitoring/router-config/<id>.json` for its publications
 (`decisions: cyclotron` with the shared `cyclotron` block, or `hold` while a site has no Cyclotron). The ids are already in the
 Monitoring page's `MONITOR_IDS` (`monitoring_view.py`), so the page lists them as soon as they have items.
 
@@ -504,8 +504,7 @@ host, the template carries the schedules). Nobody deploys it by hand: merging th
 `.github/workflows/stack-deploy.yml`, which builds the zips and creates, checks and executes the change set through GitHub OIDC; the pull
 request shows the same change set as a read-only dry run in its job summary (`infra/pipeline/README.md`). The change set should add the
 two schedules and the code updates, and nothing else; read it before merging. Until it runs, the schedules do not
-exist and the `metr.org` host is refused. After the deploy, a person (not CI) seeds the table: the `seed_config.py` command above, then
-`seed_router_config.py --table "$TABLE" --monitor-id feed-metr --file router.json` for the publications (`decisions: cyclotron`, or `hold`
+exist and the `metr.org` host is refused. After the deploy, a person (not CI) seeds the table with the `seed_config.py` command above; the release applies `infra/monitoring/router-config/feed-metr.json` for the publications (`decisions: cyclotron`, or `hold`
 while a site has no Cyclotron).
 
 **Gherkin.** `monitoring-paper-feeds`. Recorded responses are in `procedures/newsroom/tests/fixtures/feeds`.
@@ -780,9 +779,29 @@ aws dynamodb query --table-name "$TABLE" --key-condition-expression 'pk = :p AND
 aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk":{"S":"ROUTE#<sourceId>#000001"}}'
 ```
 
+## Router config in Git
+
+A monitor's router config (the `CONFIG#router` item of `MONITOR#<monitorId>`) is one JSON file in `infra/monitoring/router-config/`, named for the monitor
+(`hn.json`, ...). The file is the item without its key. Nothing writes these items by hand: the `papyrus-monitoring` stack runs
+`papyrus_content.monitoring_router_config` as the custom resource `RouterConfigApplier` on every release that changes a file (the files ship in the router zip,
+so a changed file is a changed zip key), with its own role that can only `GetItem` and `PutItem` on the table. Merging the change to `main` is the deploy, like any
+stack change (`.github/workflows/stack-deploy.yml`), so the deploy role gets no table access. (The one pipeline-roles change it needed is the pipeline service role's permission to start the applier's function, `RunTheCustomResources` in `infra/pipeline/papyrus-stack-pipeline.yaml`, like the other custom resources.)
+
+- **What a file says.** The shape under [Config shape](#config-shape): `mode`, `enabled`, `holdDecisions`, `decisions`, `cyclotron`, and the `publications` list. Each publication
+  entry carries `publicationId`, `site`, `appsyncEndpoint`, `monitorStories` (vector index and bucket, copied from the site's `amplify_outputs.json`), and for anything that
+  starts a procedure on the site's runner: `openaiKeyParameter` (the SSM SecureString `/amplify/shared/<amplifyAppId>/OPENAI_API_KEY`, a name, never a key) and optional `procedureTriggers`.
+  **A site's automations (Run now, translate on publish, Stage Bots) need its entry on the `hn` router to have `openaiKeyParameter`**: they refuse to start without it.
+- **No ids in files; references instead.** This repository is public, so a file holds no account id, endpoint host or Cyclotron id. It holds references the applier resolves at deploy time, and a reference that does not resolve fails the deploy: `${AccountId}` and `${CyclotronInvokerRoleArn}` (stack values); `${AppSyncEndpoint:<Site>}` (the endpoint of the AppSync API the stack's `<Site>ApiId` parameter names, read with `appsync:GetGraphqlApi`); `${Ssm:/papyrus/monitoring/...}` (a String parameter). The Cyclotron's own API endpoint, account id and standing run id are held by the Cyclotron, so they come from three SSM String parameters, `/papyrus/monitoring/cyclotron/endpoint`, `/papyrus/monitoring/cyclotron/account-id` and `/papyrus/monitoring/cyclotron/run-id`, which exist before the release that first applies the files. A new run or binding changes the parameter (and `bindingRevision` in the file).
+- **Change one.** Edit the file, open a pull request (tests run every file through the router's own validator, so a config the router would refuse never merges; the stack dry run lists the change), merge. The release
+  writes the item. A release that changes no file writes nothing: the apply is idempotent, and it replaces an item whole, so a field taken out of the file is taken out of the table.
+- **Add a monitor, or bring an existing one under Git.** Add its file (for an existing monitor, its stored item without `pk` and `sk`; `aws dynamodb get-item` on `MONITOR#<id>` / `CONFIG#router` shows it). A monitor with no file is never touched, and removing a file or the stack deletes nothing. Today only `hn` has a file; the other monitors' stored items stay as they are until their files are added.
+- **A bad file fails the deploy** before anything is written (the stack update rolls back; the message names the file). The custom resource's function is `papyrus-monitoring-RouterConfigApplierFunction-*`; its log group is `/aws/lambda/` plus that name.
+- **Emergency off**: set `enabled` to `false` in the file and release, or `ScheduleState=DISABLED` on the stack for the schedules.
+- `seed_router_config.py` is retired; there is no second way to write these items. `seed_web_monitors.py` still creates a web monitor's router config if none is stored (it never replaces one); once the monitor has a file, the file owns the item.
+
 ## Config shape
 
-`docs/monitoring-router-config.example.json`; seeded with `infra/monitoring/seed_router_config.py`.
+`docs/monitoring-router-config.example.json`; kept as one file per monitor in `infra/monitoring/router-config/` ([router config in Git](#router-config-in-git)).
 
 ```json
 {"mode": "dry-run|live", "enabled": true,
@@ -1087,7 +1106,7 @@ Before packs and single items, the monitor-stories task brings each publication'
 * **One filing error does not stop the run.** A filing that fails is recorded (`fileErrors` in the log line, `fileError` the last message) and the run goes on with the next candidate. The same error twice in a row with nothing filed between is systemic: the run stops (`stoppedBy: file_error`) and `fileErrorReason` says why.
 * **Candidates are read people first.** `collect_monitored_items` reads the accepted References in the order of attention: a human vote, stars, a conversation, a human concept tag first, then the rest newest first (it was by id). If the time stops the reading, the References an editor worked on are the candidates. The pending backlog is no longer listed before drafting only to count it: `notAccepted` is counted last, if time remains.
 * **Only real concepts.** Concept cards and suggested concepts leave out the nodes that are not subjects, using what the public wiki already uses (commit 82670d24, `knowledge_wiki/kinds.py`): authors (`personAuthor`), comment concepts, quality ratings, relevance decisions, coverage questions, editorial forms, plus the bulk-extracted `entity` and `identifier` kinds (`papyrus_knowledge_query/concept_kinds.py`, kept equal to the wiki's list by a test; it has no dependencies so the router zip carries it). The check is by kind and, for a node with no kind, by the key's prefix. It applies in the sync (no new cards) and in `suggest_for` (so the router and the on-demand `suggestReferenceLinks` share it), because cards already in the index cannot be deleted by the router. An allowlist of kinds can be passed instead. The score has no floor: the cut keeps every neighbour at or above a threshold learned from the site's own decided suggestions (labelled "likely" or "possible") and always at least the knee's count, so the best match is offered however low its score; nothing is configured, and no fixed cutoff was added. `papyrus references retire-junk-suggestions [--execute]` lists (default) or marks rejected (by `auto:cleanup`, reason `not_a_concept`; nothing deleted) the open `auto:vector` suggestions to such nodes.
-* **Config.** `monitorStories.vectorIndexArn` and `monitorStories.storageBucketName` are copied from each site's `amplify_outputs.json` (`custom.knowledgeQuery.s3VectorIndexArn`, `storage.bucket_name`) by `seed_router_config.py --file router.json --amplify-outputs <publicationId>=<path>` (repeat per site), never typed. `monitorStories.suggestions.enabled` (default true) turns suggestions off while the index is still kept current. Without `vectorIndexArn` the sync and the suggestions are skipped, packs and single items run as before, and the log line says why.
+* **Config.** `monitorStories.vectorIndexArn` and `monitorStories.storageBucketName` are copied from each site's `amplify_outputs.json` (`custom.knowledgeQuery.s3VectorIndexArn`, `storage.bucket_name`) into the monitor's router config file, never invented. `monitorStories.suggestions.enabled` (default true) turns suggestions off while the index is still kept current. Without `vectorIndexArn` the sync and the suggestions are skipped, packs and single items run as before, and the log line says why.
 * **Change set.** The template has fourteen new parameters (sixteen with Machines on Machines' `MachinesOnMachinesVectorIndexArn` and `MachinesOnMachinesStorageBucketName`), `AnthUsVectorIndexArn`, `PapyrusVectorIndexArn`, `ThreatIntelVectorIndexArn`, `DataParadeVectorIndexArn`, `PilobolusVectorIndexArn`, `ShippedVectorIndexArn`, `DistinctiveVectorIndexArn` (each the site's `custom.knowledgeQuery.s3VectorIndexArn`) and `AnthUsStorageBucketName`, `PapyrusStorageBucketName`, `ThreatIntelStorageBucketName`, `DataParadeStorageBucketName`, `PilobolusStorageBucketName`, `ShippedStorageBucketName`, `DistinctiveStorageBucketName` (each the site's `storage.bucket_name`). A parameter left at its default names no index or bucket, so it grants nothing. Fill them from the sites' `amplify_outputs.json`, keep every other parameter at `UsePreviousValue` (never omit `EditorUserPoolArns`), read the change set (it should show `RouterIdeaPolicy` modified, the router code update and the new parameters, nothing else) and execute it. The router config rows are data and need no deploy.
 * **Package.** The router zip now also holds `src/papyrus_knowledge_query/` (standard library only; its command line and Lambda handler are left out) and the three modules it imports from `papyrus_content` (`knowledge_snapshot/keys`, `knowledge_wiki/pages`, `corpus_storage_paths`), a few hundred kilobytes of source. The function's `boto3` must have the `s3vectors` client (boto3 added it in 1.39); the pass checks this before it starts and skips with `the runtime's boto3 has no usable s3vectors client` when the managed Python 3.13 runtime is older. Check the runtime's version with `aws lambda get-runtime-management-config` / a test invoke before relying on it; the zip does not vendor `boto3`.
 
@@ -1211,10 +1230,10 @@ cleanly. `papyrus-monitoring-decisions-stopped` watches for that.
 
 ## Operating the router
 
-- Seed: `seed_router_config.py --table TABLE --file router.json` (starts as `dry-run`).
-- **Flip to live** (data change, no deploy): `seed_router_config.py --table TABLE --set mode=live`.
+- Config: edit `infra/monitoring/router-config/<monitorId>.json` (a new monitor starts as `dry-run`) and release ([router config in Git](#router-config-in-git)).
+- **Flip to live**: set `mode` to `live` in the file and release.
   Dry-run receipts are harmless; `dry-run-validated` items are processed as live items.
-- **Monitor stories** need no setting either; to run them now, invoke the router with `{"task":"monitor-stories","monitorId":"hn"}`. The same task first keeps the vector index current and writes suggestions ([vector index and suggestions](#vector-index-and-suggestions)). Turn a publication off with `seed_router_config.py` setting its `monitorStories` to `{"enabled": false}`; stop the schedule with `ScheduleState=DISABLED`. Shape it with `singleItem` and `contextPacks` in the same block ([monitor stories](#monitor-stories-daily)).
+- **Monitor stories** need no setting either; to run them now, invoke the router with `{"task":"monitor-stories","monitorId":"hn"}`. The same task first keeps the vector index current and writes suggestions ([vector index and suggestions](#vector-index-and-suggestions)). Turn a publication off by setting its `monitorStories` to `{"enabled": false}` in the file; stop the schedule with `ScheduleState=DISABLED`. Shape it with `singleItem` and `contextPacks` in the same block ([monitor stories](#monitor-stories-daily)).
 - **Feedback** needs no setting: editors' Accept/Reject is always sent for Cyclotron-decided monitors in live mode.
   Back to dry-run with `mode=dry-run` (feedback stops with it); stop entirely with `enabled=false`
   or `ScheduleState=DISABLED`.
@@ -1273,7 +1292,7 @@ authorization point and one least-privilege grant.
 - `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
   when the Cyclotron reports it between 0 and 1.
 - Old `limit`, `maxItems` and `pagesPerQuery` fields in a collector `CONFIG` are ignored the same way (the collector logs one `ignored_retired_config` line).
-- Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. They can be deleted from the stored config; `infra/monitoring/seed_router_config.py --set` drops them on its next write.
+- Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. Delete them from the monitor's router config file; a monitor's file replaces its stored item whole on the next release.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
 
 ### Paged lists: nothing scrolls out of reach

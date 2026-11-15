@@ -1516,6 +1516,93 @@ Resources:
       MaximumRetryAttempts: 0
       MaximumEventAgeInSeconds: 900
 
+  # The router config files (infra/monitoring/router-config/<monitorId>.json, shipped inside the router zip) are written to the table by this function, run as a
+  # custom resource on every deploy (docs/monitoring-cloud.md#router-config-in-git). Its name is generated (papyrus-monitoring-RouterConfigApplierFunction-...), which is what the
+  # service role's RunTheCustomResources grant names. It runs with its own role, which reaches only this table's CONFIG#router items,
+  # so the deploy roles get no table access and nobody writes the table by hand.
+  RouterConfigApplierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: apply-router-config
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: RouterConfigItems
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                Resource: !GetAtt MonitoringTable.Arn
+                Condition:
+                  ForAllValues:StringLike:
+                    "dynamodb:LeadingKeys": ["MONITOR#*"]
+              - Sid: ResolveReferences
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/monitoring/*"
+              - Sid: ResolveEndpoints
+                Effect: Allow
+                Action: appsync:GetGraphqlApi
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}"
+
+  RouterConfigApplierFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Tags:
+        - { Key: "anthus:account", Value: shared }
+        - { Key: "anthus:app", Value: papyrus }
+        - { Key: "anthus:cost-key", Value: shared/papyrus/ }
+      Description: Writes the router config files in the router zip to the monitoring table (custom resource RouterConfigApplier). Idempotent.
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router_config.handler
+      MemorySize: 256
+      Timeout: 120
+      Role: !GetAtt RouterConfigApplierRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+
+  RouterConfigApplier:
+    Type: Custom::RouterConfig
+    Properties:
+      ServiceToken: !GetAtt RouterConfigApplierFunction.Arn
+      ApiIds:   # `${AppSyncEndpoint:<Site>}` in a file resolves to the endpoint of this API
+        AnthUs: !Ref AnthUsApiId
+        MachinesOnMachines: !Ref MachinesOnMachinesApiId
+        ThreatIntel: !Ref ThreatIntelApiId
+        DataParade: !Ref DataParadeApiId
+        Pilobolus: !Ref PilobolusApiId
+        Shipped: !Ref ShippedApiId
+        Distinctive: !Ref DistinctiveApiId
+      Substitutions:   # the values a file may name as ${Name}, so no account id is written in Git
+        AccountId: !Ref AWS::AccountId
+        CyclotronInvokerRoleArn: !Ref CyclotronInvokerRoleArn
+      CodeKey: !Ref RouterCodeKey   # the zip carries the files, and its key is its content hash: a changed file is a changed property, so the resource updates
+
   # The research-assignments task runs in its own function and role. RouterRole already has 20 managed policies, the most a role may have, so its grants cannot grow;
   # this role holds the same code zip, the same search and model key parameters (the key policies above name both roles) and exactly the fields the task asks for.
   ResearchWorkerRole:

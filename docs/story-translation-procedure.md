@@ -51,7 +51,7 @@ and starts the run:
 ```sh
 papyrus stories localize --story LINEAGE --language es-419 --dry-run             # the plan: blocks to translate, glossary terms, predicted cost
 papyrus --auth iam stories localize --story LINEAGE --language es-419 [--ceiling-usd 1] [--procedure KEY] [--openai-key-parameter SSM_PARAMETER]
-papyrus stories localize --story LINEAGE --language es-419 --automation SITE.story-localize   # the site's runner starts it instead
+papyrus stories localize --story LINEAGE --language es-419 --automation SITE.story-localize   # the site's runner starts it instead (needs the site's router publication to carry openaiKeyParameter: docs/automations.md#where-the-router-config-lives)
 ```
 
 - **Without `--automation`** (the way a person or an agent asks for one translation) the command runs the registered procedure in its own process through the

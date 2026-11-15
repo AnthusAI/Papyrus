@@ -185,13 +185,7 @@ papyrus automations runs --id <site>.<name> --limit 20
 
 1. Add the site's AppSync API id as a parameter and its Reference intake and `relevance_decision_is` grants to `infra/monitoring/papyrus-monitoring.yaml` (follow `RouterDataParadeIntakePolicy` and `RouterDecisionRelationPolicy`; the role's inline policy is size-limited, so use managed policies).
 2. Open the pull request; its dry run lists the resources the release would add or modify. The release deploys it.
-3. Add the publication to the router config and seed it (the validator refuses a config the router would reject):
-
-   ```bash
-   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table <table> --file router.json --replace
-   ```
-
-   The table name is in SSM `/papyrus/monitoring/table-name`. The publication entry needs `publicationId`, `site` and `appsyncEndpoint`; the site's backend must have exactly one canonical `KnowledgeCorpus`. Keep `mode: dry-run` until the Cyclotron has an output `<publicationId>-relevance` with labels `include` and `exclude`, then flip with `--set mode=live`.
+3. Add the publication to `infra/monitoring/router-config/hn.json` (a pull request; tests run it through the router's validator, and the release applies it to the table, see [router config in Git](docs/monitoring-cloud.md#router-config-in-git)). The publication entry needs `publicationId`, `site` and `appsyncEndpoint`; the site's backend must have exactly one canonical `KnowledgeCorpus`. Keep `mode: dry-run` until the Cyclotron has an output `<publicationId>-relevance` with labels `include` and `exclude`, then set `mode` to `live` in the file and release.
 4. Tell the owner of the shared Cyclotron and of monitoring (see Ownership). Details: [monitoring in the cloud](docs/monitoring-cloud.md#the-router-step-4).
 
 ### Start a new Papyrus site
