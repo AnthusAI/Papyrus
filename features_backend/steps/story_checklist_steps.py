@@ -493,7 +493,7 @@ COVER = "assets/board/cover.png"
 COVER_DARK = "assets/board/cover.dark.png"
 
 
-def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False, stored: bool = True, remote: bool = False, approved: bool = True, credit_line: bool = False) -> None:
+def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False, stored: bool = True, remote: bool = False, approved: bool = True, credit_line: bool = False, alt: str = "The board room", brief: str = "") -> None:
     """Gives the current version of the Story a cover the way the newsroom and the figures workflow do: front matter ``image``, the picture first in the body,
     and a ``MediaAsset`` row per stored picture. ``kind`` is ``stock`` (a picked stock picture: the ``coverImage`` record, with its third-party credit) or
     ``figure`` (a generated picture: the ``coverImage`` record names who approved it, the image line has no credit; an optional dark picture).
@@ -505,7 +505,7 @@ def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False
     row = client.get_record("Item", version_id)
     metadata = json.loads(row["metadata"])
     front = {"title": "Board refuses", "image": ("https://example.test/cover.png" if remote else "/" + COVER)}
-    attributes = f'src="{"https://example.test/cover.png" if remote else COVER}" alt="The board room"'
+    attributes = f'src="{"https://example.test/cover.png" if remote else COVER}" alt="{alt}"'
     if kind == "stock" and approved:
         front["coverImage"] = {"source": "wikimedia-commons", "creator": "A. Photographer", "licence": "CC BY 4.0", "srcPath": COVER,
                                "pickedAt": AT, "pickedBy": picked_by}
@@ -523,7 +523,7 @@ def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False
     if stored and not remote:
         for path in [COVER, *([COVER_DARK] if dark else [])]:
             client.upsert("MediaAsset", {"id": f"media-{version_id}-{path}", "itemId": version_id, "type": "image", "role": "body", "sortKey": f"000#{path}",
-                                         "alt": "The board room", "metadata": json.dumps({"srcPath": path})})
+                                         "alt": alt, "metadata": json.dumps({"srcPath": path, **({"brief": brief} if brief else {})})})
 
 
 def remove_cover(context) -> None:
@@ -582,6 +582,21 @@ def cover_shows_nothing(context):
 def cover_keeps_credit(context):
     body = client_of(context).get_record("Item", f"{LINEAGE}-v{context.world.version_number}")["bodyMarkus"]
     assert 'credit="Image: A. Photographer, CC BY 4.0, via Wikimedia Commons"' in body, body
+
+
+@given('the Story has a generated cover whose alt text is the generation brief "{brief}"')
+def cover_alt_is_brief(context, brief):
+    add_cover(context, "figure", approved=False, alt=brief, brief=brief)
+
+
+@given('the Story has a generated cover with no alt text made from the brief "{brief}"')
+def cover_without_alt(context, brief):
+    add_cover(context, "figure", approved=False, alt="", brief=brief)
+
+
+@given('the Story has a generated cover described as "{alt}" made from the brief "{brief}"')
+def cover_with_description(context, alt, brief):
+    add_cover(context, "figure", approved=False, alt=alt, brief=brief)
 
 
 @given("the Story has a figure cover that nobody approved")

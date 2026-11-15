@@ -53,6 +53,8 @@ Every call returns one envelope. Success: `{"ok": true, "op", "publication", "re
 
 The commands print the envelope as JSON and exit 0 on success and 2 on any error. `--dry-run` on a write or spend command checks the input and prints it back as `{"dryRun": true, "input": ...}` in the result without calling anything. `--input-file PATH` gives the whole input as JSON; flags override it. A command is run as a person unless `PAPYRUS_ACTOR_KIND=agent` is set; an agent may not call person-only operations and gets one picture, not a set.
 
+**Applying a picture.** `apply` requires `--alt`, written by someone who has seen the picture. A generation brief is an instruction to the image model, not a description, so alt text that is empty, equal to the brief or containing it is refused with `checks_failed`, and the Story checklist's `illustration` step stays open for a cover whose alt text is the brief. `apply` never marks a picture `human-verified` on its own: only `--reviewed`, said by a person who looked at the picture, does that (recorded with who and when). An agent passing `--reviewed` is refused with `human_required`; every other apply leaves the picture `unreviewed` and opens a review request. `images review --decision keep` is the other way, and only a person may.
+
 Every operation may return `invalid_input`, `not_authorized`, `service_unavailable`, `not_implemented`.
 
 | Code | Meaning | Retry? | Details |
@@ -1466,7 +1468,7 @@ Put a picture on a Story: copy it into the site's media and record where it came
 - MCP tool: `image_apply`
 - Effect: write
 - Agent may call: yes
-- Note: A person applying from a set they looked at makes it human-verified. Anyone else makes it unreviewed and opens a review request.
+- Note: Alt text is required and must describe the picture: never copy the brief, which is an instruction to the model. A picture is human-verified only when a person passes reviewed (recorded with who and when). Every other apply, an agent's always, leaves it unreviewed and opens a review request.
 
 Input:
 
@@ -1477,7 +1479,8 @@ Input:
 | `target` | object | yes | What the picture is for: a Story or a Reference. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
 | `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
-| `alt` | string | no | Alt text; the picture's own draft when left out. |
+| `alt` | string | yes | Alt text written by someone who has seen the picture. Required: it describes what the picture shows, and is refused when empty or when it equals or contains the generation brief. |
+| `reviewed` | boolean | no | A person says they looked at the picture. Only a person may; an agent is refused. Without it the picture stays unreviewed and a review request is opened. |
 | `caption` | string | no |  |
 | `expectedCurrentVersionId` | string | yes | The Story's current version id when you read it. The write is refused with stale_version if the Story has moved on. |
 | `save` | boolean | no | Make the new Story version now (default true). The newsroom editor passes false and saves itself. |
@@ -1495,7 +1498,7 @@ Result:
 | `reviewRequestId` | string | no |  |
 | `savedVersion` | object | no |  |
 
-Errors: `candidate_closed`, `candidate_not_ready`, `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed`, `stale_version`.
+Errors: `candidate_closed`, `candidate_not_ready`, `checks_failed`, `human_required`, `image_type_unknown`, `not_found`, `source_not_allowed`, `stale_version`.
 
 Example input:
 
@@ -1508,6 +1511,7 @@ Example input:
   },
   "use": "cover",
   "imageType": "cover-illustration",
+  "alt": "A locked steel filing cabinet in an empty room.",
   "expectedCurrentVersionId": "item-story-containment-note-v7"
 }
 ```

@@ -53,7 +53,7 @@ Each operation is a command and a tool with the same input and the same JSON res
 | `image_unapply` | `papyrus images unapply` | Undo an applied picture: the Story gets a new version with the old cover or the placeholder back. | yes | `candidate_closed`, `not_found`, `stale_version` |
 | `image_review` | `papyrus images review` | Keep or remove a picture that was added without a person looking at it. Only a person may. | no, a person only | `human_required`, `not_found`, `stale_version` |
 | `image_review_queue` | `papyrus images review-queue` | List the pictures that were added without a person, oldest first. | yes | only the common ones |
-| `image_apply` | `papyrus images apply` | Put a picture on a Story: copy it into the site's media and record where it came from. It never publishes. | yes | `candidate_closed`, `candidate_not_ready`, `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed`, `stale_version` |
+| `image_apply` | `papyrus images apply` | Put a picture on a Story: copy it into the site's media and record where it came from. It never publishes. | yes | `candidate_closed`, `candidate_not_ready`, `checks_failed`, `human_required`, `image_type_unknown`, `not_found`, `source_not_allowed`, `stale_version` |
 | `image_discard` | `papyrus images discard` | Reject a picture, or a whole round (which keeps the placeholder). The private file is deleted; the record stays. | yes | `candidate_closed`, `not_found` |
 
 Every operation may also return: `invalid_input`, `not_authorized`, `service_unavailable`, `not_implemented`.

@@ -14,6 +14,8 @@ from .candidates import CLOSED, TERMINAL, CandidateStore
 from .generation_settings import GenerationSettings, read_settings
 from .handlers import Caller, Handler, ImageOperationError, Outcome
 from .image_prices import actual_cost
+from papyrus_content.story_illustration import alt_problem
+
 from .profile_handlers import _publication, _story_for
 from .prompt_preview import preview_prompt
 from .providers import ImageProvider, ProviderFailure, ProviderRequest
@@ -115,7 +117,7 @@ class Generation:
             candidate = {"id": self.new_id("candidate"), "roundId": round_id, "position": plan["position"], "status": "running", "imageType": plan["imageType"], "origin": "generated",
                          "lane": speed, "reviewStatus": "unreviewed", "createdAt": self.now(), "prompt": plan["text"], "resolutionHash": plan["resolutionHash"],
                          "profile": plan["profile"], "model": entry["name"], "provider": entry["provider"], "costUsd": 0.0,
-                         "altDraft": {"text": arguments["brief"], "basis": "brief", "note": "Drafted from the brief, not from the picture. A person should check it."}}
+                         }
             problem = self._ceiling_problem(settings, spent)
             if problem:
                 candidate.update(status="failed", error={"code": "spend_ceiling_exceeded", "message": problem, "retryable": False})
@@ -204,19 +206,25 @@ class Generation:
         if story is not None and story["id"] != arguments["expectedCurrentVersionId"]:
             raise ImageOperationError("stale_version", "The Story has changed since you read it. Read it again.", details={"currentVersionId": story["id"]})
         data = self.store.read_file(candidate["filePath"])
-        alt = (arguments.get("alt") or (candidate.get("altDraft") or {}).get("text") or "").strip()
-        checks = [{"name": "alt-text", "passed": bool(alt)}, *(free_checks(data, candidate["mediaType"]) if data else [{"name": "file", "passed": False}])]
+        if arguments.get("reviewed") and caller.kind != "person":
+            raise ImageOperationError("human_required", "Only a person who has looked at the picture may say it was reviewed. Leave `reviewed` out: the picture stays unreviewed and a review request asks a person to look.")
+        alt = (arguments.get("alt") or "").strip()
+        brief = round_record.get("brief") or ""
+        alt_problem_text = alt_problem(alt, brief) or alt_problem(alt, candidate.get("prompt") or "")
+        checks = [{"name": "alt-text", "passed": not alt_problem_text, **({"problem": alt_problem_text} if alt_problem_text else {})}, *(free_checks(data, candidate["mediaType"]) if data else [{"name": "file", "passed": False}])]
         if not all(check["passed"] for check in checks):
-            raise ImageOperationError("checks_failed", "The picture cannot be applied until these checks pass: " + ", ".join(c["name"] for c in checks if not c["passed"]) + ".",
+            raise ImageOperationError("checks_failed", "The picture cannot be applied until these checks pass: " + ", ".join(c["name"] + (f" ({c['problem']})" if c.get("problem") else "") for c in checks if not c["passed"]) + ".",
                                       details={"checks": checks})
         if self.media is None:
             raise ImageOperationError("service_unavailable", "Media cannot be written from here.")
         from papyrus_content.story_images import src_path_for
 
         src_path = src_path_for(arguments["target"]["lineageId"], f"{candidate['id']}.{candidate['mediaType'].split('/')[-1]}")
-        person = caller.kind == "person"
+        person = caller.kind == "person" and bool(arguments.get("reviewed"))   # looked at it and said so; being signed in as a person is not enough
+        reviewed_at = self.now()
         provenance = {"origin": "generated", "candidateId": candidate["id"], "model": candidate["model"], "resolutionHash": candidate["resolutionHash"], "profile": candidate["profile"],
-                      "generatedNote": True, "reviewStatus": "human-verified" if person else "unreviewed"}
+                      "generatedNote": True, "brief": brief,
+                      "reviewStatus": "human-verified" if person else "unreviewed", **({"reviewedBy": caller.subject, "reviewedAt": reviewed_at} if person else {})}
         asset = self.media.add_media(target=arguments["target"], src_path=src_path, data=data, media_type=candidate["mediaType"], alt=alt, caption=arguments.get("caption"), provenance=provenance)
         review_id = None if person else self.media.open_review_request(media_asset_id=asset["id"], target=arguments["target"], candidate_id=candidate["id"], applied_by=caller.subject)
         directive = f'::image{{src="{src_path}" alt="{alt}"}}'
