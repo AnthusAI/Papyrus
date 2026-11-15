@@ -59,6 +59,12 @@
       "logicalId": "OperatorSesEventsPermission",
       "change": "Replace",
       "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorSesEventsRule, and CloudFormation reports a possible replacement because its SourceArn reads OperatorSesEventsRule's Arn, which a tag update does not change. Remove after the release that carries the cost tags. Recreated in the same update, as DecisionReadyInvokePermission is."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "RouterConfigApplier",
+      "change": "Replace",
+      "reason": "CloudFormation reports a custom resource update as a conditional replacement because the handler could answer with a new physical id. RouterConfigApplier's handler returns the physical id it was given (router-config), so a changed zip key re-applies the router config files in place and nothing is replaced or deleted (a replace would only re-run the same idempotent apply; its Delete does nothing)."
     }
   ]
 }
