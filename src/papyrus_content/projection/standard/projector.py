@@ -330,7 +330,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             child = StandardMarkusProjector(
                 dataclasses.replace(self._settings, plugins=(), public_data=None),
                 {},
-                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag]),
+                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag)),
                 hooks=self.hooks,
                 environment=self.environment,
                 renditions=self._given_renditions,
@@ -405,8 +405,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
         view = self._language_view(site)
         found = [(self, self._own_site(site, serving.primary))]
         found += [(edition, self._own_site(site, tag)) for tag, edition in self._editions.items()]
-        for edition, _own in found:
+        for edition, own in found:
             edition._view = view
+            edition._check_segments_against_slugs(own)
         self._full_site = site
         return found
 
@@ -1943,6 +1944,37 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """The public path of a page key (what rename redirects point at)."""
         return self.policy.url_for_key(key)
 
+    def _check_segments_against_slugs(self, site: SiteIndex) -> None:
+        """Refuses a Story whose slug, served at the root of the edition (its section has no base), is also a translated segment: one address, two pages."""
+        tops = {now.split("/")[0]: english for english, now in self.standard.moved_paths}
+        if not tops:
+            return
+        for entry in self._entries(site):
+            group = entry.section
+            if entry.key and (group is None or not group.base) and entry.summary.slug in tops:
+                raise ValueError(f"languages.segments: the Story {entry.summary.slug!r} and the translated segment of {tops[entry.summary.slug]} would both be served at /{entry.summary.slug}/.")
+
+    def _translated_segment_redirects(self, site: SiteIndex) -> dict[str, str]:
+        """On an edition whose language translates path segments (``languages.segments``): every page the edition serves under a translated path, from its
+        old address with the English segment (``/es/articles/x/``) to its address now (``/es/articulos/x/``). Keys, listing pages, paged listings, feeds and
+        Markdown twins alike; the edge keeps the query string."""
+        pairs = sorted(self.standard.moved_paths, key=lambda pair: len(pair[1]), reverse=True)
+        if not pairs:
+            return {}
+        keys = set(self._plan(site)) | {key for summary in site.items for key in self._own_item_page_paths(summary)}
+        found: dict[str, str] = {}
+        for key in keys:
+            relative = self.policy.relative_key(key)
+            if relative is None:
+                continue
+            for english, now in pairs:
+                if relative == now or relative.startswith(now + "/"):
+                    target = self.policy.url_for_key(key)
+                    for source in request_paths_for_key(self.policy.key(english + relative[len(now):])):
+                        found[source] = target
+                    break
+        return found
+
     def _own_redirects(self, site: SiteIndex) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for summary in site.items:
@@ -1954,6 +1986,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             mapping.update(self.hooks.redirects(self._hook_site(site)))
         for source, target in self.standard.exact_redirects:
             mapping[source] = target
+        mapping.update(self._translated_segment_redirects(site))
         live = {path for key in self._plan(site) for path in request_paths_for_key(key)}
         live |= {path for summary in site.items for key in self._own_item_page_paths(summary) for path in (*request_paths_for_key(key), self.policy.url_for_key(key))}
         return {source: target for source, target in mapping.items() if source not in live and source != target}

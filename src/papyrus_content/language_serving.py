@@ -15,6 +15,11 @@ which languages the site writes in; the keys below say how they are served. Ther
               kept), ``pinyin`` (the title romanized by the romanizer the caller supplies) or ``primary`` (the primary Story's slug). Default by the
               language's script: ``characters`` for a language Humanus counts in characters (Chinese), ``translated`` for every other.
 
+``segments``  ``{tag: {segment: translated segment}}``: the path segments of a language edition's sections, types and authored pages, in the language
+              (``articles`` -> ``articulos``, ``security`` -> ``privacidad-y-seguridad``). The key is the segment as the edition would write it in
+              English; a segment not listed keeps its English form. A translated segment is letters, digits, hyphens and underscores in any script
+              (Chinese characters stay characters; URLs carry them percent-encoded), unique within its language. Default: none (English segments).
+
 ``auto``      ``{"enabled": true, "automation": "SITE.story-localize", "publish": true}``: translate every Story into every enabled language when it is
               published or republished (``localize/auto.py``). Off by default (no key, or ``enabled`` false). ``automation`` names the Automation that
               runs the registered translation procedure on the site's runner; ``publish`` (default true) publishes the translations a run saved
@@ -66,6 +71,10 @@ class ServingLanguages:
     prefixes: Mapping[str, str] = field(default_factory=dict)   # every enabled language; the primary's is ""
     slugs: Mapping[str, str] = field(default_factory=dict)      # every enabled language other than the primary
     auto: AutoTranslation | None = None                         # None: nothing is translated on publish (the default)
+    segments: Mapping[str, Mapping[str, str]] = field(default_factory=dict)   # every enabled language other than the primary: {english segment: translated}
+
+    def segments_of(self, tag: str) -> Mapping[str, str]:
+        return self.segments.get(tag, {})
 
     def prefix(self, tag: str) -> str:
         return self.prefixes[tag]
@@ -74,7 +83,7 @@ class ServingLanguages:
         return tag in self.public
 
     def digest_input(self) -> list:
-        return [self.primary, list(self.public), sorted(self.prefixes.items())]
+        return [self.primary, list(self.public), sorted(self.prefixes.items()), sorted((tag, sorted(table.items())) for tag, table in self.segments.items())]
 
 
 def default_prefix(tag: str) -> str:
@@ -137,7 +146,30 @@ def serving_languages(settings: Mapping[str, Any]) -> ServingLanguages:
         if policy not in SLUG_POLICIES:
             raise ValueError(f"languages.slugs: {policy!r} for {tag} is not one of {', '.join(SLUG_POLICIES)}.")
         slugs[tag] = policy
-    return ServingLanguages(primary=primary, enabled=enabled, public=public, prefixes=prefixes, slugs=slugs, auto=_auto_translation(raw.get("auto"), others))
+    segments = {tag: _segment_table(table, tag) for tag, table in tags_of(raw.get("segments"), "segments").items()}
+    return ServingLanguages(primary=primary, enabled=enabled, public=public, prefixes=prefixes, slugs=slugs, auto=_auto_translation(raw.get("auto"), others), segments=segments)
+
+
+def url_safe_segment(text: str) -> bool:
+    """A path segment that is one address part in any script: letters, digits and combining marks, joined by single hyphens or underscores."""
+    folded = unicodedata.normalize("NFC", text)
+    return bool(folded) and folded == text and all(unicodedata.category(c)[0] in ("L", "N", "M") or c in "-_" for c in text) and not text.startswith(("-", "_")) and text == text.lower()
+
+
+def _segment_table(raw: Any, tag: str) -> dict[str, str]:
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"languages.segments.{tag} is a mapping of English path segment to the segment in the language.")
+    table: dict[str, str] = {}
+    for english, translated in raw.items():
+        if not isinstance(english, str) or not _PREFIX.match(english):
+            raise ValueError(f"languages.segments.{tag}: {english!r} is not a path segment as the English site writes it (lowercase letters, digits and hyphens).")
+        if not isinstance(translated, str) or not url_safe_segment(translated):
+            raise ValueError(f"languages.segments.{tag}: {translated!r} for {english} is not a URL-safe lowercase path segment (letters, digits, hyphens and underscores, one NFC form).")
+        taken = next((other for other, value in table.items() if value == translated), None)
+        if taken is not None:
+            raise ValueError(f"languages.segments.{tag}: {english} and {taken} would both be served as /{translated}/.")
+        table[english] = translated
+    return table
 
 
 def _auto_translation(raw: Any, others: list[str]) -> AutoTranslation | None:
@@ -200,6 +232,7 @@ def describe_serving(languages: Any) -> dict[str, Any]:
                 "defaultPrefix": default_prefix(tag) if tag != serving.primary else "",
                 "slugPolicy": serving.slugs.get(tag),
                 "defaultSlugPolicy": default_slug_policy(tag) if tag != serving.primary else None,
+                "segments": dict(serving.segments_of(tag)),
             }
             for tag in serving.enabled
         ],
@@ -209,13 +242,14 @@ def describe_serving(languages: Any) -> dict[str, Any]:
 
 
 def edit_serving(languages: Mapping[str, Any], *, public: list[str] | None = None, prefixes: Mapping[str, str | None] | None = None,
-                 slugs: Mapping[str, str | None] | None = None, auto: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                 slugs: Mapping[str, str | None] | None = None, auto: Mapping[str, Any] | None = None,
+                 segments: Mapping[str, Mapping[str, str | None]] | None = None) -> dict[str, Any]:
     """``languages`` with the serving keys edited, every other key kept as stored, and checked by :func:`serving_languages`. Refuses (``ValueError``)
     what the projection would refuse.
 
     ``public`` replaces the list of public languages; the primary is always public, so it is added when missing, and a list of only the primary is no
     key at all (the default). ``prefixes`` and ``slugs`` set the named languages' values and leave the others alone; a value of ``None`` or ``""``
-    returns that language to its default. ``auto`` merges the given keys (``enabled``, ``automation``, ``publish``) into ``languages.auto``; turning it off
+    returns that language to its default. ``segments`` is ``{tag: {english segment: translated or None}}`` and sets those entries (None or empty removes one). ``auto`` merges the given keys (``enabled``, ``automation``, ``publish``) into ``languages.auto``; turning it off
     keeps the automation and the publish choice stored, so turning it on again needs nothing more."""
     result = dict(languages)
     try:
@@ -236,6 +270,17 @@ def edit_serving(languages: Mapping[str, Any], *, public: list[str] | None = Non
             result[key] = kept
             if not kept:
                 result.pop(key)
+        if segments is not None:
+            tables = {canonical(tag): dict(table) for tag, table in (result.get("segments") or {}).items()}
+            for tag, edits in segments.items():
+                table = tables.setdefault(canonical(tag), {})
+                for english, value in edits.items():
+                    table[english] = value
+            kept_tables = {tag: {english: value for english, value in table.items() if value not in (None, "")} for tag, table in tables.items()}
+            kept_tables = {tag: table for tag, table in kept_tables.items() if table}
+            result["segments"] = kept_tables
+            if not kept_tables:
+                result.pop("segments")
         if auto is not None:
             result["auto"] = {**(result.get("auto") or {}), **auto}
     except LookupError as error:

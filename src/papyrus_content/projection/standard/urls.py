@@ -38,7 +38,7 @@ class UrlPolicy:
 
     def path(self, site_path: str) -> str:
         """The request path of a site-relative path: ``/`` -> ``/posts/``, ``/tags/`` -> ``/posts/tags/``."""
-        return "/" + self.root + site_path.lstrip("/")
+        return encoded_path("/" + self.root + site_path.lstrip("/"))
 
     def asset_path(self, site_path: str) -> str:
         """The request path of a shared file (a script, a stylesheet): under the base path, never under a language prefix."""
