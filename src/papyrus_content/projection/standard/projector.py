@@ -67,7 +67,8 @@ from .share_preview import item_share_preview
 from .home_page import HomePageSource
 from .knowledge import DATA_PREFIX, KnowledgeSource
 from .knowledge_lookup import KnowledgeLookup
-from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, entry_line, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
+from .brand import PUBLICATION_CSS_PATH, TOKENS_CSS_PATH, build_brand, read_pack
+from .markdown import markdown_with_notice, FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, entry_line, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
 from . import wiki
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, STYLESHEET_PATH as PAGE_ACTIONS_STYLESHEET, render_page_actions, stylesheet_text as page_actions_stylesheet_text
 from .page_ledger import PageLedger
@@ -160,6 +161,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[HOME_PAGE_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-home-page.css").read_bytes()
             if standard.home_page.references.paging is not None:   # a site that has not opted in to paged Reference lists publishes no script for them
                 files[home_page_lists.SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-reference-list.js").read_bytes()
+        self._brand = None
+        if standard.brand_pack:
+            self._brand = build_brand(read_pack(static_directory, standard.brand_pack))
+            files[TOKENS_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-tokens.css").read_bytes()
+            files[PUBLICATION_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-publication.css").read_bytes()
+            files.update(self._brand.files)
+            for own in ("css/markus-vendor.css", "css/site-theme.css"):
+                files.pop(own, None)   # a branded site is styled by the shared theme and its brand file, not by Markus's themed stylesheet or a site stylesheet
         if standard.section_fronts:
             files[SECTION_FRONTS_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-section-fronts.css").read_bytes()
         if standard.nav_disclosure:
@@ -1035,7 +1044,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             pages[paths[1]] = self._item_twin(entry, item.source_text, canonical).encode("utf-8")
         return pages
 
-    def _home_markdown(self, title: str, description: str, source_text: str, page: StandardPage, source: str = "") -> str:
+    def _without_notice_home_markdown(self, title: str, description: str, source_text: str, page: StandardPage, source: str = "") -> str:
         """The home twin: the home source with its page directives rendered as the page shows them (see :meth:`_page_twin`)."""
         return home_markdown(title, description, self._page_twin(source_text, source, page))
 
@@ -1427,7 +1436,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     plan[twin] = (digest_of([digest, "markdown"]), lambda index=index, paged=paged: self._chunk_markdown(paged, index).encode("utf-8"))
                 plan[self.policy.key(paged.address.data_key(chunk.name))] = (digest_of([digest, "data"]), lambda index=index, render=render: render(index)[1])
 
-    def _chunk_markdown(self, paged: home_page_lists.PagedList, index: int) -> str:
+    def _without_notice_chunk_markdown(self, paged: home_page_lists.PagedList, index: int) -> str:
         """The twin of a chunk's page: its title and canonical address, then the Reference list with the links back and on."""
         facts = SimpleNamespace(title=f"{paged.page_title}: more References", authors=(), author_details=(), date="", updated="", summary_text="")
         return item_markdown(facts, home_page_blocks.render_chunk_markdown(paged, index, self._twin_url), self.head.absolute(paged.address.page_href(paged.chunks[index].name)))
@@ -1436,7 +1445,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """The ``pages`` entries written as a file (``source``) that have a Markdown twin: not ``noindex``."""
         return [custom for custom in self.standard.pages if custom.source and not custom.noindex]
 
-    def _authored_markdown(self, custom: CustomPage, page: StandardPage) -> str:
+    def _without_notice_authored_markdown(self, custom: CustomPage, page: StandardPage) -> str:
         """The twin of an authored page: its title, description and canonical URL, then what the page file shows (see :meth:`_page_twin`)."""
         path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
         facts = SimpleNamespace(title=custom.title, authors=(), author_details=(), date="", updated="", summary_text=custom.description or "")
@@ -1518,7 +1527,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             optional.append(("Sitemap", self.policy.path("sitemap-index.xml" if self.standard.sitemap_style == "index" else "sitemap.xml")))
             if full_enabled:
                 optional.append(("Full content of this site in one file", self.policy.path(LLMS_FULL_KEY)))
-            body = llms_txt(self.standard.identity, self._llms_groups(listed, entries), optional, origin).encode("utf-8")
+            body = self._noticed(llms_txt(self.standard.identity, self._llms_groups(listed, entries), optional, origin)).encode("utf-8")
             plan[self.policy.key(LLMS_KEY)] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
         if full_enabled:
             identity = self.standard.identity
@@ -1534,7 +1543,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
             plan[self.policy.key(LLMS_FULL_KEY)] = (digest, render)
 
-    def _markdown_for(self, page: StandardPage) -> str:
+    def _without_notice_markdown_for(self, page: StandardPage) -> str:
         identity = self.standard.identity
         origin = self.environment.origin
         description = page.description or identity.description
@@ -2006,10 +2015,40 @@ class StandardMarkusProjector(MarkusSiteProjector):
             "wiki_footer": wiki.footer_html(entry, front, self.standard, date_format, form, {str(e.get("key")) for e in index.get("entities") or []}, self.policy.path),
         }
 
+    def _notice_label(self, page: StandardPage) -> str:
+        return page.strings.get("notice.label") or self.standard.identity.notice_label
+
+    def _notice_text(self, page: StandardPage) -> str:
+        return page.strings.get("notice.text") or self.standard.identity.notice_text
+
+    def _notice_markdown(self) -> str:
+        identity = self.standard.identity
+        return f"> **{identity.notice_label}.** {identity.notice_text}" if identity.notice_label else ""
+
+    def _noticed(self, text: str) -> str:
+        """A Markdown twin that carries the publication's notice, as a quote after the first heading (or first, when there is none)."""
+        notice = self._notice_markdown()
+        return markdown_with_notice(text, notice) if notice else text
+
+    def _markdown_for(self, page: StandardPage) -> str:
+        return self._noticed(self._without_notice_markdown_for(page))
+
+    def _item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
+        return self._noticed(self._without_notice_item_twin(entry, text, canonical))
+
+    def _home_markdown(self, title: str, description: str, source_text: str, page: StandardPage, source: str = "") -> str:
+        return self._noticed(self._without_notice_home_markdown(title, description, source_text, page, source))
+
+    def _authored_markdown(self, custom: CustomPage, page: StandardPage) -> str:
+        return self._noticed(self._without_notice_authored_markdown(custom, page))
+
+    def _chunk_markdown(self, paged: home_page_lists.PagedList, index: int) -> str:
+        return self._noticed(self._without_notice_chunk_markdown(paged, index))
+
     def _hook_byline(self, entry: StandardEntry) -> str | None:
         return self.hooks.byline(entry) if self.hooks.byline is not None else None
 
-    def _item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
+    def _without_notice_item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
         notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
         view = self._view
         original = view.original_of(entry.summary) if view is not None and view.multilingual else None
@@ -2027,11 +2066,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         head_html = self.head.build(dataclasses.replace(described, extra=extra, markdown_path=twin))
         if self.hooks.body_class is not None:
             base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
-        sheets = list(base.stylesheets)
+        sheets = [] if self._brand is not None else list(base.stylesheets)
         if self.standard.components_css and COMPONENTS_CSS_PATH not in sheets:
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
         if self.standard.components_css and KNOWLEDGE_CSS_PATH not in sheets and self._knowledge.digest():
             sheets.insert(sheets.index(COMPONENTS_CSS_PATH) + 1, KNOWLEDGE_CSS_PATH)
+        if self._brand is not None:
+            sheets += [TOKENS_CSS_PATH, PUBLICATION_CSS_PATH, self._brand.stylesheet_path]
         own_versions: tuple[tuple[str, str], ...] = ()
         if self.standard.home_page is not None and (page.ledger.home_page_used or page.kind == "thread") and HOME_PAGE_CSS_PATH not in sheets:
             sheets.append(HOME_PAGE_CSS_PATH)
@@ -2135,8 +2176,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
             else (components.footer(self.standard.footer_columns, self.standard.footer_text) or self._settings.chrome.footer_html or f"<p>{components.esc(identity.name)}</p>")
         )
         main = "\n".join(part for part in (self._breadcrumbs_html(page), self._main_html(page)) if part)
+        notice = (
+            f'  <p class="papyrus-notice" role="note"><span class="papyrus-notice-label">{components.esc(self._notice_label(page))}</span>{components.esc(self._notice_text(page))}</p>\n'
+            if identity.notice_label else ""
+        )
         return (
-            f"{components.skip_link()}\n{masthead}\n"
+            f"{components.skip_link()}\n{masthead}\n{notice}"
             f'  <main id="main">\n{main}\n  </main>\n'
             f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>{parts.scripts}'
         )

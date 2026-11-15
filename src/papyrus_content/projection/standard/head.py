@@ -187,6 +187,8 @@ class HeadBuilder:
         data: dict = {"@context": "https://schema.org", "@type": page.json_ld_type, "headline": page.headline or title}
         if description:
             data["description"] = description
+        if self.settings.identity.notice_label:
+            data["genre"] = self.settings.identity.notice_label   # the publication's notice ("Satire"), for machines
         if page.published:
             data["datePublished"] = page.published
         if page.modified:
