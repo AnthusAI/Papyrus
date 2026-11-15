@@ -37,14 +37,15 @@ PROJECTION = {
     "urls": {"style": "directory", "sections": {"articles": {"base": "articles", "label": "Articles"}, "wiki": {"base": "wiki", "label": "Wiki", "listEmpty": True}}},
     "sitemap": {"style": "index"},
     "environment": {"guard": False},
+    "seo": {"defaultImage": "/assets/share/default.png", "defaultImageAlt": "Machines on Machines, in white capitals on navy."},
 }
 STRINGS = {
     "en": {"language.name": "English", "switcher.label": "Language"},
-    "es-419": {"language.name": "Español", "site.name": "Máquinas Sobre Máquinas", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
+    "es-419": {"language.name": "Español", "site.name": "Máquinas Sobre Máquinas", "seo.defaultImage": "/assets/share/default-es.png", "seo.defaultImageAlt": "Máquinas Sobre Máquinas, en mayúsculas blancas sobre azul marino.", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
                "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos",
                "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés",
                "listing.untranslated": "Todavía no hay traducciones aquí. Lee el {original}.", "listing.untranslatedOriginal": "índice en inglés"},
-    "zh-Hans": {"language.name": "中文", "site.name": "机器论机器", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
+    "zh-Hans": {"language.name": "中文", "site.name": "机器论机器", "seo.defaultImage": "/assets/share/default-zh.png", "seo.defaultImageAlt": "机器论机器，白色大字，深蓝底。", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
                 "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念",
                 "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文",
                 "listing.untranslated": "这里还没有译文。请阅读{original}。", "listing.untranslatedOriginal": "英文索引页"},
@@ -705,3 +706,12 @@ def step_publisher(context, name, english, chinese):
     block = next(m for m in re.findall(r'<script type="application/ld\+json">(.*?)</script>', page, re.S) if '"publisher"' in m)
     publisher = json.loads(block)["publisher"]
     assert publisher["name"] == name and publisher["alternateName"] == [english, chinese], publisher
+
+
+@then("each home shares its own language's picture, with alt text in that language")
+def step_share_picture(context):
+    site = _site(context)
+    for prefix, image, alt in (("", "/assets/share/default.png", "Machines on Machines, in white"), ("es/", "/assets/share/default-es.png", "Máquinas Sobre Máquinas, en mayúsculas"), ("zh/", "/assets/share/default-zh.png", "机器论机器，白色大字")):
+        home = site.text(f"{prefix}index.html")
+        assert f'<meta property="og:image" content="{ORIGIN}{image}">' in home, (prefix, re.findall(r'og:image" content="[^"]*', home))
+        assert f'<meta property="og:image:alt" content="{alt}' in home, prefix

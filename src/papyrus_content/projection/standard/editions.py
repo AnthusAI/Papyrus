@@ -27,7 +27,7 @@ from ...item_language import is_localization_of
 from ...url_paths import encoded_path
 from ..model import ItemSummary
 from .config import NavLink, StandardSettings
-from .interface_strings import FEEDS_TITLE_KEY, LANGUAGE_NAME_KEY, SITE_NAME_KEY, SITE_PUBLISHER_KEY, SITE_SHORT_NAME_KEY
+from .interface_strings import FEEDS_TITLE_KEY, SEO_IMAGE_ALT_KEY, SEO_IMAGE_KEY, LANGUAGE_NAME_KEY, SITE_NAME_KEY, SITE_PUBLISHER_KEY, SITE_SHORT_NAME_KEY
 from .wiki import DEFAULT_WIKI_SECTION
 
 
@@ -232,7 +232,11 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
         standard,
         identity=identity,
         feeds=dataclasses.replace(standard.feeds, title=feeds_title),
-        seo=dataclasses.replace(standard.seo, publisher_name=publisher_name),
+        seo=dataclasses.replace(
+            standard.seo, publisher_name=publisher_name,
+            default_image=strings[SEO_IMAGE_KEY] if standard.seo.default_image else standard.seo.default_image,
+            default_image_alt=strings[SEO_IMAGE_ALT_KEY] if standard.seo.default_image_alt else standard.seo.default_image_alt,
+        ),
         language_prefix=prefix,
         moved_paths=moved_paths,
         sections=sections,

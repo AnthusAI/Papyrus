@@ -11,6 +11,8 @@ always has its translation:
 * ``site.name``: the publication's name in the language (masthead, ``<title>`` suffix, ``og:site_name``, feeds, Markdown twins, structured data; the primary
   language's name is ``site.name`` of ``projection.json`` and is listed as ``alternateName`` in the structured data of every edition); ``site.shortName`` when the
   site sets one, ``site.publisher`` when the site sets a publisher and ``feeds.title`` when the site gives its feeds a title other than the site's name;
+* ``seo.defaultImage`` (a site path or URL) and ``seo.defaultImageAlt`` when the site sets a default share picture and its alt text: the picture usually carries the
+  name, so each language has its own;
 * ``site.description`` and ``site.tagline`` when the site sets them;
 * ``home.label``: the name of the home link (``listings`` breadcrumbs);
 * ``listing.pageSuffix``: what follows the title of page 2 and later of a listing, with ``{page}`` (`` — página {page}``);
@@ -38,6 +40,8 @@ SITE_NAME_KEY = "site.name"
 SITE_SHORT_NAME_KEY = "site.shortName"
 SITE_PUBLISHER_KEY = "site.publisher"
 FEEDS_TITLE_KEY = "feeds.title"
+SEO_IMAGE_KEY = "seo.defaultImage"
+SEO_IMAGE_ALT_KEY = "seo.defaultImageAlt"
 TRANSLATION_LABEL_KEY = "translation.label"
 TRANSLATION_ORIGINAL_KEY = "translation.original"
 UNTRANSLATED_LABEL_KEY = "listing.untranslated"
@@ -73,6 +77,10 @@ def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_href
         keys.append(SITE_PUBLISHER_KEY)
     if standard.feeds.title and standard.feeds.title != standard.identity.name:
         keys.append(FEEDS_TITLE_KEY)
+    if standard.seo.default_image:
+        keys.append(SEO_IMAGE_KEY)   # the share picture carries the name, so each language has its own
+    if standard.seo.default_image_alt:
+        keys.append(SEO_IMAGE_ALT_KEY)
     if standard.identity.description:
         keys.append("site.description")
     if standard.identity.tagline:
