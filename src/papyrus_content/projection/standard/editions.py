@@ -203,7 +203,7 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
     #: ``(the address the edition used before its segments were translated, the address now)`` for each section: the edge redirects the first to the second.
     moved_paths = tuple((english, now) for section in standard.sections if section.base
                         for english, now in [(edition_base(standard, section), translate_path(edition_base(standard, section), segments))] if english != now)
-    nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href=f"/{prefix}" + moved.get(link.href, link.href), cta=link.cta)
+    nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href=encoded_path(f"/{prefix}" + moved.get(link.href, link.href)), cta=link.cta)
                 for link in standard.nav if link.href in hrefs)
     return dataclasses.replace(
         standard,
