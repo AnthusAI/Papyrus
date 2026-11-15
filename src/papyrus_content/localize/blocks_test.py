@@ -47,3 +47,11 @@ def test_what_a_model_is_told_about_a_problem_never_contains_a_link_target():
     protected = protect(SOURCE)
     told = protected.mask("The translation drops the link target “/articles/the-more-a-security-product-watches/” (source: '(/articles/the-more-a-security-product-watches/)')")
     assert "/articles/" not in told and told.count("⟦1⟧") == 2
+
+
+def test_a_leaf_directive_with_a_blank_line_inside_its_attributes_is_one_block():
+    from papyrus_content.localize.blocks import split_body
+
+    directive = '::image{\n  src="a.png"\n \n  alt="A picture."\n  credit="Drafted by AI."\n}'
+    assert split_body(f"Before.\n\n{directive}\n\nAfter.\n") == ["Before.", directive, "After."]
+    assert [b.kind for b in blocks_of(f"Before.\n\n{directive}\n")] == ["prose", "directive"]
