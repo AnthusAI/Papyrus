@@ -163,7 +163,30 @@ class Protected:
                 f"repeated {', '.join(f'⟦{n}⟧' for n in repeated)}" if repeated else "",
                 f"unknown {', '.join(f'⟦{n}⟧' for n in invented)}" if invented else "") if part)
             raise PlaceholderError(f"the translation does not keep every placeholder exactly once ({details})")
+        self._refuse_damaged_links(translated)
         return _PLACEHOLDER.sub(lambda match: self.parts[int(match.group(1)) - 1], translated)
+
+    def _refuse_damaged_links(self, translated: str) -> None:
+        """A link is ``[text]⟦n⟧``: the target placeholder stands right after the closing bracket of the link text. A model that writes the target itself, or
+        moves the placeholder away from its text, would save a link with no anchor (``这是(/articles/x/)一宗…``): the translation is refused, so the model
+        is asked again, and nothing damaged is ever stored."""
+        for match in _PLACEHOLDER.finditer(translated):
+            part = self.parts[int(match.group(1)) - 1]
+            if part.startswith("(") and not translated[: match.start()].endswith("]"):
+                raise PlaceholderError(f"the link target ⟦{match.group(1)}⟧ must stand directly after the closing ] of its link text, as in [text]⟦{match.group(1)}⟧")
+        without = _PLACEHOLDER.sub("\x00", translated)
+        for number, part in enumerate(self.parts, start=1):
+            if len(part) >= 6 and part in without:
+                raise PlaceholderError(f"you wrote the held text of ⟦{number}⟧ yourself; write only the placeholder ⟦{number}⟧ and never its contents")
+
+    def mask(self, text: str) -> str:
+        """``text`` with every held part replaced by its placeholder, for what a model is told about a problem: it must never read a link target and paste it."""
+        shown = [(number, part) for number, part in enumerate(self.parts, start=1)]
+        shown += [(number, part[1:-1].split(" ", 1)[0]) for number, part in enumerate(self.parts, start=1) if part.startswith("(") and part.endswith(")")]   # the target alone
+        for number, part in sorted(shown, key=lambda pair: len(pair[1]), reverse=True):
+            if part:
+                text = text.replace(part, f"⟦{number}⟧")
+        return text
 
 
 class PlaceholderError(ValueError):
