@@ -53,3 +53,8 @@ def test_a_stylesheet_may_use_size_tokens_but_not_literal_text_sizes():
 
 def test_the_core_token_stylesheet_passes_its_own_lint():
     assert lint_stylesheet(STYLESHEET_PATH.read_text(encoding="utf-8")) == []
+
+
+def test_the_shared_publication_theme_uses_only_tokens_for_text_sizes():
+    theme = STYLESHEET_PATH.with_name("papyrus-publication.css")
+    assert lint_stylesheet(theme.read_text(encoding="utf-8")) == []

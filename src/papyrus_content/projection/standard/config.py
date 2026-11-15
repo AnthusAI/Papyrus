@@ -27,7 +27,7 @@ from ...story_types import story_types_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds", "brandPack",
 )
 NO_BUCKET = "none"
 #: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
@@ -110,6 +110,8 @@ class SiteIdentity:
     author: str = ""
     date_format: str = ""             # strftime pattern for the dates the core components print ("%B %d, %Y"); empty: ISO dates
     lede_field: str = ""              # front matter field whose text is printed as the article's lede (standfirst) under its title
+    notice_label: str = ""            # a short label ("Satire") and sentence about the whole publication, said on every page, Markdown twin, feed entry and in the structured data
+    notice_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -466,6 +468,7 @@ class StandardSettings:
     embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: the providers whose ``::video`` plays (default none: ``::video`` is not core's)
     wiki: WikiSettings = field(default_factory=WikiSettings)
     home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
+    brand_pack: str = ""   # the ``brandPack`` key: a JSON brand pack in the static directory; the projection links the shared publication theme and writes the pack's small stylesheet (brand.py)
 
     @property
     def sectioned(self) -> bool:
@@ -637,7 +640,12 @@ def _check_groups(groups) -> None:
 
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     site = raw["site"]
-    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField"}, "site")
+    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField", "notice"}, "site")
+    notice = site.get("notice") or {}
+    if notice:
+        _only(notice, {"label", "text"}, "site.notice")
+        if not (_text(notice, "label") and _text(notice, "text")):
+            raise ValueError("site.notice needs both a label and a text")
     name = _text(site, "name")
     if not name:
         raise ValueError("site.name is required")
@@ -652,6 +660,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         author=_text(site, "author"),
         date_format=_text(site, "dateFormat"),
         lede_field=_text(site, "ledeField"),
+        notice_label=_text(notice, "label"),
+        notice_text=_text(notice, "text"),
     )
     if identity.date_format:
         try:
@@ -1032,4 +1042,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         embeds=embeds_from_mapping(raw.get("embeds")),
         wiki=wiki,
         home_page=home_page,
+        brand_pack=_text(raw, "brandPack"),
     )

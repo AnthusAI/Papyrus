@@ -59,6 +59,12 @@ def _root(settings: StandardSettings) -> str:
     return (f"{settings.base_path}/" if settings.base_path else "") + (f"{settings.language_prefix}/" if settings.language_prefix else "")
 
 
+def _noticed_summary(summary: str, settings: StandardSettings) -> str:
+    """A feed entry's summary, led by the publication's notice label ("Satire. ...") so a reader of the feed is told too."""
+    label = settings.identity.notice_label
+    return f"{label}. {summary}".strip() if label else summary
+
+
 def _latest(selection: list[StandardEntry]) -> str:
     return max((entry.updated or entry.date for entry in selection), default="")
 
@@ -72,7 +78,7 @@ def rss_bytes(selection: list[StandardEntry], settings: StandardSettings, enviro
             f"<title>{escape(entry.title)}</title>",
             f"<link>{link}</link>",
             f'<guid isPermaLink="true">{link}</guid>',
-            f"<description>{escape(entry.summary_text)}</description>",
+            f"<description>{escape(_noticed_summary(entry.summary_text, settings))}</description>",
         ]
         if entry.date and rfc822(entry.date):
             parts.append(f"<pubDate>{rfc822(entry.date)}</pubDate>")
@@ -127,8 +133,8 @@ def atom_bytes(selection: list[StandardEntry], settings: StandardSettings, envir
         ]
         if rfc3339(entry.date):
             parts.append(f"<published>{rfc3339(entry.date)}</published>")
-        if entry.summary_text:
-            parts.append(f"<summary>{escape(entry.summary_text)}</summary>")
+        if entry.summary_text or identity.notice_label:
+            parts.append(f"<summary>{escape(_noticed_summary(entry.summary_text, settings))}</summary>")
         parts.extend(_atom_author(author, environment) for author in entry.author_details)
         parts.extend(f"<category term={quoteattr(tag)}/>" for tag in entry.tags)
         entries.append("<entry>" + "".join(parts) + "</entry>")

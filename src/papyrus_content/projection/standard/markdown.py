@@ -196,3 +196,12 @@ def llms_full_txt(identity, documents, max_bytes: int) -> str:
             break
         parts.append(piece)
     return "".join(parts)
+
+
+def markdown_with_notice(text: str, notice: str) -> str:
+    """``text`` with the publication's ``notice`` (one Markdown quote line) after its first heading, or at the top when it has none."""
+    lines = text.split("\n")
+    for position, line in enumerate(lines):
+        if line.startswith("# "):
+            return "\n".join(lines[: position + 1] + ["", notice] + lines[position + 1 :])
+    return notice + "\n\n" + text

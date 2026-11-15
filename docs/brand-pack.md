@@ -11,6 +11,8 @@ A site on the shared tier is data, never code. Its look is one **brand pack**: a
 | `wordmark` | `text`, shown in the heading font beside or instead of the logo. |
 | `colors.light`, `colors.dark` | One `#rrggbb` colour for each role, in both themes. |
 | `fonts` | `heading` and `body` family, each from the allow-list in `policy.json`. |
+| `shape` | Optional. `corners`: `square`, `soft` or `round`, a registered corner scale (never a size). |
+| `ornaments` | Optional. `none`, `quiet` or `expressive`: how much decoration the shared theme adds. |
 | `imageStyle` | Optional. `treatment: "pictogram"` (still pictograms only) and a short `summary`. Links the image style profile work (PPY-1f68bf). |
 
 The colour roles are named for the standard front end's `--papyrus-*` custom properties: `bg`, `ink`, `bandBg`, `bandCardBg`, `bandMutedBg`, `buttonBg`, `buttonInk`, `rule` and `focus`. A brand change writes one small stylesheet of custom properties; the core stylesheet stays shared.
@@ -33,3 +35,11 @@ A refusal names the setting, the roles, the theme and the measured ratio, for ex
 poetry run pytest src/papyrus_content/brand_pack -q
 poetry run behave features_backend/brand-pack-validator.feature
 ```
+
+## How the standard front end applies a pack
+
+A site names its pack in `projection.json` (`"brandPack": "brand.json"`, a file in the static directory). The projection validates it with the platform policy and stops the build, naming every problem, when it fails. A valid pack becomes `css/papyrus-brand-<hash>.css`: one small stylesheet of custom properties and `@font-face` rules (the hash is of its own text, so a changed brand is a new file), plus the self-hosted font files. Pages link `markus-components.css`, `papyrus-tokens.css` (the design tokens at final sizes), `papyrus-publication.css` (the shared theme, written only in tokens) and then the brand file last. Fonts the platform hosts today: Source Serif 4. A font on the allow-list whose files are not hosted yet is refused at build time with a message that says so.
+
+`site.notice` (`{"label": "Satire", "text": "..."}`) is a publication-wide statement: a strip under the masthead on every page, a quote in every Markdown twin and in `llms.txt`, a lead in each feed entry's summary and `genre` in the structured data. A language edition may give its own words in the interface strings `notice.label` and `notice.text`.
+
+Plan: `docs/plans/shared-publication-front-end.md`. Features: `features_backend/brand-pack-applied.feature`, `features_backend/front-end-tokens.feature`.
