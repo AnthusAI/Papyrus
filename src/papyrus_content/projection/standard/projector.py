@@ -167,6 +167,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[TOKENS_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-tokens.css").read_bytes()
             files[PUBLICATION_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-publication.css").read_bytes()
             files.update(self._brand.files)
+            for own in ("css/markus-vendor.css", "css/site-theme.css"):
+                files.pop(own, None)   # a branded site is styled by the shared theme and its brand file, not by Markus's themed stylesheet or a site stylesheet
         if standard.section_fronts:
             files[SECTION_FRONTS_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-section-fronts.css").read_bytes()
         if standard.nav_disclosure:
@@ -2064,7 +2066,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         head_html = self.head.build(dataclasses.replace(described, extra=extra, markdown_path=twin))
         if self.hooks.body_class is not None:
             base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
-        sheets = list(base.stylesheets)
+        sheets = [] if self._brand is not None else list(base.stylesheets)
         if self.standard.components_css and COMPONENTS_CSS_PATH not in sheets:
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
         if self.standard.components_css and KNOWLEDGE_CSS_PATH not in sheets and self._knowledge.digest():

@@ -49,6 +49,7 @@ def test_a_page_links_the_shared_theme_then_the_brand_stylesheet_last(branded):
     links = re.findall(r'<link rel="stylesheet" href="([^"?]+)', html)
     brand = [link for link in links if "papyrus-brand-" in link]
     assert len(brand) == 1 and links[-1] == brand[0]
+    assert "/css/markus-vendor.css" not in links and "/css/site-theme.css" not in links
     assert links.index("/css/papyrus-tokens.css") < links.index("/css/papyrus-publication.css") < links.index(brand[0])
 
 
