@@ -58,9 +58,11 @@ function articleItem(slug, section) {
   };
 }
 
-const EDITION_ITEMS_BY_DATE = {
-  "2026-10-01": [articleItem("older-story", "Culture"), articleItem("older-security-story", "Security")],
-  "2026-10-03": [articleItem("newer-story", "Security")],
+const STREAM_ARTICLES_BY_SLUG = {
+  "newer-story": articleItem("newer-story", "Security"),
+  "older-story": articleItem("older-story", "Culture"),
+  "older-security-story": articleItem("older-security-story", "Security"),
+  "standalone-story": articleItem("standalone-story", "Satire"),
 };
 
 Given("a brand without an editions setting", function () {
@@ -83,29 +85,39 @@ Then("a brand with editions explicitly disabled has editions disabled", function
   assert.equal(runProbe(["setting", JSON.stringify({ id: "x", editions: { enabled: false } })]).editionsEnabled, false);
 });
 
-Given("published editions dated {string} and {string}", function (firstDate, secondDate) {
-  this.editionContents = [firstDate, secondDate].map((editionDate) => ({
-    editionDate,
-    items: EDITION_ITEMS_BY_DATE[editionDate],
-  }));
+Given("published articles {string} and {string}, newest first", function (first, second) {
+  // "older-security-story" keeps the section scenarios meaningful: two sections, one of them filtered.
+  this.articles = [STREAM_ARTICLES_BY_SLUG[first], STREAM_ARTICLES_BY_SLUG[second], STREAM_ARTICLES_BY_SLUG["older-security-story"]];
 });
 
-Given("no published editions", function () {
-  this.editionContents = [];
+Given("a published article {string} and no editions at all", function (slug) {
+  this.articles = [STREAM_ARTICLES_BY_SLUG[slug]];
+});
+
+Given("no published articles", function () {
+  this.articles = [];
 });
 
 When("the item stream is built for the home page", function () {
-  const { buildItemStream, selectNewestStreamItems } = loadItemStream();
-  const newestFirst = [...this.editionContents].sort((left, right) => right.editionDate.localeCompare(left.editionDate));
-  this.streamItems = selectNewestStreamItems(newestFirst);
+  const { buildItemStream, articlesToStreamItems } = loadItemStream();
+  this.streamItems = articlesToStreamItems(this.articles);
   this.stream = buildItemStream(this.streamItems);
 });
 
 When("the item stream is built for the section {string}", function (sectionLabel) {
-  const { buildItemStream, selectNewestStreamItems } = loadItemStream();
-  const newestFirst = [...this.editionContents].sort((left, right) => right.editionDate.localeCompare(left.editionDate));
-  this.streamItems = selectNewestStreamItems(newestFirst);
+  const { buildItemStream, articlesToStreamItems } = loadItemStream();
+  this.streamItems = articlesToStreamItems(this.articles);
   this.stream = buildItemStream(this.streamItems, sectionLabel);
+});
+
+Then("the home page loads its stream from the newest published articles and never lists editions", function () {
+  const source = fs.readFileSync(path.resolve(__dirname, "../../app/page.tsx"), "utf8");
+  const start = source.indexOf("async function loadNewestStreamItems()");
+  assert.ok(start >= 0);
+  const body = source.slice(start, source.indexOf("async function loadLatestGraphQLEdition"));
+  assert.ok(body.includes("listCachedNewestArticles"));
+  assert.ok(!body.includes("listCachedPublishedEditions"));
+  assert.ok(!body.includes("loadCachedEditionContent"));
 });
 
 Then("the first stream item is {string}", function (slug) {
