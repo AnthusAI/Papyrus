@@ -43,12 +43,14 @@ Feature: A whole site is translated by one command, and only what remains is don
     A held translation waits for a person. The request record is where its run is meant to say so, but a run can end after saving the translation and before
     writing that, and the record can be written again for the same text. The translation itself says which text it was made from and that it is held, so the
     survey believes it, reports it held and leaves the record and the translation alone: a new run could replace what a person has yet to answer.
-    Given the published English Stories "story-f" and "story-g"
+    Given the published English Stories "story-f", "story-g" and "story-h"
     And "story-f" has a Spanish translation that is held, though its request says only that a run started
     And "story-g" has a Spanish translation that is held, though its request was written again and not yet run
+    And "story-h" has a Spanish translation that is held, though its request says its run failed after saving it
     When the whole site is planned for "es-419"
     Then "story-f" is up to date, held for a person, and its request record is left as it was
     And "story-g" is up to date, held for a person, and its request record is left as it was
+    And "story-h" is up to date, held for a person, and its request record is left as it was
     And "story-f" and "story-g" are not run
 
   Scenario: A run that failed is remaining work, and one that is still going is not

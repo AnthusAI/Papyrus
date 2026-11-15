@@ -36,3 +36,15 @@ Feature: A read that fails for a moment is sent again, with a growing pause, and
     When the client writes a Story
     Then the write fails mentioning "connection timed out"
     And the client attempted the read 1 times
+
+  Scenario: A reset connection while downloading or uploading an attachment is retried too
+    The text of a Story lives in the attachment store behind a presigned address, outside the data API. Moving it is as safe to repeat as a read, so the same
+    rule applies: a reset connection, a timeout, a 429 or a 5xx is sent again after a growing pause; a refusal such as a 403 is not.
+    Given an attachment store whose connection resets twice and then answers
+    When an attachment is downloaded
+    Then the attachment's bytes are returned
+    And the store was asked 3 times
+    Given an attachment store that refuses the address with a 403
+    When an attachment is downloaded
+    Then the download fails with the refusal
+    And the store was asked 1 times
