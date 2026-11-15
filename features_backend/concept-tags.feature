@@ -39,10 +39,11 @@ Feature: An editor or an agent tags a story or a Reference with an existing conc
     Then the tagging fails naming "task--translation", "concept--translation" and "editor_concept--translation"
     And no tag was written
 
-  Scenario: An unknown name lists the closest accepted concepts and creates nothing
+  Scenario: An unknown name points at the concept search and creates nothing
     When a signed-in editor "Grace Editor" tags the story "big" with the concept "voice cloner"
     Then the tagging fails with "No accepted concept is named"
-    And it lists "editor_concept--voice-cloning" as a close match
+    And it points at "knowledge concepts search"
+    And the tagging read no concept table
     And no concept was created
     And no tag was written
 

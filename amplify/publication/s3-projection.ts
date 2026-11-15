@@ -7,6 +7,7 @@ import { Effect, Policy, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/a
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import { SqsDestination } from "aws-cdk-lib/aws-lambda-destinations";
 import * as route53 from "aws-cdk-lib/aws-route53";
+import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import type { Construct } from "constructs";
@@ -74,6 +75,18 @@ function createDnsValidatedCertificate(
   });
 }
 
+function addAliasRecords(scope: Construct, aliases: string[], zone: { hostedZoneId: string; hostedZoneName: string }, distribution: cloudfront.Distribution): void {
+  const hostedZone = route53.HostedZone.fromHostedZoneAttributes(scope, "SiteAliasHostedZone", {
+    hostedZoneId: zone.hostedZoneId,
+    zoneName: zone.hostedZoneName,
+  });
+  const target = route53.RecordTarget.fromAlias(new route53Targets.CloudFrontTarget(distribution));
+  aliases.forEach((alias, index) => {
+    new route53.ARecord(scope, `SiteAliasA${index}`, { zone: hostedZone, recordName: alias, target });
+    new route53.AaaaRecord(scope, `SiteAliasAaaa${index}`, { zone: hostedZone, recordName: alias, target });
+  });
+}
+
 function createDistribution(
   scope: Construct,
   props: S3ProjectionPublicationProps,
@@ -126,6 +139,7 @@ export function addS3ProjectionPublication(
       compileRedirectFunctionSource(readFileSync(redirectFunctionSourcePath, "utf8"), edgeConfig.rules, {
         negotiateMarkdown: edgeConfig.negotiateMarkdown,
         directoryTwins: edgeConfig.directoryTwins,
+        wwwRedirect: props.distribution?.wwwRedirect === true,
       }),
     ),
     keyValueStore,
@@ -147,6 +161,10 @@ export function addS3ProjectionPublication(
   const distribution = markdownContentTypeFunction !== undefined
     ? createDistribution(scope, props, bucket, redirectFunction, markdownContentTypeFunction)
     : undefined;
+
+  if (distribution !== undefined && props.distribution?.dnsRecords === true && props.distribution.acm !== undefined) {
+    addAliasRecords(scope, props.distribution.aliases ?? [], props.distribution.acm, distribution);
+  }
 
   let distributionArn: string | undefined;
   if (distribution !== undefined) {

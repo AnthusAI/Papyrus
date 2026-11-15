@@ -465,6 +465,8 @@ PORTED_COMMANDS = frozenset(
         "relations:import-types",
         "relations:backfill",
         "relations:migrate-concept-tags",
+        "relations:label-backfill",
+        "relations:labels",
         "ontology:preflight",
         "ontology:rank",
         "ontology:status",
@@ -1115,6 +1117,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .relations_commands import relations_migrate_concept_tags
 
         relations_migrate_concept_tags(flags)
+    elif route in ("relations:label-backfill", "relations:labels"):
+        from . import entity_labels_commands
+
+        {"relations:label-backfill": entity_labels_commands.relations_label_backfill, "relations:labels": entity_labels_commands.relations_labels}[route](flags)
     elif route.startswith("ontology:"):
         from .ontology_enrichment import (
             ontology_associate,

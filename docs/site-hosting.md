@@ -1005,12 +1005,14 @@ backend: {
     projector: "web/projector.py",                 // optional, relative .py path in the site repo
     staticDir: "web/static",                       // optional, relative directory in the site repo
     edgeDistributionArn: "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12345", // optional; or set PAPYRUS_EDGE_DISTRIBUTION_ARN on the Amplify branch and leave this out
-    distribution: { create: false },               // or { create: true, aliases, certificateArn | acm }
+    distribution: { create: false },               // or { create: true, aliases, certificateArn | acm, dnsRecords, wwwRedirect }
     cache: { htmlSMaxAgeSeconds: 300, invalidation: "targeted", livePrefixes: ["conversations/"] }, // optional; "targeted" is the default (also "off", and "all": billable, discouraged); 300 s, or 60 s with "off"; livePrefixes: see "Live pages" below
     retainBucketOnDelete: true,                    // default; false destroys the bucket with the stack
   },
 }
 ```
+
+`distribution.dnsRecords: true` (needs `acm` and aliases) also writes an A and an AAAA alias record for every alias in the `acm` hosted zone, so no hand-made DNS is needed; a host that an Amplify domain association still holds makes the deploy fail, so release it first. `distribution.wwwRedirect: true` (aliases must list both `<host>` and `www.<host>`) makes the edge answer `www.<host>` with a 301 to `https://<host>`, keeping path and query. Both are off unless set. Scenarios: `features/distribution-dns-and-www.feature`.
 
 `edgeDistributionArn` (an existing distribution) and `distribution.create: true` are mutually exclusive. Aliases need `certificateArn` or `acm: { hostedZoneId, hostedZoneName }` (a DNS-validated certificate in us-east-1). `projector` and `staticDir` must be relative and contain no `..`; they are bundled into the content-actions zip as `site_projector.py` and `site_static/`, resolved from the directory the backend is synthesized in (the site repo root).
 

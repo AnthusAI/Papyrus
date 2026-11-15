@@ -1,0 +1,20 @@
+{
+  "id": "PPY-66cb6340-66bb-4118-a773-56bea468de23",
+  "title": "A site-created distribution writes its own alias records and sends www to the apex",
+  "description": "publication.distribution.dnsRecords and wwwRedirect (scenarios in features/distribution-dns-and-www.feature). Needed to move TheHallucinator.ai (Humorus) onto the S3 projection.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-15T18:09:58.440172Z",
+  "updated_at": "2026-11-15T18:09:58.440579Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

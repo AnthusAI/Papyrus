@@ -46,6 +46,7 @@ import { automationView } from "./functions/automation-view/resource";
 import { imageService } from "./functions/image-service/resource";
 import { wireImageService } from "./functions/image-service/wire";
 import { wireAutomationView } from "./functions/automation-view/wire";
+import { wireEntityLabelSync } from "./functions/entity-label-sync/wire";
 import { wireLocalizationDispatch } from "./functions/localization-dispatch/wire";
 import { announcements } from "./functions/announcements/resource";
 import { wireAnnouncements } from "./functions/announcements/wire";
@@ -932,6 +933,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   wireAutomationView(backend);
   // Translate on publish (languages.auto): a stream consumer on the LocalizationRequest records. A shared stack's rows carry a tenant it does not act for.
   if (tenancyMode !== "shared") wireLocalizationDispatch(backend, contentActionsLambda);
+  // The names of concepts in each language: a stream consumer on the SemanticNode records writes every concept's primary-language label rows.
+  if (tenancyMode !== "shared") wireEntityLabelSync(backend);
   wireImageService(backend);
   wireProposalActions(backend);
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).

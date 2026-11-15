@@ -88,7 +88,8 @@ export function compareLedgers(baseline: Ledger, current: Ledger, budget?: Budge
         report.failures.push(`${table} index ${entry.id} changed its keys in place (${old.keys} to ${entry.keys}); add a new index and remove this one in a later release.`);
       }
     }
-    if (added.length > 1) {
+    // A table that is new in this release is created with all its indexes at once; only an existing table gains them one per deploy.
+    if (added.length > 1 && baseline.has(table)) {
       report.failures.push(`${table} gains ${added.length} indexes in one release: ${added.map((entry) => entry.id).join(", ")}. Ship one per release.`);
     }
     const kept = new Set(entries.map((entry) => entry.id));
@@ -96,10 +97,10 @@ export function compareLedgers(baseline: Ledger, current: Ledger, budget?: Budge
     if (added.length || dropped.length) {
       report.slots.push(`${table} has ${entries.length} of ${TABLE_LIMIT} indexes: ${Math.max(TABLE_LIMIT - entries.length, 0)} left.`);
     }
-    added.forEach((entry, position) => {
-      (pending[position] ??= []).push([table, entry.id]);
-    });
     if (baseline.has(table)) {
+      added.forEach((entry, position) => {
+        (pending[position] ??= []).push([table, entry.id]);
+      });
       report.creations += added.length;
       creating.push(...added.map((entry) => `${table}.${entry.id}`));
     }

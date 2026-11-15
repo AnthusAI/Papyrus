@@ -49,11 +49,17 @@ def nodes(site):
 
 
 class ResolutionTests(unittest.TestCase):
+    def test_a_name_is_found_without_listing_the_concept_table(self):
+        site = Site()
+        site.calls.clear()
+        self.assertEqual(resolve_concept_exact(site, "tts cloning")["nodeKey"], "editor_concept--voice-cloning")
+        self.assertEqual([call for call in site.calls if call[0] == "list" and call[1] == "SemanticNode"], [])
+
     def setUp(self):
-        self.nodes = list(nodes(Site()))
+        self.site = Site()
 
     def key(self, text):
-        return resolve_concept_exact(self.nodes, text)["nodeKey"]
+        return resolve_concept_exact(self.site, text)["nodeKey"]
 
     def test_exact_node_key_hashtag_name_and_alias_each_resolve_case_insensitively(self):
         for text in ("editor_concept--voice-cloning", "EDITOR_CONCEPT--Voice-Cloning", "#voice-cloning", "voice-cloning", "Voice Cloning", "voice  cloning", "tts CLONING"):
@@ -67,11 +73,11 @@ class ResolutionTests(unittest.TestCase):
             self.assertIn(key, message)
         self.assertEqual(self.key("task--translation"), "task--translation")
 
-    def test_no_fuzzy_matching_and_the_error_lists_the_closest_accepted_concepts(self):
+    def test_no_fuzzy_matching_and_the_error_points_at_search(self):
         with self.assertRaises(ValueError) as caught:
             self.key("voice cloner")
         self.assertIn("No accepted concept is named", str(caught.exception))
-        self.assertIn("editor_concept--voice-cloning", str(caught.exception))
+        self.assertIn("knowledge concepts search", str(caught.exception))
         for near_miss in ("voicecloning", "voice", "clon"):
             with self.assertRaises(ValueError):
                 self.key(near_miss)

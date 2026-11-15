@@ -354,10 +354,37 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for items, found_tag, found in self._own_sites:
             if items is site.items and found_tag == tag:
                 return found
-        own = dataclasses.replace(site, items=tuple(summary for summary in site.items if self._tag_of(summary) == tag))
+        own = self._edition_view(site, tag)
         self._own_sites.append((site.items, tag, own))
         del self._own_sites[: -2 * (len(self._editions) + 1)]
         return own
+
+    def _edition_view(self, site: SiteIndex, tag: str) -> SiteIndex:
+        """``site`` as the ``tag`` edition lists it. A translation stands where its original stands: it takes the original's publication date (its bucket,
+        and the date its card shows unless it has a date of its own) and the original's private stars, so an edition ranks its Stories in the order the
+        primary language does (``story_order.py``) and a rating of the original moves the translation with it."""
+        items = tuple(summary for summary in site.items if self._tag_of(summary) == tag)
+        primary = self._serving.primary if self._serving is not None else None
+        if tag == primary:
+            return dataclasses.replace(site, items=items)
+        originals = {summary.language_group_id: summary for summary in site.items if self._tag_of(summary) == primary and summary.language_group_id}
+        stars = dict(site.story_stars)
+        standing = []
+        for summary in items:
+            original = originals.get(summary.language_group_id or "")
+            if original is None:
+                standing.append(summary)
+                continue
+            changes: dict = {}
+            if original.published_at:
+                changes["published_at"] = original.published_at
+            if original.front_matter.get("date") and not summary.front_matter.get("date"):
+                changes["front_matter"] = {**summary.front_matter, "date": original.front_matter["date"]}
+            rating = site.story_stars.get(original.lineage_id or "")
+            if rating and summary.lineage_id:
+                stars[summary.lineage_id] = rating
+            standing.append(dataclasses.replace(summary, **changes) if changes else summary)
+        return dataclasses.replace(site, items=tuple(standing), story_stars=stars)
 
     def _editions_of(self, site: SiteIndex) -> list[tuple["StandardMarkusProjector", SiteIndex]]:
         """Every edition with the site as it sees it, the primary first; on a one-language site, this projector and the site unchanged."""

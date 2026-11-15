@@ -107,8 +107,44 @@ function directoryTwin(uri) {
   return uri.substring(0, uri.length - 3) + "/index.md";
 }
 
+// A distribution that serves both an apex host and its www twin sends www to the apex. The flag is spliced in by
+// redirect-rules.ts at deploy time from publication.distribution.wwwRedirect.
+const redirectWww = /*PAPYRUS_WWW_REDIRECT*/false/*END_PAPYRUS_WWW_REDIRECT*/;
+
+function queryStringOf(request) {
+  const parts = [];
+  const query = request.querystring || {};
+  Object.keys(query).forEach(function (name) {
+    const entry = query[name];
+    const values = entry.multiValue ? entry.multiValue.map(function (item) { return item.value; }) : [entry.value];
+    values.forEach(function (value) {
+      parts.push(value === "" || value === undefined ? name : name + "=" + value);
+    });
+  });
+  return parts.length === 0 ? "" : "?" + parts.join("&");
+}
+
+function wwwRedirectResponse(request) {
+  const header = request.headers && request.headers.host;
+  const host = header && header.value ? header.value.toLowerCase() : "";
+  if (host.indexOf("www.") !== 0) {
+    return null;
+  }
+  return {
+    statusCode: 301,
+    statusDescription: "Moved Permanently",
+    headers: { location: { value: "https://" + host.substring(4) + request.uri + queryStringOf(request) } },
+  };
+}
+
 async function handler(event) {
   const request = event.request;
+  if (redirectWww) {
+    const wwwResponse = wwwRedirectResponse(request);
+    if (wwwResponse !== null) {
+      return wwwResponse;
+    }
+  }
   const redirectTarget = await lookUpRedirectTarget(request.uri);
   if (redirectTarget !== null) {
     return {
