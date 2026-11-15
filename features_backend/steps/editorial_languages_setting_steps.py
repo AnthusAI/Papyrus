@@ -227,3 +227,21 @@ def step_stored_on_saving(context, automation):
 @then('the stored auto setting is off, with the automation "{automation}" kept')
 def step_stored_off(context, automation):
     assert _auto(context)["enabled"] is False and _auto(context)["automation"] == automation and _auto(context)["publish"] is False, _auto(context)
+
+
+def _segments(text: str) -> dict:
+    found = {}
+    for part in text.split(";"):
+        tag, _, rest = part.strip().partition(":")
+        found[tag.strip().strip('"')] = {segment.split(" is ")[0].strip(): segment.split(" is ")[1].strip().strip('"') for segment in rest.split(",")}
+    return found
+
+
+@then("the stored segments are {text}")
+def step_stored_segments(context, text):
+    assert context.store.stored["languages"]["segments"] == _segments(text), context.store.stored["languages"].get("segments")
+
+
+@then('the listing shows the segment "{text}" for "{tag}"')
+def step_segment_listing(context, text, tag):
+    assert any(line == f"segment\t{tag}\t{text}" for line in context.output.splitlines()), context.output

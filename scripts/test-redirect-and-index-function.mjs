@@ -23,6 +23,7 @@ function loadHandler(redirects) {
 const handler = loadHandler({
   "/old-post/": "/articles/new-post/",
   "/legacy": "https://example.org/elsewhere",
+  "/zh/posts/%E6%96%87/": "/zh/%E5%8A%A8%E6%80%81/%E6%96%87/",
 });
 const viewerRequest = (uri) => ({ request: { uri, headers: {} } });
 
@@ -33,6 +34,13 @@ assert.equal(redirected.headers.location.value, "/articles/new-post/");
 const redirectedToUrl = await handler(viewerRequest("/legacy"));
 assert.equal(redirectedToUrl.statusCode, 301);
 assert.equal(redirectedToUrl.headers.location.value, "https://example.org/elsewhere");
+
+// A redirect keeps the query string, and the encoded address of a Chinese page matches its encoded key.
+const withQuery = await handler({ request: { uri: "/zh/posts/%E6%96%87/", headers: {}, querystring: { utm: { value: "x" }, a: { value: "" } } } });
+assert.equal(withQuery.statusCode, 301);
+assert.equal(withQuery.headers.location.value, "/zh/%E5%8A%A8%E6%80%81/%E6%96%87/?utm=x&a");
+const absoluteWithQuery = await handler({ request: { uri: "/legacy", headers: {}, querystring: { q: { value: "1" } } } });
+assert.equal(absoluteWithQuery.headers.location.value, "https://example.org/elsewhere");
 
 assert.equal((await handler(viewerRequest("/"))).uri, "/index.html");
 assert.equal((await handler(viewerRequest("/articles/a-post/"))).uri, "/articles/a-post/index.html");

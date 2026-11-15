@@ -814,7 +814,7 @@ def projection_status_action(arguments: dict) -> dict:
     return {"ok": True, "itemId": arguments["id"], "lineageId": candidate.get("lineageId"), "projection": answer}
 
 
-def start_projection_job(client, item_id: str, *, version: int | None, published_item_id: str | None, unpublished: bool = False) -> dict:
+def start_projection_job(client, item_id: str, *, version: int | None, published_item_id: str | None, unpublished: bool = False, queue_only: bool = False) -> dict:
     """Start building a story's pages (or, for ``unpublished``, taking them down) in the background, or join the build already queued or running for it.
     Returns what the caller is told. The build decides from the stored state whether the page stays or goes, so a queued unpublish is built by the same drain."""
     context = projection_context(client)
@@ -833,9 +833,15 @@ def start_projection_job(client, item_id: str, *, version: int | None, published
         task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
     jobs = publish_jobs_from_environment()
     if jobs is None:
+        if queue_only:
+            raise ValueError("A batch publish needs the site's publish job records, and this site keeps none; publish the Stories one at a time.")
         answer["projection"] = {"state": "scheduled" if schedule_projection_task(task, "publish") else "not-scheduled"}
         return answer
     job, joined = jobs.request(item_id, version, announce={"publishedItemId": published_item_id} if published_item_id else None)
+    if queue_only:
+        # A batch (PPY: one projection per batch): the job is queued and no build is started for it. The batch's one drain builds every queued Story under one hold of the lease.
+        answer["projection"] = {**job_answer(job), "joined": joined, "queued": True}
+        return answer
     if not joined:
         if not schedule_projection_task({**task, "jobId": job["jobId"]}, "publish"):
             jobs.finish(item_id, job["jobId"], ok=False, outcome={"error": "the build could not be started"})
@@ -844,9 +850,19 @@ def start_projection_job(client, item_id: str, *, version: int | None, published
     return answer
 
 
+def drain_publish_queue_action() -> dict:
+    """``publishItem`` with ``{"drain": true}``: build every queued Story in one invocation under one hold of the lease (``run_queued_build`` drains the queue). A batch publish
+    queues each Story with ``queueOnly`` and asks for this once, so a backfill of N Stories takes the lease once, never N times against a deploy."""
+    if publish_jobs_from_environment() is None:
+        raise ValueError("A batch publish needs the site's publish job records, and this site keeps none; publish the Stories one at a time.")
+    return {"ok": True, "scheduled": bool(schedule_projection_task({"task": "drain"}, "batch publish"))}
+
+
 def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
     if arguments.get("jobStatus"):
         return projection_status_action(arguments)
+    if arguments.get("drain") is True:
+        return drain_publish_queue_action()
     client = authoring_client()
     candidate = client.get_record("Item", arguments["id"]) or {}
     live = client.get_record("PublishedItem", published_item_id_for(candidate.get("lineageId") or arguments["id"]))
@@ -867,7 +883,8 @@ def publish_item_action(arguments: dict, actor: str, approved_by: str | None = N
     published_item_id = result.published_item_id if result.changed else None
     if arguments.get("async") is True and projection_configured():
         # The CLI asks for this (PPY-3acc8d): the data is saved now and the pages are built in the background; it asks for the job's status.
-        response.update(start_projection_job(client, arguments["id"], version=result.version_number, published_item_id=published_item_id))
+        response.update(start_projection_job(client, arguments["id"], version=result.version_number, published_item_id=published_item_id,
+                                             queue_only=arguments.get("queueOnly") is True))
         return response
     response.update(project_item_action(client, arguments["id"], unpublished=False, published_item_id=published_item_id))
     return response

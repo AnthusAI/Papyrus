@@ -365,6 +365,7 @@ Tell the editor, for example: `Draft v3 is ready to review: <story link> (built 
 ```sh
 papyrus ops content publish --id LINEAGE-v3 --dry-run
 papyrus ops content publish --id LINEAGE-v3 --verify
+papyrus ops content publish --id A-v1 --id B-v1 --id C-v1   # a batch (signed-in lane): one page build for all of them, one hold of the projection lease
 ```
 
 `--id` is the **version** item id (`LINEAGE-vN`, the lineage plus the version `stories show` prints), not the lineage id (`content publish failed [not-found]: No item LINEAGE`). Or pass `--slug SLUG [--section KEY]`. Stops with `[placeholder-slug]` for a placeholder address, `checklist-open` while procedure steps are open, and refuses an untyped Story. Close the checklist honestly first (see Checks).

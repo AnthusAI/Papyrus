@@ -26,6 +26,26 @@ Feature: A publication decides how its terms are translated
     When a block saying "The Justice Department sued in North Carolina." is translated as "El Departamento de Justicia demandó en Carolina del Norte."
     Then the faithfulness check reports no glossary finding
 
+  Scenario Outline: An inflected form the glossary lists passes the check
+    Given the Latin American Spanish starter glossary
+    When a block saying "<source>" is translated as "<target>"
+    Then the faithfulness check reports no glossary finding
+
+    Examples:
+      | source                                         | target                                                   |
+      | One tool goes after computer systems.          | Una herramienta va tras los sistemas de computadoras.    |
+      | A U.S. company sued.                           | Una empresa estadounidense demandó.                      |
+
+  Scenario: A term inside a name the glossary excepts is not held to the approved form
+    Given the Latin American Spanish starter glossary
+    When a block saying "They showed it at the Chaos Communication Congress." is translated as "Lo presentaron en el Chaos Communication Congress."
+    Then the faithfulness check reports no glossary finding
+
+  Scenario: The same term outside that name still needs its approved form
+    Given the Latin American Spanish starter glossary
+    When a block saying "Congress passed the law." is translated as "El parlamento aprobó la ley."
+    Then the faithfulness check reports that "Congress" should be "Congreso"
+
   Scenario: A do-not-translate term must stay as written
     Given the Simplified Chinese starter glossary
     When a block saying "The edits are often called abliteration." is translated as "这类改动通常称为消融。"

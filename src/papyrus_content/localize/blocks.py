@@ -112,6 +112,19 @@ def split_body(body: str) -> list[str]:
             index += 1
             flush()
             continue
+        if not current and _LEAF_OPEN.match(line) and not _attributes_closed(line):
+            # A leaf directive whose attribute list runs over several lines (``::image{`` … ``}``) is one block, a blank line inside it included: cut
+            # there, its second half is prose to the translator, which translates the credit and loses the closing brace.
+            current.append(line)
+            index += 1
+            while index < len(lines):
+                current.append(lines[index])
+                if _attributes_closed("\n".join(current)):
+                    break
+                index += 1
+            index += 1
+            flush()
+            continue
         if not line.strip():
             flush()
         else:
@@ -119,6 +132,26 @@ def split_body(body: str) -> list[str]:
         index += 1
     flush()
     return blocks
+
+
+_LEAF_OPEN = re.compile(r"^::[A-Za-z][\w-]*(?:\[[^\]\n]*\])?\{")
+
+
+def _attributes_closed(text: str) -> bool:
+    """Whether the leaf directive's ``{`` … ``}`` attribute list is closed in ``text`` (a brace inside a quoted value does not count)."""
+    depth, quote = 0, None
+    for character in text[text.index("{"):]:
+        if quote:
+            quote = None if character == quote else quote
+        elif character in "\"'":
+            quote = character
+        elif character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return True
+    return False
 
 
 def blocks_of(body: str, *, title: str | None = None, deck: str | None = None, fields: tuple[tuple[str, str], ...] = ()) -> list[Block]:

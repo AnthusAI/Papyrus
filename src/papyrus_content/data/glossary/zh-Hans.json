@@ -10,7 +10,7 @@
     {"term": "UK", "translations": ["英国"], "caseSensitive": true},
     {"term": "EU", "translations": ["欧盟"], "caseSensitive": true},
     {"term": "Paris", "translations": ["巴黎"], "caseSensitive": true},
-    {"term": "Congress", "translations": ["国会"], "caseSensitive": true, "note": "The United States Congress (美国国会 when the country is not clear from context)."},
+    {"term": "Congress", "translations": ["国会"], "exceptIn": ["Chaos Communication Congress"], "caseSensitive": true, "note": "The United States Congress (美国国会 when the country is not clear from context)."},
     {"term": "Justice Department", "translations": ["司法部"], "caseSensitive": true},
     {"term": "Department of Justice", "translations": ["司法部"], "caseSensitive": true},
     {"term": "North Carolina", "translations": ["北卡罗来纳州", "北卡罗来纳"], "caseSensitive": true},

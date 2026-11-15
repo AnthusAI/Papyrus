@@ -233,6 +233,7 @@ _ENTRIES = dict([
   _e("ops relations import-types", "Import the relation-type vocabulary. Applies immediately: there is no --dry-run.", "[--config FILE]", "operator", "writes", ""),
   _e("ops relations backfill", "Backfill concept relations.", "[--config FILE] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge concepts migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
+  _e("sections labels", "Translate each enabled section's name and short description into the given languages and save them as the section labels the language's pages show. Clean ones are current; a held one raises a review request.", "--language TAG [--language TAG ...] [--descriptions-file FILE] [--section ID ...] [--dry-run] [--json]", "operator", "dry-run", ""),
   _e("knowledge concepts label-backfill", "Operator: give every concept its language and its name rows (the names it is found by). Run once after the release that adds them; the stream consumer keeps them true afterwards. Dry run by default.", "[--limit N] [--apply] [--json]", "operator", "apply", ""),
   _e("ops relations label-backfill", "Same as `papyrus knowledge concepts label-backfill`.", "[--limit N] [--apply] [--json]", "operator", "apply", ""),
   _e("knowledge concepts labels", "Show every name of one concept in every language: role, text, origin, state.", "--concept NAME|#HASHTAG|NODEKEY [--json]", "both", "reads", ""),
@@ -248,7 +249,7 @@ _ENTRIES = dict([
   _e("editorial check", "Check a draft file against the site's editorial policies (read only).", "--draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]", "both", "reads", ""),
   _e("editorial check-drafts", "Check every unpublished draft version not yet checked.", "[--limit N] [--dry-run]", "operator", _DRY, ""),
   _e("editorial languages", "Show how the site serves its languages (public, URL prefix, slug policy per language), or change them. The same rules as Administration > Editorial checks.",
-     "[--set-public TAGS] [--set-prefix TAG=PREFIX] [--set-slug TAG=POLICY] [--auto on|off] [--auto-automation ID] [--auto-publish on|off] [--dry-run] [--json]", "both", _DRY, ""),
+     "[--set-public TAGS] [--set-prefix TAG=PREFIX] [--set-slug TAG=POLICY] [--set-segment TAG:SEGMENT=TRANSLATED] [--auto on|off] [--auto-automation ID] [--auto-publish on|off] [--dry-run] [--json]", "both", _DRY, ""),
   _e("editorial suggest", "Rewrite options for one finding or a passage; never edits the draft.", "--draft FILE [--finding-id ID] [--select N] [--note TEXT] [--story LINEAGE] [--section KEY] [--language TAG]", "both", "reads", ""),
   # ---- sign-in ----------------------------------------------------------------------------------------------------
   _e("login", "Sign in with Google in a browser; prints nothing secret.", "SITE_HOST", "editor", "writes", "orientation"),

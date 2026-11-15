@@ -236,7 +236,51 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
 
 
 def content_publish(flags: list[str]) -> None:
+    ids = [flags[index + 1] for index, flag in enumerate(flags[:-1]) if flag == "--id"]
+    if len(ids) > 1 or "--batch" in flags:
+        _publish_batch([flag for flag in flags if flag != "--batch"], ids)
+        return
     _run(flags, "content publish", publish_item)
+
+
+def _publish_batch(flags: list[str], ids: list[str]) -> None:
+    """Publish several saved versions with ONE page build (the signed-in lane): every version is saved, each Story's build is queued without being started, and the site
+    is asked once to build the queue in one invocation under one hold of the projection lease, then the lane waits for each job. A backfill of translations
+    therefore never takes the lease once per Story against a deploy."""
+    from .projection_trigger import drain_publish_queue, projection_timeout_seconds, queue_publish_as_user, wait_for_job
+    from .user_auth_mode import user_auth_requested
+
+    if not ids:
+        raise ValueError("Pass the versions to publish as --id LINEAGE-vN, once for each.")
+    if not user_auth_requested():
+        raise ValueError("A batch publish is the signed-in lane's: run `papyrus login`, and ask without --auth iam.")
+    options = parse_options([flag for index, flag in enumerate(flags) if flag != "--id" and not (index and flags[index - 1] == "--id")])
+    apply = resolve_mutation_apply(options, "content publish")
+    client, claims = create_authoring_client()
+    actor = normalize_string((claims or {}).get("sub")) or DEFAULT_ACTOR
+    target = client if apply else DryRunClient(client)
+    saved: list[Any] = []
+    for item_id in ids:
+        refuse_placeholder_slug(client, item_id)
+        saved.append(publish_item(target, item_id, actor=actor))
+    if not apply:
+        for result in saved:
+            print(f"content publish (batch, dry run): {result.item_id} {'changed' if result.changed else 'unchanged'}")
+        print(f"  would queue {sum(1 for r in saved if r.changed)} page builds and ask for one drain")
+        return
+    queued = [(result, queue_publish_as_user(client, result.item_id)) for result in saved if result.changed]
+    failures = [(result, answer) for result, answer in queued if answer.get("ok") is False or not (answer.get("projection") or {}).get("jobId")]
+    drained = drain_publish_queue(client) if queued else {"ok": True, "scheduled": False}
+    outcomes = []
+    for result, answer in queued:
+        outcomes.append((result, wait_for_job(client, result.item_id, answer["projection"], seconds=projection_timeout_seconds(), retry=retry_command(result.item_id, unpublished=False))))
+    for result in saved:
+        print(f"content publish: {result.item_id} {'changed' if result.changed else 'unchanged'} (published version {result.version_number})")
+    for result, outcome in outcomes:
+        print(f"  {result.item_id}: {outcome.get('status')}" + (f" ({outcome['error']})" if outcome.get("error") else ""))
+    print(f"  one drain for {len(queued)} page builds: {json.dumps(drained)}")
+    if failures or any(outcome.get("ok") is False for _result, outcome in outcomes) or drained.get("ok") is False:
+        raise SystemExit(1)
 
 
 def content_unpublish(flags: list[str]) -> None:

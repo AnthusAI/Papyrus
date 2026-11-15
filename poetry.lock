@@ -2775,14 +2775,14 @@ pyreadline3 = {version = "*", markers = "sys_platform == \"win32\" and python_ve
 
 [[package]]
 name = "humanus"
-version = "0.38.3"
+version = "0.39.0"
 description = "Configurable editorial compliance checks: policy packs, deterministic rules, zero-shot decision models and rewrite suggestions."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "humanus-0.38.3-py3-none-any.whl", hash = "sha256:c1b87888c7a7edd5f4d945041a3d64c8f99430e484a0fb0b509dccad024501c2"},
-    {file = "humanus-0.38.3.tar.gz", hash = "sha256:a88595e35fcf3e353657dc2057ce8dda99d45e14bdbcbb5af7513ac725a9f079"},
+    {file = "humanus-0.39.0-py3-none-any.whl", hash = "sha256:6acc488af50db67120fa7019366dd272ac5ef6f0cbcc8c9a2776ba99484b09be"},
+    {file = "humanus-0.39.0.tar.gz", hash = "sha256:df6da9efe4f8cb78b20e350166832727d6009a29f3ec4f0e213563e78a070210"},
 ]
 
 [package.dependencies]
@@ -9107,4 +9107,4 @@ transcripts = ["youtube-transcript-api"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "e252d703aa8bbb9d56331bc5443b37ecdde95a35c45cfece34d54b61f63c86df"
+content-hash = "df42a13d3faca3bebab5ba176ae2e6962652a9350debb70a2212cba63cecdbd4"
