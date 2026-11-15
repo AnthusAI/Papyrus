@@ -37,7 +37,7 @@ Feature: A site's brand pack and notice are applied by the standard front end
     And the Markdown twin and the structured data carry the notice as before
 
   Scenario: A quiet notice is as faint as the accessibility floor allows
-    Given a site with the notice placement "fixed-footer" and prominence "quiet"
+    Given a site with a quiet notice fixed to the footer
     When the branded site is projected
     Then the page shows only the sentence in small regular type in the brand's rule colour on the page background, with no tint, border or label, and the label stays in the Markdown twin and the structured data
 

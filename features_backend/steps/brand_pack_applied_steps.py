@@ -137,7 +137,7 @@ def step_bad_placement(context):
     assert context.error and 'placement' in context.error, context.error
 
 
-@given('a site with the notice placement "fixed-footer" and prominence "quiet"')
+@given('a site with a quiet notice fixed to the footer')
 def step_quiet_fixed(context):
     def build():
         raw = _settings()
