@@ -233,6 +233,7 @@ _ENTRIES = dict([
   _e("ops relations import-types", "Import the relation-type vocabulary. Applies immediately: there is no --dry-run.", "[--config FILE]", "operator", "writes", ""),
   _e("ops relations backfill", "Backfill concept relations.", "[--config FILE] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge concepts migrate-concept-tags", "Operator: move legacy related_to concept tags to tagged_with. Dry run by default.", "[--site KEY | --corpus-key KEY[,KEY]] [--limit N] [--apply] [--json]", "operator", "unknown", ""),
+  _e("sections labels", "Translate each enabled section's name and short description into the given languages and save them as the section labels the language's pages show. Clean ones are current; a held one raises a review request.", "--language TAG [--language TAG ...] [--descriptions-file FILE] [--section ID ...] [--dry-run] [--json]", "operator", "dry-run", ""),
   _e("knowledge concepts label-backfill", "Operator: give every concept its language and its name rows (the names it is found by). Run once after the release that adds them; the stream consumer keeps them true afterwards. Dry run by default.", "[--limit N] [--apply] [--json]", "operator", "apply", ""),
   _e("ops relations label-backfill", "Same as `papyrus knowledge concepts label-backfill`.", "[--limit N] [--apply] [--json]", "operator", "apply", ""),
   _e("knowledge concepts labels", "Show every name of one concept in every language: role, text, origin, state.", "--concept NAME|#HASHTAG|NODEKEY [--json]", "both", "reads", ""),

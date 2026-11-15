@@ -159,6 +159,10 @@ class ProjectionContext:
         use_languages = getattr(self.projector, "use_languages", None)
         if languages is not None and use_languages is not None:
             use_languages(languages)   # read when the projector first needs them: the site's languages from the editorial check settings
+        labels = getattr(self.source, "entity_label_strings", None)
+        use_labels = getattr(self.projector, "use_labels", None)
+        if labels is not None and use_labels is not None:
+            use_labels(labels)   # the names and descriptions the site's data gives each language (section labels), read with the languages
 
 
 def _leased(function):

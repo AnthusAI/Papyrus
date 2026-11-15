@@ -280,6 +280,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._own_sites: list[tuple[object, str, SiteIndex]] = []
         self._view_cache: tuple[object, LanguageView] | None = None
 
+    #: Where the words the site's own data gives each language come from (``PublishedContentSource.entity_label_strings``): the section names and descriptions
+    #: in each language, read once with the languages. They lay over the language's interface strings file, so a section's name in Spanish is data, not a copy in Git.
+    _labels_reader: Callable[[tuple[str, ...]], Mapping[str, Mapping[str, str]]] | None = None
+
+    def use_labels(self, reader: Callable[[tuple[str, ...]], Mapping[str, Mapping[str, str]]]) -> None:
+        self._labels_reader = reader
+
     def _serving_languages(self):
         if self._languages_reader is None:
             return None
@@ -301,6 +308,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
                              "(the editorial check settings' languages.primary): they name the same language; make them the same.")
         taken = {section.base.split("/")[0] for section in self.standard.sections if section.base} | {custom.path.split("/")[0] for custom in self.standard.pages if custom.path}
         taken |= set(self.standard.static_copy) | {"assets", "css", "_data", "_plugins", self.standard.listings.tag_base, self.standard.listings.flat_path}
+        labels = self._labels_reader(tuple(others)) if self._labels_reader is not None else {}
+        strings = {**self._interface_strings, **{tag: {**self._interface_strings.get(tag, {}), **labels.get(tag, {})} for tag in others}}
         primary_strings = self._interface_strings.get(serving.primary, {})
         problems = [f"{serving.primary}: {LANGUAGE_NAME_KEY}"] if not (primary_strings.get(LANGUAGE_NAME_KEY) or "").strip() else []
         required = required_keys(self.standard, primary_strings, edition_nav_hrefs(self.standard))
@@ -308,7 +317,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             prefix = serving.prefix(tag)
             if prefix in taken:
                 raise ValueError(f"languages.prefixes: /{prefix}/ for {tag} is already a path of this site; choose another prefix.")
-            missing = missing_keys(self._interface_strings.get(tag, {}), required)
+            missing = missing_keys(strings.get(tag, {}), required)
             if missing:
                 problems.append(f"{tag}: {', '.join(missing)}")
         if problems:
@@ -320,11 +329,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
             child = StandardMarkusProjector(
                 dataclasses.replace(self._settings, plugins=(), public_data=None),
                 {},
-                edition_settings(self.standard, tag, serving.prefix(tag), self._interface_strings[tag]),
+                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag]),
                 hooks=self.hooks,
                 environment=self.environment,
                 renditions=self._given_renditions,
-                interface_strings=self._interface_strings,
+                interface_strings=strings,
                 static_directory=self._static_directory,
             )
             child.version = self.version
