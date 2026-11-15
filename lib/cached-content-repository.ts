@@ -90,6 +90,15 @@ export function getCachedLatestPublishedEdition(): Promise<EditionRouteSummary |
   );
 }
 
+export function listCachedNewestArticles(limit: number): Promise<Article[]> {
+  if (bypassReaderCacheInDevelopment) return Promise.resolve(graphqlContentRepository.listNewestArticles(limit));
+  return withReaderCache(
+    ["reader-newest-articles", String(limit)],
+    [ARTICLES_CACHE_TAG, EDITIONS_CACHE_TAG],
+    async () => graphqlContentRepository.listNewestArticles(limit),
+  );
+}
+
 export function getCachedVideoScript(targetSlug: string): Promise<VideoScriptRef | null> {
   if (bypassReaderCacheInDevelopment) {
     return Promise.resolve(graphqlContentRepository.loadVideoScript(targetSlug)).then((result) => result ?? null);
