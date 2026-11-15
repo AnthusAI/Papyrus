@@ -514,7 +514,8 @@ def test_the_service_role_covers_the_service_of_every_resource_type_the_stacks_c
             granted |= {a.split(":")[0] for a in actions}
     # The shared-tier stacks are created by their own service role, whose rights are the inline policy of SharedCloudFormationRole.
     shared_granted = set()
-    for statement in pipeline["Resources"]["SharedCloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]:
+    held = sd.parse_template((PIPELINE / "papyrus-shared-pipeline-roles.yaml").read_text())   # held until the shared tier's go
+    for statement in held["Resources"]["SharedCloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]:
         actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
         shared_granted |= {a.split(":")[0] for a in actions}
     for stack in json.loads((PIPELINE / "stacks.json").read_text())["stacks"]:

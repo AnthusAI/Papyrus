@@ -6,6 +6,8 @@ This page is the runbook for the first create and the reference for what the tem
 
 ## What exists in Git
 
+> **The shared tier's pipeline roles are held.** `SharedPlanRole`, `SharedDeployRole` and `SharedCloudFormationRole` (the roles `papyrus-shared-plan-github`, `papyrus-shared-deploy-github` and `papyrus-shared-deploy-cloudformation`) live in their own template, [infra/pipeline/papyrus-shared-pipeline-roles.yaml](../infra/pipeline/papyrus-shared-pipeline-roles.yaml), which nothing applies. They were taken out of `papyrus-stack-pipeline.yaml` so that approving an unrelated pipeline-roles change cannot create them. When Ryan gives the go for the shared tier, move those resources and outputs back into `papyrus-stack-pipeline.yaml` in one pull request and approve the `role-stack-deploy` run that follows (read its IAM view first); the shared stacks' own `hold` in `infra/pipeline/stacks.json` is a second, separate go.
+
 | Piece | Where |
 | --- | --- |
 | The foundation stack template: the stack's KMS key, its permissions boundary, its budget | [infra/shared-stack/papyrus-shared-foundation.yaml](../infra/shared-stack/papyrus-shared-foundation.yaml), deployed as `papyrus-shared-staging-foundation` and `papyrus-shared-prod-foundation` |

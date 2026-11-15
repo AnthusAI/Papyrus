@@ -93,7 +93,10 @@ def _as_list(value):
 
 
 def _pipeline_template():
-    return stack_deploy.parse_template((PIPELINE / 'papyrus-stack-pipeline.yaml').read_text())
+    # The shared tier's roles are held in their own template until the shared tier gets its go (docs/shared-stack.md); the checks read both.
+    template = stack_deploy.parse_template((PIPELINE / 'papyrus-stack-pipeline.yaml').read_text())
+    held = stack_deploy.parse_template((PIPELINE / 'papyrus-shared-pipeline-roles.yaml').read_text())
+    return {**template, 'Resources': {**template['Resources'], **held['Resources']}, 'Outputs': {**(template.get('Outputs') or {}), **(held.get('Outputs') or {})}}
 
 
 def _stacks_config():
