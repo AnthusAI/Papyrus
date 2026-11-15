@@ -1218,6 +1218,7 @@ def stories_localize_all(options: dict) -> None:
     from .editorial_checks import GraphQLEditorialStore, settings_from
     from .editorial_languages import site_language
     from .language_serving import serving_languages
+    from . import request_meter
     from .localize import backfill
     from .localize.record import collect
     from .localize.start import default_procedure_key, openai_key, run_from_cli
@@ -1249,6 +1250,7 @@ def stories_localize_all(options: dict) -> None:
         procedure = procedure or default_procedure_key(host_for(client.endpoint))
     jobs = backfill.survey(client, settings, languages)
     todo = [job for job in jobs if job.status == backfill.PLANNED]
+    request_meter.add_units(len(todo))   # each Story and language still to do is a unit of work the request budget allows for
     summary: dict = {}
     if dry_run:
         procedure = procedure or (backfill_procedure_of(client, automation) if automation else None)

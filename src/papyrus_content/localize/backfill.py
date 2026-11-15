@@ -109,13 +109,14 @@ def plan_cost(client, jobs: list[Job], *, procedure_key: str | None, ceiling_usd
     from .record import spend_history
 
     history = spend_history(client, procedure_key) if procedure_key else []
+    shared: dict[Any, Any] = {}   # what depends only on the site, the section and the language is read once for the whole plan, not once per Story
     total, unknown = 0.0, 0
     for job in jobs:
         if job.status != PLANNED:
             continue
         try:
             plan = plan_of(collect(client, story=job.story, language=job.language, judge=None, procedure_version="plan", ceiling_usd=ceiling_usd,
-                                   procedure_key=procedure_key, history=history), story=job.story)
+                                   procedure_key=procedure_key, history=history, shared=shared), story=job.story)
         except Exception as error:   # noqa: BLE001 - one Story that cannot be planned is that Story's row, not the whole plan
             job.detail = f"cannot be planned: {error}"[:300]
             continue

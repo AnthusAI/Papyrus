@@ -823,6 +823,9 @@ def _command(context, words, *, iam: bool):
         def __init__(self, *args, **kwargs):
             pass
 
+    from papyrus_content import request_meter
+
+    context.units_before = request_meter.current_run().units
     with mock.patch.object(story_commands, "create_authoring_client", lambda *a, **k: (context.client, None)), \
             mock.patch.object(editorial_checks, "GraphQLEditorialStore", Quiet), \
             mock.patch.object(editorial_checks, "settings_from", lambda store: context.settings), \
@@ -845,7 +848,9 @@ def _command(context, words, *, iam: bool):
 def _planning_collect(context):
     from papyrus_content.localize.budget import predict
 
-    def collect(client, *, story, language, **_):
+    def collect(client, *, story, language, shared=None, **_):
+        context.shared_seen = [*getattr(context, "shared_seen", []), shared]
+
         class Request:
             pass
 
@@ -904,6 +909,19 @@ def step_refused_lane(context):
 @then("no request was written by the command")
 def step_command_wrote_nothing(context):
     assert json.dumps(context.client.tables.get("LocalizationRequest", {}), sort_keys=True) == context.before and not context.runs
+
+
+@then("every Story of the plan was planned with the same shared reads")
+def step_shared(context):
+    seen = context.shared_seen
+    assert len(seen) >= 2 and seen[0] is not None and all(entry is seen[0] for entry in seen), seen
+
+
+@then("the request budget of the command allows for the {count:d} translations to do")
+def step_units(context, count):
+    from papyrus_content import request_meter
+
+    assert request_meter.current_run().units - context.units_before == count, request_meter.current_run().units
 
 
 @then("the output ends with a plan line for {count:d} Stories to do")

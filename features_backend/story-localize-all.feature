@@ -127,3 +127,12 @@ Feature: A whole site is translated by one command, and only what remains is don
     When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --dry-run"
     Then the output ends with a plan line for 2 Stories to do
     And no request was written by the command
+
+  Scenario: A plan reads what depends only on the section and the language once, and the request budget allows for the work
+    A plan reads each Story's own text and translation, but the settings, the editing packs, the glossary and the register guidelines depend only on the site,
+    the section and the language, so they are read once for the whole plan and shared by every Story. Each translation still to do is a unit of work in the
+    command's request budget (200 plus 8 for each), so a plan of hundreds of Stories is not reported as a runaway loop.
+    Given the procedure has measured Spanish runs
+    When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --dry-run"
+    Then every Story of the plan was planned with the same shared reads
+    And the request budget of the command allows for the 2 translations to do
