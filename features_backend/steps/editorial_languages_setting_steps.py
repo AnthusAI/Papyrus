@@ -26,6 +26,16 @@ class SettingsStore:
     def __init__(self, settings: dict) -> None:
         self.row = {"id": "settings", "settings": json.dumps(settings)}
         self.writes = 0
+        self.policies: list[dict] = []   # the site's editorial policies (enabling a language imports starter packs)
+
+    def list_policies(self):
+        return [dict(policy) for policy in self.policies]
+
+    def create_policy(self, record):
+        self.policies.append({"id": f"policy-{len(self.policies) + 1}", **record})
+
+    def update_policy(self, record):
+        self.policies = [record if policy["id"] == record["id"] else policy for policy in self.policies]
 
     def get_settings(self):
         return self.row
@@ -64,14 +74,19 @@ def step_stored_public(context, tags):
 def step_run(context, command):
     words = shlex.split(command)
     assert words[:3] == ["papyrus", "editorial", "languages"], command
-    out = io.StringIO()
+    out, err = io.StringIO(), io.StringIO()
     context.refusal = None
-    with mock.patch.object(editorial_commands, "GraphQLEditorialStore", lambda: context.store), contextlib.redirect_stdout(out):
+    counts = getattr(context, "translations", {})
+    context.count_calls = []
+    with (mock.patch.object(editorial_commands, "GraphQLEditorialStore", lambda: context.store),
+          mock.patch.object(editorial_commands, "translation_counts", lambda tags: context.count_calls.append(list(tags)) or {tag: counts.get(tag, 0) for tag in tags}),
+          contextlib.redirect_stdout(out), contextlib.redirect_stderr(err)):
         try:
             editorial_commands.editorial_languages(words[3:])
         except ValueError as error:
             context.refusal = str(error)
-    context.output = out.getvalue()
+    context.stdout = out.getvalue()
+    context.output = out.getvalue() + err.getvalue()
 
 
 def _row(context, tag: str) -> str:
@@ -245,3 +260,75 @@ def step_stored_segments(context, text):
 @then('the listing shows the segment "{text}" for "{tag}"')
 def step_segment_listing(context, text, tag):
     assert any(line == f"segment\t{tag}\t{text}" for line in context.output.splitlines()), context.output
+
+
+# --- enabling and disabling a language (features_backend/editorial-languages-enable.feature) ---
+
+
+@given('the stored languages write in "{tags}" with "{primary}" as the primary')
+def step_stored_languages(context, tags, primary):
+    settings = context.store.stored
+    settings["languages"] = {**settings["languages"], "primary": primary, "enabled": [tag.strip() for tag in tags.split(",")]}
+    context.store.row = {"id": "settings", "settings": json.dumps(settings)}
+
+
+@given('the stored languages write in "{tags}" with "{primary}" as the primary and "{tag}" has {count:d} translated Stor{plural}')
+def step_stored_with_translations(context, tags, primary, tag, count, plural):
+    step_stored_languages(context, tags, primary)
+    context.translations = {tag: count}
+
+
+@given('the editor has run the languages command "{command}"')
+def step_has_run(context, command):
+    step_run(context, command)
+    assert context.refusal is None, context.refusal
+    context.store.writes = 0
+
+
+@then('the stored enabled languages are "{tags}"')
+def step_enabled_are(context, tags):
+    assert context.store.stored["languages"]["enabled"] == [tag.strip() for tag in tags.split(",")], context.store.stored
+
+
+def _starter_packs(context) -> set[str]:
+    return {policy["source"].removeprefix("starter:") for policy in context.store.policies if str(policy.get("source", "")).startswith("starter:")}
+
+
+@then('the site has the starter packs "{names}"')
+def step_has_packs(context, names):
+    wanted = {name.strip() for name in names.split(",")}
+    assert wanted <= _starter_packs(context), (wanted, _starter_packs(context))
+    assert wanted <= set(context.store.stored["defaultStarterPacks"]), context.store.stored
+
+
+@then("the site has no starter packs")
+def step_no_packs(context):
+    assert not context.store.policies and "defaultStarterPacks" not in context.store.stored, (context.store.policies, context.store.stored)
+
+
+@then('the command output says "{text}"')
+def step_output_says(context, text):
+    assert text in context.output, context.output
+
+
+@then('the JSON output lists "{tag}" as enabled and as not public')
+def step_json_enabled(context, tag):
+    document = json.loads(context.stdout)
+    assert document["enabled"] == [tag] and tag in document["languages"]["enabled"], document
+    row = next(row for row in document["serving"]["languages"] if row["tag"] == tag)
+    assert row["public"] is False and document["written"] is True, document
+
+
+@then('the JSON output lists the starter pack "{name}" as not applied before')
+def step_json_pack(context, name):
+    assert json.loads(context.stdout)["starterPacks"][name]["alreadyApplied"] is False, context.stdout
+
+
+@then('the JSON output has next commands naming "{tag}"')
+def step_json_next(context, tag):
+    assert any(f"--language {tag}" in line for line in json.loads(context.stdout)["next"]), context.stdout
+
+
+@then("no translation count was asked for")
+def step_no_count(context):
+    assert context.count_calls == [], context.count_calls
