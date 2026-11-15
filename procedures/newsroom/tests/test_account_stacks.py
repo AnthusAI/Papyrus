@@ -622,7 +622,9 @@ def test_the_default_config_and_its_allowed_file_are_the_ones_beside_the_script(
     assert root == sd.ROOT and config == json.loads((PIPELINE / "stacks.json").read_text())
     assert (sd.CONFIG_PATH.parent / "allowed-changes.json") == sd.ALLOWED_PATH
     assert not any(key in config for key in ("root", "pipelineCheck", "changeSetPrefix")) and "templateBucketFrom" in config
-    assert all(s.get("enabled", True) and "import" not in s and "checks" not in s for s in config["stacks"])
+    assert all(s.get("enabled", True) and "checks" not in s for s in config["stacks"])
+    # The only import in the default config adopts the procedure runner's hand-made ECR repository (retained, never recreated).
+    assert [s["name"] for s in config["stacks"] if "import" in s] == ["papyrus-procedure-runner-repository"]
 
 
 def test_the_default_config_keeps_the_defaults_for_the_new_keys(tmp_path):
