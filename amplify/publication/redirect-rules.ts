@@ -61,6 +61,8 @@ const NEGOTIATE_START = "/*PAPYRUS_NEGOTIATE_MARKDOWN*/";
 const NEGOTIATE_END = "/*END_PAPYRUS_NEGOTIATE_MARKDOWN*/";
 const TWINS_START = "/*PAPYRUS_DIRECTORY_TWINS*/";
 const TWINS_END = "/*END_PAPYRUS_DIRECTORY_TWINS*/";
+const WWW_START = "/*PAPYRUS_WWW_REDIRECT*/";
+const WWW_END = "/*END_PAPYRUS_WWW_REDIRECT*/";
 
 function spliceFlag(source: string, start: string, end: string, label: string): string {
   const from = source.indexOf(start);
@@ -75,7 +77,7 @@ function spliceFlag(source: string, start: string, end: string, label: string): 
 export function compileRedirectFunctionSource(
   source: string,
   rules: EdgeRedirectRule[],
-  options: { negotiateMarkdown?: boolean; directoryTwins?: boolean } = {},
+  options: { negotiateMarkdown?: boolean; directoryTwins?: boolean; wwwRedirect?: boolean } = {},
 ): string {
   const start = source.indexOf(START_MARKER);
   const end = source.indexOf(END_MARKER);
@@ -88,6 +90,9 @@ export function compileRedirectFunctionSource(
   }
   if (options.directoryTwins === true) {
     compiled = spliceFlag(compiled, TWINS_START, TWINS_END, "directory twin");
+  }
+  if (options.wwwRedirect === true) {
+    compiled = spliceFlag(compiled, WWW_START, WWW_END, "www redirect");
   }
   return compiled;
 }

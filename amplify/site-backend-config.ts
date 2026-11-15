@@ -30,6 +30,15 @@ export type S3ProjectionDistributionConfig = {
   aliases?: string[];
   certificateArn?: string;
   acm?: { hostedZoneId: string; hostedZoneName: string };
+  /**
+   * Write an A and an AAAA alias record for every alias, in the `acm` hosted zone, pointing at this distribution. Needs `acm` and aliases.
+   * An alias whose record already exists in the zone (an Amplify domain association still holds it) makes the deploy fail: release the host first.
+   */
+  dnsRecords?: boolean;
+  /**
+   * Answer a request for `www.<host>` with a 301 to `https://<host>` (path and query kept), at the edge. Needs aliases that list both `<host>` and `www.<host>`.
+   */
+  wwwRedirect?: boolean;
 };
 
 export type PapyrusPublicationCacheConfig = {
@@ -194,6 +203,19 @@ export function validatePublicationConfig(publication: unknown): string[] {
     }
     if (distribution.acm !== undefined && (!distribution.acm.hostedZoneId || !distribution.acm.hostedZoneName)) {
       problems.push("publication.distribution.acm requires hostedZoneId and hostedZoneName");
+    }
+    if (distribution.dnsRecords !== undefined && typeof distribution.dnsRecords !== "boolean") {
+      problems.push("publication.distribution.dnsRecords must be a boolean");
+    }
+    if (distribution.dnsRecords === true && (distribution.acm === undefined || aliases.length === 0)) {
+      problems.push("publication.distribution.dnsRecords requires acm (the hosted zone) and aliases");
+    }
+    if (distribution.wwwRedirect !== undefined && typeof distribution.wwwRedirect !== "boolean") {
+      problems.push("publication.distribution.wwwRedirect must be a boolean");
+    }
+    if (distribution.wwwRedirect === true) {
+      const hasPair = aliases.some((alias) => alias.startsWith("www.") && aliases.includes(alias.slice(4)));
+      if (!hasPair) problems.push("publication.distribution.wwwRedirect requires aliases that list both <host> and www.<host>");
     }
   }
   return problems;

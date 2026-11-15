@@ -11,16 +11,18 @@ const source = readFileSync(
 );
 
 type EdgeResponse = { statusCode?: number; headers?: { location: { value: string } }; uri?: string };
-type Run = { negotiateMarkdown?: boolean; directoryTwins?: boolean; accept?: string };
+type Run = { negotiateMarkdown?: boolean; directoryTwins?: boolean; accept?: string; wwwRedirect?: boolean; host?: string; querystring?: Record<string, { value: string }> };
 
 /** Runs the CloudFront Function source against an in-memory key value store. */
 async function run(rules: ReturnType<typeof edgeRulesFromSettings>, store: Record<string, string>, uri: string, options: Run = {}): Promise<EdgeResponse> {
-  const compiled = compileRedirectFunctionSource(source, rules, { negotiateMarkdown: options.negotiateMarkdown, directoryTwins: options.directoryTwins })
+  const compiled = compileRedirectFunctionSource(source, rules, { negotiateMarkdown: options.negotiateMarkdown, directoryTwins: options.directoryTwins, wwwRedirect: options.wwwRedirect })
     .replace('import cf from "cloudfront";', "")
     .concat("\nreturn handler;");
   const handler = new Function("cf", compiled)({ kvs: () => ({ get: async (key: string) => store[key] }) });
-  const headers = options.accept === undefined ? {} : { accept: { value: options.accept } };
-  return handler({ request: { uri, headers } });
+  const headers: Record<string, { value: string }> = {};
+  if (options.accept !== undefined) headers.accept = { value: options.accept };
+  if (options.host !== undefined) headers.host = { value: options.host };
+  return handler({ request: { uri, headers, querystring: options.querystring ?? {} } });
 }
 
 const settings = {
@@ -171,3 +173,19 @@ function listFiles(directory: string, prefix = ""): string[] {
     entry.isDirectory() ? listFiles(resolve(directory, entry.name), `${prefix}${entry.name}/`) : [`${prefix}${entry.name}`],
   );
 }
+
+test("with wwwRedirect, www.<host> is sent to <host> with a 301, keeping the path and query", async () => {
+  const response = await run([], {}, "/articles/x/", { wwwRedirect: true, host: "www.example.test", querystring: { a: { value: "1" }, b: { value: "" } } });
+  assert.equal(response.statusCode, 301);
+  assert.equal(response.headers?.location.value, "https://example.test/articles/x/?a=1&b");
+});
+
+test("with wwwRedirect, the apex host is served as usual", async () => {
+  const response = await run([], {}, "/about/", { wwwRedirect: true, host: "example.test" });
+  assert.equal(response.uri, "/about/index.html");
+});
+
+test("without wwwRedirect, a www host is served as usual", async () => {
+  const response = await run([], {}, "/about/", { host: "www.example.test" });
+  assert.equal(response.uri, "/about/index.html");
+});
