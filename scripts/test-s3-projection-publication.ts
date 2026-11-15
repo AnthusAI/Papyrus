@@ -378,6 +378,33 @@ function oacStatements(template: Template) {
 }
 
 {
+  const { template } = synthesize({
+    kind: "s3-projection",
+    distribution: {
+      create: true,
+      aliases: ["example.org", "www.example.org"],
+      acm: { hostedZoneId: "Z123456789", hostedZoneName: "example.org" },
+      dnsRecords: true,
+      wwwRedirect: true,
+    },
+  });
+  template.resourceCountIs("AWS::Route53::RecordSet", 4);
+  template.hasResourceProperties("AWS::Route53::RecordSet", { Name: "www.example.org.", Type: "AAAA", HostedZoneId: "Z123456789" });
+  template.hasResourceProperties("AWS::Route53::RecordSet", { Name: "example.org.", Type: "A", AliasTarget: Match.objectLike({ DNSName: Match.anyValue() }) });
+}
+
+{
+  const { template } = synthesize({ kind: "s3-projection", distribution: { create: true, aliases: ["example.org"], acm: { hostedZoneId: "Z123456789", hostedZoneName: "example.org" } } });
+  template.resourceCountIs("AWS::Route53::RecordSet", 0);
+}
+
+assert.match(problemsOf({ kind: "s3-projection", distribution: { create: true, dnsRecords: true } }), /dnsRecords requires acm/);
+assert.match(
+  problemsOf({ kind: "s3-projection", distribution: { create: true, aliases: ["example.org"], certificateArn, wwwRedirect: true } }),
+  /wwwRedirect requires aliases/,
+);
+
+{
   const { template } = synthesize({ kind: "s3-projection", edgeDistributionArn: edgeArn, retainBucketOnDelete: false });
   template.hasResource("AWS::S3::Bucket", { DeletionPolicy: "Delete", UpdateReplacePolicy: "Delete" });
   template.hasResourceProperties("Custom::S3AutoDeleteObjects", Match.anyValue());
