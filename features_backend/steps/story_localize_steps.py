@@ -69,7 +69,8 @@ class Scripted:
         self.translate_requests.append(request)
         self.spend.add("translate", self.model, USAGE)
         table = {**SPANISH, **self.world.translations}
-        return {"blocks": [{"id": block["id"], "text": table.get(block["text"], block["text"])} for block in request["blocks"]]}
+        first = getattr(self.world, "first_answers", {})
+        return {"blocks": [{"id": block["id"], "text": first.pop(block["text"], None) or table.get(block["text"], block["text"])} for block in request["blocks"]]}
 
     def refine(self, request):
         self.refine_requests.append(request)
@@ -239,6 +240,24 @@ def step_english_unchanged(context):
 def step_never_sent(context, url, name):
     sent = json.dumps(context.models.translate_requests, ensure_ascii=False)
     assert url not in sent and name not in sent, sent
+
+
+@given('the translator first answers "{damaged}" for "{source}" and is right when asked again')
+def step_damaged_first(context, damaged, source):
+    context.first_answers = {source: damaged}
+
+
+@then("the translator was asked again about the link and told where the target belongs, without being shown the target")
+def step_asked_again(context):
+    asked = [block for request in context.models.translate_requests for block in request["blocks"] if block.get("problem")]
+    assert asked and "directly after the closing" in asked[0]["problem"], asked
+    assert "https://example.test/report" not in json.dumps(context.models.translate_requests, ensure_ascii=False)
+
+
+@then('the saved translation has the link "{text}" with its target and no stray address')
+def step_link_whole(context, text):
+    body = _latest(context)["bodyMarkus"]
+    assert f"[{text}](https://example.test/report)" in body and body.count("https://example.test/report") == 1, body
 
 
 @then("the saved translation keeps the link target and the credit exactly as the English has them")

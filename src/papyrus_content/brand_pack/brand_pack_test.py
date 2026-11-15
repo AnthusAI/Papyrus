@@ -46,3 +46,11 @@ def test_every_role_is_covered_by_a_policy_pair():
 def test_the_allow_list_has_unique_families():
     families = [font["family"] for font in POLICY["fonts"]]
     assert len(families) == len(set(families))
+
+
+def test_the_corner_scale_and_ornament_level_are_choices_among_registered_values():
+    pack = next(case["pack"] for case in VECTORS if case["name"] == "valid in both themes")
+    assert validate_brand_pack({**pack, "shape": {"corners": "square"}, "ornaments": "quiet"}) == []
+    assert any("shape.corners" in error for error in validate_brand_pack({**pack, "shape": {"corners": "pointy"}}))
+    assert any("ornaments" in error for error in validate_brand_pack({**pack, "ornaments": "loud"}))
+    assert any("shape" in error for error in validate_brand_pack({**pack, "shape": {"corners": "soft", "radius": "9px"}}))

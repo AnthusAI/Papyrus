@@ -54,6 +54,12 @@ Feature: A published Story is translated, checked and polished by one procedure
     Then no text sent to the translator contains "https://example.test/report" or "Jane Doe"
     And the saved translation keeps the link target and the credit exactly as the English has them
 
+  Scenario: A translator that damages a link is asked again and the damage is never saved
+    Given the translator first answers "El ⟦1⟧informe abarca 12 ciudades." for "The [report]⟦1⟧ covers 12 cities." and is right when asked again
+    When the translation run for "es-419" runs
+    Then the translator was asked again about the link and told where the target belongs, without being shown the target
+    And the saved translation has the link "informe" with its target and no stray address
+
   Scenario: A certain repair is applied by code and checked against the English again
     Given the translator writes "86 %" where the English says "68 percent"
     When the translation run for "es-419" runs
