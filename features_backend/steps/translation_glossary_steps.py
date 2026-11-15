@@ -79,6 +79,12 @@ def step_also(context, term, form):
     step_should_be(context, term, form)
 
 
+@then("the faithfulness check reports no error")
+def step_no_error(context):
+    errors = [f for f in context.findings if f["severity"] == "error"]
+    assert errors == [], errors
+
+
 @then("the faithfulness check reports no glossary finding")
 def step_no_glossary(context):
     assert _messages(context, "glossary") == [], context.findings
