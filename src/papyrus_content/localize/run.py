@@ -32,7 +32,8 @@ def localize_story(client, *, story: str, language: str, ceiling_usd: float | No
     (the version the run was started for, default the published one), it stops before any model call. Its outcome is recorded on the record.
 
     Returns the procedure's output: ``{story, language, version, hold, reason, outcome, published, rounds, revertedBlocks, costUsd,
-    sourceCharacters, findings, runKey}``."""
+    sourceCharacters, findings, runKey, imagesWithText}``. ``imagesWithText`` counts the source's figures or cover that hold words and have no
+    language variant yet: advice for an editor, who may localize them (docs/figures.md); it never holds or fails the run."""
     spend = Spend()
     model = (models or (lambda s: ResponsesModels(s)))(spend)
     try:
@@ -40,13 +41,13 @@ def localize_story(client, *, story: str, language: str, ceiling_usd: float | No
                           automation_id=automation_id, procedure_key=procedure_key)
     except NothingToDo as reason:
         return {"story": story, "language": language, "version": "", "hold": False, "reason": str(reason), "outcome": "stopped", "published": False,
-                "rounds": 0, "revertedBlocks": 0, "costUsd": 0.0, "sourceCharacters": 0, "findings": {}, "runKey": ""}
+                "rounds": 0, "revertedBlocks": 0, "costUsd": 0.0, "sourceCharacters": 0, "findings": {}, "runKey": "", "imagesWithText": 0}
     wanted = desired_state.current(client, request.source.lineage_id, request.language)
     stale = desired_state.stale_reason(wanted, {"versionNumber": source_version or request.source.version_number})
     if stale:
         return {"story": request.localization_lineage, "language": request.language, "version": "", "hold": False, "reason": stale,
                 "outcome": "stopped", "published": False, "rounds": 0, "revertedBlocks": 0, "costUsd": 0.0, "sourceCharacters": 0, "findings": {},
-                "runKey": request.run_key}
+                "runKey": request.run_key, "imagesWithText": 0}
     stages = stage_store_for(client, request)
     try:
         outcome = Localizer(request, models=model, spend=spend, stages=stages).run()
@@ -58,7 +59,7 @@ def localize_story(client, *, story: str, language: str, ceiling_usd: float | No
     if newer and not outcome.get("repeated"):   # the Story was republished while this run worked: the newer request has its own run, and this one saves nothing
         return {"story": request.localization_lineage, "language": request.language, "version": "", "hold": False, "reason": newer, "outcome": "stopped",
                 "published": False, "rounds": outcome["rounds"], "revertedBlocks": outcome["revertedBlocks"], "costUsd": outcome["costUsd"],
-                "sourceCharacters": 0, "findings": outcome["findings"], "runKey": request.run_key}
+                "sourceCharacters": 0, "findings": outcome["findings"], "runKey": request.run_key, "imagesWithText": 0}
     version = ""
     if outcome.get("repeated"):
         version = outcome.get("version", "")
@@ -75,4 +76,6 @@ def localize_story(client, *, story: str, language: str, ceiling_usd: float | No
             "reason": outcome["reason"], "outcome": outcome["outcome"] if not outcome.get("repeated") else "unchanged", "published": False,
             "rounds": outcome["rounds"], "revertedBlocks": outcome["revertedBlocks"], "costUsd": outcome["costUsd"],
             "sourceCharacters": outcome["provenance"]["blocks"]["sourceCharactersTranslated"] if "provenance" in outcome else 0,
-            "findings": outcome["findings"], "runKey": request.run_key}
+            "findings": outcome["findings"], "runKey": request.run_key,
+            "imagesWithText": sum(1 for image in request.source.images_with_text if not image["localized"]),
+            "imagesWithTextDetail": list(request.source.images_with_text)}

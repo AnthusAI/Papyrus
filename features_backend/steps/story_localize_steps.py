@@ -126,6 +126,7 @@ def _collect(context):
         source = localize_record.source_version(context.primary, "en")
         lineage = f"{story}--{language}"
         current, previous = localize_record.previous_alignment(client, lineage)
+        source, previous, variants = localize_record.with_image_variants(client, context.primary, source, current, previous)
         glossary = starter_glossary(language)
         checker = BlockChecker(source_language="en", target_language=language, glossary=glossary, copy_edit_pack=starter_pack(language, getattr(context, "register", None)), judge=judge,
                                lanes={"rules": True, "classifier": False})
@@ -134,7 +135,7 @@ def _collect(context):
         key = localize_record.run_key(source, language, procedure_version=procedure_version, checker_versions=checker.versions)
         return LocalizeRequest(source=source, language=language, localization_lineage=lineage, run_key=key, glossary=glossary, checker=checker,
                                slug_policy="translated", previous=previous, ceiling_usd=context.ceiling, procedure_version=procedure_version,
-                               source_checker=lambda text: english.copy_edit(text)[0])
+                               source_checker=lambda text: english.copy_edit(text)[0], image_variants=variants)
     return collect
 
 

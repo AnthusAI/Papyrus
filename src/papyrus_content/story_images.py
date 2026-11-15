@@ -71,6 +71,20 @@ def is_figure_picture(path: Path) -> bool:
     return path.with_name(path.stem + FIGURE_SIDECAR_SUFFIX).is_file()
 
 
+def figure_facts(path: Path) -> dict[str, Any] | None:
+    """What the figure sidecar (``<slug>.figure.json``) records about its picture that is worth keeping with the stored picture: whether the picture holds
+    words (``embeddedText``) and how many pieces of text (``textLabels``), which the localize procedure reads to say a figure could be localized.
+    None for a picture with no sidecar, or one rendered before the sidecar recorded this."""
+    sidecar = path.with_name(path.stem.removesuffix(".dark") + FIGURE_SIDECAR_SUFFIX)
+    try:
+        recorded = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(recorded, dict) or "embeddedText" not in recorded:
+        return None
+    return {"embeddedText": bool(recorded["embeddedText"]), "textLabels": int(recorded.get("textLabels") or 0)}
+
+
 def light_only_figure_lines(plan: "StoryImagePlan") -> list[str]:
     return [
         f"stories\tsave-version\tfigure-light-only\t{reference}\t"
@@ -140,6 +154,7 @@ class PlannedStoryImage:
     paired_with: str | None = None  # for a dark file: the light file's ref
     position: int = 0
     ratio: float | None = None  # width / height, for the light/dark check (also known for SVG)
+    figure: dict[str, Any] | None = None  # what `papyrus figures render` recorded about the picture: {"embeddedText": bool, "textLabels": int}
 
     @property
     def filename(self) -> str:
@@ -156,7 +171,8 @@ class PlannedStoryImage:
             "storagePath": self.storage_path,
             "alt": self.filename,
             "metadata": to_aws_json(
-                {"srcPath": self.src_path, "sha256": self.sha256, "bytes": self.size, "contentType": self.content_type}
+                {"srcPath": self.src_path, "sha256": self.sha256, "bytes": self.size, "contentType": self.content_type,
+                 **({"figure": self.figure} if self.figure else {})}
             ),
         }
         if self.width is not None and self.height is not None:
@@ -354,6 +370,7 @@ def plan_story_images(
             paired_with=paired_with,
             position=len(plan.images) + 1,
             ratio=None if not dimensions or not dimensions[1] else dimensions[0] / dimensions[1],
+            figure=figure_facts(local),
         )
         plan.images.append(image)
         by_path[local] = image
@@ -597,4 +614,9 @@ def plan_lines(plan: StoryImagePlan, item_id: str) -> list[str]:
     lines += [f"stories\tsave-version\timage-unresolved\t{ref}\tnot found under --images; left unchanged" for ref in plan.unresolved]
     lines += [f"stories\tsave-version\timage-note\t{note}" for note in plan.notes]
     lines += light_only_figure_lines(plan)
+    lines += [
+        f"stories\tsave-version\tfigure-embedded-text\t{image.ref}\tnote: this figure holds {image.figure['textLabels']} piece(s) of text, which a translation shows in this "
+        "language unless someone makes a variant (optional: `papyrus figures localize`). Prefer marks, or move the words into the caption."
+        for image in plan.images if image.role == "light" and image.figure and image.figure.get("embeddedText")
+    ]
     return lines
