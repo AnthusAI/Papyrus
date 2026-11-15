@@ -748,3 +748,34 @@ def step_notice_english(context):
     assert '"genre":"Satire"' in site.text("articles/the-sound/index.html")
     assert "> **Satire.** Everything on this site is invented." in site.text("articles/the-sound/index.md")
     assert "Satire. " in site.text("feed.xml")
+
+
+@then('the written page "{key}" lists hreflang "en" and not "es"')
+def step_page_no_es(context, key):
+    found = dict(_hreflang(_site(context).text(key)))
+    assert "es" not in found, found
+
+
+@given('the site is built again with no Spanish title string for the page "{identifier}"')
+def step_rebuilt_without_title(context, identifier):
+    site = _site(context)
+    site.strings["es-419"].pop(f"page.{identifier}.title", None)
+    shutil.rmtree(site.work / "site")   # as if the language never had the string: nothing was written before
+    site.store = RecordingWriter(site.work / "site")
+    site.build()
+    site.deploy()
+
+
+@given('an authored page "{identifier}" at "{path}" titled "{title}" that takes its Spanish title from the string "{key}" which is "{words}"')
+def step_title_key_page(context, identifier, path, title, key, words):
+    site = _site(context)
+    entry = _page_entry(identifier, path, title, True)
+    entry["titleKey"] = key
+    site.pages.append(entry)
+    site.page_files[f"pages/{identifier}.md"] = page_text(title)
+    site.page_files[f"pages/{identifier}.es-419.md"] = page_text(words)
+    site.strings["es-419"][key] = words
+    shutil.rmtree(site.work / "site")   # the page is added to a site already built by the background: build it again from nothing
+    site.store = RecordingWriter(site.work / "site")
+    site.build()
+    site.deploy()

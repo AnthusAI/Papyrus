@@ -1,7 +1,7 @@
 Feature: An authored page can be rendered in each language that has its file
   An authored page (`pages` in projection.json) is the primary language's only, unless it opts in with `"languages": "localize"`. An opted-in page is rendered under the
   prefix of each public language that has the page's file in that language (`pages/findings.md` is `pages/findings.es-419.md` in Spanish), with its title and description from the
-  language's interface strings (`page.<id>.title`, `page.<id>.description`). A language without the file does not render the page, and the page is no alternate in that language:
+  language's interface strings (`page.<id>.title`, `page.<id>.description`). A language without the file, or without the page's title string, does not render the page, and the page is no alternate in that language:
   no English text is ever put in a Spanish page for lack of a translation. The page and its localizations name each other (`hreflang`, the switcher's alternates, the link map).
 
   Background:
@@ -29,7 +29,13 @@ Feature: An authored page can be rendered in each language that has its file
     When the multilingual site is projected
     Then the written page "es/about/index.html" does not exist
 
-  Scenario: A language that has the file but not the page's title string is refused
-    Given the Spanish interface strings lack "page.findings.title"
+  Scenario: A language that has the file but no title string for the page does not render it
+    Given the site is built again with no Spanish title string for the page "findings"
     When the multilingual site is projected
-    Then the projection is refused naming "page.findings.title"
+    Then the written page "es/findings/index.html" does not exist
+    And the written page "findings/index.html" lists hreflang "en" and not "es"
+
+  Scenario: A page can take its title from another string, as a section page takes its section's label
+    Given an authored page "section-security" at "security" titled "Privacy & Security" that takes its Spanish title from the string "section.security.label" which is "Privacidad y seguridad"
+    When the multilingual site is projected
+    Then the written page "es/security/index.html" exists and its title is "Privacidad y seguridad"

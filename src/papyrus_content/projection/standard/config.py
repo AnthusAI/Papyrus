@@ -222,6 +222,8 @@ class CustomPage:
     image: str | None = None          # the page's share image, a site path
     image_alt: str = ""               # og:image:alt / twitter:image:alt
     social_title: str = ""            # og:title / twitter:title when it differs from ``title``
+    title_key: str = ""               # the interface string that is the page's title in a language that renders it (default ``page.<id>.title``); a section page uses its section's label
+    description_key: str = ""         # likewise for the description (default ``page.<id>.description``)
     languages: str = "primary"        # "localize": every public language that has the page's file (``<source stem>.<tag>.md``) renders it under its prefix (docs/plans/edition-authored-pages.md)
 
 
@@ -866,7 +868,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     )
     custom = []
     for entry in raw.get("pages") or ():
-        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form", "source", "image", "imageAlt", "socialTitle", "languages"}, "pages")
+        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form", "source", "image", "imageAlt", "socialTitle", "languages", "titleKey", "descriptionKey"}, "pages")
         if entry.get("languages", "primary") not in ("primary", "localize"):
             raise ValueError(f"pages.{entry.get('id')}.languages must be \"primary\" or \"localize\"")
         custom.append(
@@ -884,6 +886,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 image_alt=str(entry.get("imageAlt", "")),
                 social_title=str(entry.get("socialTitle", "")),
                 languages=str(entry.get("languages", "primary")),
+                title_key=str(entry.get("titleKey", "")),
+                description_key=str(entry.get("descriptionKey", "")),
             )
         )
     components = dict(raw.get("components") or {})

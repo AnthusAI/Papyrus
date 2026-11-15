@@ -86,7 +86,7 @@ from .newsletter_pages import NEWSLETTER_PLUGIN
 from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
 from .editions import LanguageView, edition_nav_hrefs, edition_pages, edition_settings, language_groups, language_name
-from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, page_keys, read_interface_strings, required_keys
+from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
 
 
 def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
@@ -318,8 +318,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             prefix = serving.prefix(tag)
             if prefix in taken:
                 raise ValueError(f"languages.prefixes: /{prefix}/ for {tag} is already a path of this site; choose another prefix.")
-            own_pages = edition_pages(self.standard, tag, strings.get(tag, {}), self._static_directory)
-            missing = missing_keys(strings.get(tag, {}), (*required, *page_keys(own_pages)))
+            missing = missing_keys(strings.get(tag, {}), required)
             if missing:
                 problems.append(f"{tag}: {', '.join(missing)}")
         if problems:

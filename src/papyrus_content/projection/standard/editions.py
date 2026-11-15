@@ -184,15 +184,15 @@ def localized_source(source: str | None, tag: str) -> str | None:
 
 def edition_pages(standard: StandardSettings, tag: str, strings: Mapping[str, str], static_directory, segments: Mapping[str, str] | None = None) -> tuple:
     """The authored pages a language renders: those that opt in (``languages: "localize"``) and have a file in the language. Each is the page with its title and
-    description from ``page.<id>.title`` and ``page.<id>.description`` and its source the language's file. A page without a file is not rendered in the language
+    description from ``page.<id>.title`` and ``page.<id>.description`` (or the page's ``titleKey`` and ``descriptionKey``, as a section page names its section's label) and its source the language's file. A page without a file, or without a title in the language, is not rendered in the language
     (no fallback to the primary's text), so it is no alternate and a site's links to it stay on the primary page."""
     found = []
     for custom in standard.pages:
         source = localized_source(custom.source, tag) if custom.languages == "localize" else None
-        if source and static_directory is not None and (static_directory / source).is_file():
-            found.append(dataclasses.replace(
-                custom, source=source, path=translate_path(custom.path, segments or {}), title=strings.get(f"page.{custom.id}.title", custom.title),
-                description=strings.get(f"page.{custom.id}.description", custom.description) if custom.description else custom.description, languages="localize"))
+        title = strings.get(custom.title_key or f"page.{custom.id}.title")
+        if source and title and static_directory is not None and (static_directory / source).is_file():
+            description = strings.get(custom.description_key or f"page.{custom.id}.description", "") if custom.description else ""
+            found.append(dataclasses.replace(custom, source=source, path=translate_path(custom.path, segments or {}), title=title, description=description or custom.description, languages="localize"))
     return tuple(found)
 def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str], segments: Mapping[str, str] | None = None, static_directory=None) -> StandardSettings:
     """The settings of the ``tag`` edition: the site's settings, its words in the language, its pages under the prefix, and only what an edition renders.
