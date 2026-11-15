@@ -355,6 +355,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         serving = self._serving_languages()
         if serving is None:
             return [(self, site)]
+        self._full_site = site   # before the view: an edition's listings are kept by what the primary language has (`_kept_empty`)
         view = self._language_view(site)
         found = [(self, self._own_site(site, serving.primary))]
         found += [(edition, self._own_site(site, tag)) for tag, edition in self._editions.items()]
@@ -1599,9 +1600,19 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _section_links(self) -> list:
         return [(section.label, section.base) for section in self.standard.sections if section.listing and section.listing_page]
 
+    def _kept_empty(self, base: str, section: str | None) -> bool:
+        """True where a language edition keeps a listing that has no Story yet: the primary language has that listing (docs/multilingual-serving.md). A listing
+        the primary language does not have (nothing published in it, so no page) has no counterpart to say so, and is not kept."""
+        owner = self._primary_edition
+        if owner is None or owner._full_site is None:
+            return False
+        own = owner._own_site(owner._full_site, owner._serving.primary)
+        listed = [entry for entry in owner._entries(own) if entry.listed]
+        return self._canonical_base(base, section) in {found for found, _label, _section, _members in owner._listing_groups(listed)}
+
     def _listing_groups(self, listed: list[StandardEntry]):
         if not self.standard.sectioned:
-            if listed or self._is_edition:
+            if listed or self._kept_empty(self.standard.listings.flat_path, None):
                 yield self.standard.listings.flat_path, "Archive", None, self._ranked(listed)
             return
         for section in self.standard.sections:
@@ -1609,7 +1620,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 continue
             members = [entry for entry in listed if entry.section and entry.section.name == section.name]
             members = sorted(members, key=order_of) if section.sort == "order" else self._ranked(members)
-            if members or section.list_empty or self._is_edition:   # an edition keeps every listing of the site (docs/multilingual-serving.md)
+            if members or section.list_empty or self._kept_empty(section.base, section.name):
                 yield section.base, section.label, section.name, members
 
     def _paginate(self, base: str, label: str, members: list[StandardEntry], section: str | None, *, tag: str | None = None, collection: CollectionConfig | None = None, drafts=(), first_page: int | None = None):
