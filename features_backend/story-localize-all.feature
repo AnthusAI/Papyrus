@@ -11,6 +11,9 @@ Feature: A whole site is translated by one command, and only what remains is don
   write in. A dry run predicts each Story's cost from the measured runs of the procedure and writes nothing. With `--automation` the command only queues
   the work for the site's own runner (the dispatcher of translate on publish) and nothing waits.
 
+  On a tenant backend (every Papyrus site) a published row stores its language group with the tenant's prefix (`machines-on-machines#story-a`) while
+  the Story's lineage and the desired-state records use the bare lineage; the survey compares them with the prefix removed.
+
   Background:
     Given a site written in "en" that also writes in "es-419"
     And the published English Stories "story-a", "story-b", "story-c", "story-d" and "story-e"
@@ -28,6 +31,13 @@ Feature: A whole site is translated by one command, and only what remains is don
     And "story-e" is not listed
     And the Spanish translations themselves are not listed as Stories to translate
     And the survey read the published summaries once and the requests through their state index, never a table per Story
+
+  Scenario: Stories whose stored language group carries the tenant prefix are found
+    Given the stored language group of every published row is the tenant prefix and the Story's lineage
+    When the whole site is surveyed for "es-419"
+    Then "story-b" is to do because nothing was ever requested
+    And "story-a" is up to date
+    And "story-b" is listed exactly once
 
   Scenario: A run that failed is remaining work, and one that is still going is not
     Given the Spanish request for "story-b" names this text and its run failed

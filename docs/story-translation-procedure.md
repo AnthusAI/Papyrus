@@ -7,7 +7,7 @@ publishes: the result is published by a person, or by the site's own switches fo
 
 ## The record model
 
-- Every Item version has `language` (BCP 47, Humanus spelling: `en`, `es-419`, `zh-Hans`) and `languageGroupId` (the primary Story's lineage).
+- Every Item version has `language` (BCP 47, Humanus spelling: `en`, `es-419`, `zh-Hans`) and `languageGroupId` (the primary Story's lineage; on a tenant backend the stored row carries the tenant prefix, `machines-on-machines#{lineage}`, which readers remove with `bare_group_id` before comparing it with a lineage).
 - A localization is a sibling lineage `{primaryLineageId}--{language}`. Each version names the primary version it came from
   (`sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`) and has `syncState`.
 - A translation has no board stage and stays out of the board and the English listings until the listing keys carry the language (plan, deploy 2).

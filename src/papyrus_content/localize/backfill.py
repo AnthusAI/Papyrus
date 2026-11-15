@@ -27,7 +27,7 @@ from typing import Any, Callable
 
 from .. import request_meter
 from ..content_item_lifecycle import is_story_item_type
-from ..item_language import localization_lineage_id
+from ..item_language import bare_group_id, localization_lineage_id
 from ..language_serving import serving_languages
 from ..story_reporting import published_story_version
 from . import desired_state
@@ -74,6 +74,7 @@ def survey(client, settings: dict[str, Any], languages: list[str], *, now: float
 
     now = time.time() if now is None else now
     serving = serving_languages(settings)
+    tenant_id = getattr(client, "tenant_id", None)
     # The records come through the state index, one query per state of its closed set; the published summaries are the listing every projection reads,
     # read once here as the named sweep "localize-all".
     requests = {row["id"]: row for state in desired_state.STATES for row in client.list_by_index("localizationRequestsByState", state)}
@@ -83,7 +84,7 @@ def survey(client, settings: dict[str, Any], languages: list[str], *, now: float
     for summary in sorted(summaries, key=lambda row: str(row.get("itemLineageId") or row.get("id"))):
         lineage = summary.get("itemLineageId")
         if (summary.get("status") not in (None, "published") or not lineage or summary.get("language") != serving.primary
-                or summary.get("languageGroupId") != lineage or not is_story_item_type(summary.get("type")) or _metadata(summary).get("doNotLocalize")):
+                or bare_group_id(summary.get("languageGroupId"), tenant_id) != lineage or not is_story_item_type(summary.get("type")) or _metadata(summary).get("doNotLocalize")):
             continue
         source_hash = str(_metadata(summary).get("sourceContentHash") or "")
         for language in languages:
