@@ -110,3 +110,10 @@ Feature: Each language of a Story is served at its own address, and each page na
     Given the English Concept page "abliteration" is published in the wiki
     When its Spanish translation "abliteracion" of the Concept page is published
     Then the Concepts listing is offered in each language at "/wiki/", "/es/concepts/" and "/zh/concepts/"
+
+  Scenario: A translated Story has the concepts of its language group, as chips only where the Concept has a page in its language
+    Given the English Concept page "human-oversight" is published and the English article "the-sound" is about it
+    When its Spanish translation "el-sonido" is published
+    Then the Spanish article has no concept chip and the English article has the chip "human-oversight" counting one Story
+    When the Concept page "human-oversight" is translated into Spanish as "supervision-humana"
+    Then the Spanish article has the chip "human-oversight" linked at "/es/concepts/supervision-humana/"
