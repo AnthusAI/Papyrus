@@ -44,8 +44,9 @@ function localizationRequestStream(backend: any): string {
   return found.attrStreamArn;
 }
 
-export function wireLocalizationDispatch(backend: any, contentActionsLambda: LambdaFunction): LambdaFunction {
-  if (!backend.data.resources.tables.LocalizationRequest) throw new Error("Translating on publish needs the LocalizationRequest table.");
+/** Wires the dispatcher, or nothing when the site's schema leaves out the localization models (`excludeModelGroups`: no table, nothing to dispatch). */
+export function wireLocalizationDispatch(backend: any, contentActionsLambda: LambdaFunction): LambdaFunction | undefined {
+  if (!backend.data.resources.tables.LocalizationRequest) return undefined;
   const streamArn = localizationRequestStream(backend);
   const stack = backend.createStack("localization-dispatch");
   const dispatcher = new LambdaFunction(stack, "LocalizationDispatcher", {
