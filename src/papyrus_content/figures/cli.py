@@ -4,6 +4,8 @@
     papyrus figures directive FOLDER
     papyrus figures rules [--packaged]
     papyrus figures primitives
+    papyrus figures localize FOLDER --story STORY --language LANGUAGE [--save --reason TEXT]   (optional: a language variant of a figure; see localize_cli)
+    papyrus figures variant --story STORY --language LANGUAGE --original PATH --light FILE [--dark FILE] --reason TEXT   (the manual path, rasters included)
 
 With neither ``--design-system`` nor ``--neutral-default``, ``render`` uses the design system the signed-in site stores (``papyrus design-system show``); a folder
 given with ``--design-system`` overrides it. With none stored there is no default: it stops and says to use the neutral default or ask.
@@ -21,7 +23,7 @@ from .design_system import DesignSystem, DesignSystemError, DirectorySource, loa
 from .neutral import neutral_design_system
 from .renderer import FigureResult, RendererUnavailable, load_metadata, open_browser, packaged_text, render_figure
 
-COMMANDS = ("render", "directive", "rules", "primitives")
+COMMANDS = ("render", "directive", "rules", "primitives", "localize", "variant")
 
 
 def route_tree() -> dict:
@@ -164,6 +166,14 @@ def command(args: list[str]) -> int:
         _, options = _split(rest, (), ("--packaged",))
         print(rules_text(packaged_only=bool(options.get("--packaged"))), end="")
         return 0
+    if name == "localize":
+        from .localize_cli import figures_localize
+
+        return figures_localize(rest)
+    if name == "variant":
+        from .localize_cli import figures_variant
+
+        return figures_variant(rest)
     if name == "primitives":
         _split(rest, (), ())
         print(packaged_text("primitives.svg"), end="")

@@ -398,3 +398,15 @@ def procedure_links(context):
     from papyrus_content.newsroom_process import STEP_BY_KEY
 
     assert ".agents/skills/figures/SKILL.md" in STEP_BY_KEY["illustration"].note
+
+
+@then('"{name}" records that the figure holds {count:d} piece of text')
+def step_records_text(context, name, count):
+    recorded = json.loads(next(_work(context).rglob(name)).read_text(encoding="utf-8"))
+    assert recorded["embeddedText"] is True and recorded["textLabels"] == count, recorded
+
+
+@then("the skill tells authors to prefer a figure that needs no translation and that localizing is optional")
+def step_skill_translation(context):
+    text = context.skill_text
+    assert "Prefer a figure that needs no translation" in text and "Localizing a figure for a language is optional" in text and "never blocks a translation or a publish" in text, text[:200]

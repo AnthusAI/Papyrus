@@ -55,12 +55,42 @@ The site settings are `requireDarkFigures`, `publishRequiresRating` (off unless 
 
 `papyrus figures directive FOLDER` prints the `::image{}` line. Put the pictures and the sidecar in a folder and `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. The `.dark.png` next to `SLUG.png` is paired automatically. A picture with a `SLUG.figure.json` beside it is a figure; if its dark picture is missing, `save-version` prints `figure-light-only ... WARNING: ...` and still saves. The save is refused instead, before anything is uploaded, when the site's `requireDarkFigures` setting is on, or when `--require-dark-figures` or `PAPYRUS_REQUIRE_DARK_FIGURES=1` is given. The flag and the variable are overrides: `PAPYRUS_REQUIRE_DARK_FIGURES=0` saves a light-only figure even where the site refuses it. The setting is read (one index query and one download) only when a figure has no dark picture and nothing overrides it; if it cannot be read, the save stops and says so rather than guessing. An ordinary photograph with no dark picture is never warned about.
 
+## Figures in other languages
+
+A translation of a Story is its own Story (`STORY--LANGUAGE`), so the pictures it shows are the ones its own body and front matter name. **By default they are the original's pictures, with the alt text and caption translated** (the translation procedure translates every `alt`, `caption` and `title` attribute and the front matter `imageAlt`). That is complete; nothing waits for, asks for or is blocked by a localized picture.
+
+**A language variant is optional.** It is a stored picture (a light and a dark file, with renditions, saved like any other picture) that the translation's `::image{}` line and cover (`image`, `imageDark`) point at instead of the original's. Because the page, the cards and listings, the social preview, the Markdown copy, the feeds and the sitemap already read the translation's own body and front matter, none of them knows or needs to know that variants exist. The link to the original is recorded in the translation's front matter:
+
+```yaml
+imageVariants:
+- from: assets/the-story/hazard.png          # the original's stored picture
+  fromDark: assets/the-story/hazard.dark.png
+  src: assets/the-story--es/hazard-es.png    # the variant, stored with the translation
+  srcDark: assets/the-story--es/hazard-es.dark.png
+  language: es
+```
+
+A re-translation puts the variants back (the run works on the original's picture names, so Humanus's directive check compares like with like, and saves the variants again), so a localized figure is never lost when the source changes.
+
+**Advice, not a gate.** `papyrus figures render` records in `SLUG.figure.json`, and `save-version --images` stores with the picture, whether the figure holds words (`embeddedText`, `textLabels`, counted from the SVG's `<text>` elements) and prints an `embedded text` note. The translation procedure reads those records and lists the source's figures and cover that hold words and have no variant in that language: `imagesWithText` in its output and `localization.imagesWithText` on the translation version. An editor may then choose to localize one; nothing holds, fails or waits. A raster picture with no figure record (a photograph, or a figure saved before records were kept) is not reported: Papyrus does not guess at words in pixels.
+
+```sh
+papyrus figures localize ./figures/hazard --story STORY --language es-419 --out ./figures          # translate the labels, alt and caption; render light and dark
+papyrus figures localize ./figures/hazard --story STORY --language es-419 --save --reason "Spanish labels"   # and store it as the translation's variant
+papyrus figures variant --story STORY --language es-419 --original assets/the-story/hazard.png --light hazard-es.png --dark hazard-es.dark.png --reason "..."   # the manual path: any picture, rasters included
+```
+
+`localize` translates only the `<text>` content (the rest of the SVG is untouched), the alt text and the caption, with the Story's glossary and register notes and the same Humanus checks as the Story's translation (the language's copy-edit pack on each label, the bilingual judge on each pair); the findings are printed as notes. It then renders the language's figure folder (`SLUG-LANGUAGE`, `figure.json` carrying `localizedFrom`) with the usual figure checks, so a label that no longer fits, overlaps another or loses contrast fails there and the figure's source can be adjusted. It writes to the translation only, and only with `--save`. The figure's folder is the source of truth for its SVG (the backend stores pictures, not figure sources), so `localize` takes the folder. A figure with no text says so and does nothing.
+
+**Draw for no translation first** (the figure rules, section 8): numbers, symbols and universal icons; words moved into the caption or the body; text-free compositions; and, when words are unavoidable, a word or two per label as separate `<text>` lines with room to grow.
+
 ## The loading seam
 
 `papyrus_content.figures.design_system.DesignSystemSource` has three methods: `read_text(name)`, `read_bytes(name)` and `list_examples()`, all by a path relative to the design system's root. `DirectorySource` is the only source today (`--design-system DIR`). `DirectorySource` reads a folder (`--design-system DIR`); `BackendSource` (`papyrus_content.figures.records`) answers the same three methods from the stored document and fonts, fetching and checking a font only when it is asked for. `load_design_system(source)` validates whatever it returns (roles, tokens, a dark value for every color) and nothing else changes.
 
 ## Not built yet
 
+- A language variant of a raster picture is a manual upload (`figures variant`); Papyrus does not detect words in pixels.
 - Hosted rendering for an agent with no browser (the next slice): it will take a figure's source and a site's stored design system and return both pictures and any problems.
 - Moving Machines on Machines onto this and removing its copies of the rules, primitives, mapping and renderer.
 - The p.apyr.us documentation page.

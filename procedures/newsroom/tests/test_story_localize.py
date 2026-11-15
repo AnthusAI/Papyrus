@@ -8,7 +8,7 @@ from unittest import mock
 import pytest
 
 OUTPUT = {"story": "story-a--zh-Hans", "language": "zh-Hans", "version": "story-a--zh-Hans-v1", "hold": True, "reason": "faithfulness: numbers",
-          "outcome": "held", "published": False, "rounds": 2, "revertedBlocks": 1, "costUsd": 0.004, "sourceCharacters": 5200, "findings": {},
+          "outcome": "held", "published": False, "rounds": 2, "revertedBlocks": 1, "costUsd": 0.004, "sourceCharacters": 5200, "findings": {}, "imagesWithText": 2,
           "runKey": "k"}
 
 
@@ -44,7 +44,7 @@ def test_the_procedure_translates_through_its_tool_and_answers_with_the_contract
     assert result.get("success"), result.get("error")
     assert calls == [{"story": "story-a", "language": "zh-Hans", "ceiling_usd": 1, "source_version": None, "automation_id": None, "procedure_key": None}]
     assert output["story"] == "story-a--zh-Hans" and output["hold"] is True and output["published"] is False and output["rounds"] == 2
-    assert output["sourceCharacters"] == 5200 and output["costUsd"] == 0.004
+    assert output["sourceCharacters"] == 5200 and output["costUsd"] == 0.004 and output["imagesWithText"] == 2
 
 
 def test_the_cost_history_is_read_from_the_procedure_the_automation_runs():

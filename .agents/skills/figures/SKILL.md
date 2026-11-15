@@ -30,6 +30,10 @@ Write the acceptance criteria **before** drawing, in `figure.json`: `audience`, 
 
 Choose the form for the relationship being explained, not the nearest template (rules section 2): steps in order, a timeline, layers and walls, a change in amount, a place or moment. Compare alternatives side by side, show parts inside a whole with nested fills, and use arrows only when order or direction matters. Vary forms across neighbouring Stories. Phones are portrait: run flow and time top to bottom.
 
+## 3b. Prefer a figure that needs no translation
+
+A Story can be translated, and a translation shows the original's picture unless someone makes a variant of it (its alt text and caption are translated). So draw, first, a figure that reads the same in every language: numbers, symbols and the shape library's universal glyphs; words moved into the caption or the body; a text-free composition. When words are unavoidable, keep each label to a word or two as its own `<text>` line, with spare room in its shape (another language often needs 30 to 40 percent more). `render` notes `embedded text` when a figure holds words: that is advice, not a problem. Localizing a figure for a language is optional, one command (`papyrus figures localize FOLDER --story STORY --language LANGUAGE --save --reason "..."`, or `papyrus figures variant` to attach any picture you made), and never blocks a translation or a publish; the original with a translated alt text and caption is complete.
+
 ## 4. Draw
 
 Make a folder, for example `./figures/SLUG/`, with:
