@@ -161,6 +161,7 @@ Resources:
             Resource:
               - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-OperatorRecipientKey*
               - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-OperatorDeadmanSeed*
+              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-RouterConfigApplierFunction*
           # Creating a mapping is checked against the function it points at, not against an event source mapping ARN.
           - Sid: CreateEventSourceMappingsForOurFunctions
             Effect: Allow

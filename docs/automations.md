@@ -230,6 +230,16 @@ procedure, and say one of: linked, differs (the input template is not the same),
 this procedure, the router does not deliver to the publication, or the monitor has no router configuration).
 It reads and compares only. Fixing a difference means editing whichever side is wrong.
 
+## Where the router config lives
+
+Everything an automation needs from the router (the publication's `appsyncEndpoint`, and the `openaiKeyParameter` that names the
+SSM parameter holding the site's model key) comes from the router publication the automation names. Run now, Stage Bots, translate on publish
+(`papyrus stories localize --automation`) and a monitor's `procedureTriggers` all read it, and all refuse to start with "the router publication has no openaiKeyParameter"
+when the entry lacks it. The router config is not hand-written data. It is the file `infra/monitoring/router-config/<monitorId>.json` in this repository (for an automation on
+the default monitor, `hn.json`), applied to the monitoring table by the stack deploy ([router config in Git](monitoring-cloud.md#router-config-in-git)).
+To let a site's automations start: add `"openaiKeyParameter": "/amplify/shared/<amplifyAppId>/OPENAI_API_KEY"` to its publication entry, open a pull request, and merge; the release writes it.
+A site's own checkout never writes it.
+
 ## Run history
 
 Each run joins two records:

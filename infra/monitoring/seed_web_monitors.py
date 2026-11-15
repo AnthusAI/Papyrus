@@ -8,7 +8,7 @@
 
 Each monitor's `CONFIG` is a web-search monitor (hourly, topic news; disabled unless --enable). Its queries are `QUERY#` records
 written from --queries-file (a query is searched only once it has --approved-by). Each `CONFIG#router` lists only that publication and sets `holdDecisions: true`: enrichment runs, no decide request
-is posted until `seed_router_config.py --monitor-id web-<id> --set holdDecisions=false`. The six shared-Cyclotron publications
+is posted until a release that sets `holdDecisions` to false in the monitor's file under `infra/monitoring/router-config/` (docs/monitoring-cloud.md#router-config-in-git); once that file exists it, not this script, owns the item. The six shared-Cyclotron publications
 copy the `hn` router's cyclotron block and publication entry as stored; Distinctive Mark has `decisions: "hold"` and no
 cyclotron block. A query in the file may carry `origin` ("drafted" or "editor"), `createdBy`, `excludeDomains` and `includeDomains` (default: drafted by
 gpt-6-luna, no domain filters). Existing items are left alone unless --replace, so seeding a file adds only its new queries. Every item is validated with the Lambda's own validators.

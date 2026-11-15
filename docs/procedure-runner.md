@@ -134,7 +134,7 @@ Both stacks are deployed by hand. Review a change set before you execute it.
 3. Update `papyrus-monitoring` with `ProcedureRunnerFunctionName=papyrus-procedure-runner`. This gives the
    router `lambda:InvokeFunction` on the runner and sets `PROCEDURE_RUNNER_FUNCTION`.
 4. Register the site's procedure (above), and add `openaiKeyParameter` and `procedureTriggers` to its
-   router publication with `seed_router_config.py`.
+   router publication in `infra/monitoring/router-config/hn.json` (a pull request; the release applies it: [router config in Git](monitoring-cloud.md#router-config-in-git)).
 
 To run a procedure by hand, invoke the runner with a request like the one above:
 `aws lambda invoke --function-name papyrus-procedure-runner --invocation-type Event --payload file://request.json out.json`.

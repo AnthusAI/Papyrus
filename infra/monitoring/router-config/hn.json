@@ -1,0 +1,88 @@
+{
+  "cyclotron": {
+    "accountId": "${Ssm:/papyrus/monitoring/cyclotron/account-id}",
+    "bindingRevision": "5",
+    "endpoint": "${Ssm:/papyrus/monitoring/cyclotron/endpoint}",
+    "maxRequestsPerSecond": 1000,
+    "pollSeconds": 150,
+    "roleArn": "${CyclotronInvokerRoleArn}",
+    "runId": "${Ssm:/papyrus/monitoring/cyclotron/run-id}"
+  },
+  "enabled": true,
+  "holdDecisions": false,
+  "mode": "live",
+  "publications": [
+    {
+      "appsyncEndpoint": "${AppSyncEndpoint:AnthUs}",
+      "criteriaSince": "3",
+      "monitorStories": {
+        "storageBucketName": "amplify-d7s858igkyct5-mai-papyrusmediabucket0dab24-w7our7djqikz",
+        "vectorIndexArn": "arn:aws:s3vectors:us-east-1:${AccountId}:bucket/amplify-d7s858igkyct5-mai-papyrusknowledgevectorbu-ks4dtsvhfawe/index/papyrus-knowledge-anth-us"
+      },
+      "openaiKeyParameter": "/amplify/shared/d7s858igkyct5/OPENAI_API_KEY",
+      "publicationId": "anth-us",
+      "site": "anth.us"
+    },
+    {
+      "appsyncEndpoint": "${AppSyncEndpoint:MachinesOnMachines}",
+      "corpusId": "knowledge-corpus-ai-ml-research",
+      "monitorStories": {
+        "storageBucketName": "amplify-d260vp72hqglnc-ma-papyrusmediabucket0dab24-uow8zgyn0ttn",
+        "vectorIndexArn": "arn:aws:s3vectors:us-east-1:${AccountId}:bucket/amplify-d260vp72hqglnc-ma-papyrusknowledgevectorbu-ki1ewwc0rnpr/index/papyrus-knowledge-machines-on-machines"
+      },
+      "openaiKeyParameter": "/amplify/shared/d260vp72hqglnc/OPENAI_API_KEY",
+      "publicationId": "machines-on-machines",
+      "researchAssignments": {
+        "enabled": true
+      },
+      "site": "machines-on-machines.anth.us",
+      "tenantId": "machines-on-machines"
+    },
+    {
+      "appsyncEndpoint": "${AppSyncEndpoint:ThreatIntel}",
+      "criteriaSince": "3",
+      "monitorStories": {
+        "storageBucketName": "amplify-d12wnrx15qbcc2-ma-papyrusmediabucket0dab24-qr8gvsc26b09",
+        "vectorIndexArn": "arn:aws:s3vectors:us-east-1:${AccountId}:bucket/amplify-d12wnrx15qbcc2-ma-papyrusknowledgevectorbu-oq11pkmztz5o/index/papyrus-knowledge-threat-intelligence"
+      },
+      "openaiKeyParameter": "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY",
+      "publicationId": "threat-intelligence",
+      "site": "threat-intelligence"
+    },
+    {
+      "appsyncEndpoint": "${AppSyncEndpoint:DataParade}",
+      "corpusId": "knowledge-corpus-data-parade",
+      "criteriaSince": "3",
+      "monitorStories": {
+        "storageBucketName": "amplify-d35q7zv4zad2we-ma-papyrusmediabucket0dab24-eidc4adjgpa3",
+        "vectorIndexArn": "arn:aws:s3vectors:us-east-1:${AccountId}:bucket/amplify-d35q7zv4zad2we-ma-papyrusknowledgevectorbu-4ystpbivcgri/index/papyrus-knowledge-data-parade"
+      },
+      "openaiKeyParameter": "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY",
+      "publicationId": "data-parade",
+      "site": "dataparade.anth.us"
+    },
+    {
+      "appsyncEndpoint": "${AppSyncEndpoint:Pilobolus}",
+      "criteriaSince": "3",
+      "monitorStories": {
+        "storageBucketName": "amplify-d1eiwl0gedkmnj-ma-papyrusmediabucket0dab24-nke2rnsdqes7",
+        "vectorIndexArn": "arn:aws:s3vectors:us-east-1:${AccountId}:bucket/amplify-d1eiwl0gedkmnj-ma-papyrusknowledgevectorbu-z7kfhfjucmbc/index/papyrus-knowledge-pilobol-us"
+      },
+      "openaiKeyParameter": "/amplify/shared/d1eiwl0gedkmnj/OPENAI_API_KEY",
+      "publicationId": "pilobol-us",
+      "site": "pilobol.us"
+    },
+    {
+      "appsyncEndpoint": "${AppSyncEndpoint:Shipped}",
+      "corpusId": "knowledge-corpus-shipped",
+      "criteriaSince": "4",
+      "monitorStories": {
+        "storageBucketName": "amplify-dkycd9pntgo6d-mai-papyrusmediabucket0dab24-nari6bccwvpf",
+        "vectorIndexArn": "arn:aws:s3vectors:us-east-1:${AccountId}:bucket/amplify-dkycd9pntgo6d-mai-papyrusknowledgevectorbu-pfhixotw1soz/index/papyrus-knowledge-shipped"
+      },
+      "openaiKeyParameter": "/amplify/shared/dkycd9pntgo6d/OPENAI_API_KEY",
+      "publicationId": "shipped",
+      "site": "shipped.anth.us"
+    }
+  ]
+}

@@ -663,42 +663,6 @@ def test_the_vector_settings_default_to_suggestions_on_and_no_index_and_validate
             validate_monitor_stories("p", bad)
 
 
-def seed_module():
-    spec = importlib.util.spec_from_file_location("seed_router_config", ROOT / "infra/monitoring/seed_router_config.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def amplify_outputs(arn=ARN, bucket=BUCKET):
-    return {"custom": {"knowledgeQuery": {"s3VectorIndexArn": arn}}, "storage": {"bucket_name": bucket}}
-
-
-def test_seeding_reads_the_index_arn_and_the_bucket_from_each_sites_amplify_outputs():
-    seed = seed_module()
-    config = json.loads((ROOT / "docs/monitoring-router-config.example.json").read_text())
-    config["publications"][0]["monitorStories"] = {"singleItem": False}
-    filled = seed.fill_vector_settings(config, {"anth-us": amplify_outputs(), "threat-intelligence": amplify_outputs(ARN.replace("site-index", "other"), "other-bucket")})
-    first, second, third = (entry["monitorStories"] for entry in filled["publications"])
-    assert first == {"singleItem": False, "vectorIndexArn": ARN, "storageBucketName": BUCKET}   # what the entry already said is kept
-    assert third["vectorIndexArn"].endswith("index/other") and third["storageBucketName"] == "other-bucket"
-    assert second["vectorIndexArn"] != ARN   # p-apyr-us was not named: its entry is untouched
-    publications = validate_router_config(filled)["publications"]
-    assert publications[0]["monitorStories"]["vectorIndexArn"] == ARN
-    assert config["publications"][0]["monitorStories"] == {"singleItem": False}   # the input is not changed
-
-
-def test_seeding_refuses_outputs_without_an_index_or_a_bucket_and_publications_that_are_not_in_the_config():
-    seed = seed_module()
-    config = json.loads((ROOT / "docs/monitoring-router-config.example.json").read_text())
-    with pytest.raises(ValueError, match="s3VectorIndexArn"):
-        seed.fill_vector_settings(config, {"anth-us": {"custom": {}, "storage": {"bucket_name": BUCKET}}})
-    with pytest.raises(ValueError, match="bucket_name"):
-        seed.fill_vector_settings(config, {"anth-us": {"custom": {"knowledgeQuery": {"s3VectorIndexArn": ARN}}}})
-    with pytest.raises(ValueError, match="not in the config"):
-        seed.fill_vector_settings(config, {"nowhere": amplify_outputs()})
-
-
 # --- the pass: order, watermark, bounds -----------------------------------------------------------------------------------------------------
 
 

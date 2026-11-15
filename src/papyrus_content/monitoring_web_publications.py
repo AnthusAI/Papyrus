@@ -7,7 +7,7 @@ run is followed by re-seeding rather than by editing code). Distinctive Mark has
 `decisions: "hold"` (collect and enrich; never decide) with no `cyclotron` block, until Cyclotron bootstraps its own run.
 
 Every router config carries `holdDecisions: true`, so enrichment runs and no decide request is posted until an operator
-flips it (`seed_router_config.py --set holdDecisions=false`). Every monitor starts disabled; its queries are `QUERY#` records
+flips it (`holdDecisions`) in the monitor's router config file under `infra/monitoring/router-config/`. Every monitor starts disabled; its queries are `QUERY#` records
 (`papyrus monitors web-queries` drafts them for review).
 """
 from __future__ import annotations
