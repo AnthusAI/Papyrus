@@ -104,6 +104,17 @@ class FakeAuthoringClient:
         for owner_id, rows in (attachments or {}).items():
             for row in rows:
                 self.tables.setdefault("ModelAttachment", {})[row["id"]] = {**copy.deepcopy(row), "ownerId": owner_id}
+        if self._table("SemanticNode"):
+            self.sync_concept_labels()
+
+    def sync_concept_labels(self) -> None:
+        """What the stream consumer of the concept table writes: each concept's name rows. Idempotent; call it after adding concepts to a table by hand."""
+        from papyrus_content.entity_labels.primary import sync_node
+
+        calls, updates = len(self.calls), len(self.updates)
+        for row in list(self._table("SemanticNode").values()):
+            sync_node(self, row, primary_language=self.primary_language(), now="2026-11-15T00:00:00Z")
+        del self.calls[calls:], self.updates[updates:]   # setup, not something the test did
 
     def _table(self, model_name: str) -> dict[str, dict[str, Any]]:
         return self.tables.setdefault(model_name, {})

@@ -13,7 +13,6 @@ for entry in (HERE.parents[2] / "src", HERE.parents[2], HERE):
 
 from fake_client import FakeAuthoringClient  # noqa: E402
 from papyrus_content import concept_tags_commands  # noqa: E402
-from papyrus_content.entity_labels.primary import sync_node  # noqa: E402
 from papyrus_content.concept_link_predicates import CONCEPT_LINK_PREDICATES  # noqa: E402
 from papyrus_content.concept_tags import audit_reference_links, audit_story_links, resolve_concept_exact, tag_with_concepts  # noqa: E402
 from papyrus_content.reference_links import CONCEPT_TAG_PREDICATE, CONCEPT_TAG_PREDICATES, ITEM_CONCEPT_KIND, REFERENCE_CONCEPT_KIND  # noqa: E402
@@ -43,8 +42,6 @@ class Site(FakeAuthoringClient):
                 node("editor_concept--unpublished", "Unpublished idea")],
         })
         self.endpoint = "https://example.test/graphql"
-        for row in list(self.tables["SemanticNode"].values()):   # the stream consumer has written each concept's name rows (entity_labels.primary)
-            sync_node(self, row, primary_language="en", now="2026-11-15T00:00:00Z")
 
 
 def nodes(site):
