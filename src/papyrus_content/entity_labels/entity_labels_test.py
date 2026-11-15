@@ -239,3 +239,14 @@ def test_a_concept_is_named_from_its_own_text_and_found_by_its_new_name():
     assert outcome.state == "current" and models.calls[0]["aliases"] == ["human control"] and models.calls[0]["kind"] == "concept"
     assert [node["lineageId"] for node in find_concepts(site, "control humano", languages=["es-419"])] == ["c1"]
     assert site.tables["EntityLabel"]["concept#c1#es-419"]["sourceContentHash"] == primary_text_hash(site.tables["SemanticNode"]["c1-v1"])
+
+
+def test_wording_a_person_approved_is_saved_pinned_current_and_labelled_machine_with_its_reviewer():
+    from papyrus_content.entity_labels.translate import save_approved
+
+    site = FakeSite()
+    save_approved(site, section_source(), "es-419", name="Agentes", description="Máquinas que planean y actúan por su cuenta.", reviewed_by="the editor", now=NOW)
+    row = site.tables["EntityLabel"]["section#agents#es-419"]
+    assert (row["syncState"], row["origin"], row["pinned"], row["reviewedBy"], row["sourceContentHash"]) == ("current", "machine", True, "the editor", section_source().content_hash)
+    outcome, models = run_label(site, {"Agents": ANSWER})
+    assert outcome.state == "pinned" and models.calls == []
