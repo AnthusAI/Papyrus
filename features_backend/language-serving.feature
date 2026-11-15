@@ -42,6 +42,26 @@ Feature: Each language of a Story is served at its own address, and each page na
     And the Spanish home and the Spanish articles listing link only "el-sonido"
     And the English home and the Spanish home name each other in hreflang
 
+  Scenario: A language with no Story yet still has every listing of the site, with a notice, and the page is not indexed
+    Then the Spanish "es/index.html" page exists and is not indexed
+    And the Spanish "es/articles/index.html" page exists and is not indexed
+    And the Spanish "es/articles/index.html" page says in Spanish that nothing is translated yet and links to the English "/articles/"
+    And the Spanish "es/index.html" page says in Spanish that nothing is translated yet and links to the English "/"
+    And the "articles/index.html" page lists no hreflang links
+    And the "index.html" page lists no hreflang links
+    And the sitemap index lists no Spanish or Chinese sitemap
+
+  Scenario: Once a Spanish Story is published its listings are indexed, without the notice, and name the English ones in hreflang
+    When its Spanish translation "el-sonido" is published
+    Then the Spanish "es/articles/index.html" page is indexed and has no notice
+    And the Spanish "es/index.html" page is indexed and has no notice
+    And the "articles/index.html" page names the Spanish page in hreflang
+
+  Scenario: A site whose home is an authored page names the home of each language that has Stories
+    Given the English home is an authored page
+    When its Spanish translation "el-sonido" is published
+    Then the "index.html" page names the Spanish page in hreflang
+
   Scenario: The sitemap index lists one sitemap per language
     When its Spanish translation "el-sonido" is published
     Then the sitemap index lists "sitemap-0.xml" and "es/sitemap-0.xml"
@@ -85,3 +105,8 @@ Feature: Each language of a Story is served at its own address, and each page na
     Given the English Concept page "abliteration" is published in the wiki
     When its Spanish translation "abliteracion" of the Concept page is published
     Then the English Concept page stays at "wiki/abliteration/index.html" and the Spanish one is at "es/concepts/abliteracion/index.html"
+
+  Scenario: The Concepts listing of each language names the others, though its address is /wiki/ in English and /concepts/ elsewhere
+    Given the English Concept page "abliteration" is published in the wiki
+    When its Spanish translation "abliteracion" of the Concept page is published
+    Then the Concepts listing is offered in each language at "/wiki/", "/es/concepts/" and "/zh/concepts/"

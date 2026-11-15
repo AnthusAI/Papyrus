@@ -34,6 +34,8 @@ class Alternate:
     tag: str
     name: str
     url: str
+    #: False for an edition's listing that has nothing in it yet: the switcher offers it, the head's ``hreflang`` does not (it is ``noindex``).
+    indexed: bool = True
 
     def as_dict(self) -> dict[str, str]:
         return {"tag": self.tag, "name": self.name, "url": self.url}
@@ -52,8 +54,13 @@ class LanguageView:
     item_url: Callable[[str, ItemSummary], str | None] = field(repr=False, compare=False, default=lambda tag, summary: None)
     #: ``{site-relative listing base: (tag, ...)}``: which editions have the listing page at that base ("" is the home)
     listing_bases: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    #: ``{site-relative listing base: {tag: that edition's base}}``: where a listing lives in a language whose base differs (the Concepts: ``wiki`` in the
+    #: primary language, ``concepts`` in every other); an edition not named here uses the base itself
+    listing_paths: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
     #: ``{tag: root}``: each edition's page root (``""``, ``es/``)
     roots: Mapping[str, str] = field(default_factory=dict)
+    #: ``{site-relative listing base: (tag, ...)}``: the editions whose listing at that base has no Story yet (the page exists, with a notice)
+    empty_bases: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def multilingual(self) -> bool:
@@ -86,7 +93,15 @@ class LanguageView:
         tags = self.listing_bases.get(base, ())
         if len(tags) < 2:
             return ()
-        return tuple(Alternate(tag, self.names[tag], "/" + self.roots[tag] + (f"{base}/" if base else "")) for tag in self.public if tag in tags)
+        empty = self.empty_bases.get(base, ())
+        paths = self.listing_paths.get(base, {})
+        return tuple(
+            Alternate(tag, self.names[tag], "/" + self.roots[tag] + (f"{paths.get(tag, base)}/" if base else ""), tag not in empty)
+            for tag in self.public if tag in tags
+        )
+
+    def is_empty_listing(self, base: str, tag: str) -> bool:
+        return tag in self.empty_bases.get(base, ())
 
     def group_digest(self, summary: ItemSummary) -> list:
         """What a page of ``summary`` depends on beyond its own content: the URLs of its group's other published languages."""
@@ -113,7 +128,7 @@ class LanguageView:
         return found
 
     def digest_input(self) -> list:
-        return [self.primary, list(self.public), sorted(self.names.items()), sorted((url, sorted(urls.items())) for url, urls in self.links.items())]
+        return [self.primary, list(self.public), sorted(self.names.items()), sorted((url, sorted(urls.items())) for url, urls in self.links.items()), sorted((base, list(tags)) for base, tags in self.empty_bases.items()), sorted((base, sorted(paths.items())) for base, paths in self.listing_paths.items())]
 
 
 def language_groups(summaries, public: tuple[str, ...], primary: str) -> dict[str, dict[str, ItemSummary]]:
