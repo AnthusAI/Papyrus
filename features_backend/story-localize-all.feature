@@ -91,6 +91,15 @@ Feature: A whole site is translated by one command, and only what remains is don
     Then the Spanish requests of "story-b" and "story-c" are wanted, name that automation and ask for a clean result to be published
     And no procedure was run here
 
+  Scenario: A Story whose lineage id contains the separator is surveyed and planned like any other
+    The ids the site gives a Story with a long headline end in a hash after a double hyphen. Such a Story is a primary Story: its translation is
+    the same id with the language after one more double hyphen, and neither the survey nor the plan treats it as anything else.
+    Given the published English Story "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" at its first text
+    And the procedure has measured Spanish runs
+    When the whole site is planned for "es-419"
+    Then "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" is to do because nothing was ever requested
+    And "content-item-a-florida-deputy-used-police-databases-and-plate-readers-to--bde88a5abce21df8" has a predicted cost and no reason it cannot be planned
+
   Scenario: Every enabled language is covered by --all-languages
     Given the site also writes in "zh-Hans"
     When the whole site is surveyed for every enabled language

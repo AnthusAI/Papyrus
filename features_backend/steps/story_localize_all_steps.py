@@ -72,7 +72,7 @@ def _hash(story: str, text: int) -> str:
 
 def _publish_story(context, story: str, text: int = 1, *, language="en", do_not_localize=False) -> dict:
     """The Story's published version ``text`` as the CMS keeps it: the Item version, the PublishedItem row that names it."""
-    group = _stored_group(story.split("--")[0])
+    group = _stored_group(story)
     metadata = {"doNotLocalize": True} if do_not_localize else {}
     item = {"id": f"{story}-v{text}", "lineageId": story, "versionNumber": text, "versionState": "current", "type": "article", "status": "published",
             "stage": "published", "slug": story, "section": "machines", "title": f"Title of {story}", "bodyMarkus": f"Body {text}\n", "contentHash": _hash(story, text),
@@ -435,6 +435,12 @@ def step_plan(context, language):
 def step_plan_lists(context, first, second):
     assert _job(context, first).costUsd == 0.02 and _job(context, second).costUsd == 0.02, context.jobs
     assert context.summary["predictedUsd"] == 0.04 and context.summary["withoutPrediction"] == 0, context.summary
+
+
+@then('"{story}" has a predicted cost and no reason it cannot be planned')
+def step_planned(context, story):
+    job = _job(context, story)
+    assert job.costUsd == 0.02 and "cannot be planned" not in job.detail, job
 
 
 @then("no request, translation or publish was written")

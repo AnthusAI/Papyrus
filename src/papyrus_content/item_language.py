@@ -43,9 +43,22 @@ class ItemLanguageMissing(ValueError):
 
 
 def localization_lineage_id(primary_lineage_id: str, language: str) -> str:
-    """The derived lineage id of a Story's localization into ``language`` (plan: "Localization ids are derived, not slug-based")."""
-    if not primary_lineage_id or LOCALIZATION_SEPARATOR in primary_lineage_id:
-        raise ValueError(f"{primary_lineage_id!r} is not a primary Story lineage id.")
+    """The derived lineage id of a Story's localization into ``language`` (plan: "Localization ids are derived, not slug-based").
+
+    The id is ``{primary}--{language}`` and nothing about it is ever parsed back: whether a row is a translation is decided by the row's own language
+    group (:func:`is_localization_of`), never by the shape of its id. So a primary lineage may contain ``--`` itself: the ids the site generates for a
+    Story whose slug was cut short end in ``--{hash}`` (``content-item-a-florida-deputy-...-to--bde88a5abce21df8``), and its Spanish translation is
+    ``content-item-a-florida-deputy-...-to--bde88a5abce21df8--es-419``.
+
+    The derivation is still one-to-one, which is all that makes "creating the same localization twice is the same record" true: a BCP 47 tag never
+    contains ``--`` (its subtags are joined by one hyphen), so the language is whatever follows the *last* ``--`` and the primary is what precedes it.
+    The one input that would break that is refused. That a Story is itself a translation (and so has no translations of its own) is a fact about its
+    row, checked where the row is read (:func:`papyrus_content.localize.record.collect`), not a property its id string can carry."""
+    if not primary_lineage_id:
+        raise ValueError("A localization needs the lineage id of its primary Story.")
+    if not language or LOCALIZATION_SEPARATOR in language or "#" in language:
+        raise ValueError(f"{language!r} is not a language tag: a tag has no {LOCALIZATION_SEPARATOR!r} (its subtags are joined by one hyphen), and the "
+                         "derived lineage id could not be told apart from another Story's.")
     return f"{primary_lineage_id}{LOCALIZATION_SEPARATOR}{language}"
 
 
@@ -79,6 +92,14 @@ def is_localization_of(lineage_id: str | None, group_id: str | None, language: s
     """Whether ``lineage_id`` is the derived lineage of the localization into ``language`` of the Story ``group_id`` (``{group}--{language}``): the one test
     for "is this a translation". A Story of its own, in any language, has its own lineage as its group."""
     return bool(lineage_id and group_id and language and lineage_id == f"{group_id}{LOCALIZATION_SEPARATOR}{language}")
+
+
+def translation_original(row: dict[str, Any], tenant_id: str | None = None) -> str | None:
+    """The Story a saved row is a translation of, judged by what the row says and not by its id: the row's language group is another lineage than its own.
+    None for a Story of its own, in any language (including one whose id contains ``--``)."""
+    group = bare_group_id(row.get(LANGUAGE_GROUP_FIELD), tenant_id)
+    lineage = row.get("itemLineageId") or row.get("lineageId")
+    return group if group and lineage and group != lineage else None
 
 
 def localization_original(row: dict[str, Any], tenant_id: str | None = None) -> str | None:

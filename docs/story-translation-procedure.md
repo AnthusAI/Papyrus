@@ -8,7 +8,11 @@ publishes: the result is published by a person, or by the site's own switches fo
 ## The record model
 
 - Every Item version has `language` (BCP 47, Humanus spelling: `en`, `es-419`, `zh-Hans`) and `languageGroupId` (the primary Story's lineage; on a tenant backend the stored row carries the tenant prefix, `machines-on-machines#{lineage}`, which readers remove with `bare_group_id` before comparing it with a lineage).
-- A localization is a sibling lineage `{primaryLineageId}--{language}`. Each version names the primary version it came from
+- A localization is a sibling lineage `{primaryLineageId}--{language}`. The primary's own id may contain `--` (a Story with a long headline gets an id that ends
+  `--{16-character hash}`, and its Spanish translation is `...--{hash}--es-419`): the id is never parsed. Whether a row is a translation is read from the row,
+  a `languageGroupId` that is another lineage than its own (`is_localization_of`, `translation_original`), and a translation is refused as the source of a
+  translation by that test. The derivation is one-to-one because a language tag never contains `--`; `localization_lineage_id` refuses one that does. Ids made
+  before this rule (`{slug}--es`, `{slug}--zh`) are unchanged: there is nothing to migrate. Each version names the primary version it came from
   (`sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`) and has `syncState`.
 - A translation has no board stage and stays out of the board and the English listings until the listing keys carry the language (plan, deploy 2).
 - Its address (`slug`) is drafted once, at its first version, by the language's slug policy (`languages.slugs`: `translated` for Spanish, `characters`

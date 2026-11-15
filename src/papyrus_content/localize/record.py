@@ -17,7 +17,7 @@ import json
 from typing import Any
 
 from ..item_front_matter import DEK_KEYS
-from ..item_language import localization_lineage_id
+from ..item_language import localization_lineage_id, translation_original
 from ..localization_publish import hold_request_id
 from ..publishing import utc_now_iso
 from ..record_helpers import compact_dict, to_aws_json
@@ -167,13 +167,16 @@ def collect(client, *, story: str, language: str, judge, procedure_version: str,
     from .checks import BlockChecker
     from .blocks import blocks_of
 
-    store = GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))
-    settings = settings_from(store)
     row = published_story_version(client, story)
     if row is None:
         raise NothingToDo(f"Story {story} is not published; a Story is translated from its published version.")
+    original = translation_original(row, getattr(client, "tenant_id", None))
+    if original is not None:
+        raise ValueError(f"Story {story} is itself a translation of {original}; translate the original, not its translation.")
     if _metadata(row).get("doNotLocalize"):
         raise NothingToDo(f"Story {story} is marked do not localize.")
+    store = GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))
+    settings = settings_from(store)
     source_language = story_language(row, settings)
     target = site_language(language, settings)
     if target == source_language:
