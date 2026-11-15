@@ -8,6 +8,9 @@ The keys the standard front end itself needs on a language edition are derived f
 always has its translation:
 
 * ``language.name``: the language's name in itself (``Español``, ``中文``), what a language switcher shows;
+* ``site.name``: the publication's name in the language (masthead, ``<title>`` suffix, ``og:site_name``, feeds, Markdown twins, structured data; the primary
+  language's name is ``site.name`` of ``projection.json`` and is listed as ``alternateName`` in the structured data of every edition); ``site.shortName`` when the
+  site sets one, ``site.publisher`` when the site sets a publisher and ``feeds.title`` when the site gives its feeds a title other than the site's name;
 * ``site.description`` and ``site.tagline`` when the site sets them;
 * ``home.label``: the name of the home link (``listings`` breadcrumbs);
 * ``listing.pageSuffix``: what follows the title of page 2 and later of a listing, with ``{page}`` (`` — página {page}``);
@@ -31,6 +34,10 @@ from pathlib import Path
 
 STRINGS_DIRECTORY = "strings"
 LANGUAGE_NAME_KEY = "language.name"
+SITE_NAME_KEY = "site.name"
+SITE_SHORT_NAME_KEY = "site.shortName"
+SITE_PUBLISHER_KEY = "site.publisher"
+FEEDS_TITLE_KEY = "feeds.title"
 TRANSLATION_LABEL_KEY = "translation.label"
 TRANSLATION_ORIGINAL_KEY = "translation.original"
 UNTRANSLATED_LABEL_KEY = "listing.untranslated"
@@ -59,7 +66,13 @@ def read_interface_strings(static_directory: Path | None) -> dict[str, dict[str,
 
 def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_hrefs: tuple[str, ...]) -> tuple[str, ...]:
     """Every key a language edition needs: the standard front end's own (from the settings) and every key of the primary language's file."""
-    keys = [LANGUAGE_NAME_KEY, "home.label", "listing.pageSuffix", TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY, UNTRANSLATED_LABEL_KEY, UNTRANSLATED_ORIGINAL_KEY]
+    keys = [LANGUAGE_NAME_KEY, SITE_NAME_KEY, "home.label", "listing.pageSuffix", TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY, UNTRANSLATED_LABEL_KEY, UNTRANSLATED_ORIGINAL_KEY]
+    if standard.identity.short_name:
+        keys.append(SITE_SHORT_NAME_KEY)
+    if standard.identity.publisher:
+        keys.append(SITE_PUBLISHER_KEY)
+    if standard.feeds.title and standard.feeds.title != standard.identity.name:
+        keys.append(FEEDS_TITLE_KEY)
     if standard.identity.description:
         keys.append("site.description")
     if standard.identity.tagline:

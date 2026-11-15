@@ -85,7 +85,7 @@ from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
 from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
-from .editions import LanguageView, edition_nav_hrefs, edition_settings, language_groups, language_name
+from .editions import LanguageView, alternate_names_of, edition_nav_hrefs, site_names, edition_settings, language_groups, language_name
 from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
 
 
@@ -325,12 +325,15 @@ class StandardMarkusProjector(MarkusSiteProjector):
             raise InterfaceStringsIncomplete(
                 "A public language needs its interface strings complete (strings/<tag>.json in the site's static directory): " + "; ".join(problems)
                 + ". Complete them, or leave the language out of languages.public until they are.")
+        names = site_names(self.standard, serving.primary, strings, tuple(others))
+        self.standard = dataclasses.replace(self.standard, identity=dataclasses.replace(self.standard.identity, alternate_names=alternate_names_of(names, self.standard.identity.name)))
+        self.head = HeadBuilder(self.standard, self.environment)
         editions: dict[str, StandardMarkusProjector] = {}
         for tag in others:
             child = StandardMarkusProjector(
                 dataclasses.replace(self._settings, plugins=(), public_data=None),
                 {},
-                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag)),
+                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag), names),
                 hooks=self.hooks,
                 environment=self.environment,
                 renditions=self._given_renditions,
@@ -2034,6 +2037,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             head, language=language,
             alternates=tuple((alternate.tag, self.head.absolute(alternate.url) or alternate.url) for alternate in indexed) if len(indexed) > 1 else (),
             x_default=(self.head.absolute(primary_url) or primary_url) if primary_url and len(indexed) > 1 else "",
+            site_data=head.path == self.policy.path("/"),
         )
         base = self._listing_base_of(kind, extra)
         if base is not None and view.is_empty_listing(base, language):   # a language's listing with no Story yet: kept, says so, and is not indexed

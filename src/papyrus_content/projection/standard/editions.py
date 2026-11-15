@@ -27,7 +27,7 @@ from ...item_language import is_localization_of
 from ...url_paths import encoded_path
 from ..model import ItemSummary
 from .config import NavLink, StandardSettings
-from .interface_strings import LANGUAGE_NAME_KEY
+from .interface_strings import FEEDS_TITLE_KEY, LANGUAGE_NAME_KEY, SITE_NAME_KEY, SITE_PUBLISHER_KEY, SITE_SHORT_NAME_KEY
 from .wiki import DEFAULT_WIKI_SECTION
 
 
@@ -174,7 +174,18 @@ def check_segment_collisions(standard: StandardSettings, tag: str, segments: Map
             raise ValueError(f"languages.segments.{tag}: {owners[top]} and {english} would both be served at /{top}/.")
 
 
-def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str], segments: Mapping[str, str] | None = None) -> StandardSettings:
+def site_names(standard: StandardSettings, primary: str, strings: Mapping[str, Mapping[str, str]], tags: tuple[str, ...]) -> dict[str, str]:
+    """``{tag: the publication's name in that language}`` for the primary language (``site.name`` of projection.json) and the given editions (their ``site.name``)."""
+    return {primary: standard.identity.name, **{tag: strings[tag][SITE_NAME_KEY] for tag in tags}}
+
+
+def alternate_names_of(names: Mapping[str, str], own: str) -> tuple[str, ...]:
+    """The names a language's pages list as ``alternateName``: every other language's name, the primary's first, never the page's own name twice."""
+    return tuple(dict.fromkeys(name for name in names.values() if name != own))
+
+
+def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str], segments: Mapping[str, str] | None = None,
+                     names: Mapping[str, str] | None = None) -> StandardSettings:
     """The settings of the ``tag`` edition: the site's settings, its words in the language, its pages under the prefix, and only what an edition renders.
 
     An edition renders the language's Story pages, its home and section listings (with paging and archives), its feeds and sitemap. It renders no
@@ -183,8 +194,13 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
     the language; every other link leaves the edition and is dropped."""
     segments = segments or {}
     check_segment_collisions(standard, tag, segments)
+    name = strings[SITE_NAME_KEY]
     identity = dataclasses.replace(
         standard.identity, language=tag,
+        name=name,
+        short_name=localized(standard.identity.short_name, strings, SITE_SHORT_NAME_KEY),
+        publisher=localized(standard.identity.publisher, strings, SITE_PUBLISHER_KEY),
+        alternate_names=alternate_names_of(names or {}, name),
         description=localized(standard.identity.description, strings, "site.description"),
         tagline=localized(standard.identity.tagline, strings, "site.tagline"),
         notice_label=localized(standard.identity.notice_label, strings, "notice.label"),
@@ -207,9 +223,16 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
                         for english, now in [(edition_base(standard, section), translate_path(edition_base(standard, section), segments))] if english != now)
     nav = tuple(NavLink(label=strings[f"nav.{link.href}.label"], href=encoded_path(f"/{prefix}" + moved.get(link.href, link.href)), cta=link.cta)
                 for link in standard.nav if link.href in hrefs)
+    # What the primary language derives from the site's name follows the language's name; what the site set itself has its own string.
+    feeds_title = strings[FEEDS_TITLE_KEY] if standard.feeds.title != standard.identity.name else name
+    publisher_name = standard.seo.publisher_name
+    if publisher_name == (standard.identity.publisher or standard.identity.name):
+        publisher_name = identity.publisher or name
     return dataclasses.replace(
         standard,
         identity=identity,
+        feeds=dataclasses.replace(standard.feeds, title=feeds_title),
+        seo=dataclasses.replace(standard.seo, publisher_name=publisher_name),
         language_prefix=prefix,
         moved_paths=moved_paths,
         sections=sections,
