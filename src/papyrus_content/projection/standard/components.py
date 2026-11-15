@@ -59,6 +59,18 @@ def translation_notice(strings, original: dict) -> str:
     return f'<p class="markus-translation">{esc(before)}{link}{esc(after)}</p>'
 
 
+def untranslated_notice(strings, original: dict) -> str:
+    """The line on a language's home or listing that has no Story yet: it says so in the page's language and links to the same listing in the original
+    language. ``original`` is ``{tag, url}`` of that page. The page is not indexed (``noindex``) until it lists something."""
+    from .interface_strings import ORIGINAL_PLACEHOLDER, UNTRANSLATED_LABEL_KEY, UNTRANSLATED_ORIGINAL_KEY
+
+    before, found, after = strings[UNTRANSLATED_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
+    if not found:
+        raise ValueError(f"{UNTRANSLATED_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original language's page goes.")
+    link = f'<a href="{esc(original["url"])}" hreflang="{esc(original["tag"])}">{esc(strings[UNTRANSLATED_ORIGINAL_KEY])}</a>'
+    return f'<p class="markus-untranslated" role="note">{esc(before)}{link}{esc(after)}</p>'
+
+
 def _same_route(href: str, current: str) -> bool:
     return href.rstrip("/") == current.rstrip("/") or (href in ("/", "") and current in ("/", ""))
 
