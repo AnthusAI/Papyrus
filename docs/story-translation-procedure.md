@@ -227,6 +227,10 @@ The page of a translation says, in the page's language and apart from the Story'
    reason on its review request, correct or accept it, answer the request, then publish.
 4. `papyrus stories set-slug` first if the drafted address is not the one to keep; it is fixed once published.
 
+## Pictures in a translation
+
+A translation shows the original's pictures by default, with the alt text, caption and `imageAlt` translated like the rest. A figure or cover that holds words may, optionally, have a language variant stored with the translation; the run keeps any variant the translation already has and never makes one. The run lists, as advice, the source's pictures whose stored figure record says they hold words and have no variant yet (`imagesWithText` in its output, `localization.imagesWithText` on the saved version); it does not hold, fail or wait. How to make a variant, and the model, are in [figures.md](figures.md#figures-in-other-languages).
+
 ## Not yet
 
 - The `translation.published` notification to correctors (admin class) and the correction flow, which records "reviewed by a person" and would change the

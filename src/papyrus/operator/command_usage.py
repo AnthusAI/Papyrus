@@ -294,6 +294,14 @@ _ENTRIES = dict([
   _e("figures directive", "Print the ::image{} line for a figure's Story, from its figure.json.", "FOLDER", "both", "reads", "figures"),
   _e("figures rules", "Print the figure rules of the signed-in site (its own text when it saved figure rules with papyrus guidelines save --kind figure-rules, otherwise the general rules, where light and dark are both mandatory); --packaged prints the general rules only.", "[--packaged]", "both", "reads", "figures"),
   _e("figures primitives", "Print the shape library (glyphs, arrowhead, patterns) every figure can use.", "", "both", "reads", "figures"),
+  _e("figures localize", "Optional: make a language variant of a figure. Translates only the figure's <text> content, alt text and caption into the language (the Story's glossary, register notes and Humanus checks, which advise and never block), renders light and dark pictures with the usual figure checks, and with --save stores them as the translation's variant. A figure with no variant keeps showing the original with its alt text and caption translated.",
+     "FOLDER --story STORY --language LANGUAGE [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json] [--save --reason TEXT [--original STORED_PATH] [--author-label NAME] [--dry-run]]  "
+     "(writes the folder SLUG-LANGUAGE next to FOLDER and its pictures; reads the Story and its translation, writes only the translation STORY--LANGUAGE and only with --save)",
+     "both", _DRY, "figures"),
+  _e("figures variant", "The manual path to a language variant of any picture, a raster image included: the files you give become the translation's picture in place of the original, linked to it.",
+     "--story STORY --language LANGUAGE --original STORED_PATH --light FILE [--dark FILE] [--alt TEXT] [--caption TEXT] --reason TEXT [--author-label NAME] [--dry-run]  "
+     "(STORED_PATH is the src of the picture on the original Story; a figure with no --dark picture is refused where the site requires dark figures; writes only STORY--LANGUAGE)",
+     "both", _DRY, "figures"),
   # ---- design-system (the site's tokens, fonts, mapping and worked examples, kept in the backend) ----------------------
   _e("design-system show", "Show the design system the signed-in site stores: its version, roles, fonts, worked examples and figure settings (or that it has none).",
      "[--version N] [--json]", "both", "reads", "figures"),

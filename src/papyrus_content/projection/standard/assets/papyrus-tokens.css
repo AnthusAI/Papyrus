@@ -1,0 +1,57 @@
+/* Generated from src/papyrus_content/front_end_tokens/tokens.json by `python -m papyrus_content.front_end_tokens`. Do not edit by hand. */
+:root {
+  --papyrus-rhythm: 0.25rem;
+  --papyrus-floor-reading: 1.125rem;
+  --papyrus-floor-interface: 0.875rem;
+  --papyrus-floor-label: 0.8125rem;
+  --papyrus-text-display-size: 2.25rem;
+  --papyrus-text-display-line: 2.5rem;
+  --papyrus-text-headline-size: 1.75rem;
+  --papyrus-text-headline-line: 2rem;
+  --papyrus-text-title-size: 1.25rem;
+  --papyrus-text-title-line: 1.75rem;
+  --papyrus-text-lede-size: 1.125rem;
+  --papyrus-text-lede-line: 1.75rem;
+  --papyrus-text-body-size: 1.125rem;
+  --papyrus-text-body-line: 1.75rem;
+  --papyrus-text-interface-size: 0.9375rem;
+  --papyrus-text-interface-line: 1.25rem;
+  --papyrus-text-caption-size: 0.875rem;
+  --papyrus-text-caption-line: 1.25rem;
+  --papyrus-text-label-size: 0.8125rem;
+  --papyrus-text-label-line: 1rem;
+  --papyrus-space-1: 0.25rem;
+  --papyrus-space-2: 0.5rem;
+  --papyrus-space-3: 0.75rem;
+  --papyrus-space-4: 1rem;
+  --papyrus-space-5: 1.25rem;
+  --papyrus-space-6: 1.5rem;
+  --papyrus-space-8: 2rem;
+  --papyrus-space-10: 2.5rem;
+  --papyrus-space-12: 3rem;
+  --papyrus-space-gutter: 1rem;
+  --papyrus-radius-sm: 0.25rem;
+  --papyrus-radius-md: 0.5rem;
+  --papyrus-radius-lg: 0.75rem;
+  --papyrus-radius-xl: 1rem;
+  --papyrus-size-measure: 42.5rem;
+  --papyrus-size-rail-width: 17.5rem;
+  --papyrus-size-nav-height: 3.5rem;
+  --papyrus-ratio-media: calc(16 / 9);
+}
+@media (min-width: 600px) {
+  :root {
+    --papyrus-text-display-size: 3.5rem;
+    --papyrus-text-display-line: 4rem;
+    --papyrus-text-headline-size: 2.5rem;
+    --papyrus-text-headline-line: 2.75rem;
+    --papyrus-text-title-size: 1.5rem;
+    --papyrus-text-title-line: 2rem;
+    --papyrus-text-lede-size: 1.25rem;
+    --papyrus-text-lede-line: 2rem;
+    --papyrus-text-body-size: 1.25rem;
+    --papyrus-text-body-line: 2rem;
+    --papyrus-space-gutter: 3rem;
+    --papyrus-size-nav-height: 4rem;
+  }
+}

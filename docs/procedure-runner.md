@@ -126,53 +126,30 @@ stored on that row.
 
 ## Deploying
 
-Both stacks are deployed by hand. Review a change set before you execute it.
+The release deploys the runner, like every shared stack: a merge to `main` builds the image and updates the stack (`.github/workflows/stack-deploy.yml`, `infra/pipeline/stacks.json`). Nothing is built, pushed or applied by hand.
 
-1. Build and push the image: `infra/procedures/build_image.sh`. It prints the image URI by digest.
-2. Create or update the `papyrus-procedure-runner` stack from `infra/procedures/papyrus-procedure-runner.yaml`.
-   Pass `ImageUri` and `MonitoringTableName` (SSM `/papyrus/monitoring/table-name`).
-3. Update `papyrus-monitoring` with `ProcedureRunnerFunctionName=papyrus-procedure-runner`. This gives the
-   router `lambda:InvokeFunction` on the runner and sets `PROCEDURE_RUNNER_FUNCTION`.
-4. Register the site's procedure (above), and add `openaiKeyParameter` and `procedureTriggers` to its
-   router publication in `infra/monitoring/router-config/hn.json` (a pull request; the release applies it: [router config in Git](monitoring-cloud.md#router-config-in-git)).
+- **The image.** `infra/procedures/build_image.py` builds the arm64 image from `infra/procedures/Dockerfile` and pushes it to the `papyrus-procedure-runner` repository. Its tag is `src-` plus a hash of
+  everything the Dockerfile copies (`pyproject.toml`, `README.md`, `LICENSE`, `src/`, `corpora/`) and the Dockerfile, so a change to the code is a new image and an unchanged tree reuses the old one: the image cannot go stale. The stack receives the image by digest as `ImageUri`.
+- **The repository** is the stack `papyrus-procedure-runner-repository`. The repository existed before the pipeline; the first release imports it, and the stack retains it.
+- **The grants.** The runner's role may call each site's API: the stack takes `DistinctiveApiId`, `AnthUsApiId`, `MachinesOnMachinesApiId`, `ThreatIntelApiId`, `DataParadeApiId`, `PilobolusApiId` and `ShippedApiId`, which the release reads from the `ApiId...` outputs of the `papyrus-monitoring` stack, so no API id is written in Git.
+- **The router.** `papyrus-monitoring` is given `ProcedureRunnerFunctionName=papyrus-procedure-runner`, which lets the router start the runner. Register the site's procedure (above), and add `openaiKeyParameter` and `procedureTriggers` to its
+  router publication in `infra/monitoring/router-config/hn.json` (a pull request; the release applies it: [router config in Git](monitoring-cloud.md#router-config-in-git)).
 
 To run a procedure by hand, invoke the runner with a request like the one above:
 `aws lambda invoke --function-name papyrus-procedure-runner --invocation-type Event --payload file://request.json out.json`.
 
 ## Granting a newsroom to the runner
 
-The runner may call a newsroom's API only if the role's `PublicationNewsrooms` statement names it. Granting one is a
-shared-infrastructure change to the `papyrus-procedure-runner` stack: it modifies the role's inline policy and nothing
-else. In the template, add a parameter with the API id and two resources (every Query field, every Mutation field),
-as `DistinctiveApiId` and `AnthUsApiId` do. Then, by hand, with a change set that a person reads before it runs:
-
-```bash
-export AWS_PROFILE=papyrus-production
-aws sts get-caller-identity --query Account --output text        # must print 712236451410
-aws appsync list-graphql-apis --region us-east-1 --query "graphqlApis[].[name,apiId]" --output text   # confirm the site's API id
-aws cloudformation create-change-set --stack-name papyrus-procedure-runner --change-set-name grant-anthus-newsroom \
-  --change-set-type UPDATE --capabilities CAPABILITY_IAM \
-  --template-body file://infra/procedures/papyrus-procedure-runner.yaml \
-  --parameters ParameterKey=ImageUri,UsePreviousValue=true ParameterKey=MonitoringTableName,UsePreviousValue=true \
-               ParameterKey=ReservedConcurrency,UsePreviousValue=true ParameterKey=DistinctiveApiId,UsePreviousValue=true \
-               ParameterKey=AnthUsApiId,ParameterValue=<the site's API id>
-aws cloudformation describe-change-set --stack-name papyrus-procedure-runner --change-set-name grant-anthus-newsroom \
-  --query "{Status:Status,Reason:StatusReason,Changes:Changes[].ResourceChange.{Action:Action,Id:LogicalResourceId,Replacement:Replacement}}"
-# Read it. Expected: one Modify of RunnerRole, Replacement False, no other resource.
-aws cloudformation execute-change-set --stack-name papyrus-procedure-runner --change-set-name grant-anthus-newsroom
-aws cloudformation wait stack-update-complete --stack-name papyrus-procedure-runner
-```
-
-No image rebuild is needed for a grant. Delete the change set instead of executing it to abandon the change
-(`aws cloudformation delete-change-set ...`). The first run of a procedure on the newly granted newsroom shows in
-`papyrus automations runs`; an AppSync "not authorized" error on a run means the grant is not live.
+The runner may call a newsroom's API only if the role's `PublicationNewsrooms` statement names it. To grant a new site: add its `<Site>ApiId` parameter and its two resources (every Query field, every Mutation field) to
+`infra/procedures/papyrus-procedure-runner.yaml`, add its `ApiId<Site>` output to `infra/monitoring/papyrus-monitoring.yaml`, and its `<Site>ApiId` parameter line to the runner entry in `infra/pipeline/stacks.json`. Merge; the release's change set modifies only the runner role.
+No image rebuild is needed for a grant. The first run of a procedure on a newly granted newsroom shows in `papyrus automations runs`; an AppSync "not authorized" error on a run means the grant is not live.
 
 ## Limits
 
 - **Time.** A run gets about 14 minutes. A procedure that needs longer needs a different runtime (ECS),
   which is not built.
 - **Access.** The runner's role may call every Query and Mutation of the newsroom APIs it is granted, because a
-  procedure's tools may call any of them. The deployed stack grants only Distinctive's today; the template also
+  procedure's tools may call any of them. The stack grants every site's API (see Deploying); the template also
   names Anth.us (`AnthUsApiId`), which takes effect when the change set below is executed. Grant a new publication
   by adding its API id to the template.
 - **Records.** Logs go to CloudWatch (`/aws/lambda/papyrus-procedure-runner`). The ProcedureRun keeps the

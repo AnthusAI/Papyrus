@@ -8,18 +8,28 @@ Description: >-
 Parameters:
   ImageUri:
     Type: String
-    Description: The runner image, by digest (printed by infra/procedures/build_image.sh).
+    Description: The runner image, by digest. The release builds it from this commit (infra/procedures/build_image.py) and passes it; nobody builds or pushes by hand.
   DistinctiveApiId:
     Type: String
-    Default: xcobakwl4jagvhdq54qc55flii
-    Description: AppSync API id of the Distinctive Mark backend, whose procedures this runner may run.
+    Description: AppSync API id of the Distinctive Mark backend, whose procedures this runner may run. The release reads it from the papyrus-monitoring stack's ApiIdDistinctive output.
   AnthUsApiId:
     Type: String
-    Default: 4qiunzl7drcedaz22rl4xu56ga
-    Description: >-
-      AppSync API id of the Anth.us backend (the same value as AnthUsApiId in papyrus-monitoring.yaml), whose procedures
-      this runner may run: the editor-review stage bot (docs/editor-agents.md). Check it against the live API before
-      creating the change set.
+    Description: AppSync API id of the Anth.us backend, whose procedures this runner may run. The release reads it from the papyrus-monitoring stack's ApiIdAnthUs output.
+  MachinesOnMachinesApiId:
+    Type: String
+    Description: AppSync API id of the Machines on Machines backend, whose procedures this runner may run. The release reads it from the papyrus-monitoring stack's ApiIdMachinesOnMachines output.
+  ThreatIntelApiId:
+    Type: String
+    Description: AppSync API id of the Threat Intelligence backend, whose procedures this runner may run. The release reads it from the papyrus-monitoring stack's ApiIdThreatIntel output.
+  DataParadeApiId:
+    Type: String
+    Description: AppSync API id of the Data Parade backend, whose procedures this runner may run. The release reads it from the papyrus-monitoring stack's ApiIdDataParade output.
+  PilobolusApiId:
+    Type: String
+    Description: AppSync API id of the Pilobolus backend, whose procedures this runner may run. The release reads it from the papyrus-monitoring stack's ApiIdPilobolus output.
+  ShippedApiId:
+    Type: String
+    Description: AppSync API id of the Shipped backend, whose procedures this runner may run. The release reads it from the papyrus-monitoring stack's ApiIdShipped output.
   MonitoringTableName:
     Type: String
     Description: The monitoring table, where the runner records each triggered run's outcome on its TRIGGER# row.
@@ -111,6 +121,16 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/*"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/*"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/*"
 
   RunnerFunction:
     Type: AWS::Lambda::Function

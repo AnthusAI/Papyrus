@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "53ccbfe8-db7a-4609-a5c8-3ed688378a65",
+  "issue_id": "PPY-a4540ddb-70de-427c-8837-1fd1b64a7b86",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-15T16:23:56.109Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A site's config redirects www to its apex production host with a 301",
+    "description": "Requested for Humorus (HUM board): https://www.thehallucinator.ai must answer 301 to https://thehallucinator.ai/ keeping path and query, from the site's own config, through the app-shell stack, no AWS ids in Git. Existing cards cover only the reader app's www (PPY-fe42eb, closed) and Anth.us's own cutover (PPY-a8cd76); nothing covers a CMS-hosted apex. PR: https://github.com/AnthusAI/Papyrus/pull/1560 (cms.wwwRedirect).\n\n```gherkin\nFeature: www redirects permanently to an apex production host\n\n  Scenario: An apex production host gets a www sub-domain and a 301 rule\n    Given a site config with cms.domainName \"example.test\", no cms.domainPrefix and cms.wwwRedirect true\n    When the app shell template is synthesized\n    Then the domain association has sub-domains \"\" and \"www\", both on the main branch\n    And the app has a custom rule from \"https://www.example.test\" to \"https://example.test\" with status 301\n\n  Scenario: Without the flag nothing changes\n    Given the same site config without cms.wwwRedirect\n    Then the template has only the apex sub-domain and no www rule\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+    "labels": []
+  }
+}

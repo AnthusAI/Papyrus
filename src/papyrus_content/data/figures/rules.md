@@ -133,6 +133,17 @@ Set type only with these classes. Each is a role in the mapping. Sizes scale wit
 - A figure carries no title, caption or credit inside it. These go in the `::image{}` line. The exception is a stamp.
 - No italics, no serif, no monospace, no vertical text.
 
+### Pictures that need no translation
+
+A Story may be translated into other languages. The translation's alt text and caption are translated; the picture is not unless someone makes a variant of it, so a reader of the Spanish page sees the picture's own words in English. That is acceptable, and often right, but a picture that reads the same in every language is better. Draw for that first:
+
+- **Prefer marks to words**: numbers, symbols, the shape library's glyphs and universal icons, position, size and order. Numerals and units are the same everywhere; a figure that is mostly marks needs no translation.
+- **Move the words out of the picture**: put what a label would say in the caption or the body (the caption can name the marks: "The hazard on the left; each safeguard is a numbered wall"). The caption and the alt text are translated with the Story.
+- **A text-free composition** (an illustration, a pattern, a shape arrangement) needs nothing from anyone.
+- **When words are unavoidable, keep them few and separable**: a word or two per label (the 25-character limit is a ceiling, not a target), one `<text>` per label, never a sentence, never text baked into a raster layer or drawn as paths. Leave room: the same label is often 30 to 40 percent longer in another language, so a shape that holds a label should have spare width, and a label that would need two lines in a longer language should have the room for them.
+- `papyrus figures render` says `embedded text` in a note when a figure holds words. The note is advice, not a problem; it never fails the figure.
+- **Localizing is optional**: a translation with no variant shows the original, complete with translated alt text and caption. Make a variant (`papyrus figures localize`) only when the words matter to the reader and the picture is worth the extra check; never hold a translation or a publish for it.
+
 ## 9. Density
 
 | Limit | Value |
@@ -200,6 +211,6 @@ An illustration is for a place or a moment, not an explanation. It shares its la
 2. `surrounding_text` holds the same information as the picture.
 3. The tool reports `ok` with no problems, in light and in dark. Read its notes.
 4. View both pictures, light and dark, at 343px wide. Can you read every word in each? Do they make sense with color removed?
-5. One focal mark or none.
+5. One focal mark or none. Could the words be marks, or move into the caption? If words stay, are they few, short and separate `<text>` lines (a variant for another language is then one command)?
 6. Forecast, or invented and could pass for data? Stamped. Invented but framed by the story, with no data on it? Labelled `framed`, and the story's note and caption say so.
 7. Save it. No person's approval is needed unless the site opted in to recording one.

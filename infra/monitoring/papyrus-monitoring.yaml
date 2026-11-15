@@ -3834,6 +3834,23 @@ Resources:
       Description: The monitoring table's name, so the newsroom Monitoring page (read-only) can find it without a deploy-time link between stacks.
 
 Outputs:
+  # The AppSync API ids the stack was given, for the stacks that deploy after it (papyrus-procedure-runner reads them; no id is written in Git).
+  ApiIdAnthUs:
+    Value: !Ref AnthUsApiId
+  ApiIdPapyrus:
+    Value: !Ref PapyrusApiId
+  ApiIdThreatIntel:
+    Value: !Ref ThreatIntelApiId
+  ApiIdDataParade:
+    Value: !Ref DataParadeApiId
+  ApiIdPilobolus:
+    Value: !Ref PilobolusApiId
+  ApiIdShipped:
+    Value: !Ref ShippedApiId
+  ApiIdDistinctive:
+    Value: !Ref DistinctiveApiId
+  ApiIdMachinesOnMachines:
+    Value: !Ref MachinesOnMachinesApiId
   TableName:
     Value: !Ref MonitoringTable
   FunctionName:

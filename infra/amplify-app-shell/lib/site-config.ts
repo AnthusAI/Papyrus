@@ -71,6 +71,11 @@ export type CmsConfig = {
   stagingDomainName?: string;
   stagingDomainPrefix?: string;
   redirects?: CmsRedirect[];
+  /**
+   * The production host is an apex domain (`domainName` with no `domainPrefix`): also serve `www.<domainName>` and redirect it
+   * permanently (301) to the apex, keeping path and query. Off unless set; a site under a shared root domain uses `redirects`.
+   */
+  wwwRedirect?: boolean;
   prospectusAccountsApiStageArn?: string;
   /**
    * The site is a public-reader site that polls Prospectus for retired reader subjects. The template then generates a
@@ -497,7 +502,7 @@ export function resolveBuildTimeoutMinutes(cms: Pick<CmsConfig, "buildTimeoutMin
 
 function parseCms(value: unknown, environment: Record<string, string | undefined>): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "buildTimeoutMinutes", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "buildTimeoutMinutes", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "wwwRedirect", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -520,6 +525,9 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
   const prospectusAccountsApiStageArn = prospectusFromEnvironment || cmsRecord.prospectusAccountsApiStageArn;
   if (cmsRecord.readerRetirementPoll === true && prospectusAccountsApiStageArn === undefined) {
     fail("cms.readerRetirementPoll", "requires cms.prospectusAccountsApiStageArn: the poll calls Prospectus as the site");
+  }
+  if (cmsRecord.wwwRedirect !== undefined && typeof cmsRecord.wwwRedirect !== "boolean") {
+    fail("cms.wwwRedirect", `must be a boolean, got ${JSON.stringify(cmsRecord.wwwRedirect)}`);
   }
   if (cmsRecord.cliRemoteLogin !== undefined && typeof cmsRecord.cliRemoteLogin !== "boolean") {
     fail("cms.cliRemoteLogin", `must be a boolean, got ${JSON.stringify(cmsRecord.cliRemoteLogin)}`);
@@ -553,6 +561,7 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     redirects: parseRedirects(cmsRecord.redirects),
+    wwwRedirect: cmsRecord.wwwRedirect as boolean | undefined,
     deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
     readerRetirementPoll: cmsRecord.readerRetirementPoll as boolean | undefined,
     cliRemoteLogin: cmsRecord.cliRemoteLogin as boolean | undefined,
@@ -614,6 +623,11 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
   }
   if (cms.domainPrefix && cms.stagingDomainPrefix === cms.domainPrefix) {
     fail("cms.stagingDomainPrefix", "must differ from cms.domainPrefix");
+  }
+
+  if (cms.wwwRedirect) {
+    if (!cms.domainName) fail("cms.wwwRedirect", "requires cms.domainName: it redirects www.<domainName> to the apex");
+    if (cms.domainPrefix) fail("cms.wwwRedirect", "is for an apex production host; with cms.domainPrefix (a shared root domain) use cms.redirects");
   }
 
   if (cms.redirects) {

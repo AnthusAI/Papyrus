@@ -570,6 +570,21 @@ papyrus figures directive ./search-nobody-sees
 - It needs `pip install playwright` and either `playwright install chromium` or Google Chrome. Without them the command says so and stops; nothing else in the CLI needs it.
 - `directive` prints the `::image{}` line for the Story from `figure.json`; put it in the body and save with `stories save-version --images ./pictures` (see "Save a version"). The checker cannot judge whether the figure makes sense: look at both pictures yourself. It prints no credit unless `figure.json` names a real `Source:`; `approved_by` is optional metadata.
 
+### Localize a figure for a translation (optional)
+**Lane:** both. Reads the Story and its translation; writes only the translation (`STORY--LANGUAGE`), and only with `--save` or `figures variant`. **Version:** the release after 5.117.0.
+
+A translation shows the original's picture with its alt text and caption translated, and that is complete. Prefer figures that need no translation (figure rules, section 8). When a figure holds words and a language variant is worth it:
+
+```sh
+papyrus figures localize ./figures/hazard --story STORY --language es-419 --out ./figures
+papyrus figures localize ./figures/hazard --story STORY --language es-419 --save --reason "Spanish labels"
+papyrus figures variant --story STORY --language es-419 --original assets/story/hazard.png --light hazard-es.png --dark hazard-es.dark.png --reason "Spanish labels"
+```
+
+- `localize` translates only the SVG's `<text>` content, the alt text and the caption (the Story's glossary, register notes and Humanus checks; findings are printed as `note:` lines and never block), renders light and dark with the usual figure checks, and prints the `figures variant` command for the pictures; `--save --reason` stores them as the translation's variant in one go (`--dry-run` previews). A figure with no text says so and does nothing.
+- `variant` is the manual path for any picture, rasters included: the files become the translation's picture in place of `--original` (the `src` on the original Story), with `--alt` and `--caption` when the words changed. Without `--dark`, a figure is refused where the site requires dark figures. The front matter records `imageVariants`, so a re-translation keeps it.
+- `papyrus.story.localize` reports `imagesWithText`, the source's figures or cover that hold words and have no variant in that language: advice for an editor, never a hold.
+
 ### Read and publish the site's design system
 **Lane:** both. `show` and `pull` read (`pull` writes only the local folder); `push` writes a new design system version unless `--dry-run`. **Version:** the release after 5.101.0.
 

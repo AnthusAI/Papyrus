@@ -450,7 +450,7 @@ def test_the_runner_role_reaches_exactly_the_newsrooms_it_is_granted():
     statements = {s["Sid"]: s for s in resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]}
     granted = statements["PublicationNewsrooms"]["Resource"]
     apis = {resource[1].split("apis/")[1].split("/")[0] for resource in granted}
-    assert apis == {"${DistinctiveApiId}", "${AnthUsApiId}"}
+    assert apis == {f"${{{site}ApiId}}" for site in ("Distinctive", "AnthUs", "MachinesOnMachines", "ThreatIntel", "DataParade", "Pilobolus", "Shipped")}   # every site (the release passes the ids)
     for api in apis:   # each newsroom: every Query and Mutation field, nothing else (no Subscription)
         kinds = sorted(resource[1].split("/types/")[1] for resource in granted if f"apis/{api}/" in resource[1])
         assert kinds == ["Mutation/fields/*", "Query/fields/*"]
