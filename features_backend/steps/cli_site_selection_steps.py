@@ -178,6 +178,18 @@ def open_client(context):
     world.client = _try(world, PapyrusGraphQLAuthoringClient)
 
 
+@when('the operator opens an authoring client after naming "{host}" with the leading site flag')
+def operator_opens_client_with_flag(context, host):
+    world = _world(context)
+    _consume_leading_flags(['--site', host, 'x', 'y'])
+    world.client = _try(world, PapyrusGraphQLAuthoringClient)
+
+
+@then('the site in use is "{host}"')
+def site_in_use(context, host):
+    assert site_selection.host_for() == host, site_selection.host_for()
+
+
 @when('the person opens an authoring client with the tenant option "{tenant}"')
 def open_client_with_tenant(context, tenant):
     world = _world(context)

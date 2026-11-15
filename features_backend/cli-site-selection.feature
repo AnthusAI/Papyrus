@@ -131,6 +131,14 @@ Feature: An editor picks a signed-in site and runs any newsroom command from any
     Then the client is scoped to the tenant "machines-on-machines"
     And the person set no tenant variable and passed no tenant option
 
+  Scenario: An operator on the IAM lane who names the site gets that site's tenant and host
+    Given the person is signed in to "a.anth.us" only
+    And "a.anth.us" publishes the tenant "machines-on-machines" in its site file
+    And the operator chose the IAM lane
+    When the operator opens an authoring client after naming "a.anth.us" with the leading site flag
+    Then the client is scoped to the tenant "machines-on-machines"
+    And the site in use is "a.anth.us"
+
   Scenario: A person who signed in before the site file existed does not have to sign in again
     Given the person is signed in to "a.anth.us" only
     And the CLI kept no site file for "a.anth.us"

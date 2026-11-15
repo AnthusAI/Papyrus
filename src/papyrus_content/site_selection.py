@@ -126,10 +126,12 @@ def accepts_outputs(outputs: dict) -> bool:
 
 
 def _owner(endpoint: str | None = None):
-    """The signed-in site that owns this endpoint (default: the one in use), or None; only on the signed-in lane."""
+    """The signed-in site that owns this endpoint (default: the one in use), or None. On the signed-in lane always; on the operator lane (`--auth iam`)
+    only when the operator named the site (`--site`, PAPYRUS_SITE): naming it is the choice of that site's identity (host, tenant, published values),
+    which is public information and no credential. An operator who named no site is never sent to one."""
     from .cli_user_auth import load_registry
     try:
-        if not user_auth_requested():
+        if not (user_auth_requested() or os.environ.get(SITE_VARIABLE, '').strip()):
             return None
         target = endpoint or env.graphql_endpoint()
         return next((config for config in load_registry() if config.graphql_endpoint == target), None)
