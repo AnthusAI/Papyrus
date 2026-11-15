@@ -25,11 +25,11 @@ Procedure {
     input = {
         story = field.string{required = true, description = "Primary Story lineage id"},
         language = field.string{required = true, description = "BCP 47 tag of the language to translate into (es-419, zh-Hans)"},
-        ceilingUsd = field.number{default = 0, description = "A cap on this run's model spend; 0 leaves it to the learned prediction band"},
-        sourceVersion = field.number{default = 0, description = "The source version this run is for; 0 is the published one"},
-        runKey = field.string{default = ""},
-        automationId = field.string{default = ""},
-        procedureKey = field.string{default = ""}
+        ceiling_usd = field.number{default = 0, description = "A cap on this run's model spend; 0 leaves it to the learned prediction band"},
+        source_version = field.number{default = 0, description = "The source version this run is for; 0 is the published one"},
+        run_key = field.string{default = ""},
+        automation_id = field.string{default = ""},
+        procedure_key = field.string{default = ""}
     },
     output = {
         story = field.string{required = true},
@@ -46,7 +46,7 @@ Procedure {
     },
     function(input)
         local localize = Tool.get("papyrus_localize_story")
-        local result = localize({story = input.story, language = input.language, ceiling_usd = input.ceilingUsd, source_version = input.sourceVersion, automation_id = input.automationId, procedure_key = input.procedureKey})
+        local result = localize({story = input.story, language = input.language, ceiling_usd = input.ceiling_usd, source_version = input.source_version, automation_id = input.automation_id, procedure_key = input.procedure_key})
         return {
             story = result.story,
             language = result.language,

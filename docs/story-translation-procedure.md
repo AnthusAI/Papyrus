@@ -2,7 +2,7 @@
 
 `papyrus.story.localize` (PPY-843a7c) translates one published Story into one language per run, checks it against the English, polishes it
 until the findings stop shrinking, and saves it as an unpublished version of the Story's localization. Nothing waits for a person and the run never
-publishes: a person publishes the result ([Publishing a translation](#publishing-a-translation)). Plan: [multilingual publishing](plans/multilingual-publishing.md). Design notes: the procedure stages, budgets and evaluation from the
+publishes: the result is published by a person, or by the site's own switches for it (`--publish-clean`, translate on publish) ([Publishing a translation](#publishing-a-translation)). Plan: [multilingual publishing](plans/multilingual-publishing.md). Design notes: the procedure stages, budgets and evaluation from the
 2026-11-13 design (sections 3.1 to 3.9), with Ryan's decisions of that day.
 
 ## The record model
@@ -61,7 +61,84 @@ papyrus stories localize --story LINEAGE --language es-419 --automation SITE.sto
   automation's `procedureKey`), give the cost prediction; a `--dry-run` with neither names no procedure and predicts from no history.
 
 A run with no request, or for an older source than the request names, stops before any model call. The run records its outcome on the request (`saved`,
-`held`, `waiting`, `failed`, `stopped`, `unchanged`). Next (M2, PPY-251157): the English publish writes the same request and a worker starts the run.
+`held`, `waiting`, `failed`, `stopped`, `unchanged`; `published` once the translation is live), unless the request has moved on to a newer source meanwhile: a run
+checks the request again before it saves, and a Story republished while it worked leaves the older run saving nothing (the newer request has its own run).
+The procedure's inputs are snake_case (`story`, `language`, `ceiling_usd`, `source_version`, `run_key`, `automation_id`, `procedure_key`): an automation's run
+accepts no other spelling ([automations](automations.md)), so register the procedure again after upgrading from a release that used camelCase.
+
+## Translating the whole site
+
+`papyrus stories localize --all` translates every published Story that has no up-to-date translation, in one language or all of them:
+
+```sh
+papyrus stories localize --all --language es-419 --dry-run                       # what remains, with the predicted cost; writes nothing
+papyrus --auth iam stories localize --all --language es-419 --publish-clean       # run them here, publish the clean ones
+papyrus --auth iam stories localize --all --all-languages [--concurrency 3] [--ceiling-usd 1] [--openai-key-parameter SSM_PARAMETER]
+papyrus stories localize --all --language es-419 --automation SITE.story-localize [--publish-clean]   # queue them for the site's runner
+```
+
+- **What remains** (`localize/backfill.py`) is found without a read per Story: one paged listing of the published summaries (each has its language, its
+  language group and the source text's hash) and one listing of the `LocalizationRequest` records. A Story written in the primary language (not a
+  translation, not marked do not localize) has an up-to-date translation in a language when the record there names this very text and its state is
+  `saved`, `held`, `unchanged` or `published`. A held translation counts: it waits for a person. A record for older text, a run that `failed`, `stopped` or
+  never started (a `started` record older than an automation's longest run), and a Story with no record are remaining work. Running the command again
+  does only that.
+- **In this process** (the default; needs `--auth iam`) each remaining Story is requested and run through the registered procedure exactly as
+  `papyrus stories localize --story` does, `--concurrency` at a time (default 3; each run mostly waits for the model). One line per Story and language:
+  `saved`, `held` (a person answers its review request), `failed` (its reason; the others go on), `up to date`, `published`, `not published`, with the run's
+  cost, and a totals row. The command exits non-zero when a run failed and says to run it again; a failed run continues from its finished stages. The
+  cost ceiling is the one of the single command (`--ceiling-usd`) and the learned band of the language (no fixed cap).
+- **`--publish-clean`** publishes through `publish_item`, the ordinary path, and builds the page: only translations whose run saved cleanly
+  (`metadata.localization.outcome` is `saved`), that are not already live at that text, in a language the site writes in, and only while the original is
+  still published at the very text they were translated from (`localize/publish.py`, one rule for this command and for translating on publish). A held
+  translation is never published by a machine; the site's approval gate and the public-language gate apply as to any publish. It also publishes
+  translations saved by an earlier run that nobody published.
+- **`--dry-run`** reads the procedure's measured runs once (the procedure of `--procedure`, `--automation`, or `SITE.story-localize`) and prints each remaining
+  Story's predicted cost from this language's median cost per source character; a language with no measured run has no prediction and the row says so.
+- **`--automation ID`** writes the records `wanted` with the automation and the publish choice and returns; the site's dispatcher (below) starts and
+  publishes them. Without the release's backend deployed nothing starts them: say so before queueing.
+
+## Translating on publish
+
+A site can translate every Story into every enabled language, and publish the clean results, when a Story is published or republished. It is off until the
+site's `languages` setting says so (`docs/multilingual-serving.md`):
+
+```sh
+papyrus editorial languages --auto on --auto-automation SITE.story-localize       # publish: true unless --auto-publish off
+papyrus editorial languages --auto-publish off                                    # save translations for a person to publish
+papyrus editorial languages --auto off                                            # the automation and the publish choice stay stored
+```
+
+`languages.auto` is `{"enabled": true, "automation": "SITE.story-localize", "publish": true}`. It needs the site's translation procedure registered and an
+Automation that runs it (`papyrus automations create --id SITE.story-localize --title "Translate a Story" --monitor MONITOR --publication PUBLICATION
+--procedure SITE.story-localize`, [automations](automations.md); the router publication supplies the endpoint and model key), exactly as `--automation` needs.
+
+The mechanism, once per change and without a table read per change:
+
+1. **The publish writes the desired state.** When a Story written in the primary language is published (the one funnel every publish path ends in:
+   `announce_published_story` in the content-actions function, after the page is live), `localize.auto.request_translations` writes one
+   `LocalizationRequest` per enabled language other than the primary: the newest published source version, `automationId`, `publish`, state `wanted`.
+   A record already naming the same text asks for nothing again (unless its run `failed` or `stopped`); a newer publish overwrites the record (coalescing). A
+   translation, a Story in another language and a Story marked do not localize request nothing. A failure to write is logged
+   (`papyrus_translation_request_failed`) and never fails the publish; `papyrus stories localize --all` writes what is missing.
+2. **The dispatcher reacts on the site's runner.** A DynamoDB stream on `LocalizationRequest` invokes the `localization-dispatch` function
+   (`amplify/functions/localization-dispatch`, deployed with the site's backend; not wired on a shared stack). It reads the waiting records through the
+   `localizationRequestsByState` index (state `wanted`, oldest first, never the table), claims each with a conditional write (`wanted` to `started`) so
+   overlapping batches never start one run twice, and starts it through the automation by the same code as Run now: the automation's `enabled`, timeout and
+   `maxConcurrent` apply and the router's publication supplies the model key. At the limit the rest stay `wanted` and the next run to end starts them; its own
+   put-back does not wake it. A record naming no automation is a person's in-process run and is left alone; one naming an automation that does not exist is
+   `failed` with that reason.
+3. **The run** is the registered procedure as ever (translate, check, polish, save, hold). Held translations raise their review request and wait for a
+   person; nothing here clears a hold.
+4. **Clean results publish.** When a record becomes `saved` and `publish` is set, the dispatcher has the content-actions function publish it (task
+   `publish-localization`) through `publish_item_action`, the console's publish: `localize.publish.publishable` allows it only while the language is
+   enabled, the original is still published at the text the request names, the run saved it cleanly and it is not live already. A refusal of the publish
+   itself (the site's approval gate) is written on the request's `reason` and is not retried. The language's `public` setting still decides whether the
+   published translation has a page.
+
+Each record answers "where does the Spanish translation of this Story stand" (`wanted`, `started`, `saved`, `held`, `failed`, `stopped`, `published`).
+After the release is deployed to a site: register the procedure again (its inputs are renamed), create the automation, then `--auto on`. Turning it on does not
+translate Stories already published: run `papyrus stories localize --all --publish-clean` once.
 
 ## Stages
 
@@ -91,7 +168,8 @@ their usage is reported to the runner (`model_usage`), so the run's cost counts 
 
 ## Publishing a translation
 
-A translation is published by a person, through the ordinary publish path, and nothing publishes automatically. A localization is a Story lineage of its
+A translation is published by a person, through the ordinary publish path, unless the site turned on [translating on publish](#translating-on-publish) or the
+operator runs `--publish-clean`: both publish only what a run saved cleanly. A localization is a Story lineage of its
 own, so the commands are the English Story's, with the version id of the translation:
 
 ```sh
@@ -146,7 +224,7 @@ The page of a translation says, in the page's language and apart from the Story'
   page's label to "translated by AI and reviewed by a person" (PPY-ef71cd, PPY-c0aebc). Until then every translated page says it was translated by AI.
 - JSON-LD `translator`: no decision yet on whom to name for a machine translation.
 - Quotations marked as translated, with the original wording one tap away (PPY-c0aebc).
-- The English publish writing the translation request and starting the run (M2, PPY-bc1a38); a person asks for each translation today.
+- Translating a Story again in the languages already published when only its text changed a little: every new text is a new request (a run translates only the changed blocks).
 - Listing keys with the language (`typeStatus`, `sectionStatus`, `headStageKey`), so the console, the reader app and the board show one language at a time
   (PPY-f33254). Until then a published translation appears in those lists beside its original.
 - A person's corrections as new versions that are published at once (the correction view); a held translation is cleared or rejected, not edited, today.

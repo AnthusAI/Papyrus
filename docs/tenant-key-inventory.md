@@ -17,8 +17,8 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Counts
 
-- 71 models, 218 indexes.
-- Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 69, global 94.
+- 71 models, 219 indexes.
+- Indexes by class: tenant-prefixed 40, corpus-prefixed 15, record-id 69, global 95.
 - Indexes that list a tenant once prefixed: 72; dense indexes: 101.
 - Models: 58 with an index that lists a tenant, 4 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 6 with no tenantId field.
 
@@ -49,7 +49,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `KnowledgeImportRun` | 3 | yes | `listKnowledgeImportRunsByCorpusAndImportedAt`, `listKnowledgeImportRunsByKindAndImportedAt` |
 | `KnowledgeRawPayload` | 3 | yes | `listKnowledgeRawPayloadsByTenant` |
 | `LexicalSteeringRule` | 4 | yes | `listLexicalSteeringRulesByScopeAndTerm`, `listLexicalSteeringRulesByStatusAndTerm` |
-| `LocalizationRequest` | 0 | no index, needs a tenantId index |  |
+| `LocalizationRequest` | 1 | no, needs a tenantId index |  |
 | `MediaAsset` | 2 | yes | `listMediaAssetsByRoleAndItem` |
 | `Message` | 12 | yes | `listMessagesByKindAndCreatedAt`, `listMessagesByDomainAndCreatedAt`, `listMessagesByStatusAndCreatedAt` |
 | `MessageThread` | 5 | yes | `listMessageThreadsByKindAndUpdatedAt`, `listMessageThreadsByStatusAndUpdatedAt` |
@@ -100,9 +100,9 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Models that need a tenantId index
 
-- `LocalizationRequest` (no index at all)
 - `SiteDocument` (no index at all)
 - `Item` (11 indexes, none lists a tenant)
+- `LocalizationRequest` (1 index, it does not list a tenant)
 - `SiteDocumentVersion` (1 index, it does not list a tenant)
 
 ## Partition fields
@@ -192,7 +192,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `sortOrder` | global | open | `NewsroomSection` |
 | `stage` | global | closed | `Item` |
 | `starFeedKey` | corpus-prefixed | open | `Reference` |
-| `state` | global | closed | `Proposal` |
+| `state` | global | closed | `LocalizationRequest`, `Proposal` |
 | `stateKey` | global | closed | `Tenant` |
 | `status` | global | closed | `Assignment`, `Category`, `CategorySet`, `Edition`, `LexicalSteeringRule`, `Message`, `MessageThread`, `ProcedureVersion`, `PublishedCategorySet`, `PublishedEdition`, `SemanticRelationType`, `SteeringProposal` |
 | `steeringDomain` | global | closed | `SteeringProposal` |
@@ -290,6 +290,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `LexicalSteeringRule` | `listLexicalSteeringRulesByStatusAndTerm` | `status` | `normalizedTerm` | global | closed | yes | yes |
 | `LexicalSteeringRule` | `listLexicalSteeringRulesByCorpusAndTerm` | `corpusId` | `normalizedTerm` | corpus-prefixed | parent | no | no |
 | `LexicalSteeringRule` | `listLexicalSteeringRulesBySetAndTerm` | `categorySetId` | `normalizedTerm` | record-id | open | no | no |
+| `LocalizationRequest` | `listLocalizationRequestsByStateAndRequestedAt` | `state` | `requestedAt` | global | closed | no | no |
 | `MediaAsset` | `listMediaAssetsByItemAndSortKey` | `itemId` | `sortKey` | record-id | open | yes | no |
 | `MediaAsset` | `listMediaAssetsByRoleAndItem` | `role` | `itemId` | global | closed | yes | yes |
 | `Message` | `listMessagesByKindAndCreatedAt` | `messageKind` | `createdAt` | global | closed | yes | yes |

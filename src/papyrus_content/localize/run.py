@@ -53,6 +53,12 @@ def localize_story(client, *, story: str, language: str, ceiling_usd: float | No
     except Exception as error:
         desired_state.record_outcome(client, wanted, state="failed", run_key=request.run_key, reason=f"{type(error).__name__}: {error}")
         raise
+    newer = desired_state.stale_reason(desired_state.current(client, request.source.lineage_id, request.language),
+                                       {"versionNumber": request.source.version_number})
+    if newer and not outcome.get("repeated"):   # the Story was republished while this run worked: the newer request has its own run, and this one saves nothing
+        return {"story": request.localization_lineage, "language": request.language, "version": "", "hold": False, "reason": newer, "outcome": "stopped",
+                "published": False, "rounds": outcome["rounds"], "revertedBlocks": outcome["revertedBlocks"], "costUsd": outcome["costUsd"],
+                "sourceCharacters": 0, "findings": outcome["findings"], "runKey": request.run_key}
     version = ""
     if outcome.get("repeated"):
         version = outcome.get("version", "")

@@ -12,7 +12,7 @@ Feature: A published Story is translated, checked and polished by one procedure
 
   A run starts only from the desired-state record for its Story and language (LocalizationRequest, `{languageGroupId}#{language}`), which
   names the newest published source version to translate. `papyrus stories localize` writes it and starts the site's translation automation;
-  the English publish will write the same record. A run for an older source than the record names stops without writing anything, and every
+  on a site that translates on publish the English publish writes the same record (story-localize-on-publish.feature), and `papyrus stories localize --all` writes it for every Story that lacks one (story-localize-all.feature). A run for an older source than the record names stops without writing anything, and every
   run records its outcome on the record.
 
   Background:
@@ -151,6 +151,13 @@ Feature: A published Story is translated, checked and polished by one procedure
     When a run started for version 3 runs
     Then the run stops saying a newer source is requested
     And no model is called for it
+
+  Scenario: A Story republished while a run works is not overwritten by the older run
+    Given the English Story is republished as version 4 while the version 3 run is translating
+    When the translation run for "es-419" runs
+    Then the run stops saying a newer source is requested
+    And no translation is saved
+    And the request "story-waymo#es-419" still names source version 4 and is wanted
 
   Scenario: A dry run prints the plan and writes nothing
     Given nobody asked for a translation

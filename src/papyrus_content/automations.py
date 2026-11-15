@@ -60,6 +60,10 @@ class AutomationError(ValueError):
     """A request the record rules refuse; the message is safe to show an editor."""
 
 
+class AutomationDeferred(AutomationError):
+    """The automation is at its limit of runs at a time: the start is not wrong, it has to wait for room (the router defers such a start and retries it)."""
+
+
 # --- the record -------------------------------------------------------------------------------------
 
 
@@ -634,7 +638,7 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
     gate = decide({"id": automation["id"], "enabled": True, "limits": limits_of({"limits": automation["limits"]})}, rows,
                   now=datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
     if gate.action != "start":
-        raise AutomationError(gate.reason or "the automation cannot start another run now.")
+        raise (AutomationDeferred if gate.action == "defer" else AutomationError)(gate.reason or "the automation cannot start another run now.")
     key = f"{MANUAL_PREFIX}{automation['id']}#{stamp}"
     pk = f"MONITOR#{config['monitorId']}"
     request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],

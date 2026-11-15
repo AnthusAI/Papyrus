@@ -4,10 +4,10 @@
     "models": 71,
     "globalModels": 3,
     "modelCases": 491,
-    "indexCases": 218,
+    "indexCases": 219,
     "subscriptionCases": 9,
     "operationCases": 134,
-    "functionCases": 64,
+    "functionCases": 66,
     "surfaceCases": 9
   },
   "cases": [
@@ -4532,6 +4532,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listLocalizationRequestsByStateAndRequestedAt",
+      "kind": "index",
+      "subject": "listLocalizationRequestsByStateAndRequestedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listLocalizationRequestsByStateAndRequestedAt on LocalizationRequest with state at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listMediaAssetsByItemAndSortKey",
       "kind": "index",
       "subject": "listMediaAssetsByItemAndSortKey",
@@ -7036,6 +7044,22 @@
       "expect": "refused before any read"
     },
     {
+      "id": "function:localization-dispatch",
+      "kind": "function",
+      "subject": "localization-dispatch",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/localization-dispatch (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:localization-dispatch:iam-without-tenant",
+      "kind": "function",
+      "subject": "localization-dispatch",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/localization-dispatch without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:manage-user-role",
       "kind": "function",
       "subject": "manage-user-role",
@@ -7722,6 +7746,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listLexicalSteeringRulesByStatusAndTerm",
       "note": "partition key status on LexicalSteeringRule is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listLocalizationRequestsByStateAndRequestedAt",
+      "note": "partition key state on LocalizationRequest is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",

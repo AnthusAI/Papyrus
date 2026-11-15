@@ -60,3 +60,30 @@ Feature: Which languages are public, and how each is served, are set in one plac
     When the console form describes the stored languages
     Then the console form is told the default prefix of "es-419" is "es" and its default slug policy is "translated"
     And the console form is told the default slug policy of "zh-Hans" is "characters"
+
+  Scenario: Translating on publish is off until it is turned on, and turning it on needs an automation
+    When the editor runs the languages command "papyrus editorial languages"
+    Then the listing says translating on publish is off
+    When the editor runs the languages command "papyrus editorial languages --auto on"
+    Then the command is refused saying to name the Automation that runs the translation procedure
+    And no setting is written
+
+  Scenario: Turning translate on publish on and off keeps the automation and the publish choice
+    When the editor runs the languages command "papyrus editorial languages --auto on --auto-automation mom.story-localize"
+    Then the stored auto setting is on, with the automation "mom.story-localize", publishing clean translations
+    And the listing says translating on publish is on with the automation "mom.story-localize"
+    When the editor runs the languages command "papyrus editorial languages --auto-publish off"
+    Then the stored auto setting is on, with the automation "mom.story-localize", saving translations for a person to publish
+    When the editor runs the languages command "papyrus editorial languages --auto off"
+    Then the stored auto setting is off, with the automation "mom.story-localize" kept
+
+  Scenario: Translating on publish needs a language to translate into
+    Given a site whose stored settings write in "en" with "en" as the primary and the house guidance "Plain words."
+    When the editor runs the languages command "papyrus editorial languages --auto on --auto-automation mom.story-localize"
+    Then the command is refused saying the site has no language to translate into
+
+  Scenario: An unknown key under auto is refused naming it
+    Given the stored auto setting has the key "everything"
+    When the editor runs the languages command "papyrus editorial languages"
+    Then the command is refused naming the key "everything"
+

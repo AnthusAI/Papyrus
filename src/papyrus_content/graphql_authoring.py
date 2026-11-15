@@ -129,7 +129,7 @@ REVIEW_REQUEST_FIELDS = (
 )
 REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
 LOCALIZATION_REQUEST_FIELDS = (
-    "id tenantId languageGroupId language sourceVersionId sourceVersionNumber sourceContentHash state requestedBy requestedAt runKey reason updatedAt"
+    "id tenantId languageGroupId language sourceVersionId sourceVersionNumber sourceContentHash state requestedBy requestedAt runKey reason automationId publish updatedAt"
 )
 STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
@@ -486,6 +486,7 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": MESSAGE_FIELDS,
     },
     "knowledgeCorporaByRoleAndName": {"field": "listKnowledgeCorporaByRoleAndName", "partitionKey": "role", "fields": KNOWLEDGE_CORPUS_FIELDS},
+    "localizationRequestsByState": {"field": "listLocalizationRequestsByStateAndRequestedAt", "partitionKey": "state", "fields": LOCALIZATION_REQUEST_FIELDS},
     "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
     "itemByTenantSlug": {"field": "itemByTenantSlug", "partitionKey": "tenantSlug", "fields": ITEM_FIELDS},
     "itemsByLineageAndVersion": {
