@@ -28,7 +28,8 @@ Procedure {
         ceilingUsd = field.number{default = 0, description = "A cap on this run's model spend; 0 leaves it to the learned prediction band"},
         sourceVersion = field.number{default = 0, description = "The source version this run is for; 0 is the published one"},
         runKey = field.string{default = ""},
-        automationId = field.string{default = ""}
+        automationId = field.string{default = ""},
+        procedureKey = field.string{default = ""}
     },
     output = {
         story = field.string{required = true},
@@ -45,7 +46,7 @@ Procedure {
     },
     function(input)
         local localize = Tool.get("papyrus_localize_story")
-        local result = localize({story = input.story, language = input.language, ceiling_usd = input.ceilingUsd, source_version = input.sourceVersion, automation_id = input.automationId})
+        local result = localize({story = input.story, language = input.language, ceiling_usd = input.ceilingUsd, source_version = input.sourceVersion, automation_id = input.automationId, procedure_key = input.procedureKey})
         return {
             story = result.story,
             language = result.language,

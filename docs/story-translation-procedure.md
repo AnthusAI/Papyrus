@@ -19,26 +19,42 @@ publishes: a person publishes the result ([Publishing a translation](#publishing
   policy pack and glossary versions, rounds, reverted blocks, findings by category and severity, cost by purpose and the prediction, outcome, the
   alignment (each block's source block, owner, pinned flag and text) and the checklist steps it proves.
 
-## Starting a run: one door
+## Setting a site up, and starting a run
 
-`LocalizationRequest` (id `{languageGroupId}#{language}`) is the desired-state record: the newest published source version to translate.
+A site needs three things before a run starts; none is an Automation, a monitor or a router publication.
+
+1. **The language is enabled**: `languages.enabled` of the editorial check settings names it (`es-419`); it stays out of `languages.public` until the owner decides.
+2. **The procedure is registered once**, under the key `SITE.story-localize` where SITE is the site's host (`newsroom.example.com.story-localize`). Register it again
+   after a release that changes `procedures/newsroom/story_localize.tac` (the procedure's input is checked against the registered version):
+
+   ```sh
+   papyrus --auth iam procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize --dry-run --json
+   papyrus --auth iam procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize
+   ```
+3. **The model key** is available to the run: `OPENAI_API_KEY` in the process that starts it, or the site's SSM parameter named with `--openai-key-parameter`
+   (read with the operator's AWS credentials and never printed).
+
+`LocalizationRequest` (id `{languageGroupId}#{language}`) is the desired-state record: the newest published source version to translate. One command writes it
+and starts the run:
 
 ```sh
-papyrus stories localize --story LINEAGE --language zh-Hans --dry-run            # the plan: blocks to translate, glossary terms, predicted cost
-papyrus stories localize --story LINEAGE --language zh-Hans --automation SITE.story-localize [--ceiling-usd 1]
-papyrus automations runs --id SITE.story-localize
+papyrus stories localize --story LINEAGE --language es-419 --dry-run             # the plan: blocks to translate, glossary terms, predicted cost
+papyrus --auth iam stories localize --story LINEAGE --language es-419 [--ceiling-usd 1] [--procedure KEY] [--openai-key-parameter SSM_PARAMETER]
+papyrus stories localize --story LINEAGE --language es-419 --automation SITE.story-localize   # the site's runner starts it instead
 ```
 
-The command writes the request and starts the site's automation for the procedure. A run with no request, or for an older source than the request
-names, stops before any model call. The run records its outcome on the request (`saved`, `held`, `waiting`, `failed`, `stopped`, `unchanged`).
-Next (M2, PPY-251157): the English publish writes the same request and a worker starts the run.
+- **Without `--automation`** (the way a person or an agent asks for one translation) the command runs the registered procedure in its own process through the
+  procedure runner's code (`procedure_runner.run_procedure_request`, `localize/start.py`): the procedure's published version is loaded from the site, a
+  ProcedureRun records its status, model usage, cost and output, and a child process executes it with every tool real, signed as the operator, so it needs
+  `--auth iam`. The command waits for the run and prints the run id, status, cost and the procedure's output. A failed run exits non-zero; the same command
+  again continues from its finished stages.
+- **With `--automation ID`** the site's runner starts the run, as it does any procedure of a monitor automation (`docs/automations.md`), and
+  `papyrus automations runs --id ID` follows it.
+- `--procedure KEY` names the registered procedure when it is not `SITE.story-localize`. The procedure's earlier ProcedureRuns, found through that key (or the
+  automation's `procedureKey`), give the cost prediction; a `--dry-run` with neither names no procedure and predicts from no history.
 
-Register the procedure on a site (once):
-
-```sh
-papyrus procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize --dry-run --json
-papyrus procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize
-```
+A run with no request, or for an older source than the request names, stops before any model call. The run records its outcome on the request (`saved`,
+`held`, `waiting`, `failed`, `stopped`, `unchanged`). Next (M2, PPY-251157): the English publish writes the same request and a worker starts the run.
 
 ## Stages
 
@@ -112,7 +128,7 @@ The page of a translation says, in the page's language and apart from the Story'
 ### The first live Spanish article, step by step
 
 1. The English Story is published (its own checklist and rating, as always).
-2. `papyrus stories localize --story LINEAGE --language es-419 --automation SITE.story-localize`; follow it with `papyrus automations runs`.
+2. `papyrus --auth iam stories localize --story LINEAGE --language es-419` (it waits for the run and prints the run's cost and outcome).
 3. A saved translation: look at it in the console (the review link of the version), then `papyrus ops content publish --id VERSION_ID`. A held one: read the
    reason on its review request, correct or accept it, answer the request, then publish.
 4. `papyrus stories set-slug` first if the drafted address is not the one to keep; it is fixed once published.

@@ -137,3 +137,18 @@ Feature: A published Story is translated, checked and polished by one procedure
     Then the predicted cost comes from that procedure's measured runs, found through the automation's procedure key
     And a plan with no automation named predicts from no history
     And an automation that does not exist is refused naming it
+
+  Scenario: A person starts one translation from the command line, with no automation
+    Given a site that registered the translation procedure under SITE.story-localize and has the language enabled
+    When an operator signed in with AWS credentials runs "papyrus stories localize" for a published Story and the language, naming no automation
+    Then the translation request is written first
+    And the procedure runner's own code loads the registered procedure, records a ProcedureRun with its usage, cost and output, and runs it in a child process signed as the operator
+    And the command waits and prints the run id, status, cost and the procedure's output
+    And no Automation, monitor or router publication is needed
+    And a failed run exits non-zero and the same command continues from the finished stages
+
+  Scenario: A run started from the command line refuses what it cannot do before it writes anything
+    When "papyrus stories localize" is run without an automation on the signed-in lane
+    Then it refuses, naming the operator lane
+    And when no model key is in the process and no key parameter is named it refuses, naming both ways to give one
+    And a procedure that is not registered is reported with the register command for its key

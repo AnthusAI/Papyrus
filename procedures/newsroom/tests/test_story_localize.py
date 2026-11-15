@@ -42,7 +42,7 @@ def run_procedure(inputs):
 def test_the_procedure_translates_through_its_tool_and_answers_with_the_contract():
     result, output, calls = run_procedure({"story": "story-a", "language": "zh-Hans", "ceilingUsd": 1})
     assert result.get("success"), result.get("error")
-    assert calls == [{"story": "story-a", "language": "zh-Hans", "ceiling_usd": 1, "source_version": None, "automation_id": None}]
+    assert calls == [{"story": "story-a", "language": "zh-Hans", "ceiling_usd": 1, "source_version": None, "automation_id": None, "procedure_key": None}]
     assert output["story"] == "story-a--zh-Hans" and output["hold"] is True and output["published"] is False and output["rounds"] == 2
     assert output["sourceCharacters"] == 5200 and output["costUsd"] == 0.004
 

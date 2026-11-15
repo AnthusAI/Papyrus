@@ -24,6 +24,7 @@ def procedure_version() -> str:
 
 
 def localize_story(client, *, story: str, language: str, ceiling_usd: float | None = None, source_version: int | None = None, automation_id: str | None = None,
+                   procedure_key: str | None = None,
                    models: Callable[[Spend], LocalizeModels] | None = None) -> dict[str, Any]:
     """Translate the published version of ``story`` into ``language`` and save it as an unpublished version of its localization.
 
@@ -36,7 +37,7 @@ def localize_story(client, *, story: str, language: str, ceiling_usd: float | No
     model = (models or (lambda s: ResponsesModels(s)))(spend)
     try:
         request = collect(client, story=story, language=language, judge=model.judge, procedure_version=procedure_version(), ceiling_usd=ceiling_usd,
-                          automation_id=automation_id)
+                          automation_id=automation_id, procedure_key=procedure_key)
     except NothingToDo as reason:
         return {"story": story, "language": language, "version": "", "hold": False, "reason": str(reason), "outcome": "stopped", "published": False,
                 "rounds": 0, "revertedBlocks": 0, "costUsd": 0.0, "sourceCharacters": 0, "findings": {}, "runKey": ""}
