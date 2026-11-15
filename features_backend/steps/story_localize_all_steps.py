@@ -25,6 +25,7 @@ from papyrus_content.localize.publish import publishable  # noqa: E402
 from papyrus_content.publishing import PublishResult  # noqa: E402
 
 AUTOMATION = "mom.story-localize"
+TENANT = "machines-on-machines"
 
 
 # --- the site ------------------------------------------------------------------------------------------------------------------
@@ -40,6 +41,7 @@ def _languages(context, tags, auto_setting=None):
 @given('a site written in "{primary}" that also writes in "{tag}"')
 def step_site(context, primary, tag):
     context.client = FakeAuthoringClient()
+    context.client.tenant_id = TENANT   # a tenant backend: stored language groups carry the tenant prefix
     context.runs, context.publish_calls, context.invoked = [], [], []
     context.stories = {}
     _languages(context, [tag])
@@ -48,6 +50,7 @@ def step_site(context, primary, tag):
 @given('a site written in "{primary}" with the further languages "{first}" and "{second}"')
 def step_site_two(context, primary, first, second):
     context.client = FakeAuthoringClient()
+    context.client.tenant_id = TENANT   # a tenant backend: stored language groups carry the tenant prefix
     context.runs, context.publish_calls, context.invoked = [], [], []
     context.stories = {}
     _languages(context, [first, second])
@@ -58,13 +61,18 @@ def step_also(context, tag):
     context.settings["languages"]["enabled"].append(tag)
 
 
+def _stored_group(story: str) -> str:
+    """A stored languageGroupId on a tenant backend (Item and PublishedItem rows): tenant-prefixed. LocalizationRequest rows keep the bare lineage."""
+    return f"{TENANT}#{story}"
+
+
 def _hash(story: str, text: int) -> str:
     return f"hash-{story}-{text}"
 
 
 def _publish_story(context, story: str, text: int = 1, *, language="en", do_not_localize=False) -> dict:
     """The Story's published version ``text`` as the CMS keeps it: the Item version, the PublishedItem row that names it."""
-    group = story.split("--")[0]
+    group = _stored_group(story.split("--")[0])
     metadata = {"doNotLocalize": True} if do_not_localize else {}
     item = {"id": f"{story}-v{text}", "lineageId": story, "versionNumber": text, "versionState": "current", "type": "article", "status": "published",
             "stage": "published", "slug": story, "section": "machines", "title": f"Title of {story}", "bodyMarkus": f"Body {text}\n", "contentHash": _hash(story, text),
@@ -114,13 +122,13 @@ def _translation(context, story, language, outcome, *, text=None, published=Fals
     text = text or _current_text(context, story)
     lineage = f"{story}--{language}"
     version = {"id": f"{lineage}-v1", "lineageId": lineage, "versionNumber": 1, "versionState": "current", "type": "article", "status": "draft", "language": language,
-               "languageGroupId": story, "sourceLineageId": story, "sourceVersionNumber": text, "sourceContentHash": _hash(story, text),
+               "languageGroupId": _stored_group(story), "sourceLineageId": story, "sourceVersionNumber": text, "sourceContentHash": _hash(story, text),
                "contentHash": f"hash-{lineage}", "metadata": json.dumps({"localization": {"outcome": outcome, "runKey": "run-key", "translation": "machine"}})}
     context.client.tables.setdefault("Item", {})[version["id"]] = version
     if published:
         context.client.tables.setdefault("PublishedItem", {})[f"published-{lineage}"] = {
             "id": f"published-{lineage}", "sourceItemId": version["id"], "itemLineageId": lineage, "status": "published", "language": language,
-            "languageGroupId": story, "metadata": json.dumps({"sourceContentHash": version["contentHash"]})}
+            "languageGroupId": _stored_group(story), "metadata": json.dumps({"sourceContentHash": version["contentHash"]})}
     return version
 
 
@@ -130,7 +138,7 @@ def step_saved_translation(context, story):
     _translation(context, story, "es-419", "saved")
     context.client.tables["PublishedItem"][f"published-{story}--es-419"] = {   # a translation that is live is among the published summaries too
         "id": f"published-{story}--es-419", "sourceItemId": f"{story}--es-419-v1", "itemLineageId": f"{story}--es-419", "status": "published", "type": "article",
-        "language": "es-419", "languageGroupId": story, "metadata": json.dumps({"sourceContentHash": f"hash-{story}--es-419"})}
+        "language": "es-419", "languageGroupId": _stored_group(story), "metadata": json.dumps({"sourceContentHash": f"hash-{story}--es-419"})}
     context.client.tables["PublishedItem"].pop(f"published-{story}--es-419")   # saved but not live: the command may publish it
 
 
@@ -228,6 +236,18 @@ def step_listings_once(context):
     assert [call[1] for call in listings] == ["PublishedItemSummary"], listings
     indexes = [call for call in context.client.calls if call[0] == "list_by_index"]
     assert {call[1] for call in indexes} == {"localizationRequestsByState"} and len(indexes) == len(desired_state.STATES), indexes
+
+
+@given("the stored language group of every published row is the tenant prefix and the Story's lineage")
+def step_prefixed_groups(context):
+    assert context.client.tenant_id == TENANT
+    for row in context.client.tables["PublishedItem"].values():
+        assert row["languageGroupId"].startswith(f"{TENANT}#"), row
+
+
+@then('"{story}" is listed exactly once')
+def step_listed_once(context, story):
+    assert len([job for job in context.jobs if job.story == story and job.language == "es-419"]) == 1, context.jobs
 
 
 @then('"{story}" is to do in "{first}" and in "{second}"')
