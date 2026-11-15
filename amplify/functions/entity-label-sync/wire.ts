@@ -1,7 +1,4 @@
 import { Duration } from "aws-cdk-lib";
-import { execSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Architecture, CfnEventSourceMapping, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
@@ -16,18 +13,6 @@ import { connectToSiteApi } from "../../site-api-access";
  * What it may do, and nothing else: read and write EntityLabel rows, read the label's concept and set its `language`, and read the editorial settings (the
  * primary language) through its own site's API. A shared stack is not wired: its rows carry a tenant this function does not act for.
  */
-const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = path.resolve(functionDirectory, "../../..");
-/** The consumer reads the site's primary language, which checks the tag against Humanus's language packs, so it bundles Humanus (the same pin as the content-actions function). */
-export const ENTITY_LABEL_SYNC_REQUIREMENTS = ["humanus>=0.39.0,<0.40"];
-
-function installCheckoutRequirements(outputDir: string): void {
-  execSync(
-    `python3 -m pip install -r "${path.join(functionDirectory, "requirements.txt")}" -t "${outputDir}" --no-cache-dir --platform manylinux2014_aarch64 --implementation cp --python-version 3.12 --only-binary=:all: --ignore-requires-python`,
-    { cwd: projectRoot, stdio: "inherit" },
-  );
-}
-
 export const ENTITY_LABEL_SYNC_API_FIELDS = [
   "Query/fields/listEntityLabelsByConceptAndSortKey",
   "Query/fields/getEditorialCheckSettings",
@@ -68,7 +53,7 @@ export function wireEntityLabelSync(backend: any): LambdaFunction | undefined {
     timeout: Duration.seconds(60),
     memorySize: 256,
     code: pythonLambdaCode(
-      { functionDir: "entity-label-sync", modules: ["papyrus_content"], requirements: ENTITY_LABEL_SYNC_REQUIREMENTS, noDeps: true, checkoutExtras: installCheckoutRequirements },
+      { functionDir: "entity-label-sync", modules: ["papyrus_content"], noDeps: true },
       [
         "bash",
         "-c",
@@ -77,7 +62,6 @@ export function wireEntityLabelSync(backend: any): LambdaFunction | undefined {
           "mkdir -p /asset-output/papyrus_content",
           "cp amplify/functions/entity-label-sync/handler.py /asset-output/handler.py",
           "cp -R src/papyrus_content/. /asset-output/papyrus_content/",
-          "python3 -m pip install -r amplify/functions/entity-label-sync/requirements.txt -t /asset-output --no-cache-dir",
         ].join(" && "),
       ],
     ),
