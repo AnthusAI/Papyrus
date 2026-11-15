@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  The ECR repository of the procedure runner image (papyrus-procedure-runner.yaml). It existed before the pipeline did; the first release imports it into this
+  stack and the stack keeps it (it is never deleted with the stack). Tags are immutable; the release pushes one tag per set of the image's inputs
+  (infra/procedures/build_image.py).
+
+Resources:
+  RunnerRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: papyrus-procedure-runner
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+Outputs:
+  RepositoryName:
+    Value: !Ref RunnerRepository

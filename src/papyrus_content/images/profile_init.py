@@ -41,6 +41,7 @@ def draft_document(brand: dict | None) -> tuple[dict, list[str]]:
     notes = ["Write identity.summary and identity.masterPrompt: how this publication's pictures should look, in your own words.",
              "Write guidance for each image type, and list what each should avoid.",
              "Add example pictures to each image type (Administration > Policies > Visual style), good ones and ones to avoid.",
+             "Prefer pictures that need no translation (shapes, symbols and numbers; words moved into the caption). A translation shows the original's picture with its alt text and caption translated, and a picture with words in it reads in the original language only; a language variant of a figure is optional (papyrus figures localize).",
              "Choose imageReview: before_publish (the default) or after_the_fact.",
              "These image types are a starting set: rename their labels, add or retire types as the publication needs. A type's key cannot be changed once it is saved."]
     if not palette:

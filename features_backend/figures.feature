@@ -43,6 +43,26 @@ Feature: Figures are drawn once, rendered in light and dark, and checked the sam
     And the printed text contains "plain: ok"
     And the printed text contains "note: this design system names a generic font and embeds none"
 
+  Scenario: A figure that holds words is told so, as advice, and its record says so
+    Given a Chromium is available to render with
+    And a figure folder "plain" holding a clean one-tile figure
+    When an agent runs the figures command "papyrus figures render plain --neutral-default --out pictures" in the working folder
+    Then the command succeeded
+    And the printed text contains "plain: ok"
+    And the printed text contains "note: embedded text: the picture holds 1 piece of text"
+    And "plain.figure.json" records that the figure holds 1 piece of text
+
+  Scenario: The rules and the skill steer authors to pictures that need no translation and say that localizing is optional
+    When an agent runs "papyrus figures rules --packaged"
+    Then the printed text contains "Pictures that need no translation"
+    And the printed text contains "Prefer marks to words"
+    And the printed text contains "Localizing is optional"
+    And the printed text contains "never hold a translation or a publish for it"
+
+  Scenario: The figures skill tells authors to prefer pictures that need no translation
+    Given the figures skill in ".agents/skills/figures/SKILL.md"
+    Then the skill tells authors to prefer a figure that needs no translation and that localizing is optional
+
   Scenario: One source always produces a light picture and a dark picture
     Given a Chromium is available to render with
     And a figure folder "plain" holding a clean one-tile figure

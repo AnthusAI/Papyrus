@@ -379,6 +379,15 @@ class AwsCli:
     def zone_name_servers(self, zone_id: str) -> list[str]:
         return self._aws("route53", "get-hosted-zone", "--id", zone_id)["DelegationSet"]["NameServers"]
 
+    def ecr_repository(self, name: str) -> dict | None:
+        """The ECR repository called `name`, or None when there is none (read-only)."""
+        try:
+            return self._aws("ecr", "describe-repositories", "--repository-names", name)["repositories"][0]
+        except AwsError as error:
+            if "RepositoryNotFoundException" in str(error):
+                return None
+            raise
+
     def budget(self, name: str) -> dict | None:
         """The budget called `name` in this account, or None when there is none (read-only)."""
         try:
@@ -452,7 +461,8 @@ def build_keys(ctx: Context, cfg: dict, bucket: str) -> dict[str, str]:
     """Run build.py for each configured zip (it asserts the account and uploads by content hash) and read back the printed key."""
     keys = {}
     for build in cfg.get("builds", []):
-        done = ctx.runner([sys.executable, str(ctx.root / build["script"]), *build.get("args", []), "--upload", bucket], capture_output=True, text=True, cwd=ctx.root)
+        upload = [] if build.get("kind") == "image" else ["--upload", bucket]   # an image build pushes to ECR itself and prints the image URI as its key
+        done = ctx.runner([sys.executable, str(ctx.root / build["script"]), *build.get("args", []), *upload], capture_output=True, text=True, cwd=ctx.root)
         if done.returncode != 0:
             raise Failed(f"build for {build['parameter']} failed: {(done.stderr or done.stdout).strip()[-1500:]}")
         found = [line.split(None, 1)[1] for line in done.stdout.splitlines() if line.startswith("CodeKey ")]
@@ -572,6 +582,8 @@ def find_import(ctx: Context, imp: dict) -> str | None:
         if len(zones) > 1:
             raise Stop(f"expected at most one public hosted zone for {lookup['name']}, found {len(zones)}")
         return zones[0]["Id"].removeprefix("/hostedzone/") if zones else None
+    if kind == "ecrRepositoryByName":
+        return lookup["name"] if ctx.cloud.ecr_repository(lookup["name"]) else None
     if kind == "budgetByName":
         return lookup["name"] if ctx.cloud.budget(lookup["name"]) else None
     raise Stop(f"unknown import lookup kind {kind}")

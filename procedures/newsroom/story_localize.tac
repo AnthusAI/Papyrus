@@ -42,7 +42,8 @@ Procedure {
         rounds = field.number{required = true},
         revertedBlocks = field.number{required = true},
         costUsd = field.number{required = true},
-        sourceCharacters = field.number{required = true}
+        sourceCharacters = field.number{required = true},
+        imagesWithText = field.number{required = true, description = "Figures or the cover that hold words and have no variant in this language yet; advice only, localizing a picture is optional"}
     },
     function(input)
         local localize = Tool.get("papyrus_localize_story")
@@ -58,7 +59,8 @@ Procedure {
             rounds = result.rounds,
             revertedBlocks = result.revertedBlocks,
             costUsd = result.costUsd,
-            sourceCharacters = result.sourceCharacters
+            sourceCharacters = result.sourceCharacters,
+            imagesWithText = result.imagesWithText
         }
     end
 }

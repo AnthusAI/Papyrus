@@ -19,6 +19,7 @@ from typing import Any, Iterator
 
 from .checks import PRIMITIVES_MARKER, RENDERED_CHECK_SCRIPT, picture_problems, rendered_problems, source_problems
 from .design_system import THEME_IDS, DesignSystem
+from .text import text_segments
 
 SIDECAR_SUFFIX = ".figure.json"
 
@@ -118,6 +119,12 @@ def render_figure(browser: Any, folder: Path, design_system: DesignSystem, out_d
         return result
     if not design_system.embeds_fonts:
         result.warnings.append("this design system names a generic font and embeds none, so the pictures use this machine's own font")
+    labels = text_segments(figure_source)
+    if labels and not metadata.get("localizedFrom"):
+        result.warnings.append(
+            f"embedded text: the picture holds {len(labels)} piece{'s' if len(labels) != 1 else ''} of text, which a reader of a translation sees in this language "
+            "(the alt text and caption are translated, the picture is not). Prefer numbers, symbols and icons, or move the words into the caption or the body; "
+            "keep what must stay short, as separate <text> lines. Localizing it later is optional: `papyrus figures localize`.")
     out_dir = out_dir or folder
     view_box = [float(value) for value in re.search(r'viewBox="([^"]+)"', figure_source).group(1).split()]
     canvas_width, canvas_height = int(view_box[2]), view_box[3]
@@ -140,6 +147,7 @@ def render_figure(browser: Any, folder: Path, design_system: DesignSystem, out_d
         result.problems += picture_problems(out_dir / names["light"], out_dir / names["dark"])
         if result.ok:
             sidecar = out_dir / f"{slug}{SIDECAR_SUFFIX}"
-            sidecar.write_text(json.dumps({**metadata, "themes": list(THEME_IDS), "design_system": design_system.name}, indent=2) + "\n", encoding="utf-8")
+            sidecar.write_text(json.dumps({**metadata, "themes": list(THEME_IDS), "design_system": design_system.name,
+                                                                "embeddedText": bool(labels), "textLabels": len(labels)}, indent=2) + "\n", encoding="utf-8")
             result.files.append(str(sidecar))
     return result

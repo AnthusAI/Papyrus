@@ -354,10 +354,10 @@ def test_a_first_create_keeps_waiting_after_its_change_set_disappears(tmp_path):
 def test_a_docs_only_release_deploys_nothing_and_a_code_change_deploys_the_monitoring_stack():
     config = json.loads((PIPELINE / "stacks.json").read_text())
     assert sd.changed_stacks(config, ["docs/operator-alerts.md", "AGENTS.md", "project/issues/x.json", "docs/hosting/x.md"]) == []
-    assert sd.changed_stacks(config, ["src/papyrus_content/monitoring_router.py"]) == ["papyrus-monitoring"]
+    assert sd.changed_stacks(config, ["src/papyrus_content/monitoring_router.py"]) == ["papyrus-monitoring", "papyrus-procedure-runner"]   # the runner image holds the same code
     assert sd.changed_stacks(config, ["infra/newsletter/papyrus-newsletter-sending.yaml"]) == ["papyrus-newsletter-sending-operators"]
     assert sd.changed_stacks(config, ["infra/pipeline/allowed-changes.json"]) == [
-        "papyrus-newsletter-sending-operators", "papyrus-monitoring", "papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
+        "papyrus-newsletter-sending-operators", "papyrus-monitoring", "papyrus-procedure-runner-repository", "papyrus-procedure-runner", "papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
     assert sd.changed_stacks(config, ["infra/shared-stack/papyrus-shared-foundation.yaml"]) == ["papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
 
 
@@ -514,7 +514,8 @@ def test_the_service_role_covers_the_service_of_every_resource_type_the_stacks_c
             granted |= {a.split(":")[0] for a in actions}
     # The shared-tier stacks are created by their own service role, whose rights are the inline policy of SharedCloudFormationRole.
     shared_granted = set()
-    for statement in pipeline["Resources"]["SharedCloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]:
+    held = sd.parse_template((PIPELINE / "papyrus-shared-pipeline-roles.yaml").read_text())   # held until the shared tier's go
+    for statement in held["Resources"]["SharedCloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]:
         actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
         shared_granted |= {a.split(":")[0] for a in actions}
     for stack in json.loads((PIPELINE / "stacks.json").read_text())["stacks"]:
@@ -1155,6 +1156,7 @@ def test_the_size_check_catches_a_policy_over_the_limit_and_counts_a_substitutio
 # handlers' permissions), limited to the ones the templates' properties can reach, so a type that gains a handler permission is a pull-request failure.
 
 HANDLER_ACTIONS = {
+    "AWS::ECR::Repository": ["ecr:DescribeRepositories", "ecr:ListTagsForResource", "ecr:TagResource", "ecr:UntagResource", "ecr:PutImageScanningConfiguration", "ecr:PutImageTagMutability"],
     "AWS::Lambda::Function": ["lambda:CreateFunction", "lambda:GetFunction", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration", "lambda:DeleteFunction", "lambda:TagResource", "lambda:UntagResource", "lambda:PutFunctionConcurrency", "lambda:DeleteFunctionConcurrency"],
     "AWS::Lambda::Permission": ["lambda:AddPermission", "lambda:RemovePermission", "lambda:GetPolicy"],
     "AWS::Lambda::EventInvokeConfig": ["lambda:PutFunctionEventInvokeConfig", "lambda:UpdateFunctionEventInvokeConfig", "lambda:DeleteFunctionEventInvokeConfig", "lambda:GetFunctionEventInvokeConfig"],
