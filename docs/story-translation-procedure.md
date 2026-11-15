@@ -21,7 +21,7 @@ publishes: a person publishes the result ([Publishing a translation](#publishing
 
 ## Setting a site up, and starting a run
 
-A site needs three things before a run starts; none is an Automation, a monitor or a router publication.
+A site needs four things before a run starts; none is an Automation, a monitor or a router publication.
 
 1. **The language is enabled**: `languages.enabled` of the editorial check settings names it (`es-419`); it stays out of `languages.public` until the owner decides.
 2. **The procedure is registered once**, under the key `SITE.story-localize` where SITE is the site's host (`newsroom.example.com.story-localize`). Register it again
@@ -31,7 +31,14 @@ A site needs three things before a run starts; none is an Automation, a monitor 
    papyrus --auth iam procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize --dry-run --json
    papyrus --auth iam procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize
    ```
-3. **The model key** is available to the run: `OPENAI_API_KEY` in the process that starts it, or the site's SSM parameter named with `--openai-key-parameter`
+3. **The language's guidelines are saved** (by an admin, once; a translation reads only what the site saved, and a site with none translates with no glossary and no register note):
+   - the starter glossary overlay, `src/papyrus_content/data/glossary/<language>.json` (for `es-419`: `AI` is `IA`, `computer` is `computadora`, Paris is París, and so on). The translator is
+     told the entries that occur in each block and the faithfulness check verifies them:
+     `papyrus guidelines save --kind glossary --language es-419 --file src/papyrus_content/data/glossary/es-419.json --reason "Starter glossary" --expected-current-version-id none`;
+   - the language's register in a `writing` overlay (`--kind writing --language es-419`, field `tone`): which form of address the reader gets. Humanus's `word-choice-es-419` pack sets
+     none (it only lists words that differ from Spain's), so the site decides; an unsaved overlay leaves the model free to pick tú or usted, call to call. Machines on Machines uses
+     usted ("Lea la fuente"), the neutral form of the Latin American press.
+4. **The model key** is available to the run: `OPENAI_API_KEY` in the process that starts it, or the site's SSM parameter named with `--openai-key-parameter`
    (read with the operator's AWS credentials and never printed).
 
 `LocalizationRequest` (id `{languageGroupId}#{language}`) is the desired-state record: the newest published source version to translate. One command writes it
