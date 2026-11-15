@@ -782,8 +782,10 @@ export type ImageApplyInput = {
   use: "cover" | "inline" | "social";
   /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
   imageType?: string;
-  /** Alt text; the picture's own draft when left out. */
-  alt?: string;
+  /** Alt text written by someone who has seen the picture. Required: it describes what the picture shows, and is refused when empty or when it equals or contains the generation brief. */
+  alt: string;
+  /** A person says they looked at the picture. Only a person may; an agent is refused. Without it the picture stays unreviewed and a review request is opened. */
+  reviewed?: boolean;
   caption?: string;
   /** The Story's current version id when you read it. The write is refused with stale_version if the Story has moved on. */
   expectedCurrentVersionId: string;

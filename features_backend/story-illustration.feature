@@ -12,6 +12,9 @@ Feature: Illustration is a checklist step and a publish gate
   applicable, with a reason. Which Story types need a cover is a site setting, and articles do by default. A Story published
   before the step existed is not marked as failing, but a revision of it cannot publish until the step is closed.
 
+  The picture's alt text must describe the picture. A generation brief is an instruction to the image model, so alt text that is empty,
+  equal to the brief or containing it never closes the step, and "papyrus images apply" requires an alt written by someone who has seen the picture.
+
   Scenario: Illustration is on the checklist and counts in the progress
     Given a Story at the "reporting" stage
     And the Story's checklist exists
@@ -45,6 +48,31 @@ Feature: Illustration is a checklist step and a publish gate
     When the checklist is brought up to date after a change
     Then the checklist item "illustration" is "done"
     And the checklist item "illustration" has evidence naming "approved by Sierra"
+
+  Scenario: A generated cover whose alt text is the generation brief does not close the step
+    Given a Story at the "copywriting" stage
+    And the Story's checklist exists
+    And the Story has a generated cover whose alt text is the generation brief "A locked filing cabinet. No devils, horns, flames or pitchforks."
+    When the checklist is brought up to date after a change
+    Then the checklist item "illustration" is "open"
+    When I run "stories step" with "--story story-1 --step illustration --state done --note 'It looks fine'"
+    Then the procedure command was refused saying "copied from the generation brief"
+
+  Scenario: A cover with no alt text does not close the step
+    Given a Story at the "copywriting" stage
+    And the Story's checklist exists
+    And the Story has a generated cover with no alt text made from the brief "A locked filing cabinet"
+    When the checklist is brought up to date after a change
+    Then the checklist item "illustration" is "open"
+    When I run "stories step" with "--story story-1 --step illustration --state done --note 'It looks fine'"
+    Then the procedure command was refused saying "has no alt text"
+
+  Scenario: A cover described by someone who saw it closes the step
+    Given a Story at the "copywriting" stage
+    And the Story's checklist exists
+    And the Story has a generated cover described as "A steel cabinet with a padlock in a bare grey room." made from the brief "A locked filing cabinet"
+    When the checklist is brought up to date after a change
+    Then the checklist item "illustration" is "done"
 
   Scenario: A cover with no approval of any kind closes the step and publishes by default
     Given a Story at the "copywriting" stage

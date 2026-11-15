@@ -2,7 +2,7 @@
 
 import pytest
 
-from papyrus_content.story_illustration import DONE, NOT_APPLICABLE, NOT_DONE, UNKNOWN, cover_evidence, normalize_path
+from papyrus_content.story_illustration import alt_problem, DONE, NOT_APPLICABLE, NOT_DONE, UNKNOWN, cover_evidence, normalize_path
 
 POLICY = {"requiredTypes": ["article"], "requireDark": False, "unreadable": False}
 
@@ -78,3 +78,33 @@ def test_only_the_listed_types_and_stories_with_no_type_need_a_cover():
     assert cover_evidence(inputs(item_type="post", requiredTypes=["post"]))[0] == NOT_DONE
     assert cover_evidence(inputs(item_type="untyped"))[0] == NOT_DONE
     assert cover_evidence(None)[0] == UNKNOWN
+
+
+BRIEF = "A locked filing cabinet. No devils, horns, flames or pitchforks."
+
+
+def with_media_alt(alt, brief=BRIEF, body=BARE_BODY):
+    return {**inputs(GENERATED, body), "mediaAlts": {"assets/a/cover.png": {"alt": alt, "brief": brief}}}
+
+
+def test_alt_text_copied_from_the_brief_is_not_a_description_of_the_picture():
+    assert alt_problem("", BRIEF) and alt_problem("  ", BRIEF)
+    assert alt_problem(BRIEF.upper(), BRIEF)
+    assert alt_problem(f"Cover. {BRIEF} Wide.", BRIEF)
+    assert alt_problem("A steel cabinet with a padlock in a grey room.", BRIEF) == ""
+
+
+def test_a_cover_whose_directive_alt_is_the_brief_is_not_done():
+    body = f'::image{{src="assets/a/cover.png" alt="{BRIEF}"}}'
+    state, text = cover_evidence(with_media_alt("A steel cabinet.", body=body))
+    assert state == NOT_DONE and "copied from the generation brief" in text
+
+
+def test_a_cover_whose_media_record_alt_is_the_brief_or_empty_is_not_done():
+    assert cover_evidence(with_media_alt(BRIEF))[0] == NOT_DONE
+    assert cover_evidence(with_media_alt(""))[0] == NOT_DONE
+    assert cover_evidence(with_media_alt("A steel cabinet."))[0] == DONE
+
+
+def test_a_directive_with_an_empty_alt_is_not_done():
+    assert cover_evidence(inputs({"image": "/assets/a/cover.png"}, '::image{src="assets/a/cover.png" alt=""}'))[0] == NOT_DONE

@@ -53,7 +53,7 @@ Feature: Rounds and pictures are kept in the backend as catalog rows and private
     And the site keeps rounds in the backend
     And a fake image provider
     When a person generates a "cover" picture of type "cover-illustration" for the Story "story-1" with the brief "A locked filing cabinet"
-    And a person applies candidate 1 to the Story "story-1" as the cover
+    And a person who looked at it applies candidate 1 to the Story "story-1" as the cover
     Then the apply succeeds as "human-verified"
     And the picture was copied to the site's media under "media/assets/story-1/"
     And the Story's new version is a draft that starts with the picture and has the cover set

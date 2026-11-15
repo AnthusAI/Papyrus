@@ -68,6 +68,7 @@ def inputs_for_item(client, item: dict[str, Any], metadata: dict[str, Any], poli
         front_matter = {}
     media = client.list_by_index("mediaAssetsByItemAndSortKey", item["id"])
     paths: list[str] = []
+    alts: dict[str, dict[str, str]] = {}
     for row in media:
         value = row.get("metadata")
         if isinstance(value, str):
@@ -76,9 +77,11 @@ def inputs_for_item(client, item: dict[str, Any], metadata: dict[str, Any], poli
             except ValueError:
                 value = {}
         if isinstance(value, dict) and value.get("srcPath"):
-            paths.append(normalize_path(value["srcPath"]))
+            path = normalize_path(value["srcPath"])
+            paths.append(path)
+            alts[path] = {"alt": str(row.get("alt") or ""), "brief": str(value.get("brief") or "")}
     return {
-        "type": item.get("type"), "frontMatter": front_matter, "body": item.get("bodyMarkus") or "", "mediaPaths": paths,
+        "type": item.get("type"), "frontMatter": front_matter, "body": item.get("bodyMarkus") or "", "mediaPaths": paths, "mediaAlts": alts,
         "policy": policy if policy is not None else read_policy(client),
     }
 
@@ -99,8 +102,24 @@ def _directive_for(body: str, path: str) -> dict[str, str] | None:
             return next((part for part in found.groups() if part is not None), "") if found else ""
 
         if normalize_path(attribute("src")) == path:
-            return {"credit": attribute("credit"), "srcDark": attribute("srcDark")}
+            return {"credit": attribute("credit"), "srcDark": attribute("srcDark"), "alt": attribute("alt"), "hasAlt": re.search(r"\balt\s*=", attrs) is not None}
     return None
+
+
+def _squash(text: Any) -> str:
+    return " ".join(str(text or "").lower().split())
+
+
+def alt_problem(alt: str, brief: str) -> str:
+    """Why this alt text is not a description of the picture, or an empty string when it passes. A generation brief is an instruction to the image model
+    and never a description, so alt text that is empty, equal to the brief or containing it fails."""
+    text = _squash(alt)
+    if not text:
+        return "has no alt text"
+    wanted = _squash(brief)
+    if wanted and wanted in text:
+        return "has alt text copied from the generation brief, which is an instruction to the image model and not a description of the picture"
+    return ""
 
 
 def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
@@ -134,5 +153,12 @@ def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
             return UNKNOWN, "the site's requireDarkFigures setting could not be read, so a figure with no dark picture cannot be checked"
         if not dark and policy["requireDark"]:
             return NOT_DONE, f"the figure cover {cover} has no dark picture, and this site requires one (requireDarkFigures): run `papyrus figures render` and save SLUG.dark.png with it"
+    recorded = (inputs.get("mediaAlts") or {}).get(cover, {})
+    for label, alt in (("the cover's image directive", (directive or {}).get("alt") if (directive or {}).get("hasAlt") else None), ("the cover's media record", recorded.get("alt"))):
+        if alt is None:
+            continue
+        problem = alt_problem(alt, recorded.get("brief", ""))
+        if problem:
+            return NOT_DONE, f"{label} {problem}: write the alt text from the picture itself (a person or agent who has seen it) and save a new version"
     who = (f", stock picture picked by {approver}" if picked_by else f", approved by {approver}") + (f" on {approved_at}" if approved_at else "") if approver else ""
     return DONE, f"cover {cover}{who}" + (f", dark {dark}" if dark and not picked_by else "")
