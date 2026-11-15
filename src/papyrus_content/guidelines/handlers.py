@@ -146,6 +146,19 @@ def _checked(kind: str, document: Any, section: str | None) -> dict:
     return document
 
 
+def _register_checked(document: dict, language: str | None) -> None:
+    """A register is a language's own choice: a document every language shares has none, and a language takes only the registers it offers."""
+    if "register" not in document:
+        return
+    from papyrus_content.editorial_languages import registers_for
+
+    offered = registers_for(language) if language else {}
+    if language is None or document["register"] not in offered:
+        message = ("register belongs to a language overlay; leave it out of the guidelines every language shares." if language is None else
+                   f"register {document['register']!r} is not one {language} offers" + (f" (it offers {', '.join(offered)})." if offered else "; it offers no register choice."))
+        raise ImageOperationError("invalid_input", f"register: {message}", details={"path": "register", "problems": [{"path": "register", "message": message, "code": "invalid_input"}]})
+
+
 def _image_section_checked(store: GuidelineStore, document: dict, section: str | None, previous: dict | None) -> None:
     """A section's image document is also checked against the publication's: no shadowed type, every own type valid under its binding rules and locks."""
     if kind_of_check(section):
@@ -182,6 +195,8 @@ def diff_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
         return _image_alias(diff_profile, client, arguments, caller, files)
     language = _language(kind, arguments)
     document = _checked(kind, arguments["document"], section or language)
+    if kind == "writing":
+        _register_checked(document, language)
     store = GuidelineStore(client, files)
     try:
         current = store.read(kind, section, language=language)
@@ -259,6 +274,8 @@ def save_guidelines(client, arguments: dict, caller: Caller, files: DocumentFile
             return Outcome(_described(kind, section, language, itemId=ref["itemId"], versionNumber=ref["versionNumber"], contentHash=ref["contentHash"] or "", repeated=True),
                            publication)
         document = _checked(kind, arguments["document"], section or language)
+        if kind == "writing":
+            _register_checked(document, language)
         current = next((row for row in versions if row.get("versionState") == "current"), None)
         old = store.read(kind, section, language=language)["document"] if current is not None else None
         if kind == IMAGE_KIND:

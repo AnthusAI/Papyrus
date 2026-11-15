@@ -74,8 +74,8 @@ A run with no request, or for an older source than the request names, stops befo
 4. **normalize and parity**: emphasis that would not render is fixed by code (the punctuation moves outside the closing marker); the Humanus
    `translation-faithfulness` parity rules run on each block.
 5. **bilingual judge**: GPT-6 Luna through Humanus's judge hook, two passes per block, quotes verified by code.
-6. **copy edit**: the language's own policies (typography, translationese, AI-writing tells, house words).
-7. **refine**: repairs with a certain fix (a `replacement`) are applied by code; error-severity faithfulness findings, and findings of rules
+6. **copy edit**: the language's own policies (typography, translationese, AI-writing tells, house words, Spanish initialisms, and the formal imperative when the site's overlay chose `usted`).
+7. **refine**: repairs with a certain fix (a `replacement`) are applied by code, and the model is asked only about what the repaired text still has; error-severity faithfulness findings, and findings of rules
    measured right about nine times in ten on held-out examples in that language (`evidence.precision`), go back to the model.
 8. **loop**: 4 to 7 on the changed blocks while a round strictly reduces (faithfulness errors, faithfulness warnings, rewrite findings, certain
    repairs) and adds no faithfulness finding; a block whose rewrite makes faithfulness worse reverts. It ends on convergence.

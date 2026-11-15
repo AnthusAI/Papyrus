@@ -4,7 +4,7 @@ from __future__ import annotations
 import humanus
 import pytest
 
-from papyrus_content.editorial_languages import (LanguageNotEnabled, canonical, languages_served, site_language, site_languages, starter_packs_for,
+from papyrus_content.editorial_languages import (LanguageNotEnabled, register_pack_for, register_packs_for, registers_for, canonical, languages_served, site_language, site_languages, starter_packs_for,
                                                  story_language)
 
 MOM = {"languages": {"primary": "en", "enabled": ["en", "es-419", "zh-CN"]}}
@@ -63,5 +63,19 @@ def test_policy_languages_served_least_specific_first():
 
 
 def test_a_variant_brings_its_base_languages_starter_packs_then_its_own():
-    assert starter_packs_for("es-419") == ("typography-es", "ai-writing-tells-es", "word-choice-es-419")
+    assert starter_packs_for("es-419") == ("typography-es", "ai-writing-tells-es", "initialisms-es", "word-choice-es-419")
     assert starter_packs_for("zh-Hans") == ("typography-zh-hans", "translationese-zh-hans", "ai-writing-tells-zh-hans")
+
+
+def test_spanish_offers_usted_and_tu_and_only_usted_brings_a_pack():
+    assert registers_for("es-419") == registers_for("es") == {"usted": "register-es-usted", "tu": None}
+    assert register_pack_for("es-419", "usted") == "register-es-usted" and register_pack_for("es-419", "tu") is None
+    assert register_pack_for("es-419", None) is None and register_packs_for("es-419") == ("register-es-usted",)
+
+
+def test_a_language_with_no_register_choice_offers_none():
+    assert registers_for("zh-Hans") == registers_for("en") == {} and register_packs_for("en") == ()
+    with pytest.raises(ValueError, match="no register choice"):
+        register_pack_for("zh-Hans", "usted")
+    with pytest.raises(ValueError, match="offers usted, tu"):
+        register_pack_for("es-419", "vos")

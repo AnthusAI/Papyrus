@@ -46,7 +46,7 @@ answers the language questions in one module, `src/papyrus_content/editorial_lan
   (`es-419`). Where two share a key, a section's policy replaces the publication's, and within a scope the more specific language
   wins. English phrase rules never run on Chinese text and Chinese rules never on English. The pack version starts with the
   language (`zh-Hans-<section>-<fingerprint>`); its fingerprint also covers the version of Humanus's language pack (1.1.0 in
-  Humanus 0.36), so a stored check is not reused once Humanus reads that language differently, and the check result names the Humanus language pack and its version
+  Humanus 0.37), so a stored check is not reused once Humanus reads that language differently, and the check result names the Humanus language pack and its version
   (`language: {tag, version}`). Because the pack version changed shape, the first check of each saved version after this
   release runs once more (only for versions someone checks or saves; there is no sweep). A starter-pack policy is written for its pack's language; a policy drawn from the writing
   guidelines for the site's primary language, or for its overlay's language. Two languages may use the same key (both the
@@ -55,11 +55,20 @@ answers the language questions in one module, `src/papyrus_content/editorial_lan
   policies ensure-defaults`) writes it once: the starter pack's language for a `starter:<pack>` policy, otherwise the site's primary
   language. The record keeps its id and version. Until then a check that meets such a policy is refused, naming it; nothing guesses.
 - **Enabling a language brings its starter rules.** `ensure_default_policies` imports the default starter packs of every enabled
-  language once (`DEFAULT_STARTER_PACKS`): English `ai-writing-tells`; Spanish `typography-es` and `ai-writing-tells-es`, plus
+  language once (`DEFAULT_STARTER_PACKS`): English `ai-writing-tells`; Spanish `typography-es`, `ai-writing-tells-es` and `initialisms-es` (standalone "AI" becomes "IA"; DNA, HIV, GDP, NATO and WHO become ADN, VIH, PIB, OTAN and OMS; "OpenAI" and other English names stay), plus
   `word-choice-es-419` for `es-419`; Simplified Chinese `typography-zh-hans`, `translationese-zh-hans` and
   `ai-writing-tells-zh-hans`. They run on the next deploy after the setting changes, or at once with `papyrus editorial policies
   ensure-defaults`. All of them are advice (`info` or `warn`): Humanus marks each policy's evidence grade (measured, normative,
-  folk), and a rule may only drive rewrites once it is about 9 in 10 correct on held-out examples in that language.
+  folk), and a rule may only drive rewrites once it is about 9 in 10 correct on held-out examples in that language. A pack added to a
+  language's starters later reaches a site that enabled the language earlier on its next deploy, once (the packs applied are recorded in the
+  settings' `defaultStarterPacks`); a policy an admin edited or deleted is never added back.
+- **A language's register is a choice of the language's overlay.** The writing guidelines overlay for a language that offers a register
+  takes `register` (`usted` or `tu` for Spanish; `REGISTER_PACKS` in `editorial_languages.py`). Saving the overlay with `register: usted`
+  draws the policies of Humanus's `register-es-usted` pack for that language (it flags a `tú` imperative that opens link text, such as
+  `[Lee la fuente]`, with the formal repair `Lea`); saving it with `tu`, or without a register, disables them again. Nothing in the code
+  guesses a register from the tone's prose. The shared guidelines, and a language that offers no register choice, refuse the field. The
+  translator is told the register with the overlay's other notes. A repair with a `replacement` is applied by code in a translation run, so the
+  correction needs no model call.
 - **Writing guidelines per language.** The publication's voice, audience and binding rules are written once and apply in every
   language. A language overlay (`papyrus guidelines save --kind writing --language zh-Hans`, optionally with `--section`) holds only
   what is particular to the language: register notes, words to prefer and avoid, the target locale's conventions for naming
