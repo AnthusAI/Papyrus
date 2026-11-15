@@ -40,3 +40,20 @@ hashtag spelling of the typed words. Each reading is one index query. None of th
 `papyrus knowledge concepts search`, which finds by meaning and by words (and still reads the catalogue, because a substring search cannot use an exact index).
 
 `papyrus knowledge concepts labels --concept NAME` shows every name of one concept in every language.
+
+## Naming a section or a concept in another language
+
+One procedure (`src/papyrus_content/entity_labels/translate.py`) makes a label for a section or a concept in one language:
+
+1. A glossary entry that covers the whole name decides it (its first approved rendering, or the original when the entry is do-not-translate). The model is told the decided name.
+2. One structured call to the house model writes the name, other names and description. It may answer that the language has no settled term (`equivalence: none`, `keepOriginal`).
+3. The description is checked against its source with the Humanus translation-faithfulness rules and the bilingual judge. A name that another thing of the same kind already has in the language is a collision.
+4. Anything wrong (an error finding, a collision, no equivalent term) holds the label (`syncState: held`, in the work index) and raises a flag review request (subject type `label`). A clean label is `current`.
+
+A pinned label (a person's wording) is never overwritten, and a label made from the current words is not made again.
+
+### Sections
+
+`papyrus --auth iam sections labels --language es-419 --language zh-Hans --descriptions-file web/sections.json` names every enabled section: its title and the description from the site's sections file. The projection reads the current labels of each public language and lays them over that language's interface strings as `section.<id>.label` and `section.<id>.description`, so the kicker, the home groups, the section headings and the navigation show the language's own name. A held, stale or missing label gives no words: the page shows what it showed before (a key the language's strings file has, or the original marked as such), never an unchecked name.
+
+The names live in the site's store, not in `web/strings/<tag>.json`. A string in that file with the same key is overridden by the label, so remove such copies when a label exists.
