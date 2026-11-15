@@ -31,10 +31,15 @@ Feature: A publication decides how its terms are translated
     When a block saying "The edits are often called abliteration." is translated as "这类改动通常称为消融。"
     Then the faithfulness check reports that "abliteration" must stay unchanged
 
-  Scenario: Names default to do-not-translate
+  Scenario: A company name the glossary keeps must stay as written
     Given the Simplified Chinese starter glossary
     When a block saying "Researchers at Hugging Face disagreed." is translated as "抱抱脸的研究人员意见不一。"
-    Then the faithfulness check reports that the name "Hugging Face" is missing
+    Then the faithfulness check reports that "Hugging Face" must stay unchanged
+
+  Scenario: A capitalized name with no glossary entry is left to the judge as a warning
+    Given the Simplified Chinese starter glossary
+    When a block saying "Researchers at Acme Dynamics disagreed." is translated as "阿克米动力公司的研究人员意见不一。"
+    Then the faithfulness check reports no error
 
   Scenario: An entry needs either approved forms or do-not-translate
     When an admin saves a glossary entry for "computer" with neither translations nor doNotTranslate
@@ -54,6 +59,24 @@ Feature: A publication decides how its terms are translated
     And the answer says the shared glossary is missing
     When the glossary is resolved for "en"
     Then the resolved glossary is empty
+
+  Scenario Outline: A name with an established local form, an ordinal or a decade does not hold a translation
+    Given the Simplified Chinese starter glossary
+    When a block saying "<source>" is translated as "<target>"
+    Then the faithfulness check reports no error
+
+    Examples:
+      | source                                  | target                         |
+      | The mayor of London spoke on Monday.    | 伦敦市长周一发表了讲话。       |
+      | The Federal Trade Commission sued Ring. | 美国联邦贸易委员会起诉了 Ring。 |
+      | The PCs ran the demo.                   | 这些 PC 运行了演示。           |
+      | The 1980s were different.               | 80 年代很不一样。              |
+      | It was the 100th test.                  | 这是第 100 次测试。            |
+
+  Scenario: A lost name that must stay as written still holds a translation
+    Given the Latin American Spanish starter glossary
+    When a block saying "OpenAI tested the agent." is translated as "Se probó al agente."
+    Then the faithfulness check reports that the name "OpenAI" is missing
 
   Scenario: The starter glossaries carry the experiment's name findings
     Then the "es-419" starter glossary renders "AI" as "IA", "Paris" as "París", "Congress" as "Congreso", "Justice Department" as "Departamento de Justicia" and "North Carolina" as "Carolina del Norte"
