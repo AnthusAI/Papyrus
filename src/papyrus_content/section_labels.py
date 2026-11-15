@@ -1,7 +1,7 @@
 """`papyrus sections labels`: the names of the site's sections in each language it writes in (docs/multilingual-labels.md).
 
 A section's name is its ``title`` and its short description comes from the site's sections file (``--descriptions-file web/sections.json``: a list of
-``{"id", "label", "description"}``, where it already is for the home page). Each is translated by the label procedure (``entity_labels.translate``), checked
+``{"id", "label", "description"}``, where it already is for the home page; the file also names the sections to do). Each is translated by the label procedure (``entity_labels.translate``), checked
 and, when clean, saved as a current ``EntityLabel`` that the projection reads: the section's name on the language's pages comes from it. A held label (a
 collision, an error-severity finding, no equivalent term) is saved held and raises a review request; nothing is published from it.
 """
@@ -25,23 +25,20 @@ def read_descriptions(path: str | None) -> dict[str, dict[str, str]]:
     return {str(row["id"]): {"label": str(row.get("label") or ""), "description": str(row.get("description") or "")} for row in rows}
 
 
-def section_sources(client: Any, primary: str, descriptions: dict[str, dict[str, str]], only: set[str] | None = None) -> list[LabelSource]:
-    """One source per enabled section (or the named ones): its title and, when the sections file has it, its description. The section list is a dozen rows."""
-    from . import request_meter
-
-    with request_meter.sweep("section-labels"):
-        rows = client.list_records("NewsroomSection")
+def section_sources(client: Any, primary: str, descriptions: dict[str, dict[str, str]], ids: list[str]) -> list[LabelSource]:
+    """One source per named section: its title and, when the sections file has it, its description. Each section is one read by id; no table is listed."""
     sources = []
-    for row in sorted(rows, key=lambda r: r["id"]):
-        if (only and row["id"] not in only) or (not only and row.get("enabled") is False):
-            continue
-        described = descriptions.get(row["id"], {})
-        sources.append(LabelSource(SECTION, row["id"], primary, (described.get("label") or row.get("title") or row["id"]).strip(),
+    for section_id in ids:
+        row = client.get_record("NewsroomSection", section_id)
+        if row is None:
+            raise ValueError(f"There is no section {section_id!r}.")
+        described = descriptions.get(section_id, {})
+        sources.append(LabelSource(SECTION, section_id, primary, (described.get("label") or row.get("title") or section_id).strip(),
                                    description=described.get("description", "").strip(), summary=str(row.get("editorialMission") or "")[:400]))
     return sources
 
 
-def localize_sections(client: Any, languages: list[str], *, descriptions: dict[str, dict[str, str]], only: set[str] | None = None, dry_run: bool = False,
+def localize_sections(client: Any, languages: list[str], *, descriptions: dict[str, dict[str, str]], ids: list[str], dry_run: bool = False,
                       models_for=None) -> list[dict[str, Any]]:
     """Translate every section's label into each language. One row per (section, language): ``{section, language, state, name, description, reasons, costUsd}``."""
     import humanus
@@ -55,7 +52,7 @@ def localize_sections(client: Any, languages: list[str], *, descriptions: dict[s
 
     settings = settings_from(GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
     primary = primary_language(settings)
-    sources = section_sources(client, primary, descriptions, only)
+    sources = section_sources(client, primary, descriptions, ids)
     keys = tuple(entity_key(SECTION, source.entity_id) for source in sources)
     names = {tag: humanus.resolve_language(tag).name for tag in {primary, *languages}}
     report: list[dict[str, Any]] = []
@@ -102,7 +99,11 @@ def sections_labels(flags: list[str], *, client: Any = None) -> None:
         from .graphql_authoring import create_authoring_client
 
         client, _ = create_authoring_client()
-    report = localize_sections(client, args.language, descriptions=read_descriptions(args.descriptions_file), only=set(args.section) or None, dry_run=args.dry_run)
+    descriptions = read_descriptions(args.descriptions_file)
+    ids = args.section or list(descriptions)
+    if not ids:
+        raise ValueError("Name the sections: --section ID (repeat), or --descriptions-file FILE, whose sections are all named.")
+    report = localize_sections(client, args.language, descriptions=descriptions, ids=ids, dry_run=args.dry_run)
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
         return

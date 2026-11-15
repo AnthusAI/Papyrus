@@ -149,24 +149,21 @@ class PublishedContentSource:
 
         return serving_languages(settings_from_row(self._client.get_record("EditorialCheckSettings", "settings")))
 
-    def entity_label_strings(self, tags: tuple[str, ...]) -> dict[str, dict[str, str]]:
+    def entity_label_strings(self, tags: tuple[str, ...], section_ids: tuple[str, ...]) -> dict[str, dict[str, str]]:
         """``{language: {"section.<id>.label": name, "section.<id>.description": text}}`` from the current section labels of each language: one query per
-        section for all its languages (the sections table is a dozen rows). A held, stale or missing label gives nothing, so a page never shows words nobody
-        checked."""
-        from .. import request_meter
+        section for all its languages. The section ids are the ones the primary language's interface strings name. A held, stale or missing label gives
+        nothing, so a page never shows words nobody checked."""
         from ..entity_labels.keys import CURRENT, PREFERRED, SECTION, entity_key
         from ..entity_labels.store import LabelStore
 
         found: dict[str, dict[str, str]] = {tag: {} for tag in tags}
         store = LabelStore(self._client)
-        with request_meter.sweep("projection-section-labels"):
-            sections = self._client.list_records("NewsroomSection")
-        for section in sections:
-            for row in store.of_entity(entity_key(SECTION, section["id"])):
+        for section_id in section_ids:
+            for row in store.of_entity(entity_key(SECTION, section_id)):
                 if row.get("language") in found and row.get("role") == PREFERRED and row.get("syncState") == CURRENT:
-                    found[row["language"]][f"section.{section['id']}.label"] = row["text"]
+                    found[row["language"]][f"section.{section_id}.label"] = row["text"]
                     if row.get("description"):
-                        found[row["language"]][f"section.{section['id']}.description"] = row["description"]
+                        found[row["language"]][f"section.{section_id}.description"] = row["description"]
         return found
 
     def published_row(self, item_id: str) -> dict | None:
