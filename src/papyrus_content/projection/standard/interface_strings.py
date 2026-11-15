@@ -31,6 +31,8 @@ STRINGS_DIRECTORY = "strings"
 LANGUAGE_NAME_KEY = "language.name"
 TRANSLATION_LABEL_KEY = "translation.label"
 TRANSLATION_ORIGINAL_KEY = "translation.original"
+UNTRANSLATED_LABEL_KEY = "listing.untranslated"
+UNTRANSLATED_ORIGINAL_KEY = "listing.untranslatedOriginal"
 #: Where ``translation.label`` places the link to the original.
 ORIGINAL_PLACEHOLDER = "{original}"
 
@@ -55,7 +57,7 @@ def read_interface_strings(static_directory: Path | None) -> dict[str, dict[str,
 
 def required_keys(standard, primary_strings: Mapping[str, str], edition_nav_hrefs: tuple[str, ...]) -> tuple[str, ...]:
     """Every key a language edition needs: the standard front end's own (from the settings) and every key of the primary language's file."""
-    keys = [LANGUAGE_NAME_KEY, "home.label", "listing.pageSuffix", TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY]
+    keys = [LANGUAGE_NAME_KEY, "home.label", "listing.pageSuffix", TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY, UNTRANSLATED_LABEL_KEY, UNTRANSLATED_ORIGINAL_KEY]
     if standard.identity.description:
         keys.append("site.description")
     if standard.identity.tagline:

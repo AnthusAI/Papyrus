@@ -31,6 +31,9 @@ export const contentRepository: ContentRepository = {
   listArticleSlugs() {
     return graphqlContentRepository.listArticleSlugs();
   },
+  listNewestArticles(limit: number) {
+    return graphqlContentRepository.listNewestArticles(limit);
+  },
   loadVideoScript(targetSlug: string) {
     return graphqlContentRepository.loadVideoScript(targetSlug);
   },

@@ -2,7 +2,7 @@ import { getSiteRenderer } from "../lib/site-renderer";
 import { contentRepository, getScenarioIdParam } from "../lib/content-repository";
 import type { EditionContent } from "../lib/content-types";
 import { createEditionSectionPlan } from "../lib/edition-sections";
-import { getCachedLatestPublishedEdition, loadCachedEditionContent } from "../lib/cached-content-repository";
+import { getCachedLatestPublishedEdition, listCachedNewestArticles, loadCachedEditionContent } from "../lib/cached-content-repository";
 import { getEditionDatePath } from "../lib/edition-routes";
 import {
   EMPTY_EDITION_PLACEHOLDER_SLUG,
@@ -17,8 +17,7 @@ import {
 import type { PublicationItem } from "../lib/publication-items";
 import { SITE_BRAND, editionsEnabled, rootRoute } from "../lib/site-brand";
 import { ItemStreamView } from "../components/item-stream-view";
-import { ITEM_STREAM_RECENT_EDITION_COUNT, buildItemStream, selectNewestStreamItems } from "../lib/item-stream";
-import { listCachedPublishedEditions } from "../lib/cached-content-repository";
+import { ITEM_STREAM_ITEM_LIMIT, articlesToStreamItems, buildItemStream } from "../lib/item-stream";
 import { notFound, redirect } from "next/navigation";
 import { getReaderBasePath } from "../lib/reader-base-path";
 import { buildRootRedirectTarget } from "../lib/root-route-redirect";
@@ -108,13 +107,10 @@ async function loadNewestStreamItemsOrNone() {
   }
 }
 
+// With editions off the home page is the newest published articles, read straight from the item index.
+// No edition has to exist for an article to be listed.
 async function loadNewestStreamItems() {
-  const { editions } = await listCachedPublishedEditions({ limit: ITEM_STREAM_RECENT_EDITION_COUNT });
-  const newestFirst = [...editions].sort((left, right) => right.editionDate.localeCompare(left.editionDate));
-  const contents = await Promise.all(
-    newestFirst.map((edition) => loadCachedEditionContent({ editionDate: edition.editionDate })),
-  );
-  return selectNewestStreamItems(contents);
+  return articlesToStreamItems(await listCachedNewestArticles(ITEM_STREAM_ITEM_LIMIT));
 }
 
 async function loadLatestGraphQLEdition(): Promise<EditionContent | null> {

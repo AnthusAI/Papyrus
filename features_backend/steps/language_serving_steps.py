@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import sys
 import tempfile
 import unicodedata
@@ -33,7 +34,7 @@ from projection_fixtures import RecordingWriter  # noqa: E402
 ORIGIN = "https://machines.example.test"
 PROJECTION = {
     "site": {"name": "Machines on Machines", "description": "Machines writing about machines.", "productionUrl": ORIGIN, "language": "en"},
-    "urls": {"style": "directory", "sections": {"articles": {"base": "articles", "label": "Articles"}, "wiki": {"base": "wiki", "label": "Wiki"}}},
+    "urls": {"style": "directory", "sections": {"articles": {"base": "articles", "label": "Articles"}, "wiki": {"base": "wiki", "label": "Wiki", "listEmpty": True}}},
     "sitemap": {"style": "index"},
     "environment": {"guard": False},
 }
@@ -41,10 +42,12 @@ STRINGS = {
     "en": {"language.name": "English", "switcher.label": "Language"},
     "es-419": {"language.name": "Español", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
                "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos",
-               "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés"},
+               "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés",
+               "listing.untranslated": "Todavía no hay traducciones aquí. Lee el {original}.", "listing.untranslatedOriginal": "índice en inglés"},
     "zh-Hans": {"language.name": "中文", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
                 "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念",
-                "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文"},
+                "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文",
+                "listing.untranslated": "这里还没有译文。请阅读{original}。", "listing.untranslatedOriginal": "英文索引页"},
 }
 LANGUAGES = {"primary": "en", "enabled": ["en", "es-419", "zh-Hans"], "prefixes": {"es-419": "es", "zh-Hans": "zh"}, "public": ["en", "es-419", "zh-Hans"]}
 NOW = "2026-11-13T00:00:00Z"
@@ -61,11 +64,17 @@ class LanguageSite:
         self.redirects = FakeRedirectStore()
         self.reports = []
         self.context = None
+        self.authored_home = False
 
     def build(self) -> None:
         static = self.work / "web"
         (static / "strings").mkdir(parents=True, exist_ok=True)
-        (static / "projection.json").write_text(json.dumps(PROJECTION), encoding="utf-8")
+        projection = json.loads(json.dumps(PROJECTION))
+        if self.authored_home:   # the site's home is a page of its own, as Machines on Machines' is
+            projection["pages"] = [{"id": "home", "path": "", "title": "Machines on Machines", "description": "Home.", "source": "pages/home.md"}]
+            (static / "pages").mkdir(exist_ok=True)
+            (static / "pages" / "home.md").write_text("::raw\n<p>An authored home.</p>\n::endraw\n", encoding="utf-8")
+        (static / "projection.json").write_text(json.dumps(projection), encoding="utf-8")
         for path in (static / "strings").glob("*.json"):
             path.unlink()
         for tag, strings in self.strings.items():
@@ -172,7 +181,10 @@ def step_english(context, slug, title):
 def step_not_public(context):
     site = _site(context)
     site.languages["public"] = ["en", "zh-Hans"]
+    shutil.rmtree(site.work / "site")   # the site as it is built when Spanish was never public: nothing written for it before
+    site.store = RecordingWriter(site.work / "site")
     site.build()
+    site.deploy()
 
 
 @given('the Spanish interface strings lack "{key}"')
@@ -296,7 +308,7 @@ def step_sibling_written(context):
 @then("it wrote no other article page")
 def step_only_siblings(context):
     pages = [key for key in _site(context).reports[-1].written if "/articles/" in f"/{key}" and key.endswith("/index.html") and key.count("/") >= 2
-             and not key.startswith(("articles/index", "es/articles/index"))]
+             and not key.startswith(("articles/index", "es/articles/index", "zh/articles/index"))]
     assert sorted(pages) == sorted([ENGLISH, SPANISH]), pages
 
 
@@ -460,3 +472,51 @@ def step_wiki_keys(context, key, spanish):
     site = _site(context)
     assert site.exists(key) and site.exists(spanish), site.keys()
     assert ("es-419", f"{ORIGIN}/" + spanish[: -len("index.html")]) in _hreflang(site.text(key))
+
+
+@given("the English home is an authored page")
+def step_authored_home(context):
+    _site(context).authored_home = True
+
+
+@then('the Spanish "{key}" page exists and is not indexed')
+def step_empty_exists(context, key):
+    html = _site(context).text(key)
+    assert '<meta name="robots" content="noindex' in html, key
+
+
+@then('the Spanish "{key}" page says in Spanish that nothing is translated yet and links to the English "{english}"')
+def step_notice(context, key, english):
+    html = _site(context).text(key)
+    assert f'class="markus-untranslated"' in html and "Todavía no hay traducciones aquí." in html, key
+    assert f'<a href="{english}" hreflang="en">índice en inglés</a>' in html, key
+
+
+@then('the "{key}" page lists no hreflang links')
+def step_page_no_hreflang(context, key):
+    assert _hreflang(_site(context).text(key)) == [], key
+
+
+@then('the Spanish "{key}" page is indexed and has no notice')
+def step_indexed(context, key):
+    html = _site(context).text(key)
+    assert '<meta name="robots"' not in html and "markus-untranslated" not in html, key
+
+
+@then('the "{key}" page names the Spanish page in hreflang')
+def step_names_spanish(context, key):
+    tags = dict(_hreflang(_site(context).text(key)))
+    assert "es-419" in tags and "x-default" in tags, tags
+
+
+@then("the sitemap index lists no Spanish or Chinese sitemap")
+def step_no_language_sitemap(context):
+    index = _site(context).text("sitemap-index.xml")
+    assert "es/sitemap" not in index and "zh/sitemap" not in index, index
+
+
+@then('the Concepts listing is offered in each language at "{english}", "{spanish}" and "{chinese}"')
+def step_concepts_alternates(context, english, spanish, chinese):
+    site = _site(context)
+    view = site.context.projector._language_view(site.context.source.site_index())
+    assert [alternate.url for alternate in view.listing_alternates("wiki")] == [english, spanish, chinese], view.listing_alternates("wiki")

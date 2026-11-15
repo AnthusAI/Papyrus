@@ -13,25 +13,33 @@ Feature: Editions are an optional publication setting
     And a brand with editions enabled has editions enabled
     And a brand with editions explicitly disabled has editions disabled
 
-  Scenario: With editions off the home page is the newest items first
-    Given published editions dated "2026-10-01" and "2026-10-03"
+  Scenario: With editions off the home page is the newest published articles first
+    Given published articles "newer-story" and "older-story", newest first
     When the item stream is built for the home page
     Then the first stream item is "newer-story"
     And the stream has no edition date in it
 
   Scenario: Sections are filters on the stream
-    Given published editions dated "2026-10-01" and "2026-10-03"
+    Given published articles "newer-story" and "older-story", newest first
     When the item stream is built for the section "Security"
     Then every stream item is in the section "Security"
     And the stream still offers the sections "Security" and "Culture"
 
   Scenario: An unknown section filter shows the whole stream
-    Given published editions dated "2026-10-01" and "2026-10-03"
+    Given published articles "newer-story" and "older-story", newest first
     When the item stream is built for the section "No Such Section"
     Then the stream shows every item
 
+  Scenario: With editions off a published article is listed although no edition exists
+    Given a published article "standalone-story" and no editions at all
+    When the item stream is built for the home page
+    Then the first stream item is "standalone-story"
+
+  Scenario: With editions off the home page reads articles from the item index, not from editions
+    Then the home page loads its stream from the newest published articles and never lists editions
+
   Scenario: With editions off an empty publication says nothing is published yet
-    Given no published editions
+    Given no published articles
     When the item stream is built for the home page
     Then the stream is empty
     And the item stream view says "Nothing published yet"

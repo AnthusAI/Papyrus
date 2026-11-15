@@ -248,6 +248,14 @@ export const graphqlContentRepository: ContentRepository = {
         .sort();
     });
   },
+
+  listNewestArticles(limit) {
+    return withReaderGraphQLContext(async () => {
+      const items = await listNewestItemsByTypeStatus(`${ARTICLE_TYPE}#${PUBLISHED_STATUS}`, limit);
+      const visible = items.filter((item) => item.type === ARTICLE_TYPE && isVisibleItemStatus(item.status));
+      return Promise.all(visible.map(async (item) => normalizeArticle(item, await listMediaAssets(item.id))));
+    });
+  },
 };
 
 function getClient(): DataClient {
@@ -710,6 +718,16 @@ async function listItemsByTypeStatus(typeStatus: string): Promise<GraphQLItem[]>
   return listAll<GraphQLItem>((options) =>
     getPublishedItemModel().listPublishedItemsByTypeStatusAndPublishedAt({ typeStatus }, options),
   );
+}
+
+/** One page of the newest published items, read from the typeStatus-by-publishedAt index (never the whole table). */
+async function listNewestItemsByTypeStatus(typeStatus: string, limit: number): Promise<GraphQLItem[]> {
+  const response = await getPublishedItemModel().listPublishedItemsByTypeStatusAndPublishedAt(
+    { typeStatus },
+    { authMode: authMode(), limit: Math.max(1, Math.floor(limit)), sortDirection: "DESC" },
+  );
+  assertNoGraphQLErrors(response.errors);
+  return (response.data ?? []).filter(Boolean) as GraphQLItem[];
 }
 
 async function getItemById(id: string): Promise<GraphQLItem | null> {

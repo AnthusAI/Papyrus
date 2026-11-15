@@ -202,15 +202,22 @@ def step_refused_original(context, code, lineage):
     assert error is not None and error.code == code and lineage in error.message, error
 
 
+def _spanish_story_pages(context) -> list[str]:
+    """Every Spanish page that is not one of the Spanish indexes (home, section listings), which a public language has from its first day."""
+    indexes = ("es/index.html", "es/articles/index.html", "es/concepts/index.html")
+    return [key for key in _site(context).keys() if key.startswith("es/") and key not in indexes]
+
+
 @then("no Spanish page is served")
 def step_no_page(context):
-    assert not [key for key in _site(context).keys() if key.startswith("es/")], _site(context).keys()
+    assert not _spanish_story_pages(context), _site(context).keys()
 
 
 @then("no Spanish page and no Spanish listing is served")
 def step_no_page_or_listing(context):
     step_no_page(context)
-    assert "es/index.html" not in _site(context).keys()
+    for key in (key for key in _site(context).keys() if key.startswith("es/") and key.endswith(".html")):   # an index left over lists no Story
+        assert "bajan-los-choques" not in _text(context, key), key
 
 
 @then("the Waymo English page is published and has no Spanish alternate")
