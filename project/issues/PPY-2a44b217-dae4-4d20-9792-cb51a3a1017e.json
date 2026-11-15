@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9d5029ff-2113-443b-8518-f16a709e976f",
+      "author": "home",
+      "text": "Slice 1. Wide sizes are taken once from the scaler's generated output (zero pixel change), then authored as numbers: one papyrus-tokens.css, compact under 600 px and wide from 600 px up, no multiplier, no root font-size 75%, text floors (18/14/13) as tokens enforced by a linter for every brand pack. Tokens in rem so the reader's browser text size still applies. Deletes tools/scale_css.py and the phone+scaled stylesheet pair. Acceptance is the visual diff in docs/plans/shared-publication-front-end.md (zero changed pixels).",
+      "created_at": "2026-11-15T16:26:55.000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:24.693504Z",
-  "updated_at": "2026-11-07T21:42:24.693539Z",
+  "updated_at": "2026-11-15T16:26:55.000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

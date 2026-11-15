@@ -26,9 +26,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7e22c4c0-5d1c-4378-94b8-9791df8a298f",
+      "author": "home",
+      "text": "Plan note: slice 5 of docs/plans/shared-publication-front-end.md. The neutral default theme is the starter's pack; the example themes are MoM's navy pack and TheHallucinator.ai's newsprint pack (cream, stamp red, Playfair Display over Source Serif 4, square corners, quiet ornaments), both passing the validator.",
+      "created_at": "2026-11-15T16:26:55.000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:22.206354Z",
-  "updated_at": "2026-11-08T21:27:54.442322Z",
+  "updated_at": "2026-11-15T16:26:55.000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
