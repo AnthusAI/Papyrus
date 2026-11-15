@@ -73,6 +73,17 @@ Feature: A publication decides how its terms are translated
       | The 1980s were different.               | 80 年代很不一样。              |
       | It was the 100th test.                  | 这是第 100 次测试。            |
 
+  Scenario Outline: A country abbreviation is written its own way in the language
+    Given the <glossary> starter glossary
+    When a block saying "<source>" is translated as "<target>"
+    Then the faithfulness check reports no error
+
+    Examples:
+      | glossary                | source                       | target                          |
+      | Simplified Chinese      | The US agreed on Monday.     | 美国周一同意了。                |
+      | Latin American Spanish  | The US agreed on Monday.     | EE. UU. aceptó el lunes.        |
+      | Latin American Spanish  | Sources in the U.S. agreed.  | Fuentes en EE. UU. aceptaron.   |
+
   Scenario: A lost name that must stay as written still holds a translation
     Given the Latin American Spanish starter glossary
     When a block saying "OpenAI tested the agent." is translated as "Se probó al agente."
