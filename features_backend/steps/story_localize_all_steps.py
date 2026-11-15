@@ -166,6 +166,12 @@ def step_held_but_wanted(context, story):
     _translation(context, story, "es-419", "held")
 
 
+@given('"{story}" has a Spanish translation that is held, though its request says its run failed after saving it')
+def step_held_but_failed(context, story):
+    _request(context, story, "es-419", "failed", reason="URLError: <urlopen error [Errno 54] Connection reset by peer>")
+    _translation(context, story, "es-419", "held")
+
+
 @given('the Spanish request for "{story}" names this text and its run failed')
 def step_failed_request(context, story):
     _request(context, story, "es-419", "failed", reason="ModelUnavailable: the model service could not be reached")

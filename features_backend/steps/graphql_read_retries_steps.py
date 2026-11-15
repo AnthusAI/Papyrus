@@ -124,3 +124,87 @@ def step_read_fails(context, text):
 @then('the write fails mentioning "{text}"')
 def step_write_fails(context, text):
     assert context.error is not None and text in str(context.error), context.error
+
+
+# --- the attachment store ------------------------------------------------------------------------------------------------------
+
+
+def _store(context, script):
+    import urllib.error
+    from unittest import mock
+
+    context.store_asked = 0
+    answers = list(script)
+
+    def urlopen(request, *args, **kwargs):
+        context.store_asked += 1
+        step = answers[min(context.store_asked, len(answers)) - 1]
+        if isinstance(step, Exception):
+            raise step
+        return step
+
+    context.store_patches = [mock.patch("urllib.request.urlopen", urlopen), mock.patch("time.sleep", lambda seconds: None)]
+
+
+class _Download:
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self.body
+
+
+@given("an attachment store whose connection resets twice and then answers")
+def step_store_resets(context):
+    import urllib.error
+
+    _store(context, [urllib.error.URLError(ConnectionResetError(54, "Connection reset by peer"))] * 2 + [_Download(b"story text")])
+
+
+@given("an attachment store that refuses the address with a 403")
+def step_store_refuses(context):
+    import io
+    import urllib.error
+
+    _store(context, [urllib.error.HTTPError("https://store.test/x", 403, "Forbidden", {}, io.BytesIO(b"denied"))])
+
+
+@when("an attachment is downloaded")
+def step_download(context):
+    from papyrus_content import model_attachments
+
+    class Slots:
+        def create_model_attachment_download(self, attachment_id):
+            return {"downloadUrl": "https://store.test/x", "requiredHeaders": {}}
+
+    context.result = context.error = None
+    for patch in context.store_patches:
+        patch.start()
+    try:
+        context.result = model_attachments.download_attachment_buffer(Slots(), {"id": "a-1", "storagePath": "p/a-1"})
+    except Exception as error:   # noqa: BLE001 - the scenario asserts on the failure
+        context.error = error
+    finally:
+        for patch in context.store_patches:
+            patch.stop()
+
+
+@then("the attachment's bytes are returned")
+def step_bytes(context):
+    assert context.error is None and context.result == b"story text", (context.error, context.result)
+
+
+@then("the store was asked {count:d} times")
+def step_store_asked(context, count):
+    assert context.store_asked == count, context.store_asked
+
+
+@then("the download fails with the refusal")
+def step_download_refused(context):
+    assert context.error is not None and "403" in str(context.error), context.error
