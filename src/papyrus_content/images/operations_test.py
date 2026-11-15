@@ -125,9 +125,10 @@ def test_every_example_fits_its_schemas(item):
 
 def test_the_input_checker_names_the_field():
     schema = BY_NAME["image_apply"].input
-    assert check(schema, {"target": {"kind": "story", "lineageId": "s"}, "use": "cover", "expectedCurrentVersionId": "v"})[1] == "Give exactly one of: candidateId or candidateRef."
-    assert check(schema, {"candidateId": "c", "target": {"kind": "other", "lineageId": "s"}, "use": "cover", "expectedCurrentVersionId": "v"})[0] == "target.kind"
-    assert check(schema, {"candidateId": "c", "target": {"kind": "story", "lineageId": "s"}, "use": "cover", "expectedCurrentVersionId": "v", "bogus": 1})[0] == "bogus"
+    assert check(schema, {"target": {"kind": "story", "lineageId": "s"}, "use": "cover", "alt": "A cabinet", "expectedCurrentVersionId": "v"})[1] == "Give exactly one of: candidateId or candidateRef."
+    assert check(schema, {"candidateId": "c", "target": {"kind": "story", "lineageId": "s"}, "use": "cover", "expectedCurrentVersionId": "v"})[1] == "alt is required."
+    assert check(schema, {"candidateId": "c", "target": {"kind": "other", "lineageId": "s"}, "use": "cover", "alt": "A cabinet", "expectedCurrentVersionId": "v"})[0] == "target.kind"
+    assert check(schema, {"candidateId": "c", "target": {"kind": "story", "lineageId": "s"}, "use": "cover", "alt": "A cabinet", "expectedCurrentVersionId": "v", "bogus": 1})[0] == "bogus"
 
 
 # --- generated files ---------------------------------------------------------------------------------------------------------------------------

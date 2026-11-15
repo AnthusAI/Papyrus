@@ -89,16 +89,49 @@ Feature: Pictures are generated from the publication's guidelines, only where a 
     When a person discards the whole round because "Kept the placeholder"
     Then the round is done and every candidate is "rejected"
 
-  Scenario: A person applying a picture makes it human-verified and a draft
+  Scenario: A person who looked at the picture and says so makes it human-verified and a draft
+    Given an image publication "ours" whose guidelines approve spending on "gpt-image-2.5-flare"
+    And a Story "story-1" in each publication
+    And a fake image provider
+    When a person generates a "cover" picture of type "cover-illustration" for the Story "story-1" with the brief "A locked filing cabinet"
+    And a person who looked at it applies candidate 1 to the Story "story-1" as the cover
+    Then the apply succeeds as "human-verified"
+    And the Story got a new version with the cover set and nothing was published
+    And no review request was opened
+    And candidate 1 is "applied"
+
+  Scenario: Being signed in as a person is not the same as having looked at the picture
     Given an image publication "ours" whose guidelines approve spending on "gpt-image-2.5-flare"
     And a Story "story-1" in each publication
     And a fake image provider
     When a person generates a "cover" picture of type "cover-illustration" for the Story "story-1" with the brief "A locked filing cabinet"
     And a person applies candidate 1 to the Story "story-1" as the cover
-    Then the apply succeeds as "human-verified"
-    And the Story got a new version with the cover set and nothing was published
-    And no review request was opened
-    And candidate 1 is "applied"
+    Then the apply succeeds as "unreviewed"
+    And a review request was opened
+
+  Scenario: An agent cannot say a picture was reviewed
+    Given an image publication "ours" whose guidelines approve spending on "gpt-image-2.5-flare"
+    And a Story "story-1" in each publication
+    And a fake image provider
+    When an agent generates a "cover" picture of type "cover-illustration" for the Story "story-1" with the brief "A locked filing cabinet"
+    And an agent applies candidate 1 to the Story "story-1" as the cover and says it was reviewed
+    Then the apply is refused with "human_required"
+    And candidate 1 is "ready"
+
+  Scenario: Alt text is written by someone who saw the picture, never copied from the brief
+    Given an image publication "ours" whose guidelines approve spending on "gpt-image-2.5-flare"
+    And a Story "story-1" in each publication
+    And a fake image provider
+    When a person generates a "cover" picture of type "cover-illustration" for the Story "story-1" with the brief "A locked filing cabinet"
+    And a person applies candidate 1 to the Story "story-1" as the cover with no alt text
+    Then the apply is refused with "invalid_input"
+    When a person applies candidate 1 to the Story "story-1" as the cover with the alt text "A locked filing cabinet"
+    Then the apply is refused with "checks_failed"
+    When a person applies candidate 1 to the Story "story-1" as the cover with the alt text "A locked filing cabinet. No devils, horns, flames or pitchforks."
+    Then the apply is refused with "checks_failed"
+    And candidate 1 is "ready"
+    When a person applies candidate 1 to the Story "story-1" as the cover with the alt text "A steel cabinet with a padlock in a bare grey room."
+    Then the apply succeeds as "unreviewed"
 
   Scenario: An agent applying leaves the picture unreviewed and asks for a review
     Given an image publication "ours" whose guidelines approve spending on "gpt-image-2.5-flare"

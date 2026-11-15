@@ -329,14 +329,38 @@ def story_guard(context, lineage):
     return next(row["id"] for row in backend(context).items if row["lineageId"] == lineage and row["versionState"] == "current")
 
 
-def apply_candidate(context, caller, number, story, guard=None):
-    run(context, "image_apply", {"candidateId": nth(context, number)["id"], "target": {"kind": "story", "lineageId": story}, "use": "cover",
-                                 "expectedCurrentVersionId": guard or story_guard(context, story)}, caller)
+DESCRIPTION = "A steel filing cabinet with a heavy padlock, alone in a bare grey room."
+
+
+def apply_candidate(context, caller, number, story, guard=None, **extra):
+    arguments = {"candidateId": nth(context, number)["id"], "target": {"kind": "story", "lineageId": story}, "use": "cover",
+                 "alt": DESCRIPTION, "expectedCurrentVersionId": guard or story_guard(context, story), **extra}
+    run(context, "image_apply", {key: value for key, value in arguments.items() if value is not None}, caller)
 
 
 @when('a person applies candidate {number:d} to the Story "{story}" as the cover')
 def step_person_applies(context, number, story):
     apply_candidate(context, PERSON, number, story)
+
+
+@when('a person who looked at it applies candidate {number:d} to the Story "{story}" as the cover')
+def step_person_reviewed_applies(context, number, story):
+    apply_candidate(context, PERSON, number, story, reviewed=True)
+
+
+@when('an agent applies candidate {number:d} to the Story "{story}" as the cover and says it was reviewed')
+def step_agent_claims_review(context, number, story):
+    apply_candidate(context, AGENT, number, story, reviewed=True)
+
+
+@when('a person applies candidate {number:d} to the Story "{story}" as the cover with the alt text "{alt}"')
+def step_person_applies_alt(context, number, story, alt):
+    apply_candidate(context, PERSON, number, story, alt=alt)
+
+
+@when('a person applies candidate {number:d} to the Story "{story}" as the cover with no alt text')
+def step_person_applies_no_alt(context, number, story):
+    apply_candidate(context, PERSON, number, story, alt=None)
 
 
 @when('an agent applies candidate {number:d} to the Story "{story}" as the cover')

@@ -19,6 +19,10 @@ import unicodedata
 from dataclasses import dataclass, field
 
 TRANSLATABLE_ATTRIBUTES = ("alt", "caption", "title")
+#: The reader-facing front matter texts, beside the title and the dek, that a translation carries (kind ``field:<key>``): the blurb that summarizes the Story
+#: in listings and on social cards, and the cover picture's alt text. ``sources`` titles stay as written (the references list stays in its own language).
+FRONT_MATTER_FIELDS = ("blurb", "imageAlt")
+FIELD_PREFIX = "field:"
 COPIED_KINDS = ("code", "comment", "rule")
 
 _FENCE = re.compile(r"^(```|~~~)")
@@ -48,7 +52,7 @@ def normalized(text: str) -> str:
 @dataclass(frozen=True)
 class Block:
     id: str            # hash of the normalised text + "#" + occurrence
-    kind: str          # title | deck | prose | container | directive | code | comment | rule
+    kind: str          # title | deck | field:<key> | prose | container | directive | code | comment | rule
     text: str
 
     @property
@@ -117,13 +121,14 @@ def split_body(body: str) -> list[str]:
     return blocks
 
 
-def blocks_of(body: str, *, title: str | None = None, deck: str | None = None) -> list[Block]:
-    """The Story's blocks with their identities: the title, the dek, then the body's blocks."""
+def blocks_of(body: str, *, title: str | None = None, deck: str | None = None, fields: tuple[tuple[str, str], ...] = ()) -> list[Block]:
+    """The Story's blocks with their identities: the title, the dek, the front matter fields (blurb, cover alt text), then the body's blocks."""
     texts: list[tuple[str, str]] = []
     if title:
         texts.append(("title", title.strip()))
     if deck:
         texts.append(("deck", deck.strip()))
+    texts += [(FIELD_PREFIX + key, text.strip()) for key, text in fields if text and text.strip()]
     texts += [(_kind(text), text) for text in split_body(body)]
     seen: dict[str, int] = {}
     out = []

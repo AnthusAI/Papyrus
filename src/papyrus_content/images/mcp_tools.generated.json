@@ -2729,7 +2729,11 @@
           "alt": {
             "type": "string",
             "minLength": 1,
-            "description": "Alt text; the picture's own draft when left out."
+            "description": "Alt text written by someone who has seen the picture. Required: it describes what the picture shows, and is refused when empty or when it equals or contains the generation brief."
+          },
+          "reviewed": {
+            "type": "boolean",
+            "description": "A person says they looked at the picture. Only a person may; an agent is refused. Without it the picture stays unreviewed and a review request is opened."
           },
           "caption": {
             "type": "string",
@@ -2748,6 +2752,7 @@
         "required": [
           "target",
           "use",
+          "alt",
           "expectedCurrentVersionId"
         ],
         "additionalProperties": false,

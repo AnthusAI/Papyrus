@@ -21,7 +21,7 @@ publishes: a person publishes the result ([Publishing a translation](#publishing
 
 ## Setting a site up, and starting a run
 
-A site needs three things before a run starts; none is an Automation, a monitor or a router publication.
+A site needs four things before a run starts; none is an Automation, a monitor or a router publication.
 
 1. **The language is enabled**: `languages.enabled` of the editorial check settings names it (`es-419`); it stays out of `languages.public` until the owner decides.
 2. **The procedure is registered once**, under the key `SITE.story-localize` where SITE is the site's host (`newsroom.example.com.story-localize`). Register it again
@@ -31,7 +31,14 @@ A site needs three things before a run starts; none is an Automation, a monitor 
    papyrus --auth iam procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize --dry-run --json
    papyrus --auth iam procedures register --file procedures/newsroom/story_localize.tac --key SITE.story-localize
    ```
-3. **The model key** is available to the run: `OPENAI_API_KEY` in the process that starts it, or the site's SSM parameter named with `--openai-key-parameter`
+3. **The language's guidelines are saved** (by an admin, once; a translation reads only what the site saved, and a site with none translates with no glossary and no register note):
+   - the starter glossary overlay, `src/papyrus_content/data/glossary/<language>.json` (for `es-419`: `AI` is `IA`, `computer` is `computadora`, Paris is París, and so on). The translator is
+     told the entries that occur in each block and the faithfulness check verifies them:
+     `papyrus guidelines save --kind glossary --language es-419 --file src/papyrus_content/data/glossary/es-419.json --reason "Starter glossary" --expected-current-version-id none`;
+   - the language's register in a `writing` overlay (`--kind writing --language es-419`, field `tone`): which form of address the reader gets. Humanus's `word-choice-es-419` pack sets
+     none (it only lists words that differ from Spain's), so the site decides; an unsaved overlay leaves the model free to pick tú or usted, call to call. Machines on Machines uses
+     usted ("Lea la fuente"), the neutral form of the Latin American press.
+4. **The model key** is available to the run: `OPENAI_API_KEY` in the process that starts it, or the site's SSM parameter named with `--openai-key-parameter`
    (read with the operator's AWS credentials and never printed).
 
 `LocalizationRequest` (id `{languageGroupId}#{language}`) is the desired-state record: the newest published source version to translate. One command writes it
@@ -62,7 +69,7 @@ A run with no request, or for an older source than the request names, stops befo
    (`translation_glossary`), the language's copy-edit pack, the language overlays' register notes, earlier runs' spend; the run key.
 2. **budget**: the cost predicted from this language's measured runs (`localize/budget.py`: median cost per source character; Tukey's upper
    fence as the outlier band once four runs exist). A caller's ceiling makes the run wait when the prediction is above it.
-3. **translate**: only the blocks whose source changed. Link targets, URLs, citations, code and every directive attribute except `alt`, `caption`
+3. **translate**: only the blocks whose source changed. The blocks are the title, the dek, the front matter's reader-facing texts (`blurb`, `imageAlt`: kinds `field:blurb`, `field:imageAlt`, saved back into the translation's front matter; references and picture paths stay as written) and the body's blocks. Link targets, URLs, citations, code and every directive attribute except `alt`, `caption`
    and `title` are replaced by placeholders and put back by the system, so a translator never sets a link target or a credit.
 4. **normalize and parity**: emphasis that would not render is fixed by code (the punctuation moves outside the closing marker); the Humanus
    `translation-faithfulness` parity rules run on each block.
