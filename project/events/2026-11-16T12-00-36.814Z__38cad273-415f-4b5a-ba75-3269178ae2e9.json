@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "38cad273-415f-4b5a-ba75-3269178ae2e9",
+  "issue_id": "PPY-d956a553-c519-422c-bd59-731e6a5d1351",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T12:00:36.814Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Skip link ignores the language's skipToMain string",
+    "description": "On /es/ the skip link reads 'Skip to main content' in English though strings/es-419.json has skipToMain.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "multilingual"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
