@@ -89,8 +89,8 @@ def relations_localize(flags: list[str], *, client=None, models_for=None) -> Non
     if args.needed:
         from .entity_labels.wanted import drain
 
-        report = drain(client, languages=args.language, ceiling_usd=args.ceiling_usd, dry_run=args.dry_run, say=lambda line: print(line, file=sys.stderr),
-                       **({"localize": _localizer(models_for)} if models_for else {}))
+        report = drain(client, localize=_localizer(models_for), languages=args.language, ceiling_usd=args.ceiling_usd, dry_run=args.dry_run,
+                       say=lambda line: print(line, file=sys.stderr))
         if args.json:
             print(json.dumps(report, indent=2))
         else:

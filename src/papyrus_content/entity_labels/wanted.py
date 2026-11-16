@@ -14,8 +14,8 @@ from typing import Any, Callable, Iterable
 from .keys import CONCEPT, WANTED, entity_key, sort_key, wanted_id, work_key
 from .primary import lineage_of, preferred_name
 from .store import LabelStore
-from .stream import site_primary_language
-from .triggers import _localize, needs_name
+from .settings import site_primary_language
+from .triggers import needs_name
 
 ORIGIN = "wanted"
 
@@ -65,8 +65,8 @@ def _node_of(client: Any, row: dict[str, Any]) -> dict[str, Any] | None:
     return found[0] if found else None
 
 
-def drain(client: Any, *, languages: list[str] | None = None, ceiling_usd: float | None = None, dry_run: bool = False,
-          localize: Callable[..., list[dict[str, Any]]] = _localize, say: Callable[[str], None] = lambda line: None) -> dict[str, Any]:
+def drain(client: Any, *, localize: Callable[..., list[dict[str, Any]]], languages: list[str] | None = None, ceiling_usd: float | None = None, dry_run: bool = False,
+           say: Callable[[str], None] = lambda line: None) -> dict[str, Any]:
     """Name the wanted concepts. ``{named, skipped, remaining, costUsd, stopped}``: a row whose concept already has a name, or no longer exists, is dropped without
     asking; the ceiling is checked before each concept, so one more concept than the ceiling is the most that is ever spent over it."""
     store = LabelStore(client)
@@ -97,12 +97,10 @@ def drain(client: Any, *, languages: list[str] | None = None, ceiling_usd: float
 def story_concepts(client: Any, lineage: str) -> list[dict[str, Any]]:
     """The accepted concepts the Story ``lineage`` is tagged with (``tagged_with``, or the legacy ``related_to``): what a Story is about is written once, on the original,
     and a translation reads it there."""
-    from ..concept_tags import _fetch_nodes, _relations_for
-
-    rows = [row for row in _relations_for(client, [f"item#{lineage}#current"]).get(f"item#{lineage}#current") or []
-            if row.get("objectKind") == "semanticNode" and row.get("relationState", "current") == "current"]
-    nodes = _fetch_nodes(client, rows)
-    return [nodes[str(row["objectId"])] for row in rows if str(row.get("objectId")) in nodes and nodes[str(row["objectId"])].get("status") == "accepted"]
+    rows = [row for row in client.list_by_index("semanticRelationsBySubjectState", f"item#{lineage}#current")
+            if row.get("objectKind") == "semanticNode" and row.get("objectId") and row.get("relationState", "current") == "current"]
+    nodes = client.get_records_by_id("SemanticNode", [str(row["objectId"]) for row in rows]) if rows else {}
+    return [nodes[str(row["objectId"])] for row in rows if nodes.get(str(row["objectId"]), {}).get("status") == "accepted"]
 
 
 def published_translation_languages(client: Any, original_lineage: str) -> list[str]:
