@@ -1155,7 +1155,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             alternates = self._listing_alternates_digest(key)
             digest = digest_of([shared, key, digest_input, dependency, page_inputs, ranking, *([alternates] if alternates else [])])
             plan[key] = (digest, lambda: self._render(build_page()))
-            twin = md_key(key) if markdown and self.standard.agents.markdown and not self._is_edition else None
+            twin = md_key(key) if markdown and self.standard.agents.markdown else None
             if twin:
                 meta[twin] = (page_id, listed_ids)
                 plan[twin] = (digest_of([digest, "markdown"]), lambda: self._markdown_for(build_page()).encode("utf-8"))

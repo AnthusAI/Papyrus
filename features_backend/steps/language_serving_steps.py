@@ -715,3 +715,14 @@ def step_share_picture(context):
         home = site.text(f"{prefix}index.html")
         assert f'<meta property="og:image" content="{ORIGIN}{image}">' in home, (prefix, re.findall(r'og:image" content="[^"]*', home))
         assert f'<meta property="og:image:alt" content="{alt}' in home, prefix
+
+
+@then('the Spanish home advertises its Markdown twin and "{key}" exists')
+def step_home_twin(context, key):
+    assert '<link rel="alternate" type="text/markdown" href="/es/index.md">' in _site(context).text("es/index.html")
+    assert _site(context).exists(key), _site(context).keys()
+
+
+@then('the Spanish articles listing has the twin "{key}"')
+def step_listing_twin(context, key):
+    assert _site(context).exists(key), _site(context).keys()
