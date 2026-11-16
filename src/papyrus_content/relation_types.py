@@ -70,6 +70,7 @@ def normalize_semantic_relation_type_seed(entry: dict[str, Any], index: int, fil
         "isDirectional": bool(entry.get("isDirectional", True)),
         "isSymmetric": bool(entry.get("isSymmetric")),
         "isTransitive": bool(entry.get("isTransitive")),
+        "pod": bool(entry.get("pod")),
         "contextPackTags": normalize_string_array(entry.get("contextPackTags")),
         "createdAt": entry.get("createdAt") if isinstance(entry.get("createdAt"), str) else None,
         "metadata": entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {},

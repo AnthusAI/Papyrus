@@ -1,0 +1,34 @@
+{
+  "id": "PPY-d99bd016-368d-4f43-b4d7-8d3fc590d169",
+  "title": "Examples reach the drafter, and every draft names what it read",
+  "description": "The drafter loads, for the channel, kind and publication it is writing for: the guideline files that apply, and the active examples for that scope, newest first, within the context pack's budget. Each Delivery records the guideline ids, versions and hashes and the example ids it was drafted under. `papyrus announcements explain --delivery X` prints them. An example that an accepted guideline was derived from is marked absorbed and is no longer loaded by itself.\n\n**Acceptance criteria**\n- A draft after an example with matching scope follows it; a draft outside the scope does not load it.\n- Every draft is explainable by listing what it read.\n- Absorbed examples are not loaded.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- drafter-examples.feature: an example for channel X is loaded for X and not for email; the Delivery lists the examples it read; an absorbed example is skipped; turning an example off removes it from the next draft.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Announcements learn from a person's edits. Slice code O3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f51641cb-954c-4ce7-96a7-6902ed923b61",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-627bbc49-b62f-4e9f-8a55-ce3c13fa1e43",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9c6b894b-4756-4829-b4ea-4edddc1327fb",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:19.956327Z",
+  "updated_at": "2026-11-16T22:43:53.570365Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

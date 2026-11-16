@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "1d33ff6d-2dfd-41e2-b110-3fad5ec41b22",
+  "issue_id": "PPY-396483e8-85e1-4757-afbe-a3fd55d34aaa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:15.629Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Fact-check as an agent",
+    "description": "Definition for `fact_check`: woken when the step is ready (after the free sources step), paid, behind the quiet window. A claim that is not verified is held with its reason and raises doubt; doubt stops automatic publishing at every rung. Builds on the paid fact check on drafts (PPY-e4f8c2).\n\n**Acceptance criteria**\n- A contradicted claim stops automatic publishing and raises a hard gate.\n- The check runs once per changed claim, after the quiet window.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- fact-check-agent.feature: verified claims close the step; a contradicted claim raises a hard gate; an edit re-checks only changed claims.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Every other responsibility as an agent. Slice code M7 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

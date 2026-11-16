@@ -1,0 +1,30 @@
+{
+  "id": "PPY-dd065312-3b12-466f-98e7-21dcdb671d45",
+  "title": "Every agent loads the standard context pack and the site's add-only instructions",
+  "description": "One loader at the start of every run gives the procedure: the section context pack that already exists (recent Stories, top-rated accepted References, core concepts), the guidelines that apply (writing, image, channel), and the site's instructions for this responsibility, which are added on top of the engine's fixed base and stored as a versioned document in S3. The run record names the versions and hashes it loaded. This is the agent's standing memory; nothing else is loaded by default. Works with the Story procedure profile (PPY-7a61ca), which defines add-only instructions for Story steps.\n\n**Acceptance criteria**\n- Two agents in one section load the same pack from one code path.\n- A run record names every guideline and instruction version it read.\n- A site's instruction cannot remove a base rule.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-context-load.feature: the pack is the same for two agents in a section; the run names the versions it read; a site instruction is added after the base; an attempt to replace the base is refused.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Agent definitions, the catalog and generated runbooks. Slice code D4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b05940e6-e99f-4919-a398-a39df6e99bff",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:04.867211Z",
+  "updated_at": "2026-11-16T22:43:28.583833Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

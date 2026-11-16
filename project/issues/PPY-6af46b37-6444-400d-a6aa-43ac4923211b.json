@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6127c544-f265-41ab-ac36-ff52378274ab",
+      "author": "home",
+      "text": "Always-on agents (initiative PPY-a3fceb): every always-on agent stops the day the model key expires. This task is a go or no-go condition for any paid agent after about 1 December (design docs/design/always-on-agents-architecture.md, section 19).",
+      "created_at": "2026-11-16T22:48:59.284290Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-01T12:46:10.195908Z",
-  "updated_at": "2026-11-01T12:46:14.053838Z",
+  "updated_at": "2026-11-16T22:48:59.284617Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
@@ -21,5 +29,8 @@
   },
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

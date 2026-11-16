@@ -1,0 +1,22 @@
+{
+  "id": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+  "title": "Authorization: the autonomy ladder as configuration",
+  "description": "How far an agent may go is site data, not code: seven rungs (off, observe, propose, draft, prepare, publish with soft review, publish automatically), set per site and responsibility with narrower overrides, in one versioned policy document. One gate at the operation table answers allowed, blocked or human_required. Hard floors hold at every rung. Done when the publish gate, autoAccept, languages.auto and announcementReview are all rungs in the one document and no agent can reach a write except through the gate.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-16T22:42:24.364476Z",
+  "updated_at": "2026-11-16T22:42:24.364516Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

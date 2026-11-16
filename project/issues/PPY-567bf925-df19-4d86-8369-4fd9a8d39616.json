@@ -1,0 +1,39 @@
+{
+  "id": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+  "title": "Per-site wake queue; the procedure runner consumes it",
+  "description": "Add one FIFO queue per site, `papyrus-<site>-agent-wakes.fifo`, with a dead-letter queue and an alarm. A wake is a small message: the wake key, the agent, the subject and why. The message group id is the agent plus its serial scope (see the one-worker task), and the deduplication id is the wake key. The procedure runner Lambda is the queue's consumer (batch size 1), so it holds the message for the whole run and the queue redelivers it if the run dies. Run now and `papyrus automations run` put a message on the queue instead of invoking the runner; the direct asynchronous invocation is deleted from every caller in the migration task. The runner's role reads queues by the name pattern, one statement for all sites.\n\n**Acceptance criteria**\n- A wake put on the queue starts exactly one run.\n- A runner crash redelivers the message; nothing is lost.\n- The dead-letter queue has an alarm and is empty in normal operation.\n- Run now goes through the queue.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- wake-queue.feature: a wake starts one run; two wakes for the same group run one after the other; two wakes for different groups run at the same time; a duplicate wake inside the deduplication window is dropped; a message the runner cannot parse reaches the dead-letter queue.\n\n**Infrastructure as code touched:** Site backend (Amplify): FIFO queue, dead-letter queue, alarm, event source mapping to the runner. Runner template: role statement for the queue name pattern.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cd706fba-2516-4e3d-8df1-5b16e61c7ef7",
+  "labels": [
+    "always-on-agents",
+    "first-week"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-70c6e83d-5edc-4d18-802d-d582af9838da",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-624dab11-ec1f-4d8f-9169-c020378d6277",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e068351c-82c7-421b-93d2-75014dcec23e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:02.081219Z",
+  "updated_at": "2026-11-16T22:44:34.057955Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

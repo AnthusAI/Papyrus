@@ -1,0 +1,34 @@
+{
+  "id": "PPY-45ef76e8-eba7-485c-abeb-efdae74b06cd",
+  "title": "Alarms: dead letters, stuck unknowns, change feed lag, budget",
+  "description": "One alarm each, defined in the templates and read by the operator listener: a message in any agent dead-letter queue; a run that stays `unknown` and unacknowledged; a change feed whose iterator age grows; the site budget reached. Each alarm names the runbook line that says what to do.\n\n**Acceptance criteria**\n- Each condition raises its alarm in a test.\n- Each alarm links to a runbook line.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-alarms.feature: a dead-lettered wake alarms; an old unknown alarms; a lagging feed alarms; the budget flag raises once per cycle.\n\n**Infrastructure as code touched:** Alarms in the site backend and the shared stack.\n\n**Part of:** Observability, safety and release readiness. Slice code J1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2d2e5572-035c-4d8c-a826-84bdbb9db1cf",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:10.297249Z",
+  "updated_at": "2026-11-16T22:43:37.458756Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

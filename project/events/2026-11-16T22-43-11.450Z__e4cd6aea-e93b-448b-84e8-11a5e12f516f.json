@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "e4cd6aea-e93b-448b-84e8-11a5e12f516f",
+  "issue_id": "PPY-21a2e637-7484-42a6-b896-5e94c4e28eed",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:11.450Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Release readiness checklist and turn-on order",
+    "description": "Write and keep in the repository the checklist that must be true before each thing is turned on in production, and the order: records and outcomes first (no behaviour change); the first agent at `observe` on one site; then `propose`; email in dry run with a test send before a live send; one site before the next; X last, with a watched first post. The checklist is in the architecture document (section 18); this task makes each line a named check or spec and records the evidence on the task.\n\n**Acceptance criteria**\n- Each checklist line names the spec or check that proves it.\n- Nothing is turned on without its lines recorded as passed.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- (checklist; each line points at an existing feature file)\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Observability, safety and release readiness. Slice code J5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

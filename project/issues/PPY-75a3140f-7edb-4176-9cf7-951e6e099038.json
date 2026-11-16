@@ -1,0 +1,30 @@
+{
+  "id": "PPY-75a3140f-7edb-4176-9cf7-951e6e099038",
+  "title": "Preferred version: teach without sending again",
+  "description": "After a Delivery is sent, a person may save how it should have read, as a 'preferred version' that is never sent. This is how 'announced right away, then massaged' works when the message is already out: an email cannot be recalled and a new post costs money and attention. The person chooses separately whether to also correct the public post (a superseding Delivery, where the channel can delete) or only to teach.\n\n**Acceptance criteria**\n- Saving a preferred version sends nothing and changes no public text.\n- It can be used as an example exactly like an edit made before sending.\n- Correcting and teaching are separate choices.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- delivery-preferred-version.feature: a preferred version on a sent email sends nothing; it becomes an example when given a scope; choosing 'correct' on X makes a superseding Delivery and deletes the old post.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Announcements learn from a person's edits. Slice code O2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f51641cb-954c-4ce7-96a7-6902ed923b61",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-627bbc49-b62f-4e9f-8a55-ce3c13fa1e43",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:19.713550Z",
+  "updated_at": "2026-11-16T22:43:53.118032Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

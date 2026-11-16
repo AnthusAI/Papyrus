@@ -1,0 +1,38 @@
+{
+  "id": "PPY-8cf5e2a3-2282-41c9-badc-d045231daacd",
+  "title": "The shared tier runs the same design with the tenant in every key",
+  "description": "On the shared tier (in the existing production account; no new AWS account), one wake queue and one schedule group serve many tenants. The tenant id is part of every message group, wake key, schedule name, ledger scope and policy lookup. Add cases to the cross-tenant isolation suite: a wake for one tenant can never read, write, spend from or be delayed by another's records, budget or pause.\n\n**Acceptance criteria**\n- One tenant's burst does not delay another's wakes beyond the shared provider limit.\n- No cross-tenant read or write is possible through a wake.\n- Pausing one tenant pauses only that tenant.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- tenant-isolation-agents.feature (added to the adversarial suite): a wake carrying another tenant's subject is refused; budgets are per tenant; a pause is per tenant; a schedule name cannot collide.\n\n**Infrastructure as code touched:** Shared-tier foundation stack: queue, schedule group, alarms (held in the stack list until Ryan says go).\n\n**Part of:** Infrastructure as code and the shared tier. Slice code I2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33e62287-4154-4ad7-aa64-ab2ad1d03c1e",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2a53cd96-5316-4b1c-9bd7-bf9317c1f73e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:09.798109Z",
+  "updated_at": "2026-11-16T22:47:39.053775Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

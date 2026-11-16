@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "7121bbfb-93f0-4849-a54e-7da0a7b6e5d3",
+  "issue_id": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:05.083Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The agent policy document: rung, overrides and pause, per site",
+    "description": "One versioned document per site (a `SiteDocument` of kind `agents`, body in S3, admin-only, with who, when and why on every version). For each responsibility it holds the rung: `off`, `observe` (reads and records what it would do), `propose` (files suggestions), `draft` (writes drafts and candidates nobody outside sees), `prepare` (takes work to the door and asks a person), `publish_soft` (goes unless a person stops it in time), `publish_auto` (goes; shown in the digest). Optional overrides narrow it by section, Story type, channel, Announcement kind or list; the narrowest wins. It also holds `paused` per agent and for the whole site, the quiet window, the loop limit, the budget and the model tier (used by later tasks). A new site starts with every agent at `off` or `observe`. Each run records the policy version and rung it ran under. Only an admin may change it; an agent is blocked.\n\n**Acceptance criteria**\n- A rung change is a new version with who, when and why.\n- The narrowest matching override decides.\n- A paused agent starts nothing and records why.\n- Every run names the policy version it ran under.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-policy.feature: a new site starts quiet; an admin raises a rung with a reason; an editor and an agent cannot; a section override beats the site rung; pausing stops new runs; resuming does not replay skipped ticks; a run records its policy version.\n\n**Infrastructure as code touched:** Amplify data: new `SiteDocument` kind (no new table).\n\n**Part of:** Authorization: the autonomy ladder as configuration. Slice code E1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+    "labels": [
+      "always-on-agents",
+      "first-week"
+    ]
+  }
+}

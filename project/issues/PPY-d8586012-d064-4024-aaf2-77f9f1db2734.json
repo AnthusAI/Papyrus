@@ -1,0 +1,47 @@
+{
+  "id": "PPY-d8586012-d064-4024-aaf2-77f9f1db2734",
+  "title": "Rating agent at observe on Machines on Machines",
+  "description": "The first agent. Definition: responsibility `rate`, tier `bulk`, a daily schedule and no change triggers yet, serial scope `agent`, safe to repeat. Each day it reads, by index, published Stories and accepted References with no rating, and for each decides three stars (the default), four (clearly better), or 'five-star candidate' (never a rating). At `observe` it writes nothing but its run record, which lists what it would rate and why. Machines on Machines is the site because the rating policy was decided for it and it has a backlog of unrated published Stories.\n\n**Acceptance criteria**\n- It runs once a day by its schedule and ends `acted` or `nothing`.\n- At `observe` no rating changes.\n- It never proposes five as a rating.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-agent.feature: the daily run lists unrated items with a proposed three or four; a strong item is listed as a five-star candidate; a day with nothing unrated ends `nothing`; no rating is written at `observe`.\n\n**Infrastructure as code touched:** None beyond the standard.\n\n**Part of:** First agent: rating and curation on one site. Slice code L1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-24b2acd6-5718-411c-aeb1-953fd7db1b56",
+  "labels": [
+    "always-on-agents",
+    "first-week"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-70c6e83d-5edc-4d18-802d-d582af9838da",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2a53cd96-5316-4b1c-9bd7-bf9317c1f73e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-6af46b37-6444-400d-a6aa-43ac4923211b",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:12.953918Z",
+  "updated_at": "2026-11-16T22:48:59.132373Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

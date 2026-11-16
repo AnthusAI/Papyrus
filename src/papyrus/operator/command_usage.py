@@ -46,6 +46,7 @@ LANE_TEXT = {
   "editor": "editor (signed in with `papyrus login`, the default lane); the operator lane (AWS credentials) is not needed.",
   "operator": "operator (AWS credentials, named with `papyrus --auth iam ...` or PAPYRUS_GRAPHQL_AUTH=iam). A signed-in editor session is refused.",
   "both": "both (signed-in editor with `papyrus login`, the default, or operator with AWS credentials named with `papyrus --auth iam`).",
+  "files": "none: it works on a folder of files on this machine, with no sign-in and no site.",
   "unverified": "not verified on the signed-in editor lane; treat it as operator-only (`papyrus --auth iam` with AWS credentials).",
 }
 WRITES_TEXT = {
@@ -266,6 +267,11 @@ _ENTRIES = dict([
   _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
      "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
+  # ---- pod (a folder of Markdown notes; src/papyrus/pod/) ---------------------------------------------------------------
+  _e("pod init", "Start a level 1 pod in a folder: write context.jsonld (the id base) and the generated papyrus.context.jsonld. Changes no note; refuses a folder that already has context.jsonld.",
+     "POD --id-base URL", "files", "local"),
+  _e("pod id", "Print new permanent ids for notes, each the pod's id base and a random identifier (never made from a file name). Writes nothing.", "POD [N]", "files", "reads"),
+  _e("pod check", "Report a pod's level and every problem: ids, types, keys, links, the context files. Reads only; exits 1 when there is any problem.", "POD", "files", "reads"),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
@@ -276,6 +282,8 @@ _ENTRIES = dict([
   _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
      "--kind KIND [--section KEY] [--language TAG] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
+  _e("guidelines check", "Check files against the guideline files in a folder (one folder per guideline, each with GUIDELINE.md) with no network and no model: listed words, patterns and lengths are decided; a rule that needs judgement is listed as not checked offline. Exits 1 when an error guideline finds something.",
+     "--dir DIR [--scope section/ID|channel/NAME]... [--language TAG] FILE...", "both", "reads", "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
@@ -382,6 +390,7 @@ GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
+  "pod": ["init", "id", "check"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
@@ -408,7 +417,8 @@ GROUP_SUMMARIES = {
   "ops site": "Site copy (operator).",
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
-GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
+GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id and check. Files only: no sign-in, no site."
+GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."

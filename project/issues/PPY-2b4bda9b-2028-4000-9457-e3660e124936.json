@@ -3,7 +3,7 @@
   "title": "Automation outputs go to review by default (S)",
   "description": "Procedure outputs must not publish on their own by default. They land in review queues or Proposals unless the automation opts in to direct publish.\n\nScope:\n- The run contract routes a procedure's outputs to a review queue or a Proposal by default.\n- Opt-in to direct publish is per site and per automation, stored on the Automation record, and off by default.\n- The opt-in is shown in the console (see the Automation page story).\n- Any output touching pages still takes the projection lease and never reconciles.\n\nAcceptance criteria:\n- An automation with default settings never publishes directly; its outputs appear in review or as Proposals.\n- An automation opted in at both site and automation level may publish directly; opting in at only one level does not.\n- The opt-in state is visible to console users.\n- Gherkin specs (narrative, complete) required.\n\nDepends on PPY-433383 and the automation records story.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -21,11 +21,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9356985a-0909-4d24-9dc9-b81fc0075b8c",
+      "author": "home",
+      "text": "Superseded, not built: the rule 'outputs do not publish by default; direct publish is an opt-in per site and automation' is the autonomy ladder. A new agent arrives at rung off, a site starts at off or observe, and publishing needs a rung a person set (PPY-51ea61, the agent policy document; PPY-611397, the gate; PPY-df3e74, a deploy never changes a rung). Closed as a duplicate of those three.",
+      "created_at": "2026-11-16T22:46:07.035479Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T06:07:53.939034Z",
-  "updated_at": "2026-10-23T06:08:22.666294Z",
-  "closed_at": null,
+  "updated_at": "2026-11-16T22:46:07.175524Z",
+  "closed_at": "2026-11-16T22:46:07.175259Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

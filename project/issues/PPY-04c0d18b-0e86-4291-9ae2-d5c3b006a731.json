@@ -1,0 +1,34 @@
+{
+  "id": "PPY-04c0d18b-0e86-4291-9ae2-d5c3b006a731",
+  "title": "Cost model and tags for agent resources",
+  "description": "Tag every agent resource with site and responsibility. Document the unit costs (a queue message, a schedule tick, a run's Lambda time, model spend from the ledger) and show a site's monthly agent cost on its Agents page from the ledger and the tags. An idle agent must cost close to nothing: no polling, no schedule that walks a table.\n\n**Acceptance criteria**\n- A site's agent cost is visible by responsibility.\n- An agent with nothing to do makes no model call.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-cost.feature: an idle day shows no model spend; cost by responsibility sums to the ledger total.\n\n**Infrastructure as code touched:** Tags on queue, schedules, functions; cost attribution config.\n\n**Part of:** Infrastructure as code and the shared tier. Slice code I3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33e62287-4154-4ad7-aa64-ab2ad1d03c1e",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fa165cff-23f9-40b0-b9d4-923c83b3e95d",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:10.046763Z",
+  "updated_at": "2026-11-16T22:43:37.033397Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "PPY-e6164237-c45f-4aec-827f-87efa7e0a6d1",
+  "title": "Rating agent at propose: suggested stars a person confirms",
+  "description": "At `propose` the agent stores its suggestion beside the record as a machine suggestion (never in the rating field) and raises one grouped soft review per day: 'N ratings suggested, M five-star candidates'. A person confirms, changes or ignores; a person's rating always wins and is never overwritten.\n\n**Acceptance criteria**\n- Suggestions are visible and separate from ratings.\n- One grouped request per day.\n- A person's rating is never changed by the agent.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-suggestions.feature: a suggestion appears beside the item; confirming makes it the person's rating; an item a person rated is skipped; candidates are listed, not rated.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** First agent: rating and curation on one site. Slice code L2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-24b2acd6-5718-411c-aeb1-953fd7db1b56",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-d8586012-d064-4024-aaf2-77f9f1db2734",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:13.216240Z",
+  "updated_at": "2026-11-16T22:43:42.601286Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "PPY-5bcf425e-0395-48a2-921f-8783b283dc60",
+  "title": "Today v1: what ran, what it decided and what it cost",
+  "description": "Add a Today section to the newsroom home (the Notification Center) and a `papyrus today` command, read by index from the run records for the site's day: per agent, how many runs ended acted, nothing, asked, failed and unknown, the cost, and for 'nothing' the reason codes. Each line opens the runs. Words and marks, never colour alone. No subscription; it refreshes on focus and every five minutes.\n\n**Acceptance criteria**\n- Ryan can answer 'what did the system do today' from one page.\n- 'Nothing to do' is visible with its reason, not hidden.\n- Every read is an index; the page works on a phone.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- today-view.feature: a day with runs shows counts per agent and outcome; a 'nothing' run shows its reason; an agent that did not run shows 'did not run' and why; cost is the sum of the runs; no colour-only status.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Human surface: Today, poke-in operations and explanations. Slice code H1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-76781314-e642-4b7a-a69a-c5e24bf8f469",
+  "labels": [
+    "always-on-agents",
+    "first-week"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f58445df-45cb-4f2f-9b20-e5d1cf03730e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1cd26113-0592-4e47-bde4-2f92074eba46",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-3ae2b336-c28c-4448-a069-bf01606167a2",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:08.432805Z",
+  "updated_at": "2026-11-16T22:46:10.657922Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

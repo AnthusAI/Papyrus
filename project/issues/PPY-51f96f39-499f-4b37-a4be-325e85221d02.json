@@ -1,0 +1,34 @@
+{
+  "id": "PPY-51f96f39-499f-4b37-a4be-325e85221d02",
+  "title": "Assignment is the request between agents",
+  "description": "When one agent needs another's work (the fact-checker needs a source found, the copy editor needs a figure), it creates an `Assignment` for that responsibility on the subject, through the gate. `Assignment` already exists with claim, release, complete, cancel, reopen and events; make its kind any responsibility from the catalog. Its creation wakes the responsible agent; the wake key is the claim; completion writes the result on the subject and closes the Assignment, which wakes the asker. A person creates the same record from the newsroom. An Assignment is never a Message.\n\n**Acceptance criteria**\n- An agent's request appears on the subject as an Assignment with who asked and why.\n- The responsible agent runs once for it.\n- Completion wakes the asker; a failure is recorded on the Assignment and raises one flag.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- assignment-handoff.feature: the fact-checker asks for a source and research runs once; the result returns to the Story; a person files the same request; a failed assignment is not retried by itself.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Work items and handoffs between agents and people. Slice code F1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-928a91fb-7fe8-4bd4-85f1-e0bef41e5897",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9b9e64dc-cb45-42ee-b370-705145d0b444",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:06.509524Z",
+  "updated_at": "2026-11-16T22:43:30.842736Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

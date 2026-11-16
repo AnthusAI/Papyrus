@@ -1,0 +1,34 @@
+{
+  "id": "PPY-2c29e516-aba4-4596-b9fd-f0a55fdf80fb",
+  "title": "One working document per list",
+  "description": "The assembler and editors work on one document per issue. For a list set to `story`, it is the issue Story on the board all period (Ryan's living issue), and the email Delivery renders an approved version of it; after the send it is published to the archive. For a list set to `delivery`, it is the Delivery's own text versions and there is no archive page. Slots, pins and removed-item records use the same block marks in both, so one assembler serves weekly and daily.\n\n**Acceptance criteria**\n- A weekly issue is a Story on the board during the week.\n- A daily summary makes no Story and no archive page.\n- Pins and removals behave the same in both.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- list-working-document.feature: a `story` list creates one issue Story per period; a `delivery` list creates none; a pinned slot survives a refill in both; a removed item is never re-added in both.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N10 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-4d74d9e4-2ae2-48b2-a298-b2aab6fc5c7e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:19.166495Z",
+  "updated_at": "2026-11-16T22:43:52.731760Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

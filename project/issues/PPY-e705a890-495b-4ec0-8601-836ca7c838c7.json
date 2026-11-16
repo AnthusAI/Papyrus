@@ -1,0 +1,30 @@
+{
+  "id": "PPY-e705a890-495b-4ec0-8601-836ca7c838c7",
+  "title": "Undo and health for what was learned",
+  "description": "A page and commands list everything the drafter has learned for a publication: active examples and learned guidelines, each with who, when, where it came from and how it is doing (of the drafts written under it, how many were sent unedited and how many were changed, read by the account index). One action turns an example off or retires a learned guideline (a new guideline version without it). Both take effect at the next draft and are recorded.\n\n**Acceptance criteria**\n- Ryan can see every learned item and switch any one off.\n- Retiring a rule changes the next draft and is recorded with who and why.\n- Health is computed on demand from stored Deliveries.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- learned-undo.feature: turning an example off removes it from the next draft; retiring a rule makes a new guideline version; health shows edited versus unedited drafts under a rule.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Announcements learn from a person's edits. Slice code O5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f51641cb-954c-4ce7-96a7-6902ed923b61",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-a7174b30-35a8-46b9-82e0-0280807ed0f8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:20.480238Z",
+  "updated_at": "2026-11-16T22:47:39.976507Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

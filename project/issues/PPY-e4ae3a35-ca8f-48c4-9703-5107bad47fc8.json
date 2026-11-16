@@ -13,13 +13,28 @@
     {
       "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5bcf425e-0395-48a2-921f-8783b283dc60",
+      "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7f7f83d3-a852-480b-a5cf-05a6f5dedd80",
+      "author": "home",
+      "text": "Always-on agent standard: the Announcements list feeds the Today page (PPY-5bcf42, PPY-b6d5ad); 'Overdue' and 'Outcome unknown' use the standard's due and attention indexes; invariant alerts for half-finished corrections come from PPY-9922b2.",
+      "created_at": "2026-11-16T22:46:05.711059Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:37.669456Z",
-  "updated_at": "2026-11-16T22:00:45.453113Z",
+  "updated_at": "2026-11-16T22:46:05.938876Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

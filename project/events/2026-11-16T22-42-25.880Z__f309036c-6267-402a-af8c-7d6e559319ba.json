@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f309036c-6267-402a-af8c-7d6e559319ba",
+  "issue_id": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:42:25.880Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsletters and subscriptions: weekly, daily and every new item",
+    "description": "One system produces a weekly Distinctive Mark email, a weekly and a daily Machines on Machines newsletter, and a message for every new item, all as Announcements and Deliveries sent through Caducus. What differs between them is list data: cadence, time, time zone, rule, working document, rung. Done when all four run in production from settings alone, a reader never gets the same item twice from the daily and every-item lists, and an empty period sends nothing and says so.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

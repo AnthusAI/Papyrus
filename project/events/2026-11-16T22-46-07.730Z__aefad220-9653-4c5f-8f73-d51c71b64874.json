@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "aefad220-9653-4c5f-8f73-d51c71b64874",
+  "issue_id": "PPY-58f93167-6c7b-4f67-975c-c0144445e25d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:46:07.730Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "`papyrus pod check` validates guideline files",
+    "description": "Left over from PPY-9c2ea0 (guideline files, PR #1617) and now possible because the pod checker exists (PPY-4834f3, PR #1619, `src/papyrus/pod/check.py`). Make `papyrus pod check` validate every guideline folder in a pod by calling `load_directory` and `validate_meta` in `src/papyrus_content/guidelines/files.py`, and report findings in its own format with the file named. One checker for guideline files; no second validator.\n\n**Acceptance criteria**\n- A pod with a valid guideline folder passes; a missing kind, an unknown key, a nested value or a bad severity fails `pod check` with the file and key named.\n- The same file gives the same verdict from `papyrus guidelines check` and `papyrus pod check`.\n- Not included: the headline-order rule (not a specified front-matter key; decide later).\n\n**Gherkin features needed**\n- pod-check-guidelines.feature: a valid guideline folder passes; each invalid form is refused with its file; the two commands agree.\n\n**Infrastructure as code touched:** none.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

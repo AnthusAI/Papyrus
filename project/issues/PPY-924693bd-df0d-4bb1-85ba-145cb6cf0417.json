@@ -1,0 +1,42 @@
+{
+  "id": "PPY-924693bd-df0d-4bb1-85ba-145cb6cf0417",
+  "title": "Rating agent writes three or four when promoted, and reacts to changes",
+  "description": "At `draft` and above the agent writes its rating as a machine rating (actor recorded), still three or four only, and adds change triggers: a Story published, a Reference accepted. A machine rating is replaced by any person's rating. Five-star candidates still go to a person. With this, `publishRequiresRating` can be on without a person rating everything.\n\n**Acceptance criteria**\n- A newly published Story is rated within the quiet window.\n- A five is never written by the agent at any rung.\n- A person's later rating replaces the machine's.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-writes.feature: a publish is rated three or four; the actor is the agent; a person's rating replaces it; an attempt at five is refused by the gate.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** First agent: rating and curation on one site. Slice code L3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-24b2acd6-5718-411c-aeb1-953fd7db1b56",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e6164237-c45f-4aec-827f-87efa7e0a6d1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9b9e64dc-cb45-42ee-b370-705145d0b444",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-36e7c909-e2fb-4b02-b5c8-f1945b98896d",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:13.460626Z",
+  "updated_at": "2026-11-16T22:43:43.331661Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "e5459bdb-8c71-4247-8f0b-9407c4e0adca",
+  "issue_id": "PPY-d8586012-d064-4024-aaf2-77f9f1db2734",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:12.953Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rating agent at observe on Machines on Machines",
+    "description": "The first agent. Definition: responsibility `rate`, tier `bulk`, a daily schedule and no change triggers yet, serial scope `agent`, safe to repeat. Each day it reads, by index, published Stories and accepted References with no rating, and for each decides three stars (the default), four (clearly better), or 'five-star candidate' (never a rating). At `observe` it writes nothing but its run record, which lists what it would rate and why. Machines on Machines is the site because the rating policy was decided for it and it has a backlog of unrated published Stories.\n\n**Acceptance criteria**\n- It runs once a day by its schedule and ends `acted` or `nothing`.\n- At `observe` no rating changes.\n- It never proposes five as a rating.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-agent.feature: the daily run lists unrated items with a proposed three or four; a strong item is listed as a five-star candidate; a day with nothing unrated ends `nothing`; no rating is written at `observe`.\n\n**Infrastructure as code touched:** None beyond the standard.\n\n**Part of:** First agent: rating and curation on one site. Slice code L1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-24b2acd6-5718-411c-aeb1-953fd7db1b56",
+    "labels": [
+      "always-on-agents",
+      "first-week"
+    ]
+  }
+}
