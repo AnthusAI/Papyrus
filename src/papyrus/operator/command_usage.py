@@ -282,6 +282,8 @@ _ENTRIES = dict([
   _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
      "--kind KIND [--section KEY] [--language TAG] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
+  _e("guidelines check", "Check files against the guideline files in a folder (one folder per guideline, each with GUIDELINE.md) with no network and no model: listed words, patterns and lengths are decided; a rule that needs judgement is listed as not checked offline. Exits 1 when an error guideline finds something.",
+     "--dir DIR [--scope section/ID|channel/NAME]... [--language TAG] FILE...", "both", "reads", "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
@@ -416,7 +418,7 @@ GROUP_SUMMARIES = {
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
 GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id and check. Files only: no sign-in, no site."
-GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
+GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
