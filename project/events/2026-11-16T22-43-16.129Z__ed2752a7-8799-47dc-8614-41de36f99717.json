@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ed2752a7-8799-47dc-8614-41de36f99717",
+  "issue_id": "PPY-d9d78ab7-78d4-4793-b8d4-2b95c039475e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:16.129Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The knowledge run as a scheduled agent on the container executor",
+    "description": "The weekly knowledge run is compute-heavy and is not a short wake-up. Keep its Step Functions and Fargate executor, and start it through the standard: a definition with a schedule, a wake, a run record with an outcome, the site's pause and budget. The executor is a field of the definition (`lambda` by default, `container` for this). This is the container half of the one run contract (PPY-433383).\n\n**Acceptance criteria**\n- The knowledge run starts from a wake and records one run with an outcome.\n- Pausing the agent stops the next run.\n- The projection lease and the stale-checkout guard are unchanged.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- knowledge-run-agent.feature: the weekly tick starts one execution; a paused agent starts none; a failed stage ends `failed` before projection.\n\n**Infrastructure as code touched:** Knowledge-run stack: started by the wake instead of its own schedule.\n\n**Part of:** Every other responsibility as an agent. Slice code M9 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

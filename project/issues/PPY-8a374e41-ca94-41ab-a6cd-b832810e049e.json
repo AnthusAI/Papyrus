@@ -1,20 +1,36 @@
 {
   "id": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
   "title": "Step runner: Item stream, per-site FIFO queue, dispatcher, coalescing window",
-  "description": "Fire steps when a checklist step becomes ready, including console board moves. Stream on the Item table, one FIFO group per Story, idempotent run claims per Story version, window shorter after a person acts. No whole-table reads (today every delivery reads the Automation table).",
+  "description": "Fire steps when a checklist step becomes ready, including console board moves. Stream on the Item table, one FIFO group per Story, idempotent run claims per Story version, window shorter after a person acts. No whole-table reads (today every delivery reads the Automation table).\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nThis story is slice B2 of the standard: **the Item change feed and dispatcher**. It serves every agent that listens to Item changes, not only Story steps.\n\n- The feed turns each Item change (a Story version created, a stage changed, a checklist sub-task changed), from any writer including the console board, into wakes on the site's wake queue (PPY-567bf9), one per listening agent, read from the site's cached agent definitions (PPY-68abaa) by index.\n- The wake key is `<agent>|<lineage>|<version>|<what>`; the run record made from it is the claim (PPY-70c6e8). No claim rows in the monitoring table and no router publication are needed.\n- One Story at a time comes from the queue's message group (PPY-a200ec); the quiet window for paid steps is PPY-67e3cd; the loop guard is PPY-4e7e8b.\n- An agent's own version does not wake that agent for the same step.\n\n**Acceptance criteria (added)**\n- A console board move, a CLI write and an agent's own write each wake the listening agents once.\n- No code lists the `Automation` table per change.\n- Gherkin: item-change-feed.feature (a console move wakes the stage's agent; a new version wakes each listening step once; a redelivered stream record starts nothing twice; an agent's own version does not re-wake it; a change nobody listens for sends nothing).\n- Infrastructure: stream on the Item table and the feed function live in the deferred `agents` stack (PPY-e06835).",
   "type": "story",
   "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
-  "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+  "parent": "PPY-cd706fba-2516-4e3d-8df1-5b16e61c7ef7",
   "labels": [],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+      "type": "relates-to"
+    }
+  ],
   "comments": [],
   "created_at": "2026-11-08T16:58:28.182828Z",
-  "updated_at": "2026-11-08T16:58:28.182859Z",
+  "updated_at": "2026-11-16T22:46:03.478923Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

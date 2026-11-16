@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "93f4f013-babd-402b-8280-497e86e90f4b",
+  "issue_id": "PPY-33e12699-181c-4a60-b544-4c6b58187a67",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:11.016Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Observe is the dry run",
+    "description": "At rung `observe` an agent runs its real procedure with write operations answered by the gate as 'would do', and records what it would have written. This is the one dry-run mechanism for agents; per-feature dry-run flags are not added.\n\n**Acceptance criteria**\n- An agent at `observe` changes no record except its own run.\n- The run shows what it would have done.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- observe-rung.feature: an observing agent writes nothing; the run lists the intended writes; raising the rung makes the same procedure write.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Observability, safety and release readiness. Slice code J4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

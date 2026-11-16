@@ -1,0 +1,30 @@
+{
+  "id": "PPY-1e703e92-2f7c-42c0-aca3-227cbcf5d0f2",
+  "title": "Research as an agent",
+  "description": "The research worker polls every five minutes for open assignments. Replace the poll with a wake when a research Assignment is created or reopened. Keep its rules: a failed assignment is not retried by itself, proposed sources go through the Reference identity gate. Remove the five-minute schedule.\n\n**Acceptance criteria**\n- A new research Assignment starts research without a poll.\n- An idle site makes no requests for research.\n- A failure is recorded and waits for a person.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- research-agent.feature: creating an Assignment starts one run; nothing runs when there are none; a failed run is not retried; a reopened Assignment runs again.\n\n**Infrastructure as code touched:** Monitoring template: research-assignments schedule removed.\n\n**Part of:** Every other responsibility as an agent. Slice code M3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-51f96f39-499f-4b37-a4be-325e85221d02",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:14.619480Z",
+  "updated_at": "2026-11-16T22:43:44.657071Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

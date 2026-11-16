@@ -9,12 +9,32 @@
   "creator": null,
   "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
   "labels": [],
-  "dependencies": [],
-  "comments": [],
+  "dependencies": [
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-dd065312-3b12-466f-98e7-21dcdb671d45",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "46510b8d-1c32-4dd2-bff7-2f23d6f6031b",
+      "author": "home",
+      "text": "Always-on agent standard: the autonomy level here is a rung in the site's agent policy document (PPY-51ea61); add-only instructions are loaded by the standard context loader (PPY-dd0653). Blocked by PPY-51ea61.",
+      "created_at": "2026-11-16T22:46:06.166478Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T16:58:28.299490Z",
-  "updated_at": "2026-11-08T16:58:28.299537Z",
+  "updated_at": "2026-11-16T22:46:06.341658Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

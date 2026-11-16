@@ -26,12 +26,22 @@
       "text": "Merged to develop: PR #1619 (3ffee069b), branch feat/pod-base. Verified: pod-check, pod-context, pod-init-and-id features (79 scenarios), help/agent-guide suites. Not done: skill, Markus body check, pinned reference-exporter test, vocabulary fixes.",
       "created_at": "2026-11-16T22:35:35.351905Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d68fb6ba-5f21-4095-b8ef-35645ff1042d",
+      "author": "home",
+      "text": "Follow-up wiring from PPY-9c2ea0: `pod check` should validate guideline files by calling `load_directory` and `validate_meta` in `src/papyrus_content/guidelines/files.py`. Filed as PPY-58f931.",
+      "created_at": "2026-11-16T22:46:08.261047Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:02:45.729332Z",
-  "updated_at": "2026-11-16T22:35:35.526206Z",
+  "updated_at": "2026-11-16T22:46:08.261264Z",
   "closed_at": "2026-11-16T22:35:35.526168Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

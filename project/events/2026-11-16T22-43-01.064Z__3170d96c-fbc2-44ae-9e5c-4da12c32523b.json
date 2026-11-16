@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "3170d96c-fbc2-44ae-9e5c-4da12c32523b",
+  "issue_id": "PPY-2d2e5572-035c-4d8c-a826-84bdbb9db1cf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:01.064Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Settle an interrupted run: Outcome unknown is a state, not a guess",
+    "description": "A queue message is received at most twice by design: once to run, once to settle. On the second receipt the runner reads the run record. If the record is `started` with no outcome, the first attempt died. If the agent's definition says the procedure is safe to repeat (every write it makes is keyed), the runner runs it once more under the same key. If not, it records `unknown`, raises one flag for a person and deletes the message. No timeout and no retry count decides anything. A third receipt can only mean the settle step itself crashed; the message goes to the dead-letter queue and the alarm fires.\n\n**Acceptance criteria**\n- A run that died is never left looking as if it is still running.\n- A procedure not marked safe to repeat is never run twice for one wake.\n- `unknown` shows on Today as 'Outcome unknown' with the run and what it may have written.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- run-settle.feature: a crashed safe-to-repeat run is run once more and ends `acted`; a crashed unsafe run ends `unknown` with one flag; a settled run is not run again on a later redelivery; a crash during settling reaches the dead-letter queue.\n\n**Infrastructure as code touched:** Queue redrive policy (receive twice, then dead letter) on the wake queue; dead-letter alarm.\n\n**Part of:** Wake contract and run outcomes. Slice code A3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-865e8323-0e33-42e8-ada4-f24d5a67c231",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "PPY-3b928d6e-4fc4-4c18-b792-cd5d25476742",
+  "title": "The daily summary list",
+  "description": "A `daily` list for a site, first on Machines on Machines: each day at the list's time the assembler fills the day's slots from items that qualified since the last sent summary (three stars or better, reviewed sources where the list requires it), best first, in a Delivery-only working document. The rung decides the rest: at `publish_soft` it locks and sends at the send time unless a person stops or edits it; at `prepare` a person releases it. Uses the same assembly, lock, attempt and fan-out as the weekly issue.\n\n**Acceptance criteria**\n- A day with items produces one summary to the daily family's members.\n- A day with none sends nothing.\n- The same code path as the weekly issue, different list data.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- daily-summary.feature: items since the last summary appear once, best first; an item already in a sent summary is not repeated; soft review silence sends at the send time; a stop holds it.\n\n**Infrastructure as code touched:** None beyond N1.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-4d74d9e4-2ae2-48b2-a298-b2aab6fc5c7e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b7115376-4205-4b04-a557-f30f46dcc8c0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1d451f04-f4a3-4609-a447-426ffd6024b5",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-cb3cc9ed-93e7-466c-8dc0-7390f0aa845c",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:17.704743Z",
+  "updated_at": "2026-11-16T22:43:50.258219Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

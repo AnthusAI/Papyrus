@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "e2392117-b6ea-4339-ae93-9f8d2b0e76f7",
+  "issue_id": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-16T22:46:03.478Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Fire steps when a checklist step becomes ready, including console board moves. Stream on the Item table, one FIFO group per Story, idempotent run claims per Story version, window shorter after a person acts. No whole-table reads (today every delivery reads the Automation table).",
+        "to": "Fire steps when a checklist step becomes ready, including console board moves. Stream on the Item table, one FIFO group per Story, idempotent run claims per Story version, window shorter after a person acts. No whole-table reads (today every delivery reads the Automation table).\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nThis story is slice B2 of the standard: **the Item change feed and dispatcher**. It serves every agent that listens to Item changes, not only Story steps.\n\n- The feed turns each Item change (a Story version created, a stage changed, a checklist sub-task changed), from any writer including the console board, into wakes on the site's wake queue (PPY-567bf9), one per listening agent, read from the site's cached agent definitions (PPY-68abaa) by index.\n- The wake key is `<agent>|<lineage>|<version>|<what>`; the run record made from it is the claim (PPY-70c6e8). No claim rows in the monitoring table and no router publication are needed.\n- One Story at a time comes from the queue's message group (PPY-a200ec); the quiet window for paid steps is PPY-67e3cd; the loop guard is PPY-4e7e8b.\n- An agent's own version does not wake that agent for the same step.\n\n**Acceptance criteria (added)**\n- A console board move, a CLI write and an agent's own write each wake the listening agents once.\n- No code lists the `Automation` table per change.\n- Gherkin: item-change-feed.feature (a console move wakes the stage's agent; a new version wakes each listening step once; a redelivered stream record starts nothing twice; an agent's own version does not re-wake it; a change nobody listens for sends nothing).\n- Infrastructure: stream on the Item table and the feed function live in the deferred `agents` stack (PPY-e06835)."
+      }
+    }
+  }
+}

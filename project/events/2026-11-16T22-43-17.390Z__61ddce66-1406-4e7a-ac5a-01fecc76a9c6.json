@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "61ddce66-1406-4e7a-ac5a-01fecc76a9c6",
+  "issue_id": "PPY-1d451f04-f4a3-4609-a447-426ffd6024b5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:17.390Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "An empty period sends nothing and says so",
+    "description": "When a periodic list has no qualifying item and no content a person wrote, nothing is sent: the run ends `nothing` with the reason 'no items reached the list's bar', and Today shows it. A list may instead be set to `emptyPeriod: draft_only`, which creates the draft for a person to fill and sends only if a person adds content and the rung allows. No placeholder issue is ever sent.\n\n**Acceptance criteria**\n- An empty period produces no email.\n- The reason is visible on Today.\n- A person's own content makes a period non-empty.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- empty-period.feature: no qualifying items sends nothing and records why; `draft_only` creates a draft and sends nothing by itself; a person's note makes the issue sendable.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

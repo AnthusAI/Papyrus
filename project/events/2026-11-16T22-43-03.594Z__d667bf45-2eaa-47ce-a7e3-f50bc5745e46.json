@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d667bf45-2eaa-47ce-a7e3-f50bc5745e46",
+  "issue_id": "PPY-3ff01167-78c5-425e-b734-9a335ae51837",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:03.594Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Follow-up timers: a due time on a record raises one wake",
+    "description": "Every wait is a named time on the record that waits (`dueAt`, with `waitingFor`), as the Delivery record already does. One helper turns a due time into a one-shot schedule entry that puts a wake on the queue and deletes itself; setting a new due time replaces the entry; clearing it deletes the entry. It is the same mechanism scheduled publishing uses per Story today, moved into one helper that both use. Nothing polls. The wake key includes the record and the due time.\n\n**Acceptance criteria**\n- A record with a due time gets exactly one wake at that time.\n- Moving the time moves the wake; clearing it cancels the wake.\n- Scheduled publishing uses the same helper and behaves as before.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- follow-up-timers.feature: a due time raises one wake; a moved time raises one wake at the new time; a cleared time raises none; a wake for a record that no longer waits does nothing; scheduled publishing still publishes on time.\n\n**Infrastructure as code touched:** Site backend: one-shot entries in the schedule group; the helper's role may create and delete entries in that group only.\n\n**Part of:** Timers: the schedule trigger and follow-ups. Slice code C2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4bc31344-3d78-45dd-9a6b-6c045371182d",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

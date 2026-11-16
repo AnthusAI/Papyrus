@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "20b4f12f-c756-435f-a6ed-c73077472ebe",
+  "issue_id": "PPY-cd706fba-2516-4e3d-8df1-5b16e61c7ef7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:42:23.864Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Inbox: change feeds, the wake queue and one worker",
+    "description": "Changes to records become wakes without anyone calling anything: a change feed per table sends wakes to one FIFO queue per site, and the procedure runner consumes the queue. The queue's message group gives one worker per responsibility and scope. Done when a console board move, a CLI write and an agent's own write all wake the right agents, no code lists the Automation table per change, and the TRIGGER#, STAGE# and MANUAL# row families are deleted.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

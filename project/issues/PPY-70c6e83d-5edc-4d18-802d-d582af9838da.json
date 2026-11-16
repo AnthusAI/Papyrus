@@ -1,0 +1,31 @@
+{
+  "id": "PPY-70c6e83d-5edc-4d18-802d-d582af9838da",
+  "title": "Wake keys: one run per wake, recorded before the work starts",
+  "description": "Every wake carries a key that says what it is about: `<automationId>|<subjectId>|<subjectVersion>|<what>` for a change, `<automationId>|schedule|<scheduled time>` for a timer, `<automationId>|manual|<request id>` for a person's Run now. The run record's id is derived from the key and created with a condition, so the same wake can never start a second run. The record is created as `started` before the procedure is loaded, so a crash leaves evidence. This replaces the random run id and the claim rows in the monitoring table (those are removed in the migration task). A run started by `papyrus procedures run` gets a manual key.\n\n**Acceptance criteria**\n- The same wake delivered twice produces one run record and one run.\n- The run record exists with status `started` before any procedure code runs.\n- A manual run and a scheduled run of the same agent have different keys and both run.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- wake-keys.feature: the same change delivered twice runs once; a redelivered timer runs once; two different versions of one Story run once each; a manual run has its own key; the record is `started` before the procedure loads.\n\n**Infrastructure as code touched:** None beyond A1 (the id is data). Runner image.\n\n**Part of:** Wake contract and run outcomes. Slice code A2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-865e8323-0e33-42e8-ada4-f24d5a67c231",
+  "labels": [
+    "always-on-agents",
+    "first-week"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f58445df-45cb-4f2f-9b20-e5d1cf03730e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:00.754407Z",
+  "updated_at": "2026-11-16T22:43:20.993510Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

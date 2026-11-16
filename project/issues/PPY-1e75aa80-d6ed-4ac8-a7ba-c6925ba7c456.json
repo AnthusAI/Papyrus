@@ -1,7 +1,7 @@
 {
   "id": "PPY-1e75aa80-d6ed-4ac8-a7ba-c6925ba7c456",
   "title": "Roundup issues on the new records; convert sent issues on Shipped and Distinctive",
-  "description": "Replace ISSUE# and ROUNDUP#<listId>/PERIOD#<yyyy-ww> rows. A roundup Announcement announces the issue Story at its approved version, plus one email Delivery; approval and send time move to the Announcement, counts to the Delivery, resultUrl is the archive page. ROUNDUP period becomes the dedupeKey. ISSUE#/RENDER HTML and text move to S3. Sent issues on Shipped and Distinctive are converted once by a command, sends frozen for that window (as agreed for the Caducus move). The per-reader SEND# ledger is not part of this slice. Edited-after-approval returns to waiting for approval. Follows the Caducus move.\n\n**Acceptance criteria**\n- Gherkin: Newsletter issues become Announcements and Deliveries (a sent issue keeps dates, counts, approver and archive address; running the command twice changes nothing).\n- Gherkin: Fan-out counts.\n- Gherkin: No text in the catalog (old RENDER attribute not carried).\n- Shipped and Distinctive Mark do not break.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "description": "Replace ISSUE# and ROUNDUP#<listId>/PERIOD#<yyyy-ww> rows. A roundup Announcement announces the issue Story at its approved version, plus one email Delivery; approval and send time move to the Announcement, counts to the Delivery, resultUrl is the archive page. ROUNDUP period becomes the dedupeKey. ISSUE#/RENDER HTML and text move to S3. Sent issues on Shipped and Distinctive are converted once by a command, sends frozen for that window (as agreed for the Caducus move). The per-reader SEND# ledger is not part of this slice. Edited-after-approval returns to waiting for approval. Follows the Caducus move.\n\n**Acceptance criteria**\n- Gherkin: Newsletter issues become Announcements and Deliveries (a sent issue keeps dates, counts, approver and archive address; running the command twice changes nothing).\n- Gherkin: Fan-out counts.\n- Gherkin: No text in the catalog (old RENDER attribute not carried).\n- Shipped and Distinctive Mark do not break.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nThe roundup's schedule becomes a schedule trigger from list data (PPY-2a53cd, PPY-4d74d9); its once-only key uses the list's local period (PPY-b71153); an empty period sends nothing (PPY-1d451f). The conversion of sent issues carries consent evidence and suppression unchanged and checks counts before sends resume. Now also blocked by PPY-2a53cd, PPY-4d74d9 and PPY-b71153.",
   "type": "task",
   "status": "open",
   "priority": 2,
@@ -25,13 +25,28 @@
     {
       "target": "PPY-97c0f202-01bd-4851-9593-1ddcb32c8773",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2a53cd96-5316-4b1c-9bd7-bf9317c1f73e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4d74d9e4-2ae2-48b2-a298-b2aab6fc5c7e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b7115376-4205-4b04-a557-f30f46dcc8c0",
+      "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-16T21:48:37.431360Z",
-  "updated_at": "2026-11-16T21:49:20.511843Z",
+  "updated_at": "2026-11-16T22:46:05.303079Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

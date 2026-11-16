@@ -1,0 +1,34 @@
+{
+  "id": "PPY-8e74bb3b-a6d9-488a-acd2-9b1fd8d93c8b",
+  "title": "Fold the existing switches into the ladder",
+  "description": "Four settings say how automatic something is, each in its own place: the publish gate (`EditorialCheckSettings` `publish-gate`), `autoAccept` in the router config, `languages.auto` for translation, and `publishRequiresRating` (which stays a floor, not a rung). Make the first three rungs in the policy document: publish gate `required` is `prepare`, publish-then-review is `publish_soft`, `not_required` with steps is `publish_auto`; auto-accept on is the intake agent at `publish_auto` for acceptance; `languages.auto` is the translation agent's rung. Convert each site once by a command, in its own release per switch, and delete the old setting and its reader. The announcement review policy joins the same way in PPY-97c0f2.\n\n**Acceptance criteria**\n- Each site behaves the same the day after conversion as the day before.\n- The old settings and their readers are gone.\n- One place shows how automatic every responsibility is.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- ladder-conversion.feature: a site with the publish gate required converts to `prepare`; a site with auto-accept on keeps accepting; a site with languages.auto keeps translating on publish; converting twice changes nothing.\n\n**Infrastructure as code touched:** Router config schema (autoAccept removed), editorial-checks schema (publish-gate removed).\n\n**Part of:** Authorization: the autonomy ladder as configuration. Slice code E5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4af2169f-7aea-4bc7-8e38-8a6879787dc4",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:06.110612Z",
+  "updated_at": "2026-11-16T22:43:29.968034Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

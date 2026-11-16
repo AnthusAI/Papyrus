@@ -1,0 +1,30 @@
+{
+  "id": "PPY-8b131e10-6f54-409c-886b-62bc59e38b21",
+  "title": "Run input, output and errors live in S3, not in the catalog",
+  "description": "`ProcedureRun.input`, `normalizedInput`, `output` and `error` hold whole JSON bodies in DynamoDB today, against the standing rule that DynamoDB is the catalog and text lives in S3. Move them to one attachment per run (the existing `ModelAttachment` path, owner kind `procedure_run`). The row keeps `resultSummary` and `errorSummary` as short fields and the attachment key. Readers (the console run view, `automations runs`, the Stage Bot engine reading `output.version`) read the attachment. Existing rows are converted once by a command; there is no reader for both shapes afterwards.\n\n**Acceptance criteria**\n- A new run row holds no body, only keys and short summaries.\n- The console and CLI show the same output as before.\n- The conversion command run twice changes nothing.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- run-bodies-in-s3.feature: a run row holds no output text; the run view shows the output read from S3; converting twice is a no-op; a run whose attachment is missing says so plainly.\n\n**Infrastructure as code touched:** Amplify data schema (fields removed after conversion), storage access rule for the new owner kind.\n\n**Part of:** Wake contract and run outcomes. Slice code A4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-865e8323-0e33-42e8-ada4-f24d5a67c231",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f58445df-45cb-4f2f-9b20-e5d1cf03730e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:01.311772Z",
+  "updated_at": "2026-11-16T22:43:21.733185Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

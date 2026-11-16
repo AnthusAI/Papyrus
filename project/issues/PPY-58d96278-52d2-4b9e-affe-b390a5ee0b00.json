@@ -1,7 +1,7 @@
 {
   "id": "PPY-58d96278-52d2-4b9e-affe-b390a5ee0b00",
   "title": "Email alerts on the new records",
-  "description": "Replace the ALERT#<listId>/ITEM#<lineageId> de-dup rows and the alert issue. dedupeKey story-published:<lineageId> plus the email Delivery's audience. The alert's Markus body moves to the Delivery's text file in S3. Kept alert rows are converted (keys only) so each becomes an Announcement with a sent email Delivery and nothing alerts twice. The notifications story.published event becomes the first attempt of the email Delivery. Follows the Caducus move.\n\n**Acceptance criteria**\n- Gherkin: Kept alert rows still prevent a second alert after conversion.\n- Gherkin: Fan-out counts (counts match Caducus records; a reader on two lists gets one message).\n- Conversion command is idempotent.\n- Operator alarms are not Announcements and stay plain Caducus events.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "description": "Replace the ALERT#<listId>/ITEM#<lineageId> de-dup rows and the alert issue. dedupeKey story-published:<lineageId> plus the email Delivery's audience. The alert's Markus body moves to the Delivery's text file in S3. Kept alert rows are converted (keys only) so each becomes an Announcement with a sent email Delivery and nothing alerts twice. The notifications story.published event becomes the first attempt of the email Delivery. Follows the Caducus move.\n\n**Acceptance criteria**\n- Gherkin: Kept alert rows still prevent a second alert after conversion.\n- Gherkin: Fan-out counts (counts match Caducus records; a reader on two lists gets one message).\n- Conversion command is idempotent.\n- Operator alarms are not Announcements and stay plain Caducus events.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nAn alert list is a list with cadence `each` (PPY-4d74d9). A reader holds one cadence per family, so nobody gets an item both singly and in the daily summary (PPY-a19b9d). Quiet hours and spacing are PPY-769d1b. Now also blocked by PPY-4d74d9.",
   "type": "task",
   "status": "open",
   "priority": 2,
@@ -25,13 +25,20 @@
     {
       "target": "PPY-97c0f202-01bd-4851-9593-1ddcb32c8773",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4d74d9e4-2ae2-48b2-a298-b2aab6fc5c7e",
+      "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-16T21:48:37.232977Z",
-  "updated_at": "2026-11-16T21:49:20.298268Z",
+  "updated_at": "2026-11-16T22:46:05.505773Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

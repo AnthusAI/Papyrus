@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8d688054-f2b5-465b-a104-db04e450df90",
+  "issue_id": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:42:25.224Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Observability, safety and release readiness",
+    "description": "Prove what an agent did and did not do; stop anything fast; turn things on in a safe order. Done when every refusal is on the run record, each kill switch is tested, the invariant checks show on Today, and the release readiness checklist is complete for the first site.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

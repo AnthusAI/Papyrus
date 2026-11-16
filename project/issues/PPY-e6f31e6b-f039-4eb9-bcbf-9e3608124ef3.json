@@ -1,0 +1,38 @@
+{
+  "id": "PPY-e6f31e6b-f039-4eb9-bcbf-9e3608124ef3",
+  "title": "Poke-in operations: pause, resume, set rung, wake now, redirect, undo",
+  "description": "Each is one operation in the operation table, so the newsroom and the CLI have the same names: `agents pause` and `resume` (one agent or the whole site, with a reason), `agents set-rung` (admin, with a reason and optional scope), `agents wake` (run now for a subject), `agents redirect` (give an instruction for a subject; it reaches the next run as steering), and `agents undo --run` (reverses what one run wrote, using the versions and decisions it recorded; anything that cannot be undone, such as a sent email, is listed and not attempted). Each is recorded with who and why.\n\n**Acceptance criteria**\n- Every poke-in works the same in the newsroom and the CLI.\n- Undo restores the records a run changed and lists what it cannot reverse.\n- A pause takes effect before the next run starts.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- poke-in.feature: pausing stops the next run; set-rung needs an admin; wake now runs once; a redirect appears in the next run's input; undo restores the previous version and names what was already sent.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Human surface: Today, poke-in operations and explanations. Slice code H3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-76781314-e642-4b7a-a69a-c5e24bf8f469",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a8ab4edc-57ba-41f5-8e57-a116ee224228",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:08.891817Z",
+  "updated_at": "2026-11-16T22:46:10.931949Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

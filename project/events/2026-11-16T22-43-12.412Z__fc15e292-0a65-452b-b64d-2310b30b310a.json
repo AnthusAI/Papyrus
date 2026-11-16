@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "fc15e292-0a65-452b-b64d-2310b30b310a",
+  "issue_id": "PPY-21b8c535-7857-4e64-9ddc-5d5ce042132e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:12.412Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The Translation lifecycle runs itself",
+    "description": "A published Story in a site with other languages needs a translation per language: wanted, translating, held (a quotation or a check needs a person), ready, published, stale (the source changed). A new source version marks affected blocks stale and wakes the translator for those blocks only; blocks a person corrected are pinned and never overwritten. A held translation raises one flag and waits; the others proceed.\n\n**Acceptance criteria**\n- Every published Story has, per language, exactly one state.\n- A source edit re-translates only what changed.\n- A hold blocks one translation, never the queue.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- translation-lifecycle.feature: a publish wants one translation per language; an edit marks only changed blocks stale; a pinned block survives; a hold flags once and others proceed.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Lifecycles that run themselves: Reference, Idea, Translation, Illustration. Slice code K3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-462d6ecc-1198-4e24-9709-c950df248026",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

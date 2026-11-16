@@ -1,0 +1,38 @@
+{
+  "id": "PPY-77148a32-1aaf-4bea-b350-c7397bd81bca",
+  "title": "Illustration as an agent",
+  "description": "Definition for `illustrate`: woken when a Story's Illustration step becomes ready or an illustration Assignment is created; reads the site's image style profile; makes one image unattended; never places a third-party image without credit; cost on the ledger.\n\n**Acceptance criteria**\n- A ready Illustration step gets a candidate without a person.\n- Rules on alt text and credit are enforced by the gate.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- illustration-agent.feature: a ready step produces one candidate; at `prepare` a person chooses; at `publish_auto` the candidate is placed if every check passes.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Every other responsibility as an agent. Slice code M5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ce0dd2ba-5da5-41c5-a7fa-6576b67cf8b9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:15.147539Z",
+  "updated_at": "2026-11-16T22:46:12.884008Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

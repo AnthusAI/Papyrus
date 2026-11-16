@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "871a1c06-db11-4a66-b329-d4e4761f5817",
+  "issue_id": "PPY-eece437f-5b07-4ac2-a4dd-fc49e079c63c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:05.579Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The runner's role reaches only gated operations",
+    "description": "The runner's role may call every Query and Mutation field of a site's API today. Narrow it to the gated operation mutations and the reads agents need, so that even a faulty tool cannot write around the gate. The model key stays in SSM, read by the runner process and never given to the model; channel secrets stay write-only as today.\n\n**Acceptance criteria**\n- A direct model mutation from the runner's role is refused by IAM.\n- Every agent still works through the gate.\n- No secret appears in a run record or a prompt.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- runner-least-privilege.feature: a raw update from the runner role is refused; the gated operation succeeds; a run record contains no key material.\n\n**Infrastructure as code touched:** Runner template: IAM policy narrowed (a pipeline-roles change: needs approval after merge).\n\n**Part of:** Authorization: the autonomy ladder as configuration. Slice code E3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

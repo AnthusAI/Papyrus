@@ -1,0 +1,46 @@
+{
+  "id": "PPY-00817a88-3866-46a6-92f7-9234a60a10c6",
+  "title": "Five end-to-end walkthrough specs",
+  "description": "One narrative feature file per use case, run against the real records with fakes only at the provider edge: the weekly Distinctive Mark email; the weekly Machines on Machines newsletter (hard review, reviewed sources); the daily Machines on Machines summary; the every-new-item subscription; and 'announced right away, then massaged' (the learning loop). Each follows the walkthrough in the architecture document, from the timer or change to the Today line, including nobody acting, a correction and a duplicate trigger.\n\n**Acceptance criteria**\n- All five pass using the same records and agent standard, with only list and policy data differing.\n- Each includes the nobody-acts path.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- walkthrough-weekly-distinctive.feature; walkthrough-weekly-mom.feature; walkthrough-daily-mom.feature; walkthrough-every-item.feature; walkthrough-announce-then-massage.feature.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N9 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3b928d6e-4fc4-4c18-b792-cd5d25476742",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-769d1bb9-aaef-4c25-aa59-c929997f3e45",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2f9b223c-2e69-4f1d-83ef-019f15778b29",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b53c09ed-f311-416d-9a03-49ac62b1900d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-d99bd016-368d-4f43-b4d7-8d3fc590d169",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:18.854807Z",
+  "updated_at": "2026-11-16T22:43:52.273343Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

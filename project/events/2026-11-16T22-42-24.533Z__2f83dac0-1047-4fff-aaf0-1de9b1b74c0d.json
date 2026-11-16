@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2f83dac0-1047-4fff-aaf0-1de9b1b74c0d",
+  "issue_id": "PPY-928a91fb-7fe8-4bd4-85f1-e0bef41e5897",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:42:24.533Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Work items and handoffs between agents and people",
+    "description": "Agents talk through durable records, never chat: a checklist step, an Assignment (a request for work), a review request (a question for a person). A person's comment or answer enters the same way. No mailbox object. Done when one agent can ask another for work, hand a step back with a reason, ask a person once and continue from the answer, and a person can take a step over.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}
