@@ -192,7 +192,7 @@ def edition_pages(standard: StandardSettings, tag: str, strings: Mapping[str, st
         title = strings.get(custom.title_key or f"page.{custom.id}.title")
         if source and title and static_directory is not None and (static_directory / source).is_file():
             description = strings.get(custom.description_key or f"page.{custom.id}.description", "") if custom.description else ""
-            found.append(dataclasses.replace(custom, source=source, path=translate_path(custom.path, segments or {}), title=title, description=description or custom.description, languages="localize"))
+            found.append(dataclasses.replace(custom, source=source, path=translate_path(custom.path, segments or {}), title=title, description=description, languages="localize"))
     return tuple(found)
 def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings: Mapping[str, str], segments: Mapping[str, str] | None = None, static_directory=None) -> StandardSettings:
     """The settings of the ``tag`` edition: the site's settings, its words in the language, its pages under the prefix, and only what an edition renders.
