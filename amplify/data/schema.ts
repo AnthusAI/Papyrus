@@ -2943,7 +2943,7 @@ const definitions = {
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 
-  /** The catalogue row of one site document (kind: site | brand | nav); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". */
+  /** The catalogue row of one site document (kind: site | brand | nav | agents); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". */
   SiteDocument: modelWithoutSubscriptions({
       id: a.id().required(),
       tenantId: a.string().required(),
