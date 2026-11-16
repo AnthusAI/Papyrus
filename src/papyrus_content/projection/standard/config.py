@@ -114,6 +114,9 @@ class SiteIdentity:
     notice_text: str = ""
     notice_prominence: str = "normal"  # "quiet": only the sentence, small and muted at the lowest contrast that passes WCAG AA (the label stays in the machine-readable markers); "normal": label and sentence
     notice_placement: str = "inline"  # "inline": one small line under the masthead; "fixed-footer": a slim bar fixed to the bottom of the viewport
+    date_locale: str = ""             # a language edition: the language tag whose long date format (CLDR) the dates print in; empty: the primary language, which uses date_format
+    language_switcher_placement: str = "masthead"   # "masthead": in the masthead after the navigation; "footer": a line above the footer; "none": no switcher (page.language_switcher is empty; the site may draw its own from page.alternates)
+    language_switcher_prominence: str = "normal"    # "quiet": the Languages icon and the current language's name in muted text, no fill; "normal": a filled control
     alternate_names: tuple[str, ...] = ()   # the site's name in its other public languages (and the primary's, on an edition): schema.org alternateName, so search engines join the editions
 
 
@@ -659,7 +662,7 @@ def _single_column(layout) -> bool:
 
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     site = raw["site"]
-    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField", "notice"}, "site")
+    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField", "notice", "languageSwitcher"}, "site")
     notice = site.get("notice") or {}
     if notice:
         _only(notice, {"label", "text", "placement", "prominence"}, "site.notice")
@@ -669,6 +672,12 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
             raise ValueError('site.notice.placement must be "inline" or "fixed-footer"')
         if not (_text(notice, "label") and _text(notice, "text")):
             raise ValueError("site.notice needs both a label and a text")
+    switcher = site.get("languageSwitcher") or {}
+    _only(switcher, {"placement", "prominence"}, "site.languageSwitcher")
+    if switcher.get("prominence", "normal") not in ("normal", "quiet"):
+        raise ValueError('site.languageSwitcher.prominence must be "normal" or "quiet"')
+    if switcher.get("placement", "masthead") not in ("masthead", "footer", "none"):
+        raise ValueError('site.languageSwitcher.placement must be "masthead", "footer" or "none"')
     name = _text(site, "name")
     if not name:
         raise ValueError("site.name is required")
@@ -687,6 +696,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         notice_text=_text(notice, "text"),
         notice_placement=str(notice.get("placement", "inline")),
         notice_prominence=str(notice.get("prominence", "normal")),
+        language_switcher_placement=str(switcher.get("placement", "masthead")),
+        language_switcher_prominence=str(switcher.get("prominence", "normal")),
     )
     if identity.date_format:
         try:

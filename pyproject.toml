@@ -28,6 +28,8 @@ dependencies = [
     "requests >=2.32.3,<3",
     # SiteConfig (the shared tier's settings) is validated against its JSON schema (PPY-ee1e02).
     "jsonschema >=4.23,<5",
+    # A language edition prints its dates in the language's own format (CLDR: "15 de noviembre de 2026", "2026年11月15日"), as the standard front end's cards and bylines do.
+    "Babel >=2.14,<3",
     # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
     # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).
     "cli-login ==0.4.1 ; sys_platform != 'linux'",

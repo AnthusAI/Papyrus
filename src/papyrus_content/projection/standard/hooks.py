@@ -73,7 +73,7 @@ changing status or being edited, renders the pages that show it again. For examp
 Languages (docs/multilingual-serving.md): ``page.language`` is the page's BCP 47 tag and ``page.strings`` the site's interface strings in it
 (``strings/<tag>.json``). On a site that serves several languages, ``page.primary_language`` is the primary, ``page.alternates`` is the page in every
 public language it is published in, itself included, as ``{tag, name, url}`` (empty when it exists in one language), ``page.link_map`` is
-``{page path: {tag: page path}}`` and ``page.link_in_language(path)`` returns ``(path, leaves_the_language)`` for a link on this page. The head's
+``{page path: {tag: page path}}``, ``page.language_switcher`` is core's language switcher markup (empty on a page that exists in one language; a hook that returns its own ``masthead`` places it) and ``page.link_in_language(path)`` returns ``(path, leaves_the_language)`` for a link on this page. The head's
 ``hreflang``, ``x-default``, ``og:locale``, JSON-LD ``inLanguage`` and ``<html lang>`` are core's.
 
 ``page.ranked(entries, bucket=None)`` returns entries (newest first, as ``page.entries`` is) in the Story ranking the home page and listings use
