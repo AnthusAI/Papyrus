@@ -506,3 +506,25 @@ relationTypes:
     isSymmetric: false
     isTransitive: false
     contextPackTags: [reference_graph, research]
+  - key: announces
+    label: announces
+    inverseLabel: announced by
+    description: An Announcement (the decision to say something) is about a Story, at the version of the Story it looked at. One row for each pair; a Story's Announcements are read from the Story through the object-state index. The Announcement knows nothing about channels; each channel's version is a Delivery.
+    domain: editorial
+    allowedSubjectKinds: [announcement]
+    allowedObjectKinds: [item]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [editing, publication]
+  - key: supersedes
+    label: supersedes
+    inverseLabel: superseded by
+    description: A Delivery that corrects another Delivery of the same Announcement, channel and account. The corrected Delivery is marked superseded and points forward; the live Delivery is the highest generation.
+    domain: editorial
+    allowedSubjectKinds: [delivery]
+    allowedObjectKinds: [delivery]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: true
+    contextPackTags: [editing, publication]

@@ -2,6 +2,8 @@
 
 Status: backend built and merged to `develop` (epic PPY-09ee86, stories PPY-9f4d66, PPY-ae9d06, PPY-64378c, PPY-a326aa, PPY-8037b8, PPY-24358c); off everywhere. Posting waits for the Caducus `x` channel release and for the account connection (PPY-2deb63). Design: `docs/plans/scheduled-publishing-and-announcements.md`. Owner setup guide: `docs/x-announcements-setup.md`.
 
+The records that replace this row shape (one Announcement, one Delivery for each channel) are in [announcement records](announcement-records.md); the X rewire onto them is PPY-efd06c.
+
 A Story that qualifies is announced once on the publication's own X account, automatically. There is **no approval step**: the text passes the automatic checks or is not posted.
 
 ## What decides

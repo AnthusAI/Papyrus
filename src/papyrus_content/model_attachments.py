@@ -20,6 +20,7 @@ MODEL_ATTACHMENT_OWNER_MODELS = {
     "announcement": "Announcement",
     "assignment": "Assignment",
     "assignmentEvent": "AssignmentEvent",
+    "delivery": "Delivery",
     "item": "Item",
     "knowledgeRawPayload": "KnowledgeRawPayload",
     "message": "Message",

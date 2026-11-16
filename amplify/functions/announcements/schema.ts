@@ -62,6 +62,92 @@ export const announcementsSchemaDefinitions = {
     ])
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.groups(editors).to(["read"])]),
+  /**
+   * An Announcement: the decision to say something about one or more Stories (docs/announcement-records.md). It knows nothing about channels and holds no approval;
+   * a Delivery holds both. id is made from the once-only key (dedupeKey), and created with a condition, so a decision is made once. The Stories it is about are
+   * `announces` relations, with the version looked at. Short fields only: no text. Named for what it is because the model `Announcement` is the X row shape that
+   * PPY-efd06c deletes. Editors and admins read; the announcement pipeline writes.
+   */
+  AnnouncementDecision: a
+    .model({
+      id: a.id().required(),
+      tenantId: a.string(),
+      dedupeKey: a.string().required(),
+      kind: a.string().required(),
+      state: a.string().required(),
+      releaseAt: a.datetime().required(),
+      createdBy: a.string().required(),
+      trigger: a.string(),
+      history: a.json(),
+      revision: a.integer().required(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+    })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listAnnouncementDecisionsByTenant"),
+      index("dedupeKey").sortKeys(["createdAt"]).queryField("listAnnouncementDecisionsByDedupeKeyAndCreatedAt"),
+      index("state").sortKeys(["releaseAt"]).queryField("listAnnouncementDecisionsByStateAndReleaseAt"),
+    ])
+    .disableOperations(["subscriptions"])
+    .authorization((allow) => [allow.groups(editors).to(["read"])]),
+  /**
+   * A Delivery: one channel's version of an Announcement (docs/announcement-records.md). The words and any picture are files in S3 (textKey, imageKey, contentHash);
+   * the row never holds text. id is `<announcement>#<channel>#<account>#g<generation>`, created with a condition: one live Delivery for each Announcement, channel and
+   * account, and a correction is the next generation, written with `supersedes`. Approval lives here, per Delivery. Every wait is a named time (releaseAt, lockAt,
+   * nextAttemptAt with waitingFor); dueAt is the earliest of them and, with dueKey, is present only while one is pending, so the due index is sparse.
+   */
+  Delivery: a
+    .model({
+      id: a.id().required(),
+      tenantId: a.string(),
+      announcementId: a.string().required(),
+      channel: a.string().required(),
+      accountId: a.string().required(),
+      accountKey: a.string().required(),
+      audience: a.string().array(),
+      mode: a.string().required(),
+      state: a.string().required(),
+      blockedReason: a.string(),
+      generation: a.integer().required(),
+      version: a.integer().required(),
+      textKey: a.string(),
+      imageKey: a.string(),
+      contentHash: a.string(),
+      draftedBy: a.string(),
+      checks: a.json(),
+      approval: a.string().required(),
+      approvalPolicy: a.string().required(),
+      approvedVersion: a.integer(),
+      approvedBy: a.string(),
+      approvedAt: a.datetime(),
+      releaseAt: a.datetime().required(),
+      lockAt: a.datetime().required(),
+      lockedAt: a.datetime(),
+      lockedVersion: a.integer(),
+      nextAttemptAt: a.datetime(),
+      waitingFor: a.string(),
+      dueAt: a.datetime(),
+      dueKey: a.string(),
+      resultUrl: a.string(),
+      providerId: a.string(),
+      cost: a.string(),
+      counts: a.json(),
+      attempts: a.json(),
+      supersedes: a.string(),
+      supersededBy: a.string(),
+      history: a.json(),
+      revision: a.integer().required(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+    })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listDeliveriesByTenant"),
+      index("announcementId").sortKeys(["createdAt"]).queryField("listDeliveriesByAnnouncementAndCreatedAt"),
+      index("accountKey").sortKeys(["createdAt"]).queryField("listDeliveriesByAccountKeyAndCreatedAt"),
+      index("dueKey").sortKeys(["dueAt"]).queryField("listDeliveriesByDueKeyAndDueAt"),
+    ])
+    .disableOperations(["subscriptions"])
+    .authorization((allow) => [allow.groups(editors).to(["read"])]),
   /** What an account spent on X in one billing cycle: id = "<accountId>#<cycle start date>", raised once for every charge Caducus records. */
   AnnouncementSpend: a
     .model({
