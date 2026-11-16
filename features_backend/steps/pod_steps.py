@@ -23,6 +23,7 @@ from behave import given, step, then, when
 from papyrus import cli
 from papyrus.pod import context as pod_context
 from papyrus_content import graphql_authoring
+from papyrus_content.relation_types import load_vocabulary_namespace
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "pod"
 EXAMPLE_BASE = "https://example.org/id/"
@@ -265,6 +266,16 @@ def has_neither(context, first, second):
 def names_base(context, path, base):
     declared = json.loads((context.pod / path).read_text(encoding="utf-8"))["@context"]
     assert declared[0] == "papyrus.context.jsonld" and declared[1]["@base"] == base, declared
+
+
+@then('the pod file "{path}" records the vocabulary namespace "{namespace}"')
+def records_namespace(context, path, namespace):
+    assert json.loads((context.pod / path).read_text(encoding="utf-8"))["@context"]["papyrus"] == namespace
+
+
+@then('the pod file "{path}" records the namespace the shipped relation-types file declares')
+def records_shipped_namespace(context, path):
+    assert json.loads((context.pod / path).read_text(encoding="utf-8"))["@context"]["papyrus"] == load_vocabulary_namespace()
 
 
 @then('the pod prints {count:d} ids, each starting with "{prefix}"')

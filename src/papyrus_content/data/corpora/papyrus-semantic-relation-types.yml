@@ -1,6 +1,10 @@
 # `pod: true` marks a relation type as part of the pod profile: it becomes a link key in the generated pod context
 # (src/papyrus/pod/context.py) and a note may carry it. Every other type is newsroom bookkeeping and never appears in a pod.
 schemaVersion: 1
+# The address the Papyrus pod vocabulary is published at: a new pod records it as the `papyrus` prefix in its generated context (`papyrus pod init --namespace` chooses another).
+vocabularyNamespace: https://p.apyr.us/ns#
+# The address the Papyrus pod vocabulary is published at: a new pod records it as the `papyrus` prefix in its generated context (`papyrus pod init --namespace` chooses another).
+vocabularyNamespace: https://p.apyr.us/ns#
 relationTypes:
   - key: classified_as
     label: classified as
