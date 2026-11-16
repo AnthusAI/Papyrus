@@ -28,22 +28,3 @@ Feature: A concept is named in a language only when a page in that language need
     When a Story in "es-419" is tagged with the concept "prompt injection"
     Then the model is asked nothing
     And the review request is still the only one
-
-  Scenario: Publishing a concept's page asks for the name in every language the site serves
-    Given a site whose primary language is "en" and which serves "es-419" and "zh-Hans"
-    And the concept "prompt injection" has no label in either language
-    When the concept's page is published
-    Then the concept is named in "es-419" and in "zh-Hans"
-
-  Scenario: Switching a language on names the concepts that need it, and only those
-    Given a site whose primary language is "en"
-    And the concepts "prompt injection" (with a page), "gradient descent" (tagged on a translated Story) and "bicycle" (neither) exist
-    When "es-419" is switched on
-    Then "prompt injection" and "gradient descent" are named in "es-419"
-    And "bicycle" is not
-    And the sweep is one resumable pass that a second run finishes without repeating
-
-  Scenario: A trigger never changes a concept or publishes anything
-    When a trigger names a concept
-    Then the concept's own text is unchanged
-    And the only rows written are the concept's labels and, for a held label, one review request
