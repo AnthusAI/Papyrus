@@ -40,6 +40,32 @@ Feature: papyrus pod init and papyrus pod id start a pod and mint permanent ids
       | example.org/id/           |
       | https://example.org/id/?a |
 
+  Scenario: Init records the vocabulary namespace it was given in the generated context
+    Given a folder of plain notes with no front matter
+    When I run the pod command "papyrus pod init POD --id-base https://example.org/id/ --namespace https://example.org/ns#"
+    Then the pod command exits with status 0
+    And the pod file "papyrus.context.jsonld" records the vocabulary namespace "https://example.org/ns#"
+    When I run the pod command "papyrus pod check POD"
+    Then the pod command exits with status 0
+
+  Scenario: Init without a namespace records the Papyrus vocabulary namespace from the relation-types file
+    Given a folder of plain notes with no front matter
+    When I run the pod command "papyrus pod init POD --id-base https://example.org/id/"
+    Then the pod file "papyrus.context.jsonld" records the namespace the shipped relation-types file declares
+
+  Scenario Outline: A namespace that cannot name terms is refused and nothing is written
+    Given a folder of plain notes with no front matter
+    When I run the pod command "papyrus pod init POD --id-base https://example.org/id/ --namespace <namespace>"
+    Then the pod command exits with status 2
+    And the pod report says "Nothing was written"
+    And the pod has neither "context.jsonld" nor "papyrus.context.jsonld"
+
+    Examples:
+      | namespace              |
+      | http://example.org/ns# |
+      | https://example.org/ns |
+      | example.org/ns#        |
+
   Scenario: Init needs an id base
     Given a folder of plain notes with no front matter
     When I run the pod command "papyrus pod init POD"
