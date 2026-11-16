@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import request_meter
+from . import request_meter, run_outcomes
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
@@ -203,15 +203,18 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
         outcome = {"success": False, "error": f"{type(error).__name__}: {error}", "seconds": 0}
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
-    succeeded = bool(outcome.get("success"))
+    ended = run_outcomes.finished_outcome(bool(outcome.get("success")), outcome.get("output"), outcome.get("error"))
+    succeeded = ended["runStatus"] == "completed"
     usage, cost_usd = usage_record(outcome)
+    trigger = request.get("trigger") or {}
     record = {
-        "id": run_id, "runStatus": "completed" if succeeded else "failed", "startedAt": started_at,
-        "finishedAt": now(), "attempt": 1,
+        "id": run_id, "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
+        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger),
+        "startedAt": started_at, "finishedAt": now(), "attempt": 1,
         "resultSummary": summarize_output(outcome.get("output"), outcome.get("seconds", 0)) if succeeded else None,
-        "errorSummary": None if succeeded else str(outcome.get("error") or "failed")[:MAX_SUMMARY_CHARACTERS],
+        "errorSummary": None if succeeded else ended["error"][:MAX_SUMMARY_CHARACTERS],
         "output": outcome.get("output") if succeeded else None,
-        "error": None if succeeded else {"message": outcome.get("error"), "logTail": outcome.get("logTail")}}
+        "error": None if succeeded else {"message": ended["error"], "logTail": outcome.get("logTail")}}
     cost_recorded = usage is not None
     try:
         update_cloud_procedure_run_record(client, {**record, "usage": usage, "costUsd": cost_usd} if cost_recorded else record)
@@ -222,8 +225,9 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
         cost_recorded = False
         update_cloud_procedure_run_record(client, record)
     return {"runId": run_id, "procedureKey": request["procedureKey"], "versionId": procedure["version"]["id"],
-            "runStatus": "completed" if succeeded else "failed", "seconds": outcome.get("seconds"),
-            "error": None if succeeded else outcome.get("error"), "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
+            "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
+            "seconds": outcome.get("seconds"),
+            "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
             "output": outcome.get("output") if succeeded else None}
 
 
@@ -251,10 +255,11 @@ def record_trigger_outcome(table, trigger: dict | None, result: dict) -> None:
     if table is None or not trigger or not trigger.get("pk") or not trigger.get("sk"):
         return
     table.update_item(Key={"pk": trigger["pk"], "sk": trigger["sk"]},
-                      UpdateExpression="SET #s = :s, runId = :r, finishedAt = :f, runError = :e",
+                      UpdateExpression="SET #s = :s, runId = :r, finishedAt = :f, runError = :e, outcome = :o, outcomeReason = :w",
                       ExpressionAttributeNames={"#s": "status"},
                       ExpressionAttributeValues={":s": result.get("runStatus") or "failed", ":r": result.get("runId"),
-                                                 ":f": utc_now(), ":e": result.get("error")})
+                                                 ":f": utc_now(), ":e": result.get("error"),
+                                                 ":o": result["outcome"], ":w": result.get("outcomeReason")})
 
 
 @request_meter.metered_handler("procedure-runner", task_key="procedureKey")
@@ -281,7 +286,8 @@ def handler(event, context):
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
                                        run_started=lambda run_id: record_trigger_run(table, trigger, run_id))
     except ProcedureNotRunnable as error:
-        result = {"runStatus": "notRunnable", "runId": None, "error": str(error)}
+        result = {"runStatus": "notRunnable", "runId": None, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
+                  "error": str(error)}
     print(json.dumps(result, default=str))
     record_trigger_outcome(table, trigger, result)
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":

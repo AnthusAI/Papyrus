@@ -48,6 +48,13 @@ async function main() {
   ]) assert.ok(detail.includes(expected), `cost shows: ${expected}`);
   assert.match(html, /data-over-budget="true"/);
 
+  // Each finished run says what came of it in words with a mark; an older run says it was recorded before outcomes.
+  for (const expected of [
+    "Outcome: ✓ Did it", "Outcome: ✗ Failed (procedure_error)", "Outcome: – Nothing to do (no_new_filing)",
+    "Outcome: Recorded before outcomes",
+  ]) assert.ok(detail.includes(expected), `outcome shows: ${expected}`);
+  assert.match(html, /data-automation-run-outcome="nothing"/);
+
   // Run now by hand, a refused start and a skipped start are listed with who or why.
   for (const expected of [
     "Run now by ryan@example.test", "Status: Deferred, waiting for room", "Reason: deferred: concurrency limit: 2 running, at most 2 at a time",

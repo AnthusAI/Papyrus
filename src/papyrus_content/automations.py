@@ -28,6 +28,7 @@ from typing import Any
 
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
+from .run_outcomes import outcome_shown
 from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
 from .monitoring_router import (
     PROCEDURE_INPUT_NAME,
@@ -45,7 +46,7 @@ LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when
 COST_NOTE = "not recorded for this run"
 RUNNER_FUNCTION = "papyrus-procedure-runner"
 OUTSIDE_FETCH = 25
-RUN_COST_FIELDS = "usage costUsd"
+RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"
 NOT_SUPPORTED = "not yet supported"
 ROUTER_CONFIG_SK = "CONFIG#router"
 DEFAULT_LIMITS = {"timeoutSeconds": 840}   # no maxConcurrent: no limit on how many run at once, as before slice 2
@@ -453,6 +454,9 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: 
         "sourceId": row.get("sourceId"), "referenceId": row.get("referenceId"),
         "triggerStatus": row.get("status"), "runId": row.get("runId"),
         "status": (run or {}).get("runStatus") or row.get("status"),
+        "outcome": ((run or {}) if run is not None else row).get("outcome") or None,
+        "outcomeReason": ((run or {}) if run is not None else row).get("outcomeReason") or None,
+        "outcomeShown": outcome_shown(run, row),
         "reason": row.get("reason"),
         "startedAt": started, "finishedAt": finished,
         "durationSeconds": _seconds_between((run or {}).get("startedAt"), (run or {}).get("finishedAt")),
@@ -471,8 +475,8 @@ def outside_entry(run: dict, budget: Any = None) -> dict[str, Any]:
     """A ProcedureRun of the same procedure that no trigger row of this automation links to."""
     entry = run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"),
                        "requestedBy": run.get("requestedBy")}, run, False, budget)
-    return {key: entry[key] for key in ("runId", "status", "startedAt", "finishedAt", "durationSeconds", "error", "requestedBy",
-                                        "storyId", "storyVersionId", "storyTitle", "costUsd", "costNote", "overBudget")}
+    return {key: entry[key] for key in ("runId", "status", "outcome", "outcomeReason", "outcomeShown", "startedAt", "finishedAt",
+                                        "durationSeconds", "error", "requestedBy", "storyId", "storyVersionId", "storyTitle", "costUsd", "costNote", "overBudget")}
 
 
 def _row_time(row: dict) -> str:
@@ -747,7 +751,7 @@ def _print_runs(runs: list[dict[str, Any]]) -> None:
                else f"story entered {run.get('stage') or 'stage'}" if run.get("origin") == "stage" else (run["sourceId"] or ""))
         story = "-" if not run["storyId"] else (f"{run['storyId']} (story deleted)" if run.get("storyExists") is False else run["storyId"])
         print("\t".join(str(part) for part in (
-            "run", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
+            "run", run["startedAt"] or "", run["status"] or "", run["outcomeShown"], f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
             who, run["runId"] or "-", story, cost_text(run), tools_text(run), run["reason"] or run["error"] or "")))
 
 
@@ -756,7 +760,7 @@ def _print_outside_runs(runs: list[dict[str, Any]]) -> None:
         print("outside\tStarted outside this automation:")
     for run in runs:
         print("\t".join(str(part) for part in (
-            "outside", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
+            "outside", run["startedAt"] or "", run["status"] or "", run["outcomeShown"], f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
             run["requestedBy"] or "", run["runId"] or "-", run["storyId"] or "-", cost_text(run), run["error"] or "")))
 
 

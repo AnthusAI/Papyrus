@@ -24,6 +24,11 @@ export type AutomationRun = {
   triggerStatus: string | null;
   runId: string | null;
   status: string | null;
+  /** What came of a finished run (acted, nothing, asked, failed, unknown); null for a run recorded before outcomes or not finished. */
+  outcome: string | null;
+  outcomeReason: string | null;
+  /** The outcome in words with its mark, as the command line prints it (src/papyrus_content/run_outcomes.py). */
+  outcomeShown: string;
   startedAt: string | null;
   finishedAt: string | null;
   durationSeconds: number | null;
@@ -47,6 +52,9 @@ export type AutomationRun = {
 export type AutomationOutsideRun = {
   runId: string | null;
   status: string | null;
+  outcome: string | null;
+  outcomeReason: string | null;
+  outcomeShown: string;
   startedAt: string | null;
   finishedAt: string | null;
   durationSeconds: number | null;

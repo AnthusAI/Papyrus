@@ -122,7 +122,7 @@ PROCEDURE_RUN_FIELDS = (
     "id procedureId procedureKey procedureVersionId procedureVersionNumber assignmentId runStatus requestedBy "
     "requestedAt startedAt finishedAt input normalizedInput resultSummary errorSummary output error attempt newsroomFeedKey"
 )
-PROCEDURE_RUN_COST_FIELDS = "usage costUsd"   # added after the base list: a backend that predates them refuses a query that names them
+PROCEDURE_RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"   # added after the base list: a backend that predates them refuses a query that names them
 AUTOMATION_FIELDS = (
     "id title description enabled trigger procedureKey inputTemplate limits createdBy createdAt updatedBy updatedAt"
 )
