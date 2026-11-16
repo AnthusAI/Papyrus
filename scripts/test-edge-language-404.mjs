@@ -24,9 +24,9 @@ function functionFrom(templateFile, prefixes) {
       return { on() {}, destroy() {} };
     },
   };
-  const module = { exports: {} };
-  vm.runInNewContext(source, { require: (name) => (name === "https" ? https : createRequire(import.meta.url)(name)), exports: module.exports, Buffer, setImmediate });
-  return { handler: module.exports.handler, fetched };
+  const loaded = { exports: {} };
+  vm.runInNewContext(source, { require: (name) => (name === "https" ? https : createRequire(import.meta.url)(name)), exports: loaded.exports, Buffer, setImmediate });
+  return { handler: loaded.exports.handler, fetched };
 }
 
 async function miss(handler, uri) {
