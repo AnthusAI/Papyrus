@@ -14,7 +14,7 @@ import { connectToSiteApi } from "../../site-api-access";
  * primary language) through its own site's API. A shared stack is not wired: its rows carry a tenant this function does not act for.
  */
 export const ENTITY_LABEL_SYNC_API_FIELDS = [
-  "Query/fields/listEntityLabelsByConceptAndSortKey",
+  "Query/fields/listEntityLabelsByEntityAndSortKey",
   "Query/fields/getEditorialCheckSettings",
   "Mutation/fields/createEntityLabel",
   "Mutation/fields/updateEntityLabel",

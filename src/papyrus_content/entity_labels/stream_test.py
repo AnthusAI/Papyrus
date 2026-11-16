@@ -48,3 +48,21 @@ def test_the_consumer_reads_the_primary_language_from_the_settings_row_not_throu
     assert stream.site_primary_language(FakeSite(primary="es-419")) == "es-419"
     source = Path(stream.__file__).read_text(encoding="utf-8")
     assert "editorial_languages" not in source and "primary_language()" not in source   # Humanus is not in the consumer's bundle, so nothing here may need it
+
+
+def test_every_api_field_the_consumer_is_allowed_to_call_exists_in_the_schema_and_covers_what_it_calls():
+    """The consumer's IAM grant names AppSync fields; a field renamed in the schema leaves the grant stale and every batch fails with 'Permission denied'."""
+    import re
+    from pathlib import Path
+
+    from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
+
+    root = Path(__file__).resolve().parents[3]
+    wire = (root / "amplify" / "functions" / "entity-label-sync" / "wire.ts").read_text(encoding="utf-8")
+    schema = (root / "amplify" / "data" / "schema.ts").read_text(encoding="utf-8")
+    granted = re.findall(r'"(?:Query|Mutation)/fields/(\w+)"', wire)
+    queries = set(re.findall(r'queryField\("(\w+)"\)', schema))
+    for field in granted:
+        if field.startswith("list"):
+            assert field in queries, f"{field} is granted but the schema has no such query"
+    assert INDEX_DEFINITIONS["entityLabelsByEntity"]["field"] in granted   # LabelStore.of_entity, which the consumer reads each concept's rows with
