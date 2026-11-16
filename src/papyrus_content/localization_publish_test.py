@@ -180,3 +180,21 @@ def test_tagging_the_original_notes_the_concept_for_each_language_it_is_publishe
     node = client.tables["SemanticNode"]["pi-v1"]
     assert record_wanted_for_tagging(client, ORIGINAL, [node], now="2026-11-16T00:00:00Z") == 1
     assert record_wanted_for_tagging(client, ORIGINAL, [node], now="2026-11-16T00:00:00Z") == 0   # already recorded
+
+
+def test_publishing_a_concepts_page_notes_that_its_name_is_needed_in_every_served_language(client) -> None:
+    _tagged_original(client)
+    client.tables["EditorialCheckSettings"]["settings"]["settings"] = json.dumps({"languages": {"primary": "en", "enabled": ["en", "es-419", "zh-Hans"]}})
+    page = {"id": "wiki-pi-v1", "lineageId": "wiki-pi", "versionNumber": 1, "type": "wiki_page", "slug": "prompt-injection", "section": "wiki", "title": "Prompt injection",
+            "status": "draft", "language": "en", "languageGroupId": "wiki-pi", "bodyMarkus": "A page.\n", "contentHash": "h9",
+            "metadata": json.dumps({"frontMatterYaml": "entityKey: topic--prompt-injection\n"})}
+    client.tables.setdefault("Item", {})["wiki-pi-v1"] = page
+    with pytest.raises(PublishError):   # the page has no review stamp, so it does not publish; the need is noted only once publishing goes ahead
+        publish_item(client, "wiki-pi-v1", actor="An Editor")
+    assert not [label for label in client.tables.get("EntityLabel", {}).values() if label.get("syncState") == "wanted"]
+    from papyrus_content.entity_labels.wanted import record_wanted_for_page
+
+    assert record_wanted_for_page(client, "topic--prompt-injection", now="2026-11-16T00:00:00Z") == 2
+    assert record_wanted_for_page(client, "topic--prompt-injection", now="2026-11-16T00:00:00Z") == 0
+    assert record_wanted_for_page(client, "no-such-concept", now="2026-11-16T00:00:00Z") == 0
+    assert sorted(label["language"] for label in client.tables["EntityLabel"].values() if label["syncState"] == "wanted") == ["es-419", "zh-Hans"]
