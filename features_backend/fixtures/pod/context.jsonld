@@ -1,0 +1,12 @@
+{
+  "@context": [
+    "papyrus.context.jsonld",
+    {
+      "@base": "https://example.org/id/",
+      "site": "https://example.org/ns#",
+      "eyebrow": "site:eyebrow",
+      "order": { "@id": "site:order", "@type": "xsd:integer" },
+      "next": { "@id": "site:next", "@type": "@id" }
+    }
+  ]
+}

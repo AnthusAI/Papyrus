@@ -39,6 +39,7 @@ def route_tree() -> Tree:
     from papyrus_content.announcements.cli import route_tree as announcements_route_tree
     from papyrus_content.figures.design_system_cli import route_tree as design_system_route_tree
     from papyrus_content.images.cli import route_tree as images_route_tree
+    from papyrus.pod.cli import route_tree as pod_route_tree
 
     knowledge_names = ported_commands("knowledge")
     knowledge: Tree = _leaves(KNOWLEDGE_EXTRAS)
@@ -74,6 +75,7 @@ def route_tree() -> Tree:
         "announcements": announcements_route_tree(),
         "figures": figures_route_tree(),
         "design-system": design_system_route_tree(),
+        "pod": pod_route_tree(),
     }
     for group in CONTENT_GROUPS:
         tree[group] = _leaves(ported_commands(group))
