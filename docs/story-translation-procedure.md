@@ -200,6 +200,29 @@ Where the translation differs from an English Story, in one place each (`src/pap
 Scheduled publishing and the publish step of `papyrus stories next` read the same `publish_item`: a scheduled translation that is held, or whose original
 has been taken down by the time it fires, fails with the same message and shows as overdue.
 
+### A person's correction
+
+A person's fix to a published translation is a new version of the translation lineage, never an edit in place and never a new translation run
+(`localize/correct.py`; spec `features_backend/translation-correction.feature`; PPY-ef71cd, PPY-c0aebc):
+
+```sh
+papyrus stories correct-translation --story LINEAGE --language es-419 --edits-file edits.json --edited-by "Person Name" --reason "why" --dry-run
+papyrus stories correct-translation --story LINEAGE --language es-419 --edits-file edits.json --edited-by "Person Name" --reason "why" [--approved-by "Person Name"] [--publish [--verify]]
+```
+
+`edits.json` is `[{"from": "old wording", "to": "new wording"}]`; the old wording occurs once unless the entry says `"every": true`.
+
+- The blocks the edits change are the person's in the new version's alignment (`owner: human`, `pinned: true`). The next translation run keeps them exactly: a changed
+  or deleted English block under a pinned one is a conflict and nothing is overwritten (`plan_slots`).
+- The version is authored by `--edited-by`. Its provenance is the previous one with those blocks updated and a `corrections` entry added: who edited, who applied the edit
+  (the signed-in session), the reason, each block before and after, and `approvedBy` when given. The approver is metadata only: never in the text, a credit, a caption
+  or the version's change reason.
+- A correction changes wording. An edit that would change a link target, citation, credit or another fixed part of a block (`blocks.protect`), that matches nothing, or
+  that matches more than once without `"every": true`, is refused and saves nothing. A stored text that no longer matches its alignment is refused too.
+- It never publishes unless asked: `--publish` runs the ordinary publish of the new version (`papyrus ops content publish`), `--verify` waits for the public page. A held
+  translation's hold carries over and still needs its review request answered.
+- The version keeps `metadata.localization.reviewed` as it was: recording "reviewed by a person" and the page label are the correction view's (below).
+
 ### What a reader and an agent see
 
 The page of a translation says, in the page's language and apart from the Story's text, that an AI translated it, with a link to the original:
@@ -240,5 +263,5 @@ A translation shows the original's pictures by default, with the alt text, capti
 - Translating a Story again in the languages already published when only its text changed a little: every new text is a new request (a run translates only the changed blocks).
 - Listing keys with the language (`typeStatus`, `sectionStatus`, `headStageKey`), so the console, the reader app and the board show one language at a time
   (PPY-f33254). Until then a published translation appears in those lists beside its original.
-- A person's corrections as new versions that are published at once (the correction view); a held translation is cleared or rejected, not edited, today.
+- The correction view in the newsroom (a translator role, a link from the notification, rule checks re-run on the changed blocks, Looks right). Until then the command above is how a person's correction is saved; a held translation is cleared or rejected by its review request.
 - Evaluation harness (PPY-d130d5). Nobody in-house can verify Chinese quality; every measure here is a proxy.

@@ -121,19 +121,25 @@ def run_key(source: SourceVersion, language: str, *, procedure_version: str, che
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()[:32]
 
 
+def read_provenance(client, version: dict[str, Any]) -> dict[str, Any]:
+    """The provenance record of one localization version (its alignment included). Raises when the version has none."""
+    from ..model_attachments import download_attachment_buffer, model_attachment_id
+
+    row = client.get_record("ModelAttachment", model_attachment_id("item", version["id"], PROVENANCE_ROLE, PROVENANCE_ROLE))
+    if row is None:
+        raise ValueError(f"Localization version {version['id']} has no provenance record; its alignment cannot be read.")
+    return json.loads(download_attachment_buffer(client, row))
+
+
 def previous_alignment(client, lineage: str) -> tuple[dict[str, Any] | None, list[AlignedBlock] | None]:
     """The localization's current version and its alignment (from its provenance), or (None, None) before the first translation."""
-    from ..model_attachments import download_attachment_buffer, model_attachment_id
     from ..story_reporting import story_versions
 
     versions = story_versions(client, lineage)
     if not versions:
         return None, None
     current = next((row for row in versions if row.get("versionState") == "current"), versions[0])
-    row = client.get_record("ModelAttachment", model_attachment_id("item", current["id"], PROVENANCE_ROLE, PROVENANCE_ROLE))
-    if row is None:
-        raise ValueError(f"Localization version {current['id']} has no provenance record; its alignment cannot be read.")
-    provenance = json.loads(download_attachment_buffer(client, row))
+    provenance = read_provenance(client, current)
     return current, [AlignedBlock(entry.get("sourceBlock"), entry["text"], entry.get("owner", "machine"), bool(entry.get("pinned")))
                      for entry in provenance["alignment"]]
 
