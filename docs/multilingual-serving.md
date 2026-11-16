@@ -63,6 +63,10 @@ So an English listing, feed or sitemap never lists a translation, and a Spanish 
 
 The CMS's own listing keys (`typeStatus`, `sectionStatus`, `headStageKey`, read by the console, the reader app and the newsroom commands) do not carry the language yet; that is the plan's "listing keys carry the language" change, filed as PPY-f33254 (see [Not built yet](#not-built-yet)).
 
+## An edition's 404 and Markdown twins
+
+An edition writes the Markdown twin of its home and of every listing it advertises (`/es/index.md`, `/es/articles/index.md`), as the primary language does. An edition whose interface strings have all of `notFound.title`, `notFound.heading`, `notFound.text` and `notFound.back` also writes its own `/<prefix>/404.html` in the language, with the edition's chrome, `noindex`; a language without the four keys has none. Serving it is the edge's part: the origin-response function of the site's distribution fetches `/404.html` today. It has to fetch `/<prefix>/404.html` for a request whose first path segment is a language prefix of the site (a `LanguagePrefixes` parameter of `infra/edge/s3-projection-cms.yaml`, baked into the function with `Fn::Sub`, set from the site's `languages.prefixes`), and `/404.html` for any other miss. Not built.
+
 ## What each page says about its languages
 
 On a site that serves more than one public language:

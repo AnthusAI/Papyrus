@@ -44,7 +44,8 @@ STRINGS = {
     "es-419": {"language.name": "Español", "site.name": "Máquinas Sobre Máquinas", "seo.defaultImage": "/assets/share/default-es.png", "seo.defaultImageAlt": "Máquinas Sobre Máquinas, en mayúsculas blancas sobre azul marino.", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
                "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos",
                "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés",
-               "listing.untranslated": "Todavía no hay traducciones aquí. Lee el {original}.", "listing.untranslatedOriginal": "índice en inglés"},
+               "listing.untranslated": "Todavía no hay traducciones aquí. Lee el {original}.", "listing.untranslatedOriginal": "índice en inglés",
+               "notFound.title": "Página no encontrada", "notFound.heading": "Página no encontrada", "notFound.text": "Esa página no está aquí. Puede que se haya movido o que la dirección tenga un error.", "notFound.back": "Volver al inicio"},
     "zh-Hans": {"language.name": "中文", "site.name": "机器论机器", "seo.defaultImage": "/assets/share/default-zh.png", "seo.defaultImageAlt": "机器论机器，白色大字，深蓝底。", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
                 "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念",
                 "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文",
@@ -726,3 +727,14 @@ def step_home_twin(context, key):
 @then('the Spanish articles listing has the twin "{key}"')
 def step_listing_twin(context, key):
     assert _site(context).exists(key), _site(context).keys()
+
+
+@then('the Spanish 404 page "{key}" says "{words}" and links home to "{home}"')
+def step_spanish_404(context, key, words, home):
+    html = _site(context).text(key)
+    assert f"<h1>{words}</h1>" in html and f'<a href="{home}">Volver al inicio</a>' in html and '<html lang="es-419"' in html and "noindex" in html, html[:800]
+
+
+@then('"{key}" does not exist')
+def step_key_absent(context, key):
+    assert not _site(context).exists(key)

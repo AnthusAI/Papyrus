@@ -122,3 +122,8 @@ Feature: Each language of a Story is served at its own address, and each page na
     When its Spanish translation "el-sonido" is published
     Then the Spanish home advertises its Markdown twin and "es/index.md" exists
     And the Spanish articles listing has the twin "es/articles/index.md"
+
+  Scenario: A language with the words for it has its own 404 page, and one without them has none
+    When the multilingual site is projected
+    Then the Spanish 404 page "es/404.html" says "Página no encontrada" and links home to "/es/"
+    And "zh/404.html" does not exist
