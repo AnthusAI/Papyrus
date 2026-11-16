@@ -55,6 +55,7 @@ export const OPTIONAL_MODEL_GROUPS = {
   variations: ["StoryVariation"],
   tenancy: ["Tenant", "TenantMembership", "TenantSelection", "TenantDomain", "SiteDocument", "SiteDocumentVersion"],
   localization: ["LocalizationRequest"],
+  announcements: ["AnnouncementDecision", "Delivery"],
 } as const;
 
 /**
