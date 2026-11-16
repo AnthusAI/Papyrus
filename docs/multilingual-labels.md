@@ -57,3 +57,10 @@ A pinned label (a person's wording) is never overwritten, and a label made from 
 `papyrus --auth iam sections labels --language es-419 --language zh-Hans --descriptions-file web/sections.json` names every enabled section: its title and the description from the site's sections file. The projection reads the current labels of each public language and lays them over that language's interface strings as `section.<id>.label` and `section.<id>.description`, so the kicker, the home groups, the section headings and the navigation show the language's own name. A held, stale or missing label gives no words: the page shows what it showed before (a key the language's strings file has, or the original marked as such), never an unchecked name.
 
 The names live in the site's store, not in `web/strings/<tag>.json`. A string in that file with the same key is overridden by the label, so remove such copies when a label exists.
+
+### When a concept is named
+
+A concept is named in a language only when a page in that language needs the name (`entity_labels/triggers.py`). A concept that already has a label in the language is left alone,
+in any state but `stale` (a stale one is made again from the changed words); a held label waits for its review request and is never asked for twice. The first trigger
+is a Story in a served language being tagged with the concept (`name_concepts_for_story`); the concept's own page being published and a language being switched on
+follow, each asking the same function. A trigger changes no concept and publishes nothing.
