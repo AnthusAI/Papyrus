@@ -38,6 +38,13 @@ Feature: Each language serves its sections, types and pages under path segments 
     And it sends "/zh/articles/" to the percent-encoded "/zh/文章/"
     And no English address is redirected and every redirect source and target is ASCII
 
+  Scenario: A page whose address moved is removed only once its old address redirects
+    When its Spanish translation "el-sonido" is published
+    And the multilingual site is projected
+    And the Spanish articles segment is changed to "notas" and the site is projected
+    Then the Spanish pages under "es/articulos/" were removed
+    And each of them already had its redirect to "/es/notas/" in the redirect store when it was removed
+
   Scenario: A table that would serve two paths at one address is refused
     Given the language segments are "es-419": concepts is "articles"
     When the multilingual site is projected
