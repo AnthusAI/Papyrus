@@ -89,13 +89,13 @@ Feature: Basic content measurements of a Story
     And the output shows the change against version 1
     And the new version record stores the same measurements and the change against version 1
 
-  Scenario: A dry run prints the measurements and stores nothing
+  Scenario: A dry run saves nothing and prints only what it always printed
     Given a draft text to measure:
       """
       Brand new words only.
       """
     When the draft is saved as the next version as a dry run
-    Then the output shows the change against version 1
+    Then the output is the dry-run line only
     And the measuring wrote nothing to the backend
 
   Scenario: A version saved without measurements does not keep the previous version's

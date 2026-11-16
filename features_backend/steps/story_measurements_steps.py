@@ -246,3 +246,9 @@ def step_stored_none(context):
 @then("the measuring wrote nothing to the backend")
 def step_nothing_written(context):
     assert json.dumps(context.client.tables, sort_keys=True, default=str) == context.before_rows
+
+
+@then("the output is the dry-run line only")
+def step_dry_run_only(context):
+    assert context.result["error"] is None, context.result["error"]
+    assert context.result["output"].strip().endswith("dry run") and "\tsize\t" not in context.result["output"], context.result["output"]

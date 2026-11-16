@@ -150,10 +150,6 @@ def stories_save_version(flags: list[str]) -> None:
                 raise ValueError(light_only_figure_error(image_plan, why))
         if image_plan.front_matter is not None:
             front_matter = image_plan.front_matter
-    from .item_language import item_language
-    from .story_measure import measurement_rows, story_measurements
-
-    measurements = story_measurements(body, front_matter, item_language(latest), latest.get("bodyMarkus") or "", int(latest.get("versionNumber") or 1))
     header = f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t"
     plan_output: list[str] = []
     if image_plan is not None:
@@ -163,9 +159,13 @@ def stories_save_version(flags: list[str]) -> None:
         plan_output = list(plan_lines(image_plan, planned_version_record_id(client, lineage_id)))
     if not apply:
         print(header + "dry run")
-        for line in [*plan_output, *measurement_rows("stories", "save-version", f"{lineage_id}\tversion {next_number}", measurements)]:
+        for line in plan_output:
             print(line)
         return
+    from .item_language import item_language
+    from .story_measure import measurement_rows, story_measurements
+
+    measurements = story_measurements(body, front_matter, item_language(latest), latest.get("bodyMarkus") or "", int(latest.get("versionNumber") or 1))
     stage = normalize_string(options.get("stage"))
     if options.get("advance"):
         if stage:
