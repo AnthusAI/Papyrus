@@ -152,6 +152,8 @@ _ENTRIES = dict([
      "[--story LINEAGE|SLUG] [--json]", "both", "reads", "checks"),
   _e("stories lens-check", "Check a Story's audience lenses (people, agents, search, social); fix the findings before closing a lens step.",
      "--story LINEAGE [--lens people|agents|search|social] [--static WEB_DIRECTORY] [--json]  (--static defaults to PAPYRUS_SITE_STATIC_DIR)", "both", "reads", "checks"),
+  _e("stories measure", "Plain measurements of a Story's text from Humanus: size, structure, sourcing and the change from another version. Guidance, never a limit. Read only.",
+     "[--story LINEAGE] [--body-file FILE] [--front-matter-file FILE] [--language TAG] [--json]  (--story alone: the current version against the one before it; --body-file: a draft before it is saved, against the story's current version when --story is given; a draft with no --story needs --language)", "both", "reads", "checks"),
   _e("stories next", "Print each procedure step with its state, then what is next (the checklist).", "--story LINEAGE [--json]", "both", "reads", "checks"),
   _e("stories step", "Set one checklist step's state, or add a note to it.",
      "--story LINEAGE --step KEY [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]  "
@@ -379,7 +381,7 @@ def _drafted(path: str) -> Usage | None:
 GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
-              "check-links", "lens-check", "next", "step", "versions", "note", "agent-note"],
+              "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
