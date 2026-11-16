@@ -921,6 +921,17 @@ def test_the_registry_writes_the_canonical_kind_and_maps_to_the_vocabulary_keys(
         run(commands.knowledge_entities_registry, "--out", str(out), "--vocabulary", str(vocabulary))
 
 
+def test_alias_remove_takes_an_alias_off_and_refuses_the_name_and_a_pair(client, capsys):
+    client.rows["SemanticNode"] = {row["id"]: row for row in [node_row("maker--mistral-ai", "maker", "Mistral AI")]}
+    run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "Mistral", "--actor", "ai")
+    run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--remove", " mistral ", "--actor", "human")
+    assert client.rows["SemanticNode"]["maker--mistral-ai-v1"]["aliases"] == []
+    with pytest.raises(ValueError, match="not an alias"):
+        run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--remove", "Mistral AI", "--actor", "ai")
+    with pytest.raises(ValueError, match="requires --add"):
+        run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "A", "--remove", "B", "--actor", "ai")
+
+
 def test_alias_adds_a_name_records_the_actor_and_makes_a_rejected_duplicate_resolve_to_the_accepted_node(client, tmp_path, capsys):
     from .publish_run import NodeIndex
     from .registry import build_registry
