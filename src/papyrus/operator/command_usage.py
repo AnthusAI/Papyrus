@@ -193,7 +193,7 @@ _ENTRIES = dict([
   _e("knowledge entities accept", "Accept a generated concept.", "--key KEY --actor ai|human [--actor-name N] [--keep-links-unconfirmed] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities reject", "Reject a generated concept.", "--key KEY --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities rename", "Rename a concept.", "--key KEY --name NEW_NAME --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
-  _e("knowledge entities alias", "Add an alias to a concept.", "--key KEY --add NAME --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
+  _e("knowledge entities alias", "Add an alias to a concept, or take one off.", "--key KEY (--add NAME | --remove NAME) --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities describe", "Set a concept's description.", "--key KEY --text DESCRIPTION --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities accept-description", "A person accepts the description a concept already has.", "--key KEY --actor human [--actor-name N] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities page", "Decide whether a concept has a public page.", "--key KEY --set yes|no|machine --actor ai|human [--actor-name N] [--dry-run]", "operator", _DRY, ""),

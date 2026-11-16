@@ -53,6 +53,7 @@ from .entity_review import (
     accept_description_patches,
     accept_patches,
     alias_patches,
+    alias_remove_patches,
     describe_patches,
     find_node,
     page_decision_patches,
@@ -831,10 +832,12 @@ def knowledge_entities_rename(flags: list[str]) -> None:
 
 def knowledge_entities_alias(flags: list[str]) -> None:
     def build(options, node, client, rows, actor):
-        name = normalize_string(options.get("add"))
-        if not name:
-            raise EntityReviewError("knowledge entities alias requires --add <name>.")
-        return alias_patches(node, name, rows, actor=actor, now=utc_now())
+        added, removed = normalize_string(options.get("add")), normalize_string(options.get("remove"))
+        if bool(added) == bool(removed):
+            raise EntityReviewError("knowledge entities alias requires --add <name> or --remove <name> (one of them).")
+        if removed:
+            return alias_remove_patches(node, removed, actor=actor, now=utc_now())
+        return alias_patches(node, added, rows, actor=actor, now=utc_now())
 
     _review(flags, "alias", build)
 
