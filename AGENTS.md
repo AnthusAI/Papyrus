@@ -282,6 +282,7 @@ Workflows for agents live in `skills/`: `edition-planning`, `newsroom-story-cycl
 | One `papyrus` command; local pod and cloud accept the same argv and return the same output shape. Backend is config or `--backend`, not a second command tree. | `features_backend/operator-cli.feature` (`npm run test:bdd:operator-cli`). |
 | No traceback on expected failures; operator errors exit 2; the shell environment wins over `.env`. | `features_backend/operator-cli.feature`, `procedures/newsroom/tests/test_operator_errors.py`. |
 | `kbs` owns the board; `papyrus` owns newsroom objects. Do not merge them. | `features_backend/operator-cli.feature` (help text). |
+| A pod (a folder of Markdown notes, `papyrus pod init\|id\|check`) takes its identity from the note's explicit `id`, never from a file name or path; `pod check` only reads, needs no sign-in and no site, and nothing in a pod publishes (a pod with no site is private). `src/papyrus/pod/` is not `operator/pod_references.py`, the Kanbus-based register behind `--backend local`. | `features_backend/pod-check.feature`, `pod-context.feature`, `pod-init-and-id.feature` (fixture `features_backend/fixtures/pod`). |
 
 Details: [docs/operator-cli.md](docs/operator-cli.md).
 

@@ -1,3 +1,5 @@
+# `pod: true` marks a relation type as part of the pod profile: it becomes a link key in the generated pod context
+# (src/papyrus/pod/context.py) and a note may carry it. Every other type is newsroom bookkeeping and never appears in a pod.
 schemaVersion: 1
 relationTypes:
   - key: classified_as
@@ -153,6 +155,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph, research]
   - key: authored_by
     label: authored by
@@ -164,6 +167,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph, research, ontology_enrichment]
   - key: cites
     label: cites
@@ -175,6 +179,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph, research, ontology_enrichment]
   - key: has_editorial_form
     label: has editorial form
@@ -219,6 +224,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [editing, research]
   - key: comment
     label: comments on
@@ -384,6 +390,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph, research]
   - key: related_to
     label: related to
@@ -395,6 +402,7 @@ relationTypes:
     isDirectional: false
     isSymmetric: true
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph]
   - key: tagged_with
     label: tagged with
@@ -406,6 +414,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [editing, publication, reference_graph]
   - key: see_also
     label: see also
@@ -417,6 +426,7 @@ relationTypes:
     isDirectional: false
     isSymmetric: true
     isTransitive: false
+    pod: true
     contextPackTags: [editing, publication]
   - key: same_as
     label: same as
@@ -428,6 +438,7 @@ relationTypes:
     isDirectional: false
     isSymmetric: true
     isTransitive: true
+    pod: true
     contextPackTags: [reference_graph, research, ontology_enrichment]
   - key: alias_of
     label: alias of
@@ -461,6 +472,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: true
+    pod: true
     contextPackTags: [reference_graph, research, category_context]
   - key: narrower_than
     label: narrower than
@@ -472,6 +484,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: true
+    pod: true
     contextPackTags: [reference_graph, research, category_context]
   - key: member_of
     label: member of
@@ -483,6 +496,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph, research, ontology_enrichment]
   - key: supports
     label: supports
@@ -494,6 +508,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph, research]
   - key: contradicts
     label: contradicts
@@ -505,4 +520,5 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [reference_graph, research]

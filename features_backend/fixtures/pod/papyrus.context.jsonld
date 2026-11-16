@@ -1,0 +1,159 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "papyrus": "https://p.apyr.us/ns#",
+    "schema": "https://schema.org/",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "id": "@id",
+    "type": "@type",
+    "title": "schema:name",
+    "description": "schema:description",
+    "date": {
+      "@id": "schema:datePublished",
+      "@type": "xsd:date"
+    },
+    "updated": {
+      "@id": "schema:dateModified",
+      "@type": "xsd:date"
+    },
+    "authors": {
+      "@id": "schema:author",
+      "@container": "@set"
+    },
+    "publisher": "schema:publisher",
+    "image": "schema:image",
+    "tags": {
+      "@id": "papyrus:tag",
+      "@container": "@set"
+    },
+    "aliases": {
+      "@id": "schema:alternateName",
+      "@container": "@set"
+    },
+    "definition": "skos:definition",
+    "language": "schema:inLanguage",
+    "draft": {
+      "@id": "papyrus:draft",
+      "@type": "xsd:boolean"
+    },
+    "redirects": {
+      "@id": "papyrus:redirect",
+      "@container": "@set"
+    },
+    "section": {
+      "@id": "papyrus:section",
+      "@type": "@id"
+    },
+    "url": {
+      "@id": "schema:url",
+      "@type": "@id"
+    },
+    "from": {
+      "@id": "rdf:subject",
+      "@type": "@id"
+    },
+    "relation": {
+      "@id": "rdf:predicate",
+      "@type": "@id"
+    },
+    "to": {
+      "@id": "rdf:object",
+      "@type": "@id"
+    },
+    "state": "papyrus:state",
+    "decidedOn": {
+      "@id": "papyrus:decidedOn",
+      "@type": "xsd:date"
+    },
+    "decidedBy": "papyrus:decidedBy",
+    "mentions": {
+      "@id": "papyrus:mentions",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "authored_by": {
+      "@id": "papyrus:authored_by",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "cites": {
+      "@id": "papyrus:cites",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "about": {
+      "@id": "papyrus:about",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "derived_from": {
+      "@id": "papyrus:derived_from",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "related_to": {
+      "@id": "papyrus:related_to",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "tagged_with": {
+      "@id": "papyrus:tagged_with",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "see_also": {
+      "@id": "papyrus:see_also",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "same_as": {
+      "@id": "papyrus:same_as",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "broader_than": {
+      "@id": "papyrus:broader_than",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "narrower_than": {
+      "@id": "papyrus:narrower_than",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "member_of": {
+      "@id": "papyrus:member_of",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "supports": {
+      "@id": "papyrus:supports",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "contradicts": {
+      "@id": "papyrus:contradicts",
+      "@type": "@id",
+      "@container": "@set"
+    }
+  },
+  "papyrusPod": {
+    "profile": 1,
+    "vaultLd": "0.5.0",
+    "vaultLdCommit": "025e71b",
+    "classes": [
+      "papyrus:Article",
+      "papyrus:Post",
+      "papyrus:Page",
+      "papyrus:Reference",
+      "papyrus:Concept",
+      "papyrus:Person",
+      "papyrus:Organization",
+      "papyrus:Section",
+      "papyrus:Relation"
+    ],
+    "generated": "by papyrus pod init from papyrus-semantic-relation-types.yml; never edited by hand"
+  }
+}
