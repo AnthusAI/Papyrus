@@ -77,3 +77,6 @@ so the next run goes on from there and a rerun costs nothing.
 Three events record a need, both before anything else is written so a failure leaves nothing half done: a translation in a language is published (`publishing.publish_item`: the concepts its original is tagged
 with are needed in that language), a Story is tagged with a concept (`concept_tags.tag_with_concepts`: the concept is needed in every language the Story is published in), and a concept's own wiki page is published (its `entityKey` names the concept: it is needed in every language the site serves). A site
 that has not named its primary language yet records nothing.
+
+Switching a language on needs no event: `papyrus --auth iam knowledge concepts localize --needed --sweep --language TAG` first records every concept that has a public page as wanted in that
+language (one query for the pages, one per page; resumable, because recording is idempotent), then drains the queue as above.

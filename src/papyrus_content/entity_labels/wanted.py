@@ -137,3 +137,19 @@ def record_wanted_for_page(client: Any, entity_key_text: str, *, now: str) -> in
     if node is None:
         return 0
     return sum(record_wanted(client, language=language, nodes=[node], now=now) for language in languages)
+
+
+def record_wanted_for_language(client: Any, language: str, *, now: str) -> dict[str, int]:
+    """A language was switched on: every concept with a public page needs its name in it (the page is served in the language). One query for the pages' keys and one per
+    page for its concept; a concept with a name in the language, or already wanted, writes nothing, so a second run finishes what a first one did not reach. Returns
+    ``{pages, recorded}``."""
+    from ..concept_tags import concept_page_keys
+
+    keys = sorted(concept_page_keys(client))
+    recorded = 0
+    for key in keys:
+        node = next((found for candidate in (key, f"editor_concept--{key}") for found in client.list_by_index("semanticNodesByNodeKey", candidate)
+                     if found.get("versionState", "current") == "current" and found.get("status") == "accepted"), None)
+        if node is not None:
+            recorded += record_wanted(client, language=language, nodes=[node], now=now)
+    return {"pages": len(keys), "recorded": recorded}
