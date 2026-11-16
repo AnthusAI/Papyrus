@@ -188,3 +188,24 @@ def step_stopped(context):
 @then("two wanted rows remain")
 def step_two_remain(context):
     assert len(_wanted(context)) == 2 and context.drain["remaining"] == 2
+
+
+@given('an English Story tagged with "{name}" that has a published translation in "{language}"')
+def step_story_with_translation(context, name, language):
+    from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+    from src.papyrus_content import localization_publish_test as fixtures
+
+    context.site = FakeAuthoringClient()
+    fixtures.english(context.site)
+    fixtures._tagged_original(context.site)
+    context.translation = fixtures.translation(context.site)
+    context.fixtures = fixtures
+
+
+@when('the translation is published and then the Story is tagged again with "{name}"')
+def step_publish_and_tag(context, name):
+    from papyrus_content.entity_labels.wanted import record_wanted_for_tagging
+    from papyrus_content.publishing import publish_item
+
+    publish_item(context.site, context.translation["id"], actor="An Editor")
+    record_wanted_for_tagging(context.site, context.fixtures.ORIGINAL, [context.site.tables["SemanticNode"]["pi-v1"]], now="2026-11-16T00:00:00Z")

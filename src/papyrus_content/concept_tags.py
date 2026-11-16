@@ -191,6 +191,13 @@ def tag_with_concepts(client, target_kind: str, target: str, concepts: list[str]
         rows.append(row)
         if on_row:
             on_row(row)
+    if apply and target_kind == "story":
+        # What a Story is about is written on its original; each language it is published in will show these concepts, so their names are needed there (a note in the
+        # work list; nothing is named here).
+        from .entity_labels.wanted import record_wanted_for_tagging
+        from .publishing import utc_now_iso
+
+        record_wanted_for_tagging(client, lineage, [node for node, row in zip(nodes, rows) if row["outcome"] == "write"], now=utc_now_iso())
     return {"target": lineage, "targetKind": target_kind, "dryRun": not apply, "concepts": rows, **({"translationOf": original} if target_kind == "story" and original else {})}
 
 

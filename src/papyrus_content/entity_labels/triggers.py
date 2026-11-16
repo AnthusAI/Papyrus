@@ -12,7 +12,7 @@ from typing import Any, Callable, Iterable
 from .keys import CONCEPT, PREFERRED, STALE, entity_key
 from .primary import lineage_of
 from .store import LabelStore
-from .stream import site_primary_language
+from .settings import site_primary_language
 
 
 def needs_name(client: Any, node: dict[str, Any], language: str) -> bool:
@@ -20,15 +20,10 @@ def needs_name(client: Any, node: dict[str, Any], language: str) -> bool:
     return not rows or all(row.get("syncState") == STALE for row in rows)
 
 
-def _localize(client: Any, node: dict[str, Any], language: str, *, dry_run: bool = False) -> list[dict[str, Any]]:
-    from .localize_concept import localize_concept
-
-    return localize_concept(client, str(node.get("nodeKey") or lineage_of(node)), [language], dry_run=dry_run)
-
-
 def name_concepts_for_story(client: Any, *, story_language: str | None, nodes: Iterable[dict[str, Any]],
-                            localize: Callable[..., list[dict[str, Any]]] = _localize) -> list[dict[str, Any]]:
-    """The labels made because a Story in ``story_language`` is tagged with ``nodes``: nothing for the primary language, for a concept that already has a label, or
+                            localize: Callable[..., list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """The labels made because a Story in ``story_language`` is tagged with ``nodes`` (``localize(client, node, language)`` is the procedure that makes one; the caller
+    gives it, so what only records a need never loads the model code): nothing for the primary language, for a concept that already has a label, or
     for a concept written in the Story's own language."""
     if not story_language or story_language == site_primary_language(client):
         return []
