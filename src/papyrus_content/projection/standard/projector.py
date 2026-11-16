@@ -85,7 +85,7 @@ from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
 from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
-from .editions import LanguageView, alternate_names_of, edition_nav_hrefs, site_names, edition_settings, language_groups, language_name
+from .editions import LanguageView, alternate_names_of, edition_nav_hrefs, edition_pages, site_names, edition_settings, language_groups, language_name
 from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
 
 
@@ -333,7 +333,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             child = StandardMarkusProjector(
                 dataclasses.replace(self._settings, plugins=(), public_data=None),
                 {},
-                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag), names),
+                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag), names, self._static_directory),
                 hooks=self.hooks,
                 environment=self.environment,
                 renditions=self._given_renditions,
@@ -341,6 +341,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 static_directory=self._static_directory,
             )
             child.version = self.version
+            child._home_page = self._home_page   # the References and threads an edition's authored pages list are the site's, not the language's
             child._edition_tag = tag
             child._is_edition = True
             child._primary_edition = self
@@ -414,6 +415,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._full_site = site
         return found
 
+    def _primary_page_path(self, custom: CustomPage) -> str:
+        """An authored page's path in the primary language: what joins the editions' localizations of one page (its path is translated in an edition)."""
+        owner = self._primary_edition or self
+        return next((page.path for page in owner.standard.pages if page.id == custom.id), custom.path)
+
     def _canonical_base(self, base: str, section: str | None) -> str:
         """A listing's base in the primary language: what joins the editions' listings of one section (the Concepts are ``wiki/`` there, ``concepts/`` elsewhere)."""
         owner = self._primary_edition or self
@@ -432,6 +438,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             own = self._own_site(site, tag)
             listed = [entry for entry in edition._entries(own) if entry.listed]
             found = [("", "", listed)] + [(self._canonical_base(base, section), base, members) for base, _label, section, members in edition._listing_groups(listed)]
+            found += [(self._primary_page_path(custom), custom.path, [custom]) for custom in edition.standard.pages if custom.languages == "localize" and custom.path]   # an authored page a language renders is an alternate of the others
             for base, own_base, members in found:
                 bases.setdefault(base, []).append(tag)
                 if own_base != base:
@@ -748,6 +755,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _forum(self):
         home_page = self.standard.home_page
         return home_page.forum if home_page is not None else None
+
+    def _thread_linker(self):
+        """How a thread include links a thread: to the site's thread page; an edition has none of its own and links to the primary language's (a link that leaves the language)."""
+        if self._forum() is not None:
+            return self._thread_href
+        owner = self._primary_edition
+        return owner._thread_href if owner is not None and owner._forum() is not None else None
 
     def _thread_href(self, key: str) -> str:
         return self.policy.path(forum_pages.thread_site_path(self._forum().thread_base, key))
@@ -2006,7 +2020,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return ""
         if kind == "custom":   # an authored page that is a listing's own address: the home (path "") or a section's front page
             custom = next((page for page in self.standard.pages if page.id == extra.get("custom_id")), None)
-            return custom.path if custom is not None and custom.path in view.listing_bases else None
+            base = self._primary_page_path(custom) if custom is not None else None
+            return base if base is not None and base in view.listing_bases else None
         listing = extra.get("listing")
         if kind == "listing" and listing is not None and listing.page == 1 and listing.section is not None and not listing.tag and not listing.collection:
             return self._canonical_base(listing.base, listing.section)
@@ -2412,7 +2427,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             )
         if kind == "threads":
             return home_page_blocks.render_threads(
-                attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None,
+                attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_linker(),
                 {section.name: section.label for section in self.standard.sections},
             )
         if knowledge_blocks.is_knowledge_block(attributes):

@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-from behave import given, then
+from behave import given, then, when
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 for entry in (REPO_ROOT / "src", REPO_ROOT):
@@ -126,3 +126,38 @@ def step_ascii(context):
     mapping = _site(context).redirects.mapping
     assert all(source.isascii() and target.isascii() for source, target in mapping.items()), mapping
     assert not any(source.startswith(("/articles/", "/wiki/")) for source in mapping), mapping
+
+
+@when('the Spanish articles segment is changed to "{segment}" and the site is projected')
+def step_change_segment(context, segment):
+    from papyrus_content.projection.engine import project_all
+    from papyrus_content.projection.writers import request_paths_for_key
+
+    site = _site(context)
+    site.languages["segments"]["es-419"]["articles"] = segment
+    site.build()
+    context.removed = []
+    original = site.store.delete
+
+    def recording_delete(key):
+        paths = request_paths_for_key(key)
+        context.removed.append((key, [site.redirects.mapping.get(path) for path in paths]))
+        return original(key)
+
+    site.store.delete = recording_delete
+    try:
+        project_all(site.context)
+    finally:
+        site.store.delete = original
+
+
+@then('the Spanish pages under "{prefix}" were removed')
+def step_removed(context, prefix):
+    assert any(key.startswith(prefix) for key, _ in context.removed), context.removed
+
+
+@then('each of them already had its redirect to "{target}" in the redirect store when it was removed')
+def step_removed_redirected(context, target):
+    for key, found in context.removed:
+        if key.startswith("es/articulos/"):
+            assert found and all(value and value.startswith(target) for value in found), (key, found)

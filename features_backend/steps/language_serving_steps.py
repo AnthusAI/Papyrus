@@ -66,6 +66,9 @@ class LanguageSite:
         self.reports = []
         self.context = None
         self.authored_home = False
+        self.pages: list[dict] = []          # authored pages written into projection.json
+        self.page_files: dict[str, str] = {}   # static-directory path -> text
+
         self.notice = None   # the publication's notice (satire), when the scenario's site has one
 
     def build(self) -> None:
@@ -76,6 +79,12 @@ class LanguageSite:
             projection["pages"] = [{"id": "home", "path": "", "title": "Machines on Machines", "description": "Home.", "source": "pages/home.md"}]
             (static / "pages").mkdir(exist_ok=True)
             (static / "pages" / "home.md").write_text("::raw\n<p>An authored home.</p>\n::endraw\n", encoding="utf-8")
+        if self.pages:
+            projection["pages"] = [*projection.get("pages", []), *self.pages]
+        for relative, text in self.page_files.items():
+            (static / relative).parent.mkdir(parents=True, exist_ok=True)
+            (static / relative).write_text(text, encoding="utf-8")
+
         if self.notice:
             projection["site"]["notice"] = self.notice
             projection["feeds"] = {"formats": ["rss", "atom"]}
@@ -641,6 +650,74 @@ def step_ranked_date(context):
     assert card and card.group(1) == "2026-11-09", card and card.group(1)
 
 
+# ---- authored pages in editions (features_backend/language-authored-pages.feature)
+
+def page_text(words: str) -> str:
+    return '::band{size="bare"}\n\n::raw\n<p>' + words + '</p>\n::endraw\n'
+
+
+def _page_entry(identifier: str, path: str, title: str, localize: bool) -> dict:
+    entry = {"id": identifier, "path": path, "title": title, "description": f"{title} page.", "source": f"pages/{identifier}.md"}
+    if localize:
+        entry["languages"] = "localize"
+    return entry
+
+
+def _add_page(context, identifier: str, path: str, title: str, localize: bool, spanish_title: str | None, chinese: bool = False) -> None:
+    site = _site(context)
+    site.pages.append(_page_entry(identifier, path, title, localize))
+    site.page_files[f"pages/{identifier}.md"] = page_text(title)
+    if spanish_title:
+        site.page_files[f"pages/{identifier}.es-419.md"] = page_text(spanish_title)
+        site.strings["es-419"][f"page.{identifier}.title"] = spanish_title
+        site.strings["es-419"][f"page.{identifier}.description"] = f"{spanish_title}."
+
+
+@given('an authored page "{identifier}" at "{path}" titled "{title}" that opts in to languages, with a Spanish file titled "{spanish}" and no Chinese file')
+def step_localized_page(context, identifier, path, title, spanish):
+    _add_page(context, identifier, path, title, True, spanish)
+
+
+@given('an authored page "{identifier}" at "{path}" titled "{title}" that does not opt in, with a Spanish file titled "{spanish}"')
+def step_unlocalized_page(context, identifier, path, title, spanish):
+    _add_page(context, identifier, path, title, False, spanish)
+
+
+@then('the written page "{key}" exists and its title is "{title}"')
+def step_page_title(context, key, title):
+    assert re.search(rf"<title>{re.escape(title)}\b", _site(context).text(key)), re.search(r"<title>[^<]*", _site(context).text(key))
+
+
+@then('the written page "{key}" is the English page titled "{title}"')
+def step_english_page(context, key, title):
+    html = _site(context).text(key)
+    assert '<html lang="en"' in html and re.search(rf"<title>{re.escape(title)}\b", html)
+
+
+@then('the written page "{key}" does not exist')
+def step_page_absent(context, key):
+    assert not _site(context).exists(key), key
+
+
+@then('the written page "{key}" lists hreflang "en" and "es" and not "zh-Hans"')
+def step_page_hreflang(context, key):
+    found = dict(_hreflang(_site(context).text(key)))
+    assert {"en", "es"} <= set(found) and "zh-Hans" not in found, found
+
+
+@then('the written page "{key}" names "{path}" in hreflang')
+def step_page_names(context, key, path):
+    assert any(url == f"{ORIGIN}{path}" for _tag, url in _hreflang(_site(context).text(key))), _hreflang(_site(context).text(key))
+
+
+@then('the written page "{key}" does not exist or only redirects')
+def step_page_absent_or_redirect(context, key):
+    site = _site(context)
+    if site.exists(key):
+        text = site.text(key)
+        assert 'http-equiv="refresh"' in text or "/es/hallazgos/" in text, site.keys()
+
+
 @given('the site\'s notice is "{label}" and "{text}" and Spanish says "{label_es}" and "{text_es}"')
 def step_notice(context, label, text, label_es, text_es):
     site = _site(context)
@@ -673,6 +750,36 @@ def step_notice_english(context):
     assert "> **Satire.** Everything on this site is invented." in site.text("articles/the-sound/index.md")
     assert "Satire. " in site.text("feed.xml")
 
+
+@then('the written page "{key}" lists hreflang "en" and not "es"')
+def step_page_no_es(context, key):
+    found = dict(_hreflang(_site(context).text(key)))
+    assert "es" not in found, found
+
+
+@given('the site is built again with no Spanish title string for the page "{identifier}"')
+def step_rebuilt_without_title(context, identifier):
+    site = _site(context)
+    site.strings["es-419"].pop(f"page.{identifier}.title", None)
+    shutil.rmtree(site.work / "site")   # as if the language never had the string: nothing was written before
+    site.store = RecordingWriter(site.work / "site")
+    site.build()
+    site.deploy()
+
+
+@given('an authored page "{identifier}" at "{path}" titled "{title}" that takes its Spanish title from the string "{key}" which is "{words}"')
+def step_title_key_page(context, identifier, path, title, key, words):
+    site = _site(context)
+    entry = _page_entry(identifier, path, title, True)
+    entry["titleKey"] = key
+    site.pages.append(entry)
+    site.page_files[f"pages/{identifier}.md"] = page_text(title)
+    site.page_files[f"pages/{identifier}.es-419.md"] = page_text(words)
+    site.strings["es-419"][key] = words
+    shutil.rmtree(site.work / "site")   # the page is added to a site already built by the background: build it again from nothing
+    site.store = RecordingWriter(site.work / "site")
+    site.build()
+    site.deploy()
 
 @when('its Spanish translation "{slug}" and its Chinese translation "{chinese}" are published')
 def step_both_published(context, slug, chinese):
