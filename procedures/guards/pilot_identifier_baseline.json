@@ -39,7 +39,6 @@
   "scripts/verify-production-console-chat.sh": 1,
   "scripts/verify_archived_email_submission.py": 1,
   "scripts/wait-graph-import-recount-forum.sh": 2,
-  "src/papyrus/pod/profile.py": 1,
   "src/papyrus_content/corpus_storage_paths.py": 1,
   "src/papyrus_content/priming_provider_budget.py": 1
 }
