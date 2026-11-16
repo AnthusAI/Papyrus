@@ -587,13 +587,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _day(self) -> dt.date:
         """The UTC day rolling buckets count back from: the day of this projection run, or today when a caller asks before any run has started (the keys of a paged
         list's files, which the snapshot task needs before it projects anything)."""
-        return self._as_of if self._as_of != dt.date.min else self.clock()
+        return self._as_of if self._as_of != dt.date.min else (self._primary_edition or self).clock()
 
     def _use_site(self, site: SiteIndex) -> None:
         """A new site index is a new projection run: the snapshot files are read again, and so are the editors' private Story ratings."""
         self._story_stars = site.story_stars
         self._relations = site.relations
-        self._as_of = self.clock()
+        self._as_of = (self._primary_edition or self).clock()   # one projection day for every edition: its rolling buckets count back from the primary's day
         if site.items is not self._knowledge_items:
             self._knowledge.reset()
             self._home_page.reset()
