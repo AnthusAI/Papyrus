@@ -484,6 +484,19 @@ papyrus stories localize --story LINEAGE --language es-419 --automation SITE.sto
 - `--dry-run` prints the plan: blocks to translate and kept, the glossary terms the translator will be given, the predicted cost from the language's measured runs. It writes nothing.
 - A held translation (a faithfulness error remains) raises a flag review request saying why. `--ceiling-usd` caps one run's model spend.
 
+### Correct a published translation (editors)
+**Lane:** either; the signed-in lane is the default. **Version:** the release after 5.112.1. **Writes:** yes, unless `--dry-run`.
+
+```sh
+papyrus stories correct-translation --story LINEAGE --language es-419 --edits-file edits.json --edited-by "Person Name" --reason "why" --dry-run
+papyrus stories correct-translation --story LINEAGE --language es-419 --edits-file edits.json --edited-by "Person Name" --reason "why" [--approved-by "Person Name"] [--publish [--verify]]
+```
+
+- `edits.json` is a list: `[{"from": "old wording", "to": "new wording"}]`. The old wording must occur exactly once in the translation (add `"every": true` to change all occurrences); text that is not there, or an edit that would change a link, credit or other fixed part of a block, is refused and nothing is saved.
+- Saves a new version of `LINEAGE--TAG` authored by `--edited-by`; each block it changes is the person's (owner `human`, pinned), so a later translation run keeps it exactly. The provenance records who edited, who applied it (the signed-in session), the reason, each block before and after, and `--approved-by` when given. The approver is metadata only and never appears on the page.
+- Without `--publish` the version stays a draft; `--publish` publishes it as `papyrus ops content publish` does (a held translation still needs its review request answered), and `--verify` (only with `--publish`) waits for the public page. `--dry-run` prints each changed block before and after.
+- Spec: `features_backend/translation-correction.feature`. Design: docs/story-translation-procedure.md, "A person's correction".
+
 ### Translate a whole site, and translate on publish (operators)
 **Lane:** the operator lane (`--auth iam`) to run or publish here; `--dry-run` and `--automation` (queue only) on either. **Version:** the release after 5.112.1. **Writes:** yes, unless `--dry-run`.
 

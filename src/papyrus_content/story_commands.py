@@ -1287,6 +1287,55 @@ def backfill_procedure_of(client, automation_id: str) -> str | None:
     return automation_procedure_key(client, automation_id)
 
 
+def stories_correct_translation(flags: list[str]) -> None:
+    """papyrus stories correct-translation --story LINEAGE --language TAG --edits-file FILE --edited-by PERSON --reason TEXT [--approved-by PERSON] [--publish [--verify]] [--dry-run] [--json]
+
+    Saves a person's correction of a translation as a new version of ``<story>--<language>``. FILE is JSON: ``[{"from": "old wording", "to": "new wording"}]``
+    (add ``"every": true`` to change every occurrence; otherwise the old wording must occur exactly once). Each block an edit changes becomes the person's:
+    owner human, pinned, so a later translation run keeps it exactly. The provenance of the new version records who edited (--edited-by, also the version's
+    author), who applied it (the signed-in session), the reason, each changed block before and after and, when given, who approved it (--approved-by).
+    The approver is metadata only: it is never written into the page. A correction never changes a link target, a credit or another fixed part of a block.
+
+    Writes by default; --dry-run prints each changed block before and after and writes nothing. --publish then publishes the new version exactly as
+    ``papyrus ops content publish --id VERSION_ID`` does (a held translation still needs its review request answered); --verify, with --publish, waits for
+    the public page. Without --publish the version stays a draft. See docs/story-translation-procedure.md, "A person's correction"."""
+    from .localize.correct import correct_translation, edits_from
+
+    options = parse_options(flags)
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    edits_file = _required_option(options, "edits-file")
+    edited_by = _required_option(options, "edited-by")
+    reason = _required_option(options, "reason")
+    approved_by = normalize_string(options.get("approved-by"))
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    publish = parse_boolean_option(options.get("publish"), default=False, label="--publish")
+    verify = parse_boolean_option(options.get("verify"), default=False, label="--verify")
+    as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
+    if verify and not publish:
+        raise ValueError("--verify waits for the public page, so it goes with --publish.")
+    if publish and dry_run:
+        raise ValueError("--publish and --dry-run together would publish nothing; drop one.")
+    edits = edits_from(json.loads(Path(edits_file).read_text(encoding="utf-8")))
+    client, claims = create_authoring_client()
+    applied_by = normalize_string((claims or {}).get("sub")) or "papyrus-cli"
+    correction = correct_translation(client, story=story, language=language, edits=edits, edited_by=edited_by, applied_by=applied_by, reason=reason,
+                                     approved_by=approved_by, apply=not dry_run)
+    record = correction.record
+    if as_json:
+        print(json.dumps({"dryRun": dry_run, "lineage": correction.lineage, "changed": correction.changed, "versionId": record["id"] if record else None,
+                          "published": False}, ensure_ascii=False))
+    else:
+        for item in correction.changed:
+            print("\t".join(["stories", "correct-translation", correction.lineage, f"block {item['block']}", item["kind"], "before", item["before"]]))
+            print("\t".join(["stories", "correct-translation", correction.lineage, f"block {item['block']}", item["kind"], "after", item["after"]]))
+        print("\t".join(["stories", "correct-translation", correction.lineage, "dry run" if dry_run else f"saved {record['id']}", f"{len(correction.changed)} block(s) pinned to {edited_by}"]))
+    if publish and record:
+        from .publish_commands import content_publish
+
+        content_publish(["--id", record["id"], *(["--verify"] if verify else []), *(["--json"] if as_json else [])])
+
+
 def stories_localize(flags: list[str]) -> None:
     """papyrus stories localize --story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run] [--json]
 

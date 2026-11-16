@@ -1,0 +1,26 @@
+{
+  "id": "PPY-d956a553-c519-422c-bd59-731e6a5d1351",
+  "title": "Skip link ignores the language's skipToMain string",
+  "description": "On /es/ the skip link reads 'Skip to main content' in English though strings/es-419.json has skipToMain.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "multilingual"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-16T12:00:36.805547Z",
+  "updated_at": "2026-11-16T12:00:36.829565Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  }
+}
