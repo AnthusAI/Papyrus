@@ -399,6 +399,16 @@ def publish_item(
         except ChecklistError as error:
             raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
     ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
+    if item.get("type") == WIKI_PAGE_ITEM_TYPE:
+        # A concept's own page is served in every language the site serves, so the concept's name is needed in each (a note in the work list; nothing is named now).
+        from .entity_labels.wanted import record_wanted_for_page
+
+        record_wanted_for_page(client, str(_load_front_matter(metadata.get("frontMatterYaml")).get("entityKey") or ""), now=now)
+    if original is not None:
+        # The pages of this language show the concepts the original is tagged with, so their names are needed here. Only a note in the work list: nothing is named now.
+        from .entity_labels.wanted import record_wanted_for_translation
+
+        record_wanted_for_translation(client, original, item_language(item), now=now)
     if already_projected:
         version_number = existing.get("versionNumber") or 1
     elif existing is not None:

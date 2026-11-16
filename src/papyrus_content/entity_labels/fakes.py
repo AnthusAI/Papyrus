@@ -30,7 +30,7 @@ class FakeSite:
         if model == "EditorialCheckSettings":
             import json as _json
 
-            return {"id": "settings", "settings": _json.dumps({"languages": {"primary": self.primary, "enabled": [self.primary]}})}
+            return {"id": "settings", "settings": _json.dumps({"languages": {"primary": self.primary, "enabled": [self.primary, *getattr(self, "served", [])]}})}
         return copy.deepcopy(self.tables[model].get(record_id))
 
     def add_node(self, lineage: str, key: str, name: str, *, aliases: list[str] | None = None, description: str = "", status: str = "accepted", language: str | None = None) -> dict:

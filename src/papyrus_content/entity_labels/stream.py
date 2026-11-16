@@ -13,6 +13,7 @@ from typing import Any
 from ..localize.dispatch import decode_image
 from .keys import CONCEPT, entity_key
 from .primary import PRIMARY, lineage_of, sync_node
+from .settings import site_primary_language  # noqa: F401 (the consumer's own name for it)
 from .store import LabelStore
 
 WATCHED = ("displayName", "aliases", "description", "nodeKey", "language", "versionState")
@@ -28,17 +29,6 @@ def _current(row: dict[str, Any] | None) -> bool:
 
 def changed(old: dict[str, Any] | None, new: dict[str, Any]) -> bool:
     return old is None or any(old.get(name) != new.get(name) for name in WATCHED)
-
-
-def site_primary_language(client: Any) -> str:
-    """The site's primary language, as the editorial check settings store it (``languages.primary``). Read straight from the row: the settings are validated
-    when they are saved, and checking the tag against Humanus's language packs here would put Humanus in the consumer's bundle for nothing."""
-    row = client.get_record("EditorialCheckSettings", "settings")
-    values = json.loads(row["settings"]) if row and isinstance(row.get("settings"), str) else (row or {}).get("settings") or {}
-    primary = (values.get("languages") or {}).get("primary")
-    if not primary:
-        raise ValueError("The editorial check settings name no primary language yet, so a concept's language cannot be set.")
-    return str(primary)
 
 
 def handle_changes(events: list[dict[str, Any]], client: Any, *, now: str | None = None) -> dict[str, int]:

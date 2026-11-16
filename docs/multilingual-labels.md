@@ -57,3 +57,26 @@ A pinned label (a person's wording) is never overwritten, and a label made from 
 `papyrus --auth iam sections labels --language es-419 --language zh-Hans --descriptions-file web/sections.json` names every enabled section: its title and the description from the site's sections file. The projection reads the current labels of each public language and lays them over that language's interface strings as `section.<id>.label` and `section.<id>.description`, so the kicker, the home groups, the section headings and the navigation show the language's own name. A held, stale or missing label gives no words: the page shows what it showed before (a key the language's strings file has, or the original marked as such), never an unchecked name.
 
 The names live in the site's store, not in `web/strings/<tag>.json`. A string in that file with the same key is overridden by the label, so remove such copies when a label exists.
+
+### When a concept is named
+
+A concept is named in a language only when a page in that language needs the name (`entity_labels/triggers.py`). A concept that already has a label in the language is left alone,
+in any state but `stale` (a stale one is made again from the changed words); a held label waits for its review request and is never asked for twice. The first trigger
+is a Story in a served language being tagged with the concept (`name_concepts_for_story`); the concept's own page being published and a language being switched on
+follow, each asking the same function. A trigger changes no concept and publishes nothing.
+
+### The queue of wanted names
+
+Nothing that tags a Story or publishes a translation names a concept itself: naming costs model calls and needs the operator lane, and an editor's or an agent's tool has neither.
+It records the need instead: one `EntityLabel` row per concept and language with `syncState: wanted` (`role: wanted`, `origin: wanted`), found through the work index with one
+query per language. Recording is idempotent, and it never touches a name: a concept that has a label in the language, in any state, is not recorded, and the primary language
+is never recorded. `papyrus --auth iam knowledge concepts localize --needed [--language TAG ...] [--ceiling-usd N]` names what is wanted with the label procedure (a held
+label raises its one review request and is not asked for again), drops a row whose concept has a name by then, and stops at the ceiling. What it did not reach stays wanted,
+so the next run goes on from there and a rerun costs nothing.
+
+Three events record a need, both before anything else is written so a failure leaves nothing half done: a translation in a language is published (`publishing.publish_item`: the concepts its original is tagged
+with are needed in that language), a Story is tagged with a concept (`concept_tags.tag_with_concepts`: the concept is needed in every language the Story is published in), and a concept's own wiki page is published (its `entityKey` names the concept: it is needed in every language the site serves). A site
+that has not named its primary language yet records nothing.
+
+Switching a language on needs no event: `papyrus --auth iam knowledge concepts localize --needed --sweep --language TAG` first records every concept that has a public page as wanted in that
+language (one query for the pages, one per page; resumable, because recording is idempotent), then drains the queue as above.

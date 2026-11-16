@@ -56,8 +56,33 @@ def require_operator_lane(command_label: str, writes: str, *, writing: bool) -> 
     print(f"{command_label}\toperator-lane\tnotice\t{notice} This preview only reads.")
 
 
+def sso_token_guidance(error: BaseException) -> str | None:
+    """What to do when botocore's own SSO token provider fails while the `aws` command may still work, or None when ``error`` is not that failure.
+
+    The AWS CLI and botocore keep SSO tokens in files under ~/.aws/sso/cache, and a newer CLI can refresh into a file that botocore (the library this tool uses) does
+    not read, so botocore is left with an expired token and a refresh token the service rejects (PPY-25a4fd). The library does not borrow the CLI's credentials: that
+    would hide a problem in the credential chain, so the fix is made on the machine, and this says which."""
+    if type(error).__name__ != "TokenRetrievalError" or "botocore" not in type(error).__module__:
+        return None
+    import shutil
+
+    profile = os.environ.get("AWS_PROFILE", "").strip() or "<profile>"
+    lines = [f"The AWS credentials for profile {profile} could not be loaded by this tool's own AWS library: {error}"]
+    if shutil.which("aws"):
+        lines += [
+            "The `aws` command is installed and may still work for the same profile, because it can keep its refreshed SSO token in a file this library does not read.",
+            "Fix it on this machine in one of two ways:",
+            f"  1. Add this line under the [profile {profile}] section of ~/.aws/config, so the library asks the aws command for its credentials:",
+            f"       credential_process = aws configure export-credentials --profile {profile}",
+            f"  2. Or sign in again for that profile: `aws sso login --profile {profile}`, then retry.",
+        ]
+    else:
+        lines.append(f"Sign in again for that profile with `aws sso login --profile {profile}`, then retry.")
+    return "\n".join(lines)
+
+
 def is_operator_facing_error(error: BaseException) -> bool:
-    return isinstance(error, (OperatorError, GraphQLRequestError, ValueError))
+    return isinstance(error, (OperatorError, GraphQLRequestError, ValueError)) or sso_token_guidance(error) is not None
 
 
 def exit_code_for_error(error: BaseException) -> int:
@@ -69,7 +94,7 @@ def exit_code_for_error(error: BaseException) -> int:
 
 
 def report_failure_and_exit_code(error: BaseException) -> int:
-    print(str(error), file=sys.stderr)
+    print(sso_token_guidance(error) or str(error), file=sys.stderr)
     if not is_operator_facing_error(error):
         traceback.print_exception(error, file=sys.stderr)
     return exit_code_for_error(error)
