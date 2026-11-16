@@ -63,6 +63,10 @@ So an English listing, feed or sitemap never lists a translation, and a Spanish 
 
 The CMS's own listing keys (`typeStatus`, `sectionStatus`, `headStageKey`, read by the console, the reader app and the newsroom commands) do not carry the language yet; that is the plan's "listing keys carry the language" change, filed as PPY-f33254 (see [Not built yet](#not-built-yet)).
 
+## Authored pages in an edition
+
+An authored page (`pages` in `projection.json`) is the primary language's only, unless it sets `"languages": "localize"`. A page that opts in is rendered under the prefix of each public language that has the page's file in that language: `pages/findings.md` is `pages/findings.es-419.md` in es-419 (`localized_source` in `editions.py`). Its title and description come from the interface strings `page.<id>.title` and `page.<id>.description` (required for a language that has the file), its includes are evaluated over the edition (`listing` over the language's Stories; `references` and `threads` read the site's one snapshot, which every edition shares; thread links go to the primary language's thread pages, a link that leaves the language), and it is an alternate of the same page in every other language that renders it (`hreflang`, `page.alternates`, `page.link_map`, the sitemap). A language without the file does not render the page and is not one of its alternates, so a site's navigation can link to the localized page exactly when it appears in `page.link_map`. Specification: `features_backend/language-authored-pages.feature`. Plan, and what is not built yet (translated path segments, per-language 404 and listing Markdown twins, the translation procedure for pages): [docs/plans/edition-authored-pages.md](plans/edition-authored-pages.md).
+
 ## What each page says about its languages
 
 On a site that serves more than one public language:
