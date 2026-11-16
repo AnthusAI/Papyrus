@@ -28,3 +28,39 @@ Feature: A concept is named in a language only when a page in that language need
     When a Story in "es-419" is tagged with the concept "prompt injection"
     Then the model is asked nothing
     And the review request is still the only one
+
+  Scenario: A need is recorded as one row in the work list, and recording it again writes nothing
+    Given a site whose primary language is "en" and which serves "es-419"
+    When a page in "es-419" needs the concept "prompt injection" twice
+    Then the work list of "es-419" holds one wanted row for "prompt injection"
+    And no name has been written
+
+  Scenario: A concept that already has a label in the language is never recorded as wanted
+    Given the concept "prompt injection" has a held "es-419" label with an open review request
+    When a page in "es-419" needs the concept "prompt injection" twice
+    Then the work list of "es-419" holds no wanted row
+
+  Scenario: Draining names what is wanted and clears the queue
+    Given a site whose primary language is "en" and which serves "es-419"
+    And pages in "es-419" need the concepts "prompt injection" and "gradient descent"
+    When the wanted concept names are drained
+    Then both concepts are named in "es-419"
+    And the work list of "es-419" holds no wanted row
+    And draining again asks the model nothing
+
+  Scenario: The ceiling stops the drain and a second run goes on
+    Given a site whose primary language is "en" and which serves "es-419"
+    And pages in "es-419" need the concepts "prompt injection", "gradient descent" and "data poisoning"
+    When the wanted concept names are drained with a ceiling of 0.01 dollars and each name costs 0.02
+    Then one concept is named and the drain says it stopped
+    And two wanted rows remain
+    When the wanted concept names are drained
+    Then all three concepts are named in "es-419"
+
+  Scenario: A wanted row whose concept was named meanwhile is dropped without asking
+    Given a site whose primary language is "en" and which serves "es-419"
+    And pages in "es-419" need the concepts "prompt injection"
+    And the concept "prompt injection" is named in "es-419" by a person
+    When the wanted concept names are drained
+    Then the model is asked nothing
+    And the work list of "es-419" holds no wanted row

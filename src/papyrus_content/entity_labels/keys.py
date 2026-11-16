@@ -12,8 +12,8 @@ from ..tenant_knowledge_keys import global_key
 PREFERRED, ALIAS, HIDDEN = "preferred", "alias", "hidden"
 ROLES = (PREFERRED, ALIAS, HIDDEN)
 
-CURRENT, STALE, CONFLICT, HELD = "current", "stale", "conflict", "held"
-WORK_STATES = (STALE, CONFLICT, HELD)   # a label in one of these carries a workKey; a current one does not
+CURRENT, STALE, CONFLICT, HELD, WANTED = "current", "stale", "conflict", "held", "wanted"
+WORK_STATES = (STALE, CONFLICT, HELD, WANTED)   # a label in one of these carries a workKey; a current one does not. A wanted row is no name: it says a page needs one.
 
 
 def fold(text: object) -> str:
@@ -37,6 +37,11 @@ def label_id(key: str, language: str, role: str = PREFERRED, text: str | None = 
     if role not in ROLES or not fold(text):
         raise ValueError(f"A {role} label of {key} needs its text.")
     return f"{key}#{language}#{role}#{fold(text)}"
+
+
+def wanted_id(key: str, language: str) -> str:
+    """The row that says the concept ``key`` is needed in ``language``; it is no name and never the row of the name itself."""
+    return f"{key}#{language}#wanted"
 
 
 def name_key(language: str, text: str, tenant_id: str | None = None, kind: str = CONCEPT) -> str:

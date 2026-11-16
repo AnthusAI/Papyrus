@@ -18,14 +18,14 @@ def _label(site, node, language, state):
 def test_a_story_in_another_language_names_the_concept_once():
     site, node = _site()
     asked = []
-    run = lambda client, n, language: asked.append((n["nodeKey"], language)) or [{"language": language}]
+    run = lambda client, n, language, **kw: asked.append((n["nodeKey"], language)) or [{"language": language}]
     assert name_concepts_for_story(site, story_language="es-419", nodes=[node], localize=run) == [{"language": "es-419"}]
     assert asked == [("topic--prompt-injection", "es-419")]
 
 
 def test_the_primary_language_and_a_missing_language_ask_for_nothing():
     site, node = _site()
-    boom = lambda *a: (_ for _ in ()).throw(AssertionError("asked"))
+    boom = lambda *a, **kw: (_ for _ in ()).throw(AssertionError("asked"))
     assert name_concepts_for_story(site, story_language="en", nodes=[node], localize=boom) == []
     assert name_concepts_for_story(site, story_language=None, nodes=[node], localize=boom) == []
 

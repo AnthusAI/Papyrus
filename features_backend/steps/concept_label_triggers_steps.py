@@ -25,6 +25,7 @@ def _label(context, language: str, state: str) -> None:
 @given('a site whose primary language is "{primary}" and which serves "{served}"')
 def step_site(context, primary, served):
     context.site = FakeSite(primary=primary)
+    context.site.served = [served]
     context.node = context.site.add_node("pi", "topic--prompt-injection", "prompt injection")
     context.asked = []
 
@@ -53,7 +54,7 @@ def step_held(context, name, language):
 
 @when('a Story in "{language}" is tagged with the concept "{name}"')
 def step_tagged(context, language, name):
-    def spy(client, node, tag):
+    def spy(client, node, tag, **kw):
         context.asked.append(tag)
         return [{"language": tag, "state": "current"}]
 
@@ -73,9 +74,117 @@ def step_no_other(context):
 @then("no concept is named")
 @then("the model is asked nothing")
 def step_nothing(context):
-    assert context.asked == [] and context.report == []
+    assert context.asked == [] and getattr(context, "report", []) == [] and getattr(context, "model_asks", []) == []
 
 
 @then("the review request is still the only one")
 def step_one_request(context):
     assert context.requests == ["open review request"] and context.asked == []
+
+
+# ---- the queue of wanted names ---------------------------------------------------------------------------------------------------------------------------------
+
+from papyrus_content.entity_labels.keys import WANTED  # noqa: E402
+from papyrus_content.entity_labels.wanted import drain, record_wanted  # noqa: E402
+
+NODES = {"prompt injection": ("pi", "topic--prompt-injection"), "gradient descent": ("gd", "technique--gradient-descent"), "data poisoning": ("dp", "topic--data-poisoning")}
+
+
+def _nodes(context, names):
+    for name in names:
+        lineage, key = NODES[name]
+        context.nodes = getattr(context, "nodes", {})
+        context.nodes[name] = next((row for row in context.site.tables["SemanticNode"].values() if row["lineageId"] == lineage), None) or context.site.add_node(lineage, key, name)
+
+
+def _list(text):
+    return [part.strip().strip('"') for part in text.replace(" and ", ", ").split(",") if part.strip()]
+
+
+def _spy_localize(context, cost):
+    context.model_asks = []
+
+    def localize(client, node, language, dry_run=False):
+        context.model_asks.append(node["displayName"])
+        LabelStore(client).create({"id": f"concept#{node['lineageId']}#{language}", "entityKind": "concept", "entityId": node["lineageId"],
+                                   "entityKey": entity_key("concept", node["lineageId"]), "language": language, "role": "preferred", "text": "traducido",
+                                   "nameKey": f"k#{node['lineageId']}#{language}", "sortKey": f"{language}#preferred#t", "syncState": "current"})
+        return [{"concept": node["displayName"], "language": language, "state": "current", "costUsd": cost}]
+
+    return localize
+
+
+@when('a page in "{language}" needs the concept "{name}" twice')
+def step_needs_twice(context, language, name):
+    _nodes(context, [name])
+    for _ in range(2):
+        record_wanted(context.site, language=language, nodes=[context.nodes[name]], now="2026-11-16T00:00:00Z")
+
+
+@given('pages in "{language}" need the concepts {names}')
+def step_pages_need(context, language, names):
+    _nodes(context, _list(names))
+    context.language = language
+    record_wanted(context.site, language=language, nodes=[context.nodes[name] for name in _list(names)], now="2026-11-16T00:00:00Z")
+
+
+@given('the concept "{name}" is named in "{language}" by a person')
+def step_named_by_person(context, name, language):
+    node = context.nodes[name]
+    LabelStore(context.site).create({"id": f"concept#{node['lineageId']}#{language}", "entityKind": "concept", "entityId": node["lineageId"],
+                                     "entityKey": entity_key("concept", node["lineageId"]), "language": language, "role": "preferred", "text": "a mano",
+                                     "nameKey": f"k#{node['lineageId']}#{language}", "sortKey": f"{language}#preferred#a", "syncState": "current", "pinned": True})
+
+
+@when("the wanted concept names are drained")
+def step_drain(context):
+    context.drain = drain(context.site, languages=["es-419"], localize=_spy_localize(context, 0.0))
+
+
+@when("the wanted concept names are drained with a ceiling of {ceiling} dollars and each name costs {cost}")
+def step_drain_ceiling(context, ceiling, cost):
+    context.drain = drain(context.site, languages=["es-419"], ceiling_usd=float(ceiling), localize=_spy_localize(context, float(cost)))
+
+
+def _wanted(context):
+    return [row for row in context.site.tables["EntityLabel"].values() if row.get("syncState") == WANTED]
+
+
+@then('the work list of "{language}" holds one wanted row for "{name}"')
+def step_one_wanted(context, language, name):
+    rows = _wanted(context)
+    assert [row["text"] for row in rows] == [name] and rows[0]["workKey"], rows
+
+
+@then("no name has been written")
+def step_no_name(context):
+    assert not [row for row in context.site.tables["EntityLabel"].values() if row["role"] == "preferred"]
+
+
+@then('the work list of "{language}" holds no wanted row')
+def step_no_wanted(context, language):
+    assert _wanted(context) == [], _wanted(context)
+
+
+@then('both concepts are named in "{language}"')
+@then('all three concepts are named in "{language}"')
+def step_all_named(context, language):
+    named = {row["entityId"] for row in context.site.tables["EntityLabel"].values() if row["role"] == "preferred" and row["language"] == language}
+    assert named == {NODES[name][0] for name in context.nodes}, named
+
+
+@then("draining again asks the model nothing")
+def step_drain_again(context):
+    before = list(context.model_asks)
+    drain(context.site, languages=["es-419"], localize=_spy_localize(context, 0.0))
+    assert context.model_asks == [] and before
+
+
+@then("one concept is named and the drain says it stopped")
+def step_stopped(context):
+    assert context.drain["named"] == 1 and context.drain["stopped"] is True, context.drain
+
+
+@then("two wanted rows remain")
+def step_two_remain(context):
+    assert len(_wanted(context)) == 2 and context.drain["remaining"] == 2
