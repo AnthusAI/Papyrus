@@ -23,6 +23,14 @@ Parameters:
   CmsAppId:
     Type: String
     Description: Amplify app id of the site CMS app (CmsAppId output of its amplify-app-shell stack).
+  LanguagePrefixes:
+    Type: String
+    Default: ""
+    AllowedPattern: "^([a-z0-9-]{1,16}(,[a-z0-9-]{1,16})*)?$"
+    Description: >-
+      The URL prefixes of the languages the site serves besides its primary one, comma separated (the site's languages.prefixes, for example es,zh). A miss under
+      /<prefix>/ answers with that language's /<prefix>/404.html; any other miss, or a language whose page is not there, answers with /404.html. Empty: every miss
+      answers with /404.html.
 Conditions:
   HasCertificate: !Not [!Equals [!Ref CertificateArn, '']]
 Resources:
@@ -149,15 +157,22 @@ Resources:
       Timeout: 5
       MemorySize: 128
       Code:
-        ZipFile: |
+        ZipFile: !Sub |
           const https = require("https");
 
           const ERROR_PAGE_PATH = "/404.html";
+          const LANGUAGE_PREFIXES = "${LanguagePrefixes}".split(",").filter(Boolean);
 
-          function fetchErrorPage(host) {
+          // The 404 page of the language a missing address is under (/es/zzz is /es/404.html), else the site's.
+          function errorPagePathFor(uri) {
+            const first = uri.split("/")[1] || "";
+            return LANGUAGE_PREFIXES.includes(first) ? "/" + first + ERROR_PAGE_PATH : ERROR_PAGE_PATH;
+          }
+
+          function fetchErrorPage(host, path) {
             return new Promise((resolve, reject) => {
               const request = https.get(
-                { host, path: ERROR_PAGE_PATH, headers: { accept: "text/html", "accept-encoding": "identity" }, timeout: 4000 },
+                { host, path, headers: { accept: "text/html", "accept-encoding": "identity" }, timeout: 4000 },
                 (response) => {
                   const chunks = [];
                   response.on("data", (chunk) => chunks.push(chunk));
@@ -183,11 +198,15 @@ Resources:
             if (response.status !== "403" && response.status !== "404") {
               return response;
             }
-            if (request.uri === ERROR_PAGE_PATH) {
+            if (request.uri.endsWith(ERROR_PAGE_PATH)) {
               return notFound(response, "text/plain", "Not found");
             }
             try {
-              const page = await fetchErrorPage(config.distributionDomainName);
+              const wanted = errorPagePathFor(request.uri);
+              let page = await fetchErrorPage(config.distributionDomainName, wanted);
+              if (page.status !== 200 && wanted !== ERROR_PAGE_PATH) {
+                page = await fetchErrorPage(config.distributionDomainName, ERROR_PAGE_PATH);   // a language with no 404 page of its own: the site's
+              }
               if (page.status === 200) {
                 return notFound(response, "text/html", page.body);
               }
@@ -202,7 +221,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       FunctionName: !Ref NotFoundPageFunction
-      Description: 'revision 2: change this text whenever the function code changes, so a new immutable version is published'
+      Description: 'revision 3: change this text whenever the function code changes, so a new immutable version is published'
   SiteBucketOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
