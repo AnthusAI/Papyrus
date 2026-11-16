@@ -25,6 +25,7 @@ from .cloud_procedures import (
     normalize_graphql_json_value, update_cloud_procedure_run_record)
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
+from .tenancy import TENANT_ID_ENVIRONMENT_VARIABLE, TenantError, validate_tenant_id
 
 SECONDS_KEPT_FOR_RECORDING = 60
 MAX_TIMEOUT_SECONDS = 840          # the Lambda's 15 minutes less the recording margin; an automation's limit is capped here
@@ -58,7 +59,16 @@ def validate_request(request: dict) -> dict:
     timeout = request.get("timeoutSeconds")
     if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout < 1):
         raise ProcedureNotRunnable("timeoutSeconds must be a positive whole number")
+    tenant = request.get("tenantId")
+    if tenant is not None:
+        try:
+            if not isinstance(tenant, str):
+                raise ValueError("tenant must be a string")
+            tenant = validate_tenant_id(tenant)
+        except (TenantError, ValueError) as error:
+            raise ProcedureNotRunnable("tenantId must be a valid publication tenant id") from error
     return {"appsyncEndpoint": endpoint, "procedureKey": key, "openaiKeyParameter": parameter or None,
+            **({"tenantId": tenant} if tenant is not None else {}),
             "timeoutSeconds": None if timeout is None else min(timeout, MAX_TIMEOUT_SECONDS),
             "input": dict(request.get("input") or {}), "publicationId": str(request.get("publicationId") or ""),
             "actorLabel": str(request.get("actorLabel") or "Papyrus procedure runner"),
@@ -228,9 +238,12 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
-    environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")}
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")
+                   and key != TENANT_ID_ENVIRONMENT_VARIABLE}
     environment.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam", HOME="/tmp",
                        PYTHONUNBUFFERED="1")
+    if request.get("tenantId"):
+        environment[TENANT_ID_ENVIRONMENT_VARIABLE] = request["tenantId"]
     if request.get("procedureKey"):
         environment[request_meter.ENV_CALLER] = f"stage:{request['procedureKey']}"   # the stage's own requests are attributed to it
     if openai_api_key:
@@ -274,6 +287,11 @@ def handler(event, context):
             openai_api_key = boto3.client("ssm").get_parameter(Name=request["openaiKeyParameter"],
                                                                WithDecryption=True)["Parameter"]["Value"]
         os.environ.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam")
+        # A warm worker may have served a different publication. Scope parent reads
+        # and post-run triggers too, and clear tenant context for dedicated sites.
+        os.environ.pop(TENANT_ID_ENVIRONMENT_VARIABLE, None)
+        if request.get("tenantId"):
+            os.environ[TENANT_ID_ENVIRONMENT_VARIABLE] = request["tenantId"]
         client = PapyrusGraphQLAuthoringClient()
         seconds_available = context.get_remaining_time_in_millis() / 1000 if hasattr(context, "get_remaining_time_in_millis") else 840
         result = run_procedure_request(request, client=client, execute=execute_in_child,
