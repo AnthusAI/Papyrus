@@ -94,6 +94,9 @@ def stories_save_version(flags: list[str]) -> None:
     --author-label is ignored there (the backend does not verify a name, so the CLI never lets one be made up). On the IAM lane
     (an operator's AWS credentials) --author-label is required and is recorded as given.
 
+    The output also prints the version's measurements and how much it changed from the version it replaces (the same rows as `stories measure`),
+    and stores them with the version (metadata.measurements). They are guidance from Humanus, never a limit. The version's language (its saved row) is required.
+
     --images <dir> uploads every local picture the body uses (::image{src=...} and ![](...) whose path resolves under
     <dir>), plus a matching <name>.dark.<ext> or srcDark file, as the newsroom editor's "Insert image" would: the same
     MediaAsset rows and S3 objects (media/assets/<slug>/<file>), then saves the body with src (and srcDark) rewritten
@@ -147,6 +150,10 @@ def stories_save_version(flags: list[str]) -> None:
                 raise ValueError(light_only_figure_error(image_plan, why))
         if image_plan.front_matter is not None:
             front_matter = image_plan.front_matter
+    from .item_language import item_language
+    from .story_measure import measurement_rows, story_measurements
+
+    measurements = story_measurements(body, front_matter, item_language(latest), latest.get("bodyMarkus") or "", int(latest.get("versionNumber") or 1))
     header = f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t"
     plan_output: list[str] = []
     if image_plan is not None:
@@ -156,7 +163,7 @@ def stories_save_version(flags: list[str]) -> None:
         plan_output = list(plan_lines(image_plan, planned_version_record_id(client, lineage_id)))
     if not apply:
         print(header + "dry run")
-        for line in plan_output:
+        for line in [*plan_output, *measurement_rows("stories", "save-version", f"{lineage_id}\tversion {next_number}", measurements)]:
             print(line)
         return
     stage = normalize_string(options.get("stage"))
@@ -172,12 +179,14 @@ def stories_save_version(flags: list[str]) -> None:
         upload_output = [f"stories\tsave-version\timage-{outcome}\t{image.storage_path}" for image, outcome in upload_planned_images(image_plan, store)]
     record = save_story_version(
         client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage,
-        media_rows=image_plan.media_rows if image_plan is not None else None,
+        media_rows=image_plan.media_rows if image_plan is not None else None, measurements=measurements,
     )
     print(header + "write")
     for line in [*plan_output, *upload_output]:
         print(line)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    for line in measurement_rows("stories", "save-version", f"{lineage_id}\tversion {next_number}", measurements):
+        print(line)
     print_console_rows("stories", "save-version", lambda base: story_links(base, lineage_id, record["id"], f"editor page of the version just saved (version {next_number})"))
     if options.get("outline"):
         mark_story_outline(client, record, actor=author)
@@ -191,6 +200,60 @@ def stories_save_version(flags: list[str]) -> None:
 
         check_after_save(record["id"])
     print_reminder(client, lineage_id)
+
+
+def stories_measure(flags: list[str]) -> None:
+    """papyrus stories measure [--story <lineage>] [--body-file <file>] [--front-matter-file <file>] [--language <tag>] [--json]
+
+    Plain measurements of a story's text, computed by Humanus (Papyrus counts nothing itself): size (words, or characters in Simplified Chinese; reading
+    time), structure (sections, longest paragraph and sentence, the headline, dek and blurb), sourcing (links and citations per 500 units, the share of
+    paragraphs with none) and the change from another version (units added, removed and rewritten, the share changed). Read only, and guidance only:
+    no limit is applied and nothing is refused.
+
+    --story alone measures the story's current saved version and its change from the version before it. --body-file measures a draft before it is
+    saved (with --story, its change from the story's current version, its headline, dek and blurb and its language from the story unless
+    --front-matter-file and --language say otherwise). A draft with no --story needs --language, because text is never read as a guessed language.
+    """
+    options = parse_options(flags)
+    story = normalize_string(options.get("story"))
+    body = _text_from_option_or_file(options, "body", "body-file")
+    front_matter = _text_from_option_or_file(options, "front-matter", "front-matter-file")
+    language = normalize_string(options.get("language"))
+    if not story and body is None:
+        raise ValueError("Give --story (a saved story) or --body-file (a draft).")
+    if not story and not language:
+        raise ValueError("--language is required for a draft with no --story (a BCP 47 tag such as en, es-419 or zh-Hans).")
+    from .item_language import item_language
+    from .story_measure import measurement_rows, story_measurements
+
+    previous_body = previous_number = None
+    label = "draft"
+    if story:
+        client, _ = create_authoring_client()
+        versions = story_versions(client, story)
+        latest = current_story_version(client, story)
+        language = language or item_language(latest)
+        if body is None:
+            earlier = [row for row in versions if int(row.get("versionNumber") or 0) < int(latest.get("versionNumber") or 0)]
+            previous = earlier[0] if earlier else None
+            body = latest.get("bodyMarkus") or ""
+            label = f"version {latest.get('versionNumber')}"
+        else:
+            previous, label = latest, f"draft of {story}"
+        if front_matter is None:
+            metadata = latest.get("metadata")
+            front_matter = (json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})).get("frontMatterYaml")
+        if previous is not None:
+            previous_body, previous_number = previous.get("bodyMarkus") or "", int(previous.get("versionNumber") or 1)
+        label = f"{story}\t{label}"
+    else:
+        label = f"draft\t{language}"
+    measurements = story_measurements(body, front_matter, language, previous_body, previous_number)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": story, **measurements}, indent=2, ensure_ascii=False))
+        return
+    for line in measurement_rows("stories", "measure", label, measurements):
+        print(line)
 
 
 def stories_versions(flags: list[str]) -> None:

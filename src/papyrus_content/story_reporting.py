@@ -170,12 +170,14 @@ def save_story_version(
     media_rows: Callable[[str], list[dict[str, Any]]] | None = None,
     machine_write: dict[str, str] | None = None,
     item_type: str | None = None,
+    measurements: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded.
 
     ``media_rows`` maps the new version's id to the ``MediaAsset`` rows to store on it (``stories save-version --images``).
     ``item_type`` gives the new version another Story type (the type is a field of the version, not of the lineage); the published version keeps the
     type it was published with, so the live address does not move until the new version is published.
+    ``measurements`` (``story_measure.story_measurements``) are kept in the new version's metadata; a version saved without them has none, never the previous version's.
     """
     now = now or utc_now_iso()
     versions = story_versions(client, lineage_id)
@@ -201,6 +203,9 @@ def save_story_version(
                 columns[key] = carried
     metadata = json.loads(latest.get("metadata") or "{}") if isinstance(latest.get("metadata"), str) else dict(latest.get("metadata") or {})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
+    metadata.pop("measurements", None)
+    if measurements is not None:
+        metadata["measurements"] = measurements
     apply_stamp(metadata, machine_write, created=False, now=now)
     record = {
         **{name: value for name, value in _without_server_fields(latest).items() if name not in SCHEDULE_FIELDS},   # a schedule pins the version it was set on, never the next one

@@ -192,3 +192,20 @@ the pack and actor. A judgment question is a `classifier` detector:
 `{"id": "...", "lane": "classifier", "scope": "document", "question": {"type": "noul",
 "instructions": "..."}, "violation": {"answer": "yes"}, "threshold": 0.7, "reviewAt": 0.4,
 "message": "..."}`. Details: [operator-cli.md](operator-cli.md#editorial-policies).
+
+## Content measurements
+
+Besides policy findings, Humanus (0.42 and later) gives plain numbers about a text, and Papyrus shows them. Humanus owns every count: Papyrus hands it
+the text, the Story's language and the headline, dek and blurb from the front matter, and lays out the answer (`src/papyrus_content/story_measure.py`).
+They are deterministic (no model is called) and read the text in its language: words in English and Spanish, characters in Simplified Chinese.
+
+- **Size:** units (words or characters) and reading minutes from the language's reading rate.
+- **Structure:** sections (headings), paragraphs, the longest paragraph and sentence, and whether the headline, dek and blurb are present and how long.
+- **Sourcing:** links and citations, how many per 500 units, and the share of paragraphs with none.
+- **Change:** units added, removed and rewritten against another version, and the share of the text changed. Markup-only edits are not changes.
+
+`papyrus stories measure` works on a saved Story or on a draft file before it is saved, and `papyrus stories save-version` prints the same rows for the
+version it saved and stores them on the version record (`metadata.measurements`, with `humanusVersion`, `measure` and `changeFromPrevious`). They are
+guidance for an editor or an agent, never a gate: no limit is applied, nothing is blocked, and a check or a publish never reads them. Concept density,
+which would take the Story's concepts as input, is a later slice. Executable spec: `features_backend/story-measurements.feature`. Usage:
+[agent CLI guide](agent-cli-guide.md#measure-a-draft-or-a-story).
