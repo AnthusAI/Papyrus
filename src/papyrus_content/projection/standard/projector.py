@@ -86,7 +86,7 @@ from .newsletter_pages import NEWSLETTER_PLUGIN
 from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
 from .editions import LanguageView, alternate_names_of, edition_nav_hrefs, edition_pages, site_names, edition_settings, language_groups, language_name
-from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
+from .interface_strings import LANGUAGE_NAME_KEY, SKIP_LINK_KEY, SWITCHER_LABEL_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
 
 NOT_FOUND_KEYS = ("notFound.title", "notFound.heading", "notFound.text", "notFound.back")   # an edition renders its own 404 when its strings have all four
 
@@ -115,6 +115,7 @@ KNOWLEDGE_CSS_PATH = "css/papyrus-knowledge.css"
 HOME_PAGE_CSS_PATH = "css/papyrus-home-page.css"
 SECTION_FRONTS_CSS_PATH = "css/papyrus-section-fronts.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
+LANGUAGE_SWITCHER_SCRIPT_PATH = "_plugins/papyrus-language-switcher-v1.js"
 ISLANDS_RUNTIME_PATH = "_plugins/papyrus-islands-v1.js"
 MERMAID_SCRIPT_PATH = "_plugins/papyrus-mermaid-v1.js"
 MERMAID_LIBRARY_PATH = "_plugins/mermaid-11.17.2.min.js"   # the vendored library; the loader fetches it from the site's own origin
@@ -175,6 +176,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[SECTION_FRONTS_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-section-fronts.css").read_bytes()
         if standard.nav_disclosure:
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
+        if standard.identity.language_switcher_placement != "none":
+            files[LANGUAGE_SWITCHER_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-language-switcher.js").read_bytes()   # Escape and a click outside close the list
         if standard.page_actions.enabled and standard.agents.markdown:
             files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
             if own_page_actions_stylesheet(standard):
@@ -314,8 +317,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
         section_ids = tuple(dict.fromkeys(match.group(1) for key in primary_strings if (match := re.fullmatch(r"section\.(.+)\.label", key))))   # the sections the primary language names
         labels = self._labels_reader(tuple(others), section_ids) if self._labels_reader is not None else {}
         strings = {**self._interface_strings, **{tag: {**self._interface_strings.get(tag, {}), **labels.get(tag, {})} for tag in others}}
-        problems = [f"{serving.primary}: {LANGUAGE_NAME_KEY}"] if not (primary_strings.get(LANGUAGE_NAME_KEY) or "").strip() else []
         required = required_keys(self.standard, primary_strings, edition_nav_hrefs(self.standard))
+        primary_missing = [key for key in (LANGUAGE_NAME_KEY, SKIP_LINK_KEY, *((SWITCHER_LABEL_KEY,) if SWITCHER_LABEL_KEY in required else ())) if not (primary_strings.get(key) or "").strip()]
+        problems = [f"{serving.primary}: {', '.join(primary_missing)}"] if primary_missing else []
         for tag in others:
             prefix = serving.prefix(tag)
             if prefix in taken:
@@ -1075,7 +1079,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             fragment = self.hooks.item_decorator(fragment, summary, **keywords)
         if self.standard.identity.lede_field:
             fragment = with_lede(fragment, summary.front_matter.get(self.standard.identity.lede_field))
-        fragment = with_date_format(fragment, self.standard.identity.date_format)
+        fragment = with_date_format(fragment, self.standard.identity.date_format, self.standard.identity.date_locale)
         entries = tuple(self._entries(site)) if self._depends_on_entries() else ()
         if self._is_home_source(summary):
             title = entry_title(summary) if summary.front_matter.get("title") else (summary.page_title or summary.title or self.standard.identity.name)
@@ -2193,6 +2197,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             scripts += (notifications_pages.PAGES_SCRIPT_PATH,) + ((notifications_pages.COMPONENT_SCRIPT_PATH,) if "<papyrus-notifications>" in page.fragment else ())
         if page.ledger.paged_lists_used:   # only a page with a paged Reference list loads the script that loads more
             scripts += (home_page_lists.SCRIPT_PATH,)
+        if page.alternates and self.standard.identity.language_switcher_placement != "none":   # only a page that exists in more than one language draws the switcher
+            scripts += (LANGUAGE_SWITCHER_SCRIPT_PATH,)
         if page.page_actions:  # only pages that render the actions load their script
             scripts += (PAGE_ACTIONS_SCRIPT,)
         identity = self.standard.identity
@@ -2258,12 +2264,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if custom is not None:
                 return custom + parts.scripts
         identity = self.standard.identity
+        switcher = page.language_switcher
         masthead = (
             self.hooks.masthead(page)
             if self.hooks.masthead is not None
             else components.masthead(
                 identity.name, self.standard.nav, page.path, tagline=identity.tagline,
                 disclosure=self.standard.nav_disclosure, brand_html=self.standard.nav_brand_html, home=self.policy.path("/"),
+                switcher=switcher if identity.language_switcher_placement == "masthead" else "",
             )
         )
         family = self.standard.footer_family
@@ -2276,7 +2284,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         )
         main = "\n".join(part for part in (self._breadcrumbs_html(page), self._main_html(page)) if part)
         fixed = identity.notice_placement == "fixed-footer"
-        static_footer = (
+        footer_switcher = f'  <div class="markus-language-footer">{switcher}</div>\n' if switcher and identity.language_switcher_placement == "footer" else ""
+        static_footer = footer_switcher + (
             f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>\n'
             if not (fixed and self.standard.single_column and not self._has_footer_content())
             else ""
@@ -2291,7 +2300,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         top_notice = "" if fixed else notice_line
         bottom_notice = notice_line if fixed else ""
         return (
-            f"{components.skip_link()}\n{masthead}\n{top_notice}"
+            f"{components.skip_link(strings=page.strings)}\n{masthead}\n{top_notice}"
             f'  <main id="main">\n{main}\n  </main>\n'
             f'{static_footer}{bottom_notice}{parts.scripts}'
         )
@@ -2359,7 +2368,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if hook is None:
             if variant is not None:
                 raise ValueError(f"::include card={variant!r}: the site has no card hook")
-            return components.card(entry, date_format=self.standard.identity.date_format)
+            return components.card(entry, date_format=self.standard.identity.date_format, locale=self.standard.identity.date_locale)
         names = inspect.signature(hook).parameters
         keywords = {}
         if "variant" in names:
@@ -2464,7 +2473,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             entry = page.entry
             extras = []
             if entry is not None and self.standard.item_byline:
-                extras.append(components.byline(entry, self.standard.identity.date_format, self._hook_byline(entry)))
+                extras.append(components.byline(entry, self.standard.identity.date_format, self._hook_byline(entry), self.standard.identity.date_locale))
             if page.translation is not None:
                 extras.append(components.translation_notice(page.strings, page.translation))
             if entry is not None and entry.tags and self.standard.listings.tags:

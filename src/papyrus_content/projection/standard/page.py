@@ -13,6 +13,7 @@ from .entries import StandardEntry
 from .environment import SiteEnvironment
 from .head import PageHead
 from .hooks import HookSite
+from .interface_strings import SWITCHER_LABEL_KEY
 from .page_ledger import PageLedger
 
 def _same_site_page(path: str) -> bool:
@@ -154,7 +155,18 @@ class StandardPage:
 
     @property
     def skip_link(self) -> str:
-        return components.skip_link()
+        return components.skip_link(strings=self.strings)
+
+    @property
+    def language_switcher(self) -> str:
+        """The language switcher as core draws it (``components.language_switcher``): the page's ``alternates`` in each language's own name, the current one marked.
+        Empty when the page exists in one language or the site sets ``site.languageSwitcher.placement`` to ``none`` (a site that draws its own control from
+        ``alternates``). Core places it in the masthead (the default) or above the footer (``placement: "footer"``); a hook that returns its own ``masthead``
+        or ``page_body`` places it where it belongs."""
+        identity = self.settings.identity
+        if identity.language_switcher_placement == "none" or not self.alternates:
+            return ""
+        return components.language_switcher(self.alternates, self.language, self.strings[SWITCHER_LABEL_KEY], prominence=identity.language_switcher_prominence)
 
     def article_actions(self) -> str:
         """The shared page actions for this page (View as Markdown, Copy, Open in ..., and with ``pageActions.display: "icons"``

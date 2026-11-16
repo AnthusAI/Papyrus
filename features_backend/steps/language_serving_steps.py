@@ -40,13 +40,13 @@ PROJECTION = {
     "seo": {"defaultImage": "/assets/share/default.png", "defaultImageAlt": "Machines on Machines, in white capitals on navy."},
 }
 STRINGS = {
-    "en": {"language.name": "English", "switcher.label": "Language"},
-    "es-419": {"language.name": "Español", "site.name": "Máquinas Sobre Máquinas", "seo.defaultImage": "/assets/share/default-es.png", "seo.defaultImageAlt": "Máquinas Sobre Máquinas, en mayúsculas blancas sobre azul marino.", "switcher.label": "Idioma", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
+    "en": {"language.name": "English", "switcherLabel": "Language", "skipToMain": "Skip to main content"},
+    "es-419": {"language.name": "Español", "site.name": "Máquinas Sobre Máquinas", "seo.defaultImage": "/assets/share/default-es.png", "seo.defaultImageAlt": "Máquinas Sobre Máquinas, en mayúsculas blancas sobre azul marino.", "switcherLabel": "Idioma", "skipToMain": "Saltar al contenido principal", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
                "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos",
                "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés",
                "listing.untranslated": "Todavía no hay traducciones aquí. Lee el {original}.", "listing.untranslatedOriginal": "índice en inglés",
                "notFound.title": "Página no encontrada", "notFound.heading": "Página no encontrada", "notFound.text": "Esa página no está aquí. Puede que se haya movido o que la dirección tenga un error.", "notFound.back": "Volver al inicio"},
-    "zh-Hans": {"language.name": "中文", "site.name": "机器论机器", "seo.defaultImage": "/assets/share/default-zh.png", "seo.defaultImageAlt": "机器论机器，白色大字，深蓝底。", "switcher.label": "语言", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
+    "zh-Hans": {"language.name": "中文", "site.name": "机器论机器", "seo.defaultImage": "/assets/share/default-zh.png", "seo.defaultImageAlt": "机器论机器，白色大字，深蓝底。", "switcherLabel": "语言", "skipToMain": "跳到主要内容", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
                 "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念",
                 "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文",
                 "listing.untranslated": "这里还没有译文。请阅读{original}。", "listing.untranslatedOriginal": "英文索引页"},
@@ -70,6 +70,8 @@ class LanguageSite:
         self.pages: list[dict] = []          # authored pages written into projection.json
         self.page_files: dict[str, str] = {}   # static-directory path -> text
 
+        self.switcher = None   # the site's site.languageSwitcher settings, when the scenario sets them
+        self.date_format = ""  # the site's site.dateFormat (strftime), when the scenario sets one
         self.notice = None   # the publication's notice (satire), when the scenario's site has one
 
     def build(self) -> None:
@@ -86,6 +88,10 @@ class LanguageSite:
             (static / relative).parent.mkdir(parents=True, exist_ok=True)
             (static / relative).write_text(text, encoding="utf-8")
 
+        if self.switcher is not None:
+            projection["site"]["languageSwitcher"] = self.switcher
+        if self.date_format:
+            projection["site"]["dateFormat"] = self.date_format
         if self.notice:
             projection["site"]["notice"] = self.notice
             projection["feeds"] = {"formats": ["rss", "atom"]}
@@ -254,6 +260,8 @@ def step_rename(context, slug):
 def step_project_all(context):
     site = _site(context)
     try:
+        if site.context is None:
+            site.build()
         project_all(site.context)
         context.refusal = None
     except ValueError as error:
@@ -340,7 +348,8 @@ def step_no_hreflang(context):
 
 
 def _links(html: str) -> set[str]:
-    return set(re.findall(r'href="(/[^"]*)"', html))
+    """The site paths a page links to, leaving out the language switcher's (it offers every language's page by design)."""
+    return set(re.findall(r'href="(/[^"]*)"', re.sub(r'<div class="markus-language-switcher.*?</details></div>', "", html, flags=re.S)))
 
 
 @then('the English home and the English articles listing link "the-sound" and "the-other" and no Spanish page')
@@ -845,3 +854,199 @@ def step_spanish_404(context, key, words, home):
 @then('"{key}" does not exist')
 def step_key_absent(context, key):
     assert not _site(context).exists(key)
+
+
+# ---------------------------------------------------------------------------------------------- language switcher, skip link and dates
+
+LANGUAGE_NAMES = {"English": "", "Spanish": "es/", "Chinese": "zh/"}
+SWITCHER = re.compile(r'<div class="markus-language-switcher[^"]*" data-language-switcher>.*?</details></div>', re.S)
+
+
+def _page(context, language: str, key: str) -> str:
+    return _site(context).text(key)
+
+
+def _switcher(context, language: str, key: str) -> str:
+    found = SWITCHER.search(_page(context, language, key))
+    assert found, f"{key} has no language switcher"
+    return found.group(0)
+
+
+def _option_names(switcher: str) -> list[str]:
+    return re.findall(r'<span class="markus-language-name">([^<]*)</span>', switcher)
+
+
+def _option_links(switcher: str) -> list[str]:
+    return re.findall(r'<a class="markus-language-option" href="([^"]*)"', switcher)
+
+
+@given("the site serves English only")
+def step_english_only(context):
+    site = _site(context)
+    site.languages.update({"enabled": ["en"], "public": ["en"], "prefixes": {}})
+    site.build()
+    site.deploy()
+
+
+@given('the site sets its language switcher placement to "{placement}"')
+def step_switcher_placement(context, placement):
+    site = _site(context)
+    site.switcher = {**(site.switcher or {}), "placement": placement}
+    site.context = None
+
+
+@given('the site sets its language switcher prominence to "{prominence}"')
+def step_switcher_prominence(context, prominence):
+    site = _site(context)
+    site.switcher = {**(site.switcher or {}), "prominence": prominence}
+    site.context = None
+
+
+@given('the site writes dates as "{pattern}"')
+def step_date_format(context, pattern):
+    site = _site(context)
+    site.date_format = pattern
+    site.context = None
+
+
+@given('the English interface strings lack "{key}"')
+def step_english_strings_lack(context, key):
+    site = _site(context)
+    site.strings["en"].pop(key)
+    site.context = None
+
+
+@then("the projection is accepted")
+def step_accepted(context):
+    assert context.refusal is None, context.refusal
+
+
+@then('the {language} "{key}" page has a language switcher labelled "{label}" listing "{first}" and "{second}"')
+def step_switcher_labelled(context, language, key, label, first, second):
+    switcher = _switcher(context, language, key)
+    assert f'aria-label="{label}"' in switcher, switcher[:400]
+    assert _option_names(switcher) == [first, second], _option_names(switcher)
+
+
+@then('the English page\'s switcher marks "{name}" as the current language with a check mark and aria-current')
+def step_switcher_current(context, name):
+    switcher = _switcher(context, "English", ENGLISH)
+    current = re.findall(r'<a class="markus-language-option"[^>]*aria-current="true">(.*?)</a>', switcher, re.S)
+    assert len(current) == 1 and f">{name}<" in current[0] and 'data-icon="check"' in current[0], current
+    assert switcher.count("aria-current") == 1
+
+
+@then('the Spanish page\'s switcher links to the English page at "{url}" and each option carries its language and hreflang')
+def step_switcher_links(context, url):
+    switcher = _switcher(context, "Spanish", SPANISH)
+    assert url in _option_links(switcher), _option_links(switcher)
+    assert 'lang="en" hreflang="en" data-language="en"' in switcher
+    assert 'lang="es-419" hreflang="es" data-language="es-419"' in switcher   # the visible tag keeps the region; hreflang is the search engines' value
+
+
+@then('the English "{key}" page\'s switcher links to "{first}", "{second}" and "{third}"')
+def step_switcher_three_links(context, key, first, second, third):
+    assert _option_links(_switcher(context, "English", key)) == [first, second, third]
+
+
+@then('the English "{key}" page\'s switcher offers "{first}" and "{second}" and "{third}"')
+def step_switcher_three_names(context, key, first, second, third):
+    assert _option_names(_switcher(context, "English", key)) == [first, second, third]
+
+
+@then('the Spanish "{key}" page is not indexed')
+def step_spanish_not_indexed(context, key):
+    assert '<meta name="robots" content="noindex' in _site(context).text(key), key
+
+
+@then('the {language} "{key}" page has no language switcher')
+def step_no_switcher(context, language, key):
+    assert "data-language-switcher" not in _page(context, language, key), key
+
+
+@then('the English "{key}" page has its language switcher inside the masthead after the navigation')
+def step_masthead_placement(context, key):
+    html = _page(context, "English", key)
+    header = re.search(r'<header class="markus-site-masthead">.*?</header>', html, re.S).group(0)
+    assert header.index("markus-site-nav") < header.index("data-language-switcher"), header[:600]
+    assert html.count("data-language-switcher") == 1
+
+
+@then('the English "{key}" page has its language switcher above the footer and none in the masthead')
+def step_footer_placement(context, key):
+    html = _page(context, "English", key)
+    header = re.search(r'<header class="markus-site-masthead">.*?</header>', html, re.S).group(0)
+    assert "data-language-switcher" not in header
+    assert html.index("data-language-switcher") < html.index('<footer class="markus-site-footer">') or 'class="markus-site-footer"' not in html, key
+    assert 'class="markus-language-footer"' in html
+
+
+@then('the English "{key}" page has a quiet language switcher')
+def step_quiet(context, key):
+    assert 'class="markus-language-switcher markus-language-switcher-quiet"' in _page(context, "English", key)
+
+
+@then("the site's hook can still read the markup core would draw as the page's language_switcher, which is empty")
+def step_hook_empty(context):
+    from papyrus_content.projection.standard import components
+
+    assert components.language_switcher([{"tag": "en", "name": "English", "url": "/", "hreflang": "en"}], "en", "Language") == ""   # one language: nothing
+    site = _site(context)
+    assert site.context.projector.standard.identity.language_switcher_placement == "none"
+
+
+@then('the English "{key}" page\'s switcher is a details control with a summary that opens it from the keyboard')
+def step_details(context, key):
+    switcher = _switcher(context, "English", key)
+    assert "<details" in switcher and "<summary" in switcher and "tabindex" not in switcher
+
+
+@then("every option of it is a link")
+def step_options_links(context):
+    switcher = _switcher(context, "English", ENGLISH)
+    assert switcher.count("<li>") == switcher.count('<li><a class="markus-language-option"') >= 2
+
+
+@then("the page loads the language switcher script, which closes the list on Escape and on a click outside")
+def step_script_loaded(context):
+    assert "_plugins/papyrus-language-switcher-v1.js" in _page(context, "English", ENGLISH)
+    script = _site(context).text("_plugins/papyrus-language-switcher-v1.js")
+    assert '"Escape"' in script and "contains(event.target)" in script
+
+
+@then("the site publishes that script")
+def step_script_published(context):
+    assert _site(context).exists("_plugins/papyrus-language-switcher-v1.js")
+
+
+@then('the English "{key}" page\'s switcher needs no script to open or to follow an option')
+def step_no_script_needed(context, key):
+    switcher = _switcher(context, "English", key)
+    assert "<script" not in switcher and "onclick" not in switcher and "<details" in switcher and "href=" in switcher
+
+
+@then('the {language} "{key}" page\'s skip link says "{words}"')
+def step_skip_link(context, language, key, words):
+    html = _page(context, language, key)
+    assert f'<a class="markus-skip-link" href="#main">{words}</a>' in html, re.findall(r'<a class="markus-skip-link"[^>]*>[^<]*', html)
+
+
+@then('the {language} "{key}" page dates its card "{shown}"')
+def step_card_date(context, language, key, shown):
+    html = _page(context, language, key)
+    dates = re.findall(r'<article class="markus-card">.*?<time class="markus-time" datetime="[^"]*">([^<]*)</time>', html, re.S)
+    assert dates and all(date == shown for date in dates), (dates, key)
+
+
+@then('the Spanish "{key}" page dates its byline "{shown}"')
+def step_byline_date(context, key, shown):
+    html = _page(context, "Spanish", key)
+    assert f'<p class="markus-byline">{shown}</p>' in html, re.findall(r'<p class="markus-byline">[^<]*', html)
+
+
+@then('no page of the Spanish edition shows a date as "{iso}"')
+def step_no_iso(context, iso):
+    site = _site(context)
+    for key in site.keys():
+        if key.startswith("es/") and key.endswith(".html"):
+            assert f">{iso}<" not in site.text(key), key

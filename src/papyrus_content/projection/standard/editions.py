@@ -218,7 +218,7 @@ def edition_settings(standard: StandardSettings, tag: str, prefix: str, strings:
     check_segment_collisions(standard, tag, segments)
     name = strings[SITE_NAME_KEY]
     identity = dataclasses.replace(
-        standard.identity, language=tag,
+        standard.identity, language=tag, date_locale=tag,
         name=name,
         short_name=localized(standard.identity.short_name, strings, SITE_SHORT_NAME_KEY),
         publisher=localized(standard.identity.publisher, strings, SITE_PUBLISHER_KEY),
