@@ -10,13 +10,14 @@ from typing import TextIO
 import sys
 
 from papyrus_content.operator_errors import OperatorError
+from papyrus_content.relation_types import load_vocabulary_namespace
 
 from . import context, profile
 from .check import POD_LEVEL, check_pod
 
 ROUTES = {"init": {}, "id": {}, "check": {}}
 USAGE = {
-    "init": "papyrus pod init POD --id-base URL",
+    "init": "papyrus pod init POD --id-base URL [--namespace URL]",
     "id": "papyrus pod id POD [N]",
     "check": "papyrus pod check POD",
 }
@@ -49,16 +50,21 @@ def _existing(pod: Path) -> Path:
 def _init(args: list[str], out: TextIO) -> int:
     pod = _pod_argument(args, "init")
     rest = args[1:]
-    base = ""
-    if rest[:1] == ["--id-base"]:
-        base = rest[1] if len(rest) > 1 else ""
-        rest = rest[2:]
-    elif rest and rest[0].startswith("--id-base="):
-        base, rest = rest[0].partition("=")[2], rest[1:]
-    if rest:
-        raise ValueError(f"papyrus pod init does not take {rest[0]!r}; the usage is {USAGE['init']}.")
+    base, namespace = "", ""
+    while rest:
+        flag, separator, inline = rest[0].partition("=")
+        if flag not in ("--id-base", "--namespace"):
+            raise ValueError(f"papyrus pod init does not take {rest[0]!r}; the usage is {USAGE['init']}.")
+        value, rest = (inline, rest[1:]) if separator else (rest[1] if len(rest) > 1 else "", rest[2:])
+        if flag == "--id-base":
+            base = value
+        else:
+            namespace = value
     if not base:
         raise ValueError("papyrus pod init requires --id-base URL, the address every note id starts with, such as https://example.org/id/.")
+    namespace_error = context.namespace_problem(namespace) if namespace else None
+    if namespace_error:
+        raise OperatorError(f"--namespace: {namespace_error}. Nothing was written.")
     problem = context.id_base_problem(base)
     if problem:
         raise OperatorError(f"--id-base: {problem}. Nothing was written.")
@@ -68,9 +74,9 @@ def _init(args: list[str], out: TextIO) -> int:
     if pod.exists() and not pod.is_dir():
         raise OperatorError(f"{pod} is not a folder. Nothing was written.")
     pod.mkdir(parents=True, exist_ok=True)
-    (pod / profile.PROFILE_CONTEXT_FILE).write_text(context.generate(), encoding="utf-8")
+    (pod / profile.PROFILE_CONTEXT_FILE).write_text(context.generate(namespace=namespace or None), encoding="utf-8")
     root.write_text(context.root_context(base), encoding="utf-8")
-    print(f"{pod}: level 1 pod started with {profile.CONTEXT_FILE} and {profile.PROFILE_CONTEXT_FILE} (profile version {profile.PROFILE_VERSION}, id base {base}). "
+    print(f"{pod}: level 1 pod started with {profile.CONTEXT_FILE} and {profile.PROFILE_CONTEXT_FILE} (profile version {profile.PROFILE_VERSION}, id base {base}, vocabulary namespace {namespace or load_vocabulary_namespace()}). "
           "No note was changed.", file=out)
     return 0
 
