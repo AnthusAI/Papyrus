@@ -15,6 +15,17 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
 
+## Announcing a version: check the tag, never develop
+
+A change is in a release only if the stable tag contains its commit. Before anyone is told "version X has PR N", check by commit:
+
+```sh
+git fetch --tags
+git tag --contains <merge commit of the PR>      # the stable tag (vX.Y.Z) must be in the list, not only -next tags
+```
+
+Develop moves while a release is cut: a PR that merged to `develop` after the release PR's merge commit is not in that version (2026-11-16: #1583 merged seconds after v5.122.0's tag commit and was not in 5.122.0). The version is announced only when PyPI and npm both show it and `git tag --contains` lists it for every PR the announcement names. Release checklist: (1) `develop` head green (the dry-run check is no longer a known exception once the pipeline roles are applied); (2) release PR from `develop` with a `feat:` or `fix:` title, merged on green; (3) wait for PyPI and npm; (4) verify each promised PR with `git tag --contains`; (5) message the version.
+
 ## One new index per table per release
 
 DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in every schema source (`amplify/data/schema.ts` and each plugin's and function's `schema.ts`) with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
