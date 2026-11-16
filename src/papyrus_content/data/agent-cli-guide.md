@@ -39,6 +39,8 @@ export PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300
 
 The editor lane is the default. The operator lane is used only when named: `papyrus --auth iam <group> <command>` (leading, like `--site`), or `PAPYRUS_GRAPHQL_AUTH=iam` for a worker or a CI step. With no session and no lane named, a command stops before it reads or writes anything: `Not signed in: run papyrus login <site>. ...` (exit status 2); sign in, do not reach for AWS credentials. A missing or failed user session never falls back to the operator lane, and a CLI newer than the site's backend never switches lanes to get round what the backend lacks. If a command says it needs AWS credentials, it is operator-only.
 
+When the operator lane fails with `Error when retrieving token from sso: Token has expired and refresh failed` while `aws sts get-caller-identity` works for the same profile, the CLI and the AWS library this tool uses keep their SSO tokens in different files under `~/.aws/sso/cache`. Fix it on the machine, in the profile, not in the tool: add `credential_process = aws configure export-credentials --profile <profile>` under `[profile <profile>]` in `~/.aws/config`, or sign in again with `aws sso login --profile <profile>`. The tool prints both when it hits this.
+
 ### Write by default, and which commands cannot dry-run
 Mutation commands **write unless you pass `--dry-run`**. `--apply` is rejected ("no longer accepts --apply"). `--help` never writes: it is answered before anything runs.
 
