@@ -81,3 +81,10 @@ Feature: A concept is named in a language only when a page in that language need
     Given a site whose primary language is "en" and which serves "es-419"
     When the page of the concept "bicycle" is published
     Then the work list of "es-419" holds no wanted row
+
+  Scenario: Switching a language on marks only the concepts that have a public page, and a second run adds nothing
+    Given a site whose primary language is "en" and which serves "es-419"
+    And the concepts "prompt injection" (with a page) and "bicycle" (without one) exist
+    When "es-419" is swept
+    Then the work list of "es-419" holds one wanted row for "prompt injection"
+    And sweeping "es-419" again records nothing

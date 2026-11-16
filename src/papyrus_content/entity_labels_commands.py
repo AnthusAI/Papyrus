@@ -62,18 +62,20 @@ def _localizer(models_for):
 
 def relations_localize(flags: list[str], *, client=None, models_for=None) -> None:
     """papyrus knowledge concepts localize --concept NAME|#HASHTAG|NODEKEY --language TAG [--language TAG ...] [--dry-run] [--json]
-           papyrus knowledge concepts localize --needed [--language TAG ...] [--ceiling-usd N] [--dry-run] [--json]
+           papyrus knowledge concepts localize --needed [--language TAG ...] [--sweep] [--ceiling-usd N] [--dry-run] [--json]
 
     Names one concept in other languages with the label procedure (the glossary decides what it covers, the house model translates the rest, the bilingual
     judge checks the description, a name another concept already has is held). A clean label is current; a held one raises a review request. Needs a model
-    key (OPENAI_API_KEY) and the operator lane (`papyrus --auth iam`). --dry-run makes and prices the labels without saving them. --needed names the concepts that Stories in a language are waiting for (the queue pages
-    fill; docs/multilingual-labels.md) in the served languages, or the ones given, and stops at --ceiling-usd; the rest stays queued, so a second run goes on."""
+    key (OPENAI_API_KEY) and the operator lane (`papyrus --auth iam`). --dry-run makes and prices the labels without saving them. --needed names the concepts that pages and Stories in a language are waiting for (the queue pages
+    fill; docs/multilingual-labels.md) in the served languages, or the ones given, and stops at --ceiling-usd; the rest stays queued, so a second run goes on. --needed --sweep --language TAG first marks every concept that has a public page as wanted in a language
+    just switched on (resumable too)."""
     import argparse
 
     parser = argparse.ArgumentParser(prog="papyrus knowledge concepts localize", description=relations_localize.__doc__)
     parser.add_argument("--concept")
     parser.add_argument("--language", action="append")
     parser.add_argument("--needed", action="store_true")
+    parser.add_argument("--sweep", action="store_true")
     parser.add_argument("--ceiling-usd", type=float)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -82,13 +84,21 @@ def relations_localize(flags: list[str], *, client=None, models_for=None) -> Non
         raise ValueError("Give --concept NAME (with --language) to name one concept, or --needed to name the concepts pages are waiting for.")
     if not args.needed and not args.language:
         raise ValueError("--language is required with --concept.")
+    if args.sweep and not (args.needed and args.language):
+        raise ValueError("--sweep goes with --needed and the --language that was switched on.")
     if args.ceiling_usd is not None and not args.needed:
         raise ValueError("--ceiling-usd goes with --needed.")
     if client is None:
         client, _ = create_authoring_client()
     if args.needed:
-        from .entity_labels.wanted import drain
+        from .entity_labels.wanted import drain, record_wanted_for_language
 
+        if args.sweep:   # a language was switched on: the concepts with a public page need their names in it
+            from .publishing import utc_now_iso
+
+            for language in args.language:
+                swept = record_wanted_for_language(client, language, now=utc_now_iso()) if not args.dry_run else {"pages": 0, "recorded": 0}
+                print(f"{language}\t{swept['pages']} concept pages\t{swept['recorded']} newly wanted", file=sys.stderr)
         report = drain(client, localize=_localizer(models_for), languages=args.language, ceiling_usd=args.ceiling_usd, dry_run=args.dry_run,
                        say=lambda line: print(line, file=sys.stderr))
         if args.json:

@@ -218,3 +218,29 @@ def step_page_published(context, name):
     node = context.node
     context.site.tables["SemanticNode"][node["id"]]["versionState"] = "current"
     record_wanted_for_page(context.site, "topic--prompt-injection" if name == "prompt injection" else "topic--bicycle", now="2026-11-16T00:00:00Z")
+
+
+@given('the concepts "{with_page}" (with a page) and "{without}" (without one) exist')
+def step_pages(context, with_page, without):
+    _nodes(context, [with_page])
+    context.site.add_node("bk", "topic--bicycle", "bicycle")
+    context.site.page_keys = ["topic--prompt-injection"]
+
+
+def _sweep(context, language):
+    from unittest import mock
+
+    from papyrus_content.entity_labels.wanted import record_wanted_for_language
+
+    with mock.patch("papyrus_content.concept_tags.concept_page_keys", lambda client: set(context.site.page_keys)):
+        return record_wanted_for_language(context.site, language, now="2026-11-16T00:00:00Z")
+
+
+@when('"{language}" is swept')
+def step_sweep(context, language):
+    context.swept = _sweep(context, language)
+
+
+@then('sweeping "{language}" again records nothing')
+def step_sweep_again(context, language):
+    assert _sweep(context, language)["recorded"] == 0
