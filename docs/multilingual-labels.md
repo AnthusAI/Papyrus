@@ -64,3 +64,12 @@ A concept is named in a language only when a page in that language needs the nam
 in any state but `stale` (a stale one is made again from the changed words); a held label waits for its review request and is never asked for twice. The first trigger
 is a Story in a served language being tagged with the concept (`name_concepts_for_story`); the concept's own page being published and a language being switched on
 follow, each asking the same function. A trigger changes no concept and publishes nothing.
+
+### The queue of wanted names
+
+Nothing that tags a Story or publishes a translation names a concept itself: naming costs model calls and needs the operator lane, and an editor's or an agent's tool has neither.
+It records the need instead: one `EntityLabel` row per concept and language with `syncState: wanted` (`role: wanted`, `origin: wanted`), found through the work index with one
+query per language. Recording is idempotent, and it never touches a name: a concept that has a label in the language, in any state, is not recorded, and the primary language
+is never recorded. `papyrus --auth iam knowledge concepts localize --needed [--language TAG ...] [--ceiling-usd N]` names what is wanted with the label procedure (a held
+label raises its one review request and is not asked for again), drops a row whose concept has a name by then, and stops at the ceiling. What it did not reach stays wanted,
+so the next run goes on from there and a rerun costs nothing.
