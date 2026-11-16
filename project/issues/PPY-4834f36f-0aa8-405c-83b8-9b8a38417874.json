@@ -1,0 +1,29 @@
+{
+  "id": "PPY-4834f36f-0aa8-405c-83b8-9b8a38417874",
+  "title": "Pod base: profile, context generator, `papyrus pod init/id/check`, fixture pod",
+  "description": "**Base of the local-pod epic: the missing prerequisite for the lifecycle, load and pod-notes slices.** Implements section 8 \"first slice\" of ~/Projects/papyrus-local-pod-standard.md: no build, no load, nothing later replaces it.\n\nScope:\n- The pinned, stricter Vault-LD 0.5.0 profile (commit 025e71b recorded in the context file): explicit https `id` on every typed note, `type: papyrus:<Class>`, typed links as quoted wiki links, unknown key is an error, nested value is an error, a link naming no note or two notes is an error. Identity never derives from a file name or path.\n- `papyrus.context.jsonld` generated from data/corpora/papyrus-semantic-relation-types.yml plus the plain-key list (byte-identical to the copy to be published on p.apyr.us); a pod copy that differs is a check failure.\n- `papyrus pod init POD --id-base URL`, `papyrus pod id POD [N]`, `papyrus pod check POD` (read-only, reports level and every problem, exit status 1 on any problem).\n- Note walker, front-matter parser, error reporting and exit status.\n- A fixture pod with a `pod check` step definition in features_backend.\n\nNot in this task: lifecycle keys (PPY-e4fd0c), `pod load` (PPY-50a7f5), `pod build`, the pod flag and vocabulary fixes, the skill, Markus wiki links, `--backend local` (untouched).\n\n**Do not confuse with** src/papyrus/operator/pod_references.py: that is the Kanbus-based register of JSON reference rows behind `--backend local`, a different thing which the standard removes later. The profile code lives in its own package (src/papyrus/pod/).\n\nPods with no site are private and never publish. No real email addresses in specs or fixtures.\n\n**Acceptance criteria**\n- Gherkin (narrative, complete) for: a pile is level 0 with no problems; typed note without id refused; non-https id refused; duplicate id; id changed since last commit; unknown key; nested value; link naming no note or two notes; link stated twice; Reference without url; edited context file refused; init writes both context files; id prints new ids; exit status.\n- Fixture pod and its `pod check` step definition in features_backend.\n\nDesign: ~/Projects/papyrus-local-pod-standard.md (sections 5, 8). Decisions: Ryan 2026-11-13 and 2026-11-16 (Vault-LD pilot, local pod profile). Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:02:45.729332Z",
+  "updated_at": "2026-11-16T22:02:49.425295Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
