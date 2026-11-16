@@ -12,7 +12,6 @@ PROFILE_VERSION = 2
 VAULT_LD_VERSION = "0.5.0"
 VAULT_LD_COMMIT = "025e71b"
 
-NAMESPACE = "https://p.apyr.us/ns#"
 CONTEXT_FILE = "context.jsonld"
 PROFILE_CONTEXT_FILE = "papyrus.context.jsonld"
 
@@ -90,13 +89,22 @@ RELATION_KEYS: tuple[Key, ...] = (
 )
 RELATION_STATES = ("current", "suggested", "rejected")
 
-PREFIXES = {
-    "papyrus": NAMESPACE,
+# The `papyrus` prefix is the pod's own vocabulary namespace (chosen at `pod init`, recorded in its generated context); the rest are fixed.
+NAMESPACE_PREFIX = "papyrus"
+FIXED_PREFIXES = {
     "schema": "https://schema.org/",
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "xsd": "http://www.w3.org/2001/XMLSchema#",
 }
+PREFIX_NAMES = frozenset({NAMESPACE_PREFIX, *FIXED_PREFIXES})
+
+
+def prefixes(namespace: str) -> dict[str, str]:
+    """The context's prefixes, the pod's vocabulary namespace first."""
+    return {NAMESPACE_PREFIX: namespace, **FIXED_PREFIXES}
+
+
 XSD_KINDS = {"xsd:string": STRING, "xsd:integer": INTEGER, "xsd:decimal": DECIMAL, "xsd:boolean": BOOLEAN, "xsd:date": DATE, "xsd:dateTime": DATE}
 
 TERM_TYPES = {STRING: "xsd:string", DATE: "xsd:date", BOOLEAN: "xsd:boolean", INTEGER: "xsd:integer", DECIMAL: "xsd:decimal"}
