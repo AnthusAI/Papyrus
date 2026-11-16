@@ -77,3 +77,13 @@ def step_apis(context):
 def step_no_ids(context):
     import re
     assert not re.search(r"[a-z0-9]{26}", context.template_text)
+
+
+@then("a change to the runner template or to the code in the image plans the runner stack")
+def step_plans(context):
+    t.test_a_pull_request_that_touches_the_runner_plans_the_runner_stack_and_a_code_change_rebuilds_it()
+
+
+@then("a removal or replacement in the runner stack that is not on the allowed list is a violation")
+def step_violation(context):
+    t.test_a_remove_or_replace_in_the_runner_stack_that_is_not_on_the_allowed_list_stops_the_run()
