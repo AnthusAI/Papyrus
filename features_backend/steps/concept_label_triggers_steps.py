@@ -209,3 +209,12 @@ def step_publish_and_tag(context, name):
 
     publish_item(context.site, context.translation["id"], actor="An Editor")
     record_wanted_for_tagging(context.site, context.fixtures.ORIGINAL, [context.site.tables["SemanticNode"]["pi-v1"]], now="2026-11-16T00:00:00Z")
+
+
+@when('the page of the concept "{name}" is published')
+def step_page_published(context, name):
+    from papyrus_content.entity_labels.wanted import record_wanted_for_page
+
+    node = context.node
+    context.site.tables["SemanticNode"][node["id"]]["versionState"] = "current"
+    record_wanted_for_page(context.site, "topic--prompt-injection" if name == "prompt injection" else "topic--bicycle", now="2026-11-16T00:00:00Z")

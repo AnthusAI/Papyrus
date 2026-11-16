@@ -74,6 +74,6 @@ is never recorded. `papyrus --auth iam knowledge concepts localize --needed [--l
 label raises its one review request and is not asked for again), drops a row whose concept has a name by then, and stops at the ceiling. What it did not reach stays wanted,
 so the next run goes on from there and a rerun costs nothing.
 
-Two events record a need, both before anything else is written so a failure leaves nothing half done: a translation in a language is published (`publishing.publish_item`: the concepts its original is tagged
-with are needed in that language), and a Story is tagged with a concept (`concept_tags.tag_with_concepts`: the concept is needed in every language the Story is published in). A site
+Three events record a need, both before anything else is written so a failure leaves nothing half done: a translation in a language is published (`publishing.publish_item`: the concepts its original is tagged
+with are needed in that language), a Story is tagged with a concept (`concept_tags.tag_with_concepts`: the concept is needed in every language the Story is published in), and a concept's own wiki page is published (its `entityKey` names the concept: it is needed in every language the site serves). A site
 that has not named its primary language yet records nothing.

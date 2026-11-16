@@ -124,3 +124,16 @@ def record_wanted_for_tagging(client: Any, original_lineage: str, nodes: Iterabl
     """The Story ``original_lineage`` was tagged with ``nodes``: each is needed in every language the Story is published in."""
     nodes = list(nodes)
     return sum(record_wanted(client, language=language, nodes=nodes, now=now) for language in published_translation_languages(client, original_lineage))
+
+
+def record_wanted_for_page(client: Any, entity_key_text: str, *, now: str) -> int:
+    """A concept's own page was published (``entity_key_text`` is the page's ``entityKey``: the concept's node key, or the part after ``editor_concept--``): its name is
+    needed in every language the site serves. A key that is no concept's, or one that is not accepted, writes nothing."""
+    languages = served_languages(client)
+    if not languages or not entity_key_text:
+        return 0
+    node = next((found for key in (entity_key_text, f"editor_concept--{entity_key_text}") for found in client.list_by_index("semanticNodesByNodeKey", key)
+                 if found.get("versionState", "current") == "current" and found.get("status") == "accepted"), None)
+    if node is None:
+        return 0
+    return sum(record_wanted(client, language=language, nodes=[node], now=now) for language in languages)

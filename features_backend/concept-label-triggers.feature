@@ -70,3 +70,14 @@ Feature: A concept is named in a language only when a page in that language need
     When the translation is published and then the Story is tagged again with "prompt injection"
     Then the work list of "es-419" holds one wanted row for "prompt injection"
     And no name has been written
+
+  Scenario: Publishing a concept's page notes that its name is needed in every language the site serves
+    Given a site whose primary language is "en" and which serves "es-419"
+    When the page of the concept "prompt injection" is published
+    Then the work list of "es-419" holds one wanted row for "prompt injection"
+    And no name has been written
+
+  Scenario: A page that is no accepted concept's notes nothing
+    Given a site whose primary language is "en" and which serves "es-419"
+    When the page of the concept "bicycle" is published
+    Then the work list of "es-419" holds no wanted row
