@@ -242,9 +242,17 @@ def section_index_html(view, render_card) -> str:
     )
 
 
-def home_sections_html(name: str, description: str, blocks, render_card, *, lead: bool) -> str:
+def home_heading(name: str, description: str, quiet: bool) -> tuple[str, str]:
+    """The home page's heading and intro. A quiet home (layout.column single) says the site's name only to assistive technology and has no intro:
+    the masthead already says it."""
+    if quiet:
+        return f'<h1 class="papyrus-visually-hidden">{esc(name)}</h1>', ""
+    return f"<h1>{esc(name)}</h1>", (f"<p>{esc(description)}</p>" if description else "")
+
+
+def home_sections_html(name: str, description: str, blocks, render_card, *, lead: bool, quiet: bool = False) -> str:
     """The home of sections: one block per section with its label, description, newest entries and a link to its index page."""
-    intro = f"<p>{esc(description)}</p>" if description else ""
+    heading_html, intro = home_heading(name, description, quiet)
     rendered = []
     for block in blocks:
         section = block.section
@@ -260,4 +268,4 @@ def home_sections_html(name: str, description: str, blocks, render_card, *, lead
             f'<h2 id="{esc(heading)}"><a href="{esc(block.href)}">{esc(section.label)}</a></h2>{about}{grid}'
             f'{_more_link(block.href, "More " + section.label)}</section>'
         )
-    return f'<div class="markus-document markus-home-sections"><h1>{esc(name)}</h1>{intro}{"".join(rendered)}</div>'
+    return f'<div class="markus-document markus-home-sections">{heading_html}{intro}{"".join(rendered)}</div>'

@@ -85,7 +85,7 @@ from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
 from .notifications_pages import NOTIFICATIONS_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
-from .editions import LanguageView, edition_nav_hrefs, edition_pages, edition_settings, language_groups, language_name
+from .editions import LanguageView, alternate_names_of, edition_nav_hrefs, edition_pages, site_names, edition_settings, language_groups, language_name
 from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
 
 
@@ -325,12 +325,15 @@ class StandardMarkusProjector(MarkusSiteProjector):
             raise InterfaceStringsIncomplete(
                 "A public language needs its interface strings complete (strings/<tag>.json in the site's static directory): " + "; ".join(problems)
                 + ". Complete them, or leave the language out of languages.public until they are.")
+        names = site_names(self.standard, serving.primary, strings, tuple(others))
+        self.standard = dataclasses.replace(self.standard, identity=dataclasses.replace(self.standard.identity, alternate_names=alternate_names_of(names, self.standard.identity.name)))
+        self.head = HeadBuilder(self.standard, self.environment)
         editions: dict[str, StandardMarkusProjector] = {}
         for tag in others:
             child = StandardMarkusProjector(
                 dataclasses.replace(self._settings, plugins=(), public_data=None),
                 {},
-                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag), self._static_directory),
+                edition_settings(self.standard, tag, serving.prefix(tag), strings[tag], serving.segments_of(tag), names, self._static_directory),
                 hooks=self.hooks,
                 environment=self.environment,
                 renditions=self._given_renditions,
@@ -591,13 +594,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _day(self) -> dt.date:
         """The UTC day rolling buckets count back from: the day of this projection run, or today when a caller asks before any run has started (the keys of a paged
         list's files, which the snapshot task needs before it projects anything)."""
-        return self._as_of if self._as_of != dt.date.min else self.clock()
+        return self._as_of if self._as_of != dt.date.min else (self._primary_edition or self).clock()
 
     def _use_site(self, site: SiteIndex) -> None:
         """A new site index is a new projection run: the snapshot files are read again, and so are the editors' private Story ratings."""
         self._story_stars = site.story_stars
         self._relations = site.relations
-        self._as_of = self.clock()
+        self._as_of = (self._primary_edition or self).clock()   # one projection day for every edition: its rolling buckets count back from the primary's day
         if site.items is not self._knowledge_items:
             self._knowledge.reset()
             self._home_page.reset()
@@ -2049,6 +2052,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             head, language=language,
             alternates=tuple((alternate.tag, self.head.absolute(alternate.url) or alternate.url) for alternate in indexed) if len(indexed) > 1 else (),
             x_default=(self.head.absolute(primary_url) or primary_url) if primary_url and len(indexed) > 1 else "",
+            site_data=head.path == self.policy.path("/"),
         )
         base = self._listing_base_of(kind, extra)
         if base is not None and view.is_empty_listing(base, language):   # a language's listing with no Story yet: kept, says so, and is not indexed
@@ -2149,6 +2153,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             twin = md_path(key) if md_key(key) else None
         described = self._described(page)
         head_html = self.head.build(dataclasses.replace(described, extra=extra, markdown_path=twin))
+        if self.standard.single_column:
+            base = dataclasses.replace(base, body_class=f"{base.body_class} papyrus-single-column")
         if self.hooks.body_class is not None:
             base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
         sheets = [] if self._brand is not None else list(base.stylesheets)
@@ -2261,15 +2267,30 @@ class StandardMarkusProjector(MarkusSiteProjector):
             else (components.footer(self.standard.footer_columns, self.standard.footer_text) or self._settings.chrome.footer_html or f"<p>{components.esc(identity.name)}</p>")
         )
         main = "\n".join(part for part in (self._breadcrumbs_html(page), self._main_html(page)) if part)
-        notice = (
-            f'  <p class="papyrus-notice" role="note"><span class="papyrus-notice-label">{components.esc(self._notice_label(page))}</span>{components.esc(self._notice_text(page))}</p>\n'
+        fixed = identity.notice_placement == "fixed-footer"
+        static_footer = (
+            f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>\n'
+            if not (fixed and self.standard.single_column and not self._has_footer_content())
+            else ""
+        )
+        quiet = identity.notice_prominence == "quiet"
+        label_html = "" if quiet else f'<span class="papyrus-notice-label">{components.esc(self._notice_label(page))}</span>'
+        classes = "papyrus-notice" + (" papyrus-notice-fixed" if fixed else "") + (" papyrus-notice-quiet" if quiet else "")
+        notice_line = (
+            f'  <p class="{classes}" role="note">{label_html}{components.esc(self._notice_text(page))}</p>\n'
             if identity.notice_label else ""
         )
+        top_notice = "" if fixed else notice_line
+        bottom_notice = notice_line if fixed else ""
         return (
-            f"{components.skip_link()}\n{masthead}\n{notice}"
+            f"{components.skip_link()}\n{masthead}\n{top_notice}"
             f'  <main id="main">\n{main}\n  </main>\n'
-            f'  <footer class="markus-site-footer">\n    {footer_inner}\n  </footer>{parts.scripts}'
+            f'{static_footer}{bottom_notice}{parts.scripts}'
         )
+
+    def _has_footer_content(self) -> bool:
+        """Whether the site wrote any footer of its own (text, columns, a family or a hook). Without one the footer would only repeat the site's name."""
+        return bool(self.standard.footer_text or self.standard.footer_columns or self.standard.footer_family or self.hooks.footer is not None or self._settings.chrome.footer_html)
 
     def _breadcrumbs_html(self, page: StandardPage) -> str:
         return components.breadcrumbs(page.breadcrumbs) if page.kind == "item" else ""
@@ -2455,7 +2476,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return components.section_index_html(page.section_index, lambda entry: self._card(entry, page))
         if page.kind == "home" and self.standard.sections_home:
             return components.home_sections_html(
-                identity.name, identity.description, page.home_sections, lambda entry: self._card(entry, page), lead=self.standard.home_page.home_lead,
+                identity.name, identity.description, page.home_sections, lambda entry: self._card(entry, page), lead=self.standard.home_page.home_lead, quiet=self.standard.single_column,
             )
         if page.kind == "home":
             view = page.listing
@@ -2467,9 +2488,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 if links
                 else (f'<p><a href="{components.esc(self.policy.path(f"/{self.standard.listings.flat_path}/"))}">All articles</a></p>' if page.entries and not self.standard.sectioned else "")
             )
-            intro = f"<p>{components.esc(identity.description)}</p>" if identity.description else ""
+            heading_html, intro = components.home_heading(identity.name, identity.description, self.standard.single_column)
             cards = "\n".join(self._card(entry, page) for entry in view.entries) if view else ""
-            return f'<div class="markus-document"><h1>{components.esc(identity.name)}</h1>{intro}<div class="markus-card-grid">{cards}</div>{more}</div>'
+            return f'<div class="markus-document">{heading_html}{intro}<div class="markus-card-grid">{cards}</div>{more}</div>'
         if page.kind == "archive":
             view = page.listing
             heading = f"{view.label}: {self._archive_label(view.group, self.standard.section(view.section).archive.by)}"
