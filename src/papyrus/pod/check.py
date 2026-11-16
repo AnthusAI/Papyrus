@@ -13,11 +13,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from papyrus_content.guidelines import files as guideline_files
+
 from . import context, profile
 from .notes import Note, parse, walk
 from .profile import Key, RelationType
 
 POD_LEVEL = "(pod)"
+GUIDELINES_FOLDER = "guidelines"
 WIKI_LINK = re.compile(r"^\[\[([^\[\]]*)\]\]$")
 
 
@@ -47,12 +50,26 @@ class Link:
 
 
 def check_pod(pod: Path, relation_types_path: str | Path | None = None) -> Report:
-    notes = walk(pod)
+    notes = [note for note in walk(pod) if note.path.split("/", 1)[0] != GUIDELINES_FOLDER]
     report = Report(str(pod), notes=len(notes))
     checker = _Checker(pod, notes, report, profile.relation_types(relation_types_path))
     checker.run()
+    _check_guidelines(pod / GUIDELINES_FOLDER, report)
     report.problems.sort(key=lambda problem: (problem.path != POD_LEVEL, problem.path))
     return report
+
+
+def _check_guidelines(folder: Path, report: Report) -> None:
+    """The guidelines folder is checked by the guideline checker's own validation, and its files are never read as notes. Only validity is reported."""
+    if not folder.exists():
+        return
+    for problem in guideline_files.load_directory(folder).problems:
+        if problem.code in ("empty", "not_a_folder"):
+            path = GUIDELINES_FOLDER
+        else:
+            path = f"{GUIDELINES_FOLDER}/{problem.folder}/{guideline_files.FILE_NAME}"
+        message = f"key {problem.key!r} {problem.message}" if problem.key else problem.message
+        report.problems.append(Problem(path, message))
 
 
 class _Checker:
