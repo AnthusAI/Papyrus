@@ -6,6 +6,8 @@ import datetime as dt
 import html
 import re
 
+from .components import shown_date
+
 LEDE_PATTERN = re.compile(r'<p(?![^>]*\bmarkus-(?:band-eyebrow|actions)\b)[^>]*>(.*?)</p>', re.S)
 TAG_PATTERN = re.compile(r"<[^>]+>")
 FIRST_IMAGE_PATTERN = re.compile(r'<img\b[^>]*\bsrc="([^"]+)"')
@@ -52,17 +54,14 @@ def with_lede(fragment: str, text) -> str:
     return fragment[: match.start()] + header + fragment[match.end():]
 
 
-def with_date_format(fragment: str, date_format: str) -> str:
-    """Write the dates of the article header (``YYYY-MM-DD``) with ``date_format`` (``site.dateFormat``)."""
+def with_date_format(fragment: str, date_format: str, locale: str = "") -> str:
+    """Write the dates of the article header (``YYYY-MM-DD``) with ``date_format`` (``site.dateFormat``), or in the language's own format on an edition (``locale``)."""
     match = MARKUS_HEADER_PATTERN.search(fragment)
-    if not date_format or match is None:
+    if not (date_format or locale) or match is None:
         return fragment
 
     def shown(found: re.Match) -> str:
-        try:
-            return dt.date.fromisoformat(found.group(1)).strftime(date_format)
-        except ValueError:
-            return found.group(0)
+        return shown_date(found.group(1), date_format, locale)
 
     return fragment[: match.start()] + ISO_DATE.sub(shown, match.group(0)) + fragment[match.end():]
 
