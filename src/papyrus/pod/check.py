@@ -14,10 +14,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import context, profile
-from .notes import Note, parse, walk
+from .notes import Note, body_hash, parse, walk
 from .profile import Key, RelationType
 
 POD_LEVEL = "(pod)"
+HASH_FORM = re.compile(r"^sha256:[0-9a-f]{64}$")
+REVIEW_CLAIMS_LINE = ("review keys in a pod are claims, not newsroom review; nothing in a pod satisfies a gate, a required step, "
+                      "publishRequiresRating or a five-star rule")
 WIKI_LINK = re.compile(r"^\[\[([^\[\]]*)\]\]$")
 
 
@@ -134,10 +137,23 @@ class _Checker:
                 self._unknown_key(note, name, class_name)
                 continue
             self._check_value(note, key, value, by_name, class_name)
+        self._check_lifecycle(note, front)
         if class_name == "Reference" and "url" not in front:
             self.problem(note.path, "is a Reference and has no url; a Reference is one outside work, found by its address")
         if class_name == "Relation":
             self._check_relation_note(note, front)
+
+    def _check_lifecycle(self, note: Note, front: dict) -> None:
+        if "stage" in front and "draft" in front:
+            self.problem(note.path, "carries both stage and draft; a note with a stage is built only at published, and a note with no stage is built unless draft: true. Keep one of them")
+        stamped = "reviewedBy" in front or "reviewedOn" in front
+        stamp = front.get("reviewedHash")
+        if stamped and "reviewedHash" not in front:
+            self.problem(note.path, "has reviewedBy or reviewedOn and no reviewedHash, so the review cannot be checked against the body")
+        if isinstance(stamp, str) and HASH_FORM.match(stamp):
+            now = body_hash(note.body)
+            if stamp != now:
+                self.problem(note.path, f"review is stale: the body no longer matches reviewedHash; it now hashes to {now}")
 
     def _class_of(self, note: Note, front: dict) -> str | None:
         value = front.get("type")
@@ -188,6 +204,9 @@ class _Checker:
 
     def _check_value(self, note: Note, key: Key, value: object, by_name: dict[str, list[Note]], class_name: str | None) -> None:
         name = key.name
+        if name == "rating":
+            self._check_rating(note, value)
+            return
         if isinstance(value, dict) or (isinstance(value, list) and any(isinstance(item, (dict, list)) for item in value)):
             self.problem(note.path, f"key {name!r} has a nested value; the profile has none: make a note of its own for it and link to that note")
             return
@@ -207,6 +226,12 @@ class _Checker:
                 self.problem(note.path, f"key {name!r} takes text")
             elif _wiki(value) is not None:
                 self.problem(note.path, f"key {name!r} is a link where text belongs; links go in link keys")
+            elif name == "stage" and value not in profile.STAGES:
+                match = difflib.get_close_matches(value, profile.STAGES, n=1)
+                hint = f"; did you mean {match[0]!r}?" if match else ""
+                self.problem(note.path, f"key 'stage' is {value!r}; a stage is one of {', '.join(profile.STAGES)}{hint}")
+            elif name == "reviewedHash" and not HASH_FORM.match(value):
+                self.problem(note.path, "key 'reviewedHash' is sha256: and 64 hex digits, the hash of the body that was reviewed")
             elif name == "state" and class_name == "Relation" and value not in profile.RELATION_STATES:
                 self.problem(note.path, f"key 'state' is {value!r}; a state is one of {', '.join(profile.RELATION_STATES)}")
             return
@@ -244,6 +269,12 @@ class _Checker:
             return
         if kind == profile.PREDICATE:
             return    # checked with the rest of a Relation note
+
+    def _check_rating(self, note: Note, value: object) -> None:
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 5:
+            self.problem(note.path, "key 'rating' takes a whole number from 1 to 4")
+        elif value == 5:
+            self.problem(note.path, "key 'rating' is 5, which a pod never grants; this note is a five-star candidate, and a person confirms five stars in the newsroom. Use 4 here")
 
     def _check_link(self, note: Note, key: Key, item: object, by_name: dict[str, list[Note]], class_name: str | None) -> None:
         target = self._resolve(note, key.name, item, by_name)

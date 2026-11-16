@@ -42,6 +42,20 @@
       "@id": "papyrus:redirect",
       "@container": "@set"
     },
+    "stage": "papyrus:stage",
+    "format": "papyrus:format",
+    "rating": {
+      "@id": "papyrus:rating",
+      "@type": "xsd:integer"
+    },
+    "reviewedBy": "papyrus:reviewedBy",
+    "reviewedOn": {
+      "@id": "papyrus:reviewedOn",
+      "@type": "xsd:date"
+    },
+    "reviewedHash": "papyrus:reviewedHash",
+    "spikedReason": "papyrus:spikedReason",
+    "heldReason": "papyrus:heldReason",
     "section": {
       "@id": "papyrus:section",
       "@type": "@id"
@@ -140,7 +154,7 @@
     }
   },
   "papyrusPod": {
-    "profile": 1,
+    "profile": 2,
     "vaultLd": "0.5.0",
     "vaultLdCommit": "025e71b",
     "classes": [
