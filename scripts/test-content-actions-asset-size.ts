@@ -6,7 +6,9 @@ import path from "node:path";
 import { bundleFromCheckout } from "../amplify/functions/shared/python-bundle";
 import { contentActionsRequirements } from "../amplify/functions/content-actions/resource";
 
-const LIMIT_BYTES = 100 * 1024 * 1024;
+// Babel's CLDR locale data (about 34 MB unpacked, every language's date formats) took the asset from about 80 MB to 114 MB. Lambda's own
+// limit is 250 MB unpacked; this keeps a ceiling well under it so growth is still noticed.
+const LIMIT_BYTES = 160 * 1024 * 1024;
 
 function directoryBytes(directory: string): number {
   let total = 0;

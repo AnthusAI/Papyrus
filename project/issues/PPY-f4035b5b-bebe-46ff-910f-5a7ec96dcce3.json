@@ -1,0 +1,33 @@
+{
+  "id": "PPY-f4035b5b-bebe-46ff-910f-5a7ec96dcce3",
+  "title": "Basic content measurements: Humanus measures size, structure, sourcing and change; Papyrus stories measure and save-version report them",
+  "description": "As an editor (or an agent working for one), I want plain measurements of a draft -- how long it is, how it is built, how well it is sourced, and how much a revision changed -- so that I have numbers to judge a piece by before and after I edit it.\n\nNumbers are guidance, never gates: no fixed limits, nothing blocks on them.\n\nHumanus owns ALL measurement logic (Papyrus has no counting logic): `humanus.measure(text, language, concepts=None)` and `humanus.diff(old_text, new_text, language)`. Deterministic, no model calls, language-aware (zh-Hans counts characters, not words). Concept density takes a concept list as input and is a LATER slice (not built here).\n\nFirst slice:\n- size: word count (characters for zh-Hans), reading time\n- structure: sections, longest paragraph, longest sentence, presence/length of headline, dek and blurb when given\n- sourcing: links and citations per 500 words, share of paragraphs without any\n- change size: words added, removed, rewritten, share of text changed\n\nPapyrus: bump the Humanus pin; `papyrus stories measure` works on a draft file or story id before saving; `stories save-version` prints the measurements and the change against the previous version and stores them on the version record.\n\n```gherkin\nFeature: Basic content measurements\n  Scenario: A draft is measured before it is saved\n    Given a draft file\n    When I run \"papyrus stories measure\" on it\n    Then I see its size, structure and sourcing numbers\n  Scenario: Saving a version reports and stores the change\n    Given a story with a saved version\n    When I save a new version\n    Then the output shows the measurements and the change against the previous version\n    And both are stored on the version record\n```\n\nDefinition of done: Humanus released and verified by tag and registry; Papyrus PR with feat: title merged into develop on green CI; no Papyrus release cut.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0c65654a-533e-4abb-8cc2-29f52451e74b",
+      "author": "home",
+      "text": "Humanus 0.42.0 released (tag v0.42.0, PyPI verified). Papyrus PR 1614 merged to develop at bb649c486. No Papyrus release cut.",
+      "created_at": "2026-11-16T17:00:59.409051Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T16:04:44.020521Z",
+  "updated_at": "2026-11-16T17:00:59.409294Z",
+  "closed_at": "2026-11-16T17:00:58.938699Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
