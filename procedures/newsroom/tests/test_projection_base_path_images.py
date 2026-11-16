@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 
 import pytest
@@ -254,6 +255,12 @@ def test_a_site_without_a_base_path_renders_the_recorded_pages(unbased):
     root = PAPYRUS_ROOT / EXPECTED_ROOT
     recorded = {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
     rendered = pages(unbased.cloud_out)
+    if os.environ.get("UPDATE_GOLDEN"):
+        for key, content in rendered.items():
+            target = root / key
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+        recorded = rendered
     assert rendered == recorded
     keys = tree(unbased.site_store)
     assert f"assets/responsive/{FOLDER}/chart.meta.json" in keys and keys[CHART] == unbased.pictures[CHART]
