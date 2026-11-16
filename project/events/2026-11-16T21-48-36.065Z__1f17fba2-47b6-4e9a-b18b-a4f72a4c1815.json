@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1f17fba2-47b6-4e9a-b18b-a4f72a4c1815",
+  "issue_id": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T21:48:36.065Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editing window, versions, pinned human edits, lock time",
+    "description": "A Delivery is a draft with an edit window, not a one-shot. The window runs from creation to releaseAt and is set per kind and per channel as data (a weekly newsletter has a week; a story post may have twenty minutes). The machine drafts, people edit; every edit is a new saved version of the Delivery text and none is overwritten. Blocks and lines a person changed are marked owner: human, pinned, and a later machine redraft never overwrites a pinned block (same rule as Story translations). A Delivery may hold several candidate texts or images, one chosen and the others kept (basis for later A/B). At a set time before releaseAt the Delivery locks for the send job and the last approved version is sent; a late edit needs an explicit unlock; the attempt log records which version was sent. Where approval is soft or hard nothing is sent that no person looked at; for none the machine draft goes at releaseAt.\n\n**Acceptance criteria**\n- New Gherkin features (to be written with the slice): Edit window and versions (every edit a new version, earlier versions kept); Pinned human edits survive a redraft; Candidate versions (choose one, keep others); Lock time and unlock (late edit refused until unlocked; attempt records the version sent); Nothing unseen is sent under soft or hard approval.\n- Window length is data per kind and channel, not code.\n- Text and versions live in S3; the row holds keys and hashes.\n- Operations available from newsroom and CLI from the one operation table.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

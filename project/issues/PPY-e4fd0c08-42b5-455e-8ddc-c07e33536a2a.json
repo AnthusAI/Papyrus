@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e4fd0c08-42b5-455e-8ddc-c07e33536a2a",
+  "title": "Lifecycle keys in the pod profile",
+  "description": "Add stage (idea, assignment, reporting, copywriting, illustration, typesetting, published, held, spiked, retired), type, section, format, rating (1 to 4 only; 5 refused), reviewedBy, reviewedOn, reviewedHash, spikedReason, heldReason to the pod profile with the same names as the cloud Item fields. A note with a stage builds into a site only at published; a note with no stage builds unless draft: true; a note may not carry both. pod check reports review is stale when reviewedHash no longer matches the body. Context generator updated. Kanbus stays the task board; a pod never reads issues. Can run beside slices 1-3. Depends on the local-pod epic (profile, pod check, pod load), not yet on this board.\n\n**Acceptance criteria**\n- Gherkin: Pod lifecycle keys (stage values checked; stage and draft together refused; a stale reviewedHash is reported).\n- pod check prints one plain line that pod review keys are claims and not newsroom review.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:38.350240Z",
+  "updated_at": "2026-11-16T21:48:38.350274Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

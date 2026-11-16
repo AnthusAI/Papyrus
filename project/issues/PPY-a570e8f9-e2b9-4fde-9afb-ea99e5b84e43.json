@@ -1,0 +1,25 @@
+{
+  "id": "PPY-a570e8f9-e2b9-4fde-9afb-ea99e5b84e43",
+  "title": "Attempt log and attempt event ids (Caducus accepts delivery:<id>:a<N>)",
+  "description": "A retry is an attempt. The attempt log on a Delivery only grows; each entry has number, time, Caducus event id, outcome, provider code. Attempt N is one Caducus event with id delivery:<deliveryId>:a<N>, replacing today's round suffix. Small Caducus change to accept the id shape. A pause, budget stop or rate limit ends an attempt; the next try is the next attempt. An attempt sequence ends on a clear provider answer (sent, refused, or for X after an unknown outcome the read that shows whether the post exists); no invented retry count.\n\n**Acceptance criteria**\n- Gherkin: A retry is an attempt (a failed then a successful attempt is one Delivery with two entries; pause or budget stop ends an attempt and the next try is the next attempt; earlier entries never change).\n- Caducus accepts and de-duplicates on delivery:<id>:a<N>; the round suffix is removed from Papyrus and Caducus.\n- Released through the Caducus release path with its own specs.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:35.334622Z",
+  "updated_at": "2026-11-16T21:48:43.060304Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

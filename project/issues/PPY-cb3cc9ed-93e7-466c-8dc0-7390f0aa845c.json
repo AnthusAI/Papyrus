@@ -1,0 +1,29 @@
+{
+  "id": "PPY-cb3cc9ed-93e7-466c-8dc0-7390f0aa845c",
+  "title": "Newsletter assembly: slots fill during the week, editors curate, pinned slots survive refills",
+  "description": "Newsletters are assembled, not generated whole. An issue Delivery is built from slots that fill automatically as Stories qualify during the week (the machine's picks and blurbs), and an editor curates: reorders, rewrites, swaps, pins, drops. Pinned slots stay when the machine refills the rest. Uses the 5a edit window, versions and lock time; the Machines on Machines roundup (Mon 4 AM ET) is the first user.\n\n**Acceptance criteria**\n- New Gherkin features: Slots fill as Stories qualify; Editor reorders, rewrites, swaps and drops; Pinned slots survive a refill; Lock time sends the last approved assembly.\n- Rendered issue text lives in S3, never in DynamoDB.\n- A 3-star floor applies to every Story in a slot.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1e75aa80-d6ed-4ac8-a7ba-c6925ba7c456",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:36.630051Z",
+  "updated_at": "2026-11-16T21:48:45.252875Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

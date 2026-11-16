@@ -1,0 +1,33 @@
+{
+  "id": "PPY-1e75aa80-d6ed-4ac8-a7ba-c6925ba7c456",
+  "title": "Roundup issues on the new records; convert sent issues on Shipped and Distinctive",
+  "description": "Replace ISSUE# and ROUNDUP#<listId>/PERIOD#<yyyy-ww> rows. A roundup Announcement announces the issue Story at its approved version, plus one email Delivery; approval and send time move to the Announcement, counts to the Delivery, resultUrl is the archive page. ROUNDUP period becomes the dedupeKey. ISSUE#/RENDER HTML and text move to S3. Sent issues on Shipped and Distinctive are converted once by a command, sends frozen for that window (as agreed for the Caducus move). The per-reader SEND# ledger is not part of this slice. Edited-after-approval returns to waiting for approval. Follows the Caducus move.\n\n**Acceptance criteria**\n- Gherkin: Newsletter issues become Announcements and Deliveries (a sent issue keeps dates, counts, approver and archive address; running the command twice changes nothing).\n- Gherkin: Fan-out counts.\n- Gherkin: No text in the catalog (old RENDER attribute not carried).\n- Shipped and Distinctive Mark do not break.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a570e8f9-e2b9-4fde-9afb-ea99e5b84e43",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:37.431360Z",
+  "updated_at": "2026-11-16T21:48:47.426835Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

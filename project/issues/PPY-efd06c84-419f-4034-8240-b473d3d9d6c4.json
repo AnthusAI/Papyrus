@@ -1,0 +1,37 @@
+{
+  "id": "PPY-efd06c84-419f-4034-8240-b473d3d9d6c4",
+  "title": "X on the new records (eligibility, drafting, budget guard, withdraw); X stays off",
+  "description": "Rewire X announcement eligibility, drafting, budget guard and withdraw onto Announcement plus one Delivery (channel x, account). Delete the old row shape and the round suffix in the same change. No live X rows exist so nothing migrates; any dry-run rows are deleted, not converted. AnnouncementSpend, XConnection and AnnouncementSettings stay as built. The X floor (five stars on Machines on Machines) is a per-channel rule; the Announcement is created together with its first Delivery in one transaction; a later rating that reaches the floor adds the X Delivery to the same Announcement. Depends on slice 5a so X drafts are editable before the feed is ever turned on.\n\n**Acceptance criteria**\n- Gherkin: Channel rules (X needs the floor rating; a later rating adds the X Delivery to the existing Announcement; no bar below three stars; unrated and predicted never qualify; a machine never supplies the five).\n- Gherkin: Dry run and withdraw (built and not sent, cost 0; withdraw deletes where possible and records who).\n- Gherkin: The X model has no round suffix; old dry-run rows are gone.\n- X remains OFF everywhere until the reshape and 5a are in and Ryan turns it on.\n- Old Announcement row shape deleted in this change.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a570e8f9-e2b9-4fde-9afb-ea99e5b84e43",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:35.555689Z",
+  "updated_at": "2026-11-16T21:48:53.305089Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

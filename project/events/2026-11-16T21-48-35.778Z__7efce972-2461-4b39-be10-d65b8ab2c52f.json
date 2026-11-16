@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7efce972-2461-4b39-be10-d65b8ab2c52f",
+  "issue_id": "PPY-3e0a8a18-4c28-4c7e-80cc-6befac053fc2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T21:48:35.778Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Corrections: a new Delivery with supersedes; delete the old X post",
+    "description": "A corrected re-send is a new Delivery that names the one it replaces. Its text is new and is checked again. In one transaction the old Delivery becomes superseded. Where the channel can remove the old one (X) the old post is deleted as part of the correction and the deletion cost is recorded on the old Delivery. Where it cannot (email) the new text says it is a correction.\n\n**Acceptance criteria**\n- Gherkin: A correction is a new Delivery (names the old one; old becomes superseded; on X the old post is deleted; a second live Delivery without supersedes is refused).\n- Correction announcement kind uses dedupeKey correction:<lineageId>:<versionNumber>.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

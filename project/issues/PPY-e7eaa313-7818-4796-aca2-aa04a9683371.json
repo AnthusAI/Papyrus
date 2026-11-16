@@ -1,0 +1,57 @@
+{
+  "id": "PPY-e7eaa313-7818-4796-aca2-aa04a9683371",
+  "title": "Document it on p.apyr.us",
+  "description": "Feature page: the two records, corrections, editing and the draft editor, manual mode, newsletter assembly, guideline files, and what a pod's review does and does not prove. Every Papyrus feature epic ends with a p.apyr.us page. Do not boast about speed; state claims as fact.\n\n**Acceptance criteria**\n- Page published on p.apyr.us and linked from the docs index.\n- Says plainly that pod review stamps are claims, not newsroom review.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3e0a8a18-4c28-4c7e-80cc-6befac053fc2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4410fc17-5b71-4e9d-a961-150eb7634208",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9c6b894b-4756-4829-b4ea-4edddc1327fb",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-cb3cc9ed-93e7-466c-8dc0-7390f0aa845c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e4ae3a35-ca8f-48c4-9703-5107bad47fc8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1d5c432d-b651-4fa3-8ee3-48f1e26ac1c3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-50a7f594-a703-476f-af89-1d013cbfbaa6",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e78134b7-37a2-4a06-ad6d-bd4f3f70e476",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:39.184528Z",
+  "updated_at": "2026-11-16T21:48:52.959107Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
