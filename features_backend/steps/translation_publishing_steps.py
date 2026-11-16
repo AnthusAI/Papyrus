@@ -203,8 +203,8 @@ def step_refused_original(context, code, lineage):
 
 
 def _spanish_story_pages(context) -> list[str]:
-    """Every Spanish page that is not one of the Spanish indexes (home, section listings), which a public language has from its first day."""
-    indexes = ("es/index.html", "es/articles/index.html", "es/concepts/index.html")
+    """Every Spanish page that is not one of the Spanish indexes (home, section listings, their Markdown twins) or its 404 page, which a public language has from its first day."""
+    indexes = ("es/index.html", "es/articles/index.html", "es/concepts/index.html", "es/index.md", "es/articles/index.md", "es/concepts/index.md", "es/404.html")
     return [key for key in _site(context).keys() if key.startswith("es/") and key not in indexes]
 
 
