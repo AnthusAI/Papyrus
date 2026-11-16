@@ -88,6 +88,8 @@ from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify
 from .editions import LanguageView, alternate_names_of, edition_nav_hrefs, edition_pages, site_names, edition_settings, language_groups, language_name
 from .interface_strings import LANGUAGE_NAME_KEY, InterfaceStringsIncomplete, missing_keys, read_interface_strings, required_keys
 
+NOT_FOUND_KEYS = ("notFound.title", "notFound.heading", "notFound.text", "notFound.back")   # an edition renders its own 404 when its strings have all four
+
 
 def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
     """Add every file under the named directories of the static directory to ``files`` at its relative path."""
@@ -1169,7 +1171,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             alternates = self._listing_alternates_digest(key)
             digest = digest_of([shared, key, digest_input, dependency, page_inputs, ranking, *([alternates] if alternates else [])])
             plan[key] = (digest, lambda: self._render(build_page()))
-            twin = md_key(key) if markdown and self.standard.agents.markdown and not self._is_edition else None
+            twin = md_key(key) if markdown and self.standard.agents.markdown else None
             if twin:
                 meta[twin] = (page_id, listed_ids)
                 plan[twin] = (digest_of([digest, "markdown"]), lambda: self._markdown_for(build_page()).encode("utf-8"))
@@ -1325,7 +1327,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 lambda thread=thread, reference=reference: forum_pages.thread_page(self, site, listed, thread, reference, self._forum().thread_base),
             )
 
-        if self._is_edition:   # a language edition has no 404 of its own (the site's is at the root), no plugin pages and no sitemap files (below)
+        if self._is_edition:   # a language edition has no plugin pages and no sitemap files (below); its 404 is its own, in its language, when its strings have the words
+            words = self._interface_strings.get(self.standard.identity.language, {})
+            if all(words.get(key) for key in NOT_FOUND_KEYS):
+                add(
+                    self.policy.key(NOT_FOUND_KEY), "not_found", [words[key] for key in NOT_FOUND_KEYS],
+                    lambda: self._not_found_page(PageHead(title=words["notFound.title"], path=f"/{self.policy.root}{NOT_FOUND_KEY}", noindex=True), site, listed), markdown=False,
+                )
             selection = feed_selection(entries, self.standard) if listed else []
             for key, body in (feed_files(selection, self.standard, self.environment) if listed else {}).items():
                 plan[key] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
@@ -2521,10 +2529,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if page.kind == "not_found" and page.fragment:
             return page.fragment
         if page.kind == "not_found":
+            words = {"notFound.heading": "Page not found", "notFound.text": "That page is not here. It may have moved, or the address may be mistyped.", "notFound.back": "Back to the home page", **(page.strings or {})}
             return (
-                '<div class="markus-document"><h1>Page not found</h1>'
-                "<p>That page is not here. It may have moved, or the address may be mistyped.</p>"
-                '<p><a href="' + components.esc(self.policy.path("/")) + '">Back to the home page</a></p></div>'
+                f'<div class="markus-document"><h1>{components.esc(words["notFound.heading"])}</h1>'
+                f'<p>{components.esc(words["notFound.text"])}</p>'
+                '<p><a href="' + components.esc(self.policy.path("/")) + f'">{components.esc(words["notFound.back"])}</a></p></div>'
             )
         form = next((spec for spec in self.standard.forms if page.kind == "custom" and spec.id == self._custom_form(page)), None)
         return (

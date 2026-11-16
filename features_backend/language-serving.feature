@@ -117,3 +117,13 @@ Feature: Each language of a Story is served at its own address, and each page na
     Then the Spanish article has no concept chip and the English article has the chip "human-oversight" counting one Story
     When the Concept page "human-oversight" is translated into Spanish as "supervision-humana"
     Then the Spanish article has the chip "human-oversight" linked at "/es/concepts/supervision-humana/"
+
+  Scenario: Each language's listings have the Markdown twin the page advertises
+    When its Spanish translation "el-sonido" is published
+    Then the Spanish home advertises its Markdown twin and "es/index.md" exists
+    And the Spanish articles listing has the twin "es/articles/index.md"
+
+  Scenario: A language with the words for it has its own 404 page, and one without them has none
+    When the multilingual site is projected
+    Then the Spanish 404 page "es/404.html" says "Página no encontrada" and links home to "/es/"
+    And "zh/404.html" does not exist
