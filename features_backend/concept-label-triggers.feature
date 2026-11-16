@@ -64,3 +64,9 @@ Feature: A concept is named in a language only when a page in that language need
     When the wanted concept names are drained
     Then the model is asked nothing
     And the work list of "es-419" holds no wanted row
+
+  Scenario: Publishing a translation or tagging an original records the need and names nothing
+    Given an English Story tagged with "prompt injection" that has a published translation in "es-419"
+    When the translation is published and then the Story is tagged again with "prompt injection"
+    Then the work list of "es-419" holds one wanted row for "prompt injection"
+    And no name has been written

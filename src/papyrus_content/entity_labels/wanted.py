@@ -31,7 +31,13 @@ def served_languages(client: Any) -> list[str]:
 def record_wanted(client: Any, *, language: str | None, nodes: Iterable[dict[str, Any]], now: str) -> int:
     """Record that each concept in ``nodes`` is needed in ``language``; the number of rows written. The primary language, a concept written in ``language``, one that
     already has a label there and one already recorded write nothing."""
-    if not language or language == site_primary_language(client):
+    if not language:
+        return 0
+    try:
+        primary = site_primary_language(client)
+    except ValueError:
+        return 0   # a site that has not named its primary language yet serves no other language, so no concept is needed in one
+    if language == primary:
         return 0
     store = LabelStore(client)
     written = 0
@@ -84,3 +90,39 @@ def drain(client: Any, *, languages: list[str] | None = None, ceiling_usd: float
             if not dry_run:
                 store.delete(row["id"])
     return report
+
+
+# ---- the two events that need a name -----------------------------------------------------------------------------------------------------------------------------
+
+def story_concepts(client: Any, lineage: str) -> list[dict[str, Any]]:
+    """The accepted concepts the Story ``lineage`` is tagged with (``tagged_with``, or the legacy ``related_to``): what a Story is about is written once, on the original,
+    and a translation reads it there."""
+    from ..concept_tags import _fetch_nodes, _relations_for
+
+    rows = [row for row in _relations_for(client, [f"item#{lineage}#current"]).get(f"item#{lineage}#current") or []
+            if row.get("objectKind") == "semanticNode" and row.get("relationState", "current") == "current"]
+    nodes = _fetch_nodes(client, rows)
+    return [nodes[str(row["objectId"])] for row in rows if str(row.get("objectId")) in nodes and nodes[str(row["objectId"])].get("status") == "accepted"]
+
+
+def published_translation_languages(client: Any, original_lineage: str) -> list[str]:
+    """The languages the Story ``original_lineage`` is published in besides its own: one query on the language group and a point read per translation."""
+    from ..publishing import published_item_id_for
+
+    languages = set()
+    for row in client.list_by_index("itemsByLanguageGroup", original_lineage):
+        lineage = row.get("lineageId") or row["id"]
+        if lineage != original_lineage and row.get("language") and client.get_record("PublishedItem", published_item_id_for(lineage)) is not None:
+            languages.add(str(row["language"]))
+    return sorted(languages)
+
+
+def record_wanted_for_translation(client: Any, original_lineage: str, language: str, *, now: str) -> int:
+    """A translation in ``language`` of the Story ``original_lineage`` is being published: the concepts the original is tagged with are needed in ``language``."""
+    return record_wanted(client, language=language, nodes=story_concepts(client, original_lineage), now=now)
+
+
+def record_wanted_for_tagging(client: Any, original_lineage: str, nodes: Iterable[dict[str, Any]], *, now: str) -> int:
+    """The Story ``original_lineage`` was tagged with ``nodes``: each is needed in every language the Story is published in."""
+    nodes = list(nodes)
+    return sum(record_wanted(client, language=language, nodes=nodes, now=now) for language in published_translation_languages(client, original_lineage))

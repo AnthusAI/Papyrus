@@ -147,3 +147,36 @@ def test_a_localization_takes_its_own_address_from_its_title_and_keeps_it(client
     assert record._first_slug(client, request, primary, "Bajan los choques") == "bajan-los-choques-2"
     assert record._first_slug(client, SimpleNamespace(**{**vars(request), "slug_policy": "characters", "language": "zh-Hans"}), primary, "能泄露你住在哪里的声音，吗？") == "能泄露你住在哪里的声音-吗"
     assert record._first_slug(client, SimpleNamespace(**{**vars(request), "slug_policy": "primary"}), primary, "Cualquiera") == "story-one"
+
+
+def _tagged_original(client: FakeAuthoringClient) -> None:
+    """The original is tagged with one accepted concept, and the site's primary language is English."""
+    client.tables.setdefault("EditorialCheckSettings", {})["settings"] = {"id": "settings", "settings": json.dumps({"languages": {"primary": "en", "enabled": ["en", "es-419"]}})}
+    client.tables.setdefault("SemanticNode", {})["pi-v1"] = {"id": "pi-v1", "lineageId": "pi", "versionNumber": 1, "versionState": "current", "nodeKey": "topic--prompt-injection",
+                                                             "nodeKind": "topic", "displayName": "prompt injection", "status": "accepted", "language": "en"}
+    client.tables.setdefault("SemanticRelation", {})["rel-1"] = {"id": "rel-1", "subjectStateKey": "item#story-one#current", "objectKind": "semanticNode", "objectId": "pi-v1",
+                                                                 "relationState": "current", "predicate": "tagged_with"}
+
+
+def test_publishing_a_translation_notes_that_its_languages_pages_need_the_originals_concepts(client) -> None:
+    english(client)
+    _tagged_original(client)
+    row = translation(client)
+    publish_item(client, row["id"], actor="An Editor")
+    wanted = [label for label in client.tables.get("EntityLabel", {}).values() if label.get("syncState") == "wanted"]
+    assert [(label["entityId"], label["language"]) for label in wanted] == [("pi", "es-419")]
+    assert not [label for label in client.tables["EntityLabel"].values() if label["role"] == "preferred"]   # nothing is named by a publish
+
+
+def test_tagging_the_original_notes_the_concept_for_each_language_it_is_published_in(client) -> None:
+    from papyrus_content.entity_labels.wanted import record_wanted_for_tagging
+
+    english(client)
+    _tagged_original(client)
+    row = translation(client)
+    publish_item(client, row["id"], actor="An Editor")
+    for label in [label for label in client.tables["EntityLabel"].values()]:
+        client.tables["EntityLabel"].pop(label["id"])
+    node = client.tables["SemanticNode"]["pi-v1"]
+    assert record_wanted_for_tagging(client, ORIGINAL, [node], now="2026-11-16T00:00:00Z") == 1
+    assert record_wanted_for_tagging(client, ORIGINAL, [node], now="2026-11-16T00:00:00Z") == 0   # already recorded
