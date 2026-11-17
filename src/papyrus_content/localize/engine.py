@@ -28,7 +28,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 
-from .blocks import FIELD_PREFIX, Block, PlaceholderError, Protected, blocks_of, join_body, protect, protect_like
+from .blocks import FIELD_PREFIX, Block, PlaceholderError, Protected, blocks_of, join_body, keep_soft_breaks, protect, protect_like
 from .budget import Prediction
 from .checks import BlockChecker, Finding, apply_fixes, closing_emphasis, faithfulness_worse, tally
 from .models import PROMPT_VERSION, LocalizeModels, Spend, StructuredOutputMissing
@@ -243,7 +243,7 @@ class Localizer:
                     problems[block_id] = "it was missing from your answer"
                     continue
                 try:
-                    slot.text = self._normalize(slot.protected.restore(text))
+                    slot.text = self._normalize(slot.protected.restore(text), slot.source.text)
                 except PlaceholderError as error:
                     problems[block_id] = str(error)
                     continue
@@ -253,8 +253,10 @@ class Localizer:
         raise RunFailed(f"the translator did not return a usable translation of {len(pending)} block(s) after {MAXIMUM_ATTEMPTS} attempts: "
                         + "; ".join(f"{block_id}: {problem}" for block_id, problem in list(problems.items())[:3]))
 
-    def _normalize(self, text: str) -> str:
-        return closing_emphasis(text, _spaced(self.request.language))
+    def _normalize(self, text: str, source: str) -> str:
+        """Code's own repairs of a machine-owned block's text: emphasis that would not render, and a soft line break of the source that the translator
+        made a blank line (``blocks.keep_soft_breaks``: only where the line structure of the two blocks provably lines up)."""
+        return keep_soft_breaks(source, closing_emphasis(text, _spaced(self.request.language)))
 
     # --- stages 4 to 6: the checks ---------------------------------------------------------------------------------------------------------------
 
@@ -315,7 +317,7 @@ class Localizer:
         remaining: dict[str, list[Finding]] = {}
         for slot in candidates:
             fixed, applied = apply_fixes(slot.text, slot.findings)
-            proposals[slot.source.id] = self._normalize(fixed) if applied else slot.text
+            proposals[slot.source.id] = self._normalize(fixed, slot.source.text) if applied else slot.text
             # A repair by code can settle a finding that would otherwise ask the model (the glossary's "IA" for a kept "AI"): the model is asked
             # only about what the repaired text still has. The check of that text is stored, so the round's own check of it costs nothing more.
             remaining[slot.source.id] = self._findings(slot.source.text, proposals[slot.source.id]) if applied else slot.findings
@@ -350,7 +352,7 @@ class Localizer:
                     problems[block_id] = "it was missing from your answer"
                     continue
                 try:
-                    proposals[block_id] = self._normalize(slot.protected.restore(text))
+                    proposals[block_id] = self._normalize(slot.protected.restore(text), slot.source.text)
                 except PlaceholderError as error:
                     problems[block_id] = str(error)
                     continue

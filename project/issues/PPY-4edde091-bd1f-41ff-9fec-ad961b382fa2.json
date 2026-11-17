@@ -1,0 +1,27 @@
+{
+  "id": "PPY-4edde091-bd1f-41ff-9fec-ad961b382fa2",
+  "title": "Remove the fixed caps in the guidelines package (200 files, 256 KiB, read limits 100 and 500)",
+  "description": "**Problem.** PR #1626 (PPY-1d5c43, closed) slipped in fixed caps, against the no-arbitrary-limits rule: `MAX_FILES = 200` and `MAX_FILE_BYTES = 256 KiB` in `guidelines/field_files.py:31-32`; `limit=500` and `limit=100` on attachment reads in `guidelines/store.py:87,106,137` and `guidelines/convert_v1.py:27`. A set past the page limit would lose files (the hash check would then fail loudly).\n\n**Change.** Remove the two constants and page the index reads to the end. If any limit is a real constraint (for example a DynamoDB item or AppSync payload size), keep it only with a written justification at the constant and a scenario that proves the refusal is loud, not silent.\n\n**Acceptance criteria**\n- No fixed file-count or file-size cap remains, or each remaining one names the real constraint it comes from.\n- Attachment and index reads page until exhausted.\n- A guideline set larger than the old caps (more than 200 files, a file over 256 KiB) round-trips through write, resolve and export.\n- One small PR; no baseline or suppression changed.\n\n**Gherkin features needed**\n- guideline-files-no-caps.feature: 'a set of more than 200 files is stored and resolved whole'; 'a file larger than 256 KiB is stored whole'; 'reads page past 500 attachments'.\n\n**Dependencies:** relates PPY-1d5c43. The caps fix is item 2 of the release checklist (merged, or Ryan accepts shipping with the caps); the Release 5.130 plan task is blocked by it only through that decision.\n\n**Report:** papyrus-track-report-1.md, section 2 (No arbitrary caps), section 4 (start next), checklist step 2.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-1d5c432d-b651-4fa3-8ee3-48f1e26ac1c3",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-17T01:17:40.162010Z",
+  "updated_at": "2026-11-17T01:18:20.569749Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

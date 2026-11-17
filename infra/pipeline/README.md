@@ -44,7 +44,6 @@
 
 ## What does not fit
 
-- `papyrus-procedure-runner` takes `ImageUri`, a container image built and pushed elsewhere. The shape (zip builds that feed content-hash keys) does not apply, so it is not in `stacks.json`. It would fit once the image build is a pipeline step.
 - Edge stacks and per-site newsletter stacks are not in scope. The same file could carry them.
 - `papyrus-monitoring`'s `CodeBucket` is read from the live stack, and the template bucket for every stack comes from there. On a new account, before that stack exists, the CDK bootstrap bucket name is used (see "A new account, in order").
 
@@ -104,7 +103,7 @@ infra/pipeline/create-environment.sh --reviewer <github login>
 4. **SES.** The operators stack creates the sending identity; an account new to SES starts in the sandbox, and moving out is a request to AWS that a person makes.
 5. **Plan and approve, then merge and release.** The first `role-stack-deploy` run (after merging, or `workflow_dispatch` from `develop`) creates the pipeline roles once a person approves. The release then creates `papyrus-newsletter-sending-operators`, then `papyrus-monitoring`. Every parameter without a default is supplied by `stacks.json` or the build. This first-create path (bucket by name, `CREATE` change set) is covered by unit tests against a fake CloudFormation; it has not been rehearsed on a real empty account.
 
-Not solved: nothing creates the CDK bootstrap or the hosted zone; both are account facts a person provides. The approver setup is also a person's step by design: the workflow cannot create the roles it runs as. Also, `papyrus-procedure-runner`, edge and per-site newsletter stacks are still outside the pipeline (see above).
+Not solved: nothing creates the CDK bootstrap or the hosted zone; both are account facts a person provides. The approver setup is also a person's step by design: the workflow cannot create the roles it runs as. Edge and per-site newsletter stacks are still outside the pipeline (see above). The procedure runner is inside it: its image is a build step (`kind: image`) and only the release changes its stack.
 
 ## The roles, in plain words
 

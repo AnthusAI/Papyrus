@@ -7008,7 +7008,7 @@
       "kind": "operation",
       "subject": "startNewsroomProcedureRun",
       "operation": "call-with-foreign-ids",
-      "probe": "alpha calls startNewsroomProcedureRun with \"beta\"'s ids for procedureId, procedureKey, procedureVersionId",
+      "probe": "alpha calls startNewsroomProcedureRun with \"beta\"'s ids for procedureId, procedureKey, procedureVersionId, wakeKey",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

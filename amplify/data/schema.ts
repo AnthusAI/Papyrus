@@ -1341,6 +1341,7 @@ const definitions = {
       procedureId: a.id(),
       procedureKey: a.string(),
       procedureVersionId: a.id(),
+      wakeKey: a.string(),
       title: a.string(),
       summary: a.string(),
       input: a.json(),
@@ -1512,6 +1513,8 @@ const definitions = {
       subjectKind: a.string(),
       subjectId: a.string(),
       subjectVersion: a.string(),
+      /** The wake that started the run (docs/design/always-on-agents-architecture.md A2). The run's id is derived from it, so one wake is one run. Runs recorded before wake keys have none. */
+      wakeKey: a.string(),
       /** The rung the run ran under (off, observe, propose, draft, prepare, publish_soft, publish_auto). Written once agent policy exists. */
       rung: a.string(),
       requestedBy: a.string(),

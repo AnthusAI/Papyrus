@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import request_meter, run_outcomes
+from . import request_meter, run_outcomes, wake_keys
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
@@ -32,11 +32,14 @@ MAX_RECORDED_CALLS = 200
 MAX_SUMMARY_CHARACTERS = 500
 OUTPUT_SUMMARY_FIELDS = ("title", "summary", "next_step", "story")
 APPSYNC_ENDPOINT = re.compile(r"^https://[a-z0-9]+\.appsync-api\.[a-z0-9-]+\.amazonaws\.com/graphql$")
+DUPLICATE = "duplicate"   # a wake whose key already has a run record: reported, never run
 SSM_PARAMETER = re.compile(r"^/[A-Za-z0-9_./-]{1,1000}$")
 
 
 class ProcedureNotRunnable(Exception):
-    pass
+    """The request cannot run. `run_id` names the run record when one was already made (it is then marked failed)."""
+
+    run_id: str | None = None
 
 
 def utc_now() -> str:
@@ -53,19 +56,23 @@ def validate_request(request: dict) -> dict:
         raise ProcedureNotRunnable("procedureKey is required")
     if parameter and not SSM_PARAMETER.match(parameter):
         raise ProcedureNotRunnable("openaiKeyParameter must be an SSM parameter name")
+    try:
+        wake_key = wake_keys.checked(request.get("wakeKey"))
+    except wake_keys.InvalidWakeKey as invalid:
+        raise ProcedureNotRunnable(str(invalid)) from invalid
     if not isinstance(request.get("input") or {}, dict):
         raise ProcedureNotRunnable("input must be an object")
     timeout = request.get("timeoutSeconds")
     if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout < 1):
         raise ProcedureNotRunnable("timeoutSeconds must be a positive whole number")
-    return {"appsyncEndpoint": endpoint, "procedureKey": key, "openaiKeyParameter": parameter or None,
+    return {"appsyncEndpoint": endpoint, "procedureKey": key, "wakeKey": wake_key, "openaiKeyParameter": parameter or None,
             "timeoutSeconds": None if timeout is None else min(timeout, MAX_TIMEOUT_SECONDS),
             "input": dict(request.get("input") or {}), "publicationId": str(request.get("publicationId") or ""),
             "actorLabel": str(request.get("actorLabel") or "Papyrus procedure runner"),
             "trigger": request.get("trigger") if isinstance(request.get("trigger"), dict) else None}
 
 
-def load_published_procedure(client, procedure_key: str) -> dict[str, Any]:
+def load_published_procedure(client, procedure_key: str, version_id: str | None = None) -> dict[str, Any]:
     from .model_attachments import download_attachment_buffer
 
     try:
@@ -79,6 +86,8 @@ def load_published_procedure(client, procedure_key: str) -> dict[str, Any]:
     version = current_cloud_procedure_version(definition)
     if not version or version.get("status") != "published":
         raise ProcedureNotRunnable(f"procedure {procedure_key} has no published current version")
+    if version_id and version["id"] != version_id:
+        raise ProcedureNotRunnable(f"procedure {procedure_key} was republished while the run was starting; the run record names version {version_id}")
     attachments = [entry for entry in client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", version["id"], limit=100)
                    if str(entry.get("status") or "active") == "active"]
     source = str(version.get("tactusSource") or "")
@@ -139,18 +148,32 @@ def summarize_output(output: Any, seconds: float) -> str:
     return "; ".join([f"Completed in {seconds:g} s", *details])[:MAX_SUMMARY_CHARACTERS]
 
 
-def start_run_record(client, request: dict, version: dict) -> str:
+def start_run_record(client, request: dict) -> dict[str, Any]:
+    """Makes the run's record from its wake key, as `started`, before anything is loaded. The newsroom derives the record's id from the
+    key and creates it with a condition, so a wake already recorded comes back as `duplicate` and is not run again."""
     trigger = request.get("trigger") or {}
-    data = client.graphql(START_PROCEDURE_RUN_MUTATION, {
-        "procedureKey": request["procedureKey"], "procedureVersionId": version["id"],
-        "title": trigger.get("title") or request["procedureKey"],
-        "summary": trigger.get("summary") or "Started by the Papyrus procedure runner",
-        "actorLabel": request["actorLabel"],
-        "input": json.dumps({**request["input"], "__papyrusExecutionMode": "external_cli"})})
+    try:
+        data = client.graphql(START_PROCEDURE_RUN_MUTATION, {
+            "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"],
+            "title": trigger.get("title") or request["procedureKey"],
+            "summary": trigger.get("summary") or "Started by the Papyrus procedure runner",
+            "actorLabel": request["actorLabel"],
+            "input": json.dumps({**request["input"], "__papyrusExecutionMode": "external_cli"})})
+    except Exception as error:   # the newsroom refused: an unknown or disabled procedure. No record exists, and none is claimed.
+        raise ProcedureNotRunnable(f"procedure {request['procedureKey']} could not be started: {error}") from error
     started = normalize_graphql_json_value(data.get("startNewsroomProcedureRun")) or {}
     if not started.get("runId"):
         raise ProcedureNotRunnable("the newsroom did not return a run id")
-    return started["runId"]
+    return {"runId": started["runId"], "duplicate": bool(started.get("duplicate")), "versionId": started.get("procedureVersionId")}
+
+
+def refuse_run(client, run_id: str, error: Exception, *, now: Callable[[], str]) -> None:
+    """The run record exists but the procedure cannot be loaded: the record says so, so it never stays `started` for a run that never began."""
+    stamp = now()
+    update_cloud_procedure_run_record(client, {
+        "id": run_id, "runStatus": "failed", "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
+        "startedAt": stamp, "finishedAt": stamp, "errorSummary": str(error)[:MAX_SUMMARY_CHARACTERS],
+        "error": {"message": str(error)}, "attempt": 1})
 
 
 def child_timeout(request: dict, seconds_available: float) -> float:
@@ -186,14 +209,23 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
                           run_started: Callable[[str], None] | None = None) -> dict:
     request = validate_request(request)
-    procedure = load_published_procedure(client, request["procedureKey"])
-    run_id = start_run_record(client, request, procedure["version"])
+    started = start_run_record(client, request)   # the record exists, `started`, before any procedure is loaded
+    run_id = started["runId"]
+    if started["duplicate"]:   # this wake already has its run: nothing more happens for it
+        return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
+                "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
     started_at = now()
     if run_started is not None:
         try:
             run_started(run_id)   # lets the trigger row name its run while it is still running
         except Exception:
             pass
+    try:
+        procedure = load_published_procedure(client, request["procedureKey"], started["versionId"])
+    except ProcedureNotRunnable as error:
+        refuse_run(client, run_id, error, now=now)
+        error.run_id = run_id
+        raise
     workdir = Path(tempfile.mkdtemp(prefix="papyrus-procedure-", dir=workroot))
     try:
         source_path = materialize(workdir, procedure["source"], procedure["skills"])
@@ -224,7 +256,7 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
         # A site backend that predates the usage fields refuses them; the run's outcome must still be recorded.
         cost_recorded = False
         update_cloud_procedure_run_record(client, record)
-    return {"runId": run_id, "procedureKey": request["procedureKey"], "versionId": procedure["version"]["id"],
+    return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "versionId": procedure["version"]["id"],
             "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
             "seconds": outcome.get("seconds"),
             "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
@@ -286,9 +318,11 @@ def handler(event, context):
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
                                        run_started=lambda run_id: record_trigger_run(table, trigger, run_id))
     except ProcedureNotRunnable as error:
-        result = {"runStatus": "notRunnable", "runId": None, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
+        result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
                   "error": str(error)}
     print(json.dumps(result, default=str))
+    if result.get("duplicate"):
+        return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
         finish_story_stage_run(table, trigger, result)

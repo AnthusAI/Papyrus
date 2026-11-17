@@ -5,13 +5,14 @@ import os
 import re
 import subprocess
 import urllib.parse
+import uuid
 import ast
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .env import PAPYRUS_ROOT, resolve_corpora_file
-from . import run_outcomes
+from . import run_outcomes, wake_keys
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
 REQUIRED_PROCEDURES_CONFIG_PATH = resolve_corpora_file("corpora/papyrus-required-procedures.json")
@@ -33,6 +34,7 @@ START_PROCEDURE_RUN_MUTATION = """
   mutation StartProcedureRun(
     $procedureKey: String
     $procedureVersionId: ID
+    $wakeKey: String
     $title: String
     $summary: String
     $actorLabel: String
@@ -41,6 +43,7 @@ START_PROCEDURE_RUN_MUTATION = """
     startNewsroomProcedureRun(
       procedureKey: $procedureKey
       procedureVersionId: $procedureVersionId
+      wakeKey: $wakeKey
       title: $title
       summary: $summary
       actorLabel: $actorLabel
@@ -784,6 +787,8 @@ def start_cloud_procedure_run(
         {
             "procedureKey": procedure_key,
             "procedureVersionId": version["id"],
+            # A run started here is a person's request: its own key, so it never collides with a scheduled or changed-record run.
+            "wakeKey": wake_keys.manual_key(wake_keys.owner(None, procedure_key), uuid.uuid4().hex),
             "title": title,
             "summary": summary,
             "actorLabel": actor_label,

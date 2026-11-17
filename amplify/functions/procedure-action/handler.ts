@@ -4,6 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { claimGroups } from "../../../lib/staff-groups";
+import { assertWakeKey, isAlreadyCreated, runIdForWakeKey } from "./wake-key";
 
 type DataClient = ReturnType<typeof generateClient<Schema>>;
 type DataClientErrors = Array<{ message?: string | null } | string | null> | null | undefined;
@@ -244,7 +245,10 @@ async function startProcedureRun(event: ProcedureEvent) {
   if (!validation.ok) throw new Error(`Procedure parameter validation failed: ${validation.error}`);
   const normalizedInput = validation.normalizedInput;
   const isExternalCliRun = executionMode === "external_cli";
-  const runId = `procedure-run-${safeId(definition.procedureKey)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
+  // A run the runner executes is one wake: its id comes from the wake key and the record is created with a condition, so the same wake
+  // can never make a second record. A run queued for the Assignment worker is not a wake and keeps its own id.
+  const wakeKey = isExternalCliRun ? assertWakeKey(event.arguments.wakeKey) : null;
+  const runId = wakeKey ? runIdForWakeKey(wakeKey) : `procedure-run-${safeId(definition.procedureKey)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
   const assignmentId = isExternalCliRun ? null : `assignment-procedure-run-${hashShort([runId, definition.id, version.id])}`;
   const runResponse = await client.models.ProcedureRun.create({
     id: runId,
@@ -253,7 +257,8 @@ async function startProcedureRun(event: ProcedureEvent) {
     procedureVersionId: version.id,
     procedureVersionNumber: Number(version.versionNumber ?? 1),
     assignmentId,
-    runStatus: isExternalCliRun ? "running" : "queued",
+    runStatus: isExternalCliRun ? "started" : "queued",
+    wakeKey,
     requestedBy: actorLabel,
     requestedAt: now,
     startedAt: isExternalCliRun ? now : null,
@@ -267,6 +272,10 @@ async function startProcedureRun(event: ProcedureEvent) {
     attempt: 1,
     newsroomFeedKey: "procedures",
   } as never, { authMode: LAMBDA_DATA_AUTH_MODE });
+  if (wakeKey && isAlreadyCreated(runResponse.errors)) {
+    const existing = await getRequiredRecord(client.models.ProcedureRun, runId, "ProcedureRun");
+    return { ok: true, duplicate: true, runId, runStatus: existing.runStatus, procedureKey: definition.procedureKey, executionMode };
+  }
   assertNoDataErrors(runResponse.errors, "create ProcedureRun");
   if (!runResponse.data) throw new Error("ProcedureRun create returned no data.");
   if (isExternalCliRun) {
@@ -274,6 +283,7 @@ async function startProcedureRun(event: ProcedureEvent) {
       ok: true,
       assignmentId: null,
       assignmentStatus: null,
+      duplicate: false,
       runId,
       procedureId: definition.id,
       procedureKey: definition.procedureKey,

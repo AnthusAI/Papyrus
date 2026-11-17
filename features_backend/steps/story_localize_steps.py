@@ -820,3 +820,88 @@ def step_held_structure(context):
 @given("the block check does not see the structure inside a note, so only the check of the whole body does")
 def step_blind(context):
     context.blind_note_structure = True
+
+
+# --- soft line breaks ---------------------------------------------------------------------------------------------------------------------------
+
+def _note(context, english_lines: list[str], spanish_lines: list[str], english_joints: list[str]) -> None:
+    """The English note's lines with the joints between them ("\\n" or "\\n\\n"), and the Spanish the translator will write (replaced by each step)."""
+    english = ":::note\n" + english_lines[0] + "".join(joint + line for joint, line in zip(english_joints, english_lines[1:])) + "\n:::"
+    context.paragraphs = [P1, english, P2, IMAGE]
+    context.note_source = english
+    _publish(context, 3)
+
+
+SPANISH_LINES = {"Out of office.": "Fuera de la oficina.", "Back on Monday.": "Vuelve el lunes.", "Thanks.": "Gracias.", "Bye.": "Adiós."}
+
+
+def _translator_writes(context, lines: list[str], joints: list[str]) -> None:
+    written = ":::note\n" + lines[0] + "".join(joint + line for joint, line in zip(joints, lines[1:])) + "\n:::"
+    context.translations[context.note_source] = written
+    context.note_written = written
+
+
+@given('the English Story has a note whose two lines "{first}" and "{second}" are joined by a single newline')
+def step_soft_note(context, first, second):
+    _note(context, [first, second], [], ["\n"])
+
+
+@given('the English Story has a note whose lines "{first}" and "{second}" are two paragraphs')
+def step_two_paragraph_note(context, first, second):
+    _note(context, [first, second], [], ["\n\n"])
+
+
+@given('the English Story has a note whose lines are "{first}" and "{second}" joined by a single newline, then a blank line, then "{third}"')
+def step_soft_then_blank(context, first, second, third):
+    _note(context, [first, second, third], [], ["\n", "\n\n"])
+
+
+@given('the English Story has a note whose lines "{first}" and "{second}" are joined by a single newline, then a blank line, then "{third}" and "{fourth}" joined by a single newline')
+def step_soft_blank_soft(context, first, second, third, fourth):
+    _note(context, [first, second, third, fourth], [], ["\n", "\n\n", "\n"])
+
+
+@given("the translator writes the two lines of the note as two paragraphs")
+def step_split_two(context):
+    _translator_writes(context, [SPANISH_LINES["Out of office."], SPANISH_LINES["Back on Monday."]], ["\n\n"])
+
+
+@given('the translator writes the two lines of the note as two paragraphs and adds the paragraph "{text}"')
+def step_split_two_extra(context, text):
+    _translator_writes(context, [SPANISH_LINES["Out of office."], SPANISH_LINES["Back on Monday."], text], ["\n\n", "\n\n"])
+
+
+@given("the translator writes each of the three lines of the note as its own paragraph")
+def step_split_three(context):
+    _translator_writes(context, [SPANISH_LINES[line] for line in ("Out of office.", "Back on Monday.", "Thanks.")], ["\n\n", "\n\n"])
+
+
+@given("the translator writes the four lines of the note as one, a blank line, two joined by a single newline, a blank line, and one")
+def step_four_elsewhere(context):
+    _translator_writes(context, [SPANISH_LINES[line] for line in ("Out of office.", "Back on Monday.", "Thanks.", "Bye.")], ["\n\n", "\n", "\n\n"])
+
+
+def _spanish_note(*lines_and_joints: str) -> str:
+    return ":::note\n" + "".join(lines_and_joints) + "\n:::"
+
+
+@then("the saved translation has the note with its two lines joined by a single newline")
+def step_note_soft(context):
+    expected = _spanish_note(SPANISH_LINES["Out of office."], "\n", SPANISH_LINES["Back on Monday."])
+    assert expected in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]
+
+
+@then("the saved translation has the first two lines joined by a single newline and the third after a blank line")
+def step_note_soft_blank(context):
+    expected = _spanish_note(SPANISH_LINES["Out of office."], "\n", SPANISH_LINES["Back on Monday."], "\n\n", SPANISH_LINES["Thanks."])
+    assert expected in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]
+
+
+@then("the saved translation has the note with its two paragraphs as the translator wrote them")
+def step_note_unchanged(context):
+    assert context.note_written in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]
+
+
+@then("the saved translation still has the note as the translator wrote it")
+def step_note_held_as_written(context):
+    assert context.note_written in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]
