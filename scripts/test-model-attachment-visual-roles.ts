@@ -12,7 +12,7 @@ import {
 
 const SHA = "a".repeat(64);
 const good = { ownerKind: "item", ownerId: VISUAL_STYLE_OWNER_ID, role: "visual_example", mediaType: "image/png", byteSize: 200_000, sha256: SHA, sortKey: SHA, filename: `${SHA}.png` };
-const general = new Set(["application/json", "text/plain"]);
+const general = new Set(["application/json", "text/plain", "text/markdown"]);
 
 // The two new roles take PNG, JPEG and WebP up to 10 MB, stored under the profile's own item.
 assert.doesNotThrow(() => assertVisualUpload(good));
