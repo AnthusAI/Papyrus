@@ -54,6 +54,7 @@ class PageHead:
     alternates: tuple[tuple[str, str], ...] = ()
     x_default: str = ""
     site_data: bool = False        # the site's home on a site that serves several languages: it also carries the WebSite structured data (name and alternateName)
+    translator: str | None = None   # an imported translation: the person or agent who wrote the copy (JSON-LD translator); None for a machine translation
     translation_of: tuple[str, str] | None = None   # a translation: ``(absolute URL, tag)`` of the original it was translated from (JSON-LD translationOfWork)
 
 
@@ -209,6 +210,8 @@ class HeadBuilder:
             data["inLanguage"] = page.language
         if page.translation_of:
             data["translationOfWork"] = {"@type": page.json_ld_type, "url": page.translation_of[0], "inLanguage": page.translation_of[1]}
+        if page.translator:
+            data["translator"] = {"@type": "Person", "name": page.translator}
         return data
 
     def _publisher(self) -> dict:

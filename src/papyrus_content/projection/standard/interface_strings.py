@@ -25,7 +25,10 @@ always has its translation:
   Markdown twins, its feeds and its structured data, never in the primary language's words);
 * ``footer.text`` when the site sets ``footer.text``;
 * ``translation.label`` and ``translation.original``: the line every translated page carries ("Traducido por IA del {original}", with ``{original}`` the
-  link to the original, whose words are ``translation.original``: "original en inglés").
+  link to the original, whose words are ``translation.original``: "original en inglés");
+* ``translation.importedLabel``: the same line for a translation a person wrote and imported (``papyrus stories import-translation``): "Escrito por {author}
+  a partir del {original}", with ``{author}`` the writer's name and ``{original}`` the link. It never says AI. Only a language that serves an imported
+  translation needs it: its page is refused without the key, naming it, and with a label missing ``{author}`` or ``{original}``.
 
 :func:`missing_keys` is the check: a public language whose file lacks a key the rule requires is refused by the projection, naming the language and the
 keys, so English words never appear on a Spanish page because a translation was forgotten.
@@ -47,10 +50,13 @@ SEO_IMAGE_KEY = "seo.defaultImage"
 SEO_IMAGE_ALT_KEY = "seo.defaultImageAlt"
 TRANSLATION_LABEL_KEY = "translation.label"
 TRANSLATION_ORIGINAL_KEY = "translation.original"
+TRANSLATION_IMPORTED_LABEL_KEY = "translation.importedLabel"
 UNTRANSLATED_LABEL_KEY = "listing.untranslated"
 UNTRANSLATED_ORIGINAL_KEY = "listing.untranslatedOriginal"
 #: Where ``translation.label`` places the link to the original.
 ORIGINAL_PLACEHOLDER = "{original}"
+#: Where ``translation.importedLabel`` places the name of the person or agent who wrote the copy.
+AUTHOR_PLACEHOLDER = "{author}"
 SKIP_LINK_KEY = "skipToMain"
 SWITCHER_LABEL_KEY = "switcherLabel"
 

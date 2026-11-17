@@ -63,12 +63,30 @@ def byline(entry: StandardEntry, date_format: str = "", text: str | None = None,
 
 def translation_notice(strings, original: dict) -> str:
     """The line under the byline of a translated page, in the page's language from its interface strings: who translated it and a link to the original.
-    ``original`` is ``{tag, url}`` of the page it was translated from. The line is data the page is given, never part of the Story's text."""
-    from .interface_strings import ORIGINAL_PLACEHOLDER, TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY
+    ``original`` is ``{tag, url, kind, writtenBy}``: the page it was translated from, the translation's kind and, for an ``imported`` one, the name of the
+    person or agent who wrote the copy. A machine translation says an AI translated it (``translation.label``); an imported one says who wrote it
+    (``translation.importedLabel``) and never claims AI. The line is data the page is given, never part of the Story's text."""
+    from ...item_language import IMPORTED_TRANSLATION, MACHINE_TRANSLATION
+    from .interface_strings import AUTHOR_PLACEHOLDER, ORIGINAL_PLACEHOLDER, TRANSLATION_IMPORTED_LABEL_KEY, TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY
 
-    before, found, after = strings[TRANSLATION_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
+    kind = original.get("kind") or MACHINE_TRANSLATION
+    if kind == IMPORTED_TRANSLATION:
+        label_key, author = TRANSLATION_IMPORTED_LABEL_KEY, original.get("writtenBy")
+        if not author:
+            raise ValueError("An imported translation's notice needs the name of its writer.")
+        if label_key not in strings or not strings[label_key].strip():
+            raise ValueError(f"The language has no {label_key}: a page of an imported translation must say who wrote it, so its interface strings need it.")
+        if AUTHOR_PLACEHOLDER not in strings[label_key]:
+            raise ValueError(f"{label_key} must contain {AUTHOR_PLACEHOLDER}, where the writer's name goes.")
+    elif kind == MACHINE_TRANSLATION:
+        label_key, author = TRANSLATION_LABEL_KEY, None
+    else:
+        raise ValueError(f"A translation's kind is {MACHINE_TRANSLATION!r} or {IMPORTED_TRANSLATION!r}, not {kind!r}.")
+    before, found, after = strings[label_key].partition(ORIGINAL_PLACEHOLDER)
     if not found:
-        raise ValueError(f"{TRANSLATION_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original goes.")
+        raise ValueError(f"{label_key} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original goes.")
+    if author is not None:
+        before, after = (part.replace(AUTHOR_PLACEHOLDER, author) for part in (before, after))   # the name is text, escaped below with the rest
     link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'
     return f'<p class="markus-translation">{esc(before)}{link}{esc(after)}</p>'
 

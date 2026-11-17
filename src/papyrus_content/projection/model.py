@@ -29,6 +29,11 @@ class ItemSummary:
     #: A CMS source always sets both; a directory source sets neither (a site whose content is in Git has one language, ``site.language``).
     language: str | None = None
     language_group_id: str | None = None
+    #: A translation's kind from its version's ``metadata.localization.translation`` (``machine`` or ``imported``) and, for an imported one, the person or
+    #: agent who wrote the copy (``localization.writtenBy``, the name its provenance records). The page and its twin say what the kind says; None for a
+    #: Story of its own.
+    translation_kind: str | None = None
+    written_by: str | None = None
 
 
 @dataclass(frozen=True)
