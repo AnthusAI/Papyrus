@@ -16,7 +16,7 @@ from .cloud_procedures import (
     load_required_cli_procedure_config,
 )
 from .ids import safe_id
-from .procedure_registry import procedure_path_for_kind, validate_procedure_registry
+from .procedure_registry import procedure_file_for_kind, validate_procedure_registry
 from .model_attachments import (
     MODEL_ATTACHMENT_OWNER_MODELS,
     build_text_model_payload_attachment,
@@ -817,7 +817,7 @@ def _required_procedure_seed_specs() -> list[dict[str, Any]]:
     }
     seeds: list[dict[str, Any]] = []
     for procedure_key in config["keys"]:
-        source_path = procedure_path_for_kind(procedure_key)
+        source_path = procedure_file_for_kind(procedure_key)
         details = details_by_key.get(procedure_key)
         if not details:
             raise ValueError(

@@ -1,7 +1,7 @@
 """The procedure registry: which Tactus file runs for which procedure kind, and the check that keeps the two honest.
 
 A procedure file declares its kind on its first line (`-- papyrus-procedure-kind: <kind>`). The registry
-(`procedures` in `papyrus-required-procedures.json`) maps each kind to its file, and `requiredCliProcedures` maps each CLI alias to
+(`procedures` in `papyrus-required-procedures.json`) maps each kind to its file name in the wheel's `papyrus_content/data/procedures/`, and `requiredCliProcedures` maps each CLI alias to
 a kind. `check_procedure_registry` compares all three and names every disagreement; `validate_procedure_registry` raises on any.
 `python -m papyrus_content.procedure_registry` is the CI check.
 """
@@ -13,10 +13,9 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
-from .env import PAPYRUS_ROOT, resolve_corpora_file
+from .env import packaged_procedures_directory, resolve_corpora_file, resolve_procedure_file
 
 REGISTRY_CONFIG_RELATIVE = "corpora/papyrus-required-procedures.json"
-PROCEDURE_DIRECTORY = Path("procedures") / "newsroom"
 _KIND_HEADER = re.compile(r"^--[ \t]*papyrus-procedure-kind:[ \t]*(\S+)[ \t]*$")
 
 
@@ -36,10 +35,10 @@ def load_registry_config() -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def discover_procedure_files(root: Path = PAPYRUS_ROOT) -> dict[str, str]:
-    """Every procedure file under `<root>/procedures/newsroom`, as {path relative to root: source}."""
-    directory = root / PROCEDURE_DIRECTORY
-    return {path.relative_to(root).as_posix(): path.read_text(encoding="utf-8") for path in sorted(directory.glob("*.tac"))}
+def discover_procedure_files() -> dict[str, str]:
+    """Every procedure file the wheel ships (papyrus_content/data/procedures), as {file name: source}, read with importlib.resources."""
+    entries = [entry for entry in packaged_procedures_directory().iterdir() if entry.name.endswith(".tac")]
+    return {entry.name: entry.read_text(encoding="utf-8") for entry in sorted(entries, key=lambda entry: entry.name)}
 
 
 def check_procedure_registry(config: Mapping[str, Any], files: Mapping[str, str]) -> list[str]:
@@ -77,21 +76,27 @@ def check_procedure_registry(config: Mapping[str, Any], files: Mapping[str, str]
     return problems
 
 
-def validate_procedure_registry(root: Path = PAPYRUS_ROOT) -> None:
-    problems = check_procedure_registry(load_registry_config(), discover_procedure_files(root))
+def validate_procedure_registry() -> None:
+    problems = check_procedure_registry(load_registry_config(), discover_procedure_files())
     if problems:
         raise ProcedureRegistryError("The procedure registry does not match the procedure files:\n- " + "\n- ".join(problems))
 
 
-def procedure_path_for_kind(kind: str, root: Path = PAPYRUS_ROOT) -> Path:
-    """The file that runs for a kind, after checking that the file declares that kind."""
+def procedure_file_for_kind(kind: str) -> Path:
+    """The file that runs for a kind: the checkout's copy when there is one, else the packaged copy; it must declare that kind."""
     registry = load_registry_config().get("procedures") or {}
     if kind not in registry:
         raise ProcedureRegistryError(f"No procedure is registered for the kind {kind}.")
-    path = root / registry[kind]
+    path = resolve_procedure_file(registry[kind])
+    if not path.is_file():
+        raise ProcedureRegistryError(f"The procedure file {registry[kind]} for the kind {kind} is not in this install.")
     if declared_kind(path.read_text(encoding="utf-8")) != kind:
-        raise ProcedureRegistryError(f"{registry[kind]} does not declare the kind {kind}.")
+        raise ProcedureRegistryError(f"{path} does not declare the kind {kind}.")
     return path
+
+
+def procedure_source_for_kind(kind: str) -> str:
+    return procedure_file_for_kind(kind).read_text(encoding="utf-8")
 
 
 def main() -> int:

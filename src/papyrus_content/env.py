@@ -37,6 +37,31 @@ def packaged_corpora_file(name: str) -> Path | None:
     return Path(_resource_files.enter_context(resources.as_file(reference)))
 
 
+_PACKAGED_PROCEDURES = ("data", "procedures")
+_PROCEDURES_RELATIVE = Path("procedures") / "newsroom"
+
+
+def packaged_procedures_directory():
+    """The Tactus procedures shipped inside the wheel (``papyrus_content/data/procedures/``), as an importlib.resources directory."""
+    return resources.files(__package__).joinpath(*_PACKAGED_PROCEDURES)
+
+
+def packaged_procedure_file(name: str) -> Path | None:
+    reference = packaged_procedures_directory().joinpath(name)
+    if not reference.is_file():
+        return None
+    return Path(_resource_files.enter_context(resources.as_file(reference)))
+
+
+def resolve_procedure_file(name: str) -> Path:
+    """``<PAPYRUS_ROOT>/procedures/newsroom/<name>`` when it exists (a checkout, or PAPYRUS_ROOT pointing at a folder of overrides),
+    else the copy packaged in the wheel, else the root path (which may not exist)."""
+    rooted = PAPYRUS_ROOT / _PROCEDURES_RELATIVE / name
+    if rooted.exists():
+        return rooted
+    return packaged_procedure_file(name) or rooted
+
+
 def resolve_corpora_file(relative: str | Path) -> Path:
     """``<PAPYRUS_ROOT>/<relative>`` when it exists (a checkout, the Lambda task root or PAPYRUS_ROOT),
     else the copy packaged in the wheel for a ``corpora/<name>`` path, else the root path (which may not exist)."""

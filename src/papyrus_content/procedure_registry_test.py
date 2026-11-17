@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -10,7 +9,7 @@ import pytest
 from papyrus_content import procedure_registry as registry
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-A, B = "procedures/newsroom/a.tac", "procedures/newsroom/b.tac"
+A, B = "a.tac", "b.tac"
 
 
 def config(**changes):
@@ -59,14 +58,14 @@ def test_registry_entry_pointing_at_the_wrong_file_is_reported():
 
 
 def test_registry_entry_pointing_at_a_missing_file_is_reported():
-    problems = registry.check_procedure_registry(config(procedures={"k.a": "procedures/newsroom/gone.tac", "k.b": B}), files())
+    problems = registry.check_procedure_registry(config(procedures={"k.a": "gone.tac", "k.b": B}), files())
     assert any("gone.tac" in p and "not a procedure file" in p for p in problems)
     assert any(A in p and "does not list" in p for p in problems)
 
 
 def test_unlisted_file_is_reported():
-    problems = registry.check_procedure_registry(config(), files(**{"procedures/newsroom/c.tac": "-- papyrus-procedure-kind: k.c\n"}))
-    assert problems == ["procedures/newsroom/c.tac is a procedure file the registry does not list."]
+    problems = registry.check_procedure_registry(config(), files(**{"c.tac": "-- papyrus-procedure-kind: k.c\n"}))
+    assert problems == ["c.tac is a procedure file the registry does not list."]
 
 
 def test_cli_command_for_an_unlisted_kind_is_reported():
@@ -80,27 +79,61 @@ def test_missing_maps_are_reported():
 
 
 def test_shipped_registry_matches_the_shipped_files():
-    registry.validate_procedure_registry(REPO_ROOT)
+    registry.validate_procedure_registry()
 
 
-def test_validate_raises_with_every_problem(tmp_path, monkeypatch):
-    (tmp_path / "procedures" / "newsroom").mkdir(parents=True)
-    (tmp_path / A).write_text("Procedure {}\n", encoding="utf-8")
+def test_validate_raises_with_every_problem(monkeypatch):
     monkeypatch.setattr(registry, "load_registry_config", lambda: config(procedures={"k.a": A}, requiredCliProcedures={"cmd.a": "k.a"}))
+    monkeypatch.setattr(registry, "discover_procedure_files", lambda: {A: "Procedure {}\n"})
     with pytest.raises(registry.ProcedureRegistryError, match="does not declare its kind"):
-        registry.validate_procedure_registry(tmp_path)
+        registry.validate_procedure_registry()
 
 
-def test_procedure_path_for_kind_refuses_an_unknown_kind():
+def test_every_registered_kind_resolves_to_a_file_that_declares_it():
+    for kind in registry.load_registry_config()["procedures"]:
+        path = registry.procedure_file_for_kind(kind)
+        assert registry.declared_kind(path.read_text(encoding="utf-8")) == kind
+        assert registry.procedure_source_for_kind(kind) == path.read_text(encoding="utf-8")
+
+
+def test_unknown_kind_is_refused():
     with pytest.raises(registry.ProcedureRegistryError, match="No procedure is registered for the kind nope"):
-        registry.procedure_path_for_kind("nope", REPO_ROOT)
+        registry.procedure_file_for_kind("nope")
 
 
-def test_ci_entry_point_passes_on_the_checkout_and_fails_on_a_mismatch(tmp_path):
-    env = {"PYTHONPATH": str(REPO_ROOT / "src"), "PAPYRUS_ROOT": str(tmp_path), "PATH": ""}
-    (tmp_path / "procedures" / "newsroom").mkdir(parents=True)
-    (tmp_path / "procedures" / "newsroom" / "stray.tac").write_text("Procedure {}\n", encoding="utf-8")
-    failed = subprocess.run([sys.executable, "-m", "papyrus_content.procedure_registry"], env=env, capture_output=True, text=True)
-    assert failed.returncode == 1 and "stray.tac" in failed.stderr
-    passed = subprocess.run([sys.executable, "-m", "papyrus_content.procedure_registry"], env={**env, "PAPYRUS_ROOT": str(REPO_ROOT)}, capture_output=True, text=True)
+def test_a_registered_file_missing_from_the_install_is_refused(monkeypatch):
+    monkeypatch.setattr(registry, "load_registry_config", lambda: config(procedures={"k.a": "not-shipped.tac"}))
+    with pytest.raises(registry.ProcedureRegistryError, match="not in this install"):
+        registry.procedure_file_for_kind("k.a")
+
+
+def test_a_file_in_the_root_wins_over_the_packaged_one(tmp_path, monkeypatch):
+    from papyrus_content import env
+
+    kind = "newsroom.reporting.context"
+    packaged = registry.procedure_file_for_kind(kind)
+    directory = tmp_path / "procedures" / "newsroom"
+    directory.mkdir(parents=True)
+    (directory / "reporter.tac").write_text(f"-- papyrus-procedure-kind: {kind}\nProcedure {{}}\n", encoding="utf-8")
+    monkeypatch.setattr(env, "PAPYRUS_ROOT", tmp_path)
+    assert registry.procedure_file_for_kind(kind) == directory / "reporter.tac" != packaged
+
+
+def test_the_repository_path_and_the_packaged_path_are_one_file():
+    repository = REPO_ROOT / "procedures" / "newsroom"
+    packaged = REPO_ROOT / "src" / "papyrus_content" / "data" / "procedures"
+    assert {path.name for path in repository.glob("*.tac")} == {path.name for path in packaged.glob("*.tac")}
+    for path in repository.glob("*.tac"):
+        assert path.is_symlink() and path.resolve() == (packaged / path.name).resolve(), path
+
+
+def test_ci_entry_point_passes_on_the_checkout():
+    env = {"PYTHONPATH": str(REPO_ROOT / "src"), "PATH": ""}
+    passed = subprocess.run([sys.executable, "-m", "papyrus_content.procedure_registry"], env=env, capture_output=True, text=True)
     assert passed.returncode == 0, passed.stderr
+
+
+def test_ci_entry_point_fails_on_a_mismatch(monkeypatch, capsys):
+    monkeypatch.setattr(registry, "discover_procedure_files", lambda: {"stray.tac": "Procedure {}\n"})
+    assert registry.main() == 1
+    assert "stray.tac" in capsys.readouterr().err
