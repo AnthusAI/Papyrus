@@ -3,7 +3,7 @@
   "title": "The runner reads the policy: decide_start called from the runner; run records policyVersion and rung",
   "description": "**Problem.** The policy document (PPY-51ea61, closed) is a library only. Nothing outside its package calls `decide_start` or the store. No run is stopped by a pause, and no run records a policy version or rung. Closing that task early left this gap; it is filed here, not reopened.\n\n**Change.** The procedure runner calls `decide_start` at the start of every run, so the policy document is actually used. A pause stops the run and says why on the run record. The run records `policyVersion` and `rung` (and `responsibility`) on `ProcedureRun`.\n\n**Acceptance criteria**\n- The runner calls `decide_start` before any work; a paused agent's run does not start and the record says paused, with the reason.\n- Every started run writes `policyVersion` and `rung` on its `ProcedureRun`.\n- A site with no policy document behaves as the design says (agents off), shown by a scenario, not assumed.\n- Does not run in parallel with wake-key or wake-queue work: it edits the same files (`procedure_runner.py`, `automations.py`, `cloud_procedures.py`). Order: wake keys (merged), this task, then B1.\n\n**Gherkin features needed**\n- runner-reads-policy.feature: 'a paused agent's wake does not start a run and says why'; 'a run records the policy version and the rung it ran at'; 'a site with no policy document starts no agent'. Scenarios go through the runner entry point, not `decide_start` alone.\n\n**Dependencies:** blocks PPY-567bf9 (B1) and PPY-d85860 (rating agent). Relates PPY-51ea61 and PPY-f58445. Related bug: the silent no-op in `resume()`.\n\n**Report:** papyrus-track-report-1.md, section 1 follow-up 1; section 4 (do not run in parallel); page one row 3.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -21,10 +21,18 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a52efda1-9fe7-47c0-a459-250d4dc05922",
+      "author": "home",
+      "text": "Merged to develop in #1638 (merge commit). The runner reads the policy before every run: not_adopted, rung_off and paused are recorded as nothing-to-do runs; every run records responsibility, policyVersion and rung. Not done: no site is adopted and no policy line is written, so on release nothing starts on any site until that is done (Distinctive TTAB included; steps in docs/releasing.md and on PPY-e713eb); the TTAB responsibility is not in the catalog; no operator command to write a policy line (H3). Not released.",
+      "created_at": "2026-11-17T02:04:42.601823Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-17T01:17:21.089673Z",
-  "updated_at": "2026-11-17T01:18:14.545218Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T02:04:42.708136Z",
+  "closed_at": "2026-11-17T02:04:42.708110Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
