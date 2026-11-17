@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -33,9 +34,11 @@ class SiteApi:
     def __init__(self):
         self.rows = {"SiteDocument": {}, "SiteDocumentVersion": {}}
         self.before_save = None
+        self.requests = []   # every request the store sent, as the real schema is asked to validate it (scripts/graphql-operations-contract.mts)
 
     def graphql(self, query, variables=None):
         variables = variables or {}
+        self.requests.append({"query": query, "variables": variables})
         for model in ("SiteDocumentVersion", "SiteDocument"):
             if f"get{model}(" in query:
                 return {f"get{model}": self.rows[model].get(variables["id"])}
@@ -52,7 +55,7 @@ class SiteApi:
             hook()
         table, row = self.rows[model], variables["input"]
         if verb == "Create":
-            assert variables["condition"] == {"id": {"attributeExists": False}}
+            assert "condition" not in variables, "a create names no condition: the model's create already refuses an existing key"
             if row["id"] in table:
                 raise RuntimeError("The conditional request failed (ConditionalCheckFailed)")
             table[row["id"]] = dict(row)
@@ -294,3 +297,22 @@ def only_other(context):
 def wake_starts(context, agent, version, rung):
     decision = decide_start(_state(context), agent, {})
     assert decision.start and (decision.policy_version, decision.rung) == (version, rung), decision
+
+
+@then("every request the site store sent is accepted by the GraphQL schema Amplify generates from the data schema")
+def requests_match_schema(context):
+    assert context.api.requests, "the scenario sent no request"
+    with tempfile.TemporaryDirectory() as folder:
+        operations = Path(folder) / "operations.json"
+        operations.write_text(json.dumps(context.api.requests))
+        run = subprocess.run(["npx", "tsx", "scripts/graphql-operations-contract.mts", str(operations)], cwd=REPO_ROOT, capture_output=True, text=True)
+    verdicts = [json.loads(line) for line in run.stdout.splitlines() if line.startswith("{")]
+    assert len(verdicts) == len(context.api.requests), run.stderr[-2000:] or run.stdout[-2000:]
+    rejected = [verdict for verdict in verdicts if verdict["problems"]]
+    assert not rejected, "the schema refuses: " + json.dumps(rejected, indent=2)
+    context.verdict_operations = {verdict["operation"] for verdict in verdicts}
+
+
+@then("the requests include a conditional update, a create and a latest-version query")
+def requests_cover_kinds(context):
+    assert {"UpdateSiteDocumentIf", "CreateSiteDocument", "CreateSiteDocumentVersion", "LatestSiteDocumentVersion"} <= context.verdict_operations, context.verdict_operations
