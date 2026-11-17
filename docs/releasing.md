@@ -75,6 +75,16 @@ The role changes are in `infra/procedures/papyrus-procedure-runner.yaml` and `in
 the release. They need Ryan's approval first. Before the queue is relied on at a site, the live once-only create is proved on a site on a release with wake keys
 (PPY-817340).
 
+## Procedures are registered by the site's deploy
+
+A site's Amplify build registers every core procedure and the site's own procedures right after the backend deploys (`papyrus procedures
+seed-required`, in the generated production build spec; [details](procedure-runner.md#registering-procedures-the-deploy-does-it)). It needs
+no step from a person and no change to a role: the build runs as the app's service role, which can sign GraphQL requests and use the
+site's storage. A registration that fails fails the build. The first site build that carries it writes all 14 core procedures (ten
+digests are new because the kind header was added to those files, and seven kinds had never been seeded); later builds write nothing
+until a procedure file or its metadata changes. A site's pin of Papyrus must carry the command: the build installs the pinned version, and
+an older pin stops at the missing command instead of skipping the step.
+
 ## The publish switch
 
 The `release` and `pypi` jobs run only when the repository variable `PUBLISH_ENABLED`

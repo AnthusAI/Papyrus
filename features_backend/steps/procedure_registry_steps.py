@@ -50,6 +50,10 @@ def step_fake(context):
     context.registry = {
         "procedures": {"demo.first": _FIRST, "demo.second": _SECOND},
         "requiredCliProcedures": {"demo.run-first": "demo.first", "demo.run-second": "demo.second"},
+        "procedureMetadata": {
+            kind: {"title": "Demo", "category": "newsroom", "description": "A demo.", "parameterSchema": {"type": "object"}, "defaults": {}}
+            for kind in ("demo.first", "demo.second")
+        },
     }
     context.sources = {
         _FIRST: "-- papyrus-procedure-kind: demo.first\nProcedure {}\n",

@@ -13,7 +13,8 @@ A, B = "a.tac", "b.tac"
 
 
 def config(**changes):
-    base = {"procedures": {"k.a": A, "k.b": B}, "requiredCliProcedures": {"cmd.a": "k.a", "cmd.b": "k.b"}}
+    metadata = {kind: {"title": "T", "category": "c", "description": "d", "parameterSchema": {}, "defaults": {}} for kind in ("k.a", "k.b")}
+    base = {"procedures": {"k.a": A, "k.b": B}, "requiredCliProcedures": {"cmd.a": "k.a", "cmd.b": "k.b"}, "procedureMetadata": metadata}
     return {**base, **changes}
 
 
@@ -137,3 +138,23 @@ def test_ci_entry_point_fails_on_a_mismatch(monkeypatch, capsys):
     monkeypatch.setattr(registry, "discover_procedure_files", lambda: {"stray.tac": "Procedure {}\n"})
     assert registry.main() == 1
     assert "stray.tac" in capsys.readouterr().err
+
+
+def test_every_core_kind_is_registered_with_metadata_that_matches_its_tactus_input():
+    """The metadata is the one source of the schema a deploy registers; it must be the input the file declares. A default may be overridden
+    on purpose (a site's corpus key, a smaller token budget), but never left out, and never name a field the file does not declare."""
+    pytest.importorskip("tactus")
+    from papyrus_content.site_procedures import parameter_schema_from_tactus, tactus_registry
+
+    for kind in registry.registered_kinds():
+        metadata = registry.procedure_metadata_for_kind(kind)
+        schema, defaults = parameter_schema_from_tactus(tactus_registry(registry.procedure_source_for_kind(kind)).input_schema or {})
+        assert metadata["parameterSchema"] == schema, kind
+        assert set(defaults) <= set(metadata["defaults"]) <= set(schema["properties"]), kind
+
+
+def test_metadata_with_an_unknown_default_token_is_reported():
+    base = config()
+    base["procedureMetadata"]["k.a"]["defaults"] = {"model": "$defaultNothing"}
+    problems = registry.check_procedure_registry(base, files())
+    assert any("$defaultNothing" in p for p in problems)

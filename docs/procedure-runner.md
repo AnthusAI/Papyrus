@@ -182,25 +182,68 @@ record. Record the JSON on PPY-a5513c and PPY-567bf9. A second look at the site 
 for the procedure) shows exactly one record for that wake key, with the outcome `nothing` and the reason `wake_guard_check`. Run it again with a
 new time in the key for another proof; never reuse a request id.
 
-## Registering a site's procedure
+## Registering procedures: the deploy does it
 
-A publication's own procedures live in its repository (for example `procedures/ttab_ruling_analysis.tac`
-and `.claude/skills/ttab-ruling-analysis/`). From the site repository root, run:
+Procedures live in Git, and a site's deploy registers them. The Amplify build of a site runs `papyrus procedures seed-required` right
+after `papyrus-infra backend-deploy` (the generated production build spec, `infra/amplify-app-shell/lib/build-specs.ts`), as the build role on
+the operator lane (`PAPYRUS_GRAPHQL_AUTH=iam`) with `PAPYRUS_ROOT` at the site's checkout. Nothing is seeded by hand and there is no
+`npm run seed:amplify` step for a deployed site (that script still seeds a personal sandbox). The console only views and runs them.
+
+What it registers:
+
+- **Every core procedure**: all 14 kinds in `papyrus-required-procedures.json` (the registry; `procedures` maps each kind to its file in the
+  wheel, `procedureMetadata` holds each kind's title, category, description, parameter schema and defaults, so there is one source). The CLI
+  aliases in `requiredCliProcedures` are only a subset of the kinds.
+- **The site's own procedures**, listed in `papyrus-site-procedures.json` at the site's root (a site without the file has none):
+
+```json
+{
+  "version": 1,
+  "procedures": {"distinctive.ttab.ruling-analysis": "procedures/ttab_ruling_analysis.tac"}
+}
+```
+
+Each site file declares its kind on its first line (`-- papyrus-procedure-kind: distinctive.ttab.ruling-analysis`), as the core files do.
+A site procedure is registered the way `papyrus procedures register` always did it: Tactus validates it, its `input` block becomes the
+parameter schema and defaults, every skill directory its agents name (each with a `SKILL.md`) is stored beside it, and the version is
+published. The definition's category is `site`.
+
+The rules, each of which stops the deploy step with a plain error and writes nothing:
+
+- A site kind cannot take a core kind's name. To replace a core procedure on purpose, the site lists the kind under `"overrides"`; its
+  version then goes on the core definition and the core source is not written for that site.
+- A kind with no file, a file that declares another kind or none, a core kind with no metadata, or an unknown default token is refused.
+- A registry that is not valid JSON or is not `"version": 1` is refused.
+
+Unchanged procedures write nothing. A version's id carries a digest of the source, the skill files and (for a core procedure) its metadata,
+so the same Git state is never written twice; a change publishes a new version (version numbers count up) and archives the previous one.
+
+The first deploy that carries this registers the 14 core procedures on every site, and it is not quiet: each procedure registered earlier by
+the old seed (`procedure-version-<kind>-1`) gets a new digest version, because the kind header was added to ten of the files, and the kinds
+that were never seeded (`story.localize`, `references.curate`, `story.editor-review`, `newsroom.copywriter`, `newsroom.editor`,
+`newsroom.researcher`, `ingestion.reference.register`) are created. After that a deploy reports every kind unchanged until a file or its metadata
+changes.
+
+Before a deploy, and in CI, read-only checks:
+
+```bash
+papyrus procedures seed-required --dry-run --json   # reads the backend; says new, changed or unchanged for each procedure; writes nothing
+papyrus procedures seed-required --check            # the same read, and exits non-zero naming every procedure that differs from Git
+```
+
+`--check` is the drift check: a published version that differs from the file in Git, or a procedure that was never registered, fails it.
+`--root DIR` names the site's checkout (default: the current folder) and `--site-registry FILE` names another registry file.
+
+The worked example is Distinctive Mark's TTAB ruling analysis (`distinctive.ttab.ruling-analysis`, the procedure
+`distinctive.ttab` starts): `procedures/ttab_ruling_analysis.tac` and `.claude/skills/ttab-ruling-analysis/` in its repository, listed in its
+`papyrus-site-procedures.json` as above. Moving Distinctive onto this contract (the file, the kind line, the next deploy) is that site's own
+story. Until then, registering one procedure by hand is still possible and uses the same code:
 
 ```bash
 papyrus procedures register --file procedures/ttab_ruling_analysis.tac --key distinctive.ttab.ruling-analysis
 ```
 
-The command does four things:
-
-- It validates the procedure with Tactus.
-- It turns its `input` block into the version's parameter schema and defaults.
-- It finds every skill directory the procedure's agents name. Each one must hold a `SKILL.md`.
-- It stores the source and every skill file as attachments of a new published version, and archives the
-  previous published version.
-
-The version id is a digest of all those files, so registering unchanged files changes nothing. Use
-`--dry-run --json` to see the schema and skill files without writing anything.
+Use `--dry-run --json` there to see the schema and skill files without writing anything.
 
 ## Starting a procedure from a monitor
 

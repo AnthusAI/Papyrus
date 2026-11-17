@@ -112,7 +112,7 @@ for (const name of siteNames) {
 
 // Scenario: the generated gate stops without a success status and passes with one
 {
-  const commands = backendCommands(cmsProductionBuildSpec(parseSiteConfig(privateSite()))).filter((line) => !line.startsWith("- npm ci") && !line.includes("ampx") && !line.includes("PAPYRUS_CONSOLE") && !line.includes("alexa")).map(unquote);
+  const commands = backendCommands(cmsProductionBuildSpec(parseSiteConfig(privateSite()))).filter((line) => !line.startsWith("- npm ci") && !line.includes("ampx") && !line.includes("PAPYRUS_CONSOLE") && !line.includes("alexa") && !line.includes("papyrus-infra") && !line.includes("uv") && !line.includes(".venv") && !line.includes("papyrus procedures")).map(unquote);
   for (const withJq of [true, false]) {
     const branch = withJq ? "with jq" : "without jq";
     const missing = runGate(commands, { status: JSON.stringify({ state: "success", statuses: [{ state: "success", context: "other/check" }] }), withJq, commitId: "abc123" });
