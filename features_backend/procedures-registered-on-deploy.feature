@@ -25,7 +25,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
     Given a site backend where the core procedures were registered by an earlier deploy
     And the source of the kind "newsroom.editor" differs from what is published
     When the deploy registers the core procedures
-    Then the kind "newsroom.editor" is reported registered as version 2 and the other 13 are unchanged
+    Then the kind "newsroom.editor" is reported registered as version 2 and the other 14 are unchanged
     And the first version of "newsroom.editor" is archived and the definition points at the new version
 
   Scenario: A procedure registered before kind headers existed moves to a digest version
@@ -38,7 +38,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
     Given a site backend where the core procedures were registered by an earlier deploy
     And the source of the kind "newsroom.editor" differs from what is published
     When the deploy plans the core procedures without applying them
-    Then the kind "newsroom.editor" is reported changed and the other 13 are reported unchanged
+    Then the kind "newsroom.editor" is reported changed and the other 14 are reported unchanged
     And nothing was written to the backend
 
   Scenario: A drift check passes when every published version matches Git
