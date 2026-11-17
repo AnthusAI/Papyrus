@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: newsroom.reference.summarization
 -- Papyrus reference summarization procedure.
 --
 -- Shared operator-editable prompt surface for reference summary generation:

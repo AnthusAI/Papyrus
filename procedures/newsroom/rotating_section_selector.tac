@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: newsroom.rotating.section.selector
 -- Papyrus optional / rotating desk selector (edition planning step 2).
 --
 -- Run after phase-1 theme proposals are accepted. The agent should review

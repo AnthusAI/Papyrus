@@ -14,5 +14,21 @@
     "story-cycle.reporting": "newsroom.reporting.context",
     "edition-plan.rotating-desk": "newsroom.rotating.section.selector",
     "submissions.process-email": "submissions.email.process"
+  },
+  "procedures": {
+    "ingestion.reference.register": "procedures/newsroom/ingestion_reference_register.tac",
+    "newsroom.copywriter": "procedures/newsroom/copywriter.tac",
+    "newsroom.editor": "procedures/newsroom/editor.tac",
+    "newsroom.reference.summarization": "procedures/newsroom/reference_summarization.tac",
+    "newsroom.reporting.context": "procedures/newsroom/reporter.tac",
+    "newsroom.research.explorer": "procedures/newsroom/research_explorer.tac",
+    "newsroom.researcher": "procedures/newsroom/researcher.tac",
+    "newsroom.rotating.section.selector": "procedures/newsroom/rotating_section_selector.tac",
+    "ontology.concept-profiler": "procedures/newsroom/ontology_concept_profiler.tac",
+    "ontology.relationship-explainer": "procedures/newsroom/ontology_relationship_explainer.tac",
+    "references.curate": "procedures/newsroom/reference_curation.tac",
+    "story.editor-review": "procedures/newsroom/editor_review.tac",
+    "story.localize": "procedures/newsroom/story_localize.tac",
+    "submissions.email.process": "procedures/newsroom/email_submission_processor.tac"
   }
 }

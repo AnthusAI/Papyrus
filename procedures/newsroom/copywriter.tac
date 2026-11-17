@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: newsroom.copywriter
 -- Papyrus automated newsroom copywriter procedure.
 --
 -- Dry-run first: copywriting Assignments consume selected private reporting

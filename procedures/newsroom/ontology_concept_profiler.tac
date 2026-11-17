@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: ontology.concept-profiler
 -- Papyrus ontology concept profiler procedure.
 --
 -- Synthesizes a contextual Concept profile from fresh relation explanations.

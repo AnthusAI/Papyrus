@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: newsroom.researcher
 -- Papyrus automated newsroom researcher procedure.
 --
 -- Dry-run only: live Assignments return research packet payloads; the

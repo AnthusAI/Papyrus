@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: newsroom.reporting.context
 -- Papyrus automated newsroom reporter procedure.
 --
 -- Dry-run only: live reporting Assignments produce private reporting context

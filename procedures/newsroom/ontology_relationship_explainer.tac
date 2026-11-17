@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: ontology.relationship-explainer
 -- Papyrus ontology relationship explainer procedure.
 --
 -- Generates source-specific meaning for one SemanticRelation. Persistence is
