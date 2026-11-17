@@ -7,7 +7,6 @@ import {
   AUTOMATION_RUN_NOW_LEADING_KEYS,
   AUTOMATION_RUN_NOW_TABLE_ACTIONS,
   AUTOMATION_VIEW_FUNCTION_FIELDS,
-  PROCEDURE_RUNNER_FUNCTION_NAME,
 } from "../amplify/functions/automation-view/wire";
 
 const text = schema.transform().schema;
@@ -18,6 +17,12 @@ assert.ok(query, "the base schema defines automationOverview");
 assert.match(query, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(query), "no public, API-key or guest access");
 assert.ok(AUTOMATION_VIEW_TIMEOUT_SECONDS < 30, "the resolver finishes inside AppSync's 30 seconds");
+
+// Today is a query for editors and admins only, served by the same function as automationOverview (a shared function costs one resolver).
+const today = /todayOverview\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(today, "the base schema defines todayOverview");
+assert.match(today, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(today), "no public, API-key or guest access");
 
 // Run now is a mutation for editors and admins only; no IAM, guest or API-key rule is declared on it.
 const mutation = /runAutomation\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
@@ -32,14 +37,15 @@ assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
   "Query/fields/listAutomations",
+  "Query/fields/listAutomationsByTenant",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
+  "Query/fields/listProcedureRunsByStatusAndRequestedAt",
 ]);
 assert.ok(AUTOMATION_VIEW_FUNCTION_FIELDS.every((field) => field.startsWith("Query/")), "no mutation is granted");
 
-// Run now writes one monitoring row in a monitor's partition and starts the runner, and does nothing else.
+// Run now writes one monitoring row in a monitor's partition and puts a wake on its site's queue (wake-queue.ts allowWakeSending), and does nothing else.
 assert.deepEqual(AUTOMATION_RUN_NOW_TABLE_ACTIONS, ["dynamodb:PutItem"]);
 assert.deepEqual(AUTOMATION_RUN_NOW_LEADING_KEYS, ["MONITOR#*"]);
-assert.equal(PROCEDURE_RUNNER_FUNCTION_NAME, "papyrus-procedure-runner");
 
 // The Automation model: editors read, create and update; only admins delete; no guest, public or identity-pool access.
 const model = /type Automation @model[\s\S]*?\n}\n/.exec(text)?.[0] ?? "";

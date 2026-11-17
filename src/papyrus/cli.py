@@ -141,6 +141,9 @@ def _map_procedures(command: str, flags: list[str]) -> int:
     if command == "register":
         _delegate_content("newsroom", "register-procedure", flags)
         return 0
+    if command == "check-wake-guard":
+        _delegate_content("newsroom", "check-wake-guard", flags)
+        return 0
     if command == "execute-tactus":
         return _delegate_newsroom(["execute-tactus", *flags])
     if command == "policy":
@@ -378,6 +381,13 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         from papyrus_content.cli_doctor import run as doctor_run
         return doctor_run(args[1:])
 
+    if args[0] == "today":
+        from papyrus_content.options import parse_boolean_option, parse_options
+        from papyrus_content.today import command as today_command
+        flags = [*global_flags, *args[1:]]
+        options = parse_options(flags)
+        return today_command(options, as_json=parse_boolean_option(options.get("json"), False, "--json"))
+
     if args[0] == "links":
         from papyrus_content.console_links import links_command
         return links_command(args[1:])
@@ -404,12 +414,30 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         from papyrus_content.guidelines.cli import command as guidelines_command
         return guidelines_command(args[1:])
+    if group == "agents":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.agent_definitions.cli import command as agents_command
+        return agents_command(args[1:])
     if group == "announcements":
         if len(args) == 1:
             print_group_help(group)
             return 0
         from papyrus_content.announcements.cli import command as announcements_command
         return announcements_command(args[1:])
+    if group == "ratings":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.rating_cli import command as ratings_command
+        return ratings_command(args[1:])
+    if group == "pod":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus.pod.cli import command as pod_command
+        return pod_command(args[1:])
     if group == "figures":
         if len(args) == 1:
             print_group_help(group)

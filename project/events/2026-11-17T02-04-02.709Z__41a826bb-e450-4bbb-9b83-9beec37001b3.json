@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "41a826bb-e450-4bbb-9b83-9beec37001b3",
+  "issue_id": "PPY-d6232778-eb14-4f75-8c96-86ab184bbf9c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T02:04:02.709Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Production read of the agent policy for the runner: site API catalogue plus S3 body",
+    "description": "Done in the PR for PPY-c8175e (#1638). SiteCatalogue (getSiteDocument, getSiteDocumentVersion by key) over the site's API and SiteStore over S3, current version only; runner role gains s3:GetObject on tenants/*/site/agents/* (statement SiteAgentPolicyBody). The write side (a production adapter for AgentPolicyStore changes, with papyrus agents set-rung) is still open under H3, PPY-e6f31e.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

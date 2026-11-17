@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c0968aa4-a731-487e-bc8b-563b81eac0b2",
+  "issue_id": "PPY-5faf8215-983c-44b7-a47e-ba49015aefef",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T09:39:36.179Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Imported translations say who wrote them, not that AI did: page notice, Markdown twin, JSON-LD",
+    "description": "Gap left by PPY-b64b0b (PR #1654): an imported translation (metadata.localization.translation = imported, provenance naming the human author) still shows the reader's-language line 'translated by AI' under the byline, and its Markdown twin says 'Translation: machine'. False for human-written copy.\n\nFix: the page notice (components.translation_notice), the Markdown twin facts line, JSON-LD (translationOfWork stays; add author/translator for imported copy) and every renderer of the notice read the version's translation kind. For imported: say in the page's own language that the copy was written by the named author (from provenance) and link to the original; never claim AI. Machine behaviour unchanged. New interface strings translation.importedLabel (with {author} and {original}) required in every public language: es-419, zh-Hans, en. Specs: Gherkin for both kinds. Docs: multilingual-serving, story-translation-procedure.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+    "labels": []
+  }
+}

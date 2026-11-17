@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "3094160d-e6f7-4ff9-b014-5a3308260153",
+  "issue_id": "PPY-994ff6d9-0f3e-4fa5-a37e-d3224a201500",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:06.308Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Promotion evidence: what a person sees before raising a rung",
+    "description": "A site starts quiet and is promoted by a person, on evidence. For each agent, `papyrus agents evidence --id` and the agent's page show, from its runs at the current rung: how often people accepted, changed or rejected what it proposed or drafted, with the interval, read by index. The system may say 'ready to promote' when the lower bound of agreement meets the site's target, the same way automatic acceptance learns its threshold; it never promotes by itself. A demotion is one operation and takes effect at the next wake.\n\n**Acceptance criteria**\n- The evidence is computed from recorded decisions, not from a fixed count.\n- The system never changes a rung.\n- Demotion takes effect at the next wake.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- promotion-evidence.feature: proposals people accepted raise agreement; rejected ones lower it; too little evidence says so; a demotion applies to the next run.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Authorization: the autonomy ladder as configuration. Slice code E6 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

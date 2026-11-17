@@ -1,0 +1,34 @@
+{
+  "id": "PPY-ecf8524f-bc68-4a7e-8193-1e29cced9c8f",
+  "title": "An answer to a review request wakes the agent that asked",
+  "description": "When a run ends `asked`, the review request names the run and the agent. A person's answer (approve, reject, feedback) is a change that wakes that agent with the answer; the run re-reads the records and continues or stops. The request's `appliedIn` names the run that used the answer. Nothing holds a session open while waiting, and a person who never answers blocks only that one item.\n\n**Acceptance criteria**\n- An approval continues the work once.\n- Feedback reaches the next run as input.\n- An unanswered request blocks nothing else.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- ask-and-answer.feature: an approval wakes the asker and the work completes; a rejection ends it with the reason; feedback is in the next run's input; another Story proceeds while one waits.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Work items and handoffs between agents and people. Slice code F4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-928a91fb-7fe8-4bd4-85f1-e0bef41e5897",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9b9e64dc-cb45-42ee-b370-705145d0b444",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9b8e5955-bcb4-47ed-9491-d615247310cf",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:07.152338Z",
+  "updated_at": "2026-11-16T22:43:31.709037Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -25,7 +25,8 @@ always has its translation:
   Markdown twins, its feeds and its structured data, never in the primary language's words);
 * ``footer.text`` when the site sets ``footer.text``;
 * ``translation.label`` and ``translation.original``: the line every translated page carries ("Traducido por IA del {original}", with ``{original}`` the
-  link to the original, whose words are ``translation.original``: "original en inglés").
+  link to the original, whose words are ``translation.original``: "original en inglés"). An imported translation (``papyrus stories import-translation``)
+  shows only the link, in the words of ``translation.original``, and never says AI: who wrote it is the byline's to say.
 
 :func:`missing_keys` is the check: a public language whose file lacks a key the rule requires is refused by the projection, naming the language and the
 keys, so English words never appear on a Spanish page because a translation was forgotten.

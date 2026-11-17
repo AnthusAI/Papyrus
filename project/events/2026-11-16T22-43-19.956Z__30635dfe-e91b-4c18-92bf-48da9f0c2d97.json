@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "30635dfe-e91b-4c18-92bf-48da9f0c2d97",
+  "issue_id": "PPY-d99bd016-368d-4f43-b4d7-8d3fc590d169",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:19.956Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Examples reach the drafter, and every draft names what it read",
+    "description": "The drafter loads, for the channel, kind and publication it is writing for: the guideline files that apply, and the active examples for that scope, newest first, within the context pack's budget. Each Delivery records the guideline ids, versions and hashes and the example ids it was drafted under. `papyrus announcements explain --delivery X` prints them. An example that an accepted guideline was derived from is marked absorbed and is no longer loaded by itself.\n\n**Acceptance criteria**\n- A draft after an example with matching scope follows it; a draft outside the scope does not load it.\n- Every draft is explainable by listing what it read.\n- Absorbed examples are not loaded.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- drafter-examples.feature: an example for channel X is loaded for X and not for email; the Delivery lists the examples it read; an absorbed example is skipped; turning an example off removes it from the next draft.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Announcements learn from a person's edits. Slice code O3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f51641cb-954c-4ce7-96a7-6902ed923b61",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

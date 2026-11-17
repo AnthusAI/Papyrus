@@ -1,0 +1,38 @@
+{
+  "id": "PPY-18b5820e-37d1-489e-a322-5241a95c42fa",
+  "title": "Improvement and copy-edit as an agent",
+  "description": "Definition for `improve`: copy editing against the site's policies on a draft (woken by the checklist step), and improvement passes on published Stories (woken by a person's request or a redirect, never by a schedule that walks the archive). Editorial rewriting uses the `editorial` tier; rule checks are free. Every change is a new version with a reason. Articles are never locked: a new event may be folded into any article where it fits, as an Assignment.\n\n**Acceptance criteria**\n- A draft's copy-edit step runs when ready.\n- A published Story is improved only on a request or a relevant new event.\n- Every change is a new version a person can revert.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- improve-agent.feature: the copy-edit step runs once per version; an improvement request produces a new version; nothing walks the archive on a timer; revert restores the earlier version.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Every other responsibility as an agent. Slice code M6 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-c9c1653d-9193-46e8-9430-2c32ff1a2ee2",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:15.408681Z",
+  "updated_at": "2026-11-16T22:43:46.399393Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

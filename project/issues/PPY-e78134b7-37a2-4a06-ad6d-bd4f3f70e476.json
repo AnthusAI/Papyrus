@@ -1,0 +1,33 @@
+{
+  "id": "PPY-e78134b7-37a2-4a06-ad6d-bd4f3f70e476",
+  "title": "Announcement and Delivery notes in a pod",
+  "description": "Announcement and Delivery are notes with the same field names (type papyrus:Delivery etc.); the words are the body, outside the graph and never built into a page. attempts is a list of one-line entries and pod check fails if an earlier line changed since the last commit. supersedes is a typed link. A pod delivers in manual mode only. On load the notes become the same records as history; a load sends nothing. Neither type is ever a page. Widen cites and authored_by to Stories and add the announces and supersedes types.\n\n**Acceptance criteria**\n- Gherkin: Announcement and Delivery notes (load as history and send nothing; a changed earlier attempt line fails the check; never a page).\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e4fd0c08-42b5-455e-8ddc-c07e33536a2a",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4834f36f-0aa8-405c-83b8-9b8a38417874",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:38.792114Z",
+  "updated_at": "2026-11-16T22:02:50.248188Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

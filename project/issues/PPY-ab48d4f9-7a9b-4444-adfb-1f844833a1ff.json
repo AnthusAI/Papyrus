@@ -1,0 +1,31 @@
+{
+  "id": "PPY-ab48d4f9-7a9b-4444-adfb-1f844833a1ff",
+  "title": "Attempt log follow-up: release Caducus with the attempt id and remove :r<round> event ids",
+  "description": "**Problem.** PPY-a570e8 (closed) says Caducus accepts `delivery:<id>:a<N>`, but Caducus PR #21 is merged to Caducus `develop` only; Caducus's latest release is 0.3.0 and Papyrus pins `==0.3.0`. The old `:r<round>` event id is still in `announcements/channel.py:32`. Closed with one criterion unmet; filed here, not reopened.\n\n**Change.** (1) Release Caducus with the attempt id and bump the Papyrus pin, before any work that sends on the new records. (2) Remove `:r<round>` event ids from Papyrus code. Item (2) may be done inside PPY-efd06c (X on the new records), which deletes the old path anyway; whichever is chosen is written on both tasks.\n\n**Acceptance criteria**\n- A Caducus release containing PR #21 exists and Papyrus pins it.\n- No `:r<round>` event id remains in Papyrus; sends use `delivery:<id>:a<N>`.\n- A scenario sends through the channel entry point and shows the attempt id reaching Caducus.\n\n**Gherkin features needed**\n- attempt-event-id.feature: 'a send uses the attempt event id'; 'a retry uses the next attempt number, never a round suffix'.\n\n**Dependencies:** relates PPY-a570e8 and PPY-efd06c. Does not block the rating agent. Must land before any work that sends on the new records (X on the new records, PPY-efd06c).\n\n**Report:** papyrus-track-report-1.md, section 1 (#1631 row; follow-up 4); checklist step 13.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-a570e8f9-e2b9-4fde-9afb-ea99e5b84e43",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-efd06c84-419f-4034-8240-b473d3d9d6c4",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-17T01:17:21.737537Z",
+  "updated_at": "2026-11-17T01:18:20.023999Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

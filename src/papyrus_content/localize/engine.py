@@ -28,7 +28,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 
-from .blocks import FIELD_PREFIX, Block, PlaceholderError, Protected, blocks_of, join_body, protect, protect_like
+from .blocks import FIELD_PREFIX, Block, PlaceholderError, Protected, blocks_of, join_body, keep_soft_breaks, protect, protect_like
 from .budget import Prediction
 from .checks import BlockChecker, Finding, apply_fixes, closing_emphasis, faithfulness_worse, tally
 from .models import PROMPT_VERSION, LocalizeModels, Spend, StructuredOutputMissing
@@ -124,6 +124,22 @@ class _Slot:
     conflict: bool = False
     findings: list[Finding] = field(default_factory=list)
     checked: bool = False
+
+
+def _slot_at(body_slots: list[_Slot], body: str, finding: Finding) -> _Slot | None:
+    """The body block whose text holds a document-level finding: by its span in the assembled body, else by the quoted excerpt."""
+    if finding.span and finding.span[0] is not None:
+        from humanus.check import Utf16Offsets
+
+        position, offsets = 0, Utf16Offsets(body)
+        at = offsets.to_index(finding.span[0])
+        for slot in body_slots:
+            text = slot.text.strip("\n")
+            if position <= at < position + max(len(text), 1):
+                return slot
+            position += len(text) + 2   # join_body's blank line
+        return None
+    return next((slot for slot in body_slots if finding.excerpt and finding.excerpt in slot.text), None)
 
 
 def _spaced(language: str) -> bool:
@@ -227,7 +243,7 @@ class Localizer:
                     problems[block_id] = "it was missing from your answer"
                     continue
                 try:
-                    slot.text = self._normalize(slot.protected.restore(text))
+                    slot.text = self._normalize(slot.protected.restore(text), slot.source.text)
                 except PlaceholderError as error:
                     problems[block_id] = str(error)
                     continue
@@ -237,8 +253,10 @@ class Localizer:
         raise RunFailed(f"the translator did not return a usable translation of {len(pending)} block(s) after {MAXIMUM_ATTEMPTS} attempts: "
                         + "; ".join(f"{block_id}: {problem}" for block_id, problem in list(problems.items())[:3]))
 
-    def _normalize(self, text: str) -> str:
-        return closing_emphasis(text, _spaced(self.request.language))
+    def _normalize(self, text: str, source: str) -> str:
+        """Code's own repairs of a machine-owned block's text: emphasis that would not render, and a soft line break of the source that the translator
+        made a blank line (``blocks.keep_soft_breaks``: only where the line structure of the two blocks provably lines up)."""
+        return keep_soft_breaks(source, closing_emphasis(text, _spaced(self.request.language)))
 
     # --- stages 4 to 6: the checks ---------------------------------------------------------------------------------------------------------------
 
@@ -261,8 +279,8 @@ class Localizer:
 
     # --- stages 7 and 8: refine until it converges ----------------------------------------------------------------------------------------------
 
-    def _converge(self, slots: list[_Slot]) -> None:
-        machine = [slot for slot in slots if slot.owner == "machine" and slot.source.translated and not slot.conflict]
+    def _converge(self, slots: list[_Slot], only: list[_Slot] | None = None) -> None:
+        machine = [slot for slot in (slots if only is None else only) if slot.owner == "machine" and slot.source.translated and not slot.conflict]
         before = tally(f for slot in machine for f in slot.findings)
         number = 0
         while True:
@@ -299,7 +317,7 @@ class Localizer:
         remaining: dict[str, list[Finding]] = {}
         for slot in candidates:
             fixed, applied = apply_fixes(slot.text, slot.findings)
-            proposals[slot.source.id] = self._normalize(fixed) if applied else slot.text
+            proposals[slot.source.id] = self._normalize(fixed, slot.source.text) if applied else slot.text
             # A repair by code can settle a finding that would otherwise ask the model (the glossary's "IA" for a kept "AI"): the model is asked
             # only about what the repaired text still has. The check of that text is stored, so the round's own check of it costs nothing more.
             remaining[slot.source.id] = self._findings(slot.source.text, proposals[slot.source.id]) if applied else slot.findings
@@ -334,7 +352,7 @@ class Localizer:
                     problems[block_id] = "it was missing from your answer"
                     continue
                 try:
-                    proposals[block_id] = self._normalize(slot.protected.restore(text))
+                    proposals[block_id] = self._normalize(slot.protected.restore(text), slot.source.text)
                 except PlaceholderError as error:
                     problems[block_id] = str(error)
                     continue
@@ -364,10 +382,13 @@ class Localizer:
         translated_fields = {slot.source.kind[len(FIELD_PREFIX):]: slot.text for slot in slots if slot.source.kind.startswith(FIELD_PREFIX)}
         body_slots = [slot for slot in slots if slot.source.kind not in ("title", "deck") and not slot.source.kind.startswith(FIELD_PREFIX)]
         body = join_body([slot.text for slot in body_slots])
-        findings = [f for slot in slots for f in slot.findings]
         document: list[Finding] = []
         if stopped is None:
             document, _ = request.checker.faithfulness_document(request.source.body, body)
+            if self._repair_document(body_slots, body, document):
+                body = join_body([slot.text for slot in body_slots])
+                document, _ = request.checker.faithfulness_document(request.source.body, body)
+        findings = [f for slot in slots for f in slot.findings]
         remaining = [f for f in findings + document if f.category == "faithfulness" and f.severity == "error" and f.status == "violation"]
         hold_reasons = []
         if remaining:
@@ -406,6 +427,30 @@ class Localizer:
                   "translation": {"title": title, "deck": deck, "fields": translated_fields, "body": body, "blocks": [s.text for s in slots]},
                   "provenance": provenance}
         return result
+
+    def _repair_document(self, body_slots: list[_Slot], body: str, document: list[Finding]) -> bool:
+        """Gives the block a whole-document structure finding is about back to the repair loop. The block checks cannot see an extra paragraph inside a
+        container (the container is one block), so the finding is found only on the assembled body; its span says which block holds it. That block gets
+        the finding as a problem to repair (the refine prompt says to delete any paragraph the source does not have), and the loop runs on it alone. Nothing
+        is loosened: the whole body is checked again afterwards, and a rewrite that still adds the paragraph leaves the finding, which holds the translation.
+        Returns whether any block's text changed."""
+        targets: dict[int, tuple[_Slot, Finding]] = {}
+        for finding in document:
+            if finding.policy != "structure" or finding.severity != "error" or finding.status != "violation":
+                continue
+            slot = _slot_at(body_slots, body, finding)
+            if slot is not None and slot.owner == "machine" and slot.source.translated and not slot.conflict and id(slot) not in targets:
+                targets[id(slot)] = (slot, Finding(category="faithfulness", policy="structure", severity="error", status="violation", message=finding.message,
+                                                   excerpt=finding.excerpt, source_excerpt=finding.source_excerpt, drives_rewrite=True))
+        if not targets:
+            return False
+        before = {id(slot): slot.text for slot, _ in targets.values()}
+        for slot, finding in targets.values():
+            slot.findings = slot.findings + [finding]
+        self._converge(body_slots, only=[slot for slot, _ in targets.values()])
+        for slot, finding in targets.values():
+            slot.findings = [f for f in slot.findings if f is not finding]   # the whole-document check is the one record of it
+        return any(slot.text != before[id(slot)] for slot, _ in targets.values())
 
     def _report_back(self, slots: list[_Slot]) -> list[dict[str, Any]]:
         """Stock phrasing the copy edit keeps finding in the translation that the English block has too: advice for the English Story's editor

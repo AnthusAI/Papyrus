@@ -5,12 +5,14 @@ import os
 import re
 import subprocess
 import urllib.parse
+import uuid
 import ast
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .env import PAPYRUS_ROOT, resolve_corpora_file
+from . import run_outcomes, wake_keys
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
 REQUIRED_PROCEDURES_CONFIG_PATH = resolve_corpora_file("corpora/papyrus-required-procedures.json")
@@ -32,6 +34,7 @@ START_PROCEDURE_RUN_MUTATION = """
   mutation StartProcedureRun(
     $procedureKey: String
     $procedureVersionId: ID
+    $wakeKey: String
     $title: String
     $summary: String
     $actorLabel: String
@@ -40,6 +43,7 @@ START_PROCEDURE_RUN_MUTATION = """
     startNewsroomProcedureRun(
       procedureKey: $procedureKey
       procedureVersionId: $procedureVersionId
+      wakeKey: $wakeKey
       title: $title
       summary: $summary
       actorLabel: $actorLabel
@@ -56,6 +60,8 @@ UPDATE_PROCEDURE_RUN_MUTATION = """
       procedureVersionId
       procedureVersionNumber
       runStatus
+      outcome
+      outcomeReason
       output
       error
     }
@@ -213,6 +219,15 @@ def update_cloud_procedure_run_record(client: PapyrusGraphQLAuthoringClient, pay
             "input": {
                 "id": payload["id"],
                 "runStatus": payload["runStatus"],
+                # A finished run always says what came of it (docs/design/always-on-agents-architecture.md section 3.2).
+                "outcome": payload["outcome"],
+                "outcomeReason": payload.get("outcomeReason"),
+                "automationId": payload.get("automationId"),
+                # Under which responsibility, policy version and rung the run was decided (PPY-c8175e). Sent only when a policy applied.
+                **{key: payload[key] for key in ("responsibility", "policyVersion", "rung") if payload.get(key) is not None},
+                "subjectKind": payload.get("subjectKind"),
+                "subjectId": payload.get("subjectId"),
+                "subjectVersion": payload.get("subjectVersion"),
                 "startedAt": payload.get("startedAt"),
                 "finishedAt": payload.get("finishedAt"),
                 "resultSummary": payload.get("resultSummary"),
@@ -774,6 +789,8 @@ def start_cloud_procedure_run(
         {
             "procedureKey": procedure_key,
             "procedureVersionId": version["id"],
+            # A run started here is a person's request: its own key, so it never collides with a scheduled or changed-record run.
+            "wakeKey": wake_keys.manual_key(wake_keys.owner(None, procedure_key), uuid.uuid4().hex),
             "title": title,
             "summary": summary,
             "actorLabel": actor_label,
@@ -852,11 +869,17 @@ def start_cloud_procedure_run(
             "stdoutPath": str(effective_stdout_path),
             "stderrPath": str(effective_stderr_path),
         }
+    ended = run_outcomes.finished_outcome(not error, execution_output, error["message"] if error else None)
+    if not error and ended["runStatus"] == "failed":   # the procedure's own outcome declaration was not allowed
+        error = {"message": ended["error"], "exitStatus": completed.returncode, "signal": None,
+                 "stdoutPath": str(effective_stdout_path), "stderrPath": str(effective_stderr_path)}
     updated = update_cloud_procedure_run_record(
         client,
         {
             "id": run_id,
             "runStatus": "failed" if error else "completed",
+            "outcome": ended["outcome"],
+            "outcomeReason": ended["outcomeReason"],
             "startedAt": started_at,
             "finishedAt": finished_at,
             "resultSummary": None

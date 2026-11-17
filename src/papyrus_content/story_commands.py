@@ -1399,6 +1399,72 @@ def stories_correct_translation(flags: list[str]) -> None:
         content_publish(["--id", record["id"], *(["--verify"] if verify else []), *(["--json"] if as_json else [])])
 
 
+def stories_import_translation(flags: list[str]) -> None:
+    """papyrus stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]
+
+    Attaches finished copy, written separately by people or other agents, as the translation of a published Story. It saves the copy as the next version of
+    ``<story>--<language>`` the way the translation procedure saves one (unpublished, paired with the English version it translates, the original's
+    pictures carried, its address drafted by the language's slug policy), with the writer as its author and a provenance that says the copy was written,
+    not machine-generated. The version's front matter gets ``author: NAME`` (--written-by) and, only with --drafting-by-ai (bots helped write the copy),
+    ``drafting: {by: AI}``, in place of the English's; the site's standard byline reads from those two keys ("By NAME", or "By various bots and NAME") and is
+    translated into the page's language like every byline. The page of an imported translation says nothing of who translated it, only where the original is. Every block is the writer's: owner human, pinned, so a later translation run keeps the copy exactly.
+
+    FILE is the body in Markdown. The front matter is YAML with the Story's own reader-facing texts (title, dek or deck, and blurb and imageAlt when the
+    English has them), in its own file or as a leading --- block of the body file. The copy must have the English's blocks in the same order (blocks are
+    separated by blank lines), the same link targets, web addresses, citations, credits and figure settings, and the English's code blocks and rules; a copy
+    that does not line up, or changes one of those, is refused and nothing is saved. No model is called: the parity and glossary rules and the language's
+    copy-edit policies check each block and the whole body. An error-severity faithfulness finding holds the version (a flag review request a person
+    answers before it publishes), exactly as it holds a machine translation; other findings are printed as advice.
+
+    The Story must be published, in a language the site writes in, and not itself a translation. The command also writes the Story's translation request
+    finished, so ``papyrus stories localize --all`` counts the language up to date. It never publishes: use ``papyrus ops content publish --id VERSION_ID``.
+
+    Writes by default; --dry-run prints the alignment and the findings and writes nothing. See docs/story-translation-procedure.md, "Finished copy"."""
+    from .localize.import_copy import import_translation
+
+    options = parse_options(flags)
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    body_file = _required_option(options, "body-file")
+    front_matter_file = normalize_string(options.get("front-matter-file"))
+    written_by = _required_option(options, "written-by")
+    reason = _required_option(options, "reason")
+    drafting_by_ai = parse_boolean_option(options.get("drafting-by-ai"), default=False, label="--drafting-by-ai")
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
+
+    def read(path: str, flag: str) -> str:
+        if not Path(path).is_file():
+            raise ValueError(f"{flag} {path} is not a file.")
+        return Path(path).read_text(encoding="utf-8")
+
+    body = read(body_file, "--body-file")
+    front_matter = read(front_matter_file, "--front-matter-file") if front_matter_file else None
+    client, claims = create_authoring_client()
+    applied_by = normalize_string((claims or {}).get("sub")) or "papyrus-cli"
+    done = import_translation(client, story=story, language=language, body=body, front_matter=front_matter, written_by=written_by, applied_by=applied_by,
+                              reason=reason, drafting_by_ai=drafting_by_ai, apply=not dry_run)
+    record = done.record
+    if as_json:
+        print(json.dumps({"dryRun": dry_run, "lineage": done.lineage, "language": done.language, "blocks": done.pairs, "findings": done.findings,
+                          "held": done.held, "reason": done.reason, "reviewRequest": done.review_request, "replaces": done.replaces,
+                          "unchanged": done.unchanged, "versionId": record["id"] if record else None, "published": False}, ensure_ascii=False))
+        return
+    row = lambda *cells: print("\t".join(["stories", "import-translation", done.lineage, *cells]))  # noqa: E731
+    for pair in done.pairs:
+        row(f"block {pair['block']}", pair["kind"], "aligned", pair["english"].replace("\n", " ")[:80], "->", pair["copy"].replace("\n", " ")[:80])
+    for finding in done.findings:
+        row(f"block {finding['block']}" if finding["block"] else "body", finding["kind"], f"{finding['severity']} {finding['category']}", finding["policy"],
+            finding["message"], finding["excerpt"])
+    if done.replaces:
+        row("replaces", f"version {done.replaces['versionNumber']}", f"{done.replaces['translation']} copy, {done.replaces['status']}", "kept in the version history")
+    status = "held: flag review request " + str(done.review_request) + " (" + done.reason + ")" if done.held else "no error findings"
+    if dry_run:
+        row("dry run", f"{len(done.pairs)} block(s) aligned", status)
+    else:
+        row("unchanged" if done.unchanged else f"saved {record['id']}", f"{len(done.pairs)} block(s) pinned to {written_by}", status)
+
+
 def stories_localize(flags: list[str]) -> None:
     """papyrus stories localize --story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run] [--json]
 

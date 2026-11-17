@@ -32,7 +32,7 @@ const backend = {
   createStack: (name: string) => new Stack(app, name, { env }),
 };
 
-wireLocalizationDispatch(backend, contentActions);
+wireLocalizationDispatch(backend, contentActions, "sample-site");
 const assembly = app.synth();   // throws on a dependency cycle between stacks
 const stack = (name: string): Template => Template.fromJSON(assembly.getStackByName(name).template);
 
@@ -43,14 +43,16 @@ stack("data").hasResourceProperties("AWS::DynamoDB::Table", { StreamSpecificatio
 const dispatcher = stack("localization-dispatch");
 dispatcher.hasResourceProperties("AWS::Lambda::EventSourceMapping", { FunctionResponseTypes: ["ReportBatchItemFailures"], StartingPosition: "LATEST", BatchSize: 10 });
 dispatcher.hasResourceProperties("AWS::Lambda::Function", {
-  Environment: { Variables: Match.objectLike({ PAPYRUS_GRAPHQL_AUTH: "iam", PROCEDURE_RUNNER_FUNCTION: "papyrus-procedure-runner", PAPYRUS_MONITORING_TABLE_PARAMETER: Match.anyValue(), [CONTENT_ACTIONS_ENV]: Match.anyValue() }) },
+  Environment: { Variables: Match.objectLike({ PAPYRUS_GRAPHQL_AUTH: "iam", PAPYRUS_MONITORING_TABLE_PARAMETER: Match.anyValue(), [CONTENT_ACTIONS_ENV]: Match.anyValue() }) },
 });
 
 // Its rights are the ones the dispatcher uses and no more: a few fields of its own site's API, the monitoring table (read, and one Run now row in a
-// monitor's partition), the procedure runner and the content-actions function.
+// monitor's partition), the site's own wake queue (look it up and send to it, nothing more) and the content-actions function.
 const policies = JSON.stringify(dispatcher.findResources("AWS::IAM::Policy"));
 for (const field of DISPATCH_API_FIELDS) assert.ok(policies.includes(`types/${field}`), field);
-assert.ok(policies.includes("function:papyrus-procedure-runner"), "it starts the runner");
+assert.ok(policies.includes("papyrus-sample-site-agent-wakes.fifo") && policies.includes("sqs:SendMessage") && policies.includes("sqs:GetQueueUrl"), "it puts wakes on its site's queue");
+assert.ok(!policies.includes("papyrus-procedure-runner"), "it no longer starts the runner itself");
+assert.ok(!policies.includes("sqs:ReceiveMessage") && !policies.includes("sqs:DeleteMessage") && !policies.includes("sqs:*"), "it may not read or delete wakes");
 assert.ok(policies.includes("dynamodb:PutItem") && policies.includes("MONITOR#*"), "it writes Run now's row in a monitor's partition");
 for (const forbidden of ["dynamodb:Scan", "dynamodb:DeleteItem", "dynamodb:UpdateItem", "dynamodb:*", "lambda:*", "Query/fields/*", "Mutation/fields/*"]) {
   assert.ok(!policies.includes(forbidden), `the dispatcher must not hold ${forbidden}`);

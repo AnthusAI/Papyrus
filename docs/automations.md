@@ -13,13 +13,14 @@ describes that, links to it, controls it, costs it and shows what it did.
 |---|---|
 | `monitor` triggers | Live, because the monitoring router already runs them. The router's `procedureTriggers` entry still says what starts and with what input; the record mirrors it and now governs it (below). |
 | `event` trigger "story enters a stage" | **Live from the command line and the runner** (below, "Story-state triggers"). |
-| `schedule`, `manual` triggers, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
+| `schedule` trigger | **Live** (below, "The schedule trigger"). The time and zone come from the agent's registered definition; the record names the router publication that gives each tick the site's endpoint, model key and policy location (`config.monitorId` and `config.publicationId`, both or neither, set with `papyrus automations update`). The console and the command line show the time and zone in words, not "not yet supported". Its input is static. |
+| `manual` trigger, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
 | `enabled` | **Real for monitor automations.** The router reads the record before each start. A disabled automation starts nothing, and the trigger row says `skipped` with the reason "automation disabled". |
 | `limits.timeoutSeconds` | **Enforced.** It goes to the runner with the request and becomes the procedure's deadline, capped at 840 s (the runner Lambda's 15 minutes less its recording margin). |
 | `limits.maxConcurrent` | **Optional; unset means no limit, as before.** When set, a new start at the limit is **deferred**, not dropped: the trigger row says `deferred` with the reason ("deferred: concurrency limit: 1 running, at most 1 at a time") and the router starts it on a later run when there is room. |
 | `limits.budgetUsdPerRun` | **Advisory.** A run is never stopped for it. The history compares each run's recorded cost with it and flags a run over it. |
 | Cost per run | **Recorded** (below). |
-| Run now | **Live** for monitor automations, from the command line and the console. |
+| Run now | **Live** for monitor automations and for schedule automations that name a router publication, from the command line and the console. |
 
 The monitoring router, the procedure runner and the registered procedure still own the starting. The router's
 `CONFIG#router` entry stays the source of truth for what starts; the record is read for whether it may and with
@@ -39,6 +40,10 @@ mismatched record can never stop Distinctive's TTAB analysis:
 
 Two records for the same trigger: the one with the lowest id governs.
 
+The router's rule above only decides whether the router *sends* the request. The procedure runner then reads the site's agent policy
+before it starts the run ([procedure runner](procedure-runner.md)), and starts nothing for an automation that has not been adopted
+or whose responsibility is `off` or paused. See "Adopting an automation" below.
+
 ### How a run counts as "running" for `maxConcurrent`
 
 A run counts while its row says `starting`, `started` or `running` and it began less than its timeout plus two
@@ -55,6 +60,12 @@ How a deferred item is retried:
   the item and the row moves to `starting`, then `started` (with `retriedAt`), and the runner takes it from there. If the
   automation is full, the rest keep waiting. If the automation was disabled meanwhile the row becomes `skipped`. If the
   record has gone, the item starts as before. A retry that fails to start is recorded `startFailed`.
+* Every retry builds the item's wake key from the row (the automation, or the procedure when none governed it; the
+  Reference id; a new Reference), the form the first start used, and ignores any key stored on the row. A row deferred
+  before wake keys existed therefore starts like any other, and a retry is the same wake as the first attempt, so it
+  can never start a second run. A row without the data for a key (no Reference id) is recorded `startFailed` with the
+  reason and counted in `procedureStartFailed`; it is not guessed at. Before and after a release, read the count of
+  `deferred`, `starting` and `startFailed` trigger rows per site.
 * Retries happen as often as the router runs (every 15 minutes), one per free slot per run at most.
 * Setting the limit: `papyrus automations update --id distinctive.ttab --max-concurrent 4`. Clear it with
   `--max-concurrent none`. A record created before this change was given `maxConcurrent: 1` by the old default; if you
@@ -178,10 +189,13 @@ but no model call stores only `toolsUsed` (no cost). `automations runs` prints `
 
 ## Run now
 
+Each Run now carries its own wake key, `<automation id>|manual|<request id>` with a fresh request id, so it never collides with a
+scheduled or changed-record run of the same automation (`docs/procedure-runner.md`).
+
 * Command line: `papyrus automations run --id distinctive.ttab --input '{"proceeding":"97752244","opinion_url":"https://..."}'`
   (`--dry-run` checks everything and starts nothing; `--json`). It needs the same things `runs` needs (AWS
   credentials that can read the monitoring table through the SSM parameter) plus `dynamodb:PutItem` on it and
-  `lambda:InvokeFunction` on `papyrus-procedure-runner` (override with `PAPYRUS_PROCEDURE_RUNNER_FUNCTION`).
+  `sqs:GetQueueUrl` and `sqs:SendMessage` on the site's wake queue, `papyrus-<site>-agent-wakes.fifo`.
 * Console: a **Run now** button on the automation, for editors and admins. It does not start on the first click: a
   confirm step says what will run, that it calls a model and counts against the limit, and asks for the input of this
   run. The mutation is `runAutomation(automationId, input)`; it is served by the `papyrus-automation-view` function.
@@ -194,7 +208,7 @@ disabled, has no router publication for this site, or is at its `maxConcurrent`.
 
 1. writes `MANUAL#<automationId>#<timestamp>` in the monitor's partition (`MONITOR#<monitorId>`) of the monitoring table,
    with who started it and the runner request, status `starting`;
-2. invokes `papyrus-procedure-runner` asynchronously with the automation's `procedureKey`, the input, the router
+2. puts a wake on the site's wake queue (the runner consumes it) with the automation's `procedureKey`, the input, the router
    publication's endpoint and key parameter, and `timeoutSeconds`; if that fails the row says `startFailed`;
 3. the runner sets the row `running` with the `runId` as soon as the run exists, and its outcome at the end.
 
@@ -277,6 +291,7 @@ papyrus automations run --id distinctive.ttab --input '{"proceeding":"97752244",
 papyrus automations create --id distinctive.ttab --title "Analyze new TTAB rulings" \
   --monitor ttab --publication distinctive --procedure distinctive.ttab.ruling-analysis \
   --input '{"proceeding":"{sourceIdPrefix}","opinion_url":"{documentUrl}"}' [--dry-run]
+papyrus automations adopt --id distinctive.ttab --responsibility KEY [--dry-run] [--json]
 papyrus automations update --id distinctive.ttab [--enabled false] [--title T] [--input JSON] \
   [--timeout-seconds N] [--max-concurrent N] [--budget-usd N] [--dry-run]
 ```
@@ -288,6 +303,101 @@ line on this lane: `run --dry-run`, and `runs --limit` above the site's default 
 lane (`PAPYRUS_GRAPHQL_AUTH=iam`, with credentials that can read the monitoring table through the SSM parameter
 `/papyrus/monitoring/table-name` and invoke the procedure runner) for those. `create` and `update` use the authoring client
 on either lane.
+
+## Adopting an automation
+
+An automation carries an optional `responsibility`: the one standing responsibility of the agent catalog it fills (`rate`, `translate`,
+`announce` and so on). It is set only by `papyrus automations adopt`, by an admin who is a person, and is never inferred from the
+procedure or the trigger. Adopting writes nothing else: it never sets a rung and never starts or stops a run.
+
+```bash
+papyrus automations adopt --id distinctive.ttab --responsibility KEY --dry-run
+papyrus automations adopt --id distinctive.ttab --responsibility KEY
+```
+
+The runner starts a run only for an adopted automation whose responsibility the site's agent policy raises above `off` and has not
+paused. Otherwise the run is recorded as "Nothing to do" with the reason `not_adopted`, `rung_off` or `paused` (shown by
+`papyrus automations runs`), with the policy version and rung it was decided under. An adopted automation is not changed to another
+responsibility by a second `adopt`. The steps for a site are in [releasing](releasing.md#enforcing-the-agent-policy-on-a-site).
+
+## The registered copy of an agent definition
+
+An agent's definition file lives in Git ([always-on agents](design/always-on-agents-architecture.md#31-what-an-agent-definition-is)). The site's backend holds the
+**registered copy** on the agent's Automation record, in four fields: `definitionId`, `definitionVersion`, `definitionDigest` and `definition` (the
+definition as registered). The runner and Today read the record, never the file in Git at run time.
+
+* The digest is SHA-256 of the canonical JSON of the effective definition (a core definition with what the site added to it), so the order of fields
+  never changes it.
+* The first registration is version 1. Registering the same digest again changes nothing and writes nothing. A changed digest writes the next version.
+* Registering writes those four fields and nothing else: not `enabled`, the trigger, the adopted `responsibility` or the agent policy document, so it
+  never sets a rung, a pause or a budget. It needs an Automation that exists, adopted as the definition's own responsibility or not yet adopted.
+* The release calls `agent_definitions.registered.register` for each definition (`papyrus agents apply`, below).
+
+### Applying the definitions: the deploy does it
+
+A site's Amplify build runs `papyrus agents apply` right after it registers the procedures (`infra/amplify-app-shell/lib/build-specs.ts`), as the build
+role on the operator lane, from the site's checkout. The core definitions are the files in the wheel; a site's own, and its additions to a core one, are in
+the folder `papyrus-site-agents` at the checkout root (a site without it has the core ones only; `--dir` names another folder). Nothing is done by hand.
+
+* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table.
+* **Checked first.** Every definition is validated exactly as `papyrus agents validate` does, each named procedure must be registered (a core kind or one
+  in the site's `papyrus-site-procedures.json`), and the automation a definition lands on must be its own. Any failure stops the step with a plain error
+  naming each problem **before anything is written**, and fails the build. Nothing falls back.
+* **One automation per definition, named for it.** A site with none gets one, created **disabled**, with the definition's procedure and a trigger kind
+  (`schedule` or `event`); what wakes the agent is in the registered definition. Then `register` writes the registered copy: the same digest writes
+  nothing, a changed digest writes the next version.
+* **Retired, not deleted.** A record whose definition is gone from Git is disabled and marked `definitionRetiredAt`. It names no schedule
+  (`registered_schedules` lists only live registered definitions, which is what the schedule trigger keeps an entry for), and its registered copy and
+  version stay as history. A definition that returns clears the mark and does not switch the record on.
+* **Never the policy.** Applying does not touch the agent policy document, so a deploy cannot set a rung, lift a pause or change a budget; a new agent
+  arrives at `off`, and the policy says so until an admin sets a rung.
+* **Applying and adopting divide the work.** Applying registers the definition and never names the responsibility the record fills: adopting is an
+  authorization by an admin who is a person (`papyrus automations adopt`) and stays so. Until it is done the runner records `not_adopted`; after it, and
+  until a rung is set, `rung_off`. Either way nothing starts.
+* **Safe to run again.** A part-way failure is healed by the next run. `--dry-run` reads the site and says what would change; `--check` does the same and
+  exits 2 on any difference from Git.
+
+The permissions are those of the procedure step: signed GraphQL requests to the site's API (it lists, reads, creates and updates `Automation` records).
+No new IAM permission is needed.
+
+## The schedule trigger
+
+An agent runs on a clock that comes from its definition (slice C1, PPY-2a53cd). A definition may name `wakes.schedule`: a cron expression of five fields and a
+time zone. `papyrus agents apply` registers it on the agent's automation; `papyrus agents schedules --site <brand id>` makes the site's EventBridge
+Scheduler group agree with the registered definitions. The site's Amplify build runs it right after `agents apply` (`infra/amplify-app-shell/lib/build-specs.ts`),
+and a person may run it again at any time. Nothing polls and nothing is made by hand.
+
+* **One entry for each live agent.** Live means: a registered definition with a schedule, not retired, on a record that is switched on. The entry is named
+  `agent-<id>` (a long id keeps the start and a digest of the whole), lives in the group `papyrus-<site>-agent-schedules` and has one target, the site's
+  wake queue. Its message is a wake whose key is `<agent>|schedule|<scheduled time>`: the scheduler fills in the time the entry was scheduled for, so a tick
+  delivered twice is one wake and one run (`wake_keys.py`; the queue drops the repeat inside five minutes, and the run record's own condition after).
+* **A timer does nothing else.** The tick only puts a wake on the queue. The runner then reads the site's policy, the pause and the definition again, as for a
+  wake raised by a change; a paused agent's tick is consumed and recorded as nothing started, with the reason `paused`.
+* **Time zones.** The entry carries the local cron expression and the zone's name, never an offset from UTC, so the scheduler keeps the local time across a clock
+  change. The five-field cron is translated to the scheduler's six (`cron.py`): the day of the week is renumbered (Sunday is 1), and a schedule that names
+  both a day of the month and a day of the week is refused when the definition is checked, because cron runs on either and the scheduler on both.
+* **A new agent has no entry until a person switches it on.** `agents apply` creates the automation disabled. To make it tick, link it to the router publication
+  that carries the site's endpoint, model key and policy location (`papyrus automations update <id> --monitor <monitor> --publication <publication>`; the
+  publication must name `tenantId` and `siteBucket`, or the runner would refuse every tick) and enable it (`--enabled true`), then run `papyrus agents schedules`
+  (the next deploy does it too). Switching an agent off, retiring its definition or removing its schedule removes its entry the same way.
+* **No schedule that a definition does not name.** An entry whose name starts `agent-` and that no live agent names is deleted. Entries with other names (the
+  one-shot follow-up helper's, slice C2) are never touched. Everything is checked before anything is written, one message names every problem, and a second
+  run with nothing changed writes nothing. `--dry-run` says what would change; `--check` also exits 2 on any difference.
+* **The first deploy.** The group is in the site's `agents` stack, which a new site's first deploy leaves out (`amplify/agents/stack.ts`). Until the second
+  deploy the step says there is no schedule group yet and finishes when no agent needs one; with an agent that needs one it stops and says so.
+
+### What the scheduler's role may do, and what the deploy step needs
+
+These are written as templates and code and are not applied until the release that carries them (and, for the build role, until a person grants them).
+
+* **The role the scheduler assumes** (`papyrus-<site>-agent-scheduler`, in the agents stack): it may send a message to this site's wake queue and do nothing else.
+  It may not read or delete a message, touch another site's queue or the dead-letter queue, or call any other service. Only EventBridge Scheduler acting for this
+  account may assume it.
+* **What the deploy step needs** (the Amplify build role; for an app-shell `cms` site that is the app's `AmplifyServiceRole`, which carries `AdministratorAccess`, so nothing is added to it; see [the 5.130 plan](release-5-130-plan.md), 1.4): in this account, look up the wake queue's address (`sqs:GetQueueUrl`) on the
+  site's wake queue; `scheduler:ListSchedules` (this action takes no resource restriction); `scheduler:GetSchedule`, `CreateSchedule`, `UpdateSchedule` and
+  `DeleteSchedule` on the schedules of the site's group only (`schedule/papyrus-<site>-agent-schedules/*`); `iam:PassRole` on the scheduler role only, and only
+  to the scheduler service; and the same read of the monitoring table and its parameter that `papyrus automations run` uses, to read the router publication.
+  It needs nothing on the queue's messages, and it never creates a group or a role.
 
 ## Console
 
@@ -311,6 +421,29 @@ through `automationOverview` and acts through `runAutomation`, both served by th
   `PutItem` there for the Run now row (partition keys `MONITOR#*` only), and `lambda:InvokeFunction` on
   `papyrus-procedure-runner`. The router's role may read `listAutomations` of Distinctive's API
   (`RouterAutomationReadPolicy`) and needs `dynamodb:UpdateItem` on the table (below).
+
+## Today
+
+Today answers "what did the system do today?" in one place: the **Today** section of the newsroom home (the Notification Center, below the cards) and
+`papyrus today`. Both read the site's `todayOverview` query (`src/papyrus_content/today.py`, served by the same function as `automationOverview`), so
+they show the same lines. It is read only.
+
+For one day (the viewer's own day on the page, `--day` and `--time-zone` on the command; default today, UTC on the command line) it shows:
+
+- **What ran**, one line per responsibility (a run's `responsibility`; a run without one is counted under its automation, and one with neither under its
+  procedure): how many runs ended `✓ Did it`, `– Nothing to do`, `? Asked`, `✗ Failed` and `! Outcome unknown`, each as its mark and its words, with the
+  cost. A run that has no outcome is counted in words too: `… Not finished yet` (queued or running) and `Recorded before outcomes`.
+- **The reasons.** A line that has nothing-to-do runs lists their reason codes (`2 not_rated, 1 under_channel_bar`); asked, failed and unknown runs list theirs.
+  Nothing to do is how an editor sees an agent is alive and why it held back.
+- **Did not run.** Each registered automation that started nothing in the day, with why: `Disabled`, `not yet supported` (nothing starts that kind) or
+  `Nothing woke it today`.
+- **Cost.** The sum of the runs' recorded costs. A run that recorded no cost is counted as `cost unknown for N runs`, never as free.
+- **Each line opens the runs.** On the page a line expands to the day's runs (outcome, reason, cost, run id) and links to the Automation page; on the
+  command line it prints `papyrus automations runs --id ID`, and `--runs` lists every run of the day.
+
+Every read is an index. The day's runs are one key-condition query per run status (`queued`, `started`, `running`, `completed`, `failed`, `notRunnable`; `RUN_STATUSES`
+in `today.py`) on the `ProcedureRun` status index (`runStatus` + `requestedAt`), so only the rows requested inside the day are read. The agents are read through
+the Automation `tenantId` index. Nothing lists a whole table. The page refreshes when the tab is focused and every five minutes; it uses no subscription.
 
 ## Setting up the TTAB automation for Distinctive
 

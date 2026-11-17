@@ -25,3 +25,11 @@ Feature: The procedure runner is deployed by the release, from this commit, for 
   Scenario: Nothing builds or pushes the image by hand
     Given the release configuration
     Then the hand build script no longer exists
+
+  Scenario: A pull request that touches the runner prints its dry run
+    Given the release configuration
+    Then a change to the runner template or to the code in the image plans the runner stack
+
+  Scenario: A removal or replacement that is not on the allowed list stops the run
+    Given the release configuration
+    Then a removal or replacement in the runner stack that is not on the allowed list is a violation

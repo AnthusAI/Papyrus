@@ -131,6 +131,8 @@ def _collect(context):
         glossary = starter_glossary(language)
         checker = BlockChecker(source_language="en", target_language=language, glossary=glossary, copy_edit_pack=starter_pack(language, getattr(context, "register", None)), judge=judge,
                                lanes={"rules": True, "classifier": False})
+        if getattr(context, "blind_note_structure", False):
+            checker.faithfulness = _blind_to_note_structure(checker.faithfulness)
         english = BlockChecker(source_language="en", target_language="en", glossary=glossary, copy_edit_pack=starter_pack("en"), judge=None,
                                lanes={"rules": True, "classifier": False})
         key = localize_record.run_key(source, language, procedure_version=procedure_version, checker_versions=checker.versions)
@@ -138,6 +140,16 @@ def _collect(context):
                                slug_policy="translated", previous=previous, ceiling_usd=context.ceiling, procedure_version=procedure_version,
                                source_checker=lambda text: english.copy_edit(text)[0], image_variants=variants)
     return collect
+
+
+def _blind_to_note_structure(faithfulness):
+    """The block check as it was on the held run: it did not report the structure of a note container, so only the whole-body check saw it."""
+    def check(source, target):
+        findings, lanes = faithfulness(source, target)
+        if source.startswith(":::note"):
+            findings = [f for f in findings if f.policy != "structure"]
+        return findings, lanes
+    return check
 
 
 def _upload(context):
@@ -762,3 +774,134 @@ def step_republished_mid_run(context):
 def step_request_still_wanted(context, request_id, number):
     row = context.client.tables["LocalizationRequest"][request_id]
     assert row["sourceVersionNumber"] == number and row["state"] == "wanted", row
+
+
+NOTE_BLOCK = ":::note\nOut of office.\n:::"
+NOTE_SPANISH = ":::note\nFuera de la oficina.\n:::"
+
+
+@given('the English Story has a note "{text}" between its paragraphs')
+def step_note(context, text):
+    assert text == "Out of office.", text
+    context.paragraphs = [P1, NOTE_BLOCK, P2, IMAGE]
+    context.translations[NOTE_BLOCK] = NOTE_SPANISH
+    _publish(context, 3)
+
+
+@given('the translator adds the paragraph "{text}" inside the note')
+def step_invented(context, text):
+    context.invented = text
+    context.translations[NOTE_BLOCK] = NOTE_SPANISH.replace("\n:::", f"\n\n{text}\n:::")
+
+
+@given("the repairer deletes any paragraph that is not in the English")
+def step_repairer_deletes(context):
+    context.repair = lambda text: NOTE_SPANISH if text.startswith(":::note") else text
+
+
+@then("the repairer was asked about the note only, with the invented paragraph named as a problem")
+def step_asked_note(context):
+    blocks = [block for request in context.models.refine_requests for block in request["blocks"]]
+    assert blocks and all(block["source"].startswith(":::note") for block in blocks), blocks
+    assert any(context.invented in problem for block in blocks for problem in block["problems"]), blocks
+
+
+@then("the saved translation has the note without the invented paragraph")
+def step_note_clean(context):
+    body = _latest(context)["bodyMarkus"]
+    assert NOTE_SPANISH in body and context.invented not in body, body
+
+
+@then("the held reason names the structure difference")
+def step_held_structure(context):
+    assert "structure" in context.output["reason"], context.output["reason"]
+
+
+@given("the block check does not see the structure inside a note, so only the check of the whole body does")
+def step_blind(context):
+    context.blind_note_structure = True
+
+
+# --- soft line breaks ---------------------------------------------------------------------------------------------------------------------------
+
+def _note(context, english_lines: list[str], spanish_lines: list[str], english_joints: list[str]) -> None:
+    """The English note's lines with the joints between them ("\\n" or "\\n\\n"), and the Spanish the translator will write (replaced by each step)."""
+    english = ":::note\n" + english_lines[0] + "".join(joint + line for joint, line in zip(english_joints, english_lines[1:])) + "\n:::"
+    context.paragraphs = [P1, english, P2, IMAGE]
+    context.note_source = english
+    _publish(context, 3)
+
+
+SPANISH_LINES = {"Out of office.": "Fuera de la oficina.", "Back on Monday.": "Vuelve el lunes.", "Thanks.": "Gracias.", "Bye.": "Adiós."}
+
+
+def _translator_writes(context, lines: list[str], joints: list[str]) -> None:
+    written = ":::note\n" + lines[0] + "".join(joint + line for joint, line in zip(joints, lines[1:])) + "\n:::"
+    context.translations[context.note_source] = written
+    context.note_written = written
+
+
+@given('the English Story has a note whose two lines "{first}" and "{second}" are joined by a single newline')
+def step_soft_note(context, first, second):
+    _note(context, [first, second], [], ["\n"])
+
+
+@given('the English Story has a note whose lines "{first}" and "{second}" are two paragraphs')
+def step_two_paragraph_note(context, first, second):
+    _note(context, [first, second], [], ["\n\n"])
+
+
+@given('the English Story has a note whose lines are "{first}" and "{second}" joined by a single newline, then a blank line, then "{third}"')
+def step_soft_then_blank(context, first, second, third):
+    _note(context, [first, second, third], [], ["\n", "\n\n"])
+
+
+@given('the English Story has a note whose lines "{first}" and "{second}" are joined by a single newline, then a blank line, then "{third}" and "{fourth}" joined by a single newline')
+def step_soft_blank_soft(context, first, second, third, fourth):
+    _note(context, [first, second, third, fourth], [], ["\n", "\n\n", "\n"])
+
+
+@given("the translator writes the two lines of the note as two paragraphs")
+def step_split_two(context):
+    _translator_writes(context, [SPANISH_LINES["Out of office."], SPANISH_LINES["Back on Monday."]], ["\n\n"])
+
+
+@given('the translator writes the two lines of the note as two paragraphs and adds the paragraph "{text}"')
+def step_split_two_extra(context, text):
+    _translator_writes(context, [SPANISH_LINES["Out of office."], SPANISH_LINES["Back on Monday."], text], ["\n\n", "\n\n"])
+
+
+@given("the translator writes each of the three lines of the note as its own paragraph")
+def step_split_three(context):
+    _translator_writes(context, [SPANISH_LINES[line] for line in ("Out of office.", "Back on Monday.", "Thanks.")], ["\n\n", "\n\n"])
+
+
+@given("the translator writes the four lines of the note as one, a blank line, two joined by a single newline, a blank line, and one")
+def step_four_elsewhere(context):
+    _translator_writes(context, [SPANISH_LINES[line] for line in ("Out of office.", "Back on Monday.", "Thanks.", "Bye.")], ["\n\n", "\n", "\n\n"])
+
+
+def _spanish_note(*lines_and_joints: str) -> str:
+    return ":::note\n" + "".join(lines_and_joints) + "\n:::"
+
+
+@then("the saved translation has the note with its two lines joined by a single newline")
+def step_note_soft(context):
+    expected = _spanish_note(SPANISH_LINES["Out of office."], "\n", SPANISH_LINES["Back on Monday."])
+    assert expected in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]
+
+
+@then("the saved translation has the first two lines joined by a single newline and the third after a blank line")
+def step_note_soft_blank(context):
+    expected = _spanish_note(SPANISH_LINES["Out of office."], "\n", SPANISH_LINES["Back on Monday."], "\n\n", SPANISH_LINES["Thanks."])
+    assert expected in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]
+
+
+@then("the saved translation has the note with its two paragraphs as the translator wrote them")
+def step_note_unchanged(context):
+    assert context.note_written in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]
+
+
+@then("the saved translation still has the note as the translator wrote it")
+def step_note_held_as_written(context):
+    assert context.note_written in _latest(context)["bodyMarkus"], _latest(context)["bodyMarkus"]

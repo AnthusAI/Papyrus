@@ -1,0 +1,30 @@
+{
+  "id": "PPY-8d11af42-165d-4500-9c03-bdc389ca098c",
+  "title": "Ask once: agents read what was already said",
+  "description": "Before raising a question, the gate looks for an open request on the same subject for the same reason and adds to it instead of opening another. Before drafting, an agent reads what was already said to the audience it is writing for (for announcements, the account's recent sent Deliveries by index). Review requests about one subject are grouped in the newsroom. The aim is a quiet system: few, grouped questions.\n\n**Acceptance criteria**\n- The same problem on the same subject raises one request, however many runs meet it.\n- Requests are grouped by subject in the newsroom.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- ask-once.feature: two runs with the same doubt raise one request; a different doubt raises a second; an answered request is not reopened by the same finding on the same version.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Work items and handoffs between agents and people. Slice code F5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-928a91fb-7fe8-4bd4-85f1-e0bef41e5897",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ecf8524f-bc68-4a7e-8193-1e29cced9c8f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:07.350199Z",
+  "updated_at": "2026-11-16T22:43:31.930425Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

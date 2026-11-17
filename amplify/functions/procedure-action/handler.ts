@@ -4,6 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { claimGroups } from "../../../lib/staff-groups";
+import { assertWakeKey, isAlreadyCreated, runIdForWakeKey } from "./wake-key";
 
 type DataClient = ReturnType<typeof generateClient<Schema>>;
 type DataClientErrors = Array<{ message?: string | null } | string | null> | null | undefined;
@@ -24,21 +25,28 @@ const LAMBDA_DATA_AUTH_MODE = "iam";
 const IMMEDIATE_ASSIGNMENT_TYPES = new Set(["procedure.run"]);
 let clientPromise: Promise<DataClient> | null = null;
 
-export const handler = async (event: ProcedureEvent) => {
+/** The handler, built over a source of the data client so a test can supply a client of its own; `handler` is the one the function runs. */
+export function createHandler(getClient: () => Promise<DataClient>) {
+  return async (event: ProcedureEvent) => dispatch(event, getClient);
+}
+
+export const handler = createHandler(getDataClient);
+
+async function dispatch(event: ProcedureEvent, getClient: () => Promise<DataClient>) {
   const fieldName = normalizeRequiredString(event.info?.fieldName ?? event.fieldName, "fieldName");
-  if (fieldName === "listNewsroomProcedureDefinitions") return listProcedureDefinitions();
-  if (fieldName === "getNewsroomProcedureDefinition") return getProcedureDefinition(event.arguments);
-  if (fieldName === "saveNewsroomProcedureDefinition") return saveProcedureDefinition(event);
-  if (fieldName === "saveNewsroomProcedureVersionDraft") return saveProcedureVersionDraft(event);
-  if (fieldName === "publishNewsroomProcedureVersion") return publishProcedureVersion(event);
-  if (fieldName === "startNewsroomProcedureRun") return startProcedureRun(event);
-  if (fieldName === "getNewsroomProcedureRun") return getProcedureRun(event.arguments);
-  if (fieldName === "listNewsroomProcedureRunsByProcedure") return listProcedureRunsByProcedure(event.arguments);
+  if (fieldName === "listNewsroomProcedureDefinitions") return listProcedureDefinitions(getClient);
+  if (fieldName === "getNewsroomProcedureDefinition") return getProcedureDefinition(getClient, event.arguments);
+  if (fieldName === "saveNewsroomProcedureDefinition") return saveProcedureDefinition(getClient, event);
+  if (fieldName === "saveNewsroomProcedureVersionDraft") return saveProcedureVersionDraft(getClient, event);
+  if (fieldName === "publishNewsroomProcedureVersion") return publishProcedureVersion(getClient, event);
+  if (fieldName === "startNewsroomProcedureRun") return startProcedureRun(getClient, event);
+  if (fieldName === "getNewsroomProcedureRun") return getProcedureRun(getClient, event.arguments);
+  if (fieldName === "listNewsroomProcedureRunsByProcedure") return listProcedureRunsByProcedure(getClient, event.arguments);
   throw new Error(`Unsupported procedure operation ${fieldName}.`);
 };
 
-async function listProcedureDefinitions() {
-  const client = await getDataClient();
+async function listProcedureDefinitions(getClient: () => Promise<DataClient>) {
+  const client = await getClient();
   const definitions = await listProcedureDefinitionsPage(client);
   const versions = await listProcedureVersionsPage(client);
   const runs = await listProcedureRunsPage(client);
@@ -63,8 +71,8 @@ async function listProcedureDefinitions() {
   };
 }
 
-async function getProcedureDefinition(args: Record<string, unknown>) {
-  const client = await getDataClient();
+async function getProcedureDefinition(getClient: () => Promise<DataClient>, args: Record<string, unknown>) {
+  const client = await getClient();
   const id = normalizeOptionalString(args.id);
   const procedureKey = normalizeOptionalString(args.procedureKey);
   const definition = id
@@ -101,9 +109,9 @@ async function getProcedureDefinition(args: Record<string, unknown>) {
   };
 }
 
-async function saveProcedureDefinition(event: ProcedureEvent) {
+async function saveProcedureDefinition(getClient: () => Promise<DataClient>, event: ProcedureEvent) {
   requireAdmin(event);
-  const client = await getDataClient();
+  const client = await getClient();
   const now = new Date().toISOString();
   const actor = getIdentityLabel(event) ?? "Papyrus admin";
   const input = objectValue(event.arguments.input);
@@ -137,9 +145,9 @@ async function saveProcedureDefinition(event: ProcedureEvent) {
   return { ok: true, definition: response.data };
 }
 
-async function saveProcedureVersionDraft(event: ProcedureEvent) {
+async function saveProcedureVersionDraft(getClient: () => Promise<DataClient>, event: ProcedureEvent) {
   requireAdmin(event);
-  const client = await getDataClient();
+  const client = await getClient();
   const now = new Date().toISOString();
   const actor = getIdentityLabel(event) ?? "Papyrus admin";
   const input = objectValue(event.arguments.input);
@@ -188,9 +196,9 @@ async function saveProcedureVersionDraft(event: ProcedureEvent) {
   return { ok: true, version: created.data };
 }
 
-async function publishProcedureVersion(event: ProcedureEvent) {
+async function publishProcedureVersion(getClient: () => Promise<DataClient>, event: ProcedureEvent) {
   requireAdmin(event);
-  const client = await getDataClient();
+  const client = await getClient();
   const now = new Date().toISOString();
   const actor = getIdentityLabel(event) ?? "Papyrus admin";
   const versionId = normalizeRequiredString(event.arguments.versionId, "versionId");
@@ -220,8 +228,8 @@ async function publishProcedureVersion(event: ProcedureEvent) {
   return { ok: true, procedureId: definition.id, versionId: version.id };
 }
 
-async function startProcedureRun(event: ProcedureEvent) {
-  const client = await getDataClient();
+async function startProcedureRun(getClient: () => Promise<DataClient>, event: ProcedureEvent) {
+  const client = await getClient();
   const now = new Date().toISOString();
   const actorSub = getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? actorSub ?? "Papyrus newsroom";
@@ -244,7 +252,10 @@ async function startProcedureRun(event: ProcedureEvent) {
   if (!validation.ok) throw new Error(`Procedure parameter validation failed: ${validation.error}`);
   const normalizedInput = validation.normalizedInput;
   const isExternalCliRun = executionMode === "external_cli";
-  const runId = `procedure-run-${safeId(definition.procedureKey)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
+  // A run the runner executes is one wake: its id comes from the wake key and the record is created with a condition, so the same wake
+  // can never make a second record. A run queued for the Assignment worker is not a wake and keeps its own id.
+  const wakeKey = isExternalCliRun ? assertWakeKey(event.arguments.wakeKey) : null;
+  const runId = wakeKey ? runIdForWakeKey(wakeKey) : `procedure-run-${safeId(definition.procedureKey)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
   const assignmentId = isExternalCliRun ? null : `assignment-procedure-run-${hashShort([runId, definition.id, version.id])}`;
   const runResponse = await client.models.ProcedureRun.create({
     id: runId,
@@ -253,7 +264,8 @@ async function startProcedureRun(event: ProcedureEvent) {
     procedureVersionId: version.id,
     procedureVersionNumber: Number(version.versionNumber ?? 1),
     assignmentId,
-    runStatus: isExternalCliRun ? "running" : "queued",
+    runStatus: isExternalCliRun ? "started" : "queued",
+    wakeKey,
     requestedBy: actorLabel,
     requestedAt: now,
     startedAt: isExternalCliRun ? now : null,
@@ -267,6 +279,10 @@ async function startProcedureRun(event: ProcedureEvent) {
     attempt: 1,
     newsroomFeedKey: "procedures",
   } as never, { authMode: LAMBDA_DATA_AUTH_MODE });
+  if (wakeKey && isAlreadyCreated(runResponse.errors)) {
+    const existing = await getRequiredRecord(client.models.ProcedureRun, runId, "ProcedureRun");
+    return { ok: true, duplicate: true, runId, runStatus: existing.runStatus, procedureKey: definition.procedureKey, executionMode };
+  }
   assertNoDataErrors(runResponse.errors, "create ProcedureRun");
   if (!runResponse.data) throw new Error("ProcedureRun create returned no data.");
   if (isExternalCliRun) {
@@ -274,6 +290,7 @@ async function startProcedureRun(event: ProcedureEvent) {
       ok: true,
       assignmentId: null,
       assignmentStatus: null,
+      duplicate: false,
       runId,
       procedureId: definition.id,
       procedureKey: definition.procedureKey,
@@ -350,8 +367,8 @@ async function startProcedureRun(event: ProcedureEvent) {
   };
 }
 
-async function getProcedureRun(args: Record<string, unknown>) {
-  const client = await getDataClient();
+async function getProcedureRun(getClient: () => Promise<DataClient>, args: Record<string, unknown>) {
+  const client = await getClient();
   const runId = normalizeRequiredString(args.id, "id");
   const run = await getRequiredRecord(client.models.ProcedureRun, runId, "ProcedureRun");
   const assignment = normalizeOptionalString(run.assignmentId)
@@ -360,8 +377,8 @@ async function getProcedureRun(args: Record<string, unknown>) {
   return { ...run, assignment };
 }
 
-async function listProcedureRunsByProcedure(args: Record<string, unknown>) {
-  const client = await getDataClient();
+async function listProcedureRunsByProcedure(getClient: () => Promise<DataClient>, args: Record<string, unknown>) {
+  const client = await getClient();
   const procedureId = normalizeRequiredString(args.procedureId, "procedureId");
   const runs = await listProcedureRunsByProcedureId(client, procedureId);
   return {

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d32738e5-e109-4c9e-8465-8aae3b4f0f8e",
+  "issue_id": "PPY-e0c85a63-0600-4c01-a16e-876f9b0e7e67",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:10.772Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Proof of conduct: the run record lists every operation asked, allowed and refused",
+    "description": "To prove an agent did nothing wrong, the run record holds the list of operations it asked for, the gate's answer to each, the versions it read and the versions it wrote (names and ids, never text). Together with immutable versions this answers 'what exactly did it do, and under which policy'.\n\n**Acceptance criteria**\n- A run's writes can be listed and matched to record versions.\n- A refused operation is visible on the run.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- proof-of-conduct.feature: a run lists its allowed and refused operations; each write names the version it created; a run at `observe` lists zero writes.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Observability, safety and release readiness. Slice code J3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

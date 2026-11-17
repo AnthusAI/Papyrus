@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "682dbdad-cc36-49e4-8549-43c09d485e71",
+  "issue_id": "PPY-1e75aa80-d6ed-4ac8-a7ba-c6925ba7c456",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T21:48:37.431Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Roundup issues on the new records; convert sent issues on Shipped and Distinctive",
+    "description": "Replace ISSUE# and ROUNDUP#<listId>/PERIOD#<yyyy-ww> rows. A roundup Announcement announces the issue Story at its approved version, plus one email Delivery; approval and send time move to the Announcement, counts to the Delivery, resultUrl is the archive page. ROUNDUP period becomes the dedupeKey. ISSUE#/RENDER HTML and text move to S3. Sent issues on Shipped and Distinctive are converted once by a command, sends frozen for that window (as agreed for the Caducus move). The per-reader SEND# ledger is not part of this slice. Edited-after-approval returns to waiting for approval. Follows the Caducus move.\n\n**Acceptance criteria**\n- Gherkin: Newsletter issues become Announcements and Deliveries (a sent issue keeps dates, counts, approver and archive address; running the command twice changes nothing).\n- Gherkin: Fan-out counts.\n- Gherkin: No text in the catalog (old RENDER attribute not carried).\n- Shipped and Distinctive Mark do not break.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "dbef765e-6487-4af2-bb15-64f07b6b87b8",
+  "issue_id": "PPY-24b2acd6-5718-411c-aeb1-953fd7db1b56",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:42:25.547Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "First agent: rating and curation on one site",
+    "description": "The first real daily agent, end to end, at the lowest rung. It rates what is unrated at three or four stars and lists five-star candidates for a person. Chosen because stars decide everything downstream (home pages, newsletters, announcements), the rule is already written (default three, machines never five), a person's rating always wins, and the model is the cheapest tier. Done when it runs daily on Machines on Machines, was promoted rung by rung on evidence, and its agreement with people is reported.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

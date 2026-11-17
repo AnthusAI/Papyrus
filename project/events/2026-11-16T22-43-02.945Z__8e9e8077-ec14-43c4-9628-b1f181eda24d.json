@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8e9e8077-ec14-43c4-9628-b1f181eda24d",
+  "issue_id": "PPY-4af2169f-7aea-4bc7-8e38-8a6879787dc4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:02.945Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move monitor triggers, Stage Bots and Run now onto the wake path",
+    "description": "Three older paths start procedures: the monitoring router's `procedureTriggers` (with `TRIGGER#` rows), Stage Bots (`STAGE#` claim rows, delivered only from the CLI and the runner), and Run now (`MANUAL#` rows). Move each onto the wake queue with wake keys, one at a time, each in its own release: the router puts a wake for a newly created Reference instead of invoking the runner; a stage entry comes from the Item change feed; Run now puts a manual wake. Then delete the three row families, the claim code, `START_AS_BEFORE` (the rule that starts a run when the Automation record cannot be read, which is a fallback), the per-delivery `list_records(\"Automation\")` calls, and the unused `MAX_TRIGGER_PAGES`. Distinctive Mark's TTAB analysis is the test: it must behave the same before and after.\n\n**Acceptance criteria**\n- Distinctive's TTAB analysis starts once per new decision through the queue.\n- A console board move starts the stage's agent.\n- No `TRIGGER#`, `STAGE#` or `MANUAL#` row is written; history for old rows stays readable until the conversion command has run once.\n- An unreadable agent definition stops the start and raises a flag; nothing 'starts as before'.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- wake-path-migration.feature: a new TTAB decision starts one analysis; a console board move starts the stage agent; Run now appears in the run history with who started it; an unreadable definition starts nothing and raises one flag; the history shows runs from before and after the move.\n\n**Infrastructure as code touched:** Monitoring stack: the router's role sends to site wake queues and loses `lambda:InvokeFunction` on the runner. Runner template: remove self-invoke.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B6 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-cd706fba-2516-4e3d-8df1-5b16e61c7ef7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

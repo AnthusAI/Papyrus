@@ -1,0 +1,34 @@
+{
+  "id": "PPY-fb1aefda-fbc9-443d-8f0e-e24fb8fc4865",
+  "title": "Ideation as an agent",
+  "description": "The daily monitor-stories plan runs at 07:30 UTC from a schedule in the monitoring template, and trend stories from the weekly knowledge run. Give ideation a definition with a schedule from data per site; keep plan-then-queue (the plan only plans; one message drafts one candidate) on the wake queue; keep the point check. Remove the fixed schedule from the template once every site's definition carries its own.\n\n**Acceptance criteria**\n- Each site's ideation time is site data.\n- Ideas are filed once per candidate.\n- The template no longer holds per-site idea schedules.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- ideation-agent.feature: the daily plan runs at the site's time; each candidate is drafted once; a draft that only restates its source is not filed; an empty day ends `nothing`.\n\n**Infrastructure as code touched:** Monitoring template: per-publication monitor-stories schedules removed after migration.\n\n**Part of:** Every other responsibility as an agent. Slice code M2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-2a53cd96-5316-4b1c-9bd7-bf9317c1f73e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4af2169f-7aea-4bc7-8e38-8a6879787dc4",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:14.355190Z",
+  "updated_at": "2026-11-16T22:43:44.441519Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

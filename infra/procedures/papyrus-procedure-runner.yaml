@@ -2,7 +2,8 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Papyrus procedure runner (PPY-a2b94e): one container Lambda, with Tactus installed, that runs a
   newsroom's published Tactus procedure for one request and records the ProcedureRun in that newsroom.
-  The monitoring router starts it asynchronously for a publication's procedureTriggers (PPY-9a79b5).
+  It is the consumer of every site's wake queue (PPY-567bf9): the monitoring router, Run now, the story-stage triggers and translate-on-publish
+  start it by putting a wake on the site's queue (PPY-9a79b5 for the router's procedureTriggers).
   See docs/procedure-runner.md.
 
 Parameters:
@@ -95,6 +96,17 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/shared/*/OPENAI_API_KEY"
                   - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/*/*/OPENAI_API_KEY"
+              - Sid: SiteAgentPolicyBody
+                Effect: Allow
+                Action: s3:GetObject
+                # The body of a site's agent policy document, read before each run starts (PPY-c8175e). Only that document's objects, in any site's bucket.
+                Resource: !Sub "arn:${AWS::Partition}:s3:::*/tenants/*/site/agents/*"
+              - Sid: ReadWakeQueues
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes]
+                # The runner is the consumer of every site's wake queue (PPY-567bf9): one statement for all sites, by the queue name pattern
+                # `papyrus-<site>-agent-wakes.fifo` (amplify/agents/wake-queue.ts). The dead-letter queues do not match it, so the runner cannot read them.
+                Resource: !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:papyrus-*-agent-wakes.fifo"
               - Sid: TriggerOutcomes
                 Effect: Allow
                 Action: dynamodb:UpdateItem
@@ -109,10 +121,11 @@ Resources:
                 Condition:
                   ForAllValues:StringLike:
                     dynamodb:LeadingKeys: ["MONITOR#*"]
-              - Sid: StartNextStage
+              - Sid: PutWakes
                 Effect: Allow
-                Action: lambda:InvokeFunction
-                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-procedure-runner"
+                Action: [sqs:GetQueueUrl, sqs:SendMessage]
+                # After a story-stage run the runner puts the next stage's wake on the same site's queue instead of invoking itself (PPY-567bf9). Send and look up only; no dead-letter queue matches.
+                Resource: !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:papyrus-*-agent-wakes.fifo"
               - Sid: PublicationNewsrooms
                 Effect: Allow
                 Action: appsync:GraphQL

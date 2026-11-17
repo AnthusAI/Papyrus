@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "21b85f92-45f7-41cc-9883-5d2dc0a08f11",
+  "issue_id": "PPY-76781314-e642-4b7a-a69a-c5e24bf8f469",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:42:24.878Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Human surface: Today, poke-in operations and explanations",
+    "description": "One page answers 'what is the system doing today?': waiting for you, overdue, outcome unknown, failed, what ran, what it decided to do nothing about, what it cost. Every poke-in (pause, change a rung, answer, redirect, undo, wake now) is one operation with the same name in the newsroom and the CLI. Done when Ryan can read the day and steer any agent from that page or from `papyrus today` and `papyrus agents`.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

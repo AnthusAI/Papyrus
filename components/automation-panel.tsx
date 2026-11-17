@@ -14,6 +14,12 @@ export function AutomationPanel({ isDemo }: { isDemo: boolean }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
+    // A line on Today opens the runs of one automation: `?automation=<id>`.
+    const requested = new URLSearchParams(window.location.search).get("automation");
+    if (requested) setSelectedId(requested);
+  }, []);
+
+  useEffect(() => {
     if (isDemo) {
       setResult(FIXTURE_AUTOMATION_OVERVIEW);
       return;

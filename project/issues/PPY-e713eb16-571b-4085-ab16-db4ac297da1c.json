@@ -1,0 +1,65 @@
+{
+  "id": "PPY-e713eb16-571b-4085-ab16-db4ac297da1c",
+  "title": "Release 5.130: plan and checklist",
+  "description": "**Purpose.** The plan and checklist for the next engine release (5.130.0). This task does not release anything. Releasing needs Ryan's say-so (AGENTS.md).\n\n**Rule for this release.** A site's backend and the shared procedure runner switch together. A 5.129 backend works only with today's runner; a 5.130 backend works only with the new one (the new runner sends a wake key and outcome fields only a 5.130 backend accepts; a 5.130 backend refuses a run with no wake key). The runner is one shared stack serving Distinctive, Anth.us, Machines on Machines, Threat Intelligence, Data Parade, Pilobolus and Shipped. Everything fails closed (a refused start, never a double run).\n\n**One quiet window plan (do not release).**\n1. Bring Distinctive (5.73.0) to 5.129.0 first, by stepped bumps, reading each release's notes for index additions, and confirm one ruling analysis after.\n2. Publish 5.130.0 with a `hold` on the runner stack, so the runner is unchanged.\n3. Then, in one quiet window, release the site bumps and the engine PR that lifts the hold together, convert guidelines, verify, and re-run anything refused in between.\n\n**Checklist: before publishing**\n1. [ ] The deferred-item fix is merged, with its scenario (PPY-7ab263).\n2. [ ] The caps fix is merged (PPY-4edde0), or Ryan accepts shipping with the caps.\n3. [ ] The `develop` `tests` run is green on the exact commit to release (finished, not cancelled).\n4. [ ] Every site that runs procedures through the shared runner is on 5.129.0. Machines on Machines is. Distinctive is not (stepped bumps, one ruling analysis confirmed after). Which other sites have procedures or automations is read per site with `papyrus automations list`; a site with none can be bumped later.\n5. [ ] `papyrus-procedure-runner` carries a `hold` in `infra/pipeline/stacks.json` (reviewed PR); the pull-request dry run shows HELD. Confirm the pipeline honours `hold` on this stack before relying on it; if it does not, publishing switches the runner and steps 8 to 10 follow immediately after step 6.\n6. [ ] Release `develop` to `main`: 5.130.0 is published, the runner is unchanged. Check with `git tag --contains` for each PR (PR #1595's rule). Release notes say: backend and runner switch together; guideline conversion per site; the 5.130 CLI's run commands work only against a 5.130 backend.\n\n**Checklist: prepare, no effect yet**\n7. [ ] For each site in step 4: the bump PR is ready on the site's `develop`; `papyrus guidelines convert` dry run with the new CLI shows every lineage `ready` and `resolvedUnchanged`; the count of `deferred`, `starting` and `startFailed` trigger rows is read and written down.\n\n**Checklist: the window** (quiet: no publish on Machines on Machines, people told not to save guidelines)\n8. [ ] Release the site bumps and, at the same time, the engine PR that lifts the hold. Until both have finished on a site, its runs are refused (never doubled).\n9. [ ] Per site: `papyrus guidelines convert --apply` as a signed-in admin; verify with `resolve` and `export`; `convert` again shows `already_files`.\n10. [ ] Per site: one real run ends with an outcome word (a ruling analysis on Distinctive, a translation on Machines on Machines). Read the trigger-row counts again and re-run anything refused during the window with `papyrus automations run`.\n11. [ ] Once-only check on a real backend: on Machines on Machines, start the same wake key twice; one run record, the second answer says duplicate. Record the result on PPY-a5513c and PPY-567bf9.\n\n**Checklist: after**\n12. [ ] Remaining sites (Shipped, Pilobolus, Threat Intelligence, Data Parade; Anth.us only on explicit instruction): bump and convert, one per window, before their next procedure run.\n13. [ ] Caducus: release the version with PR #21 and bump the Papyrus pin, before any work that sends on the new records (PPY-ab48d4).\n14. [ ] Nothing in this release turns an agent on. No policy document is written on any site.\n\n**Approvals Ryan must give (nothing here proceeds without them)**\n- The decision to hold and use one window (steps 5 to 8).\n- Each site's guideline conversion go (step 9); Machines on Machines first (decision task).\n- Bringing Distinctive current (step 4).\n- The release itself (promotion to `main`) and the site bump merges.\n- Not for this release, but next: the role changes for the wake queue and the scheduler; the model key (PPY-6af46b); the budget figure (only above `observe`).\n\n**Acceptance criteria**\n- The plan above is reviewed and the approvals are recorded in comments here.\n- Each checklist step is ticked in a comment with its evidence (run link, command output line) as it is done.\n- Nothing is released while this task is open and blocked.\n\n**Gherkin features needed:** none (a plan; the behaviours are specified in the blocking tasks).\n\n**Dependencies:** blocked by the deferred-item bug (PPY-7ab263), the once-only create guard (PPY-a5513c) and the guideline conversion decision. Relates PPY-21a2e6 (release readiness checklist and turn-on order) and PPY-4edde0 (caps).\n\n**Report:** papyrus-track-report-1.md, section 5 (the plan and the 14-step checklist), page one rows 1 and 2.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-7ab263f4-1fa8-4d67-9426-6d3d9aac1411",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a5513c84-2d74-4ad2-b0bf-4dbea5d1b51b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e37b6dc6-33fe-48d8-b421-5933e3d7d3f7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-21a2e637-7484-42a6-b896-5e94c4e28eed",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-4edde091-bd1f-41ff-9fec-ad961b382fa2",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-81734013-a915-4f1b-a155-f3d68b508c56",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "45f1bf35-8a64-4dc7-b11c-0e202de2448a",
+      "author": "home",
+      "text": "Enforcement of the agent policy (PPY-c8175e, #1638) needs these steps per site BEFORE the release that carries the runner reaches it. Distinctive's TTAB analysis starts nothing until they are done. 1. In the router config, name the publication's tenantId and siteBucket (the site's media bucket). 2. Adopt: papyrus automations adopt --id distinctive.ttab --responsibility KEY --dry-run, then without --dry-run (admin who is a person, signed in). KEY is Ryan's choice: the catalog has no ruling-analysis entry. 3. Write the policy line for KEY at the rung matching today's behaviour: Ryan approves the rung; there is no operator command yet (papyrus agents set-rung, H3 PPY-e6f31e, with a production write adapter). 4. After the next wake, papyrus automations runs --id distinctive.ttab shows the policy version and rung, not Nothing to do (not_adopted). Also deploy the site backend first: it gains ProcedureRun.policyVersion and Automation.responsibility. Runner role gains s3:GetObject on tenants/*/site/agents/* for approval at release. Full text: docs/releasing.md, Enforcing the agent policy on a site.",
+      "created_at": "2026-11-17T02:04:10.882421Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "61991940-4f86-496a-942b-cf47cea381c8",
+      "author": "home",
+      "text": "Release blockers found by D2 (PR #1648), do not release until settled: (1) core/rate.yaml names procedure rate_items which no registry lists, so papyrus agents apply would fail every site's build until PPY-d85860 registers that procedure under a matching registry kind (or the definition leaves core/); see docs/releasing.md. (2) The agents apply step queries Automation by the tenantId index and needs a tenant id in the build environment (PAPYRUS_TENANT_ID or the site file's): confirm on a pre-production site first. (3) The first build of 'procedures seed-required' must confirm the data schema admits the build role on the procedure mutations.",
+      "created_at": "2026-11-17T06:10:56.517075Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-17T01:18:00.727665Z",
+  "updated_at": "2026-11-17T06:10:56.517588Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

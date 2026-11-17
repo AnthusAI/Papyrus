@@ -1,12 +1,14 @@
 """The console's Automation page reads and acts through this function (PPY-9ff95b).
 
-Two operations, one Lambda:
+Three operations, one Lambda:
 
 * `automationOverview(automationId)` reads the automation records with their router link, recent runs, the
   procedure's other runs and the cost of each. Editors and admins may read it, and so may an operator's IAM role
   in this account (an agent reading without a browser sign-in): AppSync admits only callers whose IAM policy
   allows the field, and this function admits a caller only when it is an IAM principal of the function's own
   account, not a Cognito identity-pool user.
+* `todayOverview(day, timeZone)` is Today (`papyrus_content.today`): what ran in one day, what it decided to do nothing about and what it cost,
+  read from the run status index. Same readers as `automationOverview`.
 * `runAutomation(automationId, input)` starts a run now. Editors and admins only; an IAM caller is refused.
 
 The Lambda holds `dynamodb:GetItem` and `dynamodb:Query` on the monitoring table, `PutItem` for the Run now row,
@@ -22,10 +24,12 @@ import os
 import time
 from datetime import datetime, timezone
 
+from . import agent_wakes
 from .appsync_event import NoOperation, operation_name
 from .staff_groups import STAFF_GROUPS
+from .today import TodayError, today_overview
 from .automations import (
-    DEFAULT_RUN_LIMIT, AutomationError, MonitoringReader, MonitoringWriter, automation_overview, lambda_invoker,
+    DEFAULT_RUN_LIMIT, AutomationError, MonitoringReader, MonitoringWriter, automation_overview,
     monitoring_reader_from_environment, monitoring_table_from_environment, read_record, run_now)
 
 LOG = logging.getLogger(__name__)
@@ -80,6 +84,8 @@ def handle(event: dict, *, env=None, reader_factory=None, client_factory=None, n
                     table_factory=table_factory, invoker=invoker, now=now)
     if not (is_editor or is_operator(identity, account_id)):
         return {"error": "forbidden"}
+    if field == "todayOverview":
+        return _today(arguments, env=env, client_factory=client_factory, now=now)
     try:
         client = (client_factory or default_client_factory(env))()
         try:
@@ -95,6 +101,20 @@ def handle(event: dict, *, env=None, reader_factory=None, client_factory=None, n
         return {"state": "unavailable"}
 
 
+def _today(arguments: dict, *, env, client_factory, now) -> dict:
+    day, zone = arguments.get("day") or None, arguments.get("timeZone") or None
+    if not all(value is None or isinstance(value, str) for value in (day, zone)):
+        return {"error": "bad_request"}
+    try:
+        moment = datetime.fromtimestamp(time.time() if now is None else now, timezone.utc)
+        return today_overview((client_factory or default_client_factory(env))(), day=day, time_zone=zone, now=moment)
+    except TodayError as error:   # the caller named a day or a zone that does not exist
+        return {"error": "bad_request", "message": str(error)}
+    except Exception as error:   # the browser gets a state; the cause goes to the log by type only
+        LOG.error("today overview failed: %s", type(error).__name__)
+        return {"state": "unavailable"}
+
+
 def _run(event: dict, automation_id: str, supplied, *, env, client_factory, table_factory, invoker, now) -> dict:
     try:
         if isinstance(supplied, str):
@@ -107,7 +127,7 @@ def _run(event: dict, automation_id: str, supplied, *, env, client_factory, tabl
         stamp = None if now is None else datetime.fromtimestamp(now, timezone.utc).isoformat().replace("+00:00", "Z")
         result = run_now(read_record(row), reader=MonitoringReader(table) if table is not None else None,
                          writer=MonitoringWriter(table) if table is not None else None,
-                         invoke=invoker or lambda_invoker(env.get("PROCEDURE_RUNNER_FUNCTION")), actor=actor_label(event),
+                         invoke=invoker or agent_wakes.wake_sender(), actor=actor_label(event),
                          supplied_input=supplied, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), now=stamp)
         return {"state": "started", "automationId": automation_id, "requestedBy": result["requestedBy"], "key": result["key"]}
     except AutomationError as error:   # a refusal the editor can act on: the message is written for them

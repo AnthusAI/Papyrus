@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { Given, Then } = require("@cucumber/cucumber");
+const { Given, When, Then } = require("@cucumber/cucumber");
 
 function runTsx(script, args, env) {
   const result = spawnSync("npx", ["tsx", script, ...args], {
@@ -49,6 +49,7 @@ Then("the models the newsroom needs to start are still created", function () {
 
 Given("the site backend is synthesized in the bootstrap stage", function () {
   const output = runTsx("scripts/test-bootstrap-stage.ts", [], {});
+  this.bootstrapOutput = output;
   const match = /bootstrap stage: (\d+) resources/.exec(output);
   assert.ok(match, output);
   this.bootstrapResources = Number(match[1]);
@@ -66,4 +67,54 @@ Then("the first deploy creates no post-deploy render, because the render reads m
 Then("no deferred model has a stack", function () {
   // scripts/test-bootstrap-stage.ts asserts this and exits non-zero otherwise.
   assert.ok(this.bootstrapResources > 0);
+});
+
+Then("it has no agents stack", function () {
+  // scripts/test-bootstrap-stage.ts asserts this and exits non-zero otherwise, and prints the line checked here.
+  assert.ok(/agents stack: absent/.test(this.bootstrapOutput), this.bootstrapOutput);
+});
+
+Then("the first-stage resource count does not include any agent resource", function () {
+  assert.ok(this.bootstrapResources > 0);
+});
+
+Given("an agent piece exists", function () {
+  this.agentsOutput = runTsx("scripts/test-agents-stack.ts", [], {});
+});
+
+When("the backend is synthesized without the bootstrap variable", function () {
+  assert.ok(/agents stack tests passed/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("it has one stack named agents holding the piece", function () {
+  assert.ok(/fixture piece: 3 resources/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("that stack is not created when the variable is 1", function () {
+  // scripts/test-agents-stack.ts asserts this and exits non-zero otherwise.
+  assert.ok(/agents stack tests passed/.test(this.agentsOutput));
+});
+
+Then("a site with no agent piece has no agents stack, because CloudFormation accepts no empty stack", function () {
+  assert.ok(/agents stack tests passed/.test(this.agentsOutput));
+});
+
+Given("the agent pieces of the site backend", function () {
+  this.agentsOutput = runTsx("scripts/test-agents-stack.ts", [], {});
+});
+
+When("the agents stack is priced", function () {
+  assert.ok(/agents stack tests passed/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("each piece's resource count is printed", function () {
+  assert.ok(/agent pieces: /.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("the total is printed against the first-deploy headroom", function () {
+  assert.ok(/first-deploy headroom: \d+ of \d+ resources/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("two pieces with the same id are refused", function () {
+  assert.ok(/agents stack tests passed/.test(this.agentsOutput));
 });

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-e0c85a63-0600-4c01-a16e-876f9b0e7e67",
+  "title": "Proof of conduct: the run record lists every operation asked, allowed and refused",
+  "description": "To prove an agent did nothing wrong, the run record holds the list of operations it asked for, the gate's answer to each, the versions it read and the versions it wrote (names and ids, never text). Together with immutable versions this answers 'what exactly did it do, and under which policy'.\n\n**Acceptance criteria**\n- A run's writes can be listed and matched to record versions.\n- A refused operation is visible on the run.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- proof-of-conduct.feature: a run lists its allowed and refused operations; each write names the version it created; a run at `observe` lists zero writes.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Observability, safety and release readiness. Slice code J3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:10.772618Z",
+  "updated_at": "2026-11-16T22:43:38.112197Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

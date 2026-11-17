@@ -36,6 +36,7 @@
         "enabled": true
       },
       "site": "machines-on-machines.anth.us",
+      "siteBucket": "amplify-d260vp72hqglnc-ma-papyrusmediabucket0dab24-uow8zgyn0ttn",
       "tenantId": "machines-on-machines"
     },
     {

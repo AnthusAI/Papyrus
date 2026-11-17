@@ -1,0 +1,46 @@
+{
+  "id": "PPY-a7174b30-35a8-46b9-82e0-0280807ed0f8",
+  "title": "The learner proposes guideline changes, tested against history",
+  "description": "A learner agent wakes once per sent Delivery that has a person's changes with a scope wider than 'just this one'. It may propose a guideline file (in the guideline file standard, scope `channel/<name>` or publication) in two cases: the person gave a reason with a wide scope, or the same kind of change has now been made on more than one Delivery. Before proposing, it tests the rule against the account's past Deliveries that people sent unchanged: a rule that would have flagged what people approved is contradicted and is not proposed, or is shown with the conflicts. A proposal is a Proposal of kind `guideline_change` with the file diff; an admin accepts it (a new guideline version, `learnedFrom` naming the Deliveries) or rejects it (remembered, not proposed again without new evidence). A learned rule starts as `guidance` or `warn`, never `error`, and can never loosen a floor. Nothing changes the drafter's rules without an admin's acceptance.\n\n**Acceptance criteria**\n- One edit with no stated reason proposes no rule.\n- A proposed rule shows the evidence for it and any evidence against it.\n- Accepting writes a new guideline version; rejecting is remembered.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- learned-guidelines.feature: a single unexplained edit proposes nothing; a stated reason with channel scope proposes a rule; a repeated change proposes a rule; a rule contradicted by approved history is not proposed; acceptance creates a guideline version; rejection is not repeated.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Announcements learn from a person's edits. Slice code O4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f51641cb-954c-4ce7-96a7-6902ed923b61",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-d99bd016-368d-4f43-b4d7-8d3fc590d169",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1d5c432d-b651-4fa3-8ee3-48f1e26ac1c3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2a2a8a5b-2c6b-402a-b9dc-bae1b70152e0",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:20.218861Z",
+  "updated_at": "2026-11-16T22:47:39.794346Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-c1cbf1ed-630e-4ada-b625-4821f929184a",
+  "title": "A later edit against a learned rule proposes narrowing it",
+  "description": "When a person's edit undoes what a learned rule made the drafter do, the learner proposes narrowing or retiring that rule, with the edit as evidence. This is the guard against drift: learned rules are held to the same evidence that created them, and the proposal again waits for an admin.\n\n**Acceptance criteria**\n- An edit that contradicts a learned rule raises one proposal to narrow or retire it.\n- Nothing is narrowed without acceptance.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- learned-contradiction.feature: an edit against a learned rule proposes narrowing; repeated contradiction strengthens the proposal instead of opening another; acceptance changes the next draft.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Announcements learn from a person's edits. Slice code O6 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f51641cb-954c-4ce7-96a7-6902ed923b61",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-a7174b30-35a8-46b9-82e0-0280807ed0f8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:20.728304Z",
+  "updated_at": "2026-11-16T22:47:40.161640Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

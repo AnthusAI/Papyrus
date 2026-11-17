@@ -19,10 +19,13 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import request_meter
+from . import agent_wakes, request_meter, run_outcomes, wake_keys
+from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
+from .agent_policy import Gate, PolicyGate, PolicyUnreadable
+from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
 
@@ -32,11 +35,14 @@ MAX_RECORDED_CALLS = 200
 MAX_SUMMARY_CHARACTERS = 500
 OUTPUT_SUMMARY_FIELDS = ("title", "summary", "next_step", "story")
 APPSYNC_ENDPOINT = re.compile(r"^https://[a-z0-9]+\.appsync-api\.[a-z0-9-]+\.amazonaws\.com/graphql$")
+DUPLICATE = "duplicate"   # a wake whose key already has a run record: reported, never run
 SSM_PARAMETER = re.compile(r"^/[A-Za-z0-9_./-]{1,1000}$")
 
 
 class ProcedureNotRunnable(Exception):
-    pass
+    """The request cannot run. `run_id` names the run record when one was already made (it is then marked failed)."""
+
+    run_id: str | None = None
 
 
 def utc_now() -> str:
@@ -53,19 +59,33 @@ def validate_request(request: dict) -> dict:
         raise ProcedureNotRunnable("procedureKey is required")
     if parameter and not SSM_PARAMETER.match(parameter):
         raise ProcedureNotRunnable("openaiKeyParameter must be an SSM parameter name")
+    try:
+        wake_key = wake_keys.checked(request.get("wakeKey"))
+    except wake_keys.InvalidWakeKey as invalid:
+        raise ProcedureNotRunnable(str(invalid)) from invalid
     if not isinstance(request.get("input") or {}, dict):
         raise ProcedureNotRunnable("input must be an object")
+    tenant_id, site_bucket = str(request.get("tenantId") or ""), str(request.get("siteBucket") or "")
+    if tenant_id:
+        from .tenancy import TenantError, validate_tenant_id
+        try:
+            validate_tenant_id(tenant_id)
+        except TenantError as invalid:
+            raise ProcedureNotRunnable(str(invalid)) from invalid
+    if site_bucket and not S3_BUCKET.match(site_bucket):
+        raise ProcedureNotRunnable("siteBucket must be an S3 bucket name")
     timeout = request.get("timeoutSeconds")
     if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout < 1):
         raise ProcedureNotRunnable("timeoutSeconds must be a positive whole number")
-    return {"appsyncEndpoint": endpoint, "procedureKey": key, "openaiKeyParameter": parameter or None,
+    return {"appsyncEndpoint": endpoint, "procedureKey": key, "wakeKey": wake_key, "openaiKeyParameter": parameter or None,
             "timeoutSeconds": None if timeout is None else min(timeout, MAX_TIMEOUT_SECONDS),
             "input": dict(request.get("input") or {}), "publicationId": str(request.get("publicationId") or ""),
+            "tenantId": tenant_id or None, "siteBucket": site_bucket or None,
             "actorLabel": str(request.get("actorLabel") or "Papyrus procedure runner"),
             "trigger": request.get("trigger") if isinstance(request.get("trigger"), dict) else None}
 
 
-def load_published_procedure(client, procedure_key: str) -> dict[str, Any]:
+def load_published_procedure(client, procedure_key: str, version_id: str | None = None) -> dict[str, Any]:
     from .model_attachments import download_attachment_buffer
 
     try:
@@ -79,6 +99,8 @@ def load_published_procedure(client, procedure_key: str) -> dict[str, Any]:
     version = current_cloud_procedure_version(definition)
     if not version or version.get("status") != "published":
         raise ProcedureNotRunnable(f"procedure {procedure_key} has no published current version")
+    if version_id and version["id"] != version_id:
+        raise ProcedureNotRunnable(f"procedure {procedure_key} was republished while the run was starting; the run record names version {version_id}")
     attachments = [entry for entry in client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", version["id"], limit=100)
                    if str(entry.get("status") or "active") == "active"]
     source = str(version.get("tactusSource") or "")
@@ -139,18 +161,33 @@ def summarize_output(output: Any, seconds: float) -> str:
     return "; ".join([f"Completed in {seconds:g} s", *details])[:MAX_SUMMARY_CHARACTERS]
 
 
-def start_run_record(client, request: dict, version: dict) -> str:
+def start_run_record(client, request: dict) -> dict[str, Any]:
+    """Makes the run's record from its wake key, as `started`, before anything is loaded. The newsroom derives the record's id from the
+    key and creates it with a condition, so a wake already recorded comes back as `duplicate` and is not run again."""
     trigger = request.get("trigger") or {}
-    data = client.graphql(START_PROCEDURE_RUN_MUTATION, {
-        "procedureKey": request["procedureKey"], "procedureVersionId": version["id"],
-        "title": trigger.get("title") or request["procedureKey"],
-        "summary": trigger.get("summary") or "Started by the Papyrus procedure runner",
-        "actorLabel": request["actorLabel"],
-        "input": json.dumps({**request["input"], "__papyrusExecutionMode": "external_cli"})})
+    try:
+        data = client.graphql(START_PROCEDURE_RUN_MUTATION, {
+            "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"],
+            "title": trigger.get("title") or request["procedureKey"],
+            "summary": trigger.get("summary") or "Started by the Papyrus procedure runner",
+            "actorLabel": request["actorLabel"],
+            "input": json.dumps({**request["input"], "__papyrusExecutionMode": "external_cli"})})
+    except Exception as error:   # the newsroom refused: an unknown or disabled procedure. No record exists, and none is claimed.
+        raise ProcedureNotRunnable(f"procedure {request['procedureKey']} could not be started: {error}") from error
     started = normalize_graphql_json_value(data.get("startNewsroomProcedureRun")) or {}
     if not started.get("runId"):
         raise ProcedureNotRunnable("the newsroom did not return a run id")
-    return started["runId"]
+    return {"runId": started["runId"], "duplicate": bool(started.get("duplicate")), "versionId": started.get("procedureVersionId")}
+
+
+def refuse_run(client, run_id: str, error: Exception, *, now: Callable[[], str], reason: str = run_outcomes.NOT_RUNNABLE) -> None:
+    """The run record exists but the run cannot begin (the procedure cannot be loaded, or the policy cannot be read): the record says so,
+    so it never stays `started` for a run that never began."""
+    stamp = now()
+    update_cloud_procedure_run_record(client, {
+        "id": run_id, "runStatus": "failed", "outcome": "failed", "outcomeReason": reason,
+        "startedAt": stamp, "finishedAt": stamp, "errorSummary": str(error)[:MAX_SUMMARY_CHARACTERS],
+        "error": {"message": str(error)}, "attempt": 1})
 
 
 def child_timeout(request: dict, seconds_available: float) -> float:
@@ -182,36 +219,90 @@ def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
     return {**summary, "perCall": calls[:MAX_RECORDED_CALLS], **extra}, estimate["costUsd"]
 
 
-def run_procedure_request(request: dict, *, client, execute: Callable[..., dict], seconds_available: float,
+def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], str]) -> dict:
+    """The site's policy says this wake starts nothing: the record says so (a finished run that did nothing, with the reason code), names
+    the responsibility, policy version and rung it was decided under, and the words say why. Nothing of the procedure is loaded."""
+    stamp, trigger = now(), request.get("trigger") or {}
+    update_cloud_procedure_run_record(client, {
+        "id": run_id, "runStatus": "completed", "outcome": "nothing", "outcomeReason": decision.reason_code,
+        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
+        "startedAt": stamp, "finishedAt": stamp, "attempt": 1, "resultSummary": decision.reason[:MAX_SUMMARY_CHARACTERS]})
+    return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "skipped": True,
+            "runStatus": "completed", "outcome": "nothing", "outcomeReason": decision.reason_code, "reason": decision.reason,
+            "responsibility": decision.responsibility, "rung": decision.rung, "policyVersion": decision.policy_version, "error": None}
+
+
+def policy_for(request: dict, client, s3: Callable[[], Any]) -> PolicyGate:
+    """The gate that reads this request's site policy. A request that does not say where the policy is starts nothing."""
+    if not (request.get("tenantId") and request.get("siteBucket")):
+        raise ProcedureNotRunnable("the request names no site policy: tenantId and siteBucket are required, so no run starts without one")
+    return PolicyGate.for_site(client, s3=s3(), bucket=request["siteBucket"], tenant_id=request["tenantId"])
+
+
+def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
                           run_started: Callable[[str], None] | None = None) -> dict:
     request = validate_request(request)
-    procedure = load_published_procedure(client, request["procedureKey"])
-    run_id = start_run_record(client, request, procedure["version"])
+    started = start_run_record(client, request)   # the record exists, `started`, before any procedure is loaded
+    run_id = started["runId"]
+    if started["duplicate"]:   # this wake already has its run: nothing more happens for it
+        return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
+                "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
+    try:
+        decision = policy.decide(request)   # the site's policy is read here, before anything is loaded or run
+    except PolicyUnreadable as error:
+        refuse_run(client, run_id, error, now=now, reason=run_outcomes.POLICY_UNREADABLE)
+        not_started = ProcedureNotRunnable(str(error))
+        not_started.run_id = run_id
+        raise not_started from error
+    if not decision.start:
+        return skip_run(client, run_id, request, decision, now=now)
     started_at = now()
     if run_started is not None:
         try:
             run_started(run_id)   # lets the trigger row name its run while it is still running
         except Exception:
             pass
+    try:
+        procedure = load_published_procedure(client, request["procedureKey"], started["versionId"])
+    except ProcedureNotRunnable as error:
+        refuse_run(client, run_id, error, now=now)
+        error.run_id = run_id
+        raise
     workdir = Path(tempfile.mkdtemp(prefix="papyrus-procedure-", dir=workroot))
     try:
         source_path = materialize(workdir, procedure["source"], procedure["skills"])
-        outcome = execute(workdir, source_path, request["input"],
-                          timeout_seconds=child_timeout(request, seconds_available), environment=environment)
+        timeout = child_timeout(request, seconds_available)
+        if decision.state is not None and decision.responsibility:   # an agent's run: the child gets the policy it was decided under and its deadline
+            environment = {**environment, **run_context.to_environment(run_id, decision.responsibility, decision.state, time.time() + timeout)}
+        outcome = execute(workdir, source_path, request["input"], timeout_seconds=timeout, environment=environment)
     except Exception as error:
         outcome = {"success": False, "error": f"{type(error).__name__}: {error}", "seconds": 0}
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
-    succeeded = bool(outcome.get("success"))
+    output = outcome.get("output")
+    gate = None
+    if outcome.get("success") and decision.state is not None and decision.responsibility:
+        gate = run_end.settle(client, decision.state, decision.responsibility, run_id, output)   # the gate's answers; a person's needed answer is `asked`
+    if gate is not None:
+        output = {**output, "gate": gate.record}   # every answer, in order, on the run record
+    if gate is not None and gate.error:
+        ended = run_outcomes.finished_outcome(False, None, gate.error) | {"outcomeReason": run_end.REVIEW_REQUEST_FAILED}
+    elif gate is not None and gate.blocked and gate.declaration is None:
+        ended = run_outcomes.finished_outcome(False, None, f"The run asked for {', '.join(gate.blocked)}, which no agent may do.") | {"outcomeReason": run_end.GATE_BLOCKED}
+    else:
+        ended = run_outcomes.finished_outcome(bool(outcome.get("success")), {**output, **gate.declaration} if gate and gate.declaration else output, outcome.get("error"))
+    succeeded = ended["runStatus"] == "completed"
     usage, cost_usd = usage_record(outcome)
+    trigger = request.get("trigger") or {}
     record = {
-        "id": run_id, "runStatus": "completed" if succeeded else "failed", "startedAt": started_at,
-        "finishedAt": now(), "attempt": 1,
-        "resultSummary": summarize_output(outcome.get("output"), outcome.get("seconds", 0)) if succeeded else None,
-        "errorSummary": None if succeeded else str(outcome.get("error") or "failed")[:MAX_SUMMARY_CHARACTERS],
-        "output": outcome.get("output") if succeeded else None,
-        "error": None if succeeded else {"message": outcome.get("error"), "logTail": outcome.get("logTail")}}
+        "id": run_id, "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
+        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
+        "startedAt": started_at, "finishedAt": now(), "attempt": 1,
+        "resultSummary": summarize_output(output, outcome.get("seconds", 0)) if succeeded else None,
+        "errorSummary": None if succeeded else ended["error"][:MAX_SUMMARY_CHARACTERS],
+        "output": output if succeeded or gate is not None else None,   # a run the gate stopped keeps its answers
+        "error": None if succeeded else {"message": ended["error"], "logTail": outcome.get("logTail")}}
     cost_recorded = usage is not None
     try:
         update_cloud_procedure_run_record(client, {**record, "usage": usage, "costUsd": cost_usd} if cost_recorded else record)
@@ -221,10 +312,12 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
         # A site backend that predates the usage fields refuses them; the run's outcome must still be recorded.
         cost_recorded = False
         update_cloud_procedure_run_record(client, record)
-    return {"runId": run_id, "procedureKey": request["procedureKey"], "versionId": procedure["version"]["id"],
-            "runStatus": "completed" if succeeded else "failed", "seconds": outcome.get("seconds"),
-            "error": None if succeeded else outcome.get("error"), "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
-            "output": outcome.get("output") if succeeded else None}
+    return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "versionId": procedure["version"]["id"],
+            **decision.run_fields(),
+            "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
+            "seconds": outcome.get("seconds"),
+            "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
+            "output": output if succeeded or gate is not None else None}
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
@@ -251,39 +344,53 @@ def record_trigger_outcome(table, trigger: dict | None, result: dict) -> None:
     if table is None or not trigger or not trigger.get("pk") or not trigger.get("sk"):
         return
     table.update_item(Key={"pk": trigger["pk"], "sk": trigger["sk"]},
-                      UpdateExpression="SET #s = :s, runId = :r, finishedAt = :f, runError = :e",
+                      UpdateExpression="SET #s = :s, runId = :r, finishedAt = :f, runError = :e, outcome = :o, outcomeReason = :w",
                       ExpressionAttributeNames={"#s": "status"},
                       ExpressionAttributeValues={":s": result.get("runStatus") or "failed", ":r": result.get("runId"),
-                                                 ":f": utc_now(), ":e": result.get("error")})
+                                                 ":f": utc_now(), ":e": result.get("error"),
+                                                 ":o": result["outcome"], ":w": result.get("outcomeReason")})
 
 
-@request_meter.metered_handler("procedure-runner", task_key="procedureKey")
+@request_meter.metered_handler("procedure-runner")
 def handler(event, context):
-    """Lambda entry point, invoked asynchronously (by the monitoring router) with one request."""
+    """Lambda entry point: the consumer of the site's wake queue (docs/procedure-runner.md), one message at a time. The message stays on the
+    queue, hidden, for the whole run. Returning deletes it, and this returns only once the wake's run record exists and is finished, or is the
+    record of an earlier delivery of the same wake. Raising leaves it: the queue delivers it once more, then moves it to the dead-letter queue."""
     import boto3  # provided by the Lambda image
 
     from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
+    request = agent_wakes.request_from_event(event)   # a message that is not a well-formed wake raises, and nothing is recorded
     table_name = os.environ.get("TRIGGER_TABLE_NAME")
     table = boto3.resource("dynamodb").Table(table_name) if table_name else None
-    trigger = (event or {}).get("trigger") if isinstance(event, dict) else None
+    trigger = request.get("trigger") if isinstance(request.get("trigger"), dict) else None
     try:
-        request = validate_request(event if isinstance(event, dict) else {})
+        request = validate_request(request)
         openai_api_key = None
         if request["openaiKeyParameter"]:
             openai_api_key = boto3.client("ssm").get_parameter(Name=request["openaiKeyParameter"],
                                                                WithDecryption=True)["Parameter"]["Value"]
         os.environ.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam")
         client = PapyrusGraphQLAuthoringClient()
+        policy = policy_for(request, client, lambda: boto3.client("s3"))
         seconds_available = context.get_remaining_time_in_millis() / 1000 if hasattr(context, "get_remaining_time_in_millis") else 840
-        result = run_procedure_request(request, client=client, execute=execute_in_child,
+        result = run_procedure_request(request, client=client, policy=policy, execute=execute_in_child,
                                        seconds_available=seconds_available,
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
                                        run_started=lambda run_id: record_trigger_run(table, trigger, run_id))
     except ProcedureNotRunnable as error:
-        result = {"runStatus": "notRunnable", "runId": None, "error": str(error)}
+        result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
+                  "error": str(error)}
+        if error.run_id is None:
+            # No run record exists for this wake, so the message must not be deleted: the trigger row says why, and the error leaves the message on the queue.
+            record_trigger_outcome(table, trigger, result)
+            raise
     print(json.dumps(result, default=str))
+    if result.get("duplicate"):
+        return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
+    if result.get("skipped"):
+        return result   # the policy started nothing: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
         finish_story_stage_run(table, trigger, result)
     if table is not None:
@@ -295,12 +402,12 @@ def fire_story_triggers_after_run(table, trigger: dict | None, result: dict) -> 
     """A run completed and named a story (a tool may have created or moved it): deliver that story's stage triggers.
     Never raises: the run's outcome is already recorded."""
     try:
-        from .automations import MonitoringReader, MonitoringWriter, lambda_invoker
+        from .automations import MonitoringReader, MonitoringWriter
         from .graphql_authoring import PapyrusGraphQLAuthoringClient
         from .story_triggers import deliver_after_run
 
         deliver_after_run(PapyrusGraphQLAuthoringClient(), trigger, result, reader=MonitoringReader(table),
-                          writer=MonitoringWriter(table), invoke=lambda_invoker())
+                          writer=MonitoringWriter(table), invoke=agent_wakes.wake_sender())
     except Exception as error:
         print(f"story triggers could not be delivered after the run: {type(error).__name__}: {error}")
 
@@ -309,11 +416,11 @@ def finish_story_stage_run(table, trigger: dict, result: dict) -> None:
     """A story-stage run ended: the engine advances the story or raises a review request (story_triggers.finish_stage_run).
     Never raises: the run's outcome is already recorded."""
     try:
-        from .automations import MonitoringReader, MonitoringWriter, lambda_invoker
+        from .automations import MonitoringReader, MonitoringWriter
         from .graphql_authoring import PapyrusGraphQLAuthoringClient
         from .story_triggers import finish_stage_run
 
         finish_stage_run(PapyrusGraphQLAuthoringClient(), trigger, result, reader=MonitoringReader(table), writer=MonitoringWriter(table),
-                         invoke=lambda_invoker())
+                         invoke=agent_wakes.wake_sender())
     except Exception as error:
         print(f"story stage run could not be finished: {type(error).__name__}: {error}")

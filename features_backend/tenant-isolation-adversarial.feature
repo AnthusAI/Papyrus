@@ -75,6 +75,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | Announcement             | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | Announcement             | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | Announcement             | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementDecision     | get                             | denied, or returns nothing of "beta"                                  |
+      | AnnouncementDecision     | list                            | no row of "beta" is returned and pages are not short                  |
+      | AnnouncementDecision     | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | AnnouncementDecision     | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | AnnouncementDecision     | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | AnnouncementDecision     | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | AnnouncementDecision     | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | AnnouncementSettings     | get                             | denied, or returns nothing of "beta"                                  |
       | AnnouncementSettings     | list                            | no row of "beta" is returned and pages are not short                  |
       | AnnouncementSettings     | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -138,6 +145,13 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | CurationDelegationRecord | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
       | CurationDelegationRecord | update-foreign-row              | denied, or returns nothing of "beta"                                  |
       | CurationDelegationRecord | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Delivery                 | get                             | denied, or returns nothing of "beta"                                  |
+      | Delivery                 | list                            | no row of "beta" is returned and pages are not short                  |
+      | Delivery                 | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
+      | Delivery                 | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
+      | Delivery                 | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
+      | Delivery                 | update-foreign-row              | denied, or returns nothing of "beta"                                  |
+      | Delivery                 | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | Edition                  | get                             | denied, or returns nothing of "beta"                                  |
       | Edition                  | list                            | no row of "beta" is returned and pages are not short                  |
       | Edition                  | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -576,6 +590,9 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
     Examples: generated from the schema
       | query                                                | outcome                          |
       | listAnnouncementsByAccountAndCreatedAt               | returns nothing of "beta"        |
+      | listAnnouncementDecisionsByTenant                    | returns nothing of "beta"        |
+      | listAnnouncementDecisionsByDedupeKeyAndCreatedAt     | returns nothing of "beta"        |
+      | listAnnouncementDecisionsByStateAndReleaseAt         | returns nothing of "beta"        |
       | listAssignmentsByTypeStatusAndCreatedAt              | returns nothing of "beta"        |
       | listAssignmentsByQueueStatusAndPriority              | returns nothing of "beta"        |
       | listAssignmentsByStatusAndUpdatedAt                  | returns nothing of "beta"        |
@@ -607,6 +624,10 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listCategorySetsByStatusAndName                      | returns nothing of "beta"        |
       | listCurationDelegationRecordsByTenant                | returns nothing of "beta"        |
       | listCurationDelegationRecordsByGrantor               | returns nothing of "beta"        |
+      | listDeliveriesByTenant                               | returns nothing of "beta"        |
+      | listDeliveriesByAnnouncementAndCreatedAt             | returns nothing of "beta"        |
+      | listDeliveriesByAccountKeyAndCreatedAt               | returns nothing of "beta"        |
+      | listDeliveriesByDueKeyAndDueAt                       | returns nothing of "beta"        |
       | listEditionsByLineageAndVersion                      | returns nothing of "beta"        |
       | listEditionsByVersionStateAndPublishedAt             | returns nothing of "beta"        |
       | editionBySlug                                        | returns nothing of "beta"        |
@@ -952,6 +973,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | submitSignup                         | denied, or returns nothing of "beta" |
       | suggestEditorialRewrite              | denied, or returns nothing of "beta" |
       | suggestReferenceLinks                | denied, or returns nothing of "beta" |
+      | todayOverview                        | denied, or returns nothing of "beta" |
       | transitionProposal                   | denied, or returns nothing of "beta" |
       | tryEditorialPolicy                   | denied, or returns nothing of "beta" |
       | unpublishItem                        | denied, or returns nothing of "beta" |

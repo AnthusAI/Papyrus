@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "27535ed4-2772-44c2-ae23-8475bc0fd7a2",
+  "issue_id": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:05.325Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One gate: each operation names the rung it needs",
+    "description": "The operation table (one table behind the CLI, MCP and newsroom) gains, for an agent actor, the lowest rung that allows each operation, and for each a plain rule for doubt. One gate, on the server, receives the operation, the agent and the run, reads the policy once, and answers `allowed`, `blocked` (never for an agent) or `human_required` (a person must do or approve it). On `human_required` the engine raises the review request and the run ends `asked`. The gate is the only way an agent reaches a write. A person's own action is never gated by an agent's rung.\n\n**Acceptance criteria**\n- An agent at `propose` asking to write a draft gets `human_required` or `blocked` as the table says, and the write does not happen.\n- Raising the rung allows the same call with no code change.\n- Every gate answer is on the run record.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- operation-gate.feature: the same call is refused at a low rung and allowed at a higher one; a blocked operation is blocked at every rung; `human_required` raises one review request and ends the run `asked`; a person's action is not gated; the answer is recorded.\n\n**Infrastructure as code touched:** The gate function and its role; operation table data.\n\n**Part of:** Authorization: the autonomy ladder as configuration. Slice code E2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

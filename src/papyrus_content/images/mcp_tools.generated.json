@@ -6,6 +6,8 @@
       "audience": "staff",
       "description": "Read the publication's visual style profile, the current version or an older one.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -60,6 +62,8 @@
       "audience": "staff",
       "description": "Show the style that would apply to a Story, section and use, with the layer every field came from.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -236,6 +240,8 @@
       "audience": "staff",
       "description": "Show what saving a style document would change, without saving it.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -293,6 +299,8 @@
       "audience": "staff",
       "description": "Save a style document as a new profile version.",
       "agentAllowed": true,
+      "agentRung": "prepare",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -347,6 +355,8 @@
       "audience": "staff",
       "description": "List the profile's versions, newest first, with who changed it and why.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -426,6 +436,8 @@
       "audience": "staff",
       "description": "Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -513,6 +525,8 @@
       "audience": "staff",
       "description": "Add an example or an avoid-this picture to the profile, as a new version.",
       "agentAllowed": true,
+      "agentRung": "prepare",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -596,6 +610,8 @@
       "audience": "staff",
       "description": "Remove an example picture from the profile, as a new version.",
       "agentAllowed": true,
+      "agentRung": "prepare",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -653,6 +669,8 @@
       "audience": "staff",
       "description": "Say which image models this site can use and whether spending is approved.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -712,6 +730,8 @@
       "audience": "staff",
       "description": "Work out a starting brief and stock search from a Story's title and deck.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -837,6 +857,8 @@
       "audience": "staff",
       "description": "Show exactly what would be asked of the image model, and what it would cost, without making anything.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -992,6 +1014,8 @@
       "audience": "staff",
       "description": "Find stock pictures for a Story, four at a time.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -1186,6 +1210,8 @@
       "audience": "staff",
       "description": "Make pictures from a brief in the publication's style. The pictures arrive later.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "spend",
       "inputSchema": {
         "type": "object",
@@ -1442,6 +1468,8 @@
       "audience": "staff",
       "description": "Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -1579,6 +1607,8 @@
       "audience": "staff",
       "description": "Read a round of pictures and say whether they are all done.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -1751,6 +1781,8 @@
       "audience": "staff",
       "description": "Read one picture's full record, with a short-lived preview address.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -1787,6 +1819,8 @@
       "audience": "staff",
       "description": "List the rounds and pictures made for a Story or Reference, newest first.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -1988,6 +2022,8 @@
       "audience": "staff",
       "description": "Make a new picture to replace one that failed. The ones that worked stay.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "spend",
       "inputSchema": {
         "type": "object",
@@ -2146,6 +2182,8 @@
       "audience": "staff",
       "description": "Make new pictures from one you have, with an instruction such as 'less busy'.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "spend",
       "inputSchema": {
         "type": "object",
@@ -2324,6 +2362,8 @@
       "audience": "staff",
       "description": "Record a picture as the pick. It changes no Story and is not approval.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -2413,6 +2453,8 @@
       "audience": "staff",
       "description": "Undo an applied picture: the Story gets a new version with the old cover or the placeholder back.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -2506,6 +2548,8 @@
       "audience": "staff",
       "description": "Keep or remove a picture that was added without a person looking at it. Only a person may.",
       "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -2585,6 +2629,8 @@
       "audience": "staff",
       "description": "List the pictures that were added without a person, oldest first.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -2676,6 +2722,8 @@
       "audience": "staff",
       "description": "Put a picture on a Story: copy it into the site's media and record where it came from. It never publishes.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -2833,6 +2881,8 @@
       "audience": "staff",
       "description": "Reject a picture, or a whole round (which keeps the placeholder). The private file is deleted; the record stays.",
       "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -2890,6 +2940,8 @@
       "audience": "staff",
       "description": "Read a kind of guidelines for the publication or one section, the current version or an older one.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -2939,6 +2991,13 @@
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
           },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set."
+          },
           "itemId": {
             "type": "string",
             "minLength": 1
@@ -2986,6 +3045,8 @@
       "audience": "staff",
       "description": "Show the effective guidelines for the publication or a section laid over it, and for one language, with where every field came from.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -3116,6 +3177,8 @@
       "audience": "staff",
       "description": "Show what saving a guideline document would change, without saving it.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -3138,11 +3201,17 @@
           "document": {
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set."
           }
         },
         "required": [
-          "kind",
-          "document"
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -3187,6 +3256,30 @@
           "wouldCreateVersion": {
             "type": "integer",
             "minimum": 0
+          },
+          "fileChanges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "change": {
+                  "type": "string",
+                  "enum": [
+                    "added",
+                    "changed",
+                    "removed"
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "change"
+              ]
+            }
           }
         },
         "required": [
@@ -3202,6 +3295,8 @@
       "audience": "staff",
       "description": "Save a guideline document as the next version of its kind and scope.",
       "agentAllowed": true,
+      "agentRung": "prepare",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -3225,6 +3320,13 @@
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
           },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set."
+          },
           "reason": {
             "type": "string",
             "minLength": 1,
@@ -3238,7 +3340,6 @@
         },
         "required": [
           "kind",
-          "document",
           "reason",
           "expectedCurrentVersionId"
         ],
@@ -3293,6 +3394,8 @@
       "audience": "staff",
       "description": "List the versions of a kind of guidelines, newest first, with who changed it and why.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -3391,6 +3494,8 @@
       "audience": "staff",
       "description": "List the account's announcements, newest first, optionally one state.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -3576,6 +3681,8 @@
       "audience": "staff",
       "description": "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -3752,6 +3859,8 @@
       "audience": "staff",
       "description": "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -3831,6 +3940,8 @@
       "audience": "staff",
       "description": "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.",
       "agentAllowed": true,
+      "agentRung": "propose",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -3866,7 +3977,9 @@
       "name": "announcements_resume",
       "audience": "staff",
       "description": "Resume announcements and announce the Stories that waited.",
-      "agentAllowed": true,
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -3898,6 +4011,8 @@
       "audience": "staff",
       "description": "Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -3968,6 +4083,8 @@
       "audience": "staff",
       "description": "Change announcement settings. Every rule is checked and every problem listed; nothing is saved when any fails.",
       "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "blocked",
       "effect": "write",
       "inputSchema": {
         "type": "object",
@@ -4089,6 +4206,8 @@
       "audience": "staff",
       "description": "Show mode, pause, the cycle's spend against the budget, and the connected account.",
       "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
       "effect": "read",
       "inputSchema": {
         "type": "object",
@@ -4131,6 +4250,61 @@
         "required": [
           "mode",
           "paused"
+        ]
+      }
+    },
+    {
+      "name": "ratings_set",
+      "audience": "staff",
+      "description": "Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated.",
+      "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The rating, 1 to 5. An agent may only give 3 or 4."
+          }
+        },
+        "required": [
+          "story",
+          "stars"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lineageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previous": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The rating before this one: 0 when the Story had none."
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "ratedBy": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "lineageId",
+          "stars"
         ]
       }
     }

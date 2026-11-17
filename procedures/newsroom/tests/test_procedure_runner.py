@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from papyrus_content.agent_policy import PersonStart
 from papyrus_content import model_attachments, procedure_runner as pr, site_procedures as sp
 from papyrus_content.monitoring_cloud import DynamoStore
 from papyrus_content.monitoring_router import Router, RouterStore, run_router, validate_router_config
@@ -140,7 +141,7 @@ class NewsroomClient:
                 {"id": "procedure-1", "enabled": True, "currentVersionId": "version-1", "currentVersion": self.version})}
         if "startNewsroomProcedureRun" in query:
             self.started.append(variables)
-            return {"startNewsroomProcedureRun": json.dumps({"ok": True, "runId": "run-1"})}
+            return {"startNewsroomProcedureRun": json.dumps({"ok": True, "runId": "run-1", "duplicate": False, "procedureVersionId": "version-1"})}
         if "updateProcedureRun" in query:
             self.updates.append(variables["input"])
             return {"updateProcedureRun": variables["input"]}
@@ -157,6 +158,7 @@ def attachment_bodies(monkeypatch):
 
 
 REQUEST = {"appsyncEndpoint": ENDPOINT, "procedureKey": "distinctive.ttab.ruling-analysis",
+           "wakeKey": "distinctive.ttab|manual|request-1",
            "openaiKeyParameter": KEY_PARAMETER, "input": {"proceeding": "97752244", "opinion_url": "https://x/a.pdf"}}
 
 
@@ -169,11 +171,11 @@ def test_the_runner_materializes_skills_records_the_run_and_its_output(tmp_path)
                     inputs=inputs, timeout=timeout_seconds)
         return {"success": True, "output": {"title": "Wemby"}, "seconds": 42}
 
-    result = pr.run_procedure_request(REQUEST, client=client, execute=execute, seconds_available=900,
+    result = pr.run_procedure_request(REQUEST, policy=PersonStart(), client=client, execute=execute, seconds_available=900,
                                       environment={}, workroot=tmp_path)
 
-    assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "versionId": "version-1",
-                      "runStatus": "completed", "seconds": 42, "error": None, "costUsd": None, "costRecorded": False,
+    assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "wakeKey": REQUEST["wakeKey"], "versionId": "version-1",
+                      "runStatus": "completed", "outcome": "acted", "outcomeReason": None, "seconds": 42, "error": None, "costUsd": None, "costRecorded": False,
                       "output": {"title": "Wemby"}}
     assert seen["skill"] == "# Example" and "Procedure {" in seen["source"] and seen["timeout"] == 840
     assert json.loads(client.started[0]["input"])["__papyrusExecutionMode"] == "external_cli"
@@ -190,7 +192,7 @@ def run_with(request, outcome, *, client=None, seconds_available=900, tmp_path=N
         seen["timeout"] = timeout_seconds
         return outcome
 
-    result = pr.run_procedure_request({**REQUEST, **request}, client=client, execute=execute, seconds_available=seconds_available,
+    result = pr.run_procedure_request({**REQUEST, **request}, policy=PersonStart(), client=client, execute=execute, seconds_available=seconds_available,
                                       environment={}, workroot=tmp_path, **kwargs)
     return result, client, seen
 
@@ -308,7 +310,7 @@ def test_the_automation_id_in_the_request_survives_validation():
 def test_a_failed_run_is_recorded_as_failed_with_its_error(tmp_path):
     client = NewsroomClient()
 
-    result = pr.run_procedure_request(REQUEST, client=client, workroot=tmp_path, seconds_available=900, environment={},
+    result = pr.run_procedure_request(REQUEST, policy=PersonStart(), client=client, workroot=tmp_path, seconds_available=900, environment={},
                                       execute=lambda *a, **k: {"success": False, "error": "timed out after 840 s", "seconds": 840})
 
     assert result["runStatus"] == "failed" and client.updates[0]["errorSummary"] == "timed out after 840 s"
@@ -316,9 +318,9 @@ def test_a_failed_run_is_recorded_as_failed_with_its_error(tmp_path):
 
 def test_only_a_published_version_runs_and_skills_cannot_escape_the_workdir(tmp_path):
     with pytest.raises(pr.ProcedureNotRunnable, match="published"):
-        pr.run_procedure_request(REQUEST, client=NewsroomClient(status="draft"), execute=None, seconds_available=900, environment={})
+        pr.run_procedure_request(REQUEST, policy=PersonStart(), client=NewsroomClient(status="draft"), execute=None, seconds_available=900, environment={})
     escaping = NewsroomClient(skills=[("../outside/SKILL.md", b"x")])
-    result = pr.run_procedure_request(REQUEST, client=escaping, workroot=tmp_path, seconds_available=900, environment={},
+    result = pr.run_procedure_request(REQUEST, policy=PersonStart(), client=escaping, workroot=tmp_path, seconds_available=900, environment={},
                                       execute=lambda *a, **k: {"success": True})
     assert result["runStatus"] == "failed" and "escapes" in result["error"]
 
@@ -435,14 +437,19 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     statements = resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {statement["Sid"] for statement in statements} == {
         "Logs", "FailedInvocations", "PublicationOpenAiKeys", "TriggerOutcomes", "StageTriggerRows",
-        "StartNextStage", "PublicationNewsrooms"}
+        "ReadWakeQueues", "PutWakes", "PublicationNewsrooms", "SiteAgentPolicyBody"}
     assert all("*" != statement["Resource"] for statement in statements)
     by_sid = {statement["Sid"]: statement for statement in statements}
     rows = by_sid["StageTriggerRows"]
     assert set(rows["Action"]) == {"dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"}
     assert rows["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["MONITOR#*"]
-    invoke = by_sid["StartNextStage"]
-    assert invoke["Action"] == "lambda:InvokeFunction" and invoke["Resource"][1].endswith(":function:papyrus-procedure-runner")
+    policy_body = by_sid["SiteAgentPolicyBody"]   # PPY-c8175e: read one document's objects, nothing else of S3
+    assert policy_body["Action"] == "s3:GetObject" and policy_body["Resource"][1].endswith(":::*/tenants/*/site/agents/*")
+    queues = ":papyrus-*-agent-wakes.fifo"   # the wake queues by name pattern (PPY-567bf9); the dead-letter queues do not match
+    consume, send = by_sid["ReadWakeQueues"], by_sid["PutWakes"]
+    assert consume["Action"] == ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"] and consume["Resource"][1].endswith(queues)
+    assert send["Action"] == ["sqs:GetQueueUrl", "sqs:SendMessage"] and send["Resource"][1].endswith(queues)
+    assert not any("lambda:" in str(statement["Action"]) for statement in statements), "the runner no longer invokes any function, itself included"
 
 
 def test_the_runner_role_reaches_exactly_the_newsrooms_it_is_granted():
@@ -456,12 +463,12 @@ def test_the_runner_role_reaches_exactly_the_newsrooms_it_is_granted():
         assert kinds == ["Mutation/fields/*", "Query/fields/*"]
 
 
-def test_the_router_may_start_only_the_named_runner():
+def test_the_router_may_only_put_wakes_on_the_site_queues():
     template = cloudformation(INFRA / "monitoring" / "papyrus-monitoring.yaml")
-    policy = template["Resources"]["RouterProcedureRunnerPolicy"]
-    assert policy["Condition"] == "HasProcedureRunner"
-    statement = policy["Properties"]["PolicyDocument"]["Statement"][0]
-    assert statement["Action"] == "lambda:InvokeFunction" and statement["Resource"][1].endswith(":function:${ProcedureRunnerFunctionName}")
+    assert "RouterProcedureRunnerPolicy" not in template["Resources"] and "ProcedureRunnerFunctionName" not in template["Parameters"]
+    statement = template["Resources"]["RouterWakeQueuePolicy"]["Properties"]["PolicyDocument"]["Statement"]
+    assert len(statement) == 1 and statement[0]["Action"] == ["sqs:GetQueueUrl", "sqs:SendMessage"]
+    assert statement[0]["Resource"][1].endswith(":papyrus-*-agent-wakes.fifo")
 
 
 def test_the_runner_hook_never_raises_when_delivery_fails(monkeypatch, capsys):

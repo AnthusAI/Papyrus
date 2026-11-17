@@ -122,9 +122,14 @@ PROCEDURE_RUN_FIELDS = (
     "id procedureId procedureKey procedureVersionId procedureVersionNumber assignmentId runStatus requestedBy "
     "requestedAt startedAt finishedAt input normalizedInput resultSummary errorSummary output error attempt newsroomFeedKey"
 )
-PROCEDURE_RUN_COST_FIELDS = "usage costUsd"   # added after the base list: a backend that predates them refuses a query that names them
+PROCEDURE_RUN_TODAY_FIELDS = (   # one run as Today lists it: no input, output or usage, which hold whole bodies
+    "id tenantId procedureKey runStatus outcome outcomeReason automationId responsibility subjectKind subjectId subjectVersion rung "
+    "requestedAt startedAt finishedAt costUsd errorSummary"
+)
+PROCEDURE_RUN_COST_FIELDS = "usage costUsd outcome outcomeReason automationId"   # added after the base list: a backend that predates them refuses a query that names them
 AUTOMATION_FIELDS = (
-    "id title description enabled trigger procedureKey inputTemplate limits createdBy createdAt updatedBy updatedAt"
+    "id title description enabled trigger procedureKey responsibility definitionId definitionVersion definitionDigest definition definitionRetiredAt inputTemplate limits "
+    "createdBy createdAt updatedBy updatedAt"
 )
 REVIEW_REQUEST_FIELDS = (
     "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
@@ -146,6 +151,12 @@ ANNOUNCEMENT_FIELDS = (
     "attempts round error history withdrawnBy withdrawnAt createdAt updatedAt"
 )
 ANNOUNCEMENT_SPEND_FIELDS = "id accountId cycleStart total updatedAt"
+ANNOUNCEMENT_DECISION_FIELDS = "id tenantId dedupeKey kind state releaseAt createdBy trigger history revision createdAt updatedAt"
+DELIVERY_FIELDS = (
+    "id tenantId announcementId channel accountId accountKey audience mode state blockedReason generation version textKey imageKey contentHash draftedBy checks "
+    "approval approvalPolicy approvedVersion approvedBy approvedAt releaseAt lockAt lockedAt lockedVersion nextAttemptAt waitingFor dueAt dueKey "
+    "resultUrl providerId cost counts attempts supersedes supersededBy history revision createdAt updatedAt"
+)
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 EDITORIAL_CHECK_SETTINGS_FIELDS = "id settings"
 USER_ROLE_ASSIGNMENT_FIELDS = (
@@ -238,6 +249,8 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
     "Announcement": {"field": "listAnnouncements", "fields": ANNOUNCEMENT_FIELDS},
     "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
+    "AnnouncementDecision": {"field": "listAnnouncementDecisions", "fields": ANNOUNCEMENT_DECISION_FIELDS},
+    "Delivery": {"field": "listDeliveries", "fields": DELIVERY_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "EditorialCheckSettings": {"field": "listEditorialCheckSettings", "fields": EDITORIAL_CHECK_SETTINGS_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
@@ -475,10 +488,15 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
     # One row per story: only the head row of a lineage carries headStageKey (docs/plans/story-head-stage-index.md). Tenant-prefixed (tenancy.py).
     "itemsByHeadStage": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey", "fields": STORY_SECTION_LINK_FIELDS},
+    # The published head rows with what the rating agent judges and whether a person rated them (src/papyrus_content/rating_agent.py). Same partition as itemsByHeadStage.
+    "itemsByHeadStageForRating": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey",
+                                  "fields": "id tenantId lineageId versionState stage status type section title headline deck bodyMarkus sourceLineageId starRating starRatedBy updatedAt"},
     # The rows of one old stage partition with what `stories head-index` needs to pick each lineage's head (the WithKey form once the site has it).
     "itemHeadFieldsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": HEAD_INDEX_ROW_FIELDS},
     "itemHeadFieldsWithKeyByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": f"{HEAD_INDEX_ROW_FIELDS} headStageKey"},
     # A Story's language group: every version of the primary and of each localization, one language with sortEq (item_language.py). Tenant-prefixed.
+    # Today (docs/design/always-on-agents-architecture.md section 7.1): the runs of one status inside a time range.
+    "procedureRunsByStatus": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_TODAY_FIELDS},
     "itemsByLanguageGroup": {"field": "listItemsByLanguageGroupAndLanguage", "partitionKey": "languageGroupId", "sortKey": "language", "fields": ITEM_FIELDS},
     # The rows of one version-state partition with what `stories languages` needs (every Item row has a version state).
     "itemLanguageFieldsByVersionState": {"field": "listItemsByVersionStateAndUpdatedAt", "partitionKey": "versionState", "fields": ITEM_LANGUAGE_ROW_FIELDS},
@@ -604,6 +622,7 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "semanticRelationsByObjectState": {
         "field": "listSemanticRelationsByObjectState",
         "partitionKey": "objectStateKey",
+        "sortKey": "predicate",
         "fields": SEMANTIC_RELATION_FIELDS,
     },
     "storyVariationsByStoryAndNumber": {
@@ -616,6 +635,37 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "field": "listAnnouncementsByAccountAndCreatedAt",
         "partitionKey": "accountId",
         "fields": ANNOUNCEMENT_FIELDS,
+    },
+    # The Announcement and Delivery records (docs/announcement-records.md). Every read of them is one of these indexes.
+    "announcementDecisionsByDedupeKey": {
+        "field": "listAnnouncementDecisionsByDedupeKeyAndCreatedAt",
+        "partitionKey": "dedupeKey",
+        "sortKey": "createdAt",
+        "fields": ANNOUNCEMENT_DECISION_FIELDS,
+    },
+    "announcementDecisionsByState": {
+        "field": "listAnnouncementDecisionsByStateAndReleaseAt",
+        "partitionKey": "state",
+        "sortKey": "releaseAt",
+        "fields": ANNOUNCEMENT_DECISION_FIELDS,
+    },
+    "deliveriesByAnnouncement": {
+        "field": "listDeliveriesByAnnouncementAndCreatedAt",
+        "partitionKey": "announcementId",
+        "sortKey": "createdAt",
+        "fields": DELIVERY_FIELDS,
+    },
+    "deliveriesByAccount": {
+        "field": "listDeliveriesByAccountKeyAndCreatedAt",
+        "partitionKey": "accountKey",
+        "sortKey": "createdAt",
+        "fields": DELIVERY_FIELDS,
+    },
+    "deliveriesByDue": {
+        "field": "listDeliveriesByDueKeyAndDueAt",
+        "partitionKey": "dueKey",
+        "sortKey": "dueAt",
+        "fields": DELIVERY_FIELDS,
     },
     "itemsByParent": {
         "field": "listItemsByParentAndOrder",
@@ -1250,12 +1300,19 @@ class PapyrusGraphQLAuthoringClient:
             next_token = connection.get("nextToken")
         return rows
 
-    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100, sort_eq: str | None = None) -> list[dict[str, Any]]:
-        """Every row of one index partition. ``sort_eq`` (for an index whose definition names a ``sortKey``) keeps only the rows with that sort value."""
+    def list_by_index(
+        self, index_name: str, key_value: str, *, limit: int = 100, sort_eq: str | None = None, sort_condition: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        """Every row of one index partition. ``sort_eq`` (for an index whose definition names a ``sortKey``) keeps only the rows with that sort value;
+        ``sort_condition`` keeps the rows whose sort value meets one key condition (``{"le": value}``, ``{"between": [low, high]}``): a key condition, so only
+        those rows are read."""
         index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
-        sort_key = definition.get("sortKey") if sort_eq is not None else None
-        if sort_eq is not None and not sort_key:
+        if sort_eq is not None and sort_condition is not None:
+            raise ValueError("Name the sort value with sort_eq or sort_condition, not both.")
+        condition = {"eq": sort_eq} if sort_eq is not None else sort_condition
+        sort_key = definition.get("sortKey") if condition is not None else None
+        if condition is not None and not sort_key:
             raise ValueError(f"Index {index_name} has no sort key to match.")
         query = _index_query(
             definition["field"],
@@ -1273,7 +1330,7 @@ class PapyrusGraphQLAuthoringClient:
                 "nextToken": next_token,
             }
             if sort_key:
-                variables["sortEq"] = {"eq": sort_eq}
+                variables["sortEq"] = condition
             result = self.graphql(query, variables)
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)

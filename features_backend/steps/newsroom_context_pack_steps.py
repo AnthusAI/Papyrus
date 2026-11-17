@@ -1450,9 +1450,9 @@ def step_no_dates(context):
 
 # --- guidelines as data (PPY-de286b) ----------------------------------------------------------------------------------------------------------------------
 
-SITE_WRITING = {"schemaVersion": 1, "voice": {"name": "VOICE-HOUSE"}, "audience": "AUDIENCE-GENERAL readers", "tone": ["TONE-WARM"], "bodyMarkus": "PROSE-WRITE-PLAINLY",
+SITE_WRITING = {"schemaVersion": 2, "voice": {"name": "VOICE-HOUSE"}, "audience": "AUDIENCE-GENERAL readers", "tone": ["TONE-WARM"], "bodyMarkus": "PROSE-WRITE-PLAINLY",
                 "lexicon": {"avoid": ["AVOID-SYNERGY"]}, "constraints": [{"id": "no-hype", "text": "RULE-NO-HYPE"}]}
-SECTION_WRITING = {"schemaVersion": 1, "tone": ["TONE-PRECISE"]}
+SECTION_WRITING = {"schemaVersion": 2, "tone": ["TONE-PRECISE"]}
 
 
 class GuidelineFiles:

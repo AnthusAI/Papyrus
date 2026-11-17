@@ -37,6 +37,122 @@ Re-measure after any release that created indexes, once its CloudFormation updat
 
 A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary and the reviewer approves in GitHub, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" has an approval waiting. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
 
+## Enforcing the agent policy on a site
+
+From the release that carries PPY-c8175e, the shared procedure runner reads each site's agent policy before it starts a run
+([procedure runner](procedure-runner.md)). An automation that is not adopted onto a responsibility, or whose responsibility is not
+raised above `off` in the site's policy, starts nothing: the run is recorded as "Nothing to do" with the reason `not_adopted` or
+`rung_off`. So for every site that runs automations, **before the release that carries the runner reaches it**:
+
+1. In the router config, name the site's `tenantId` and `siteBucket` on its publication (the site's media bucket; the policy body is at
+   `tenants/<tenant>/site/agents/<version>.json` in it).
+2. Adopt each automation (an admin who is a person, signed in with `papyrus login`). Dry run first:
+   `papyrus automations adopt --id AUTOMATION_ID --responsibility KEY --dry-run`, then the same without `--dry-run`. Adopting sets no rung.
+3. Write the policy line for that responsibility at the rung that matches today's behaviour, with a reason. **Ryan approves the rung;
+   an engineer never picks it.** (`papyrus agents set-rung --id AGENT --rung RUNG --reason TEXT`, a dry run until `--apply`; see
+   [the first agent](#the-first-agent-rating-on-machines-on-machines-ppy-d85860) for what it checks and the storage permission it needs.)
+4. Check: `papyrus automations runs --id AUTOMATION_ID` after the next wake shows the run with the policy version and rung, not
+   "Nothing to do (not_adopted)".
+
+Distinctive's TTAB analysis is the automation `distinctive.ttab`. The responsibility catalog has no entry for a ruling analysis, so which one it
+is adopted as, and at which rung, is Ryan's decision; the commands are on PPY-e713eb.
+
+## Starting procedures through the wake queue
+
+From the release that carries PPY-567bf9, nothing invokes the shared procedure runner directly. The monitoring router, Run now, the story-stage
+triggers and translate-on-publish put a wake on the site's queue, `papyrus-<site>-agent-wakes.fifo`, and the runner consumes it
+([the wake queue](procedure-runner.md#the-wake-queue)). Two things must be true for a site before its procedures can start:
+
+1. **The site has its queue.** The queue is in the site's `agents` stack, which the site's second deploy adds (a first deploy leaves it out).
+   The mapping from the queue to the runner can only be created after the runner's role may read the queues, so the runner stack's release
+   (the statement `ReadWakeQueues`) comes before the first site deploy that creates a queue.
+2. **The senders and the runner switch together.** The router and the runner are shared stacks and switch in one release; a site's own functions
+   (Run now, translate-on-publish) switch with that site's backend. A wake for a site that has no queue yet fails to start and the trigger row says
+   `startFailed` with the queue's name; nothing falls back to another way of starting, so a site that runs procedures (Distinctive Mark's ruling analysis,
+   the story bots) is bumped and deployed in the same quiet window as the release, and what arrived in between is started again afterwards.
+
+The role changes are in `infra/procedures/papyrus-procedure-runner.yaml` and `infra/monitoring/papyrus-monitoring.yaml`, and they reach AWS only through
+the release. They need Ryan's approval first. Before the queue is relied on at a site, the live once-only create is proved on a site on a release with wake keys
+(PPY-817340).
+
+## Procedures are registered by the site's deploy
+
+A site's Amplify build registers every core procedure and the site's own procedures right after the backend deploys (`papyrus procedures
+seed-required`, in the generated production build spec; [details](procedure-runner.md#registering-procedures-the-deploy-does-it)). It needs
+no step from a person and no change to a role: the build runs as the app's service role, which can sign GraphQL requests and use the
+site's storage. A registration that fails fails the build. The first site build that carries it writes all 15 core procedures (ten
+digests are new because the kind header was added to those files, seven kinds had never been seeded, and `rate_items`, the rating agent's, is new); later builds write nothing
+until a procedure file or its metadata changes. A site's pin of Papyrus must carry the command: the build installs the pinned version, and
+an older pin stops at the missing command instead of skipping the step.
+
+## Agent definitions are applied by the site's deploy
+
+Right after it registers the procedures, a site's Amplify build runs `papyrus agents apply` (the generated production build spec; [details](automations.md#applying-the-definitions-the-deploy-does-it)). It needs no step from a person and no new IAM permission: the build role already signs GraphQL requests to the site's API, which is all the step does (list, read, create and update `Automation` records). A site's own definitions are in `papyrus-site-agents` at its checkout root.
+
+- It stops the build, before writing anything, when a definition is invalid or names a procedure that is not registered. **A core definition whose procedure is not registered therefore fails every site's build.** `core/rate.yaml` names `rate_items`, which the registry lists since PPY-d85860 (the procedure and the definition ship in the same release, and a test keeps them so).
+- It creates each new agent's automation disabled, writes the registered copy (the same digest writes nothing) and retires a definition gone from Git. It never writes the agent policy document and never adopts an automation, so a deploy does not move a rung or a pause and a new agent arrives at `off`.
+- The release that first carries it adds the optional `definitionRetiredAt` field to `Automation` (a field on an existing model, no index); the build deploys the backend before this step.
+
+## The schedule group is reconciled by the site's deploy
+
+Right after `papyrus agents apply`, the production build runs `papyrus agents schedules --site <brand id>` ([details](automations.md#the-schedule-trigger)): one EventBridge Scheduler entry for each switched-on agent that names a schedule, targeting the site's wake queue. **Unlike the apply step, it needs permissions the build role does not have yet** (the scheduler actions on the site's group, `iam:PassRole` on the scheduler role, the wake queue's address and the monitoring table read; the exact list is in automations.md). **Do not release a version that carries this step until a person has granted them**, or every site's build stops at it. The schedule group and the scheduler role are in the site's `agents` stack, which the first deploy of a new site leaves out.
+
+## The first agent: rating on Machines on Machines (PPY-d85860)
+
+The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/rating-agent.feature`) is the first
+always-on agent. Once a day it reads the published Stories nobody has rated and, at the rung `observe`, only records what it would rate and why: no rating is written,
+no review request is filed, and a five is only ever listed as a candidate. Nothing below has been run against a live site. Each step says who does it. **Ryan approves the rung;
+an engineer never picks it.**
+
+Before the first run (each is a separate decision or piece of work):
+
+1. **The release.** The procedure, the definition and the `ratings` operation reach Machines on Machines through a release and the site's bump, in the quiet window the
+   always-on agents track report describes (the runner and the backends switch together, one site at a time; this site's guideline conversion first). The site's build then registers
+   `rate_items` and applies the definition on its own: the automation `rate` appears **disabled**, with its registered copy. (Engineer, with Ryan's go for the window.)
+2. **The router publication names the site's policy.** In `infra/monitoring/router-config/hn.json`, the `machines-on-machines` publication has `tenantId` and `siteBucket`
+   (PPY-d85860): the site's media bucket, where the policy body lives at `tenants/machines-on-machines/site/agents/<version>.json`. It is the same bucket the publication names as
+   `monitorStories.storageBucketName`, and the one `papyrus agents set-rung` writes to (the site's published `media_bucket`, the `storage.bucket_name` of its `amplify_outputs.json`).
+   The release applies the router config. Until it has, the runner refuses every wake ("the request names no site policy"). (Engineer.)
+3. **The model key.** The site's key (`/amplify/shared/d260vp72hqglnc/OPENAI_API_KEY`, the router publication's `openaiKeyParameter`) expired on 14 November; the run fails closed
+   without a working one (`The run has no model key`). PPY-6af46b. (Ryan rotates it.)
+4. **Permissions for the schedule step** (the build role's scheduler, queue and monitoring reads), listed under "The schedule group is reconciled by the site's deploy" above. (Ryan grants.)
+5. **The head stage index is filled.** The agent reads the published Stories from the head stage index and never scans. On the site, as an admin who is a person:
+   `papyrus --site machines-on-machines stories head-index` (a dry run: it writes nothing) must report no keys to set or remove. If it does, run it with `--apply` first. (Engineer.)
+
+The first run, in this order, signed in with `papyrus login` as an admin, `--site machines-on-machines`:
+
+```
+papyrus --site machines-on-machines automations adopt --id rate --responsibility rate --dry-run
+papyrus --site machines-on-machines automations adopt --id rate --responsibility rate
+papyrus --site machines-on-machines agents set-rung --id rate --rung observe --reason "<Ryan's reason>"            # dry run: prints before and after
+papyrus --site machines-on-machines agents set-rung --id rate --rung observe --reason "<Ryan's reason>" --apply    # sets rate to observe
+papyrus --site machines-on-machines automations update --id rate --monitor hn --publication machines-on-machines --enabled true
+papyrus --site machines-on-machines agents schedules --site machines-on-machines --dry-run
+papyrus --site machines-on-machines agents schedules --site machines-on-machines
+papyrus --site machines-on-machines automations run --id rate --input '{}'       # the first run now; otherwise the schedule runs it at 03:30 New York time
+papyrus --site machines-on-machines automations runs --id rate
+```
+
+* `adopt` names the responsibility and sets no rung. Until a rung is set the policy says `off` for `rate`, and a wake is recorded as "Nothing to do (rung_off)", never run.
+* **`papyrus agents set-rung` sets the rung** (slice H3, PPY-e6f31e; spec `features_backend/agent-set-rung.feature`). It is admin-only (an admin who is a person, signed in with
+  `papyrus login`; an editor is refused and an agent is blocked), always takes `--reason`, and is a dry run unless `--apply`: the dry run prints the agent's policy entry before and
+  after and the version it would be, and writes nothing. `--apply` saves a new version of the site's policy document (who, when and why on the version; every older version stays) in
+  the site's media bucket at `tenants/<tenant>/site/agents/<version>.json`, through the same site store the runner reads, so the next wake runs under it. It refuses a rung that is not on the
+  ladder, a rung above the highest one the agent's definition needs (`rate` needs no more than `draft`), and `publish_auto` for every agent until the gate that enforces the "doubt stops
+  automatic publishing" floor is built (slice E4, PPY-36e7c9). **The rung is Ryan's decision and is written with his reason; an engineer never picks it.** The write needs the signed-in
+  admin's role to be allowed to put objects under `tenants/*/site/agents/` in the site's media bucket: the Amplify storage rules (`amplify/storage/resource.ts`) grant admins only `media/*`
+  and `newsroom/*`, so **that grant is a separate IAM change that a person reviews and applies before the first `--apply`**; until it is, the call stops with an S3 `AccessDenied` and writes nothing.
+* `update --monitor hn --publication machines-on-machines` links the schedule automation to the router publication that gives each tick the site's endpoint, model key and policy location
+  (`hn` is the router config's monitor id). `--enabled true` switches it on; the schedule entry is created by `agents schedules` (the next deploy does it too).
+* What the first run shows: `automations runs --id rate` lists the run as "✓ Did it (proposed)" or "– Nothing to do (nothing_unrated)", with the policy version and rung `observe`. The
+  run's output lists each Story with the stars it would get and why, the five-star candidates for a person, any Story it could not judge, the gate's answers (the write
+  operation `ratings_set` answers `human_required`, needing `draft`), and the cost. `papyrus stories list` shows no new rating. A person's judgement of the proposals is the evidence
+  for raising the rung; raising it to `draft` is a change of the policy document and no code: the same run then writes threes and fours, never a five and never over a person's rating.
+* To stop it: switch the automation off (`automations update --id rate --enabled false`, then `agents schedules`), or pause it in the policy (the pause stops the next wake and says why).
+* Read it as it stands: the run reads every unrated published Story each day, newest first, until the index ends or the run's own deadline is near (the run says which). At `observe` nothing is
+  rated, so the same Stories are judged again the next day and the model is paid for each time; the weekly budget (slice G1) is not built, so the cost is on the run record and nothing else limits it.
+  Accepted References are not read: no index lists the accepted References that have no stars.
+
 ## The publish switch
 
 The `release` and `pypi` jobs run only when the repository variable `PUBLISH_ENABLED`

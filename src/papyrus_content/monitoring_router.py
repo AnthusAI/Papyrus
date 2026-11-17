@@ -70,7 +70,8 @@ from .email_submission_authorization import (
     EditorLookupUnavailable,
     publication_ids_for_editor,
 )
-from . import request_meter
+from .policy_location import policy_location
+from . import agent_wakes, request_meter, wake_keys
 from .auto_accept import accept_by_rule, run_auto_accept, validate_auto_accept
 from .research_assignments_worker import run_research_assignments, validate_research_assignments
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
@@ -123,6 +124,7 @@ TASK_LEASE_SECONDS = {"research-assignments": 960}   # a task with its own, long
 RECEIPT_TTL_SECONDS = 30 * 86400
 STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
 AWAITING = "awaiting"
+NEW_REFERENCE = "monitor.new_reference"   # what a monitor wake is about, in its wake key
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
 WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; never a human
 # A human curator is recorded as `user:<x>` (CLI), the editor's sign-in email, a Cognito username
@@ -383,6 +385,13 @@ def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
             raise ItemInvalid("Email publication scope is missing or outside its configured destination")
 
 
+def _site_bucket(publication_id: str, value: Any) -> str:
+    from .policy_location import S3_BUCKET
+    if not isinstance(value, str) or not S3_BUCKET.match(value):
+        raise ValueError(f"router publication {publication_id} siteBucket must be an S3 bucket name")
+    return value
+
+
 def validate_router_publications(raw: dict) -> list[dict]:
     publications, seen = [], set()
     for entry in raw.get("publications") or []:
@@ -408,6 +417,7 @@ def validate_router_publications(raw: dict) -> list[dict]:
         publications.append({
             **({"criteriaSince": str(since).strip()} if since is not None else {}),
             **({"tenantId": tenant} if tenant else {}),
+            **({"siteBucket": _site_bucket(publication_id, entry["siteBucket"])} if entry.get("siteBucket") else {}),
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
             **({"userPoolId": pool_id} if pool_id else {}),
             "corpusId": corpus_id, "corpusKey": corpus_key_of(corpus_id),
@@ -474,17 +484,6 @@ def procedure_trigger_input(trigger: dict, publication: dict, disc: dict, refere
               "referenceId": reference_id, "publicationId": publication["publicationId"],
               "corpusId": publication["corpusId"]}
     return {name: template.format(**values) for name, template in trigger["input"].items()}
-
-
-def lambda_procedure_starter(function_name: str | None) -> Callable[[dict], None] | None:
-    if not function_name:
-        return None
-
-    def start(request: dict) -> None:
-        import boto3  # provided by the Lambda runtime
-        boto3.client("lambda").invoke(FunctionName=function_name, InvocationType="Event",
-                                      Payload=json.dumps(request).encode("utf-8"))
-    return start
 
 
 # --- request building -------------------------------------------------------------------------------
@@ -993,6 +992,11 @@ def decimalize(value):
     if isinstance(value, list):
         return [decimalize(v) for v in value]
     return value
+
+
+def deferred_wake_key(row: dict) -> str:
+    """The wake key the first start of this row's item used: its automation (its procedure when none governed it), its Reference, a new Reference."""
+    return wake_keys.change_key(wake_keys.owner(row.get("automationId"), row.get("procedureKey")), row.get("referenceId"), None, NEW_REFERENCE)
 
 
 class RouterStore(DynamoStore):
@@ -2279,8 +2283,10 @@ class Router:
                     self.counts["procedureNotTriggered"] += 1
                     continue
                 gate = self.gate(publication, trigger)
-                request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
-                           "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": trigger["procedureKey"],
+                request = {"wakeKey": wake_keys.change_key(wake_keys.owner(gate.automation_id, trigger["procedureKey"]),
+                                                           result["referenceId"], None, NEW_REFERENCE),
+                           "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+                           "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": trigger["procedureKey"], **policy_location(publication),
                            "input": procedure_trigger_input(trigger, publication, disc, result["referenceId"]),
                            "actorLabel": f"Papyrus monitor {self.monitor_id}",
                            "trigger": {"kind": "monitor", "monitorId": self.monitor_id, "sourceId": disc["sourceId"],
@@ -2315,7 +2321,9 @@ class Router:
 
     def retry_deferred(self):
         """Starts the items an earlier run deferred at an automation's concurrency limit, oldest first, while there is
-        room. The row keeps the request the item was deferred with; a failure here never fails the sweep."""
+        room. The row keeps the request the item was deferred with; a failure here never fails the sweep. The wake key is built
+        from the row on every retry, as the first start builds it, and a key stored on the row is never trusted (PPY-7ab263):
+        a row deferred before wake keys existed has none, and the runner refuses a run without one."""
         for publication in self.publications.values():
             for trigger in publication.get("procedureTriggers") or []:
                 try:
@@ -2333,7 +2341,14 @@ class Router:
                             self.store.put_any(self.monitor_id, {**row, "status": "skipped", "reason": gate.reason})
                             self.counts["procedureSkipped"] += 1
                             continue
-                        request = dict(row["request"])
+                        try:
+                            wake_key = deferred_wake_key(row)
+                        except wake_keys.InvalidWakeKey as error:   # the row lacks what a key needs: say so on the row, start nothing, guess nothing
+                            self.counts["procedureStartFailed"] += 1
+                            self.store.put_any(self.monitor_id, {**row, "status": "startFailed", "error": ("no wake key can be built from this row "
+                                                                                                    f"(referenceId={row.get('referenceId')!r}, automationId={row.get('automationId')!r}, procedureKey={row.get('procedureKey')!r}): {error}")[:500]})
+                            continue
+                        request = {**row["request"], "wakeKey": wake_key}
                         if gate.automation_id:
                             request["timeoutSeconds"] = gate.timeout_seconds
                             request["trigger"] = {**request.get("trigger", {}), "automationId": gate.automation_id}
@@ -3405,7 +3420,7 @@ def handler(event, context):
     if is_suggestion_queue_event(event):
         return handle_suggestion_queue(store, event)
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
-    cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
+    cognito, starter = boto3.client("cognito-idp"), agent_wakes.wake_sender()
     from .monitoring_enrichment import lambda_enricher
     enricher = lambda_enricher()   # None unless the stack set ENRICHMENT_BUCKET
     from .reference_images import attach_preview

@@ -35,6 +35,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from .policy_location import policy_location
+from . import wake_keys
 from .automation_gate import decide, limits_of
 
 STAGE_ENTERED = "story.stage_entered"
@@ -180,8 +182,9 @@ def _start(client, automation, *, row, chain, reader, writer, invoke, stamp, sit
     hop = chain["hops"] + 1
     values = {"story": story, "version": version, "versionNumber": int(row.get("versionNumber") or 1), "stage": stage, "runKey": sk,
               "automationId": automation["id"], "hop": hop}
-    request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
-               "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"],
+    request = {"wakeKey": wake_keys.change_key(wake_keys.owner(automation["id"], automation["procedureKey"]), story, version, STAGE_ENTERED),
+               "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+               "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"], **policy_location(publication),
                "input": {**(automation.get("inputTemplate") or {}), **values}, "actorLabel": bot_label(automation["id"]),
                "timeoutSeconds": gate.timeout_seconds,
                "trigger": {"kind": "event", "event": STAGE_ENTERED, "automationId": automation["id"], "monitorId": config["monitorId"],
@@ -268,7 +271,8 @@ def deliver_from_environment(client, story: str) -> list[dict[str, Any]]:
     """What the CLI calls after a person changes a story's stage: deliver, print one line per automation, never fail the change.
 
     The monitoring table and the runner come from the operator's AWS credentials, as for `papyrus automations run`."""
-    from .automations import MonitoringReader, MonitoringWriter, lambda_invoker, monitoring_table_from_environment
+    from . import agent_wakes
+    from .automations import MonitoringReader, MonitoringWriter, monitoring_table_from_environment
     from .story_reporting import latest_story_version
 
     try:
@@ -276,7 +280,7 @@ def deliver_from_environment(client, story: str) -> list[dict[str, Any]]:
             return []
         table = monitoring_table_from_environment()
         outcomes = deliver_stage_entered(
-            client, story=story, invoke=lambda_invoker(),
+            client, story=story, invoke=agent_wakes.wake_sender(),
             reader=MonitoringReader(table) if table is not None else None, writer=MonitoringWriter(table) if table is not None else None)
     except Exception as error:   # a stage change is never undone or failed by its triggers
         print(f"stories\ttriggers\tnot delivered\t{type(error).__name__}")

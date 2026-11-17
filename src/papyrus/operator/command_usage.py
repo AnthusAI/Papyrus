@@ -46,6 +46,7 @@ LANE_TEXT = {
   "editor": "editor (signed in with `papyrus login`, the default lane); the operator lane (AWS credentials) is not needed.",
   "operator": "operator (AWS credentials, named with `papyrus --auth iam ...` or PAPYRUS_GRAPHQL_AUTH=iam). A signed-in editor session is refused.",
   "both": "both (signed-in editor with `papyrus login`, the default, or operator with AWS credentials named with `papyrus --auth iam`).",
+  "files": "none: it works on a folder of files on this machine, with no sign-in and no site.",
   "unverified": "not verified on the signed-in editor lane; treat it as operator-only (`papyrus --auth iam` with AWS credentials).",
 }
 WRITES_TEXT = {
@@ -66,6 +67,8 @@ def _e(path: str, summary: str, usage: str, lane: str, writes: str, guide: str =
 
 _ENTRIES = dict([
   # ---- references: find -------------------------------------------------------------------------------------------
+  _e("automations adopt", "Name the standing responsibility an automation fills, so the runner enforces the agent policy for it (admin who is a person; sets no rung).",
+     "--id AUTOMATION_ID --responsibility KEY [--dry-run] [--json]", "both", _DRY, ""),
   _e("references list", "List References, newest first (no stars filter: use `references search` or `stories list --min-stars`).",
      "[--status pending|accepted|rejected] [--order newest] [--limit N] [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
   _e("references show", "Show one Reference by record id (`...-v1`) or lineage id.", "REFERENCE_ID | --reference REFERENCE_ID [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
@@ -174,6 +177,8 @@ _ENTRIES = dict([
      "[--apply] [--dry-run] [--stage STAGE ...] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories localize", "Ask for a translation of a published Story into one language: writes the translation request and runs the site's registered translation procedure (here with `--auth iam`, or through --automation). Never publishes.",
      "--story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run]  (without --automation the run happens in this process: operator lane, key in OPENAI_API_KEY or the parameter)  |  --all (--language TAG | --all-languages) [--publish-clean] [--concurrency N] [--dry-run] [--json]  (every published primary-language Story with no up-to-date translation; one row per Story and language)", "both", _DRY, ""),
+  _e("stories import-translation", "Attach finished copy, written by a person or another agent, as the translation of a published Story: an unpublished version whose every block is pinned to the writer (a later translation run keeps it), checked with the parity, glossary and language rules and no model. A copy that does not line up block for block, or changes a link, credit or figure, is refused; error findings hold it. Never publishes.",
+     "--story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]  (FILE is Markdown with the English's blocks in order; the front matter is YAML with title, dek, and blurb and imageAlt when the English has them)", "both", _DRY, ""),
   _e("stories correct-translation", "Save a person's correction of a translation as a new version whose edited blocks are pinned to the person (a later translation run keeps them). The approver is metadata only, never on the page. A draft unless --publish.",
      "--story LINEAGE --language TAG --edits-file FILE --edited-by PERSON --reason TEXT [--approved-by PERSON] [--publish [--verify]] [--dry-run] [--json]  (FILE is [{\"from\": \"old wording\", \"to\": \"new wording\", \"every\": false}]; the old wording must occur once unless every is true)", "both", _DRY, ""),
   _e("stories languages", "Write the language and the language group on every Item row written before those fields existed (the site's primary language).",
@@ -265,17 +270,39 @@ _ENTRIES = dict([
   _e("doctor", "Check the install, the sign-in and the site connection.", "[options]", "both", "reads", "orientation"),
   _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
      "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
+  _e("today", "What the system did on one day: runs per responsibility by outcome (each a mark and words), the reasons for nothing to do, the agents that did not run, and cost. Read only, by index.",
+     "[--day YYYY-MM-DD] [--time-zone ZONE] [--runs] [--json] [--site HOST]", "editor", "reads", "orientation"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
+  # ---- pod (a folder of Markdown notes; src/papyrus/pod/) ---------------------------------------------------------------
+  _e("pod init", "Start a level 1 pod in a folder: write context.jsonld (the id base) and the generated papyrus.context.jsonld. Changes no note; refuses a folder that already has context.jsonld.",
+     "POD --id-base URL", "files", "local"),
+  _e("pod id", "Print new permanent ids for notes, each the pod's id base and a random identifier (never made from a file name). Writes nothing.", "POD [N]", "files", "reads"),
+  _e("pod check", "Report a pod's level and every problem: ids, types, keys, links, the context files. Reads only; exits 1 when there is any problem.", "POD", "files", "reads"),
+  # ---- agents (definition files; src/papyrus_content/agent_definitions/) -----------------------------------------------------------------
+  _e("agents validate", "Check a folder of agent definition files (one <id>.yaml each) with no network and no model: every line of the 11-point template filled, known operations and responsibilities, and a site that only adds to a core definition. Exits 2 when any is refused, naming each by definition and line.",
+     "--dir DIR [--core DIR]", "files", "reads"),
+  _e("agents apply", "Apply the agent definitions to the site as its deploy does, after the procedures are registered: validate them, then make each the registered copy on its automation (created disabled; the same digest writes nothing) and retire any gone from Git. Never writes the agent policy document and never adopts an automation: a new agent arrives at the rung off. --check exits 2 on any difference from Git.",
+     "[--dir DIR] [--core DIR] [--root DIR] [--site-registry FILE] [--dry-run | --check]", "operator", "dry-run"),
+  _e("agents schedules", "Make the site's schedule group agree with the applied definitions, as the deploy does right after agents apply: one EventBridge Scheduler entry for each switched-on, not-retired agent that names a schedule (its cron expression in its time zone, the site's wake queue as the only target), and no entry that no agent names. A timer only raises a wake; the run re-checks the policy and the pause. Never touches an entry whose name does not start agent-. --check exits 2 on any difference.",
+     "--site SITE [--dry-run | --check]", "operator", "dry-run"),
+  _e("agents set-rung", "Set how far one agent may go on this site (off, observe, propose, draft, prepare, publish_soft, publish_auto): writes its rung into the agent policy document as a new version with who, when and why. Admin who is a person only. A dry run that prints the policy entry before and after unless --apply. Refuses an unknown rung, a rung above what the agent's definition needs, and publish_auto while a hard floor forbids it.",
+     "--id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE]... [--dir DIR] [--core DIR] [--apply]", "editor", "apply", ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, and for one language (its overlays laid on top), with where every field came from.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
-     "--kind KIND [--section KEY] [--language TAG] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
-  _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
-     "--kind KIND [--section KEY] [--language TAG] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
+     "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines save", "Save a document, or for writing guidelines the guideline files of a folder, as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
+     "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
+  _e("guidelines check", "Check files against the guideline files in a folder (one folder per guideline, each with GUIDELINE.md) with no network and no model: listed words, patterns and lengths are decided; a rule that needs judgement is listed as not checked offline. Exits 1 when an error guideline finds something.",
+     "--dir DIR [--scope section/ID|channel/NAME]... [--language TAG] FILE...", "both", "reads", "guidelines"),
+  _e("guidelines export", "Write the guideline files of a kind (writing) to a folder, byte for byte as they were saved. Reads the site; changes nothing there.",
+     "--kind KIND --dir DIR [--section KEY] [--language TAG] [--version N]", "editor", "reads", "guidelines"),
+  _e("guidelines convert", "One-time: convert this site's writing guidelines from one JSON document each to guideline files. A dry run that reports every lineage unless --apply; an admin who is a person applies it.",
+     "[--apply] [--section KEY]... [--language TAG]...", "editor", "apply", "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
@@ -291,6 +318,9 @@ _ENTRIES = dict([
      "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--budget TEXT] "
      "[--billing-cycle-day N] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
+  _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
+     "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
   # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
   _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
      "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
@@ -382,6 +412,8 @@ GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
+  "pod": ["init", "id", "check"],
+  "agents": ["validate", "apply", "schedules", "set-rung"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
@@ -408,9 +440,12 @@ GROUP_SUMMARIES = {
   "ops site": "Site copy (operator).",
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
-GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history."
+GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id and check. Files only: no sign-in, no site."
+GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline, apply them to a site as its deploy does, and keep the site's schedule group in step with them, and set an agent's rung in the site's policy."
+GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
+GROUP_SUMMARIES["ratings"] = "Rate a Story: a person gives 1 to 5 stars; an agent gives only 3 or 4 to a Story nobody has rated, and only at a rung the site's policy allows."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 

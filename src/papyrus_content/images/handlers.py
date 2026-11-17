@@ -20,6 +20,7 @@ class Caller:
     delegated_by: str | None = None
     is_admin: bool = False   # an admin of this site; only a person who is one may change a binding constraint
     request_id: str | None = None   # the door's requestId: a write repeated with the same id gives the first answer
+    gate_run: Any = field(default=None, compare=False)   # an agent's run (agent_gate.GateRun): every call it makes is answered by the one gate
 
 
 @dataclass(frozen=True)
@@ -117,8 +118,12 @@ def execute(name: str, arguments: Any, caller: Caller | None = None, handlers: d
     item = operation(name) if isinstance(name, str) else None
     if item is None:
         return error_envelope(str(name), "unknown_operation", f"There is no image operation named {name}.", details={"operation": str(name)})
-    if caller.kind == "agent" and not item.agent_allowed:
-        return error_envelope(name, "human_required", f"{name} needs a person; an agent may not call it.")
+    if caller.kind == "agent" and caller.gate_run is not None:
+        answer = caller.gate_run.ask(name)
+        if not answer.allowed:
+            return error_envelope(name, answer.answer, answer.reason, details={"gate": answer.as_record()})
+    elif caller.kind == "agent" and not item.agent_allowed:
+        return error_envelope(name, item.agent_refusal, f"{name} needs a person; an agent may not call it.")
     problem = check(item.input, arguments if arguments is not None else {})
     if problem:
         return error_envelope(name, "invalid_input", problem[1], details={"path": problem[0]})
@@ -149,3 +154,9 @@ HANDLERS.update(signed_in_generation_handlers())
 from papyrus_content.announcements.handlers import signed_in_handlers as _announcement_handlers  # noqa: E402
 
 HANDLERS.update(_announcement_handlers())
+
+
+# The rating operation (PPY-d85860) runs on the same lane: whoever runs it, a person's session or the procedure runner's role, opens its own authoring client.
+from papyrus_content.rating_handlers import signed_in_handlers as _rating_handlers  # noqa: E402
+
+HANDLERS.update(_rating_handlers())

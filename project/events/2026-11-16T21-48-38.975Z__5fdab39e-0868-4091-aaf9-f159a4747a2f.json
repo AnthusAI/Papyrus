@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5fdab39e-0868-4091-aaf9-f159a4747a2f",
+  "issue_id": "PPY-8195a4e2-c9b0-4c9c-963e-871a6c6a3b09",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T21:48:38.975Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us knowledge base as a private pod",
+    "description": "Anth.us stays a cloud newsroom. Its knowledge-base repository (46 story folders) becomes a private typed pod that may feed the newsroom: type the finished articles, then first feed into the Anth.us newsroom after the Pilobolus load. Once a record is edited in the newsroom the newsroom owns it. Permanent ids live on the owner's own address.\n\n**Acceptance criteria**\n- The pod passes pod check and loads privately; nothing is published by the load.\n- First feed into the Anth.us newsroom runs after the Pilobolus wiki load.\n- Uses Gherkin features from slices 12 and 13.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

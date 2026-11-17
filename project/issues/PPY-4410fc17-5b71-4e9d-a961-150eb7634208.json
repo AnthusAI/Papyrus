@@ -1,0 +1,29 @@
+{
+  "id": "PPY-4410fc17-5b71-4e9d-a961-150eb7634208",
+  "title": "Manual mode: draft, copy, record the address",
+  "description": "Covers what has no API or no budget. Papyrus drafts and checks the text, a person posts it and pastes the address, and the Delivery records sent with that person's name in the attempt log. Ryan reposting from his own account is this. Newsroom and CLI from the one operation table.\n\n**Acceptance criteria**\n- Gherkin: Manual mode (text is drafted and checked; a person records the address; the attempt names the person).\n- mode manual is a field on the Delivery; no automatic send path is touched.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-efd06c84-419f-4034-8240-b473d3d9d6c4",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:36.957785Z",
+  "updated_at": "2026-11-16T21:48:45.805045Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

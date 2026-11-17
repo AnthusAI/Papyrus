@@ -46,7 +46,22 @@ def scope_for(section: str | None) -> str:
     return section if section else PUBLICATION_SCOPE
 
 
-def drawn_policies(document: dict, language: str | None = None) -> list[dict]:
+RULE_POLICY_PREFIX = "guideline-"
+
+
+def rule_policy(rule: dict) -> dict:
+    """The one check a rule file derives (``error`` or ``warn``): a phrase detector for its words to avoid, a pattern detector for each pattern. A rule that needs judgement
+    (prose only) derives a check with no detector: it is shown to the writer and the editor and finds nothing by itself. ``maxLength`` is for ``papyrus guidelines check``."""
+    detectors: list[dict] = []
+    if rule.get("avoid"):
+        detectors.append({"id": "avoid", "lane": "rules", "kind": "phrase", "phrases": list(rule["avoid"])})
+    for index, pattern in enumerate(rule.get("pattern") or [], start=1):
+        detectors.append({"id": f"pattern-{index}", "lane": "rules", "kind": "regex", "pattern": pattern, "message": rule["description"]})
+    return {"id": f"{RULE_POLICY_PREFIX}{rule['name']}", "version": 1, "title": rule["name"].replace("-", " ").capitalize(), "guidance": (rule.get("body") or rule["description"]).strip(),
+            "severity": rule["severity"], "detectors": detectors}
+
+
+def drawn_policies(document: dict, language: str | None = None, rule_files: list[dict] | tuple = ()) -> list[dict]:
     """The Humanus policies the document yields (a section document has no publication key, so a stand-in is given for the reader).
 
     A language overlay that chooses a ``register`` also yields the policies of the Humanus pack that register brings (``usted`` in Spanish:
@@ -62,13 +77,14 @@ def drawn_policies(document: dict, language: str | None = None) -> list[dict]:
         path.write_text(json.dumps({"publicationKey": STAND_IN_PUBLICATION_KEY, **profile}), encoding="utf-8")
         policies = humanus.policy_pack_from_style_profile(path)["policies"]
     pack = register_pack_for(language, document.get("register")) if language else None
-    return policies + (humanus.builtin_pack(pack)["policies"] if pack else [])
+    return policies + (humanus.builtin_pack(pack)["policies"] if pack else []) + [rule_policy(rule) for rule in rule_files if rule["severity"] in ("error", "warn")]
 
 
-def plan_derived_policies(store, document: dict, section: str | None, version_number: int, language: str | None = None) -> list[dict]:
+def plan_derived_policies(store, document: dict, section: str | None, version_number: int, language: str | None = None, rule_files: list[dict] | tuple = ()) -> list[dict]:
     """One step per policy: create, update, disable, unchanged, or skipped (a policy this document does not own sits under that key).
 
-    ``language`` names the language overlay the document is (None for the guidelines every language shares)."""
+    ``language`` names the language overlay the document is (None for the guidelines every language shares). ``rule_files`` are the set's rule files: each ``error`` or ``warn`` one
+    adds one check of its own."""
     from papyrus_content.editorial_checks import policy_identity, record_from_policy
     from papyrus_content.editorial_policy_pack import _content
 
@@ -78,7 +94,7 @@ def plan_derived_policies(store, document: dict, section: str | None, version_nu
     existing = {policy_identity(row): row for row in rows}
     steps: list[dict] = []
     wanted: set[str] = set()
-    for policy in drawn_policies(document, language):
+    for policy in drawn_policies(document, language, rule_files):
         record = record_from_policy(policy, scope=scope, language=written_for, source=source)
         current = existing.get(policy_identity(record))
         if current is not None:

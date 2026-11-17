@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "110eb0f0-5071-41ea-8f69-9483043d65fa",
+  "issue_id": "PPY-eef85d72-6a7e-4f1b-a0eb-fd9a6afdd290",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:08.004Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Unusual cost is flagged from the agent's own history",
+    "description": "Ryan's ruling: an unusually costly Story flags a person and never stops. 'Unusual' is learned: a run or a Story whose cost is far outside the distribution of that agent's own past runs raises one flag with the numbers. Remove the fixed 0.50 dollar guard in `monitoring_stories.py` and make `budgetUsdPerRun` an owner setting that also only flags.\n\n**Acceptance criteria**\n- A run far above the agent's history raises one flag and is not stopped.\n- No fixed dollar constant remains in agent code.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- unusual-cost.feature: a run within history raises nothing; a far outlier raises one flag with the figures; an agent with little history says so instead of guessing.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Spend, budgets and model tiers. Slice code G3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6505b3d6-bc1e-4d66-9c9d-3b80ea70a43b",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

@@ -78,7 +78,7 @@ def test_dry_run_checks_everything_and_writes_and_starts_nothing():
 
 @pytest.mark.parametrize("changes, message", [
     ({"enabled": False}, "is disabled"),
-    ({"trigger": json.dumps({"kind": "schedule", "config": {}})}, "only monitor automations"),
+    ({"trigger": json.dumps({"kind": "manual", "config": {}})}, "only monitor and schedule automations"),
 ])
 def test_run_now_is_refused_for_a_disabled_or_unsupported_automation(changes, message):
     table, invoked = WritableTable(), []
@@ -285,7 +285,7 @@ def cli(monkeypatch, capsys):
     monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")   # these test the AWS lane, whatever session the machine holds
     monkeypatch.setattr(ga, "create_authoring_client", lambda *a, **k: (state["client"], {}))
     monkeypatch.setattr(au, "monitoring_table_from_environment", lambda env=None: state["table"])
-    monkeypatch.setattr(au, "lambda_invoker", lambda name=None: state["invoked"].append)
+    monkeypatch.setattr(au.agent_wakes, "wake_sender", lambda sqs=None: state["invoked"].append)
     monkeypatch.setenv("PAPYRUS_ACTOR_LABEL", "ryan-cli")
     monkeypatch.setattr(au, "_now", lambda: NOW)
 

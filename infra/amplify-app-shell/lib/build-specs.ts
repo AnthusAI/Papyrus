@@ -76,6 +76,30 @@ function frontendSection(preBuildCommands: string[], buildCommands: string[], ar
 // does not depend on Amazon. A Papyrus pin without the command prints usage and falls through the same way.
 const ALEXA_SKILL_SYNC = "npx papyrus-app alexa-sync || echo \"alexa-sync did not complete; the site deploy continues\"";
 
+// After the backend deploy (it needs the GraphQL endpoint in amplify_outputs.json): register every core procedure from the Papyrus wheel and the
+// site's own from its repository (papyrus-site-procedures.json at the checkout root, when the site has one) as published versions in the site's
+// backend, as the build role. Unchanged procedures write nothing. Unlike the Alexa sync it is never allowed to fail quietly: a failing registration
+// fails the build, so a site is not deployed with procedures that disagree with Git (features/procedure-sync.feature).
+const PROCEDURE_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus procedures seed-required`;
+
+// Right after the procedures are registered (an agent definition names a procedure, and a definition naming one that is not registered stops the step):
+// apply the agent definitions, the core ones from the Papyrus wheel and the site's own from papyrus-site-agents at the checkout root (when it has one).
+// It checks every definition first (`papyrus agents validate`'s rules), makes each the registered copy on its automation, retires one gone from Git, and
+// never writes the agent policy document or adopts an automation, so a deploy cannot move a rung or a pause and a new agent arrives at `off`. Like the
+// procedure sync it is never allowed to fail quietly (features/agent-sync.feature).
+const AGENT_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus agents apply`;
+
+// Right after the definitions are applied: make the site's schedule group agree with them (slice C1, PPY-2a53cd). Each switched-on agent that names a
+// schedule gets one EventBridge Scheduler entry whose only target is the site's wake queue, and an entry no agent names is removed. It names the site by its
+// brand id, the name the wake queue and the group are built from. Never allowed to fail quietly either (features/agent-sync.feature).
+function scheduleSync(config: AmplifyAppShellSiteConfig): string {
+  return `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus agents schedules --site ${config.brand.toLowerCase()}`;
+}
+
+function procedureSyncCommands(config: AmplifyAppShellSiteConfig): string[] {
+  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC, AGENT_SYNC, scheduleSync(config)];
+}
+
 const GATE_FAILURE_MESSAGE_PREFIX = "No LeftBlock CI receipt for";
 
 /**
@@ -116,6 +140,7 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
         ...deployStackCommands,
         // One pass per cost tag wave until the tags are complete (amplify/cost-tag-waves.ts); one pass after that.
         "npx papyrus-infra backend-deploy",
+        ...procedureSyncCommands(config),
         ALEXA_SKILL_SYNC,
       ],
       "        ",

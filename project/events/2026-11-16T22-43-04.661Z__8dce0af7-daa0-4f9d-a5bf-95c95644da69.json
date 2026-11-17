@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8dce0af7-daa0-4f9d-a5bf-95c95644da69",
+  "issue_id": "PPY-7b05f786-9754-4e52-a67f-0b852ea0c2ee",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:04.661Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Generated runbook per agent and a generated inventory",
+    "description": "From a definition, the site policy and the operation table, generate each agent's runbook: what wakes it, its rung on this site and what that allows, what it may write and must never do, how to pause it, how to undo what it did, what 'Outcome unknown' means for it and how to settle one, who it asks. Show it in the newsroom and print it with `papyrus agents runbook --id`. Generate the inventory page from all definitions and replace the hand-written inventory in `docs/automated-processes.md`; a guard test fails when the page and the definitions differ.\n\n**Acceptance criteria**\n- Every agent has a runbook that matches its definition and the site's policy.\n- The inventory page is generated; a test fails if it is stale.\n- The runbook is words and marks, readable without the code.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-runbook.feature: the runbook names the rung and what it allows; pausing instructions match the operation; a changed definition changes the runbook; the inventory guard fails on a stale page.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Agent definitions, the catalog and generated runbooks. Slice code D3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b05940e6-e99f-4919-a398-a39df6e99bff",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

@@ -27,6 +27,7 @@ const ALLOWED_OWNER_KINDS = new Set([
   "announcement",
   "assignment",
   "assignmentEvent",
+  "delivery",
   "item",
   "knowledgeRawPayload",
   "message",
@@ -61,8 +62,10 @@ const ALLOWED_ROLES = new Set([
   "image_record",
   "image_candidate_file",
   "announcement_document",
+  "delivery_text",            // a Delivery's words, one file in S3 (src/papyrus_content/announcements/deliveries.py)
   "doctrine_document",
   "doctrine_asset",
+  "doctrine_files",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",
@@ -293,6 +296,7 @@ function ownerModelName(ownerKind: string): string {
   if (ownerKind === "announcement") return "Announcement";
   if (ownerKind === "assignment") return "Assignment";
   if (ownerKind === "assignmentEvent") return "AssignmentEvent";
+  if (ownerKind === "delivery") return "Delivery";
   if (ownerKind === "item") return "Item";
   if (ownerKind === "knowledgeRawPayload") return "KnowledgeRawPayload";
   if (ownerKind === "message") return "Message";

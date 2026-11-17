@@ -25,6 +25,7 @@ from .model_attachments import (
     semantic_version_key,
 )
 from .options import parse_options, resolve_mutation_apply
+from .procedure_registry import ProcedureRegistryError, procedure_file_for_kind
 from .records import apply_record_changes, build_record_changes
 from .relation_types import semantic_relation_type_fields_for_predicate
 from .semantic_node_writes import derived_fields_patch_change
@@ -34,8 +35,8 @@ RELATION_EXPLANATION_ROLE = "ontology_relation_explanation"
 CONCEPT_PROFILE_ROLE = "ontology_concept_profile"
 RELATION_EXPLANATION_PROMPT_VERSION = "ontology-relation-explanation-v1"
 CONCEPT_PROFILE_PROMPT_VERSION = "ontology-concept-profile-v1"
-RELATION_EXPLAINER_PROCEDURE = "procedures/newsroom/ontology_relationship_explainer.tac"
-CONCEPT_PROFILER_PROCEDURE = "procedures/newsroom/ontology_concept_profiler.tac"
+RELATION_EXPLAINER_PROCEDURE = "ontology.relationship-explainer"  # procedure kinds, resolved by papyrus_content.procedure_registry
+CONCEPT_PROFILER_PROCEDURE = "ontology.concept-profiler"
 OPERATIONAL_RELATION_TYPES = {
     "comment",
     "ingestion_rationale",
@@ -1058,7 +1059,7 @@ def run_relationship_explainer(context: dict[str, Any], *, use_llm: bool, dry_ru
     relation_id = str((context.get("relation") or {}).get("id") or "")
     if use_llm and not dry_run:
         return run_tactus_json_procedure(
-            PAPYRUS_ROOT / RELATION_EXPLAINER_PROCEDURE,
+            procedure_file_for_kind(RELATION_EXPLAINER_PROCEDURE),
             {"context_json": context},
             markers=("relation_explanation", "meaning", "confidence"),
             target_kind="relation",
@@ -1071,7 +1072,7 @@ def run_concept_profiler(context: dict[str, Any], *, use_llm: bool, dry_run: boo
     concept_id = str((context.get("concept") or {}).get("id") or "")
     if use_llm and not dry_run:
         return run_tactus_json_procedure(
-            PAPYRUS_ROOT / CONCEPT_PROFILER_PROCEDURE,
+            procedure_file_for_kind(CONCEPT_PROFILER_PROCEDURE),
             {"context_json": context},
             markers=("concept_profile", "meaning", "confidence"),
             target_kind="concept",
@@ -1496,8 +1497,11 @@ def run_preflight_checks(client: PapyrusGraphQLAuthoringClient) -> list[dict[str
     checks.append(check_result("relation-types", not missing_types, f"missing={','.join(missing_types)}" if missing_types else "ok"))
     for owner_kind in ("semanticNode", "semanticRelation"):
         checks.append(check_result(f"attachment-owner-{owner_kind}", owner_kind in {"semanticNode", "semanticRelation"}, "configured locally"))
-    for path in (PAPYRUS_ROOT / RELATION_EXPLAINER_PROCEDURE, PAPYRUS_ROOT / CONCEPT_PROFILER_PROCEDURE):
-        checks.append(check_result(f"procedure-{path.name}", path.exists(), str(path)))
+    for kind in (RELATION_EXPLAINER_PROCEDURE, CONCEPT_PROFILER_PROCEDURE):
+        try:
+            checks.append(check_result(f"procedure-{kind}", True, str(procedure_file_for_kind(kind))))
+        except ProcedureRegistryError as error:
+            checks.append(check_result(f"procedure-{kind}", False, str(error)))
     checks.append(check_result("graphql-authoring", True, "authoring client initialized"))
     checks.append(check_result("openai-api-key", bool(os.environ.get("OPENAI_API_KEY")), "OPENAI_API_KEY present" if os.environ.get("OPENAI_API_KEY") else "OPENAI_API_KEY missing; --no-llm dry runs still work"))
     return checks

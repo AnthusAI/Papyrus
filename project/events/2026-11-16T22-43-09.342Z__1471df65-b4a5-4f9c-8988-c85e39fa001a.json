@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "1471df65-b4a5-4f9c-8988-c85e39fa001a",
+  "issue_id": "PPY-ec54ea64-8ea4-417d-b6cb-bb7dd9b8f097",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:09.342Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "`papyrus today` and `papyrus agents` are generated from the operation table",
+    "description": "Generate the `agents` and `today` command groups and the MCP tools from the same operation table the newsroom uses, so there is one definition per operation and the three surfaces cannot drift. `--help` on each is real help, and every write accepts `--dry-run`.\n\n**Acceptance criteria**\n- Adding an operation to the table adds it to the CLI, MCP and newsroom.\n- Every write has a dry run.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agents-cli-parity.feature: each operation exists on all three surfaces; a dry run writes nothing; help text comes from the table.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Human surface: Today, poke-in operations and explanations. Slice code H5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-76781314-e642-4b7a-a69a-c5e24bf8f469",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

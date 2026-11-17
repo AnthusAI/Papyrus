@@ -1,0 +1,52 @@
+{
+  "id": "PPY-efd06c84-419f-4034-8240-b473d3d9d6c4",
+  "title": "X on the new records (eligibility, drafting, budget guard, withdraw); X stays off",
+  "description": "Rewire X announcement eligibility, drafting, budget guard and withdraw onto Announcement plus one Delivery (channel x, account). Delete the old row shape and the round suffix in the same change. No live X rows exist so nothing migrates; any dry-run rows are deleted, not converted. AnnouncementSpend, XConnection and AnnouncementSettings stay as built. The X floor (five stars on Machines on Machines) is a per-channel rule; the Announcement is created together with its first Delivery in one transaction; a later rating that reaches the floor adds the X Delivery to the same Announcement. Depends on slice 5a so X drafts are editable before the feed is ever turned on.\n\n**Acceptance criteria**\n- Gherkin: Channel rules (X needs the floor rating; a later rating adds the X Delivery to the existing Announcement; no bar below three stars; unrated and predicted never qualify; a machine never supplies the five).\n- Gherkin: Dry run and withdraw (built and not sent, cost 0; withdraw deletes where possible and records who).\n- Gherkin: The X model has no round suffix; old dry-run rows are gone.\n- X remains OFF everywhere until the reshape and 5a are in and Ryan turns it on.\n- Old Announcement row shape deleted in this change.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Section 13 additions (2026-11-16, always-on agent review; changes A, L)**\n- Now also blocked by the durable-triggers task (PPY-e3bb2b): X is driven from the change stream, not the best-effort publish call.\n- A blocked draft asks for help once (change L): \"Blocked: check failed\" raises one review request (a flag; nothing waits) in the editor's inbox, grouped per Announcement, not per channel. The machine redrafts only when an input changes (the Story, the guidelines), never in a loop.\n- Attempts follow the started/closed entries and sent-Delivery memory from PPY-a570e8 and PPY-9c6b89; approval is read from the Delivery.\n**Acceptance criteria (added)**\n- Gherkin: a draft that fails a check raises exactly one review request per Announcement and the machine does not redraft until the Story or guidelines change.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nNames: the new decision model is `AnnouncementDecision`; this task deletes the old model `Announcement` (the X row shape) and its index. Use \"Announcement\" in the newsroom and documents. No rename of `AnnouncementDecision` follows. The X drafter and sender run as the announce agent under the standard: rung from the agent policy document (PPY-51ea61), every write through the gate (PPY-611397), spend on the one ledger (PPY-fa165c), pause as a tested kill switch (PPY-3f68f4).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a570e8f9-e2b9-4fde-9afb-ea99e5b84e43",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-09ee8682-52eb-478c-ad2c-575028c7f9a1",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-97c0f202-01bd-4851-9593-1ddcb32c8773",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e3bb2b9e-2597-4758-9d7a-656da62e9500",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ab48d4f9-7a9b-4444-adfb-1f844833a1ff",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T21:48:35.555689Z",
+  "updated_at": "2026-11-17T01:18:20.293727Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

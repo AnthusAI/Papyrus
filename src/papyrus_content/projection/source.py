@@ -77,6 +77,7 @@ def summary_from_row(row: dict, *, item_id: str | None = None, tenant_id: str | 
     output_path = item_output_path(row)
     section, slug = split_output_path(output_path, nested=bool(row.get("nestedSlug")))
     stored = _stored_projection(metadata)
+    localization = metadata.get("localization") if isinstance(metadata.get("localization"), dict) else {}
     return ItemSummary(
         item_id=item_id or row.get("sourceItemId") or row["id"],
         type=row.get("type") or "",
@@ -92,6 +93,7 @@ def summary_from_row(row: dict, *, item_id: str | None = None, tenant_id: str | 
         lineage_id=row.get("itemLineageId") or row.get("lineageId") or None,
         language=row.get("language") or None,
         language_group_id=bare_group_id(row.get("languageGroupId"), tenant_id),
+        translation_kind=localization.get("translation") or None,
     )
 
 

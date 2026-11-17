@@ -41,6 +41,7 @@ export type ImageOperationName =
   | "announcements_settings_show"
   | "announcements_settings_set"
   | "announcements_account_status"
+  | "ratings_set"
 ;
 
 export type ImageErrorCode =
@@ -49,6 +50,7 @@ export type ImageErrorCode =
   | "not_implemented"
   | "not_authorized"
   | "human_required"
+  | "blocked"
   | "set_needs_person"
   | "not_found"
   | "constraint_conflict"
@@ -839,6 +841,8 @@ export type GuidelinesGetResult = {
   language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
   document: Record<string, unknown>;
+  /** Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set. */
+  files?: Record<string, unknown>;
   itemId: string;
   versionNumber: number;
   contentHash: string;
@@ -893,7 +897,9 @@ export type GuidelinesDiffInput = {
   /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
   language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
-  document: Record<string, unknown>;
+  document?: Record<string, unknown>;
+  /** Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set. */
+  files?: Record<string, unknown>;
 };
 
 export type GuidelinesDiffResult = {
@@ -907,6 +913,10 @@ export type GuidelinesDiffResult = {
   }[];
   constraintChanges: Record<string, unknown>[];
   wouldCreateVersion: number;
+  fileChanges?: ({
+    path: string;
+    change: "added" | "changed" | "removed";
+  })[];
 };
 
 /** Save a guideline document as the next version of its kind and scope. */
@@ -918,7 +928,9 @@ export type GuidelinesSaveInput = {
   /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
   language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
-  document: Record<string, unknown>;
+  document?: Record<string, unknown>;
+  /** Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set. */
+  files?: Record<string, unknown>;
   /** Why, in plain words. It is recorded with who and when. */
   reason: string;
   /** The current version id of that guideline lineage when you read it (guidelines_get returns it as expectedCurrentVersionId), or none for the first save. */
@@ -1164,6 +1176,22 @@ export type AnnouncementsAccountStatusResult = {
   pricesAsOf?: string;
 };
 
+/** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
+export type RatingsSetInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** The rating, 1 to 5. An agent may only give 3 or 4. */
+  stars: number;
+};
+
+export type RatingsSetResult = {
+  lineageId: string;
+  /** The rating before this one: 0 when the Story had none. */
+  previous?: number;
+  stars: number;
+  ratedBy?: string;
+};
+
 export interface ImageOperations {
   image_profile_get: { input: ImageProfileGetInput; result: ImageProfileGetResult };
   image_profile_resolve: { input: ImageProfileResolveInput; result: ImageProfileResolveResult };
@@ -1203,56 +1231,58 @@ export interface ImageOperations {
   announcements_settings_show: { input: AnnouncementsSettingsShowInput; result: AnnouncementsSettingsShowResult };
   announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
+  ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
 export const IMAGE_OPERATIONS = {
-  image_profile_get: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile get" },
-  image_profile_resolve: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile resolve" },
-  image_profile_diff: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile diff" },
-  image_profile_save: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile save" },
-  image_profile_history: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile history" },
-  image_profile_init: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images profile init" },
-  image_profile_example_add: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile example add" },
-  image_profile_example_remove: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images profile example remove" },
-  image_capabilities: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images capabilities" },
-  image_brief_draft: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images brief" },
-  image_prompt_preview: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images prompt" },
-  image_search: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images search" },
-  image_generate: { effect: "spend", agentAllowed: true, group: "images", command: "papyrus images generate" },
-  image_figure_add: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images figure add" },
-  image_round_get: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images round" },
-  image_candidate_get: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images show" },
-  image_list: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images list" },
-  image_retry: { effect: "spend", agentAllowed: true, group: "images", command: "papyrus images retry" },
-  image_iterate: { effect: "spend", agentAllowed: true, group: "images", command: "papyrus images iterate" },
-  image_select: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images select" },
-  image_unapply: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images unapply" },
-  image_review: { effect: "write", agentAllowed: false, group: "images", command: "papyrus images review" },
-  image_review_queue: { effect: "read", agentAllowed: true, group: "images", command: "papyrus images review-queue" },
-  image_apply: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images apply" },
-  image_discard: { effect: "write", agentAllowed: true, group: "images", command: "papyrus images discard" },
-  guidelines_get: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines show" },
-  guidelines_resolve: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines resolve" },
-  guidelines_diff: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines diff" },
-  guidelines_save: { effect: "write", agentAllowed: true, group: "guidelines", command: "papyrus guidelines save" },
-  guidelines_history: { effect: "read", agentAllowed: true, group: "guidelines", command: "papyrus guidelines history" },
-  announcements_list: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements list" },
-  announcements_show: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements show" },
-  announcements_dry_run: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements dry-run" },
-  announcements_pause: { effect: "write", agentAllowed: true, group: "announcements", command: "papyrus announcements pause" },
-  announcements_resume: { effect: "write", agentAllowed: true, group: "announcements", command: "papyrus announcements resume" },
-  announcements_settings_show: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements settings show" },
-  announcements_settings_set: { effect: "write", agentAllowed: false, group: "announcements", command: "papyrus announcements settings set" },
-  announcements_account_status: { effect: "read", agentAllowed: true, group: "announcements", command: "papyrus announcements account status" },
+  image_profile_get: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images profile get" },
+  image_profile_resolve: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images profile resolve" },
+  image_profile_diff: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images profile diff" },
+  image_profile_save: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "images", command: "papyrus images profile save" },
+  image_profile_history: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images profile history" },
+  image_profile_init: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images profile init" },
+  image_profile_example_add: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "images", command: "papyrus images profile example add" },
+  image_profile_example_remove: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "images", command: "papyrus images profile example remove" },
+  image_capabilities: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images capabilities" },
+  image_brief_draft: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images brief" },
+  image_prompt_preview: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images prompt" },
+  image_search: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images search" },
+  image_generate: { effect: "spend", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images generate" },
+  image_figure_add: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images figure add" },
+  image_round_get: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images round" },
+  image_candidate_get: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images show" },
+  image_list: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images list" },
+  image_retry: { effect: "spend", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images retry" },
+  image_iterate: { effect: "spend", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images iterate" },
+  image_select: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images select" },
+  image_unapply: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images unapply" },
+  image_review: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "images", command: "papyrus images review" },
+  image_review_queue: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "images", command: "papyrus images review-queue" },
+  image_apply: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images apply" },
+  image_discard: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "images", command: "papyrus images discard" },
+  guidelines_get: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines show" },
+  guidelines_resolve: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines resolve" },
+  guidelines_diff: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines diff" },
+  guidelines_save: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines save" },
+  guidelines_history: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines history" },
+  announcements_list: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements list" },
+  announcements_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements show" },
+  announcements_dry_run: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements dry-run" },
+  announcements_pause: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements pause" },
+  announcements_resume: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements resume" },
+  announcements_settings_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements settings show" },
+  announcements_settings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements settings set" },
+  announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
+  ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
 } as const;
 
-/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements have no door yet (the console reads and writes their models directly). */
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements and ratings have no door yet (the console reads and writes their models directly). */
 export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;
   effect: "read" | "write" | "spend";
-  group: "images" | "guidelines" | "announcements";
+  group: "images" | "guidelines" | "announcements" | "ratings";
 }) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(

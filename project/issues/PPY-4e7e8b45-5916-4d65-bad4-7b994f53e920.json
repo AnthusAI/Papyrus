@@ -1,0 +1,30 @@
+{
+  "id": "PPY-4e7e8b45-5916-4d65-bad4-7b994f53e920",
+  "title": "Loop guard per subject",
+  "description": "Agents wake each other by changing records, so two agents could pass a Story back and forth. Keep the existing guard and make it general: a counter of agent runs per subject since a person last acted on it. The limit is an owner setting in the agent policy document; at the limit nothing more starts for that subject and one hard-gate review request says so. A person's action resets the count. An agent's own new version wakes free checks, and never the same paid step on its own output.\n\n**Acceptance criteria**\n- A ping-pong between two agents stops at the owner's limit with one hard gate.\n- A person's edit resets the count.\n- An agent never re-runs its own paid step on the version it just wrote.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-loop-guard.feature: two agents alternating stop at the limit; the hard gate is raised once; a person's action lets work continue; an agent's own version does not re-wake it.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B7 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cd706fba-2516-4e3d-8df1-5b16e61c7ef7",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:03.149Z",
+  "updated_at": "2026-11-16T22:43:25.382729Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

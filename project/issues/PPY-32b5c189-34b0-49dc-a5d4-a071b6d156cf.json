@@ -1,0 +1,34 @@
+{
+  "id": "PPY-32b5c189-34b0-49dc-a5d4-a071b6d156cf",
+  "title": "A person's message steers an agent; the reply is a run card",
+  "description": "A person writes a Message on a Story, Reference or Delivery thread. The Message change feed wakes the agents responsible for that subject, with the Message as steering input, inside their rung. The agent's result is the record change it makes; the thread shows a run card (what the agent did, with a link) read from the run record by subject. No Message is written by the machine, in line with the rule that Messages come only from people. The Message's response fields record that it was picked up and by which run.\n\n**Acceptance criteria**\n- A person's comment on a Story reaches that Story's agents once.\n- The thread shows what was done without a machine Message.\n- A comment that asks for something above the rung ends `asked`.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- message-steering.feature: a comment wakes the Story's agents; the run card appears in the thread; no machine Message exists; a request above the rung raises a review request.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Work items and handoffs between agents and people. Slice code F3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-928a91fb-7fe8-4bd4-85f1-e0bef41e5897",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9b9e64dc-cb45-42ee-b370-705145d0b444",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:06.916201Z",
+  "updated_at": "2026-11-16T22:47:40.353110Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

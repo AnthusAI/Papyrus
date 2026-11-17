@@ -99,3 +99,20 @@ def test_the_release_can_build_an_arm64_image():
 
 def test_the_hand_build_script_is_gone():
     assert not (ROOT / "infra" / "procedures" / "build_image.sh").exists()
+
+
+def test_a_pull_request_that_touches_the_runner_plans_the_runner_stack_and_a_code_change_rebuilds_it():
+    config = json.loads((PIPELINE / "stacks.json").read_text())
+    assert sd.changed_stacks(config, ["infra/procedures/papyrus-procedure-runner.yaml"]) == ["papyrus-procedure-runner"]
+    assert "papyrus-procedure-runner" in sd.changed_stacks(config, ["src/papyrus_content/procedure_runner.py"])
+
+
+def test_a_remove_or_replace_in_the_runner_stack_that_is_not_on_the_allowed_list_stops_the_run():
+    def change(logical, action, replacement="False"):
+        return {"Type": "Resource", "ResourceChange": {"Action": action, "LogicalResourceId": logical, "ResourceType": "AWS::Lambda::Function", "Replacement": replacement}}
+
+    changes = [change("RunnerFunction", "Remove"), change("RunnerRole", "Modify", "True")]
+    violations, _ = sd.review_changes("papyrus-procedure-runner", changes, [])
+    assert [v.split()[0] for v in violations] == ["RunnerFunction", "RunnerRole"]
+    allowed = [{"stack": "papyrus-procedure-runner", "logicalId": "RunnerFunction", "change": "Remove", "reason": "test"}]
+    assert [v.split()[0] for v in sd.review_changes("papyrus-procedure-runner", changes, allowed)[0]] == ["RunnerRole"]

@@ -85,7 +85,9 @@ def kind_of(schema: dict) -> str:
 
 
 def agent_words(item: Operation) -> str:
-    return "yes" if item.agent_allowed else "no, a person only"
+    if not item.agent_allowed:
+        return f"no ({item.agent_refusal})"
+    return f"from `{item.agent_rung}`"
 
 
 # --- the CLI spec ---------------------------------------------------------------------------------------------------------------------------------
@@ -135,7 +137,7 @@ def cli_command(item: Operation) -> dict:
     if item.effect != "read":
         parts.append("[--dry-run]")
     return {"op": item.name, "group": item.group, "words": list(item.cli), "summary": item.summary, "effect": item.effect, "agentAllowed": item.agent_allowed,
-            "usage": " ".join(parts), "positional": list(item.positional), "file": item.file_field, "picture": item.picture_field, "flags": flags}
+            "agentRung": item.agent_rung, "agentRefusal": item.agent_refusal, "usage": " ".join(parts), "positional": list(item.positional), "file": item.file_field, "picture": item.picture_field, "flags": flags}
 
 
 def render_cli() -> str:
@@ -147,7 +149,7 @@ def render_cli() -> str:
 # --- the MCP schema -------------------------------------------------------------------------------------------------------------------------------
 
 def render_mcp() -> str:
-    tools = [{"name": item.name, "audience": item.audience, "description": item.summary, "agentAllowed": item.agent_allowed, "effect": item.effect,
+    tools = [{"name": item.name, "audience": item.audience, "description": item.summary, "agentAllowed": item.agent_allowed, "agentRung": item.agent_rung, "agentRefusal": item.agent_refusal, "effect": item.effect,
               "inputSchema": item.input, "outputSchema": item.result} for item in OPERATIONS]
     return json.dumps({"generatedFrom": SOURCE, "tools": tools}, indent=2) + "\n"
 
@@ -206,12 +208,12 @@ def render_ts() -> str:
     out += ["}", "", "/** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */",
             "export const IMAGE_OPERATIONS = {"]
     for item in OPERATIONS:
-        out.append(f"  {item.name}: {{ effect: {json.dumps(item.effect)}, agentAllowed: {json.dumps(item.agent_allowed)}, group: {json.dumps(item.group)}, "
+        out.append(f"  {item.name}: {{ effect: {json.dumps(item.effect)}, agentAllowed: {json.dumps(item.agent_allowed)}, agentRung: {json.dumps(item.agent_rung)}, agentRefusal: {json.dumps(item.agent_refusal)}, group: {json.dumps(item.group)}, "
                    f"command: {json.dumps(item.command)} }},")
     out += ["} as const;", "",
-            "/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements have no door yet (the console reads and writes their models directly). */",
+            "/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements and ratings have no door yet (the console reads and writes their models directly). */",
             "export type ImageTransport = (request: {", "  op: ImageOperationName;", "  input: unknown;", "  effect: \"read\" | \"write\" | \"spend\";",
-            "  group: \"images\" | \"guidelines\" | \"announcements\";", "}) => Promise<unknown>;", "",
+            "  group: \"images\" | \"guidelines\" | \"announcements\" | \"ratings\";", "}) => Promise<unknown>;", "",
             "export async function callImageOperation<Name extends ImageOperationName>(",
             "  name: Name,", "  input: ImageOperations[Name][\"input\"],", "  send: ImageTransport,",
             "): Promise<ImageEnvelope<ImageOperations[Name][\"result\"]>> {",
@@ -231,7 +233,7 @@ def error_table() -> list[str]:
 
 def skill_block() -> str:
     lines = [f"<!-- Generated from {SOURCE}. Do not edit by hand; run scripts/generate-image-operations.py. -->", "", "## Reference: the operations", "",
-             "Each operation is a command and a tool with the same input and the same JSON result. A person-only operation returns `human_required` to an agent.", "",
+             "Each operation is a command and a tool with the same input and the same JSON result. Each operation names the lowest rung of the site's agent policy that lets an agent call it; below that rung the gate answers an agent `human_required`, and a person-only operation answers `human_required` or `blocked` at every rung.", "",
              "| Operation (MCP tool) | Command | What it does | Agent may call | Errors it can return |", "| --- | --- | --- | --- | --- |"]
     for item in IMAGE_OPERATIONS:
         errors = ", ".join(f"`{code}`" for code in item.errors) or "only the common ones"
