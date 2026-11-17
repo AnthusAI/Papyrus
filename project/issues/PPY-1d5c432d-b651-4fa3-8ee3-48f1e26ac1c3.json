@@ -19,9 +19,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8bb34c4b-342d-442c-842d-1f8fd3066e88",
+      "author": "home",
+      "text": "PR #1626 (feat/PPY-1d5c43-guideline-files-cloud): writing guidelines stored as guideline files (role doctrine_files), save/export/diff --dir, field files with fixed names, rule files derive checks, convert command (dry run default) with convert_v1.py as the only reader of the JSON shape. Behave 4 new features + 40 guideline-related features green; no site converted; cutover plan in docs/guidelines-files-cutover.md. Not released.",
+      "created_at": "2026-11-17T00:02:17.199823Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:38.127945Z",
-  "updated_at": "2026-11-16T21:48:53.733065Z",
+  "updated_at": "2026-11-17T00:02:17.200061Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

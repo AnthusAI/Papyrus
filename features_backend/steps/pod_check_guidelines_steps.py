@@ -101,11 +101,6 @@ def guidelines_check_reads_pod(context):
     context.gl_answer = json.loads(out.getvalue())
 
 
-@then('the pod report does not say "{text}"')
-def report_does_not_say(context, text):
-    assert text not in context.output + context.error, (text, context.output, context.error)
-
-
 @then("papyrus guidelines check accepts the folder")
 def guidelines_accepts(context):
     assert context.gl_status == 0 and context.gl_answer["ok"] is True, context.gl_answer

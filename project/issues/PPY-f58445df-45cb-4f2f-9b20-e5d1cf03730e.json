@@ -3,7 +3,7 @@
   "title": "Outcome vocabulary on every run",
   "description": "Add `outcome` to `ProcedureRun` with exactly five values: `acted` (it did the work), `nothing` (it looked and there was nothing to do), `asked` (it raised a question for a person and stopped), `failed` (it could not do the work; nothing half-done is left as if done), `unknown` (it started and no result was recorded). Add a short `outcomeReason` code, plus `automationId`, `responsibility`, `subjectKind`, `subjectId`, `subjectVersion` and `rung` (the rung it ran under). `runStatus` keeps the mechanics (`waiting`, `queued`, `started`, `finished`); `outcome` is set only when a run finishes or is settled. The runner writes both. The CLI and console show each outcome as a word with a mark, never colour alone. Delivery attempts use the same words for the same things (`started`, then `sent`, `refused` or `unknown`). Existing runs are not rewritten; a run without an outcome shows \"recorded before outcomes\".\n\n**Acceptance criteria**\n- A finished run always has one of the five outcomes.\n- A run that looked and found nothing records `nothing` with a reason code; it is not a failure.\n- `papyrus automations runs` and the console show the outcome in words with a mark.\n- No existing run is rewritten.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- run-outcomes.feature: a run that does its work is `acted`; a run with nothing to do is `nothing` with a reason; a run that raises a review request is `asked`; a procedure error is `failed`; an older run shows 'recorded before outcomes'.\n\n**Infrastructure as code touched:** Amplify data schema: new optional fields on `ProcedureRun` (no index in this task). Runner image.\n\n**Part of:** Wake contract and run outcomes. Slice code A1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -13,10 +13,18 @@
     "first-week"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4efde56a-7961-45b1-8755-d2eef5995566",
+      "author": "home",
+      "text": "Shipped in PR #1625 (merge commit 23d0a953c05d1ef0bd4ebc278873611f87068e84), merged to develop, not released. Verification: behave features_backend/run-outcomes.feature (20 scenarios) and the automation features (8 features, 123 scenarios); pytest for the runner, automations and run_outcomes; tsx automation page, schema parity, model groups, GSI ledger, tenant key inventory; full PR CI green after merging develop. Not done: console Recent Runs panel left alone (decided); responsibility and rung are fields only, written later; automation id and subject are recorded at finish, not start (A3 can move it); release order: site backend before runner image and CLI.",
+      "created_at": "2026-11-17T00:15:20.762530Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:42:51.674768Z",
-  "updated_at": "2026-11-16T22:42:51.675755Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T00:15:21.038096Z",
+  "closed_at": "2026-11-17T00:15:21.037857Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
