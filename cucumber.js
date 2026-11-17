@@ -195,6 +195,12 @@ module.exports = {
     require: ["features/step_definitions/story-preview-heading.steps.js"],
     format: ["summary"],
   },
+  wakeKeyDuplicate: {
+    paths: ["features/wake-key-duplicate.feature"],
+    requireModule: ["tsx/cjs"],
+    require: ["features/step_definitions/wake-key-duplicate.steps.ts"],
+    format: ["summary"],
+  },
   messageHashtags: {
     paths: ["features/message-hashtags.feature"],
     require: ["features/step_definitions/message-hashtags.steps.js"],
