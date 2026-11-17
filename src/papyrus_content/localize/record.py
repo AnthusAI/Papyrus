@@ -283,9 +283,13 @@ def _first_slug(client, request: LocalizeRequest, primary: dict[str, Any], title
     return unique_slug(localized_slug(title, request.slug_policy, primary_slug=primary["slug"]), taken)
 
 
-def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str | None = None) -> dict[str, Any]:
+def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str | None = None, author: str = ACTOR, change_reason: str | None = None,
+         localization: dict[str, Any] | None = None) -> dict[str, Any]:
     """Records the translation as the next version of the localization lineage (version 1 the first time) and its provenance. Unpublished,
-    no board stage, author AI. Refuses when a newer source was translated meanwhile (an older run never replaces newer work)."""
+    no board stage, author AI. Refuses when a newer source was translated meanwhile (an older run never replaces newer work).
+
+    Finished copy that a person or another agent wrote (``import_copy``, ``papyrus stories import-translation``) is saved by this same path: it names its
+    ``author`` and ``change_reason``, and its ``localization`` entries (``translation``, who wrote it) are written over the machine's."""
     from ..model_attachments import build_json_model_payload_attachment, upload_attachment_body
     from ..publishing import ItemFields, _derive_or_raise, _load_front_matter, columns_from_front_matter, _source_content_hash, _status_keys, _without_server_fields
     from ..story_reporting import _carry_media_forward, next_version_record_id, story_versions, superseding_update
@@ -312,15 +316,16 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
                 "localization": {"runKey": request.run_key, "outcome": outcome["outcome"], "reason": outcome["reason"], "translation": "machine",
                                  "reviewed": False, "sourceContentHash": request.source.content_hash, "rounds": outcome["rounds"],
                                  "revertedBlocks": outcome["revertedBlocks"], "costUsd": outcome["costUsd"],
-                                 **({"imagesWithText": list(request.source.images_with_text)} if request.source.images_with_text else {})}}
+                                 **({"imagesWithText": list(request.source.images_with_text)} if request.source.images_with_text else {}),
+                                 **(localization or {})}}
     base = {name: value for name, value in _without_server_fields(primary).items()
             if name not in ("starRating", "starRatedAt", "starRatedBy", "headStageKey", "scheduledPublishAt", "scheduledBy", "scheduledAt",
                             "scheduleState", "scheduleName", "tenantSlug", "shortSlug")}
     record = {
         **base,
         "id": record_id, "lineageId": request.localization_lineage, "versionNumber": number, "slug": slug, "aliases": [],
-        "previousVersionId": latest["id"] if latest else None, "versionState": "current", "versionCreatedAt": now, "versionCreatedBy": ACTOR,
-        "changeReason": f"translation of version {request.source.version_number} into {request.language}",
+        "previousVersionId": latest["id"] if latest else None, "versionState": "current", "versionCreatedAt": now, "versionCreatedBy": author,
+        "changeReason": change_reason or f"translation of version {request.source.version_number} into {request.language}",
         "stage": None, "headStageKey": None, "status": "draft", **_status_keys(fields.type, fields.section, "draft"),
         "title": translation["title"] or None, "headline": translation["title"] or None, "sortTitle": translation["title"] or None,
         "deck": (columns_from_front_matter(_load_front_matter(front_matter))["deck"] if front_matter else translation["deck"] or None), "body": [], "bodyMarkus": fields.body_markus, "bodyIr": to_aws_json(envelope),
@@ -371,12 +376,12 @@ def report_back(client, request: LocalizeRequest, advice: list[dict[str, Any]]) 
     client.update_record("Item", {"id": row["id"], "metadata": to_aws_json(metadata), **({"updatedAt": row["updatedAt"]} if row.get("updatedAt") else {})})
 
 
-def hold(client, request: LocalizeRequest, reason: str) -> dict[str, Any]:
+def hold(client, request: LocalizeRequest, reason: str, *, raised_by: str = RAISED_BY) -> dict[str, Any]:
     """A flag review request on the localization, saying why it is held. Idempotent per run key."""
     from ..review_requests import raise_review
 
     return raise_review(client, subject={"type": "story", "id": request.localization_lineage}, mode="flag",
-                        reason=f"The {request.language} translation is held: {reason}"[:1900], raised_by=RAISED_BY,
+                        reason=f"The {request.language} translation is held: {reason}"[:1900], raised_by=raised_by,
                         request_id=hold_request_id(request.run_key))
 
 

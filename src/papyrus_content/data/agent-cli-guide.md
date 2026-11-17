@@ -513,6 +513,20 @@ papyrus stories correct-translation --story LINEAGE --language es-419 --edits-fi
 - Without `--publish` the version stays a draft; `--publish` publishes it as `papyrus ops content publish` does (a held translation still needs its review request answered), and `--verify` (only with `--publish`) waits for the public page. `--dry-run` prints each changed block before and after.
 - Spec: `features_backend/translation-correction.feature`. Design: docs/story-translation-procedure.md, "A person's correction".
 
+### Attach finished copy as a Story's translation (editors)
+**Lane:** either; the signed-in lane is the default. **Version:** the release after 5.112.1. **Writes:** yes, unless `--dry-run`.
+
+```sh
+papyrus stories import-translation --story LINEAGE --language zh-Hans --body-file zh.md --front-matter-file zh.yaml --written-by "Person or agent" --reason "why" --dry-run
+papyrus stories import-translation --story LINEAGE --language zh-Hans --body-file zh.md --front-matter-file zh.yaml --written-by "Person or agent" --reason "why"
+```
+
+- For copy that was written separately and is finished (not a machine translation, not a correction). The Story must be published, in a language the site writes in, and not itself a translation. `--body-file` is Markdown with the English's blocks in the same order (separated by blank lines); the front matter is YAML with `title`, `dek` (or `deck`), and `blurb` and `imageAlt` when the English has them, in `--front-matter-file` or as a leading `---` block of the body file.
+- Saves an unpublished new version of `LINEAGE--TAG`, paired with the published English version, authored by `--written-by`; its provenance says the copy was written, not machine-generated. Every block is the writer's (owner `human`, pinned), so a later translation run keeps it exactly. No model is called: the parity and glossary rules and the language's copy-edit policies check each block and the whole body. An error-severity faithfulness finding holds the version (a flag review request a person answers with `papyrus reviews answer`); other findings are printed as advice.
+- Refused, saving nothing: a language the site does not write in, an unpublished Story, a translation as the source, a copy whose blocks do not line up with the English's (the message gives both block counts and the first block where they stop matching), and a copy that changes a link target, address, citation, credit or a figure's settings (translate the words around them, and a figure's alt text and caption; keep the rest as the English has it).
+- Writes the Story's translation request finished, so `papyrus stories localize --all` counts the language up to date and does not overwrite it. `--dry-run` prints the alignment, the findings and the version it would replace, and writes nothing. It never publishes: `papyrus ops content publish --id VERSION_ID`.
+- Spec: `features_backend/translation-import.feature`. Design: docs/story-translation-procedure.md, "Finished copy written elsewhere".
+
 ### Translate a whole site, and translate on publish (operators)
 **Lane:** the operator lane (`--auth iam`) to run or publish here; `--dry-run` and `--automation` (queue only) on either. **Version:** the release after 5.112.1. **Writes:** yes, unless `--dry-run`.
 
