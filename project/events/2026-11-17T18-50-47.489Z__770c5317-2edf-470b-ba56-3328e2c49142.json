@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "770c5317-2edf-470b-ba56-3328e2c49142",
+  "issue_id": "PPY-c09346c9-c013-403e-9a35-14e858d0a36c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T18:50:47.489Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A site turns personas on and keeps a list of them",
+    "description": "A site setting, off by default, turns personas on. A persona record holds: name, slug, short public bio, persistent instructions, voice notes, enabled. Stored as versioned backend data like the guidelines documents, edited with a papyrus personas CLI and an Administration panel (hidden while the setting is off). Turning personas on replaces the byline policy's pen-names list: a site with personas signs with persona names; converting an existing pen-names policy creates one persona per name.\nScenario: a site without personas sees nothing new. Scenario: an editor creates, edits and disables a persona; a disabled persona is never offered for new Stories but stays on the Stories it signed.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-40443baa-fee3-4b94-811c-569f70a62024",
+    "labels": []
+  }
+}
