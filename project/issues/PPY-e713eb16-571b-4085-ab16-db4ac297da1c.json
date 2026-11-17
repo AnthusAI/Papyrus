@@ -33,9 +33,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "45f1bf35-8a64-4dc7-b11c-0e202de2448a",
+      "author": "home",
+      "text": "Enforcement of the agent policy (PPY-c8175e, #1638) needs these steps per site BEFORE the release that carries the runner reaches it. Distinctive's TTAB analysis starts nothing until they are done. 1. In the router config, name the publication's tenantId and siteBucket (the site's media bucket). 2. Adopt: papyrus automations adopt --id distinctive.ttab --responsibility KEY --dry-run, then without --dry-run (admin who is a person, signed in). KEY is Ryan's choice: the catalog has no ruling-analysis entry. 3. Write the policy line for KEY at the rung matching today's behaviour: Ryan approves the rung; there is no operator command yet (papyrus agents set-rung, H3 PPY-e6f31e, with a production write adapter). 4. After the next wake, papyrus automations runs --id distinctive.ttab shows the policy version and rung, not Nothing to do (not_adopted). Also deploy the site backend first: it gains ProcedureRun.policyVersion and Automation.responsibility. Runner role gains s3:GetObject on tenants/*/site/agents/* for approval at release. Full text: docs/releasing.md, Enforcing the agent policy on a site.",
+      "created_at": "2026-11-17T02:04:10.882421Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-17T01:18:00.727665Z",
-  "updated_at": "2026-11-17T01:18:11.491572Z",
+  "updated_at": "2026-11-17T02:04:10.882667Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

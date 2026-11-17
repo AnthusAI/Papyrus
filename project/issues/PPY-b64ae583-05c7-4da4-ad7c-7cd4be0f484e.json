@@ -1,0 +1,27 @@
+{
+  "id": "PPY-b64ae583-05c7-4da4-ad7c-7cd4be0f484e",
+  "title": "Adopt an automation onto a responsibility: papyrus automations adopt",
+  "description": "Done in the PR for PPY-c8175e (#1638). Automation.responsibility (optional data, never inferred); admin who is a person only; dry run; sets no rung; refuses to change an adopted automation. Gherkin: automation-adoption.feature.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-c8175e05-51a3-474e-aa93-2b33d6a312cf",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-17T02:04:02.509450Z",
+  "updated_at": "2026-11-17T02:04:10.547896Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
