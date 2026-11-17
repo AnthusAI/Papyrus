@@ -32,10 +32,6 @@
     {
       "target": "PPY-c8175e05-51a3-474e-aa93-2b33d6a312cf",
       "type": "blocked-by"
-    },
-    {
-      "target": "PPY-81734013-a915-4f1b-a155-f3d68b508c56",
-      "type": "blocked-by"
     }
   ],
   "comments": [
@@ -45,10 +41,17 @@
       "text": "The once-only create guard (PPY-a5513c) matches the error type as well as the text (PR #1639). The live proof is PPY-817340 (waiting for approval and a 5.130 site); it now blocks this task.",
       "created_at": "2026-11-17T02:56:54.543909Z",
       "comment_type": "default"
+    },
+    {
+      "id": "331da375-91ea-4cec-bb65-eebec89fd4e3",
+      "author": "home",
+      "text": "Board correction: the live once-only-create proof (PPY-817340) needs a site on the 5.130 release, so it gates the release and enabling the wake queue on a site (PPY-e713eb), not building and merging B1. Dependency moved accordingly.",
+      "created_at": "2026-11-17T02:57:41.093643Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:02.081219Z",
-  "updated_at": "2026-11-17T02:56:54.544127Z",
+  "updated_at": "2026-11-17T02:57:41.093865Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
