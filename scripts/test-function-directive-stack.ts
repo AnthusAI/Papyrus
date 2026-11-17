@@ -75,7 +75,7 @@ async function main() {
     dataSources < resolvers / 2,
     `${dataSources} data sources for ${resolvers} resolvers: Lambda fields must share one data source per function`,
   );
-  console.log(`FunctionDirectiveStack: ${resources.length} resources, ${resolvers} resolvers, ${dataSources} data sources`);
+  console.log(`FunctionDirectiveStack: ${resources.length} resources, ${resolvers} resolvers, ${dataSources} data sources; ${CLOUDFORMATION_STACK_LIMIT - resources.length} below the limit of ${CLOUDFORMATION_STACK_LIMIT}, ${FUNCTION_DIRECTIVE_STACK_BUDGET - resources.length} below the budget`);
 }
 
 main().then(
