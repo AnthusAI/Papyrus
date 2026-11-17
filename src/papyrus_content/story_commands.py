@@ -1300,6 +1300,7 @@ def stories_localize_all(options: dict) -> None:
     ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
     concurrency = normalize_positive_integer(options.get("concurrency"), "--concurrency") or backfill.DEFAULT_CONCURRENCY
     automation = normalize_string(options.get("automation"))
+    window = backfill.UpdatedWindow.parse(options.get("updated-since"), options.get("updated-before"))
     client, _ = create_authoring_client()
     settings = settings_from(GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
     serving = serving_languages(settings)
@@ -1311,7 +1312,13 @@ def stories_localize_all(options: dict) -> None:
     procedure = normalize_string(options.get("procedure"))
     if not automation:
         procedure = procedure or default_procedure_key(host_for(client.endpoint))
-    jobs = backfill.survey(client, settings, languages)
+    jobs = backfill.survey(client, settings, languages, window=window)
+    if window is not None and not jobs:
+        if as_json:
+            print(json.dumps({"dryRun": dry_run, "languages": languages, "updated": window.describe(), "undated": window.undated, "rows": [], "message": window.empty_message()}, ensure_ascii=False))
+        else:
+            print("\t".join(["stories", "localize", "none", window.empty_message()]))
+        return
     todo = [job for job in jobs if job.status == backfill.PLANNED]
     request_meter.add_units(len(todo))   # each Story and language still to do is a unit of work the request budget allows for
     summary: dict = {}
@@ -1332,8 +1339,10 @@ def stories_localize_all(options: dict) -> None:
                              publish_clean_results=publish_clean, concurrency=concurrency, ceiling_usd=ceiling, procedure_key=procedure,
                              key=openai_key(options.get("openai-key-parameter")), project=project)
     if as_json:
-        print(json.dumps({"dryRun": dry_run, "languages": languages, "rows": [job.row() for job in jobs], **summary}, ensure_ascii=False))
+        print(json.dumps({"dryRun": dry_run, "languages": languages, **({"updated": window.describe(), "undated": window.undated} if window else {}), "rows": [job.row() for job in jobs], **summary}, ensure_ascii=False))
     else:
+        if window is not None:
+            print("\t".join(["stories", "localize", "window", f"Stories updated {window.describe()}" + (f"; {window.undated} with no publish time left out" if window.undated else "")]))
         for line in backfill.table(jobs):
             print("\t".join(["stories", "localize", line]))
         if dry_run:
@@ -1482,9 +1491,11 @@ def stories_localize(flags: list[str]) -> None:
     language's measured runs) and writes nothing.
 
     Whole site: ``papyrus stories localize --all (--language TAG | --all-languages) [--publish-clean] [--dry-run] [--concurrency N] [--ceiling-usd N]
-    [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--json]`` finds every published primary-language Story with no up-to-date
+    [--updated-since DATE|7d|1w] [--updated-before DATE|7d|1w] [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--json]`` finds every published primary-language Story with no up-to-date
     translation in the language (or in every enabled language) and runs them all, printing one row per Story and language (saved, held, failed,
-    up to date, cost). See ``localize/backfill.py``."""
+    up to date, cost). ``--updated-since`` / ``--updated-before`` (an ISO date or datetime in UTC, or a duration such as 7d, 36h, 1w before now) keep only the
+    Stories whose current published version was published in the range (inclusive start, exclusive end), for every mode including ``--publish-clean``.
+    See ``localize/backfill.py``."""
     from .localize.desired_state import want
     from .localize.record import collect
     from .story_reporting import published_story_version
@@ -1492,6 +1503,8 @@ def stories_localize(flags: list[str]) -> None:
     options = parse_options(flags)
     if parse_boolean_option(options.get("all"), default=False, label="--all"):
         return stories_localize_all(options)
+    if options.get("updated-since") or options.get("updated-before"):
+        raise ValueError("--updated-since and --updated-before narrow --all; to translate one Story, name it with --story.")
     story = _required_option(options, "story")
     language = _required_option(options, "language")
     dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
