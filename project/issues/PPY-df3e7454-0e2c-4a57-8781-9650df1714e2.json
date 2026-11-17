@@ -1,7 +1,7 @@
 {
   "id": "PPY-df3e7454-0e2c-4a57-8781-9650df1714e2",
   "title": "Definitions are applied by the release",
-  "description": "The release registers each definition in the site's backend, as procedures are to be registered on deploy (PPY-1b2edd): an unchanged digest changes nothing; a changed one writes a new registered version; a definition removed from Git is marked retired, its schedule is removed and its history stays. The apply step never touches the agent policy document, so a deploy cannot change a rung or lift a pause. A new agent arrives at rung `off` unless the site's policy already names it.\n\n**Acceptance criteria**\n- A release with no definition change writes nothing.\n- A new definition appears at `off` on a site that has no policy line for it.\n- A deploy never changes a rung, a pause or a budget.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-definitions-on-release.feature: an unchanged definition is a no-op; a changed one becomes a new version; a removed one is retired and its schedule deleted; a new agent starts `off`; the policy document is untouched.\n\n**Infrastructure as code touched:** Site deploy step (the same place procedures are registered).\n\n**Part of:** Agent definitions, the catalog and generated runbooks. Slice code D2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "description": "The release registers each definition in the site's backend, as procedures are to be registered on deploy (PPY-1b2edd): an unchanged digest changes nothing; a changed one writes a new registered version; a definition removed from Git is marked retired, its schedule is removed and its history stays. The apply step never touches the agent policy document, so a deploy cannot change a rung or lift a pause. A new agent arrives at rung `off` unless the site's policy already names it.\n\n**Acceptance criteria**\n- A release with no definition change writes nothing.\n- A new definition appears at `off` on a site that has no policy line for it.\n- A deploy never changes a rung, a pause or a budget.\n- The registered copy of a definition (id, version, digest) is written on the Automation record; the follow-up task PPY-fba046 delivers it and this task proves it end to end.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-definitions-on-release.feature: an unchanged definition is a no-op; a changed one becomes a new version; a removed one is retired and its schedule deleted; a new agent starts `off`; the policy document is untouched.\n\n**Infrastructure as code touched:** Site deploy step (the same place procedures are registered).\n\n**Part of:** Agent definitions, the catalog and generated runbooks. Slice code D2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
   "status": "open",
   "priority": 2,
@@ -19,11 +19,15 @@
     {
       "target": "PPY-1b2edd12-5a13-4a0a-aff6-5208cb8acfa3",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fba04651-9800-4e64-afbd-8102f6c9f904",
+      "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-16T22:43:04.425744Z",
-  "updated_at": "2026-11-16T22:43:27.932281Z",
+  "updated_at": "2026-11-17T01:18:46.862323Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

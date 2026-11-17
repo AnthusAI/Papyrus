@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8624d040-9416-4655-acd3-d87175fe5f48",
+  "issue_id": "PPY-c8175e05-51a3-474e-aa93-2b33d6a312cf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T01:17:21.089Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The runner reads the policy: decide_start called from the runner; run records policyVersion and rung",
+    "description": "**Problem.** The policy document (PPY-51ea61, closed) is a library only. Nothing outside its package calls `decide_start` or the store. No run is stopped by a pause, and no run records a policy version or rung. Closing that task early left this gap; it is filed here, not reopened.\n\n**Change.** The procedure runner calls `decide_start` at the start of every run, so the policy document is actually used. A pause stops the run and says why on the run record. The run records `policyVersion` and `rung` (and `responsibility`) on `ProcedureRun`.\n\n**Acceptance criteria**\n- The runner calls `decide_start` before any work; a paused agent's run does not start and the record says paused, with the reason.\n- Every started run writes `policyVersion` and `rung` on its `ProcedureRun`.\n- A site with no policy document behaves as the design says (agents off), shown by a scenario, not assumed.\n- Does not run in parallel with wake-key or wake-queue work: it edits the same files (`procedure_runner.py`, `automations.py`, `cloud_procedures.py`). Order: wake keys (merged), this task, then B1.\n\n**Gherkin features needed**\n- runner-reads-policy.feature: 'a paused agent's wake does not start a run and says why'; 'a run records the policy version and the rung it ran at'; 'a site with no policy document starts no agent'. Scenarios go through the runner entry point, not `decide_start` alone.\n\n**Dependencies:** blocks PPY-567bf9 (B1) and PPY-d85860 (rating agent). Relates PPY-51ea61 and PPY-f58445. Related bug: the silent no-op in `resume()`.\n\n**Report:** papyrus-track-report-1.md, section 1 follow-up 1; section 4 (do not run in parallel); page one row 3.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

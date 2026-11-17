@@ -1,0 +1,22 @@
+{
+  "id": "PPY-412a52e9-80cc-4cc5-805d-1c899e252f47",
+  "title": "Docs: agent brief wording and definition of done",
+  "description": "Add the track report's brief wording and its five-line definition of done for agent pull requests to docs/agent-briefs.md, linked from AGENTS.md and docs/README.md. Docs only; no behaviour change, so no Gherkin. Acceptance: the file exists with the brief and the five lines; both links resolve. Landed as a direct docs commit on develop. Report: papyrus-track-report-1.md, section 6.",
+  "type": "chore",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-17T01:19:08.318246Z",
+  "updated_at": "2026-11-17T01:19:08.318328Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -16,11 +16,15 @@
     {
       "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-df3e7454-0e2c-4a57-8781-9650df1714e2",
+      "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-16T22:43:03.357616Z",
-  "updated_at": "2026-11-16T22:43:25.684178Z",
+  "updated_at": "2026-11-17T01:18:18.358662Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

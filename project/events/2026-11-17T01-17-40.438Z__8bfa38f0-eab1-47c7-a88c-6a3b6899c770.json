@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8bfa38f0-eab1-47c7-a88c-6a3b6899c770",
+  "issue_id": "PPY-63d31b49-17d9-495c-b224-4b4a7cd2fdda",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T01:17:40.438Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Policy resume() on an unnamed agent is a silent no-op",
+    "description": "**Problem.** In the policy package, `resume()` on an agent the policy document does not name changes a throwaway dict and reports nothing. That is a silent no-op: the caller believes the agent was resumed.\n\n**Change.** `resume()` on an agent the document does not name raises a clear error (or returns an explicit result the caller must handle), and the operator command shows it. No catch-and-continue.\n\n**Acceptance criteria**\n- `resume()` of an unnamed agent fails loudly with the agent's name.\n- `resume()` of a paused agent clears the pause and the change is stored.\n- The same behaviour shows through the command or runner path a site uses.\n\n**Gherkin features needed**\n- agent-policy-resume.feature: 'resuming an agent the policy does not name is refused'; 'resuming a paused agent clears the pause'.\n\n**Dependencies:** relates PPY-51ea61 (closed) and the runner-reads-policy task (PPY-c8175e); the two touch the same package, so do them in order, policy-read first.\n\n**Report:** papyrus-track-report-1.md, section 2 (Silent catch-and-continue).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

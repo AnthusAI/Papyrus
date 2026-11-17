@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "4160678a-6599-438f-9ca8-018918eebfaa",
+  "issue_id": "PPY-a5513c84-2d74-4ad2-b0bf-4dbea5d1b51b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T01:17:20.790Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Once-only create guard matches error text only; match the error type and prove it on a real backend",
+    "description": "**Problem.** The once-only create in the wake-keys handler (`amplify/functions/procedure-action/handler.ts:253-275`, `wake-key.ts`) treats a create error as a duplicate only if the error text matches `conditional request failed` or `ConditionalCheckFailed`. If the text ever differs, a duplicate wake shows as a failed start (it cannot run twice, but it fails falsely). Nothing has proven the guard against a real backend: the Gherkin uses a fake backend and the unit test feeds the pattern a string.\n\n**Fix.** Match the error type (`DynamoDB:ConditionalCheckFailedException`) as well as the text. Then prove it once on Machines on Machines, before the wake queue relies on redelivery.\n\n**Acceptance criteria**\n- The handler treats an error as a duplicate when its type is the conditional-check type, or its text matches; any other error is still thrown.\n- On Machines on Machines after its 5.130 bump, the same wake key started twice (signed-in CLI) leaves one run record and the second answer says `duplicate: true`. The result is recorded on this task and on PPY-567bf9.\n- If `papyrus procedures run` cannot take a wake key, add that to the CLI (and its spec) so the check can be done without hand-made calls.\n- PPY-567bf9 (B1) lists this proof among its acceptance lines and its release is blocked by this task.\n\n**Gherkin features needed**\n- wake-key-duplicate.feature: 'a create refused with the conditional-check error type answers duplicate'; 'a create refused with the old text answers duplicate'; 'any other create error is thrown'. Entry point: the handler, not the regex helper.\n\n**Dependencies:** blocks PPY-567bf9 (B1). Follows PPY-70c6e8 (closed); does not reopen it. Needs Machines on Machines on 5.130 for the real-backend check (see the Release 5.130 plan task).\n\n**Report:** papyrus-track-report-1.md, section 3a hazard 1; checklist step 11.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-865e8323-0e33-42e8-ada4-f24d5a67c231",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}
