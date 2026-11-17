@@ -437,12 +437,14 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     statements = resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {statement["Sid"] for statement in statements} == {
         "Logs", "FailedInvocations", "PublicationOpenAiKeys", "TriggerOutcomes", "StageTriggerRows",
-        "StartNextStage", "PublicationNewsrooms"}
+        "StartNextStage", "PublicationNewsrooms", "SiteAgentPolicyBody"}
     assert all("*" != statement["Resource"] for statement in statements)
     by_sid = {statement["Sid"]: statement for statement in statements}
     rows = by_sid["StageTriggerRows"]
     assert set(rows["Action"]) == {"dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"}
     assert rows["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["MONITOR#*"]
+    policy_body = by_sid["SiteAgentPolicyBody"]   # PPY-c8175e: read one document's objects, nothing else of S3
+    assert policy_body["Action"] == "s3:GetObject" and policy_body["Resource"][1].endswith(":::*/tenants/*/site/agents/*")
     invoke = by_sid["StartNextStage"]
     assert invoke["Action"] == "lambda:InvokeFunction" and invoke["Resource"][1].endswith(":function:papyrus-procedure-runner")
 
