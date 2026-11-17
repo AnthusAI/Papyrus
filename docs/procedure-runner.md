@@ -88,6 +88,11 @@ For each request, the runner does these steps:
      `policy_unreadable`. There is no fallback that starts a run anyway.
    * A run a person starts in their own session (`papyrus stories localize`) uses `PersonStart`: a person's action is never limited by
      an agent's rung, and its record carries no responsibility or rung.
+   * **An agent's run knows its own policy.** When the decision starts a run, the runner puts one entry in the child's environment, `PAPYRUS_AGENT_RUN`
+     (`agent_gate/run_context.py`): the run id, the responsibility, the policy as read for this run and the moment the child is stopped. A procedure that must
+     write through the gate while it works (the rating agent writes a rating only at a rung that allows it) builds its `GateRun` from that, so the gate it asks
+     is the one gate over the one policy the run was decided under, and no rung is written into a procedure. A person's own run has no such entry, and a
+     procedure that needs one refuses to run without it.
    The runner's role gains `s3:GetObject` on `tenants/*/site/agents/*` (the policy bodies). **Before enforcement reaches a site**, adopt
    its automations and write their policy lines: see [releasing](releasing.md#enforcing-the-agent-policy-on-a-site).
 8. When the request came from a trigger, it names the run on the trigger's row in the monitoring table as soon
@@ -191,7 +196,7 @@ the operator lane (`PAPYRUS_GRAPHQL_AUTH=iam`) with `PAPYRUS_ROOT` at the site's
 
 What it registers:
 
-- **Every core procedure**: all 14 kinds in `papyrus-required-procedures.json` (the registry; `procedures` maps each kind to its file in the
+- **Every core procedure**: all 15 kinds in `papyrus-required-procedures.json` (the registry; `procedures` maps each kind to its file in the
   wheel, `procedureMetadata` holds each kind's title, category, description, parameter schema and defaults, so there is one source). The CLI
   aliases in `requiredCliProcedures` are only a subset of the kinds.
 - **The site's own procedures**, listed in `papyrus-site-procedures.json` at the site's root (a site without the file has none):
@@ -218,7 +223,7 @@ The rules, each of which stops the deploy step with a plain error and writes not
 Unchanged procedures write nothing. A version's id carries a digest of the source, the skill files and (for a core procedure) its metadata,
 so the same Git state is never written twice; a change publishes a new version (version numbers count up) and archives the previous one.
 
-The first deploy that carries this registers the 14 core procedures on every site, and it is not quiet: each procedure registered earlier by
+The first deploy that carries this registers the 15 core procedures on every site, and it is not quiet: each procedure registered earlier by
 the old seed (`procedure-version-<kind>-1`) gets a new digest version, because the kind header was added to ten of the files, and the kinds
 that were never seeded (`story.localize`, `references.curate`, `story.editor-review`, `newsroom.copywriter`, `newsroom.editor`,
 `newsroom.researcher`, `ingestion.reference.register`) are created. After that a deploy reports every kind unchanged until a file or its metadata

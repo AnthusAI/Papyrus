@@ -488,6 +488,9 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
     # One row per story: only the head row of a lineage carries headStageKey (docs/plans/story-head-stage-index.md). Tenant-prefixed (tenancy.py).
     "itemsByHeadStage": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey", "fields": STORY_SECTION_LINK_FIELDS},
+    # The published head rows with what the rating agent judges and whether a person rated them (src/papyrus_content/rating_agent.py). Same partition as itemsByHeadStage.
+    "itemsByHeadStageForRating": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey",
+                                  "fields": "id tenantId lineageId versionState stage status type section title headline deck bodyMarkus sourceLineageId starRating starRatedBy updatedAt"},
     # The rows of one old stage partition with what `stories head-index` needs to pick each lineage's head (the WithKey form once the site has it).
     "itemHeadFieldsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": HEAD_INDEX_ROW_FIELDS},
     "itemHeadFieldsWithKeyByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": f"{HEAD_INDEX_ROW_FIELDS} headStageKey"},

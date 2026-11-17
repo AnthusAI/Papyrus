@@ -33,10 +33,7 @@ class Site:
 def core(tmp_path):
     folder = tmp_path / "core"
     shutil.copytree(definition.CORE_DIRECTORY, folder, ignore=shutil.ignore_patterns(".*"))
-    data = yaml.safe_load((folder / "rate.yaml").read_text(encoding="utf-8"))
-    data["procedure"] = "references.curate"   # a core procedure the registry has
-    (folder / "rate.yaml").write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-    return folder
+    return folder   # the shipped definitions as they are: the rating agent's procedure is in the registry
 
 
 def run(argv, site, core, tmp_path):
@@ -73,10 +70,19 @@ def test_check_exits_2_on_drift_and_0_when_in_step(core, tmp_path):
     assert code == 0 and body["result"]["action"] == "check" and site.writes == 2
 
 
-def test_unknown_procedure_stops_before_any_write(tmp_path):
+def test_unknown_procedure_stops_before_any_write(core, tmp_path):
+    data = yaml.safe_load((core / "rate.yaml").read_text(encoding="utf-8"))
+    data["procedure"] = "nothing.registered"   # a procedure no registry lists
+    (core / "rate.yaml").write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     site = Site()
-    code, body = run([], site, definition.CORE_DIRECTORY, tmp_path)   # the shipped rating definition names a procedure no registry lists yet
-    assert code == 2 and "rate: the procedure rate_items is not registered" in body["error"]["message"] and site.writes == 0
+    code, body = run([], site, core, tmp_path)
+    assert code == 2 and "rate: the procedure nothing.registered is not registered" in body["error"]["message"] and site.writes == 0
+
+
+def test_the_shipped_rating_definition_names_a_registered_procedure(tmp_path):
+    site = Site()
+    code, body = run(["--dry-run"], site, definition.CORE_DIRECTORY, tmp_path)
+    assert code == 0 and body["result"]["definitions"][0]["status"] == "new" and site.writes == 0
 
 
 def test_a_site_folder_is_read_from_the_root_and_validated_first(core, tmp_path):

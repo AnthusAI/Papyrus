@@ -1,5 +1,5 @@
 Feature: A deploy registers every core and site procedure, and a published version never drifts from Git
-  Procedures live in Git: the fourteen core procedures in the wheel (each declares its kind on its first line and is listed in
+  Procedures live in Git: the fifteen core procedures in the wheel (each declares its kind on its first line and is listed in
   papyrus-required-procedures.json, together with its title, category, description and parameter schema), and a site's own procedures in
   the site's repository, listed in the site's papyrus-site-procedures.json. The Amplify build of a site runs `papyrus procedures
   seed-required` after the backend deploys, as the build role, so every procedure is registered as a published version in the site's
@@ -11,7 +11,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
   Scenario: A deploy to a site with nothing registered creates every core procedure
     Given a site backend with no procedures registered
     When the deploy registers the core procedures
-    Then all 14 core kinds are published with a version whose id carries the digest of the packaged source and its metadata
+    Then all 15 core kinds are published with a version whose id carries the digest of the packaged source and its metadata
     And each definition carries the title, category and description from the registry's metadata
     And each version carries the parameter schema and defaults from the registry's metadata
 
@@ -58,7 +58,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
     Given a site repository that lists the kind "example.ruling-analysis" in its papyrus-site-procedures.json
     When the deploy registers the core procedures and the site's procedures
     Then the kind "example.ruling-analysis" is published under the category "site"
-    And all 14 core kinds are published
+    And all 15 core kinds are published
 
   Scenario: A site kind that takes a core kind's name is refused
     Given a site repository that lists the kind "newsroom.editor" in its papyrus-site-procedures.json

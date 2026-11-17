@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 from . import agent_wakes, request_meter, run_outcomes, wake_keys
-from .agent_gate import run_end
+from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
@@ -272,8 +272,10 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
     workdir = Path(tempfile.mkdtemp(prefix="papyrus-procedure-", dir=workroot))
     try:
         source_path = materialize(workdir, procedure["source"], procedure["skills"])
-        outcome = execute(workdir, source_path, request["input"],
-                          timeout_seconds=child_timeout(request, seconds_available), environment=environment)
+        timeout = child_timeout(request, seconds_available)
+        if decision.state is not None and decision.responsibility:   # an agent's run: the child gets the policy it was decided under and its deadline
+            environment = {**environment, **run_context.to_environment(run_id, decision.responsibility, decision.state, time.time() + timeout)}
+        outcome = execute(workdir, source_path, request["input"], timeout_seconds=timeout, environment=environment)
     except Exception as error:
         outcome = {"success": False, "error": f"{type(error).__name__}: {error}", "seconds": 0}
     finally:

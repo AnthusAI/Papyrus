@@ -41,6 +41,7 @@ export type ImageOperationName =
   | "announcements_settings_show"
   | "announcements_settings_set"
   | "announcements_account_status"
+  | "ratings_set"
 ;
 
 export type ImageErrorCode =
@@ -1175,6 +1176,22 @@ export type AnnouncementsAccountStatusResult = {
   pricesAsOf?: string;
 };
 
+/** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
+export type RatingsSetInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** The rating, 1 to 5. An agent may only give 3 or 4. */
+  stars: number;
+};
+
+export type RatingsSetResult = {
+  lineageId: string;
+  /** The rating before this one: 0 when the Story had none. */
+  previous?: number;
+  stars: number;
+  ratedBy?: string;
+};
+
 export interface ImageOperations {
   image_profile_get: { input: ImageProfileGetInput; result: ImageProfileGetResult };
   image_profile_resolve: { input: ImageProfileResolveInput; result: ImageProfileResolveResult };
@@ -1214,6 +1231,7 @@ export interface ImageOperations {
   announcements_settings_show: { input: AnnouncementsSettingsShowInput; result: AnnouncementsSettingsShowResult };
   announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
+  ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
@@ -1256,14 +1274,15 @@ export const IMAGE_OPERATIONS = {
   announcements_settings_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements settings show" },
   announcements_settings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements settings set" },
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
+  ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
 } as const;
 
-/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements have no door yet (the console reads and writes their models directly). */
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements and ratings have no door yet (the console reads and writes their models directly). */
 export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;
   effect: "read" | "write" | "spend";
-  group: "images" | "guidelines" | "announcements";
+  group: "images" | "guidelines" | "announcements" | "ratings";
 }) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(
