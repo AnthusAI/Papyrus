@@ -103,6 +103,41 @@ Feature: A published Story is translated, checked and polished by one procedure
     And a flag review request on "story-waymo--es-419" names the missing number
     And the translation is saved unpublished all the same
 
+  Scenario: A paragraph the translator invents inside a note is repaired by the rewrite
+    A note container is one block, and its own check can miss an extra paragraph inside it (the held Spanish "can-a-system-keep-a-secret"); the check of the whole body does not, and the run gives that finding back to
+    the block it is in, with the instruction to delete any paragraph the English does not have.
+    Given the English Story has a note "Out of office." between its paragraphs
+    And the block check does not see the structure inside a note, so only the check of the whole body does
+    And the translator adds the paragraph "Un párrafo inventado." inside the note
+    And the repairer deletes any paragraph that is not in the English
+    When the translation run for "es-419" runs
+    Then the repairer was asked about the note only, with the invented paragraph named as a problem
+    And the saved translation has the note without the invented paragraph
+    And the run is saved, not held
+
+  Scenario: A translator that keeps inventing the paragraph is held
+    Given the English Story has a note "Out of office." between its paragraphs
+    And the block check does not see the structure inside a note, so only the check of the whole body does
+    And the translator adds the paragraph "Un párrafo inventado." inside the note
+    And the repairer keeps the wrong wording
+    When the translation run for "es-419" runs
+    Then the run is held
+    And the held reason names the structure difference
+
+  Scenario: A paragraph the block check does see is repaired as before
+    Given the English Story has a note "Out of office." between its paragraphs
+    And the translator adds the paragraph "Un párrafo inventado." inside the note
+    And the repairer deletes any paragraph that is not in the English
+    When the translation run for "es-419" runs
+    Then the saved translation has the note without the invented paragraph
+    And the run is saved, not held
+
+  Scenario: A note the translator keeps as written is not sent to the repairer
+    Given the English Story has a note "Out of office." between its paragraphs
+    When the translation run for "es-419" runs
+    Then the repairer was never asked
+    And the run is saved, not held
+
   Scenario: Running it twice does nothing the second time
     Given the translation run for "es-419" has finished
     When the same run is started again

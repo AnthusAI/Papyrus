@@ -167,6 +167,7 @@ translate Stories already published: run `papyrus stories localize --all --publi
    repairs) and adds no faithfulness finding; a block whose rewrite makes faithfulness worse reverts. It ends on convergence.
 9. **record**: the new unpublished version, its provenance, and the advice on the English version (`metadata.translationAdvice`) for stock phrasing
    the copy edit found in the translation that the English block has too.
+    The whole assembled body is then checked against the English with the structure, link and directive rules. A structure finding there (an extra paragraph inside a `:::note`, which is one block and whose own check can miss it) is mapped by its span to the block that holds it; that block goes back to the loop alone with the finding as a problem, and the refine prompt says to delete any paragraph the source does not have. The body is checked again afterwards, and a rewrite that still adds the paragraph leaves the finding, which holds the translation (step 10).
 10. **gate**: an error-severity faithfulness finding that remains holds the translation and raises a flag review request.
 
 Every stage's result is stored (ModelAttachment role `localize_stage` on the source version), so a run that fails continues from its finished
