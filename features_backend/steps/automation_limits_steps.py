@@ -66,6 +66,13 @@ def enabled(context):
     with_limits(context)
 
 
+@given("the site has the TTAB automation whose router publication names no site bucket")
+def without_site_bucket(context):
+    with_limits(context)
+    for config in (row for key, row in context.run_table.rows.items() if key[1] == "CONFIG#router"):
+        config["publications"][0].pop("siteBucket")
+
+
 @given("the site has the TTAB automation with a timeout of {seconds:d} seconds and room for {count:d} at a time")
 def with_timeout(context, seconds, count):
     with_limits(context, timeoutSeconds=seconds, maxConcurrent=count)
@@ -423,6 +430,12 @@ def history_lists(context):
 @then("nothing is started because the input for this run is needed")
 def input_needed(context):
     assert context.error and "give the input for this run" in context.error and context.invoked == [] and context.run_table.puts == []
+
+
+@then("nothing is started because the router publication names no site policy")
+def refused_no_site_policy(context):
+    assert context.error and "no siteBucket for the site's agent policy" in context.error and "the runner would refuse the run" in context.error
+    assert context.invoked == [] and context.run_table.puts == []
 
 
 @then("nothing is started because the automation is disabled")

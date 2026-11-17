@@ -91,6 +91,12 @@ Feature: The runner reads the site's agent policy before it starts a run
     Then the procedure ran once
     And the run record names no responsibility and no rung
 
-  Scenario: A request that names no site policy location is refused
+  Scenario: A request that names no site policy location is refused and the refusal is recorded on the run
+    Given the automation is adopted as "accept"
+    And the policy sets "accept" to "draft"
     When a wake arrives with no tenant and no site bucket
     Then the request is refused because it names no site policy
+    And the run record is failed with the reason "no_site_policy"
+    And the run list shows "✗ Failed (no_site_policy)"
+    And the run record belongs to the automation
+    And no procedure ran

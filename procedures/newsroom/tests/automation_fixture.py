@@ -35,7 +35,8 @@ def router_config(*, input_template=None, procedure=PROCEDURE, endpoint=SITE_END
     trigger = [{"procedureKey": procedure, "input": TEMPLATE if input_template is None else input_template}] if with_trigger else []
     return {"pk": PK, "sk": "CONFIG#router", "mode": "live", "enabled": True,
             "publications": [{"publicationId": publication, "site": "distinctive.example", "appsyncEndpoint": endpoint,
-                              "openaiKeyParameter": "/amplify/shared/app/OPENAI_API_KEY", "procedureTriggers": trigger}]}
+                              "openaiKeyParameter": "/amplify/shared/app/OPENAI_API_KEY", "tenantId": "distinctive", "siteBucket": "distinctive-site-bucket",
+                              "procedureTriggers": trigger}]}
 
 
 def rows():

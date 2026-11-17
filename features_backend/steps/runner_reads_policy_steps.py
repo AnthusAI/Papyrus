@@ -149,7 +149,8 @@ def person(context):
 
 @when("a wake arrives with no tenant and no site bucket")
 def wake_without_location(context):
-    request = {key: value for key, value in request_for(context, {"kind": "manual"}).items() if key not in ("tenantId", "siteBucket")}
+    request = {key: value for key, value in request_for(context, {"kind": "manual", "automationId": context.automation_id}).items()
+               if key not in ("tenantId", "siteBucket")}
     start(context, request)
 
 
@@ -215,4 +216,9 @@ def read_by_key(context):
 @then("the request is refused because it names no site policy")
 def refused_no_location(context):
     assert context.refusal is not None and "names no site policy" in str(context.refusal)
-    assert context.executed == [] and context.client.records == {}
+    assert context.executed == [] and len(context.client.records) == 1, "the refusal is recorded on the wake's one run record"
+
+
+@then("the run record belongs to the automation")
+def belongs_to_automation(context):
+    assert record(context)["automationId"] == context.automation_id, record(context)

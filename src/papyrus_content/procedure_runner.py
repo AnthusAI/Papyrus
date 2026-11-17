@@ -24,7 +24,7 @@ from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
-from .agent_policy import Gate, PolicyGate, PolicyUnreadable
+from .agent_policy import Gate, PolicyGate, PolicyNotLocated, PolicyUnreadable, UnlocatedPolicy
 from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
@@ -180,12 +180,14 @@ def start_run_record(client, request: dict) -> dict[str, Any]:
     return {"runId": started["runId"], "duplicate": bool(started.get("duplicate")), "versionId": started.get("procedureVersionId")}
 
 
-def refuse_run(client, run_id: str, error: Exception, *, now: Callable[[], str], reason: str = run_outcomes.NOT_RUNNABLE) -> None:
-    """The run record exists but the run cannot begin (the procedure cannot be loaded, or the policy cannot be read): the record says so,
-    so it never stays `started` for a run that never began."""
-    stamp = now()
+def refuse_run(client, run_id: str, error: Exception, request: dict, *, now: Callable[[], str], reason: str = run_outcomes.NOT_RUNNABLE) -> None:
+    """The run record exists but the run cannot begin (the procedure cannot be loaded, the policy cannot be read, or the request names no policy):
+    the record says so, so it never stays `started` for a run that never began, and it names the automation and the subject the wake was for, so
+    the automation's run list shows the refusal."""
+    stamp, trigger = now(), request.get("trigger") or {}
     update_cloud_procedure_run_record(client, {
         "id": run_id, "runStatus": "failed", "outcome": "failed", "outcomeReason": reason,
+        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger),
         "startedAt": stamp, "finishedAt": stamp, "errorSummary": str(error)[:MAX_SUMMARY_CHARACTERS],
         "error": {"message": str(error)}, "attempt": 1})
 
@@ -232,10 +234,11 @@ def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], 
             "responsibility": decision.responsibility, "rung": decision.rung, "policyVersion": decision.policy_version, "error": None}
 
 
-def policy_for(request: dict, client, s3: Callable[[], Any]) -> PolicyGate:
-    """The gate that reads this request's site policy. A request that does not say where the policy is starts nothing."""
+def policy_for(request: dict, client, s3: Callable[[], Any]) -> Gate:
+    """The gate that reads this request's site policy. A request that does not say where the policy is gets the gate that refuses it: the run
+    record is made first, and the refusal is recorded on it (`no_site_policy`), so the automation's run list shows it."""
     if not (request.get("tenantId") and request.get("siteBucket")):
-        raise ProcedureNotRunnable("the request names no site policy: tenantId and siteBucket are required, so no run starts without one")
+        return UnlocatedPolicy()   # the run is refused and recorded as a failed run, not raised before it has a record
     return PolicyGate.for_site(client, s3=s3(), bucket=request["siteBucket"], tenant_id=request["tenantId"])
 
 
@@ -251,7 +254,8 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
     try:
         decision = policy.decide(request)   # the site's policy is read here, before anything is loaded or run
     except PolicyUnreadable as error:
-        refuse_run(client, run_id, error, now=now, reason=run_outcomes.POLICY_UNREADABLE)
+        refuse_run(client, run_id, error, request, now=now,
+                   reason=run_outcomes.NO_SITE_POLICY if isinstance(error, PolicyNotLocated) else run_outcomes.POLICY_UNREADABLE)
         not_started = ProcedureNotRunnable(str(error))
         not_started.run_id = run_id
         raise not_started from error
@@ -266,7 +270,7 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
     try:
         procedure = load_published_procedure(client, request["procedureKey"], started["versionId"])
     except ProcedureNotRunnable as error:
-        refuse_run(client, run_id, error, now=now)
+        refuse_run(client, run_id, error, request, now=now)
         error.run_id = run_id
         raise
     workdir = Path(tempfile.mkdtemp(prefix="papyrus-procedure-", dir=workroot))

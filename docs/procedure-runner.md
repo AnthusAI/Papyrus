@@ -77,7 +77,7 @@ For each request, the runner does these steps:
    automation named by the request's trigger and its `responsibility`, then the site's policy document (the live version only: the
    `SiteDocument` row, the live `SiteDocumentVersion` row, and the version's body from S3, all by key), and asks `decide_start`.
    The request names where the policy is with `tenantId` and `siteBucket`, which the router and Run now copy from the router
-   publication (`tenantId`, `siteBucket`); a request without them is refused and starts nothing.
+   publication (`tenantId`, `siteBucket`); a request without them is refused and starts nothing. Run now refuses a publication without them up front, and a wake without them that reaches the runner anyway has its run record made, failed with the reason `no_site_policy` and the automation's id, so the automation's run list shows it (not only the monitoring row).
    * No automation named, or an automation with no `responsibility` (not yet adopted with `papyrus automations adopt`): the run
      record is finished as `nothing` with the reason `not_adopted`.
    * The responsibility is `off` (including a responsibility the policy does not name, and a site with no policy document) or
@@ -120,7 +120,7 @@ leaves out and its second deploy adds. The procedure runner is the queue's consu
   SQS drops a repeat of the same id for five minutes. After that the run record's own condition drops it: the runner answers `duplicate` and runs nothing.
 
 **What the runner does with a message.** It returns (the queue then deletes the message) only when the wake's run record exists: finished, refused
-(`not_runnable`, `policy_unreadable`), skipped by the policy, or the record of an earlier delivery of the same wake. If the message is not a well-formed wake, or no
+(`not_runnable`, `policy_unreadable`, `no_site_policy`), skipped by the policy, or the record of an earlier delivery of the same wake. If the message is not a well-formed wake, or no
 record could be made (the site refused the start, or the runner died first), it raises, so the message stays and the queue delivers it again.
 
 **Times that come from the runner, not from a guess.** The queue hides a received message for 960 seconds: the Lambda's 900 seconds (which hold the 60

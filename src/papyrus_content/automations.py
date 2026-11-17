@@ -704,6 +704,9 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
         raise AutomationError("this automation's publication belongs to another site.")
     if not publication.get("openaiKeyParameter"):
         raise AutomationError("the router publication has no openaiKeyParameter for the procedure's model calls.")
+    unplaced = [name for name in ("tenantId", "siteBucket") if not publication.get(name)]
+    if unplaced:
+        raise AutomationError("the router publication has no " + " and no ".join(unplaced) + " for the site's agent policy, so the runner would refuse the run.")
     input_values = resolve_manual_input(automation, supplied_input)
     rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"]) \
         + reader.manual_rows(config["monitorId"], automation["id"])
