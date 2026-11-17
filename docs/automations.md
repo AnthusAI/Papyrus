@@ -393,7 +393,7 @@ These are written as templates and code and are not applied until the release th
 * **The role the scheduler assumes** (`papyrus-<site>-agent-scheduler`, in the agents stack): it may send a message to this site's wake queue and do nothing else.
   It may not read or delete a message, touch another site's queue or the dead-letter queue, or call any other service. Only EventBridge Scheduler acting for this
   account may assume it.
-* **What the deploy step needs** (the Amplify build role, which today signs GraphQL requests only): in this account, look up the wake queue's address (`sqs:GetQueueUrl`) on the
+* **What the deploy step needs** (the Amplify build role; for an app-shell `cms` site that is the app's `AmplifyServiceRole`, which carries `AdministratorAccess`, so nothing is added to it; see [the 5.130 plan](release-5-130-plan.md), 1.4): in this account, look up the wake queue's address (`sqs:GetQueueUrl`) on the
   site's wake queue; `scheduler:ListSchedules` (this action takes no resource restriction); `scheduler:GetSchedule`, `CreateSchedule`, `UpdateSchedule` and
   `DeleteSchedule` on the schedules of the site's group only (`schedule/papyrus-<site>-agent-schedules/*`); `iam:PassRole` on the scheduler role only, and only
   to the scheduler service; and the same read of the monitoring table and its parameter that `papyrus automations run` uses, to read the router publication.
