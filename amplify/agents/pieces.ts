@@ -1,4 +1,5 @@
 import type { AgentPiece } from "./stack";
+import { scheduleGroupPiece } from "./schedule-group";
 import { wakeQueuePiece } from "./wake-queue";
 
 /**
@@ -8,5 +9,5 @@ import { wakeQueuePiece } from "./wake-queue";
  * site, so they are built for one site's brand id.
  */
 export function agentPieces(brandId: string): readonly AgentPiece[] {
-  return [wakeQueuePiece(brandId)];
+  return [wakeQueuePiece(brandId), scheduleGroupPiece(brandId)];
 }

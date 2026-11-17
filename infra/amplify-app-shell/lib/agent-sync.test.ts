@@ -23,7 +23,13 @@ for (const name of siteNames) {
   assert.equal(commands[agents], 'PAPYRUS_ROOT="$PWD" PAPYRUS_GRAPHQL_AUTH=iam papyrus agents apply', `${name}: build role, operator lane, the site's checkout`);
   assert.ok(!commands[agents].includes("||"), `${name}: a failing step fails the build`);
   assert.ok(!/dry-run|--check/.test(commands[agents]), `${name}: the build applies`);
+  const schedules = commands.findIndex((line) => line.includes("papyrus agents schedules"));
+  assert.ok(schedules === agents + 1, `${name}: the schedule group is reconciled right after the definitions are applied`);
+  assert.equal(commands[schedules], `PAPYRUS_ROOT="$PWD" PAPYRUS_GRAPHQL_AUTH=iam papyrus agents schedules --site ${config.brand.toLowerCase()}`, `${name}: build role, operator lane, the site's brand id`);
+  assert.ok(!commands[schedules].includes("||"), `${name}: a failing schedule step fails the build`);
+  assert.ok(!/dry-run|--check/.test(commands[schedules]), `${name}: the build reconciles`);
   const alexa = commands.findIndex((line) => line.includes("alexa-sync"));
-  assert.ok(alexa > agents, `${name}: the Alexa sync, which may fail quietly, stays last`);
+  assert.ok(alexa > schedules, `${name}: the Alexa sync, which may fail quietly, stays last`);
   assert.ok(!cmsStagingBuildSpec(config).includes("papyrus agents apply"), `${name}: the staging build does not apply agent definitions`);
+  assert.ok(!cmsStagingBuildSpec(config).includes("papyrus agents schedules"), `${name}: the staging build does not touch the schedule group`);
 }

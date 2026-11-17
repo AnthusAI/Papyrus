@@ -93,6 +93,10 @@ Right after it registers the procedures, a site's Amplify build runs `papyrus ag
 - It creates each new agent's automation disabled, writes the registered copy (the same digest writes nothing) and retires a definition gone from Git. It never writes the agent policy document and never adopts an automation, so a deploy does not move a rung or a pause and a new agent arrives at `off`.
 - The release that first carries it adds the optional `definitionRetiredAt` field to `Automation` (a field on an existing model, no index); the build deploys the backend before this step.
 
+## The schedule group is reconciled by the site's deploy
+
+Right after `papyrus agents apply`, the production build runs `papyrus agents schedules --site <brand id>` ([details](automations.md#the-schedule-trigger)): one EventBridge Scheduler entry for each switched-on agent that names a schedule, targeting the site's wake queue. **Unlike the apply step, it needs permissions the build role does not have yet** (the scheduler actions on the site's group, `iam:PassRole` on the scheduler role, the wake queue's address and the monitoring table read; the exact list is in automations.md). **Do not release a version that carries this step until a person has granted them**, or every site's build stops at it. The schedule group and the scheduler role are in the site's `agents` stack, which the first deploy of a new site leaves out.
+
 ## The publish switch
 
 The `release` and `pypi` jobs run only when the repository variable `PUBLISH_ENABLED`

@@ -89,8 +89,15 @@ const PROCEDURE_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus p
 // procedure sync it is never allowed to fail quietly (features/agent-sync.feature).
 const AGENT_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus agents apply`;
 
+// Right after the definitions are applied: make the site's schedule group agree with them (slice C1, PPY-2a53cd). Each switched-on agent that names a
+// schedule gets one EventBridge Scheduler entry whose only target is the site's wake queue, and an entry no agent names is removed. It names the site by its
+// brand id, the name the wake queue and the group are built from. Never allowed to fail quietly either (features/agent-sync.feature).
+function scheduleSync(config: AmplifyAppShellSiteConfig): string {
+  return `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus agents schedules --site ${config.brand.toLowerCase()}`;
+}
+
 function procedureSyncCommands(config: AmplifyAppShellSiteConfig): string[] {
-  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC, AGENT_SYNC];
+  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC, AGENT_SYNC, scheduleSync(config)];
 }
 
 const GATE_FAILURE_MESSAGE_PREFIX = "No LeftBlock CI receipt for";

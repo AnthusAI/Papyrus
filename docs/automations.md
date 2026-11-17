@@ -359,6 +359,45 @@ the folder `papyrus-site-agents` at the checkout root (a site without it has the
 The permissions are those of the procedure step: signed GraphQL requests to the site's API (it lists, reads, creates and updates `Automation` records).
 No new IAM permission is needed.
 
+## The schedule trigger
+
+An agent runs on a clock that comes from its definition (slice C1, PPY-2a53cd). A definition may name `wakes.schedule`: a cron expression of five fields and a
+time zone. `papyrus agents apply` registers it on the agent's automation; `papyrus agents schedules --site <brand id>` makes the site's EventBridge
+Scheduler group agree with the registered definitions. The site's Amplify build runs it right after `agents apply` (`infra/amplify-app-shell/lib/build-specs.ts`),
+and a person may run it again at any time. Nothing polls and nothing is made by hand.
+
+* **One entry for each live agent.** Live means: a registered definition with a schedule, not retired, on a record that is switched on. The entry is named
+  `agent-<id>` (a long id keeps the start and a digest of the whole), lives in the group `papyrus-<site>-agent-schedules` and has one target, the site's
+  wake queue. Its message is a wake whose key is `<agent>|schedule|<scheduled time>`: the scheduler fills in the time the entry was scheduled for, so a tick
+  delivered twice is one wake and one run (`wake_keys.py`; the queue drops the repeat inside five minutes, and the run record's own condition after).
+* **A timer does nothing else.** The tick only puts a wake on the queue. The runner then reads the site's policy, the pause and the definition again, as for a
+  wake raised by a change; a paused agent's tick is consumed and recorded as nothing started, with the reason `paused`.
+* **Time zones.** The entry carries the local cron expression and the zone's name, never an offset from UTC, so the scheduler keeps the local time across a clock
+  change. The five-field cron is translated to the scheduler's six (`cron.py`): the day of the week is renumbered (Sunday is 1), and a schedule that names
+  both a day of the month and a day of the week is refused when the definition is checked, because cron runs on either and the scheduler on both.
+* **A new agent has no entry until a person switches it on.** `agents apply` creates the automation disabled. To make it tick, link it to the router publication
+  that carries the site's endpoint, model key and policy location (`papyrus automations update <id> --monitor <monitor> --publication <publication>`; the
+  publication must name `tenantId` and `siteBucket`, or the runner would refuse every tick) and enable it (`--enabled true`), then run `papyrus agents schedules`
+  (the next deploy does it too). Switching an agent off, retiring its definition or removing its schedule removes its entry the same way.
+* **No schedule that a definition does not name.** An entry whose name starts `agent-` and that no live agent names is deleted. Entries with other names (the
+  one-shot follow-up helper's, slice C2) are never touched. Everything is checked before anything is written, one message names every problem, and a second
+  run with nothing changed writes nothing. `--dry-run` says what would change; `--check` also exits 2 on any difference.
+* **The first deploy.** The group is in the site's `agents` stack, which a new site's first deploy leaves out (`amplify/agents/stack.ts`). Until the second
+  deploy the step says there is no schedule group yet and finishes when no agent needs one; with an agent that needs one it stops and says so.
+
+### What the scheduler's role may do, and what the deploy step needs
+
+These are written as templates and code and are not applied until the release that carries them (and, for the build role, until a person grants them).
+
+* **The role the scheduler assumes** (`papyrus-<site>-agent-scheduler`, in the agents stack): it may send a message to this site's wake queue and do nothing else.
+  It may not read or delete a message, touch another site's queue or the dead-letter queue, or call any other service. Only EventBridge Scheduler acting for this
+  account may assume it.
+* **What the deploy step needs** (the Amplify build role, which today signs GraphQL requests only): in this account, look up the wake queue's address (`sqs:GetQueueUrl`) on the
+  site's wake queue; `scheduler:ListSchedules` (this action takes no resource restriction); `scheduler:GetSchedule`, `CreateSchedule`, `UpdateSchedule` and
+  `DeleteSchedule` on the schedules of the site's group only (`schedule/papyrus-<site>-agent-schedules/*`); `iam:PassRole` on the scheduler role only, and only
+  to the scheduler service; and the same read of the monitoring table and its parameter that `papyrus automations run` uses, to read the router publication.
+  It needs nothing on the queue's messages, and it never creates a group or a role.
+
 ## Console
 
 Administration, Automation, beside Procedures. It lists each automation (title, trigger, procedure, enabled,
