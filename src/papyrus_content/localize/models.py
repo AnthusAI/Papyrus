@@ -23,7 +23,7 @@ from ..model_cost import estimate_cost
 MODEL = "gpt-6-luna"
 RESPONSES_URL = "https://api.openai.com/v1/responses"
 REQUEST_TIMEOUT_SECONDS = 300
-PROMPT_VERSION = "localize-prompts-2"
+PROMPT_VERSION = "localize-prompts-3"
 TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 Transport = Callable[[dict[str, Any]], dict[str, Any]]
@@ -112,7 +112,8 @@ translation. Repair exactly the problems listed; change nothing else in the bloc
 
 Rules: keep every placeholder such as ⟦3⟧ exactly once; keep the Markus structure and emphasis marks; the repaired block must say exactly what
 the source block says: no claim added, dropped, softened or strengthened, every hedge and attribution kept, every number with its value, names
-as written unless the glossary approves a local form. Problems about meaning come first. If a problem cannot be repaired without changing
+as written unless the glossary approves a local form. Problems about meaning come first. If a problem says the translation has a paragraph (or any block) that the source does not have, delete
+every paragraph that is not in the source block, inside a container such as a note too; the repaired block has exactly the source block's paragraphs. If a problem cannot be repaired without changing
 the meaning, keep the current wording.
 {register}"""
 

@@ -131,6 +131,8 @@ def _collect(context):
         glossary = starter_glossary(language)
         checker = BlockChecker(source_language="en", target_language=language, glossary=glossary, copy_edit_pack=starter_pack(language, getattr(context, "register", None)), judge=judge,
                                lanes={"rules": True, "classifier": False})
+        if getattr(context, "blind_note_structure", False):
+            checker.faithfulness = _blind_to_note_structure(checker.faithfulness)
         english = BlockChecker(source_language="en", target_language="en", glossary=glossary, copy_edit_pack=starter_pack("en"), judge=None,
                                lanes={"rules": True, "classifier": False})
         key = localize_record.run_key(source, language, procedure_version=procedure_version, checker_versions=checker.versions)
@@ -138,6 +140,16 @@ def _collect(context):
                                slug_policy="translated", previous=previous, ceiling_usd=context.ceiling, procedure_version=procedure_version,
                                source_checker=lambda text: english.copy_edit(text)[0], image_variants=variants)
     return collect
+
+
+def _blind_to_note_structure(faithfulness):
+    """The block check as it was on the held run: it did not report the structure of a note container, so only the whole-body check saw it."""
+    def check(source, target):
+        findings, lanes = faithfulness(source, target)
+        if source.startswith(":::note"):
+            findings = [f for f in findings if f.policy != "structure"]
+        return findings, lanes
+    return check
 
 
 def _upload(context):
@@ -762,3 +774,49 @@ def step_republished_mid_run(context):
 def step_request_still_wanted(context, request_id, number):
     row = context.client.tables["LocalizationRequest"][request_id]
     assert row["sourceVersionNumber"] == number and row["state"] == "wanted", row
+
+
+NOTE_BLOCK = ":::note\nOut of office.\n:::"
+NOTE_SPANISH = ":::note\nFuera de la oficina.\n:::"
+
+
+@given('the English Story has a note "{text}" between its paragraphs')
+def step_note(context, text):
+    assert text == "Out of office.", text
+    context.paragraphs = [P1, NOTE_BLOCK, P2, IMAGE]
+    context.translations[NOTE_BLOCK] = NOTE_SPANISH
+    _publish(context, 3)
+
+
+@given('the translator adds the paragraph "{text}" inside the note')
+def step_invented(context, text):
+    context.invented = text
+    context.translations[NOTE_BLOCK] = NOTE_SPANISH.replace("\n:::", f"\n\n{text}\n:::")
+
+
+@given("the repairer deletes any paragraph that is not in the English")
+def step_repairer_deletes(context):
+    context.repair = lambda text: NOTE_SPANISH if text.startswith(":::note") else text
+
+
+@then("the repairer was asked about the note only, with the invented paragraph named as a problem")
+def step_asked_note(context):
+    blocks = [block for request in context.models.refine_requests for block in request["blocks"]]
+    assert blocks and all(block["source"].startswith(":::note") for block in blocks), blocks
+    assert any(context.invented in problem for block in blocks for problem in block["problems"]), blocks
+
+
+@then("the saved translation has the note without the invented paragraph")
+def step_note_clean(context):
+    body = _latest(context)["bodyMarkus"]
+    assert NOTE_SPANISH in body and context.invented not in body, body
+
+
+@then("the held reason names the structure difference")
+def step_held_structure(context):
+    assert "structure" in context.output["reason"], context.output["reason"]
+
+
+@given("the block check does not see the structure inside a note, so only the check of the whole body does")
+def step_blind(context):
+    context.blind_note_structure = True
