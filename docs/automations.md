@@ -330,7 +330,34 @@ definition as registered). The runner and Today read the record, never the file 
 * The first registration is version 1. Registering the same digest again changes nothing and writes nothing. A changed digest writes the next version.
 * Registering writes those four fields and nothing else: not `enabled`, the trigger, the adopted `responsibility` or the agent policy document, so it
   never sets a rung, a pause or a budget. It needs an Automation that exists, adopted as the definition's own responsibility or not yet adopted.
-* The release calls `agent_definitions.registered.register` for each definition (PPY-df3e74); there is no command for a person to run.
+* The release calls `agent_definitions.registered.register` for each definition (`papyrus agents apply`, below).
+
+### Applying the definitions: the deploy does it
+
+A site's Amplify build runs `papyrus agents apply` right after it registers the procedures (`infra/amplify-app-shell/lib/build-specs.ts`), as the build
+role on the operator lane, from the site's checkout. The core definitions are the files in the wheel; a site's own, and its additions to a core one, are in
+the folder `papyrus-site-agents` at the checkout root (a site without it has the core ones only; `--dir` names another folder). Nothing is done by hand.
+
+* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table.
+* **Checked first.** Every definition is validated exactly as `papyrus agents validate` does, each named procedure must be registered (a core kind or one
+  in the site's `papyrus-site-procedures.json`), and the automation a definition lands on must be its own. Any failure stops the step with a plain error
+  naming each problem **before anything is written**, and fails the build. Nothing falls back.
+* **One automation per definition, named for it.** A site with none gets one, created **disabled**, with the definition's procedure and a trigger kind
+  (`schedule` or `event`); what wakes the agent is in the registered definition. Then `register` writes the registered copy: the same digest writes
+  nothing, a changed digest writes the next version.
+* **Retired, not deleted.** A record whose definition is gone from Git is disabled and marked `definitionRetiredAt`. It names no schedule
+  (`registered_schedules` lists only live registered definitions, which is what the schedule trigger keeps an entry for), and its registered copy and
+  version stay as history. A definition that returns clears the mark and does not switch the record on.
+* **Never the policy.** Applying does not touch the agent policy document, so a deploy cannot set a rung, lift a pause or change a budget; a new agent
+  arrives at `off`, and the policy says so until an admin sets a rung.
+* **Applying and adopting divide the work.** Applying registers the definition and never names the responsibility the record fills: adopting is an
+  authorization by an admin who is a person (`papyrus automations adopt`) and stays so. Until it is done the runner records `not_adopted`; after it, and
+  until a rung is set, `rung_off`. Either way nothing starts.
+* **Safe to run again.** A part-way failure is healed by the next run. `--dry-run` reads the site and says what would change; `--check` does the same and
+  exits 2 on any difference from Git.
+
+The permissions are those of the procedure step: signed GraphQL requests to the site's API (it lists, reads, creates and updates `Automation` records).
+No new IAM permission is needed.
 
 ## Console
 

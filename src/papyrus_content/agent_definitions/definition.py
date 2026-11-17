@@ -6,7 +6,7 @@ One agent is one file, ``<id>.yaml``, in a folder under Git::
     id: illustrate-stories            # permanent; the file's name
     version: 1                        # the author's own version; the site's registered copy (registered.py) counts the changes the site has applied
     responsibility: illustrate        # a key of the engine's catalog (responsibilities.py)
-    procedure: illustrate_story       # the Tactus procedure's key
+    procedure: illustrate_story       # the procedure's key as the registry names it (the release stops when it is not registered)
     wakes:
       changes: [{kind: Item, change: ready, filter: {step: illustration}}]
       schedule: {cron: "0 6 * * *", timeZone: America/New_York}      # optional; either or both
@@ -62,6 +62,7 @@ EXECUTORS = ("lambda", "container")
 
 _ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 _WORD = re.compile(r"^[a-z][a-z0-9_]*$")
+_PROCEDURE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")   # a procedure kind as the registry names it (references.curate), the same form as an Automation's procedureKey
 _KIND = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 _SERIAL = re.compile(r"^(?:subject|agent|key:[a-z][a-z0-9_]*)$")
 _CRON_FIELD = re.compile(r"^[0-9A-Za-z*/,\-?#]+$")
@@ -225,8 +226,8 @@ def validate_definition(name: str, data: Any) -> list[Problem]:
         add("version", "must be a whole number from 1")
     if "responsibility" in data and data["responsibility"] not in BY_KEY:
         add("responsibility", f"is not in the catalog; the catalog has: {', '.join(BY_KEY)}", "unknown_responsibility")
-    if "procedure" in data and not (isinstance(data["procedure"], str) and _WORD.match(data["procedure"])):
-        add("procedure", "must be the procedure's key: lower-case words joined by underscores")
+    if "procedure" in data and not (isinstance(data["procedure"], str) and _PROCEDURE.match(data["procedure"])):
+        add("procedure", "must be the procedure's key as the registry names it: lower-case letters, digits, dots, dashes or underscores")
     if "wakes" in data:
         _wakes(data["wakes"], add)
     if "serialBy" in data and not (isinstance(data["serialBy"], str) and _SERIAL.match(data["serialBy"])):

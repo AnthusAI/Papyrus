@@ -1,0 +1,101 @@
+"""``papyrus agents apply`` as the deploy runs it: the command's flags, its output and its exit codes (the rules are in agent-definitions-on-release.feature)."""
+import io
+import json
+import shutil
+
+import pytest
+import yaml
+
+from papyrus_content.agent_definitions import cli, definition
+from papyrus_content.agent_definitions.release import registered_schedules
+
+
+class Site:
+    def __init__(self):
+        self.rows, self.writes = {}, 0
+
+    def list_tenant_rows(self, model, fields):
+        return list(self.rows.values())
+
+    def get_record(self, model, record_id):
+        return self.rows.get(record_id)
+
+    def create_record(self, model, payload):
+        self.writes += 1
+        self.rows[payload["id"]] = dict(payload)
+
+    def update_record(self, model, payload):
+        self.writes += 1
+        self.rows[payload["id"]] = {**self.rows[payload["id"]], **payload}
+
+
+@pytest.fixture
+def core(tmp_path):
+    folder = tmp_path / "core"
+    shutil.copytree(definition.CORE_DIRECTORY, folder, ignore=shutil.ignore_patterns(".*"))
+    data = yaml.safe_load((folder / "rate.yaml").read_text(encoding="utf-8"))
+    data["procedure"] = "references.curate"   # a core procedure the registry has
+    (folder / "rate.yaml").write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    return folder
+
+
+def run(argv, site, core, tmp_path):
+    out = io.StringIO()
+    code = cli.apply_command([*argv, "--core", str(core), "--root", str(tmp_path)], out, client_factory=lambda: site)
+    return code, json.loads(out.getvalue())
+
+
+def test_apply_writes_then_writes_nothing(core, tmp_path):
+    site = Site()
+    code, body = run([], site, core, tmp_path)
+    assert code == 0 and body["result"]["action"] == "apply"
+    assert [(item["definitionId"], item["status"], item["applied"]) for item in body["result"]["definitions"]] == [("rate", "new", True)]
+    record = site.rows["rate"]
+    assert record["enabled"] is False and record["definitionVersion"] == 1 and "responsibility" not in record
+    written = site.writes
+    code, body = run([], site, core, tmp_path)
+    assert code == 0 and site.writes == written and body["result"]["definitions"][0]["status"] == "unchanged"
+
+
+def test_dry_run_reads_and_writes_nothing(core, tmp_path):
+    site = Site()
+    code, body = run(["--dry-run"], site, core, tmp_path)
+    assert code == 0 and body["result"]["action"] == "dry-run" and body["result"]["definitions"][0]["status"] == "new"
+    assert site.writes == 0
+
+
+def test_check_exits_2_on_drift_and_0_when_in_step(core, tmp_path):
+    site = Site()
+    code, body = run(["--check"], site, core, tmp_path)
+    assert code == 2 and body["error"]["code"] == "constraint_conflict" and "rate is missing" in body["error"]["message"]
+    run([], site, core, tmp_path)
+    code, body = run(["--check"], site, core, tmp_path)
+    assert code == 0 and body["result"]["action"] == "check" and site.writes == 2
+
+
+def test_unknown_procedure_stops_before_any_write(tmp_path):
+    site = Site()
+    code, body = run([], site, definition.CORE_DIRECTORY, tmp_path)   # the shipped rating definition names a procedure no registry lists yet
+    assert code == 2 and "rate: the procedure rate_items is not registered" in body["error"]["message"] and site.writes == 0
+
+
+def test_a_site_folder_is_read_from_the_root_and_validated_first(core, tmp_path):
+    folder = tmp_path / "papyrus-site-agents"
+    folder.mkdir()
+    (folder / "extra.yaml").write_text("id: extra\n", encoding="utf-8")
+    site = Site()
+    code, body = run([], site, core, tmp_path)
+    assert code == 2 and "extra" in body["error"]["message"] and "Nothing was written" in body["error"]["message"] and site.writes == 0
+
+
+def test_flags_are_checked(core, tmp_path):
+    for argv in (["--dry-run", "--check"], ["--nope"], ["--dir", str(tmp_path / "missing")]):
+        code, body = run(argv, Site(), core, tmp_path)
+        assert code == 2 and body["ok"] is False
+
+
+def test_registered_schedules_skip_retired_and_unscheduled():
+    live = {"id": "a", "definition": json.dumps({"wakes": {"schedule": {"cron": "0 1 * * *", "timeZone": "UTC"}}})}
+    retired = {**live, "id": "b", "definitionRetiredAt": "2026-11-17T00:00:00Z"}
+    changes_only = {"id": "c", "definition": json.dumps({"wakes": {"changes": [{"kind": "Item", "change": "ready"}]}})}
+    assert list(registered_schedules([live, retired, changes_only, {"id": "d"}])) == ["a"]
