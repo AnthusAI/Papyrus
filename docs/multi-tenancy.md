@@ -36,9 +36,22 @@ Export, deletion and usage need every row one tenant owns without reading a whol
 - References, and the other rows with a required `corpusId`, are listed corpus by corpus: a tenant's corpora are its own KnowledgeCorpus rows, and corpus ids are unique to a tenant. Reference gets no index of its own for this.
 - The 30 tables where no index reaches every row have one sparse index partitioned on `tenantId` and sorted by `id`, named `list<Models>ByTenant` (for example `listReaderVotesByTenant`). Item and PublishedItem are among them: their tenant-prefixed indexes sort on `publishedAt` and so leave unpublished rows out, and `headStageKey` is on head rows only.
 
-`PapyrusGraphQLAuthoringClient.list_tenant_rows(model, fields)` reads a tenant's rows of one of those tables through its `tenantId` index: one Query, followed page by page, never a Scan. The index query fields are declared once in `papyrus_content.tenancy.TENANT_LISTING_QUERIES`, and a test checks that map against the schemas. A sparse index holds only rows that carry a `tenantId`, so a tenant's list is complete only after the tenantId backfill (PPY-8f9462) has stamped every row.
+`PapyrusGraphQLAuthoringClient.list_tenant_rows(model, fields)` reads a tenant's rows of one of those tables through its `tenantId` index: one Query, followed page by page, never a Scan. The index query fields are declared once in `papyrus_content.tenancy.TENANT_LISTING_QUERIES`, and a test checks that map against the schemas. A sparse index holds only rows that carry a `tenantId`, so a tenant's list is complete only after the tenantId backfill (PPY-8f9462) has stamped every row ([below](#stamping-tenantid-on-rows-written-without-one)).
 
 The 30 indexes ship in one release, one per table (the GSI ledger, `features_backend/gsi-ledger.feature`, refuses a second new index on a table, and reads every plugin's and function's schema as well as the core one). A dedicated site creates them on its existing tables when it takes that release. Spec: `features_backend/tenant-listing-index.feature`.
+
+## Stamping tenantId on rows written without one
+
+A client that has a tenant stamps `tenantId` on every create and update of a tenant-owned model, always: there is no setting a deploy must turn on first (the `PAPYRUS_TENANT_FIELD` flag that used to gate it was set by no deploy, so on a live site no Python write stamped anything, and the sparse `tenantId` indexes held none of those rows: `agents apply` found the `rate` automation of Machines on Machines "missing" and Today listed no automations). A site gains the field with its deploy; a writer is never told about it. Spec: `features_backend/tenant-field-everywhere.feature`, `features_backend/automation-tenant-id.feature`.
+
+Rows written before that carry none. `papyrus content backfill-tenant-id --tenant <id> [--models A,B] [--apply] [--json]` stamps them once (PPY-8f9462):
+
+- It is a dry run unless `--apply`, and it refuses to run without `--tenant` or with `PAPYRUS_TENANT_ID` set, because it reads every row (as `content adopt-tenant-data` does, which covers the five models that also carry tenant-prefixed keys).
+- It reads `id` and `tenantId` of every row of each model it covers, in one named sweep, and writes `tenantId` and nothing else, so no other field or timestamp of a row changes. A row that already names the tenant is left; a row that names another tenant is never touched and is listed.
+- It covers the tenant-owned models the authoring client can list and update. The others (the reader models and the editorial check records, written by the backend's own functions, which this client cannot list) are named in its report as not reached, so the gap is never silent; they need their own backfill. `--models Automation` stamps one model alone, which is all `agents apply` needs.
+- A second run writes nothing, so its dry run is the check that every row has the tenant.
+
+Run it per site, dry run first, after the release that carries it and before `agents apply` runs on a site whose automations were written earlier.
 
 ## Tenant, membership and domain records
 

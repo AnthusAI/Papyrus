@@ -382,6 +382,7 @@ _ENTRIES.update(dict([
      "operator", _DRY, ""),
   _e("ops content convert-bodies", "Convert stored bodies to the current format.", "[--models Item,PublishedItem] [--dry-run | --apply] [--json]  (a dry run unless --apply)", "operator", "unknown", ""),
   _e("ops content adopt-tenant-data", "Adopt pre-tenant rows into a tenant; a dry run unless --apply.", "--tenant ID [--apply] [--json]", "operator", "unknown", ""),
+  _e("ops content backfill-tenant-id", "Stamp tenantId on rows written without one; a dry run unless --apply.", "--tenant ID [--models A,B] [--apply] [--json]", "operator", "unknown", ""),
   _e("ops content schema-check", "Check that a GraphQL type has the named fields.", "[--type NAME] [--fields a,b]", "operator", "reads", ""),
 ]))
 

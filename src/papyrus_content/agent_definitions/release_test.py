@@ -105,3 +105,12 @@ def test_registered_schedules_skip_retired_and_unscheduled():
     retired = {**live, "id": "b", "definitionRetiredAt": "2026-11-17T00:00:00Z"}
     changes_only = {"id": "c", "definition": json.dumps({"wakes": {"changes": [{"kind": "Item", "change": "ready"}]}})}
     assert list(registered_schedules([live, retired, changes_only, {"id": "d"}])) == ["a"]
+
+
+def test_an_automation_that_exists_without_a_tenant_id_stops_the_apply_and_names_the_backfill(core, tmp_path):
+    site = Site()
+    site.list_tenant_rows = lambda model, fields: []   # the tenantId index lists nothing: the row carries no tenantId
+    site.rows["rate"] = {"id": "rate"}
+    code, body = run([], site, core, tmp_path)
+    assert code == 2 and "rate" in body["error"]["message"] and "carries no tenantId" in body["error"]["message"]
+    assert "content backfill-tenant-id" in body["error"]["message"] and site.writes == 0
