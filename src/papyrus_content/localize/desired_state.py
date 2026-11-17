@@ -39,6 +39,8 @@ def want(client, *, source: dict[str, Any], language: str, requested_by: str, au
          now: str | None = None) -> dict[str, Any]:
     """Writes (or overwrites) the request for ``source`` (the published primary version) in ``language``. ``automation_id`` names the Automation that runs
     it (the automatic trigger and the dispatcher read it); ``publish`` asks for a clean result to be published when the run saves it."""
+    from ..authored_editions import require_translation_owned
+    require_translation_owned(client, source["lineageId"], language)
     now = now or utc_now_iso()
     record = _record(source, language, requested_by, now, state="wanted", runKey=None, reason=None, automationId=automation_id, publish=publish)
     client.upsert(MODEL, record)

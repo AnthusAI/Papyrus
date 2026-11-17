@@ -104,7 +104,7 @@ def translation_kind(recorded: str | None) -> str:
     """What a localization version says about who wrote it. A version that records no kind was written by the procedure, as every translation was before
     ``imported`` existed. An unknown kind is refused: a page must never say a kind it does not know."""
     kind = recorded or MACHINE_TRANSLATION
-    if kind not in (MACHINE_TRANSLATION, IMPORTED_TRANSLATION):
+    if kind not in (MACHINE_TRANSLATION, IMPORTED_TRANSLATION, "authored"):
         raise ValueError(f"A translation's kind is {MACHINE_TRANSLATION!r} or {IMPORTED_TRANSLATION!r}, not {kind!r}.")
     return kind
 

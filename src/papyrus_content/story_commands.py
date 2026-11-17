@@ -1537,3 +1537,18 @@ def stories_localize(flags: list[str]) -> None:
         raise ValueError(f"The translation is requested ({record['id']}), but the automation {automation} did not start: "
                          f"{started.get('reason') or started.get('state') or 'no answer'}. Start it again with the same command.")
     print("\t".join(["stories", "localize", "requested", record["id"], f"source v{record['sourceVersionNumber']}", "run", str(started.get("key"))]))
+
+
+def stories_import_edition(flags: list[str]) -> None:
+    """Save independent original-language copy; no translation or publication."""
+    from .authored_editions import import_edition
+    options = parse_options(flags)
+    arguments = {name.replace("-", "_"): _required_option(options, name)
+                 for name in ("story", "language", "written-by", "author-kind", "reason")}
+    body = Path(_required_option(options, "body-file")).read_text(encoding="utf-8")
+    front = Path(_required_option(options, "front-matter-file")).read_text(encoding="utf-8")
+    client, claims = create_authoring_client()
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    result = import_edition(client, **arguments, body=body, front_matter=front,
+                            applied_by=normalize_string((claims or {}).get("sub")) or "papyrus-cli", apply=not dry_run)
+    print(json.dumps({**result, "dryRun": dry_run}, ensure_ascii=False))

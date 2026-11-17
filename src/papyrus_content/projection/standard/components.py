@@ -70,6 +70,8 @@ def translation_notice(strings, original: dict) -> str:
     from .interface_strings import AUTHOR_PLACEHOLDER, ORIGINAL_PLACEHOLDER, TRANSLATION_IMPORTED_LABEL_KEY, TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY
 
     kind = original.get("kind") or MACHINE_TRANSLATION
+    if kind == "authored":
+        return ""  # A companion is not a translation; normal byline and family switcher apply.
     if kind == IMPORTED_TRANSLATION:
         label_key, author = TRANSLATION_IMPORTED_LABEL_KEY, original.get("writtenBy")
         if not author:

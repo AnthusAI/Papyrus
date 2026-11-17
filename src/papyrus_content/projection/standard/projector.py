@@ -2088,7 +2088,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if original is not None:   # a translated Story page says so, and where the original is (the label is the page's data, never the Story's text)
             summary = extra["entry"].summary
             kind = translation_kind(summary.translation_kind)
-            head = dataclasses.replace(head, translation_of=(self.head.absolute(original.url) or original.url, original.tag),
+            head = dataclasses.replace(head, translation_of=((self.head.absolute(original.url) or original.url, original.tag) if kind != "authored" else None),
                                        translator=_writer_of(summary, kind))
             fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url, "kind": kind,
                                      **({"writtenBy": _writer_of(summary, kind)} if kind == IMPORTED_TRANSLATION else {})}

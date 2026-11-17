@@ -95,7 +95,10 @@ def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[s
         facts.append(f"Updated {entry.updated}")
     if translation is not None:
         tag, original, kind, writer = translation
-        facts += [f"Language: {tag}", f"Translation: {kind}", *([f"Written by: {writer}"] if writer else []), f"Translated from: {original}"]
+        if kind == "authored":
+            facts += [f"Language: {tag}", "Edition: independently authored", f"Companion: {original}"]
+        else:
+            facts += [f"Language: {tag}", f"Translation: {kind}", *([f"Written by: {writer}"] if writer else []), f"Translated from: {original}"]
     if entry.summary_text:
         lines += [f"> {entry.summary_text}", ""]
     if facts:
