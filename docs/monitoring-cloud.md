@@ -920,7 +920,7 @@ any delivery. A rejected Reference, or one archived by a person, is reused exact
 
 A publication may list `procedureTriggers` and name its OpenAI key's SSM parameter
 (`openaiKeyParameter`). After a delivery that created a new Reference, the router starts each named
-procedure once for that item by invoking the procedure runner asynchronously, and never waits for it.
+procedure once for that item by putting a wake on the site's wake queue (`papyrus-<site>-agent-wakes.fifo`, [procedure runner](procedure-runner.md#the-wake-queue)), and never waits for the run.
 A Reference that already existed starts nothing. Before a start the router reads the site's `Automation`
 record for the trigger (`listAutomations`, one read per publication per sweep): a disabled automation starts
 nothing (`skipped`), one at its `maxConcurrent` is deferred and retried on later runs (`deferred`), and the record's timeout goes with the

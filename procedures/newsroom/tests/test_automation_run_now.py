@@ -285,7 +285,7 @@ def cli(monkeypatch, capsys):
     monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")   # these test the AWS lane, whatever session the machine holds
     monkeypatch.setattr(ga, "create_authoring_client", lambda *a, **k: (state["client"], {}))
     monkeypatch.setattr(au, "monitoring_table_from_environment", lambda env=None: state["table"])
-    monkeypatch.setattr(au, "lambda_invoker", lambda name=None: state["invoked"].append)
+    monkeypatch.setattr(au.agent_wakes, "wake_sender", lambda sqs=None: state["invoked"].append)
     monkeypatch.setenv("PAPYRUS_ACTOR_LABEL", "ryan-cli")
     monkeypatch.setattr(au, "_now", lambda: NOW)
 

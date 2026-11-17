@@ -1,7 +1,7 @@
 """The translate-on-publish dispatcher: a DynamoDB stream consumer on the LocalizationRequest table (docs/story-translation-procedure.md).
 
 All the logic is ``papyrus_content.localize.dispatch``; this file decodes the stream records and builds the collaborators with the function's own role:
-the site's authoring client, the monitoring table (as the automation-view function reads and writes it), the procedure runner and the content-actions
+the site's authoring client, the monitoring table (as the automation-view function reads and writes it), the site's wake queue (where a procedure start is put) and the content-actions
 function. A batch whose handling fails reports every record as failed, so Lambda retries it (the stream's retry limit and the function's dead letter queue
 follow); the work itself is idempotent (a claim per record, a publish that finds the translation live).
 """
@@ -24,7 +24,8 @@ def invoke_content_actions(task: dict[str, Any]) -> None:
 
 
 def handler(event: dict[str, Any], context: Any = None, *, client=None, table=None, runner=None, publisher=None) -> dict[str, Any]:
-    from papyrus_content.automations import MonitoringReader, MonitoringWriter, lambda_invoker, monitoring_table_from_environment
+    from papyrus_content.automations import MonitoringReader, MonitoringWriter, monitoring_table_from_environment
+    from papyrus_content.agent_wakes import wake_sender
     from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
 
     images = [{"old": decode_image(record["dynamodb"].get("OldImage")), "new": decode_image(record["dynamodb"].get("NewImage"))}
@@ -37,7 +38,7 @@ def handler(event: dict[str, Any], context: Any = None, *, client=None, table=No
     try:
         handle_changes(images, client or PapyrusGraphQLAuthoringClient(endpoint=endpoint),
                        reader=MonitoringReader(table) if table is not None else None, writer=MonitoringWriter(table) if table is not None else None,
-                       invoke=runner or lambda_invoker(os.environ.get("PROCEDURE_RUNNER_FUNCTION")), invoke_publish=publisher or invoke_content_actions,
+                       invoke=runner or wake_sender(), invoke_publish=publisher or invoke_content_actions,
                        site_endpoint=endpoint)
     except Exception as error:
         print(json.dumps({"event": "papyrus_localization_dispatch_failed", "error": f"{type(error).__name__}: {error}"[:500]}))

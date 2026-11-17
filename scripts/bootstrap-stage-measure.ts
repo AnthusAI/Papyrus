@@ -13,14 +13,18 @@ export const CLOUDFORMATION_OPERATION_LIMIT = 2500;
 // Headroom for plugins and features a site turns on, and for models added later. Not raised by any slice.
 export const BOOTSTRAP_BUDGET = 2000;
 
-export type BootstrapStageMeasure = { resources: number; modelStacks: string[]; templates: string[] };
+export type BootstrapStageMeasure = { resources: number; modelStacks: string[]; templates: string[]; resourcesByTemplate: Record<string, number> };
 
-export function measureBootstrapStage(): BootstrapStageMeasure {
+/** Synthesizes the backend in the first-deploy stage (the default) or, with `bootstrapStage: false`, as the second deploy and every later one do. */
+export function measureBootstrapStage(bootstrapStage = true): BootstrapStageMeasure {
+  const environment: NodeJS.ProcessEnv = { ...process.env };
+  if (bootstrapStage) environment.PAPYRUS_BOOTSTRAP_STAGE = "1";
+  else delete environment.PAPYRUS_BOOTSTRAP_STAGE;
   const outputDirectory = mkdtempSync(path.join(tmpdir(), "papyrus-bootstrap-"));
   try {
     const synth = spawnSync("npx", ["tsx", "scripts/synth-site-backend.mts", outputDirectory, '{"productionAppId":"","brandId":"bootstrap-test"}'], {
       cwd: path.resolve(import.meta.dirname, ".."),
-      env: { ...process.env, PAPYRUS_BOOTSTRAP_STAGE: "1" },
+      env: environment,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
     });
@@ -28,13 +32,16 @@ export function measureBootstrapStage(): BootstrapStageMeasure {
 
     let resources = 0;
     const modelStacks: string[] = [];
+    const resourcesByTemplate: Record<string, number> = {};
     const templates = readdirSync(outputDirectory).filter((name) => name.endsWith(".template.json"));
     for (const file of templates) {
-      resources += Object.keys(JSON.parse(readFileSync(path.join(outputDirectory, file), "utf8")).Resources ?? {}).length;
+      const count = Object.keys(JSON.parse(readFileSync(path.join(outputDirectory, file), "utf8")).Resources ?? {}).length;
+      resources += count;
+      resourcesByTemplate[file] = count;
       const model = /PapyrusCmsApi(.+?)[0-9A-F]{8}\.nested\.template\.json$/.exec(file);
       if (model) modelStacks.push(model[1]);
     }
-    return { resources, modelStacks, templates };
+    return { resources, modelStacks, templates, resourcesByTemplate };
   } finally {
     rmSync(outputDirectory, { recursive: true, force: true });
   }

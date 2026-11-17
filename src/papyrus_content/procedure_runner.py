@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import request_meter, run_outcomes, wake_keys
+from . import agent_wakes, request_meter, run_outcomes, wake_keys
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
@@ -337,18 +337,21 @@ def record_trigger_outcome(table, trigger: dict | None, result: dict) -> None:
                                                  ":o": result["outcome"], ":w": result.get("outcomeReason")})
 
 
-@request_meter.metered_handler("procedure-runner", task_key="procedureKey")
+@request_meter.metered_handler("procedure-runner")
 def handler(event, context):
-    """Lambda entry point, invoked asynchronously (by the monitoring router) with one request."""
+    """Lambda entry point: the consumer of the site's wake queue (docs/procedure-runner.md), one message at a time. The message stays on the
+    queue, hidden, for the whole run. Returning deletes it, and this returns only once the wake's run record exists and is finished, or is the
+    record of an earlier delivery of the same wake. Raising leaves it: the queue delivers it once more, then moves it to the dead-letter queue."""
     import boto3  # provided by the Lambda image
 
     from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
+    request = agent_wakes.request_from_event(event)   # a message that is not a well-formed wake raises, and nothing is recorded
     table_name = os.environ.get("TRIGGER_TABLE_NAME")
     table = boto3.resource("dynamodb").Table(table_name) if table_name else None
-    trigger = (event or {}).get("trigger") if isinstance(event, dict) else None
+    trigger = request.get("trigger") if isinstance(request.get("trigger"), dict) else None
     try:
-        request = validate_request(event if isinstance(event, dict) else {})
+        request = validate_request(request)
         openai_api_key = None
         if request["openaiKeyParameter"]:
             openai_api_key = boto3.client("ssm").get_parameter(Name=request["openaiKeyParameter"],
@@ -364,6 +367,10 @@ def handler(event, context):
     except ProcedureNotRunnable as error:
         result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
                   "error": str(error)}
+        if error.run_id is None:
+            # No run record exists for this wake, so the message must not be deleted: the trigger row says why, and the error leaves the message on the queue.
+            record_trigger_outcome(table, trigger, result)
+            raise
     print(json.dumps(result, default=str))
     if result.get("duplicate"):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
@@ -381,12 +388,12 @@ def fire_story_triggers_after_run(table, trigger: dict | None, result: dict) -> 
     """A run completed and named a story (a tool may have created or moved it): deliver that story's stage triggers.
     Never raises: the run's outcome is already recorded."""
     try:
-        from .automations import MonitoringReader, MonitoringWriter, lambda_invoker
+        from .automations import MonitoringReader, MonitoringWriter
         from .graphql_authoring import PapyrusGraphQLAuthoringClient
         from .story_triggers import deliver_after_run
 
         deliver_after_run(PapyrusGraphQLAuthoringClient(), trigger, result, reader=MonitoringReader(table),
-                          writer=MonitoringWriter(table), invoke=lambda_invoker())
+                          writer=MonitoringWriter(table), invoke=agent_wakes.wake_sender())
     except Exception as error:
         print(f"story triggers could not be delivered after the run: {type(error).__name__}: {error}")
 
@@ -395,11 +402,11 @@ def finish_story_stage_run(table, trigger: dict, result: dict) -> None:
     """A story-stage run ended: the engine advances the story or raises a review request (story_triggers.finish_stage_run).
     Never raises: the run's outcome is already recorded."""
     try:
-        from .automations import MonitoringReader, MonitoringWriter, lambda_invoker
+        from .automations import MonitoringReader, MonitoringWriter
         from .graphql_authoring import PapyrusGraphQLAuthoringClient
         from .story_triggers import finish_stage_run
 
         finish_stage_run(PapyrusGraphQLAuthoringClient(), trigger, result, reader=MonitoringReader(table), writer=MonitoringWriter(table),
-                         invoke=lambda_invoker())
+                         invoke=agent_wakes.wake_sender())
     except Exception as error:
         print(f"story stage run could not be finished: {type(error).__name__}: {error}")

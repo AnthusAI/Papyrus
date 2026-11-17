@@ -40,7 +40,7 @@ import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
-import { AGENT_PIECES } from "./agents/pieces";
+import { agentPieces } from "./agents/pieces";
 import { addAgentsStack } from "./agents/stack";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
@@ -932,9 +932,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   // The shared stack reports usage per tenant through Prospectus later (kanbus-f45f7f); until then its resources are only tagged.
   if (costAttribution && sharedTier) applySiteBackendCostTags(backend.stack, costAttribution);
   wireMonitoringView(backend, emailMonitorId);
-  wireAutomationView(backend);
+  wireAutomationView(backend, siteBackendIdentity.brandId);
   // Translate on publish (languages.auto): a stream consumer on the LocalizationRequest records. A shared stack's rows carry a tenant it does not act for.
-  if (tenancyMode !== "shared") wireLocalizationDispatch(backend, contentActionsLambda);
+  if (tenancyMode !== "shared") wireLocalizationDispatch(backend, contentActionsLambda, siteBackendIdentity.brandId);
   // The names of concepts in each language: a stream consumer on the SemanticNode records writes every concept's primary-language label rows.
   if (tenancyMode !== "shared") wireEntityLabelSync(backend);
   wireImageService(backend);
@@ -942,7 +942,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
   wireAnnouncements(backend, siteBackendIdentity.brandId);
   // Every always-on agent resource is in the one `agents` stack, which the first deploy of a new site leaves out (amplify/agents/stack.ts).
-  addAgentsStack((name) => backend.createStack(name), AGENT_PIECES, isBootstrapStage(process.env));
+  addAgentsStack((name) => backend.createStack(name), agentPieces(siteBackendIdentity.brandId), isBootstrapStage(process.env));
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 
   if (tenancyMode === "shared") {

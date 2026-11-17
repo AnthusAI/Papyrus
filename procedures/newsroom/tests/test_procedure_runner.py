@@ -437,7 +437,7 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     statements = resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {statement["Sid"] for statement in statements} == {
         "Logs", "FailedInvocations", "PublicationOpenAiKeys", "TriggerOutcomes", "StageTriggerRows",
-        "StartNextStage", "PublicationNewsrooms", "SiteAgentPolicyBody"}
+        "ReadWakeQueues", "PutWakes", "PublicationNewsrooms", "SiteAgentPolicyBody"}
     assert all("*" != statement["Resource"] for statement in statements)
     by_sid = {statement["Sid"]: statement for statement in statements}
     rows = by_sid["StageTriggerRows"]
@@ -445,8 +445,11 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     assert rows["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["MONITOR#*"]
     policy_body = by_sid["SiteAgentPolicyBody"]   # PPY-c8175e: read one document's objects, nothing else of S3
     assert policy_body["Action"] == "s3:GetObject" and policy_body["Resource"][1].endswith(":::*/tenants/*/site/agents/*")
-    invoke = by_sid["StartNextStage"]
-    assert invoke["Action"] == "lambda:InvokeFunction" and invoke["Resource"][1].endswith(":function:papyrus-procedure-runner")
+    queues = ":papyrus-*-agent-wakes.fifo"   # the wake queues by name pattern (PPY-567bf9); the dead-letter queues do not match
+    consume, send = by_sid["ReadWakeQueues"], by_sid["PutWakes"]
+    assert consume["Action"] == ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"] and consume["Resource"][1].endswith(queues)
+    assert send["Action"] == ["sqs:GetQueueUrl", "sqs:SendMessage"] and send["Resource"][1].endswith(queues)
+    assert not any("lambda:" in str(statement["Action"]) for statement in statements), "the runner no longer invokes any function, itself included"
 
 
 def test_the_runner_role_reaches_exactly_the_newsrooms_it_is_granted():
@@ -460,12 +463,12 @@ def test_the_runner_role_reaches_exactly_the_newsrooms_it_is_granted():
         assert kinds == ["Mutation/fields/*", "Query/fields/*"]
 
 
-def test_the_router_may_start_only_the_named_runner():
+def test_the_router_may_only_put_wakes_on_the_site_queues():
     template = cloudformation(INFRA / "monitoring" / "papyrus-monitoring.yaml")
-    policy = template["Resources"]["RouterProcedureRunnerPolicy"]
-    assert policy["Condition"] == "HasProcedureRunner"
-    statement = policy["Properties"]["PolicyDocument"]["Statement"][0]
-    assert statement["Action"] == "lambda:InvokeFunction" and statement["Resource"][1].endswith(":function:${ProcedureRunnerFunctionName}")
+    assert "RouterProcedureRunnerPolicy" not in template["Resources"] and "ProcedureRunnerFunctionName" not in template["Parameters"]
+    statement = template["Resources"]["RouterWakeQueuePolicy"]["Properties"]["PolicyDocument"]["Statement"]
+    assert len(statement) == 1 and statement[0]["Action"] == ["sqs:GetQueueUrl", "sqs:SendMessage"]
+    assert statement[0]["Resource"][1].endswith(":papyrus-*-agent-wakes.fifo")
 
 
 def test_the_runner_hook_never_raises_when_delivery_fails(monkeypatch, capsys):

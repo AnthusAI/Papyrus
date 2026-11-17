@@ -194,7 +194,7 @@ scheduled or changed-record run of the same automation (`docs/procedure-runner.m
 * Command line: `papyrus automations run --id distinctive.ttab --input '{"proceeding":"97752244","opinion_url":"https://..."}'`
   (`--dry-run` checks everything and starts nothing; `--json`). It needs the same things `runs` needs (AWS
   credentials that can read the monitoring table through the SSM parameter) plus `dynamodb:PutItem` on it and
-  `lambda:InvokeFunction` on `papyrus-procedure-runner` (override with `PAPYRUS_PROCEDURE_RUNNER_FUNCTION`).
+  `sqs:GetQueueUrl` and `sqs:SendMessage` on the site's wake queue, `papyrus-<site>-agent-wakes.fifo`.
 * Console: a **Run now** button on the automation, for editors and admins. It does not start on the first click: a
   confirm step says what will run, that it calls a model and counts against the limit, and asks for the input of this
   run. The mutation is `runAutomation(automationId, input)`; it is served by the `papyrus-automation-view` function.
@@ -207,7 +207,7 @@ disabled, has no router publication for this site, or is at its `maxConcurrent`.
 
 1. writes `MANUAL#<automationId>#<timestamp>` in the monitor's partition (`MONITOR#<monitorId>`) of the monitoring table,
    with who started it and the runner request, status `starting`;
-2. invokes `papyrus-procedure-runner` asynchronously with the automation's `procedureKey`, the input, the router
+2. puts a wake on the site's wake queue (the runner consumes it) with the automation's `procedureKey`, the input, the router
    publication's endpoint and key parameter, and `timeoutSeconds`; if that fails the row says `startFailed`;
 3. the runner sets the row `running` with the `runId` as soon as the run exists, and its outcome at the end.
 
