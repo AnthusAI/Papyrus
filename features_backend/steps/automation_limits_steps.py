@@ -256,7 +256,7 @@ CALL = {"agent": "analyst", "model": "gpt-6-luna", "provider": "openai", "prompt
 def record_run(context, client, calls):
     context.newsroom = client
     context.outcome = pr.run_procedure_request(
-        {"appsyncEndpoint": "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql", "procedureKey": PROCEDURE,
+        {"appsyncEndpoint": "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql", "procedureKey": PROCEDURE, "wakeKey": "distinctive.ttab|manual|request-1",
          "input": {"proceeding": "1", "opinion_url": "https://x/a.pdf"}},
         client=client, execute=lambda *a, **k: {"success": True, "output": {"title": "x"}, "seconds": 3, "usage": calls},
         seconds_available=900, environment={})

@@ -22,12 +22,14 @@ import json
 import os
 import re
 import string
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
+from . import wake_keys
 from .run_outcomes import outcome_shown
 from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
 from .monitoring_router import (
@@ -645,7 +647,8 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
         raise (AutomationDeferred if gate.action == "defer" else AutomationError)(gate.reason or "the automation cannot start another run now.")
     key = f"{MANUAL_PREFIX}{automation['id']}#{stamp}"
     pk = f"MONITOR#{config['monitorId']}"
-    request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+    wake_key = wake_keys.manual_key(wake_keys.owner(automation["id"], automation["procedureKey"]), uuid.uuid4().hex)
+    request = {"wakeKey": wake_key, "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
                "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"],
                "input": input_values, "actorLabel": f"{actor} (run now)"[:200], "timeoutSeconds": gate.timeout_seconds,
                "trigger": {"kind": "manual", "automationId": automation["id"], "monitorId": config["monitorId"], "pk": pk, "sk": key,

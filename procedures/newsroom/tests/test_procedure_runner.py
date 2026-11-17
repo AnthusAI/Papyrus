@@ -140,7 +140,7 @@ class NewsroomClient:
                 {"id": "procedure-1", "enabled": True, "currentVersionId": "version-1", "currentVersion": self.version})}
         if "startNewsroomProcedureRun" in query:
             self.started.append(variables)
-            return {"startNewsroomProcedureRun": json.dumps({"ok": True, "runId": "run-1"})}
+            return {"startNewsroomProcedureRun": json.dumps({"ok": True, "runId": "run-1", "duplicate": False, "procedureVersionId": "version-1"})}
         if "updateProcedureRun" in query:
             self.updates.append(variables["input"])
             return {"updateProcedureRun": variables["input"]}
@@ -157,6 +157,7 @@ def attachment_bodies(monkeypatch):
 
 
 REQUEST = {"appsyncEndpoint": ENDPOINT, "procedureKey": "distinctive.ttab.ruling-analysis",
+           "wakeKey": "distinctive.ttab|manual|request-1",
            "openaiKeyParameter": KEY_PARAMETER, "input": {"proceeding": "97752244", "opinion_url": "https://x/a.pdf"}}
 
 
@@ -172,7 +173,7 @@ def test_the_runner_materializes_skills_records_the_run_and_its_output(tmp_path)
     result = pr.run_procedure_request(REQUEST, client=client, execute=execute, seconds_available=900,
                                       environment={}, workroot=tmp_path)
 
-    assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "versionId": "version-1",
+    assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "wakeKey": REQUEST["wakeKey"], "versionId": "version-1",
                       "runStatus": "completed", "outcome": "acted", "outcomeReason": None, "seconds": 42, "error": None, "costUsd": None, "costRecorded": False,
                       "output": {"title": "Wemby"}}
     assert seen["skill"] == "# Example" and "Procedure {" in seen["source"] and seen["timeout"] == 840

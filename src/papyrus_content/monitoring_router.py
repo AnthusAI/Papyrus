@@ -70,7 +70,7 @@ from .email_submission_authorization import (
     EditorLookupUnavailable,
     publication_ids_for_editor,
 )
-from . import request_meter
+from . import request_meter, wake_keys
 from .auto_accept import accept_by_rule, run_auto_accept, validate_auto_accept
 from .research_assignments_worker import run_research_assignments, validate_research_assignments
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
@@ -123,6 +123,7 @@ TASK_LEASE_SECONDS = {"research-assignments": 960}   # a task with its own, long
 RECEIPT_TTL_SECONDS = 30 * 86400
 STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
 AWAITING = "awaiting"
+NEW_REFERENCE = "monitor.new_reference"   # what a monitor wake is about, in its wake key
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
 WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; never a human
 # A human curator is recorded as `user:<x>` (CLI), the editor's sign-in email, a Cognito username
@@ -2279,7 +2280,9 @@ class Router:
                     self.counts["procedureNotTriggered"] += 1
                     continue
                 gate = self.gate(publication, trigger)
-                request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+                request = {"wakeKey": wake_keys.change_key(wake_keys.owner(gate.automation_id, trigger["procedureKey"]),
+                                                           result["referenceId"], None, NEW_REFERENCE),
+                           "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
                            "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": trigger["procedureKey"],
                            "input": procedure_trigger_input(trigger, publication, disc, result["referenceId"]),
                            "actorLabel": f"Papyrus monitor {self.monitor_id}",

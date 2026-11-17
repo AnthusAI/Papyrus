@@ -27,15 +27,25 @@ The runner receives one request:
 `timeoutSeconds` and `trigger.automationId` are present only when an Automation record governs the start
 (`docs/automations.md`); a run started by hand has `trigger.kind` `manual` and a `MANUAL#...` sort key.
 
+Every request carries a **`wakeKey`**, and a request without a well-formed one is refused before anything is recorded.
+The key says what the wake is about: `<owner>|<subject id>|<subject version>|<what>` for a change (a Story at a version
+entering a stage; a Reference has no versions and says `unversioned`), `<owner>|schedule|<scheduled time>` for a timer,
+`<owner>|manual|<request id>` for a person's request (Run now, or a command-line run). The owner is the automation's id, or
+`procedure:<procedure key>` when no automation governs the start. The builders are in `src/papyrus_content/wake_keys.py`.
+
 For each request, the runner does these steps:
 
-1. It loads the procedure's current version from the newsroom (`getNewsroomProcedureDefinition`). The
-   version must be published.
-2. It downloads the version's `code` attachment (sort key `code`) and its skill files (further `code`
+1. It records a ProcedureRun in the newsroom through the external-execution path of
+   `startNewsroomProcedureRun`, **before anything is loaded**. The record's id is derived from the wake key and it is
+   created with a condition, with the status `started` and the key in `wakeKey`; the newsroom's parameter schema checks
+   the input. A wake whose key already has a record comes back as a duplicate: the runner returns
+   `runStatus: "duplicate"` with the first run's id, runs nothing, and touches neither the trigger row nor the story
+   triggers (the first delivery did). A run that dies after this step leaves a `started` record with no outcome.
+2. It loads the procedure's current version from the newsroom (`getNewsroomProcedureDefinition`). The
+   version must be published and must be the version the record names. A procedure that cannot be loaded marks the
+   record `failed` with the reason `not_runnable`, so it never stays `started` for a run that never began.
+3. It downloads the version's `code` attachment (sort key `code`) and its skill files (further `code`
    attachments with sort key `skill:<path>`).
-3. It records a ProcedureRun in the newsroom through the external-execution path of
-   `startNewsroomProcedureRun`. The run is created as `running`, and the newsroom's parameter schema
-   checks the input.
 4. It writes the skills at their registered paths in a fresh working directory, so a procedure's
    `skills = {".claude/skills/..."}` resolves exactly as it does in the site repository.
 5. It runs the procedure in a child process (`python -m papyrus_content.procedure_runner_child`) with
@@ -53,8 +63,8 @@ For each request, the runner does these steps:
    `failed` with `procedure_error` (`timed_out` for a deadline). `unknown` is never set here: only settling an interrupted
    run sets it. Runs recorded before outcomes have none and are shown as "Recorded before outcomes"; they are not rewritten.
    `papyrus automations runs` and the console show each outcome as a word with a mark (✓ Did it, – Nothing to do, ? Asked,
-   ✗ Failed, ! Outcome unknown). **Release order:** the site backend (which carries the new `ProcedureRun` fields) goes out
-   before the runner image and the CLI that write them.
+   ✗ Failed, ! Outcome unknown). **Release order:** the site backend (which carries the new `ProcedureRun` fields,
+   including `wakeKey`) goes out before the runner image and the CLI that write them.
 7. When the request came from a trigger, it names the run on the trigger's row in the monitoring table as soon
    as the run exists (status `running`, `runId`) and records the outcome (status, outcome, reason, error) there when it ends.
 
