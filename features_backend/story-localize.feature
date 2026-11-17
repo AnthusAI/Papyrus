@@ -132,6 +132,52 @@ Feature: A published Story is translated, checked and polished by one procedure
     Then the saved translation has the note without the invented paragraph
     And the run is saved, not held
 
+  Scenario: A soft line break the translator turns into a blank line is put back by code
+    A single newline inside a paragraph (a soft break) is one paragraph in the English. A translator often writes a blank line there, which makes two paragraphs and holds the translation (the held
+    Spanish "can-a-system-keep-a-secret", whose "Out of Office" note joins two sentences by one newline). After the translation, and after each repair, code joins the two again with the same single newline, but
+    only when the line structure of the two blocks lines up with certainty: the same number of lines, the same kind of line, and every blank line of the English a blank line of the translation. Only a machine-owned
+    block is changed, and no check is loosened.
+    Given the English Story has a note whose two lines "Out of office." and "Back on Monday." are joined by a single newline
+    And the translator writes the two lines of the note as two paragraphs
+    When the translation run for "es-419" runs
+    Then the saved translation has the note with its two lines joined by a single newline
+    And the repairer was never asked
+    And the run is saved, not held
+
+  Scenario: A soft break is put back where the English has a blank line next to it
+    Given the English Story has a note whose lines are "Out of office." and "Back on Monday." joined by a single newline, then a blank line, then "Thanks."
+    And the translator writes each of the three lines of the note as its own paragraph
+    When the translation run for "es-419" runs
+    Then the saved translation has the first two lines joined by a single newline and the third after a blank line
+    And the run is saved, not held
+
+  Scenario: A real extra paragraph beside a soft break is still held
+    Given the English Story has a note whose two lines "Out of office." and "Back on Monday." are joined by a single newline
+    And the translator writes the two lines of the note as two paragraphs and adds the paragraph "Un párrafo inventado."
+    And the repairer keeps the wrong wording
+    When the translation run for "es-419" runs
+    Then the run is held
+    And the held reason names the structure difference
+    And the saved translation still has the note as the translator wrote it
+
+  Scenario: Blocks without a soft break are unchanged
+    Given the English Story has a note whose lines "Out of office." and "Back on Monday." are two paragraphs
+    And the translator writes the two lines of the note as two paragraphs
+    When the translation run for "es-419" runs
+    Then the saved translation has the note with its two paragraphs as the translator wrote them
+    And the run is saved, not held
+
+  Scenario: A doubly ambiguous line structure is not guessed and is held
+    The English has a soft break and, elsewhere, a blank line. The translator has the same number of lines but breaks them somewhere else, so there is no certain line to join: the block is left as written and the check of the
+    structure holds it.
+    Given the English Story has a note whose lines "Out of office." and "Back on Monday." are joined by a single newline, then a blank line, then "Thanks." and "Bye." joined by a single newline
+    And the translator writes the four lines of the note as one, a blank line, two joined by a single newline, a blank line, and one
+    And the repairer keeps the wrong wording
+    When the translation run for "es-419" runs
+    Then the run is held
+    And the held reason names the structure difference
+    And the saved translation still has the note as the translator wrote it
+
   Scenario: A note the translator keeps as written is not sent to the repairer
     Given the English Story has a note "Out of office." between its paragraphs
     When the translation run for "es-419" runs

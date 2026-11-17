@@ -55,3 +55,41 @@ def test_a_leaf_directive_with_a_blank_line_inside_its_attributes_is_one_block()
     directive = '::image{\n  src="a.png"\n \n  alt="A picture."\n  credit="Drafted by AI."\n}'
     assert split_body(f"Before.\n\n{directive}\n\nAfter.\n") == ["Before.", directive, "After."]
     assert [b.kind for b in blocks_of(f"Before.\n\n{directive}\n")] == ["prose", "directive"]
+
+
+SOURCE_SOFT = ":::note\nOut of office.\nBack on Monday.\n:::"
+
+
+def test_a_blank_line_where_the_source_has_a_soft_break_is_joined_again():
+    from papyrus_content.localize.blocks import keep_soft_breaks
+
+    assert keep_soft_breaks(SOURCE_SOFT, ":::note\nFuera.\n\nVuelve.\n:::") == ":::note\nFuera.\nVuelve.\n:::"
+    assert keep_soft_breaks(SOURCE_SOFT, "\n:::note\nFuera.\n\n\nVuelve.\n:::\n") == "\n:::note\nFuera.\nVuelve.\n:::\n"
+
+
+def test_a_source_without_a_soft_break_leaves_the_translation_alone():
+    from papyrus_content.localize.blocks import keep_soft_breaks
+
+    source = ":::note\nOut of office.\n\nBack on Monday.\n:::"
+    assert keep_soft_breaks(source, ":::note\nFuera.\n\nVuelve.\n:::") == ":::note\nFuera.\n\nVuelve.\n:::"
+    assert keep_soft_breaks("One.", "Uno.") == "Uno."
+
+
+@pytest.mark.parametrize("target", [
+    ":::note\nFuera.\n\nVuelve.\n\nInventado.\n:::",   # an extra paragraph: the lines do not line up
+    ":::note\nFuera. Vuelve.\n:::",                    # merged
+    "Fuera.\n\nVuelve.",                               # the container lines are gone: the kinds differ
+])
+def test_a_translation_whose_lines_do_not_line_up_is_never_guessed_at(target):
+    from papyrus_content.localize.blocks import keep_soft_breaks
+
+    assert keep_soft_breaks(SOURCE_SOFT, target) == target
+
+
+def test_blank_lines_of_the_source_must_stay_blank_in_the_translation():
+    from papyrus_content.localize.blocks import keep_soft_breaks
+
+    source = "A\nB\n\nC\nD"
+    broken = "A2\n\nB2\nC2\n\nD2"   # the same number of lines, broken elsewhere: which line to join is not certain
+    assert keep_soft_breaks(source, broken) == broken
+    assert keep_soft_breaks(source, "A2\n\nB2\n\nC2\n\nD2") == "A2\nB2\n\nC2\nD2"
