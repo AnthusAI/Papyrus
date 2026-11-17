@@ -5,7 +5,7 @@ One agent is one file, ``<id>.yaml``, in a folder under Git::
     schemaVersion: 1
     id: illustrate-stories            # permanent; the file's name
     version: 1                        # the definition's version, copied onto the site's registered Automation record
-    responsibility: illustrate        # a key of the engine's catalog (catalog.py)
+    responsibility: illustrate        # a key of the engine's catalog (responsibilities.py)
     procedure: illustrate_story       # the Tactus procedure's key
     wakes:
       changes: [{kind: Item, change: ready, filter: {step: illustration}}]
@@ -44,7 +44,7 @@ import yaml
 from papyrus_content.agent_policy.document import RUNGS, TIERS
 from papyrus_content.images.operations import operation as operation_named
 
-from .catalog import BY_KEY
+from ..responsibilities import BY_KEY
 
 SCHEMA_VERSION = 1
 SUFFIX = ".yaml"

@@ -6,7 +6,7 @@
     "modelCases": 512,
     "indexCases": 229,
     "subscriptionCases": 9,
-    "operationCases": 134,
+    "operationCases": 135,
     "functionCases": 68,
     "surfaceCases": 9
   },
@@ -7033,6 +7033,14 @@
       "subject": "suggestReferenceLinks",
       "operation": "call-scope",
       "probe": "alpha calls suggestReferenceLinks with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:todayOverview",
+      "kind": "operation",
+      "subject": "todayOverview",
+      "operation": "call-scope",
+      "probe": "alpha calls todayOverview with day, timeZone chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

@@ -266,6 +266,8 @@ _ENTRIES = dict([
   _e("doctor", "Check the install, the sign-in and the site connection.", "[options]", "both", "reads", "orientation"),
   _e("links", "Print the console link of a Story (one version, or the drawer), Reference, Concept, Assignment or review item. Hand the editor these links.",
      "[--story LINEAGE|SLUG [--version N|VERSION_ID]] [--reference REFERENCE_ID|LINEAGE] [--concept NAME|NODEKEY] [--assignment ID] [--review ID] [--console-url URL] [--json]", "both", "reads", "write-story"),
+  _e("today", "What the system did on one day: runs per responsibility by outcome (each a mark and words), the reasons for nothing to do, the agents that did not run, and cost. Read only, by index.",
+     "[--day YYYY-MM-DD] [--time-zone ZONE] [--runs] [--json] [--site HOST]", "editor", "reads", "orientation"),
   _e("guide", "Print the agent CLI guide, or one task's section of it.", "[TASK | --list]", "both", "reads", ""),
   # ---- pod (a folder of Markdown notes; src/papyrus/pod/) ---------------------------------------------------------------
   _e("pod init", "Start a level 1 pod in a folder: write context.jsonld (the id base) and the generated papyrus.context.jsonld. Changes no note; refuses a folder that already has context.jsonld.",

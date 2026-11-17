@@ -19,6 +19,12 @@ assert.match(query, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(query), "no public, API-key or guest access");
 assert.ok(AUTOMATION_VIEW_TIMEOUT_SECONDS < 30, "the resolver finishes inside AppSync's 30 seconds");
 
+// Today is a query for editors and admins only, served by the same function as automationOverview (a shared function costs one resolver).
+const today = /todayOverview\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(today, "the base schema defines todayOverview");
+assert.match(today, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(today), "no public, API-key or guest access");
+
 // Run now is a mutation for editors and admins only; no IAM, guest or API-key rule is declared on it.
 const mutation = /runAutomation\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
 assert.ok(mutation, "the base schema defines runAutomation");
@@ -32,7 +38,9 @@ assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
   "Query/fields/listAutomations",
+  "Query/fields/listAutomationsByTenant",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
+  "Query/fields/listProcedureRunsByStatusAndRequestedAt",
 ]);
 assert.ok(AUTOMATION_VIEW_FUNCTION_FIELDS.every((field) => field.startsWith("Query/")), "no mutation is granted");
 

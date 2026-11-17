@@ -315,6 +315,29 @@ through `automationOverview` and acts through `runAutomation`, both served by th
   `papyrus-procedure-runner`. The router's role may read `listAutomations` of Distinctive's API
   (`RouterAutomationReadPolicy`) and needs `dynamodb:UpdateItem` on the table (below).
 
+## Today
+
+Today answers "what did the system do today?" in one place: the **Today** section of the newsroom home (the Notification Center, below the cards) and
+`papyrus today`. Both read the site's `todayOverview` query (`src/papyrus_content/today.py`, served by the same function as `automationOverview`), so
+they show the same lines. It is read only.
+
+For one day (the viewer's own day on the page, `--day` and `--time-zone` on the command; default today, UTC on the command line) it shows:
+
+- **What ran**, one line per responsibility (a run's `responsibility`; a run without one is counted under its automation, and one with neither under its
+  procedure): how many runs ended `✓ Did it`, `– Nothing to do`, `? Asked`, `✗ Failed` and `! Outcome unknown`, each as its mark and its words, with the
+  cost. A run that has no outcome is counted in words too: `… Not finished yet` (queued or running) and `Recorded before outcomes`.
+- **The reasons.** A line that has nothing-to-do runs lists their reason codes (`2 not_rated, 1 under_channel_bar`); asked, failed and unknown runs list theirs.
+  Nothing to do is how an editor sees an agent is alive and why it held back.
+- **Did not run.** Each registered automation that started nothing in the day, with why: `Disabled`, `not yet supported` (nothing starts that kind) or
+  `Nothing woke it today`.
+- **Cost.** The sum of the runs' recorded costs. A run that recorded no cost is counted as `cost unknown for N runs`, never as free.
+- **Each line opens the runs.** On the page a line expands to the day's runs (outcome, reason, cost, run id) and links to the Automation page; on the
+  command line it prints `papyrus automations runs --id ID`, and `--runs` lists every run of the day.
+
+Every read is an index. The day's runs are one key-condition query per run status (`queued`, `started`, `running`, `completed`, `failed`, `notRunnable`; `RUN_STATUSES`
+in `today.py`) on the `ProcedureRun` status index (`runStatus` + `requestedAt`), so only the rows requested inside the day are read. The agents are read through
+the Automation `tenantId` index. Nothing lists a whole table. The page refreshes when the tab is focused and every five minutes; it uses no subscription.
+
 ## Setting up the TTAB automation for Distinctive
 
 Distinctive's record (`distinctive.ttab`) exists already. Releasing this change involves, in this order:
