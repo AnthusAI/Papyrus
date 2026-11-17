@@ -18,8 +18,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import re
 
-#: The ladder, lowest first. The position is the order: ``RUNGS.index(a) < RUNGS.index(b)`` means ``a`` allows less.
-RUNGS = ("off", "observe", "propose", "draft", "prepare", "publish_soft", "publish_auto")
+from papyrus_content.agent_rungs import RUNGS  # noqa: E402  (the ladder; re-exported here for the policy package)
 
 #: The ways an override can narrow a rung, narrowest first. When two overrides match one call the one whose
 #: scope names the earlier dimension (and then more of them) wins; see ``resolve.effective``.

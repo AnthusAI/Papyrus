@@ -63,7 +63,8 @@ Every operation may return `invalid_input`, `not_authorized`, `service_unavailab
 | `unknown_operation` | There is no image operation by that name. | no | operation, or command for the CLI |
 | `not_implemented` | This operation is described but not built yet. | no | operation |
 | `not_authorized` | You are not an editor or admin of this site, or the grant lacks the permission. | no |  |
-| `human_required` | A person has to do this one; an agent may not. | no |  |
+| `human_required` | A person has to do this one, or approve it; the agent's rung does not let it through. A review request is raised and the run ends asked. | no |  |
+| `blocked` | No agent may do this at any rung: it changes policy, budget or accounts. | no |  |
 | `set_needs_person` | A set of several pictures is for a person choosing. Unattended work gets one picture. | no |  |
 | `not_found` | No such Story, Reference, round or picture in this publication. | no |  |
 | `constraint_conflict` | The request asks for something one of the publication's rules forbids. | no | the constraint |
@@ -93,7 +94,7 @@ Read the publication's visual style profile, the current version or an older one
 - Command: `papyrus images profile get`
 - MCP tool: `image_profile_get`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -145,7 +146,7 @@ Show the style that would apply to a Story, section and use, with the layer ever
 - Command: `papyrus images profile resolve`
 - MCP tool: `image_profile_resolve`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -238,7 +239,7 @@ Show what saving a style document would change, without saving it.
 - Command: `papyrus images profile diff`
 - MCP tool: `image_profile_diff`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -298,7 +299,7 @@ Save a style document as a new profile version.
 - Command: `papyrus images profile save`
 - MCP tool: `image_profile_save`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `prepare`
 - Note: Adding, changing or removing a binding constraint needs an admin who is a person; an agent gets human_required. The document is laid over the current profile (objects merge, lists replace, null removes a key). For the very first profile pass none as expectedCurrentVersionId. Saving a document that changes nothing makes no version.
 
 Input:
@@ -352,7 +353,7 @@ List the profile's versions, newest first, with who changed it and why.
 - Command: `papyrus images profile history`
 - MCP tool: `image_profile_history`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -402,7 +403,7 @@ Draft a starting style document from the site's brand, for an editor to correct 
 - Command: `papyrus images profile init`
 - MCP tool: `image_profile_init`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 - Note: The draft holds the shape of a profile and the colours the brand names, and no style wording: an editor writes that. Nothing is saved; save the draft with image_profile_save after correcting it.
 
 Input:
@@ -470,7 +471,7 @@ Add an example or an avoid-this picture to the profile, as a new version.
 - Command: `papyrus images profile example add`
 - MCP tool: `image_profile_example_add`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `prepare`
 - Note: From the command line, --file PICTURE uploads the picture first (the same three steps the newsroom takes) and fills in attachmentId. Only a person may set sendToProvider: an agent asking for it gets human_required, because the service cannot tell whether a picture shows identifiable people or logos. An example belongs to one image type; a child type does not inherit its parent's examples.
 
 Input:
@@ -527,7 +528,7 @@ Remove an example picture from the profile, as a new version.
 - Command: `papyrus images profile example remove`
 - MCP tool: `image_profile_example_remove`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `prepare`
 - Note: The file stays for older profile versions, so a picture made from an older version keeps the examples it was made with.
 
 Input:
@@ -576,7 +577,7 @@ Say which image models this site can use and whether spending is approved.
 - Command: `papyrus images capabilities`
 - MCP tool: `image_capabilities`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -618,7 +619,7 @@ Work out a starting brief and stock search from a Story's title and deck.
 - Command: `papyrus images brief`
 - MCP tool: `image_brief_draft`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -689,7 +690,7 @@ Show exactly what would be asked of the image model, and what it would cost, wit
 - Command: `papyrus images prompt`
 - MCP tool: `image_prompt_preview`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -760,7 +761,7 @@ Find stock pictures for a Story, four at a time.
 - Command: `papyrus images search`
 - MCP tool: `image_search`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 - Note: Nothing is stored until a picture is selected or applied.
 
 Input:
@@ -821,7 +822,7 @@ Make pictures from a brief in the publication's style. The pictures arrive later
 - Command: `papyrus images generate`
 - MCP tool: `image_generate`
 - Effect: spend
-- Agent may call: yes
+- Agent may call: from `draft`
 - Note: Spends only when the site's image generation is configured and approved.
 
 Input:
@@ -897,7 +898,7 @@ Record a figure drawn with the publication's figure system as a picture to previ
 - Command: `papyrus images figure add`
 - MCP tool: `image_figure_add`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `draft`
 - Note: Needs an image type whose sources include figure-system. The figure is drawn and rendered elsewhere; this only records it. The CLI reads the figure.json acceptance fields from --file and takes uploadIds through --input-file.
 
 Input:
@@ -965,7 +966,7 @@ Read a round of pictures and say whether they are all done.
 - Command: `papyrus images round`
 - MCP tool: `image_round_get`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -1030,7 +1031,7 @@ Read one picture's full record, with a short-lived preview address.
 - Command: `papyrus images show`
 - MCP tool: `image_candidate_get`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -1080,7 +1081,7 @@ List the rounds and pictures made for a Story or Reference, newest first.
 - Command: `papyrus images list`
 - MCP tool: `image_list`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -1145,7 +1146,7 @@ Make a new picture to replace one that failed. The ones that worked stay.
 - Command: `papyrus images retry`
 - MCP tool: `image_retry`
 - Effect: spend
-- Agent may call: yes
+- Agent may call: from `draft`
 - Note: The design lists only candidateId; speed is added because it says a retry can choose standard (section 7.4).
 
 Input:
@@ -1197,7 +1198,7 @@ Make new pictures from one you have, with an instruction such as 'less busy'.
 - Command: `papyrus images iterate`
 - MCP tool: `image_iterate`
 - Effect: spend
-- Agent may call: yes
+- Agent may call: from `draft`
 - Note: The profile and its rules are resolved again and put back into the request; an instruction cannot remove them.
 
 Input:
@@ -1256,7 +1257,7 @@ Record a picture as the pick. It changes no Story and is not approval.
 - Command: `papyrus images select`
 - MCP tool: `image_select`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `draft`
 
 Input:
 
@@ -1307,7 +1308,7 @@ Undo an applied picture: the Story gets a new version with the old cover or the 
 - Command: `papyrus images unapply`
 - MCP tool: `image_unapply`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `draft`
 - Note: The media asset and its record stay. Any editor or agent may unapply.
 
 Input:
@@ -1368,7 +1369,7 @@ Keep or remove a picture that was added without a person looking at it. Only a p
 - Command: `papyrus images review`
 - MCP tool: `image_review`
 - Effect: write
-- Agent may call: no, a person only
+- Agent may call: no (human_required)
 - Note: Keep marks the picture human-verified with who and when. Remove runs image_unapply. Either answers the linked review request.
 
 Input:
@@ -1417,7 +1418,7 @@ List the pictures that were added without a person, oldest first.
 - Command: `papyrus images review-queue`
 - MCP tool: `image_review_queue`
 - Effect: read
-- Agent may call: yes
+- Agent may call: from `observe`
 
 Input:
 
@@ -1467,7 +1468,7 @@ Put a picture on a Story: copy it into the site's media and record where it came
 - Command: `papyrus images apply`
 - MCP tool: `image_apply`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `draft`
 - Note: Alt text is required and must describe the picture: never copy the brief, which is an instruction to the model. A picture is human-verified only when a person passes reviewed (recorded with who and when). Every other apply, an agent's always, leaves it unreviewed and opens a review request.
 
 Input:
@@ -1546,7 +1547,7 @@ Reject a picture, or a whole round (which keeps the placeholder). The private fi
 - Command: `papyrus images discard`
 - MCP tool: `image_discard`
 - Effect: write
-- Agent may call: yes
+- Agent may call: from `draft`
 
 Input:
 
