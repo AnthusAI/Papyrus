@@ -3,7 +3,7 @@
   "title": "Agent resources fit the first-deploy resource budget: one deferred stack, measured",
   "description": "A brand-new site's first deploy must stay under CloudFormation's limit of 2,500 resources in one stack operation; `scripts/test-bootstrap-stage.ts` holds the first stage under 2,000, and after the Announcement and Delivery models it stands at 1,972, so about 28 are left. The standard adds no core model (its fields and indexes are on models already in deferred groups: procedures, review, tenancy, and the new announcement group), but it adds per-site resources that are not models: the wake queue, its dead-letter queue and alarm, the event source mapping, the schedule group and role, the reconciler, the change feed functions and their mappings, by estimate 30 to 45 resources in all. Put every agent resource in one nested stack, `agents`, that the bootstrap stage leaves out exactly as it leaves out the optional model groups, and that the second deploy adds as an ordinary update. Extend the bootstrap test to assert the agents stack is absent in the first stage, and add a test that prints each agent piece's resource count so the cost of every later slice is known before it merges. Keep new GraphQL fields behind functions that already exist where possible: an unshared Lambda-backed field costs six resources in the data API's function stack, which has its own limit of 500. The budget constant is not raised and no stack is split in this task.\n\n**Acceptance criteria**\n- The first-stage count does not rise when agent resources are added.\n- A test reports the resource count of the agents stack and fails if the first stage includes it.\n- The data API function stack stays under its limit with the gate and the agent operations added.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- (infrastructure; `scripts/test-bootstrap-stage.ts` and `scripts/test-function-directive-stack.ts` extended) the first stage excludes the agents stack; the second deploy adds it; the per-piece counts are printed.\n\n**Infrastructure as code touched:** Site backend: a nested `agents` stack; `PAPYRUS_BOOTSTRAP_STAGE` handling; the two resource-count tests.\n\n**Part of:** Infrastructure as code and the shared tier. Slice code I4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -13,10 +13,18 @@
     "first-week"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f38a72af-0852-447a-8f94-acfc1fa981f5",
+      "author": "home",
+      "text": "PR 1627 merged. Agents stack (amplify/agents/stack.ts, pieces.ts) deferred in bootstrap stage; no piece yet so no stack. Measured on develop without PR 1618: first stage 1972/2000 (headroom 28); FunctionDirectiveStack 328/500. Tests: test-agents-stack, bootstrap cucumber (6 scenarios), function-directive-stack. No IAM.",
+      "created_at": "2026-11-17T00:31:42.951515Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:44:33.842823Z",
-  "updated_at": "2026-11-16T22:44:33.843056Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T00:31:43.463025Z",
+  "closed_at": "2026-11-17T00:31:43.462873Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
