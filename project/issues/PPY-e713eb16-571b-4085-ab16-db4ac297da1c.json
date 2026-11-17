@@ -44,10 +44,17 @@
       "text": "Enforcement of the agent policy (PPY-c8175e, #1638) needs these steps per site BEFORE the release that carries the runner reaches it. Distinctive's TTAB analysis starts nothing until they are done. 1. In the router config, name the publication's tenantId and siteBucket (the site's media bucket). 2. Adopt: papyrus automations adopt --id distinctive.ttab --responsibility KEY --dry-run, then without --dry-run (admin who is a person, signed in). KEY is Ryan's choice: the catalog has no ruling-analysis entry. 3. Write the policy line for KEY at the rung matching today's behaviour: Ryan approves the rung; there is no operator command yet (papyrus agents set-rung, H3 PPY-e6f31e, with a production write adapter). 4. After the next wake, papyrus automations runs --id distinctive.ttab shows the policy version and rung, not Nothing to do (not_adopted). Also deploy the site backend first: it gains ProcedureRun.policyVersion and Automation.responsibility. Runner role gains s3:GetObject on tenants/*/site/agents/* for approval at release. Full text: docs/releasing.md, Enforcing the agent policy on a site.",
       "created_at": "2026-11-17T02:04:10.882421Z",
       "comment_type": "default"
+    },
+    {
+      "id": "61991940-4f86-496a-942b-cf47cea381c8",
+      "author": "home",
+      "text": "Release blockers found by D2 (PR #1648), do not release until settled: (1) core/rate.yaml names procedure rate_items which no registry lists, so papyrus agents apply would fail every site's build until PPY-d85860 registers that procedure under a matching registry kind (or the definition leaves core/); see docs/releasing.md. (2) The agents apply step queries Automation by the tenantId index and needs a tenant id in the build environment (PAPYRUS_TENANT_ID or the site file's): confirm on a pre-production site first. (3) The first build of 'procedures seed-required' must confirm the data schema admits the build role on the procedure mutations.",
+      "created_at": "2026-11-17T06:10:56.517075Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T01:18:00.727665Z",
-  "updated_at": "2026-11-17T02:57:40.920181Z",
+  "updated_at": "2026-11-17T06:10:56.517588Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
