@@ -41,6 +41,13 @@ AUTOMATIC, MANUAL = "automatic", "manual"
 MODES = (AUTOMATIC, MANUAL)
 RATE_LIMIT, BUDGET_CYCLE, RELEASE = "rate limit", "budget cycle", "release"
 WAITING_FOR = (RATE_LIMIT, BUDGET_CYCLE, RELEASE)
+# An attempt's outcome (the always-on standard's words, PPY-f58445). An attempt opens ``started`` and closes ``sent``, ``refused`` or ``unknown``; ``started`` and
+# ``unknown`` are both open, and only settling (reading what the provider recorded) closes them.
+STARTED, ATTEMPT_SENT, ATTEMPT_REFUSED, UNKNOWN = "started", "sent", "refused", "unknown"
+ATTEMPT_OUTCOMES = (STARTED, ATTEMPT_SENT, ATTEMPT_REFUSED, UNKNOWN)
+OPEN_OUTCOMES = (STARTED, UNKNOWN)
+# The codes of a refusal that is a wait, not an answer: the next try is the next attempt.
+PAUSED_CODE, BUDGET_REACHED_CODE, RATE_LIMIT_CODE = "paused", "budget reached", "rate limit"
 SYSTEM = "system"   # who approved a Delivery whose approval is ``none``: the publication's policy did, and ``approvalPolicy`` says which
 
 #: The one partition of the sparse due index: a Delivery carries it only while it has a pending time.
@@ -96,6 +103,23 @@ def delivery_id(announcement: str, channel: str, account_id: str, generation: in
     return f"{announcement}#{channel}#{account_id}#g{generation}"
 
 
+def attempt_event_id(delivery: str, number: int) -> str:
+    """The Caducus event id of attempt ``number`` of a Delivery: ``delivery:<deliveryId>:a<N>``. Caducus dedupes on it, so one attempt is one event and the same
+    attempt submitted twice posts once. A retry is the next attempt, so it is a new event. There is no other suffix."""
+    return f"delivery:{delivery}:a{number}"
+
+
+def attempt_log(row: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The Delivery's attempts, oldest first."""
+    return json_list(row.get("attempts"))
+
+
+def open_attempt_of(row: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The attempt that has no answer yet (``started`` or ``unknown``), or None. Only the last entry can be open: a new attempt opens only when the last is closed."""
+    log = attempt_log(row)
+    return log[-1] if log and log[-1].get("outcome") in OPEN_OUTCOMES else None
+
+
 def account_key(channel: str, account_id: str) -> str:
     return f"{channel}#{account_id}"
 
@@ -119,13 +143,13 @@ def correction_key(lineage_id: str, version_number: int) -> str:
 def pending_times(row: Mapping[str, Any]) -> list[str]:
     """The times a Delivery is still waiting for.
 
-    A draft or a ready Delivery waits for its release time and, until it is locked, for its lock time. A Delivery that is live in any state waits for its next
-    attempt time while one is set. A final Delivery, and a Delivery superseded or withdrawn, waits for nothing."""
+    A draft or a ready Delivery waits for its release time and, until it is locked, for its lock time, until its first attempt opens: after that those times are
+    used up, and only a named wait (a rate limit, a budget cycle) is pending. A Delivery that is live in any state waits for its next attempt time while one is set. A final Delivery, and a Delivery superseded or withdrawn, waits for nothing."""
     state = row.get("state")
     if state not in LIVE_STATES:
         return []
     times: list[str] = []
-    if state in BEFORE_SEND_STATES:
+    if state in BEFORE_SEND_STATES and not attempt_log(row):
         times.append(row.get("releaseAt"))
         if not row.get("lockedAt"):
             times.append(row.get("lockAt"))

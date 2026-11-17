@@ -25,8 +25,8 @@ from typing import Any, Iterator, Mapping, Protocol, Sequence
 
 from . import links
 from .records import (
-    APPROVALS, AUTOMATIC, BLOCKED, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
-    WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, require_catalog_only, stored, utc, with_due,
+    APPROVALS, AUTOMATIC, BLOCKED, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
+    BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
 OWNER_KIND = "delivery"
@@ -41,6 +41,7 @@ NOT_READY = "the words are not ready"
 BEFORE_RELEASE = "waiting for its release time"
 NEEDS_APPROVAL = "waiting for approval"
 NEEDS_REVIEW = "waiting for review until the lock time"
+WAITING_FOR_TIME = "waiting for {what} until its next attempt time"
 
 
 class DeliveryExists(RecordError):
@@ -61,6 +62,11 @@ class AlreadySuperseded(RecordError):
     def __init__(self, old: str, successor: str):
         super().__init__(f"{old} was already corrected by {successor}")
         self.successor = successor
+
+
+class OpenAttempt(RecordError):
+    """The Delivery has an attempt with no answer yet (``started`` or ``unknown``). It is settled first: until the provider's record says whether the post exists,
+    a correction or a second attempt could put a second post out."""
 
 
 class Conflict(RecordError):
@@ -317,20 +323,40 @@ class Deliveries:
     def releasable(self, row: Mapping[str, Any], now: str) -> tuple[bool, str | None]:
         """Whether the Delivery may go now, and if not, why in plain words.
 
+        Only a ``ready`` Delivery goes, or a ``blocked`` one whose budget stop named the time it ends. A wait the Delivery named (``nextAttemptAt``) must have ended.
         The release time must have come and the words must be ready. Then the approval decides: ``none`` goes (the policy approved this version), ``hard`` waits for a
-        person to approve this version, ``soft`` goes when a person approved this version or the lock time has come with nobody having stopped it."""
+        person to approve this version, ``soft`` goes when a person approved this version or the lock time has come with nobody having stopped it.
+
+        This reads only the row. The rules about the other rows and the words file (the highest generation, not superseded, a file that matches the hash) are checked
+        when an attempt opens (``attempts.Attempts.open``)."""
         now = utc(now)
-        if row.get("state") == DRAFTED:
+        state = row.get("state")
+        if state == DRAFTED:
             return False, NOT_READY
-        if row.get("state") != READY:
+        budget_wait_ended = state == BLOCKED and row.get("waitingFor") == BUDGET_CYCLE and row.get("nextAttemptAt")
+        if state != READY and not budget_wait_ended:
             return False, NOT_WAITING
         if now < row["releaseAt"]:
             return False, BEFORE_RELEASE
+        if row.get("nextAttemptAt") and now < row["nextAttemptAt"]:
+            return False, WAITING_FOR_TIME.format(what=row.get("waitingFor") or "a wait")
         if self.is_approved(row):
             return True, None
         if row["approval"] == SOFT and now >= row["lockAt"]:
             return True, None
         return False, NEEDS_REVIEW if row["approval"] == SOFT else NEEDS_APPROVAL
+
+    def retry(self, row: Mapping[str, Any], *, by: str, now: str | None = None) -> dict[str, Any]:
+        """A person decided a failed Delivery should be tried again: back to ready. The next try is the next attempt, and the attempts so far stay in the log."""
+        if row.get("state") != FAILED:
+            raise RecordError(f"{row['id']} is {row.get('state')}; only a failed Delivery is tried again.")
+        return self._change(row, {"state": READY}, by=by, note="tried again by a person", now=now)
+
+    def resume(self, row: Mapping[str, Any], *, by: str, now: str | None = None) -> dict[str, Any]:
+        """A person lifted the pause (or answered the reason a Delivery was blocked): back to ready, with no wait left on the row. The next try is the next attempt."""
+        if row.get("state") != BLOCKED:
+            raise RecordError(f"{row['id']} is {row.get('state')}; only a blocked Delivery is resumed.")
+        return self._change(row, {"state": READY, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None}, by=by, note="resumed", now=now)
 
     # --- a correction -----------------------------------------------------------------------------------------------------------------------------
 
@@ -353,6 +379,10 @@ class Deliveries:
         generation = int(old["generation"]) + 1
         successor_id = delivery_id(old["announcementId"], old["channel"], old["accountId"], generation)
         found = self.get(successor_id)
+        if found is None:
+            current = self.get(old["id"]) or old
+            if open_attempt_of(current):
+                raise OpenAttempt(f"{old['id']} has an attempt with no answer yet (attempt {open_attempt_of(current)['number']}); it is settled before a correction is made.")
         if found and found.get("supersedes") != old["id"]:
             raise RecordError(f"{successor_id} exists and does not correct {old['id']}.")
         if found:
