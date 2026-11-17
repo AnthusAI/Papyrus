@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .agent_definitions.catalog import BY_KEY
+from .responsibilities import BY_KEY
 from .automations import AutomationError, read_record, stored_payload, build_record
 from .images.handlers import Caller
 

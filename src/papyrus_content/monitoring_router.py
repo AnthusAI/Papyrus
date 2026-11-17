@@ -1005,6 +1005,11 @@ def decimalize(value):
     return value
 
 
+def deferred_wake_key(row: dict) -> str:
+    """The wake key the first start of this row's item used: its automation (its procedure when none governed it), its Reference, a new Reference."""
+    return wake_keys.change_key(wake_keys.owner(row.get("automationId"), row.get("procedureKey")), row.get("referenceId"), None, NEW_REFERENCE)
+
+
 class RouterStore(DynamoStore):
     """Adds the router's keys to the collector's store (see docs/monitoring-cloud.md).
 
@@ -2327,7 +2332,9 @@ class Router:
 
     def retry_deferred(self):
         """Starts the items an earlier run deferred at an automation's concurrency limit, oldest first, while there is
-        room. The row keeps the request the item was deferred with; a failure here never fails the sweep."""
+        room. The row keeps the request the item was deferred with; a failure here never fails the sweep. The wake key is built
+        from the row on every retry, as the first start builds it, and a key stored on the row is never trusted (PPY-7ab263):
+        a row deferred before wake keys existed has none, and the runner refuses a run without one."""
         for publication in self.publications.values():
             for trigger in publication.get("procedureTriggers") or []:
                 try:
@@ -2345,7 +2352,14 @@ class Router:
                             self.store.put_any(self.monitor_id, {**row, "status": "skipped", "reason": gate.reason})
                             self.counts["procedureSkipped"] += 1
                             continue
-                        request = dict(row["request"])
+                        try:
+                            wake_key = deferred_wake_key(row)
+                        except wake_keys.InvalidWakeKey as error:   # the row lacks what a key needs: say so on the row, start nothing, guess nothing
+                            self.counts["procedureStartFailed"] += 1
+                            self.store.put_any(self.monitor_id, {**row, "status": "startFailed", "error": ("no wake key can be built from this row "
+                                                                                                    f"(referenceId={row.get('referenceId')!r}, automationId={row.get('automationId')!r}, procedureKey={row.get('procedureKey')!r}): {error}")[:500]})
+                            continue
+                        request = {**row["request"], "wakeKey": wake_key}
                         if gate.automation_id:
                             request["timeoutSeconds"] = gate.timeout_seconds
                             request["trigger"] = {**request.get("trigger", {}), "automationId": gate.automation_id}

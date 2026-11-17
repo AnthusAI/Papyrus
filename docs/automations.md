@@ -59,6 +59,12 @@ How a deferred item is retried:
   the item and the row moves to `starting`, then `started` (with `retriedAt`), and the runner takes it from there. If the
   automation is full, the rest keep waiting. If the automation was disabled meanwhile the row becomes `skipped`. If the
   record has gone, the item starts as before. A retry that fails to start is recorded `startFailed`.
+* Every retry builds the item's wake key from the row (the automation, or the procedure when none governed it; the
+  Reference id; a new Reference), the form the first start used, and ignores any key stored on the row. A row deferred
+  before wake keys existed therefore starts like any other, and a retry is the same wake as the first attempt, so it
+  can never start a second run. A row without the data for a key (no Reference id) is recorded `startFailed` with the
+  reason and counted in `procedureStartFailed`; it is not guessed at. Before and after a release, read the count of
+  `deferred`, `starting` and `startFailed` trigger rows per site.
 * Retries happen as often as the router runs (every 15 minutes), one per free slot per run at most.
 * Setting the limit: `papyrus automations update --id distinctive.ttab --max-concurrent 4`. Clear it with
   `--max-concurrent none`. A record created before this change was given `maxConcurrent: 1` by the old default; if you
