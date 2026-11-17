@@ -34,6 +34,7 @@ Operator groups:
   agents        Agent definition files, one per always-on agent (agents validate offline; agents apply and agents schedules to a site)
   guidelines    Writing, image and video guidelines for the site or a section (guidelines show|resolve|diff|save|history|check)
   announcements Announce Stories on the publication's X account: dry runs, the audit trail, budget and pause (announcements list|show|dry-run|pause|resume|settings|account)
+  ratings       Rate a Story: a person gives 1 to 5 stars, an agent only 3 or 4 where the site's policy allows it (ratings set)
   figures       Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it (figures render|directive|rules|primitives|localize|variant)
   pod           A folder of Markdown notes as a pod: start one, mint ids, check it (pod init|id|check; files only, no sign-in)
   design-system The site's design system for figures, kept in the backend (design-system show|pull|push)

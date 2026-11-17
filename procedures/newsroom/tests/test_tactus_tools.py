@@ -43,6 +43,7 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_link_stories",
                 "papyrus_link_story_reference",
                 "papyrus_localize_story",
+                "papyrus_rate_items",
                 "papyrus_record_editor_review",
                 "papyrus_related_concepts",
                 "papyrus_save_story_version",

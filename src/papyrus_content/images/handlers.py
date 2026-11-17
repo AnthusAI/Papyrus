@@ -154,3 +154,9 @@ HANDLERS.update(signed_in_generation_handlers())
 from papyrus_content.announcements.handlers import signed_in_handlers as _announcement_handlers  # noqa: E402
 
 HANDLERS.update(_announcement_handlers())
+
+
+# The rating operation (PPY-d85860) runs on the same lane: whoever runs it, a person's session or the procedure runner's role, opens its own authoring client.
+from papyrus_content.rating_handlers import signed_in_handlers as _rating_handlers  # noqa: E402
+
+HANDLERS.update(_rating_handlers())

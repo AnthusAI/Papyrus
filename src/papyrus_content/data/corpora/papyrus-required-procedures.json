@@ -26,6 +26,7 @@
     "newsroom.rotating.section.selector": "rotating_section_selector.tac",
     "ontology.concept-profiler": "ontology_concept_profiler.tac",
     "ontology.relationship-explainer": "ontology_relationship_explainer.tac",
+    "rate_items": "rate_items.tac",
     "references.curate": "reference_curation.tac",
     "story.editor-review": "editor_review.tac",
     "story.localize": "story_localize.tac",
@@ -501,6 +502,17 @@
         "required": [
           "context_json"
         ]
+      },
+      "defaults": {}
+    },
+    "rate_items": {
+      "title": "Rate Unrated Stories",
+      "category": "newsroom",
+      "description": "The rating agent's daily run: reads the published Stories nobody has rated and decides three stars, four stars or a five-star candidate for each. It writes a rating only at a rung the site's agent policy allows, never a five, and never replaces a rating.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
       },
       "defaults": {}
     },

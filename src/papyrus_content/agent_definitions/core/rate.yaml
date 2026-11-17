@@ -10,10 +10,11 @@ paid: true
 safeToRepeat: true
 operations:
   guidelines_resolve: observe
+  ratings_set: draft
 tier: bulk
 template:
   trigger: Once a day by its schedule. It has no change trigger yet.
-  inputs: Published Stories and accepted References that have no rating, read by index, and the site's rating policy as the site's guidelines state it.
+  inputs: Published Stories that have no rating, read newest first from the site's head stage index one page at a time, and the site's writing guidelines. Accepted References are not read yet, because no index lists the accepted References that have no stars.
   decision: For each unrated item, three stars (the default), four stars (clearly better than the usual item), or a five-star candidate. A five-star candidate is a suggestion for a person and is never a rating.
   mayWrite:
     - The run record, which at observe lists each item it would rate, the stars it would give and why
@@ -28,6 +29,6 @@ template:
   seenAndReversed: On the day's Today line and the run record, which lists every item with the stars and the reason. A person's rating replaces the machine's, and a machine rating is listed as the machine's.
   records: One run record per wake, with the policy version and rung it ran under, the items it looked at and what it decided for each.
   fails: Closed. A failed run rates nothing and ends failed; a run that finds nothing unrated ends nothing with the reason nothing_unrated.
-  costAndBound: One call to the bulk-tier model for each unrated item the run reads, inside the site's weekly budget. No limit on the number of items.
+  costAndBound: One call to the bulk-tier model for each unrated Story the run reads, inside the site's weekly budget. No limit on the number of Stories; the run's own deadline ends the reading, and the run says so.
   measured: How often a person changes the machine's rating, and in which direction. The measure is a later task and has no spec yet.
-  gherkin: [rating-agent-definition.feature]
+  gherkin: [rating-agent-definition.feature, rating-agent.feature]

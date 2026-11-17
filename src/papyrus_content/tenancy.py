@@ -43,7 +43,7 @@ TENANT_SCOPED_RECORD_ID_MODELS = frozenset({"NewsroomSection"})
 STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
 #: Indexes whose partition key is stored tenant-prefixed (a field in TENANT_SCOPED_INDEX_FIELDS): a query names the tenant's own partition.
-TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage", "itemsByLanguageGroup"})
+TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage", "itemsByHeadStageForRating", "itemsByLanguageGroup"})
 #: The index of each model whose partition is ``tenantId``: the query field that lists every row of one tenant (PPY-1ce06f). Declared in
 #: amplify/data/schema.ts and the plugin and function schemas; test_tenancy.py checks that this map and those declarations agree. A model whose
 #: rows can be listed by tenant through another index (Reference through its corpora, docs/tenant-key-inventory.md) is not here.

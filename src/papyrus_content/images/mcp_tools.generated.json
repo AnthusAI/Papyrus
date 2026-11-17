@@ -4252,6 +4252,61 @@
           "paused"
         ]
       }
+    },
+    {
+      "name": "ratings_set",
+      "audience": "staff",
+      "description": "Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated.",
+      "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The rating, 1 to 5. An agent may only give 3 or 4."
+          }
+        },
+        "required": [
+          "story",
+          "stars"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lineageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previous": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The rating before this one: 0 when the Story had none."
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "ratedBy": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "lineageId",
+          "stars"
+        ]
+      }
     }
   ]
 }

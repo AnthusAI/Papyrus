@@ -135,7 +135,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
-    group: Literal["images", "guidelines", "announcements"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+    group: Literal["images", "guidelines", "announcements", "ratings"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     def __post_init__(self) -> None:
         # A read names no rung and is allowed from `observe`. Every operation that writes or spends must say its rung: there is no default to forget.
@@ -710,6 +710,23 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + ANNOUNCEMENT_OPERATIONS
+
+RATING_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "ratings_set", ("set",), "Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated.", "write",
+        obj({"story": STORY_LINEAGE, "stars": whole("The rating, 1 to 5. An agent may only give 3 or 4.")}, ("story", "stars")),
+        record({"lineageId": text(), "previous": whole("The rating before this one: 0 when the Story had none.", minimum=0), "stars": whole(), "ratedBy": text()},
+               ("lineageId", "stars")),
+        ("not_found", "constraint_conflict"),
+        (Example({"story": "story-1", "stars": 3}, {"lineageId": "story-1", "previous": 0, "stars": 3, "ratedBy": "agent:rate"}),), positional=("story",), group="ratings",
+        notes="A person's rating is the editor's value and replaces any earlier one. An agent's call is held to the rating policy here as well as at the gate: three is the "
+              "default, four is for a clearly better Story, a five is a person's decision and is refused with invalid_input, and a Story that already has a rating "
+              "is refused with constraint_conflict because a machine never replaces a rating. The rating is recorded as the agent's own (ratedBy agent:<responsibility>).",
+        agent_rung="draft",
+    ),
+)
+
+OPERATIONS = OPERATIONS + RATING_OPERATIONS
 
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}
