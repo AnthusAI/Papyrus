@@ -72,6 +72,14 @@ def skill_files(root: Path, directories: list[str]) -> list[tuple[str, bytes]]:
     return files
 
 
+def source_digest(source: str, skills: list[tuple[str, bytes]]) -> str:
+    """The digest a version id carries: the source and every skill file, so unchanged files register nothing."""
+    digest = hashlib.sha256()
+    for name, body in [("code.tac", source.encode("utf-8")), *skills]:
+        digest.update(name.encode("utf-8") + b"\0" + hashlib.sha256(body).digest())
+    return digest.hexdigest()[:16]
+
+
 def registration_plan(source_path: Path, *, root: Path, procedure_key: str, title: str | None = None,
                       description: str | None = None) -> dict[str, Any]:
     if not PROCEDURE_KEY.match(procedure_key):
@@ -80,10 +88,7 @@ def registration_plan(source_path: Path, *, root: Path, procedure_key: str, titl
     registry = tactus_registry(source)
     parameter_schema, defaults = parameter_schema_from_tactus(registry.input_schema or {})
     skills = skill_files(root, skill_directories(registry))
-    digest = hashlib.sha256()
-    for name, body in [("code.tac", source.encode("utf-8")), *skills]:
-        digest.update(name.encode("utf-8") + b"\0" + hashlib.sha256(body).digest())
-    content_digest = digest.hexdigest()[:16]
+    content_digest = source_digest(source, skills)
     return {
         "procedureKey": procedure_key,
         "procedureId": f"procedure-{safe_id(procedure_key)}",
@@ -113,6 +118,19 @@ def _upload_text_attachment(client, *, version_id: str, role: str, sort_key: str
     return upload_attachment_body(client, built["attachment"], built["body"])
 
 
+def plan_status(client, plan: dict[str, Any]) -> str:
+    """What registering the plan would do, from a read of the backend: `new` (no definition), `changed` (the published version is not this
+    source) or `unchanged`. Writes nothing."""
+    definition = client.get_record("ProcedureDefinition", plan["procedureId"])
+    if not definition:
+        return "new"
+    if definition.get("procedureKey") != plan["procedureKey"]:
+        raise ValueError(f"ProcedureDefinition {plan['procedureId']} belongs to {definition.get('procedureKey')}")
+    versions = client.list_by_index("procedureVersionsByProcedure", plan["procedureId"])
+    published = any(version.get("id") == plan["versionId"] and version.get("status") == "published" for version in versions)
+    return "unchanged" if published and definition.get("currentVersionId") == plan["versionId"] else "changed"
+
+
 def register_site_procedure(client, plan: dict[str, Any], *, actor: str = "papyrus-cli", now: str | None = None) -> dict[str, Any]:
     now = now or _now()
     definition = client.get_record("ProcedureDefinition", plan["procedureId"])
@@ -126,7 +144,7 @@ def register_site_procedure(client, plan: dict[str, Any], *, actor: str = "papyr
     if not definition:
         client.create_record("ProcedureDefinition", {
             "id": plan["procedureId"], "procedureKey": plan["procedureKey"], "title": plan["title"],
-            "category": "site", "description": plan["description"], "enabled": True, "enabledStatus": "enabled",
+            "category": plan.get("category", "site"), "description": plan["description"], "enabled": True, "enabledStatus": "enabled",
             "createdBy": actor, "createdAt": now, "updatedBy": actor, "updatedAt": now, "newsroomFeedKey": "procedures"})
     existing_version = next((version for version in versions if version.get("id") == plan["versionId"]), None)
     if not unchanged:
@@ -154,7 +172,7 @@ def register_site_procedure(client, plan: dict[str, Any], *, actor: str = "papyr
                                                       "updatedBy": actor, "updatedAt": now})
     client.update_record("ProcedureDefinition", {
         "id": plan["procedureId"], "currentVersionId": plan["versionId"], "title": plan["title"],
-        "description": plan["description"], "enabled": True, "enabledStatus": "enabled", "updatedBy": actor, "updatedAt": now})
+        "category": plan.get("category", "site"), "description": plan["description"], "enabled": True, "enabledStatus": "enabled", "updatedBy": actor, "updatedAt": now})
     return {"procedureKey": plan["procedureKey"], "versionId": plan["versionId"],
             "versionNumber": version_number, "status": "republished" if unchanged else "registered",
             "skillFiles": [path for path, _ in plan["skills"]]}

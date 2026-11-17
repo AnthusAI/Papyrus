@@ -3,7 +3,8 @@
 A procedure file declares its kind on its first line (`-- papyrus-procedure-kind: <kind>`). The registry
 (`procedures` in `papyrus-required-procedures.json`) maps each kind to its file name in the wheel's `papyrus_content/data/procedures/`, and `requiredCliProcedures` maps each CLI alias to
 a kind. `check_procedure_registry` compares all three and names every disagreement; `validate_procedure_registry` raises on any.
-`python -m papyrus_content.procedure_registry` is the CI check.
+`procedureMetadata` holds, for each kind, the title, category, description, parameter schema and defaults the deploy registers it with (the one
+source: nothing in code repeats them). `python -m papyrus_content.procedure_registry` is the CI check.
 """
 from __future__ import annotations
 
@@ -63,6 +64,7 @@ def check_procedure_registry(config: Mapping[str, Any], files: Mapping[str, str]
             problems.append(f"The registry sends {kind} to {path}, which is not a procedure file.")
         elif declared_kind(files[path]) != kind:
             problems.append(f"The registry sends {kind} to {path}, which declares {declared_kind(files[path]) or 'no kind'}.")
+    problems.extend(_metadata_problems(config.get("procedureMetadata"), registry))
     registered_paths = set(registry.values())
     for path in files:
         if path not in registered_paths:
@@ -74,6 +76,46 @@ def check_procedure_registry(config: Mapping[str, Any], files: Mapping[str, str]
             if kind not in registry:
                 problems.append(f"The CLI command {alias} needs the kind {kind}, which the registry does not list.")
     return problems
+
+
+_METADATA_TEXT_FIELDS = ("title", "category", "description")
+_METADATA_OBJECT_FIELDS = ("parameterSchema", "defaults")
+DEFAULT_TOKENS = ("$defaultLlmModel", "$defaultCorpusKey")
+
+
+def _metadata_problems(metadata: Any, registry: Mapping[str, str]) -> list[str]:
+    if not isinstance(metadata, dict):
+        return ["The registry has no `procedureMetadata` map from kind to title, category, description, parameter schema and defaults."]
+    problems: list[str] = []
+    for kind in registry:
+        entry = metadata.get(kind)
+        if not isinstance(entry, dict):
+            problems.append(f"The registry has no metadata for the kind {kind}.")
+            continue
+        for field in _METADATA_TEXT_FIELDS:
+            if not isinstance(entry.get(field), str) or not entry[field].strip():
+                problems.append(f"The metadata for {kind} has no {field}.")
+        for field in _METADATA_OBJECT_FIELDS:
+            if not isinstance(entry.get(field), dict):
+                problems.append(f"The metadata for {kind} has no {field} object.")
+        for name, value in (entry.get("defaults") or {}).items() if isinstance(entry.get("defaults"), dict) else []:
+            if isinstance(value, str) and value.startswith("$") and value not in DEFAULT_TOKENS:
+                problems.append(f"The metadata for {kind} sets the default {name} to {value}, which is not one of {', '.join(DEFAULT_TOKENS)}.")
+    for kind in metadata:
+        if kind not in registry:
+            problems.append(f"The registry has metadata for {kind}, which is not a registered kind.")
+    return problems
+
+
+def registered_kinds() -> list[str]:
+    return sorted(load_registry_config().get("procedures") or {})
+
+
+def procedure_metadata_for_kind(kind: str) -> dict[str, Any]:
+    metadata = (load_registry_config().get("procedureMetadata") or {}).get(kind)
+    if metadata is None:
+        raise ProcedureRegistryError(f"The registry has no metadata for the kind {kind}.")
+    return metadata
 
 
 def validate_procedure_registry() -> None:

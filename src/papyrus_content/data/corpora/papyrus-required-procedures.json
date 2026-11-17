@@ -30,5 +30,623 @@
     "story.editor-review": "editor_review.tac",
     "story.localize": "story_localize.tac",
     "submissions.email.process": "email_submission_processor.tac"
+  },
+  "procedureMetadata": {
+    "ingestion.reference.register": {
+      "title": "Reference Registration",
+      "category": "ingestion",
+      "description": "Normalizes one reference intake payload into a dry-run result envelope for the ingestion workflow.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "externalItemId": {
+            "type": "string",
+            "description": "Stable external identifier for the reference source"
+          },
+          "sourceUri": {
+            "type": "string",
+            "description": "Canonical source URI"
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional source title"
+          },
+          "corpusKey": {
+            "type": "string",
+            "description": "Papyrus steering corpus key"
+          }
+        },
+        "required": [
+          "externalItemId",
+          "sourceUri",
+          "corpusKey"
+        ]
+      },
+      "defaults": {
+        "title": ""
+      }
+    },
+    "newsroom.copywriter": {
+      "title": "Newsroom Copywriter",
+      "category": "newsroom",
+      "description": "Turns a selected private reporting packet into a reader-facing draft payload, as a dry run that plans the draft records.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "editorial_context_json": {
+            "type": "string",
+            "description": "Resolved editorial context source provenance for the run audit"
+          },
+          "editorial_context_text": {
+            "type": "string",
+            "description": "Required resolved live editorial context; fetch with papyrus editorial context"
+          },
+          "editorial_context_hash": {
+            "type": "string",
+            "description": "Resolved editorial context provenance hash"
+          },
+          "assignment_item_id": {
+            "type": "string",
+            "description": "Papyrus copywriting Assignment.id"
+          },
+          "corpus_key": {
+            "type": "string",
+            "description": "Papyrus steering corpus key"
+          },
+          "context_profile": {
+            "type": "string",
+            "description": "Context profile for copywriting"
+          },
+          "source_reporting_packet_id": {
+            "type": "string",
+            "description": "Optional reporting_context_packet Message.id override"
+          }
+        },
+        "required": [
+          "corpus_key"
+        ]
+      },
+      "defaults": {
+        "editorial_context_json": "",
+        "editorial_context_text": "",
+        "editorial_context_hash": "",
+        "assignment_item_id": "",
+        "context_profile": "copywriting",
+        "source_reporting_packet_id": ""
+      }
+    },
+    "newsroom.editor": {
+      "title": "Newsroom Editor",
+      "category": "newsroom",
+      "description": "Plans the assignments for an edition from section targets and recent coverage, as a dry run.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "edition_id": {
+            "type": "string",
+            "description": "Papyrus Edition.id to plan assignments for"
+          },
+          "corpus_key": {
+            "type": "string",
+            "description": "Papyrus steering corpus key"
+          },
+          "context_profile": {
+            "type": "string",
+            "description": "Optional live context profile override"
+          },
+          "section_targets_json": {
+            "type": "string",
+            "description": "JSON object or array of section article targets"
+          },
+          "assignment_ratio": {
+            "type": "string",
+            "description": "Assignment-to-final-slot ratio. Default 3/2."
+          },
+          "max_assignments": {
+            "type": "integer",
+            "description": "Fallback final-slot target when section_targets_json is empty"
+          },
+          "recent_days": {
+            "type": "integer",
+            "description": "Published article lookback window"
+          }
+        },
+        "required": [
+          "edition_id",
+          "corpus_key"
+        ]
+      },
+      "defaults": {
+        "context_profile": "",
+        "section_targets_json": "",
+        "assignment_ratio": "1.5",
+        "max_assignments": 3,
+        "recent_days": 30
+      }
+    },
+    "newsroom.reference.summarization": {
+      "title": "Newsroom Reference Summarization",
+      "category": "newsroom",
+      "description": "Generates source-voice reference summaries for curation metadata and summary messages.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "reference_summary or outcome_summary"
+          },
+          "source_text": {
+            "type": "string",
+            "description": "Source text content"
+          },
+          "max_tokens": {
+            "type": "number",
+            "description": "Target summary token budget"
+          },
+          "reference_title": {
+            "type": "string",
+            "description": "Reference title"
+          },
+          "source_uri": {
+            "type": "string",
+            "description": "Reference source URI"
+          },
+          "known_title": {
+            "type": "string",
+            "description": "Resolved title for outcome mode"
+          },
+          "known_subtitle": {
+            "type": "string",
+            "description": "Resolved subtitle for outcome mode"
+          },
+          "media_type": {
+            "type": "string",
+            "description": "Reference media type"
+          },
+          "doctrine_context_text": {
+            "type": "string",
+            "description": "Publication doctrine block for reference_summary mode"
+          },
+          "purpose_context_text": {
+            "type": "string",
+            "description": "Why the newsroom is reading this source: the Assignment direction and linked Stories; empty for a general summary"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model hint for metadata only"
+          },
+          "prompt_version": {
+            "type": "string",
+            "description": "Optional override prompt version"
+          }
+        },
+        "required": [
+          "mode",
+          "source_text"
+        ]
+      },
+      "defaults": {
+        "max_tokens": 500,
+        "reference_title": "",
+        "source_uri": "",
+        "known_title": "",
+        "known_subtitle": "",
+        "media_type": "",
+        "doctrine_context_text": "",
+        "purpose_context_text": "",
+        "model": "$defaultLlmModel",
+        "prompt_version": "",
+        "mode": "reference_summary"
+      }
+    },
+    "newsroom.reporting.context": {
+      "title": "Newsroom Reporting Context",
+      "category": "newsroom",
+      "description": "Builds structured reporting context packets from assignment-backed runs.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "editorial_context_json": {
+            "type": "string",
+            "description": "Resolved editorial context source provenance for the run audit"
+          },
+          "editorial_context_text": {
+            "type": "string",
+            "description": "Required resolved live editorial context; fetch with papyrus editorial context"
+          },
+          "editorial_context_hash": {
+            "type": "string",
+            "description": "Resolved editorial context provenance hash"
+          },
+          "assignment_item_id": {
+            "type": "string",
+            "description": "Papyrus Assignment.id or legacy assignment Item.id"
+          },
+          "assignment_json": {
+            "type": "string",
+            "description": "Inline Assignment or assignment Item JSON for deterministic tests or offline runs"
+          },
+          "corpus_key": {
+            "type": "string",
+            "description": "Papyrus steering corpus key"
+          },
+          "context_profile": {
+            "type": "string",
+            "description": "Optional live context profile override"
+          },
+          "max_evidence_items": {
+            "type": "integer",
+            "description": "Maximum Biblicus evidence items to use"
+          },
+          "knowledge_query_scope": {
+            "type": "object",
+            "description": "Optional knowledge-query scope filters for assignment and note retrieval defaults"
+          },
+          "source_research_assignment_id": {
+            "type": "string",
+            "description": "Optional source research Assignment.id for packet lineage"
+          },
+          "source_research_packet_id": {
+            "type": "string",
+            "description": "Optional source research packet Message.id for packet lineage"
+          },
+          "source_research_packet_path": {
+            "type": "string",
+            "description": "Optional dry-run source research packet path for operator traceability"
+          }
+        },
+        "required": [
+          "corpus_key"
+        ]
+      },
+      "defaults": {
+        "editorial_context_json": "",
+        "editorial_context_text": "",
+        "editorial_context_hash": "",
+        "assignment_item_id": "",
+        "assignment_json": "",
+        "context_profile": "reporting",
+        "max_evidence_items": 5,
+        "source_research_assignment_id": "",
+        "source_research_packet_id": "",
+        "source_research_packet_path": ""
+      }
+    },
+    "newsroom.research.explorer": {
+      "title": "Newsroom Research Explorer",
+      "category": "newsroom",
+      "description": "Builds structured research packets for assignment-backed newsroom workflows.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "assignment_item_id": {
+            "type": "string",
+            "description": "Papyrus Assignment.id or legacy assignment Item.id"
+          },
+          "assignment_json": {
+            "type": "string",
+            "description": "Inline Assignment or assignment Item JSON for deterministic tests"
+          },
+          "corpus_key": {
+            "type": "string",
+            "description": "Papyrus steering corpus key"
+          },
+          "context_profile": {
+            "type": "string",
+            "description": "Optional live context profile override"
+          },
+          "research_mode": {
+            "type": "string",
+            "description": "internal_brief, source_discovery, or full_research"
+          },
+          "research_questions": {
+            "type": "string",
+            "description": "Optional editor/reporter research questions"
+          },
+          "max_evidence_items": {
+            "type": "integer",
+            "description": "Maximum accepted Papyrus evidence ids to use"
+          },
+          "knowledge_query_scope": {
+            "type": "object",
+            "description": "Optional knowledge-query scope filters for assignment and note retrieval defaults"
+          }
+        },
+        "required": [
+          "corpus_key"
+        ]
+      },
+      "defaults": {
+        "assignment_item_id": "",
+        "assignment_json": "",
+        "context_profile": "researcher",
+        "research_mode": "source_discovery",
+        "research_questions": "",
+        "max_evidence_items": 20
+      }
+    },
+    "newsroom.researcher": {
+      "title": "Newsroom Researcher",
+      "category": "newsroom",
+      "description": "Builds a research packet payload for one assignment, as a dry run that plans the Message-backed records.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "editorial_context_json": {
+            "type": "string",
+            "description": "Resolved editorial context source provenance for the run audit"
+          },
+          "editorial_context_text": {
+            "type": "string",
+            "description": "Required resolved live editorial context; fetch with papyrus editorial context"
+          },
+          "editorial_context_hash": {
+            "type": "string",
+            "description": "Resolved editorial context provenance hash"
+          },
+          "assignment_item_id": {
+            "type": "string",
+            "description": "Papyrus Assignment.id or legacy assignment Item.id"
+          },
+          "assignment_json": {
+            "type": "string",
+            "description": "Inline Assignment or assignment Item JSON for deterministic tests or offline runs"
+          },
+          "corpus_key": {
+            "type": "string",
+            "description": "Papyrus steering corpus key"
+          },
+          "context_profile": {
+            "type": "string",
+            "description": "Optional live context profile override"
+          },
+          "research_questions": {
+            "type": "string",
+            "description": "Optional editor/reporter research questions"
+          },
+          "max_evidence_items": {
+            "type": "integer",
+            "description": "Maximum Biblicus evidence items to use"
+          }
+        },
+        "required": [
+          "corpus_key"
+        ]
+      },
+      "defaults": {
+        "editorial_context_json": "",
+        "editorial_context_text": "",
+        "editorial_context_hash": "",
+        "assignment_item_id": "",
+        "assignment_json": "",
+        "context_profile": "",
+        "research_questions": "",
+        "max_evidence_items": 20
+      }
+    },
+    "newsroom.rotating.section.selector": {
+      "title": "Newsroom Rotating Desk Selector",
+      "category": "newsroom",
+      "description": "Recommends one optional floating/rotating desk for an edition using recent desk usage.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "edition_id": {
+            "type": "string",
+            "description": "Edition.id for the planning edition"
+          },
+          "accepted_theme": {
+            "type": "string",
+            "description": "Accepted edition theme from phase 1"
+          },
+          "coverage_key": {
+            "type": "string",
+            "description": "Coverage concept key from phase 1"
+          },
+          "candidate_sections_json": {
+            "type": "string",
+            "description": "JSON array of optional desk candidates"
+          },
+          "recent_usage_json": {
+            "type": "string",
+            "description": "JSON array of recent optional-desk usage rows"
+          },
+          "steering_notes": {
+            "type": "string",
+            "description": "Optional human steering from the edition forum"
+          }
+        },
+        "required": [
+          "edition_id",
+          "accepted_theme"
+        ]
+      },
+      "defaults": {
+        "coverage_key": "",
+        "candidate_sections_json": "[]",
+        "recent_usage_json": "[]",
+        "steering_notes": ""
+      }
+    },
+    "ontology.concept-profiler": {
+      "title": "Ontology Concept Profiler",
+      "category": "ontology",
+      "description": "Builds concept profiles from ontology context and relation explanations.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "context_json": {
+            "type": "object",
+            "description": "Ontology concept profile context JSON from Papyrus CLI"
+          }
+        },
+        "required": [
+          "context_json"
+        ]
+      },
+      "defaults": {}
+    },
+    "ontology.relationship-explainer": {
+      "title": "Ontology Relationship Explainer",
+      "category": "ontology",
+      "description": "Explains semantic relations using lineage context and evidence payloads.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "context_json": {
+            "type": "object",
+            "description": "Ontology relation context JSON from Papyrus CLI"
+          }
+        },
+        "required": [
+          "context_json"
+        ]
+      },
+      "defaults": {}
+    },
+    "references.curate": {
+      "title": "Reference Curation",
+      "category": "newsroom",
+      "description": "Captures, summarizes and (for research papers) extracts one Reference before an editor reviews it.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "reference_id": {
+            "type": "string",
+            "description": "The Reference to curate (Reference.id)"
+          },
+          "force": {
+            "type": "boolean",
+            "description": "Redo stages that already finished"
+          }
+        },
+        "required": [
+          "reference_id"
+        ]
+      },
+      "defaults": {
+        "force": false
+      }
+    },
+    "story.editor-review": {
+      "title": "Story Editor Review",
+      "category": "newsroom",
+      "description": "Reviews one story version against the site's acceptance criteria when it enters a stage, and records the verdict.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "description": "Story lineage id"
+          },
+          "version": {
+            "type": "string",
+            "description": "Id of the version that entered the stage"
+          },
+          "versionNumber": {
+            "type": "number"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "runKey": {
+            "type": "string"
+          },
+          "automationId": {
+            "type": "string"
+          },
+          "hop": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "story",
+          "version"
+        ]
+      },
+      "defaults": {
+        "versionNumber": 0,
+        "stage": "",
+        "runKey": "",
+        "automationId": "",
+        "hop": 0
+      }
+    },
+    "story.localize": {
+      "title": "Story Translation",
+      "category": "newsroom",
+      "description": "Translates one published Story into one language: translate, check against the English, judge, copy edit, refine and gate.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "description": "Primary Story lineage id"
+          },
+          "language": {
+            "type": "string",
+            "description": "BCP 47 tag of the language to translate into (es-419, zh-Hans)"
+          },
+          "ceiling_usd": {
+            "type": "number",
+            "description": "A cap on this run's model spend; 0 leaves it to the learned prediction band"
+          },
+          "source_version": {
+            "type": "number",
+            "description": "The source version this run is for; 0 is the published one"
+          },
+          "run_key": {
+            "type": "string"
+          },
+          "automation_id": {
+            "type": "string"
+          },
+          "procedure_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "story",
+          "language"
+        ]
+      },
+      "defaults": {
+        "ceiling_usd": 0,
+        "source_version": 0,
+        "run_key": "",
+        "automation_id": "",
+        "procedure_key": ""
+      }
+    },
+    "submissions.email.process": {
+      "title": "Email Submission Processor",
+      "category": "ingestion",
+      "description": "Processes inbound submission emails into reference create/find/process intake for direct citations.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "description": "Inbound email Message.id"
+          },
+          "corpus_key": {
+            "type": "string",
+            "description": "Target steering corpus key"
+          },
+          "apply": {
+            "type": "boolean",
+            "description": "When false, build plans without GraphQL writes"
+          }
+        },
+        "required": [
+          "message_id",
+          "corpus_key"
+        ]
+      },
+      "defaults": {
+        "apply": true,
+        "corpus_key": "$defaultCorpusKey"
+      }
+    }
   }
 }

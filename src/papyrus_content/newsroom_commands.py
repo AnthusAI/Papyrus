@@ -1,25 +1,17 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .tenant_knowledge_keys import REFERENCE_FEED_KEY, REFERENCE_REVIEWED_FEED_KEY, SEMANTIC_NODE_FEED_KEY, SEMANTIC_RELATION_FEED_KEY, global_key
-from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import create_authoring_client
 from .tenancy import tenant_id_from_options
-from .cloud_procedures import (
-    SEED_REQUIRED_PROCEDURES_COMMAND,
-    load_required_cli_procedure_config,
-)
-from .ids import safe_id
-from .procedure_registry import procedure_file_for_kind, validate_procedure_registry
+from .procedure_deploy import SITE_REGISTRY_FILE, apply_deploy, check_drift, plan_deploy, plan_statuses
 from .model_attachments import (
     MODEL_ATTACHMENT_OWNER_MODELS,
-    build_text_model_payload_attachment,
     build_json_model_payload_attachment,
     delete_attachment_storage_paths,
     list_attachment_storage_paths,
@@ -47,33 +39,6 @@ from .editions_commands import (
 from .options import normalize_non_negative_integer, normalize_string, parse_options, resolve_mutation_apply
 from .records import build_record_change_from_current
 from .relations_commands import print_category_import_summary
-from .steering import default_corpus_key
-from .model_defaults import DEFAULT_LLM_MODEL
-
-CREATE_PROCEDURE_DEFINITION_MUTATION = """
-mutation CreateProcedureDefinition($input: CreateProcedureDefinitionInput!) {
-  createProcedureDefinition(input: $input) { id }
-}
-"""
-
-UPDATE_PROCEDURE_DEFINITION_MUTATION = """
-mutation UpdateProcedureDefinition($input: UpdateProcedureDefinitionInput!) {
-  updateProcedureDefinition(input: $input) { id }
-}
-"""
-
-CREATE_PROCEDURE_VERSION_MUTATION = """
-mutation CreateProcedureVersion($input: CreateProcedureVersionInput!) {
-  createProcedureVersion(input: $input) { id }
-}
-"""
-
-UPDATE_PROCEDURE_VERSION_MUTATION = """
-mutation UpdateProcedureVersion($input: UpdateProcedureVersionInput!) {
-  updateProcedureVersion(input: $input) { id }
-}
-"""
-
 
 def newsroom_recount_summary(flags: list[str]) -> None:
     options = parse_options(flags)
@@ -525,361 +490,39 @@ def newsroom_import_doctrine(flags: list[str]) -> None:
 
 
 def newsroom_seed_required_procedures(flags: list[str]) -> None:
+    """`papyrus procedures seed-required [--site-registry FILE] [--root DIR] [--dry-run | --check] [--json]`
+
+    Registers every core procedure (all kinds in the registry, from the wheel) and the site's own procedures (papyrus-site-procedures.json at --root, default the current folder, or the file --site-registry names), as
+    published versions in the site's backend. The Amplify build runs it after the backend deploys. Unchanged procedures write nothing.
+    --dry-run reads the backend and prints what would change; --check reads it and fails when anything differs from Git.
+    """
     options = parse_options(flags)
-    apply = resolve_mutation_apply(options, "procedures seed-required")
-    seeds = _required_procedure_seed_specs()
-    payload = {
-        "ok": True,
-        "command": "procedures seed-required",
-        "action": "apply" if apply else "dry-run",
-        "procedures": [
-            {
-                "procedureKey": seed["procedureKey"],
-                "procedureId": seed["procedureId"],
-                "versionId": seed["versionId"],
-                "sourcePath": str(seed["sourcePath"]),
-            }
-            for seed in seeds
-        ],
-        "next": None if apply else SEED_REQUIRED_PROCEDURES_COMMAND,
-    }
-    if not apply:
-        if options.get("json"):
-            print(json.dumps(payload, indent=2))
-        else:
-            print("procedures\tseed-required\taction\tdry-run")
-            for entry in payload["procedures"]:
-                print(
-                    "procedures\tseed-required\tplanned\t"
-                    f"{entry['procedureKey']}\t{entry['sourcePath']}"
-                )
-            print(
-                "procedures\tseed-required\tapply\tskipped\t"
-                "use --dry-run to preview without writes"
-            )
-        return
-
+    check = options.get("check") is True
+    if check and options.get("dry-run"):
+        raise ValueError("procedures seed-required takes --check or --dry-run, not both: both read only, --check also fails on a difference.")
+    apply = False if check else resolve_mutation_apply(options, "procedures seed-required")
+    registry_option = options.get("site-registry")
+    if registry_option is True or options.get("root") is True:
+        raise ValueError("--site-registry and --root each need a value.")
+    root = Path(options["root"]) if options.get("root") else Path.cwd()
+    # The site's own procedures are listed in papyrus-site-procedures.json at the root; a site without the file has none.
+    registry_path = root / (registry_option or SITE_REGISTRY_FILE)
+    if not registry_option and not registry_path.is_file():
+        registry_path = None
+    plans = plan_deploy(site_registry=registry_path, root=root)
     client, _ = create_authoring_client()
-    now = _utc_now()
-    results: list[dict[str, Any]] = []
-    for seed in seeds:
-        definition_payload = {
-            "id": seed["procedureId"],
-            "procedureKey": seed["procedureKey"],
-            "title": seed["title"],
-            "category": seed["category"],
-            "description": seed["description"],
-            "enabled": True,
-            "enabledStatus": "enabled",
-            "currentVersionId": seed["versionId"],
-            "createdBy": "papyrus-cli",
-            "createdAt": now,
-            "updatedBy": "papyrus-cli",
-            "updatedAt": now,
-            "newsroomFeedKey": "procedures",
-        }
-        version_payload = {
-            "id": seed["versionId"],
-            "procedureId": seed["procedureId"],
-            "procedureKey": seed["procedureKey"],
-            "versionNumber": 1,
-            "status": "published",
-            "isCurrent": True,
-            "label": seed["versionLabel"],
-            "tactusSource": "attachment://code.tac",
-            "parameterSchema": json.dumps(seed["parameterSchema"]),
-            "defaults": json.dumps(seed["defaults"]),
-            "changelog": "Seeded via papyrus procedures seed-required.",
-            "createdBy": "papyrus-cli",
-            "createdAt": now,
-            "updatedBy": "papyrus-cli",
-            "updatedAt": now,
-        }
-        definition_mode = _create_or_update_procedure_record(
-            client,
-            create_query=CREATE_PROCEDURE_DEFINITION_MUTATION,
-            update_query=UPDATE_PROCEDURE_DEFINITION_MUTATION,
-            payload=definition_payload,
-            kind=f"ProcedureDefinition {seed['procedureKey']}",
-        )
-        version_mode = _create_or_update_procedure_record(
-            client,
-            create_query=CREATE_PROCEDURE_VERSION_MUTATION,
-            update_query=UPDATE_PROCEDURE_VERSION_MUTATION,
-            payload=version_payload,
-            kind=f"ProcedureVersion {seed['versionId']}",
-        )
-        code_attachment = build_text_model_payload_attachment(
-            {
-                "ownerKind": "procedureVersion",
-                "ownerId": seed["versionId"],
-                "ownerLineageId": seed["versionId"],
-                "role": "code",
-                "sortKey": "code",
-                "filename": "code.tac",
-                "mediaType": "text/plain",
-                "content": seed["tactusSource"],
-                "status": "active",
-                "importRunId": None,
-                "now": now,
-            }
-        )
-        _upload_model_attachment_to_s3(code_attachment["attachment"], code_attachment["body"])
-        client.upsert("ModelAttachment", code_attachment["attachment"])
-        # Ensure the definition points at the seeded current version after updates.
-        client.graphql(
-            UPDATE_PROCEDURE_DEFINITION_MUTATION,
-            {
-                "input": {
-                    "id": seed["procedureId"],
-                    "currentVersionId": seed["versionId"],
-                    "enabled": True,
-                    "enabledStatus": "enabled",
-                    "updatedBy": "papyrus-cli",
-                    "updatedAt": now,
-                }
-            },
-        )
-        results.append(
-            {
-                "procedureKey": seed["procedureKey"],
-                "definition": definition_mode,
-                "version": version_mode,
-                "sourcePath": str(seed["sourcePath"]),
-            }
-        )
+    if apply:
+        results = apply_deploy(client, plans)
+        action = "apply"
+    else:
+        results = check_drift(client, plans) if check else plan_statuses(client, plans)
+        action = "check" if check else "dry-run"
     if options.get("json"):
-        print(json.dumps({**payload, "results": results}, indent=2))
+        print(json.dumps({"ok": True, "command": "procedures seed-required", "action": action, "procedures": results}, indent=2))
         return
-    print("procedures\tseed-required\taction\tapply")
+    print(f"procedures\tseed-required\taction\t{action}")
     for result in results:
-        print(
-            "procedures\tseed-required\tseeded\t"
-            f"{result['procedureKey']}\tdefinition={result['definition']}\tversion={result['version']}"
-        )
-
-
-def _required_procedure_seed_specs() -> list[dict[str, Any]]:
-    config = load_required_cli_procedure_config()
-    validate_procedure_registry()
-    details_by_key = {
-        "newsroom.research.explorer": {
-            "title": "Newsroom Research Explorer",
-            "category": "newsroom",
-            "description": "Builds structured research packets for assignment-backed newsroom workflows.",
-            "versionLabel": "starter",
-            "parameterSchema": {
-                "type": "object",
-                "required": ["corpus_key"],
-                "properties": {
-                    "assignment_item_id": {"type": "string"},
-                    "assignment_json": {"type": "object"},
-                    "corpus_key": {"type": "string"},
-                    "context_profile": {"type": "string"},
-                    "research_mode": {"type": "string"},
-                    "research_questions": {"type": "string"},
-                    "max_evidence_items": {"type": "number"},
-                },
-            },
-            "defaults": {
-                "context_profile": "researcher",
-                "research_mode": "source_discovery",
-                "max_evidence_items": 20,
-            },
-        },
-        "newsroom.rotating.section.selector": {
-            "title": "Newsroom Rotating Desk Selector",
-            "category": "newsroom",
-            "description": "Recommends one optional floating/rotating desk for an edition using recent desk usage.",
-            "versionLabel": "starter",
-            "parameterSchema": {
-                "type": "object",
-                "required": ["edition_id", "accepted_theme"],
-                "properties": {
-                    "edition_id": {"type": "string"},
-                    "accepted_theme": {"type": "string"},
-                    "coverage_key": {"type": "string"},
-                    "candidate_sections_json": {"type": "string"},
-                    "recent_usage_json": {"type": "string"},
-                    "steering_notes": {"type": "string"},
-                },
-            },
-            "defaults": {},
-        },
-        "newsroom.reporting.context": {
-            "title": "Newsroom Reporting Context",
-            "category": "newsroom",
-            "description": "Builds structured reporting context packets from assignment-backed runs.",
-            "versionLabel": "starter",
-            "parameterSchema": {
-                "type": "object",
-                "required": ["corpus_key"],
-                "properties": {
-                    "assignment_item_id": {"type": "string"},
-                    "assignment_json": {"type": "object"},
-                    "corpus_key": {"type": "string"},
-                    "context_profile": {"type": "string"},
-                    "source_research_assignment_id": {"type": "string"},
-                    "source_research_packet_id": {"type": "string"},
-                    "source_research_packet_path": {"type": "string"},
-                },
-            },
-            "defaults": {"context_profile": "reporting"},
-        },
-        "newsroom.reference.summarization": {
-            "title": "Newsroom Reference Summarization",
-            "category": "newsroom",
-            "description": "Generates source-voice reference summaries for curation metadata and summary messages.",
-            "versionLabel": "starter",
-            "parameterSchema": {
-                "type": "object",
-                "required": ["mode", "source_text"],
-                "properties": {
-                    "mode": {"type": "string"},
-                    "source_text": {"type": "string"},
-                    "max_tokens": {"type": "number"},
-                    "reference_title": {"type": "string"},
-                    "source_uri": {"type": "string"},
-                    "known_title": {"type": "string"},
-                    "known_subtitle": {"type": "string"},
-                    "media_type": {"type": "string"},
-                    "doctrine_context_text": {"type": "string"},
-                    "purpose_context_text": {"type": "string"},
-                    "model": {"type": "string"},
-                    "prompt_version": {"type": "string"},
-                },
-            },
-            "defaults": {
-                "mode": "reference_summary",
-                "max_tokens": 500,
-                "model": DEFAULT_LLM_MODEL,
-            },
-        },
-        "ontology.relationship-explainer": {
-            "title": "Ontology Relationship Explainer",
-            "category": "ontology",
-            "description": "Explains semantic relations using lineage context and evidence payloads.",
-            "versionLabel": "starter",
-            "parameterSchema": {
-                "type": "object",
-                "required": ["relation_json"],
-                "properties": {
-                    "relation_json": {"type": "object"},
-                    "relation_context_json": {"type": "object"},
-                    "model": {"type": "string"},
-                    "temperature": {"type": "number"},
-                },
-            },
-            "defaults": {
-                "model": DEFAULT_LLM_MODEL,
-                "temperature": 0,
-            },
-        },
-        "ontology.concept-profiler": {
-            "title": "Ontology Concept Profiler",
-            "category": "ontology",
-            "description": "Builds concept profiles from ontology context and relation explanations.",
-            "versionLabel": "starter",
-            "parameterSchema": {
-                "type": "object",
-                "required": ["concept_json"],
-                "properties": {
-                    "concept_json": {"type": "object"},
-                    "concept_context_json": {"type": "object"},
-                    "model": {"type": "string"},
-                    "temperature": {"type": "number"},
-                },
-            },
-            "defaults": {
-                "model": DEFAULT_LLM_MODEL,
-                "temperature": 0,
-            },
-        },
-        "submissions.email.process": {
-            "title": "Email Submission Processor",
-            "category": "ingestion",
-            "description": "Processes inbound submission emails into reference create/find/process intake for direct citations.",
-            "versionLabel": "starter",
-            "parameterSchema": {
-                "type": "object",
-                "required": ["message_id"],
-                "properties": {
-                    "message_id": {"type": "string"},
-                    "corpus_key": {"type": "string"},
-                    "apply": {"type": "boolean"},
-                },
-            },
-            "defaults": {
-                "corpus_key": default_corpus_key(),
-                "apply": True,
-            },
-        },
-    }
-    seeds: list[dict[str, Any]] = []
-    for procedure_key in config["keys"]:
-        source_path = procedure_file_for_kind(procedure_key)
-        details = details_by_key.get(procedure_key)
-        if not details:
-            raise ValueError(
-                f"Missing seed metadata for required procedure '{procedure_key}'. "
-                "Update newsroom_seed_required_procedures metadata."
-            )
-        slug = safe_id(procedure_key)[:120]
-        seeds.append(
-            {
-                "procedureKey": procedure_key,
-                "procedureId": f"procedure-definition-{slug}",
-                "versionId": f"procedure-version-{slug}-1",
-                "sourcePath": source_path,
-                "tactusSource": source_path.read_text(encoding="utf-8").strip() + "\n",
-                **details,
-            }
-        )
-    return seeds
-
-
-def _create_or_update_procedure_record(
-    client,
-    *,
-    create_query: str,
-    update_query: str,
-    payload: dict[str, Any],
-    kind: str,
-) -> str:
-    try:
-        client.graphql(create_query, {"input": payload})
-        return "created"
-    except RuntimeError as create_error:
-        try:
-            client.graphql(update_query, {"input": payload})
-            return "updated"
-        except RuntimeError as update_error:
-            raise ValueError(
-                f"Failed to seed {kind}. create error={create_error}; update error={update_error}"
-            ) from update_error
-
-
-def _upload_model_attachment_to_s3(attachment: dict[str, Any], body: bytes) -> None:
-    try:
-        import boto3
-    except ModuleNotFoundError as error:
-        raise RuntimeError("boto3 is required to upload procedure code attachments.") from error
-    bucket = (
-        os.environ.get("papyrusMedia_BUCKET_NAME")
-        or os.environ.get("PAPYRUS_MEDIA_BUCKET_NAME")
-        or os.environ.get("STORAGE_BUCKET_NAME")
-        or os.environ.get("AMPLIFY_STORAGE_BUCKET_NAME")
-        or storage_bucket_from_amplify_outputs()
-    )
-    if not bucket:
-        raise RuntimeError("Could not resolve storage bucket for procedure code attachments.")
-    s3 = boto3.client("s3")
-    s3.put_object(
-        Bucket=bucket,
-        Key=str(attachment["storagePath"]),
-        Body=body,
-        ContentType=str(attachment.get("mediaType") or "text/plain"),
-    )
+        print(f"procedures\tseed-required\t{result['status']}\t{result['procedureKey']}\t{result['versionId']}\t{result['origin']}")
 
 
 def newsroom_prune_attachments(flags: list[str]) -> None:

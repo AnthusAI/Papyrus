@@ -76,6 +76,16 @@ function frontendSection(preBuildCommands: string[], buildCommands: string[], ar
 // does not depend on Amazon. A Papyrus pin without the command prints usage and falls through the same way.
 const ALEXA_SKILL_SYNC = "npx papyrus-app alexa-sync || echo \"alexa-sync did not complete; the site deploy continues\"";
 
+// After the backend deploy (it needs the GraphQL endpoint in amplify_outputs.json): register every core procedure from the Papyrus wheel and the
+// site's own from its repository (papyrus-site-procedures.json at the checkout root, when the site has one) as published versions in the site's
+// backend, as the build role. Unchanged procedures write nothing. Unlike the Alexa sync it is never allowed to fail quietly: a failing registration
+// fails the build, so a site is not deployed with procedures that disagree with Git (features/procedure-sync.feature).
+const PROCEDURE_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus procedures seed-required`;
+
+function procedureSyncCommands(config: AmplifyAppShellSiteConfig): string[] {
+  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC];
+}
+
 const GATE_FAILURE_MESSAGE_PREFIX = "No LeftBlock CI receipt for";
 
 /**
@@ -116,6 +126,7 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
         ...deployStackCommands,
         // One pass per cost tag wave until the tags are complete (amplify/cost-tag-waves.ts); one pass after that.
         "npx papyrus-infra backend-deploy",
+        ...procedureSyncCommands(config),
         ALEXA_SKILL_SYNC,
       ],
       "        ",
