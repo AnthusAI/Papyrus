@@ -57,6 +57,24 @@ raised above `off` in the site's policy, starts nothing: the run is recorded as 
 Distinctive's TTAB analysis is the automation `distinctive.ttab`. The responsibility catalog has no entry for a ruling analysis, so which one it
 is adopted as, and at which rung, is Ryan's decision; the commands are on PPY-e713eb.
 
+## Starting procedures through the wake queue
+
+From the release that carries PPY-567bf9, nothing invokes the shared procedure runner directly. The monitoring router, Run now, the story-stage
+triggers and translate-on-publish put a wake on the site's queue, `papyrus-<site>-agent-wakes.fifo`, and the runner consumes it
+([the wake queue](procedure-runner.md#the-wake-queue)). Two things must be true for a site before its procedures can start:
+
+1. **The site has its queue.** The queue is in the site's `agents` stack, which the site's second deploy adds (a first deploy leaves it out).
+   The mapping from the queue to the runner can only be created after the runner's role may read the queues, so the runner stack's release
+   (the statement `ReadWakeQueues`) comes before the first site deploy that creates a queue.
+2. **The senders and the runner switch together.** The router and the runner are shared stacks and switch in one release; a site's own functions
+   (Run now, translate-on-publish) switch with that site's backend. A wake for a site that has no queue yet fails to start and the trigger row says
+   `startFailed` with the queue's name; nothing falls back to another way of starting, so a site that runs procedures (Distinctive Mark's ruling analysis,
+   the story bots) is bumped and deployed in the same quiet window as the release, and what arrived in between is started again afterwards.
+
+The role changes are in `infra/procedures/papyrus-procedure-runner.yaml` and `infra/monitoring/papyrus-monitoring.yaml`, and they reach AWS only through
+the release. They need Ryan's approval first. Before the queue is relied on at a site, the live once-only create is proved on a site on a release with wake keys
+(PPY-817340).
+
 ## The publish switch
 
 The `release` and `pypi` jobs run only when the repository variable `PUBLISH_ENABLED`

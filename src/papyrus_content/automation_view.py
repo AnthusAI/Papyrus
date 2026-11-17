@@ -24,11 +24,12 @@ import os
 import time
 from datetime import datetime, timezone
 
+from . import agent_wakes
 from .appsync_event import NoOperation, operation_name
 from .staff_groups import STAFF_GROUPS
 from .today import TodayError, today_overview
 from .automations import (
-    DEFAULT_RUN_LIMIT, AutomationError, MonitoringReader, MonitoringWriter, automation_overview, lambda_invoker,
+    DEFAULT_RUN_LIMIT, AutomationError, MonitoringReader, MonitoringWriter, automation_overview,
     monitoring_reader_from_environment, monitoring_table_from_environment, read_record, run_now)
 
 LOG = logging.getLogger(__name__)
@@ -126,7 +127,7 @@ def _run(event: dict, automation_id: str, supplied, *, env, client_factory, tabl
         stamp = None if now is None else datetime.fromtimestamp(now, timezone.utc).isoformat().replace("+00:00", "Z")
         result = run_now(read_record(row), reader=MonitoringReader(table) if table is not None else None,
                          writer=MonitoringWriter(table) if table is not None else None,
-                         invoke=invoker or lambda_invoker(env.get("PROCEDURE_RUNNER_FUNCTION")), actor=actor_label(event),
+                         invoke=invoker or agent_wakes.wake_sender(), actor=actor_label(event),
                          supplied_input=supplied, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), now=stamp)
         return {"state": "started", "automationId": automation_id, "requestedBy": result["requestedBy"], "key": result["key"]}
     except AutomationError as error:   # a refusal the editor can act on: the message is written for them

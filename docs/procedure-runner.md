@@ -3,12 +3,13 @@
 The procedure runner executes a newsroom's published Tactus procedure in the cloud. It is one container
 Lambda (`papyrus-procedure-runner`, arm64, 15 minutes, 3 GB) with Tactus and the Papyrus procedure tools
 installed. It runs any procedure a newsroom has published, not only the seeded kinds that the newsroom's
-own Lambdas handle (PPY-a2b94e). The monitoring router starts it when a monitor delivers a new Reference
-(PPY-9a79b5).
+own Lambdas handle (PPY-a2b94e). It is the consumer of each site's wake queue (below): the monitoring router
+(when a monitor delivers a new Reference, PPY-9a79b5), Run now, the story-stage triggers and translate-on-publish
+start it by putting a wake on the site's queue, and nothing invokes it directly.
 
 ## What a run does
 
-The runner receives one request:
+The runner receives one queue message (below), whose request is:
 
 ```json
 {
@@ -87,9 +88,50 @@ For each request, the runner does these steps:
 
 The runner signs its AppSync calls with its own role. The procedure tools in the child process do the
 same (`PAPYRUS_GRAPHQL_AUTH=iam`). The OpenAI key comes from the publication's Amplify secret in SSM.
-The runner keeps no state of its own. Asynchronous invocations are not retried
-(`MaximumRetryAttempts: 0`), so a failure never starts a second run. Failed events go to the dead-letter
-queue.
+The runner keeps no state of its own. A failure never starts a second run: the wake key's run record is created once,
+and a second delivery of the same wake only finds it (`duplicate`).
+
+## The wake queue
+
+Every site has one FIFO queue, `papyrus-<site>-agent-wakes.fifo`, with a dead-letter queue, `papyrus-<site>-agent-wakes-dead-letters.fifo`, and an
+alarm on it (PPY-567bf9; slice B1 of [the always-on agents design](design/always-on-agents-architecture.md)). The `<site>` is the site's brand
+id, which is also its router publication id. They are in the site's `agents` stack (`amplify/agents/wake-queue.ts`), which a new site's first deploy
+leaves out and its second deploy adds. The procedure runner is the queue's consumer: one message at a time (batch size 1), held for the whole run.
+
+**A wake is one message**, `{"wake": {"key", "agent", "subject", "why"}, "request": {...}}` (`src/papyrus_content/agent_wakes.py`):
+
+* `key` is the wake key. `agent` is its owner (the automation, or `procedure:<procedure key>`). `subject` is what it is about: the record, `schedule`, or the
+  request id of a person's request. `why` is the trigger's own one-line summary.
+* The **message group** is the agent plus the subject. Wakes of one group run one after the other, in order; wakes of different groups run at the same time.
+  (The definition's own scope, `serialBy`, and the total concurrency from the model provider's limit are slice B4; nothing is capped here.)
+* The **deduplication id** is the wake key. SQS limits an id to 128 characters from a fixed set and a key may be 1000, so both ids are the SHA-256 of their text.
+  SQS drops a repeat of the same id for five minutes. After that the run record's own condition drops it: the runner answers `duplicate` and runs nothing.
+
+**What the runner does with a message.** It returns (the queue then deletes the message) only when the wake's run record exists: finished, refused
+(`not_runnable`, `policy_unreadable`), skipped by the policy, or the record of an earlier delivery of the same wake. If the message is not a well-formed wake, or no
+record could be made (the site refused the start, or the runner died first), it raises, so the message stays and the queue delivers it again.
+
+**Times that come from the runner, not from a guess.** The queue hides a received message for 960 seconds: the Lambda's 900 seconds (which hold the 60
+seconds the runner keeps at the end to record the outcome) plus that margin once more, so a live run is never delivered to a second runner. A wake is
+delivered at most twice (once to run, once to settle a run that died, slice A3); the third receive moves it to the dead-letter queue. Messages are kept 14 days.
+`scripts/test-agents-stack.ts` fails if the queue's numbers differ from the runner template's `Timeout` and `SECONDS_KEPT_FOR_RECORDING`.
+
+**The dead-letter queue is empty in normal operation.** Its alarm (`ApproximateNumberOfMessagesVisible` of 1 or more) reaches the operator through the account's alarm
+listener. A message there is a wake nothing could run; the run record, if any, says why.
+
+**Callers.** `agent_wakes.wake_sender()` is the one way to start a procedure. It finds the queue by the request's `publicationId`, and puts the wake on it. It
+raises when the queue does not exist, and the caller records the start as failed (`startFailed`); nothing invokes the runner another way. The callers are the
+monitoring router, `papyrus automations run` and the console's Run now, the story-stage triggers (in the console function, the CLI and the runner after a
+stage run) and translate-on-publish.
+
+**Who may do what (IAM).** A site's functions (Run now, translate-on-publish) may look up and send to their own site's queue only. The monitoring router and the
+runner may look up and send to every site's wake queue by the name pattern `papyrus-*-agent-wakes.fifo`; the runner may also receive, delete and read the
+attributes of those queues (never the dead-letter queues, whose names do not match). No one but the runner may receive or delete a wake, and nothing
+holds `lambda:InvokeFunction` on the runner any more.
+
+**Enabling it on a site.** A site has a queue once it is on a release that carries this and has had its second deploy. Wakes for a site without a queue fail to start
+(`startFailed`, with the queue's name). Release order: the runner and monitoring stacks (role statements, consumer, router) go in one quiet window with the sites'
+bumps, as in [releasing](releasing.md); the queue's duplicate drop is shown once on a real site before the queue is used there (PPY-817340 proves the run record's once-only create).
 
 ## Proving the once-only create on a real site
 
@@ -211,12 +253,12 @@ The release deploys the runner, like every shared stack: a merge to `main` build
 - **The image.** `infra/procedures/build_image.py` builds the arm64 image from `infra/procedures/Dockerfile` and pushes it to the `papyrus-procedure-runner` repository. Its tag is `src-` plus a hash of
   everything the Dockerfile copies (`pyproject.toml`, `README.md`, `LICENSE`, `src/`, `corpora/`) and the Dockerfile, so a change to the code is a new image and an unchanged tree reuses the old one: the image cannot go stale. The stack receives the image by digest as `ImageUri`.
 - **The repository** is the stack `papyrus-procedure-runner-repository`. The repository existed before the pipeline; the first release imports it, and the stack retains it.
+- **The role.** Besides the grants below, the runner's role receives from, deletes from and sends to the site wake queues by the name pattern, and it holds no `lambda:InvokeFunction`.
 - **The grants.** The runner's role may call each site's API: the stack takes `DistinctiveApiId`, `AnthUsApiId`, `MachinesOnMachinesApiId`, `ThreatIntelApiId`, `DataParadeApiId`, `PilobolusApiId` and `ShippedApiId`, which the release reads from the `ApiId...` outputs of the `papyrus-monitoring` stack, so no API id is written in Git.
-- **The router.** `papyrus-monitoring` is given `ProcedureRunnerFunctionName=papyrus-procedure-runner`, which lets the router start the runner. Register the site's procedure (above), and add `openaiKeyParameter` and `procedureTriggers` to its
+- **The router.** The router role may put wakes on the site queues (`RouterWakeQueuePolicy`). Register the site's procedure (above), and add `openaiKeyParameter` and `procedureTriggers` to its
   router publication in `infra/monitoring/router-config/hn.json` (a pull request; the release applies it: [router config in Git](monitoring-cloud.md#router-config-in-git)).
 
-To run a procedure by hand, invoke the runner with a request like the one above:
-`aws lambda invoke --function-name papyrus-procedure-runner --invocation-type Event --payload file://request.json out.json`.
+To run a procedure by hand, use `papyrus automations run` (or Run now in the console), which puts the wake on the site's queue. Nothing invokes the runner directly.
 
 ## Granting a newsroom to the runner
 

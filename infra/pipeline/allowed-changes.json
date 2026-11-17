@@ -65,6 +65,12 @@
       "logicalId": "RouterConfigApplier",
       "change": "Replace",
       "reason": "CloudFormation reports a custom resource update as a conditional replacement because the handler could answer with a new physical id. RouterConfigApplier's handler returns the physical id it was given (router-config), so a changed zip key re-applies the router config files in place and nothing is replaced or deleted (a replace would only re-run the same idempotent apply; its Delete does nothing)."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "RouterProcedureRunnerPolicy",
+      "change": "Remove",
+      "reason": "The router no longer invokes the procedure runner; it puts a wake on the site's queue (PPY-567bf9). Its permission to invoke the runner is replaced by RouterWakeQueuePolicy, which may send to the wake queues and nothing else."
     }
   ]
 }

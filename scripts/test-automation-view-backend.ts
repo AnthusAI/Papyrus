@@ -7,7 +7,6 @@ import {
   AUTOMATION_RUN_NOW_LEADING_KEYS,
   AUTOMATION_RUN_NOW_TABLE_ACTIONS,
   AUTOMATION_VIEW_FUNCTION_FIELDS,
-  PROCEDURE_RUNNER_FUNCTION_NAME,
 } from "../amplify/functions/automation-view/wire";
 
 const text = schema.transform().schema;
@@ -44,10 +43,9 @@ assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
 ]);
 assert.ok(AUTOMATION_VIEW_FUNCTION_FIELDS.every((field) => field.startsWith("Query/")), "no mutation is granted");
 
-// Run now writes one monitoring row in a monitor's partition and starts the runner, and does nothing else.
+// Run now writes one monitoring row in a monitor's partition and puts a wake on its site's queue (wake-queue.ts allowWakeSending), and does nothing else.
 assert.deepEqual(AUTOMATION_RUN_NOW_TABLE_ACTIONS, ["dynamodb:PutItem"]);
 assert.deepEqual(AUTOMATION_RUN_NOW_LEADING_KEYS, ["MONITOR#*"]);
-assert.equal(PROCEDURE_RUNNER_FUNCTION_NAME, "papyrus-procedure-runner");
 
 // The Automation model: editors read, create and update; only admins delete; no guest, public or identity-pool access.
 const model = /type Automation @model[\s\S]*?\n}\n/.exec(text)?.[0] ?? "";

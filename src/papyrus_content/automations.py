@@ -30,7 +30,7 @@ from typing import Any
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
 from .policy_location import policy_location
-from . import wake_keys
+from . import agent_wakes, wake_keys
 from .run_outcomes import outcome_shown
 from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
 from .monitoring_router import (
@@ -47,7 +47,6 @@ MONITOR_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 ENABLED_NOTE = "the router starts nothing for a disabled automation"
 LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged"
 COST_NOTE = "not recorded for this run"
-RUNNER_FUNCTION = "papyrus-procedure-runner"
 OUTSIDE_FETCH = 25
 RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"
 NOT_SUPPORTED = "not yet supported"
@@ -593,16 +592,6 @@ def automation_overview(client, *, reader: MonitoringReader | None, limit: int =
 # --- run now --------------------------------------------------------------------------------------------------
 
 
-def lambda_invoker(function_name: str | None = None):
-    """Starts the procedure runner asynchronously, as the router does."""
-    name = function_name or os.environ.get("PAPYRUS_PROCEDURE_RUNNER_FUNCTION") or RUNNER_FUNCTION
-
-    def invoke(request: dict) -> None:
-        import boto3  # provided by the Lambda runtime and the operator's environment
-        boto3.client("lambda").invoke(FunctionName=name, InvocationType="Event", Payload=json.dumps(request).encode("utf-8"))
-    return invoke
-
-
 def resolve_manual_input(automation: dict[str, Any], supplied: Any) -> dict[str, Any]:
     """The input for a Run now: what the person gave, else the record's template when it names no item placeholder."""
     if supplied is not None:
@@ -844,7 +833,7 @@ def run_command(command: str, flags: list[str]) -> None:
             raise AutomationError(f"automation {record_id} does not exist.")
         table = monitoring_table_from_environment()
         result = run_now(read_record(row), reader=MonitoringReader(table) if table is not None else None,
-                         writer=MonitoringWriter(table) if table is not None else None, invoke=lambda_invoker(),
+                         writer=MonitoringWriter(table) if table is not None else None, invoke=agent_wakes.wake_sender(),
                          actor=os.environ.get("PAPYRUS_ACTOR_LABEL") or "papyrus-cli", supplied_input=_json_option(options, "input"),
                          dry_run=dry_run)
         if as_json:

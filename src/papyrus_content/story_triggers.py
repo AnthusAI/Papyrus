@@ -271,7 +271,8 @@ def deliver_from_environment(client, story: str) -> list[dict[str, Any]]:
     """What the CLI calls after a person changes a story's stage: deliver, print one line per automation, never fail the change.
 
     The monitoring table and the runner come from the operator's AWS credentials, as for `papyrus automations run`."""
-    from .automations import MonitoringReader, MonitoringWriter, lambda_invoker, monitoring_table_from_environment
+    from . import agent_wakes
+    from .automations import MonitoringReader, MonitoringWriter, monitoring_table_from_environment
     from .story_reporting import latest_story_version
 
     try:
@@ -279,7 +280,7 @@ def deliver_from_environment(client, story: str) -> list[dict[str, Any]]:
             return []
         table = monitoring_table_from_environment()
         outcomes = deliver_stage_entered(
-            client, story=story, invoke=lambda_invoker(),
+            client, story=story, invoke=agent_wakes.wake_sender(),
             reader=MonitoringReader(table) if table is not None else None, writer=MonitoringWriter(table) if table is not None else None)
     except Exception as error:   # a stage change is never undone or failed by its triggers
         print(f"stories\ttriggers\tnot delivered\t{type(error).__name__}")

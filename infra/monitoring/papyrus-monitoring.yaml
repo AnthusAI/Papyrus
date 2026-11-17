@@ -153,12 +153,6 @@ Parameters:
     Type: String
     Default: ENABLED
     AllowedValues: [ENABLED, DISABLED]
-  ProcedureRunnerFunctionName:
-    Type: String
-    Default: ""
-    Description: >-
-      Name of the procedure runner Lambda (infra/procedures). When set, the router may start it
-      asynchronously for a publication's procedureTriggers. Empty leaves triggers recorded as startFailed.
   EditorUserPoolArns:
     Type: CommaDelimitedList
     Default: ""
@@ -293,7 +287,6 @@ Conditions:
     - !Not [!Equals [!Ref ReferencePredictionMonitorId, !Ref EmailReferenceMonitorId]]
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
   ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
-  HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
   HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
   HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
@@ -1197,7 +1190,6 @@ Resources:
           PAPYRUS_GRAPHQL_AUTH: iam
           SUGGEST_QUEUE_URL: !Ref SuggestQueue
           STORY_QUEUE_URL: !Ref StoryQueue
-          PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
           EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
@@ -1480,19 +1472,21 @@ Resources:
             Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
             Resource: "*"
 
-  RouterProcedureRunnerPolicy:
+  RouterWakeQueuePolicy:
     Type: AWS::IAM::ManagedPolicy
-    Condition: HasProcedureRunner
     Properties:
-      Description: Lets the router start the procedure runner asynchronously for procedureTriggers.
+      Description: >-
+        Lets the router start a procedure for a publication's procedureTriggers by putting a wake on that site's wake queue (PPY-567bf9).
+        It may look up and send to a queue named papyrus-<site>-agent-wakes.fifo in this account and region. It may not read or delete a
+        message, may not reach a dead-letter queue, and no longer invokes the procedure runner.
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Sid: StartProcedureRunner
+          - Sid: PutWakes
             Effect: Allow
-            Action: lambda:InvokeFunction
-            Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProcedureRunnerFunctionName}"
+            Action: [sqs:GetQueueUrl, sqs:SendMessage]
+            Resource: !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:papyrus-*-agent-wakes.fifo"
 
   RouterEditorMembershipPolicy:
     Type: AWS::IAM::ManagedPolicy

@@ -71,7 +71,7 @@ from .email_submission_authorization import (
     publication_ids_for_editor,
 )
 from .policy_location import policy_location
-from . import request_meter, wake_keys
+from . import agent_wakes, request_meter, wake_keys
 from .auto_accept import accept_by_rule, run_auto_accept, validate_auto_accept
 from .research_assignments_worker import run_research_assignments, validate_research_assignments
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
@@ -484,17 +484,6 @@ def procedure_trigger_input(trigger: dict, publication: dict, disc: dict, refere
               "referenceId": reference_id, "publicationId": publication["publicationId"],
               "corpusId": publication["corpusId"]}
     return {name: template.format(**values) for name, template in trigger["input"].items()}
-
-
-def lambda_procedure_starter(function_name: str | None) -> Callable[[dict], None] | None:
-    if not function_name:
-        return None
-
-    def start(request: dict) -> None:
-        import boto3  # provided by the Lambda runtime
-        boto3.client("lambda").invoke(FunctionName=function_name, InvocationType="Event",
-                                      Payload=json.dumps(request).encode("utf-8"))
-    return start
 
 
 # --- request building -------------------------------------------------------------------------------
@@ -3431,7 +3420,7 @@ def handler(event, context):
     if is_suggestion_queue_event(event):
         return handle_suggestion_queue(store, event)
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
-    cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
+    cognito, starter = boto3.client("cognito-idp"), agent_wakes.wake_sender()
     from .monitoring_enrichment import lambda_enricher
     enricher = lambda_enricher()   # None unless the stack set ENRICHMENT_BUCKET
     from .reference_images import attach_preview
