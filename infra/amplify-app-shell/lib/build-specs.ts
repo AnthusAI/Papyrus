@@ -82,8 +82,15 @@ const ALEXA_SKILL_SYNC = "npx papyrus-app alexa-sync || echo \"alexa-sync did no
 // fails the build, so a site is not deployed with procedures that disagree with Git (features/procedure-sync.feature).
 const PROCEDURE_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus procedures seed-required`;
 
+// Right after the procedures are registered (an agent definition names a procedure, and a definition naming one that is not registered stops the step):
+// apply the agent definitions, the core ones from the Papyrus wheel and the site's own from papyrus-site-agents at the checkout root (when it has one).
+// It checks every definition first (`papyrus agents validate`'s rules), makes each the registered copy on its automation, retires one gone from Git, and
+// never writes the agent policy document or adopts an automation, so a deploy cannot move a rung or a pause and a new agent arrives at `off`. Like the
+// procedure sync it is never allowed to fail quietly (features/agent-sync.feature).
+const AGENT_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus agents apply`;
+
 function procedureSyncCommands(config: AmplifyAppShellSiteConfig): string[] {
-  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC];
+  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC, AGENT_SYNC];
 }
 
 const GATE_FAILURE_MESSAGE_PREFIX = "No LeftBlock CI receipt for";

@@ -51,7 +51,7 @@ OUTSIDE_FETCH = 25
 RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"
 NOT_SUPPORTED = "not yet supported"
 ROUTER_CONFIG_SK = "CONFIG#router"
-REGISTERED_FIELDS = ("definitionId", "definitionVersion", "definitionDigest", "definition")   # the registered copy of an agent definition (agent_definitions/registered.py)
+REGISTERED_FIELDS = ("definitionId", "definitionVersion", "definitionDigest", "definition", "definitionRetiredAt")   # the registered copy of an agent definition (agent_definitions/registered.py)
 DEFAULT_LIMITS = {"timeoutSeconds": 840}   # no maxConcurrent: no limit on how many run at once, as before slice 2
 MAX_TIMEOUT_SECONDS = 840          # the runner Lambda's 15 minutes less its recording margin
 MAX_TRIGGER_PAGES = 5
@@ -252,7 +252,7 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "supportNote": None if supported else NOT_SUPPORTED,
         "procedureKey": row.get("procedureKey"),
         "responsibility": row.get("responsibility"),
-        "definitionId": row.get("definitionId"), "definitionVersion": row.get("definitionVersion"), "definitionDigest": row.get("definitionDigest"),
+        "definitionId": row.get("definitionId"), "definitionVersion": row.get("definitionVersion"), "definitionDigest": row.get("definitionDigest"), "definitionRetiredAt": row.get("definitionRetiredAt"),
         "definition": _parse(row.get("definition"), None),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),

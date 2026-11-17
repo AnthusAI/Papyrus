@@ -85,6 +85,14 @@ digests are new because the kind header was added to those files, and seven kind
 until a procedure file or its metadata changes. A site's pin of Papyrus must carry the command: the build installs the pinned version, and
 an older pin stops at the missing command instead of skipping the step.
 
+## Agent definitions are applied by the site's deploy
+
+Right after it registers the procedures, a site's Amplify build runs `papyrus agents apply` (the generated production build spec; [details](automations.md#applying-the-definitions-the-deploy-does-it)). It needs no step from a person and no new IAM permission: the build role already signs GraphQL requests to the site's API, which is all the step does (list, read, create and update `Automation` records). A site's own definitions are in `papyrus-site-agents` at its checkout root.
+
+- It stops the build, before writing anything, when a definition is invalid or names a procedure that is not registered. **A core definition whose procedure is not registered therefore fails every site's build.** Today `core/rate.yaml` names `rate_items`, which no registry lists; the rating agent's task (PPY-d85860) must register that procedure, or the definition must leave `core/`, before the next release that carries this step.
+- It creates each new agent's automation disabled, writes the registered copy (the same digest writes nothing) and retires a definition gone from Git. It never writes the agent policy document and never adopts an automation, so a deploy does not move a rung or a pause and a new agent arrives at `off`.
+- The release that first carries it adds the optional `definitionRetiredAt` field to `Automation` (a field on an existing model, no index); the build deploys the backend before this step.
+
 ## The publish switch
 
 The `release` and `pypi` jobs run only when the repository variable `PUBLISH_ENABLED`

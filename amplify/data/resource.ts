@@ -1585,6 +1585,8 @@ const schema = a.schema({
       definitionVersion: a.integer(),
       definitionDigest: a.string(),
       definition: a.json(),
+      /** When the release found this agent's definition gone from Git and retired it (PPY-df3e74); empty while the definition is in Git. A retired agent is disabled and names no schedule; its registered copy stays as history. */
+      definitionRetiredAt: a.datetime(),
       inputTemplate: a.json(),
       limits: a.json(),
       createdBy: a.string(),

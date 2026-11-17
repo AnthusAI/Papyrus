@@ -207,6 +207,8 @@ Core definitions ship in the engine (`src/papyrus_content/agent_definitions/core
 
 `papyrus agents validate --dir DIR [--core DIR]` checks a folder with no network, sign-in or model, and exits 2 with every problem named by definition and line. Specified in `agent-definition.feature`.
 
+A site's deploy applies the definitions (`papyrus agents apply`, slice D2): each becomes the registered copy on an automation named for it, created disabled, and one gone from Git is retired. It never writes the agent policy document, so a new agent arrives at `off`. See [Automations](automations.md#applying-the-definitions-the-deploy-does-it); specified in `agent-definitions-on-release.feature`.
+
 ## Restoring newsroom data
 
 Every Amplify Data table (references, messages, votes, curation decisions and the rest) has DynamoDB point-in-time recovery on, for every site, with no site setting (PPY-39a16b). It is set in `amplify/site-backend.ts` and reaches a site with that site's next deploy.

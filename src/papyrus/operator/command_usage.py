@@ -279,6 +279,8 @@ _ENTRIES = dict([
   # ---- agents (definition files; src/papyrus_content/agent_definitions/) -----------------------------------------------------------------
   _e("agents validate", "Check a folder of agent definition files (one <id>.yaml each) with no network and no model: every line of the 11-point template filled, known operations and responsibilities, and a site that only adds to a core definition. Exits 2 when any is refused, naming each by definition and line.",
      "--dir DIR [--core DIR]", "files", "reads"),
+  _e("agents apply", "Apply the agent definitions to the site as its deploy does, after the procedures are registered: validate them, then make each the registered copy on its automation (created disabled; the same digest writes nothing) and retire any gone from Git. Never writes the agent policy document and never adopts an automation: a new agent arrives at the rung off. --check exits 2 on any difference from Git.",
+     "[--dir DIR] [--core DIR] [--root DIR] [--site-registry FILE] [--dry-run | --check]", "operator", "dry-run"),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
@@ -402,7 +404,7 @@ GROUP_ORDER = {
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "pod": ["init", "id", "check"],
-  "agents": ["validate"],
+  "agents": ["validate", "apply"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
@@ -430,7 +432,7 @@ GROUP_SUMMARIES = {
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
 GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id and check. Files only: no sign-in, no site."
-GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline. Files only: no sign-in, no site."
+GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline, and apply them to a site as its deploy does."
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
