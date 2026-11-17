@@ -874,7 +874,6 @@ _UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FI
 _HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
 _SCHEDULE_FIELDS_SUPPORT: dict[str, bool] = {}
 _CONDITION_FAILED = re.compile(r"conditional request failed|ConditionalCheckFailed", re.IGNORECASE)
-TENANT_FIELD_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_FIELD"
 _HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
 
 
@@ -1118,12 +1117,6 @@ class PapyrusGraphQLAuthoringClient:
                 self._note_no_head_stage_key()
         return _HEAD_STAGE_KEY_SUPPORT[self.endpoint]
 
-    def has_tenant_field(self, model_name: str) -> bool:
-        """Whether this site's API has ``tenantId`` on its tenant-owned models: the deploy that adds it sets ``PAPYRUS_TENANT_FIELD`` (1/true).
-        No schema query is made (introspection is not granted to the workers or the router), and unset means off, so a write is never refused
-        for a field the site lacks."""
-        return os.environ.get(TENANT_FIELD_ENVIRONMENT_VARIABLE, "").strip().lower() in {"1", "true", "yes"}
-
     def _note_no_head_stage_key(self) -> None:
         _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = False
         if self.endpoint in _HEAD_STAGE_KEY_NOTICE_SHOWN:
@@ -1171,6 +1164,23 @@ class PapyrusGraphQLAuthoringClient:
             next_token = connection.get("nextToken")
             if not next_token:
                 return self._rows_with_bare_ids(model_name, items)
+
+    def list_row_owners(self, model_name: str, *, page_size: int = SUMMARY_PAGE_SIZE) -> list[dict[str, Any]]:
+        """``id`` and ``tenantId`` of EVERY row of ``model_name``, whatever its tenant: the whole-table read the tenantId backfill makes once
+        (``tenant_field_backfill``), so call it inside a named sweep. Only the two fields travel, so a page is small even for a large table."""
+        request_meter.note_unbounded_list(model_name)
+        field = LIST_DEFINITIONS[model_name]["field"]
+        query = _list_query(field, f"id {TENANT_FIELD}")
+        owners: list[dict[str, Any]] = []
+        next_token = None
+        while True:
+            with request_meter.model(model_name):
+                result = self.graphql(query, {"limit": page_size, "nextToken": next_token})
+            connection = result.get(field) or {}
+            owners.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+            if not next_token:
+                return owners
 
     def _rows_with_bare_ids(self, model_name: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [tenant_row_with_bare_record_id(model_name, self.tenant_id, row) for row in rows]
@@ -1459,7 +1469,7 @@ class PapyrusGraphQLAuthoringClient:
         if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
             input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         stamped = tenant_stamped_payload(model_name, self.tenant_id, input_payload)
-        if self.tenant_id and model_name in TENANT_FIELD_MODELS and self.has_tenant_field(model_name):
+        if self.tenant_id and model_name in TENANT_FIELD_MODELS:
             stamped = tenant_field_stamped_payload(model_name, self.tenant_id, stamped)
         return strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, stamped))
 

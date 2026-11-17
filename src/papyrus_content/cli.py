@@ -231,6 +231,7 @@ from .markus_export_commands import content_export_published
 from .backend_copy_commands import content_copy_backend
 from .markus_import_commands import content_import_markus
 from .tenant_adoption_commands import content_adopt_tenant_data
+from .tenant_field_backfill_commands import content_backfill_tenant_id
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
 from .knowledge_snapshot.commands import KNOWLEDGE_COMMANDS
@@ -251,6 +252,7 @@ PORTED_COMMANDS = frozenset(
         "content:markus-derive",
         "content:import-markus",
         "content:adopt-tenant-data",
+        "content:backfill-tenant-id",
         "content:publish",
         "content:publish-gate",
         "content:unpublish",
@@ -619,6 +621,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_import_markus(flags)
     elif route == "content:adopt-tenant-data":
         content_adopt_tenant_data(flags)
+    elif route == "content:backfill-tenant-id":
+        content_backfill_tenant_id(flags)
     elif route == "content:publish":
         content_publish(flags)
     elif route == "content:publish-gate":
@@ -2078,6 +2082,7 @@ def print_usage() -> None:
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json]  (signed in with `papyrus login` and no --function-name it needs no AWS login: it asks the site's image function through the editor's own bucket access),")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
+    print("  content backfill-tenant-id --tenant ID [--models A,B] [--apply] [--json]  (dry run unless --apply; stamps tenantId on rows written without one, so the tenantId indexes list them),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish-gate show | set --approval required|not_required [--dry-run] [--json]  (the site's publish approval setting; default not_required),")
     print("  stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]  (attaches finished copy written by a person or another agent as the translation of a published Story: an unpublished version whose every block is pinned to the writer, checked with the parity, glossary and language rules and no model; a copy that does not line up block for block, or changes a link, credit or figure, is refused; error findings hold it; docs/story-translation-procedure.md),")
