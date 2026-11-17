@@ -71,10 +71,17 @@
       "text": "2026-11-17 MoM rating agent resume with 5.130.2 CLI. set-rung observe dry run then --apply: OK (policy v0 -> v1, rate=observe, reason recorded). automations update --id rate --monitor hn --publication machines-on-machines --enabled true: OK, rate now enabled; show reports schedule 30 3 * * * America/New_York 'from its definition'. agents schedules dry run AND real both FAILED: botocore LoginRefreshRequired (AWS session expired); the command is operator lane (AWS credentials / --auth iam), not the signed-in lane, so I did not use AWS creds to write; needs Ryan or coordinator to aws login and run it. automations run --id rate --input {} : started (manual run requested), but 2+ minutes later automations runs --id rate still lists 0 runs and show says no runs; no failed-closed record seen yet. No story updated after the run (newest published update 15:56Z), so no ratings appear written. Open: schedules step; why the manual run left no run record.",
       "created_at": "2026-11-17T17:43:46.057773Z",
       "comment_type": "default"
+    },
+    {
+      "id": "1c60fa13-578f-42dc-abff-9fcf14c45ef4",
+      "author": "home",
+      "text": "2026-11-17, Machines on Machines moved to Papyrus 5.130.3. Release: Papyrus PR #1668 (develop to main); tag v5.130.3, PyPI and npm verified (npm took about 6 minutes to show the version after a clean 202 publish, same as 5.130.2); stack-deploy run green, monitoring stack untouched and still held. MoM: bump PR #321 to develop, release PR #322 to main, amplify.yml regenerated with print-buildspec. Before the main merge, the Automation tenantId backfill ran as a dry run (2 rows: story-localize and rate, both unstamped), then --apply wrote 2 tenantId fields; a second dry run showed 0 pending, 2 already stamped, and agents apply --check then saw rate as unchanged. Main deploy 1 (Amplify job 140) FAILED at agents schedules: the router publication machines-on-machines names no siteBucket, so rate cannot be scheduled; nothing was written, frontend did not run, and the live site stayed on the previous build. Decision: rate stays disabled while its publication has no siteBucket, so automations update --id rate --enabled false was applied and verified (rate disabled, definition unchanged per agents apply --check). Retry (job 141) SUCCEEDED: agents apply unchanged, agents schedules ok with nothing to create, frontend build ran, deploy and verify succeeded. Public pages and /newsroom return 200; the agent schedule group is empty, so no agent-rate schedule exists. Re-enabling rate waits on lifting the papyrus-monitoring hold (siteBucket). Follow-up filed: PPY-df6d88, whether agents schedules should fail the whole build over one agent's missing config.",
+      "created_at": "2026-11-17T21:13:51.642415Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:12.953918Z",
-  "updated_at": "2026-11-17T17:43:46.058882Z",
+  "updated_at": "2026-11-17T21:13:51.642679Z",
   "closed_at": "2026-11-17T08:09:03.970580Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
