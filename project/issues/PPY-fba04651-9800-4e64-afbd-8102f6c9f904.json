@@ -3,7 +3,7 @@
   "title": "Agent definitions follow-up: registered copy on the Automation record and the first real core definition",
   "description": "**Problem.** PPY-68abaa (closed) delivered the definition file format, but `core/` holds only `.gitkeep`: no real core definition exists. Its line 'the Automation record becomes the registered copy (id, version, digest)' was dropped without a note. Closed early; filed here, not reopened.\n\n**Change.** Add the registered copy of a definition (id, version, digest on the Automation record), and the first real core definition (the rating agent's file) so applying definitions by release has something to apply.\n\n**Acceptance criteria**\n- The Automation record carries the registered copy: definition id, version and digest.\n- Applying a definition twice with the same digest changes nothing; a changed digest bumps the version.\n- At least one real core definition exists under `core/` (draft for the rating agent, declaring `acted` or `nothing`, never proposing five stars).\n- PPY-df3e74 (D2) lists the registered-copy line in its own acceptance criteria.\n\n**Critical path (board edges, added with this task).** PPY-e95a0c and PPY-0d4984, then PPY-1b2edd, then PPY-df3e74 must be blockers of the schedule trigger (PPY-2a53cd) and the rating agent (PPY-d85860). Start e95a0c and 0d4984 now; they conflict with nothing in flight.\n\n**Gherkin features needed**\n- agent-definition-registered-copy.feature: 'applying a definition records its digest and version'; 'applying an unchanged definition changes nothing'; 'a changed definition bumps the version'.\n\n**Dependencies:** blocks PPY-df3e74 and PPY-d85860. Relates PPY-68abaa.\n\n**Report:** papyrus-track-report-1.md, section 1 (#1630 row; follow-ups 3), section 4 critical path table, page one row 4.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,18 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "cbd4b71e-7fa8-4952-a8da-b98ed9a80394",
+      "author": "home",
+      "text": "Built and merged to develop (PR #1644). The Automation record carries the registered copy: definitionId, definitionVersion, definitionDigest and definition (fields only, no new model or resource). register() in agent_definitions/registered.py writes nothing for an unchanged digest, version 1 first, next version on a changed digest, and touches nothing else. core/rate.yaml is the first core definition (bulk tier, daily, never five stars, never publishes, operations at the operation-table rung, no rung set). Specs: agent-definition-registered-copy.feature, rating-agent-definition.feature. Not done: creating Automation records and applying by release (D2, PPY-df3e74, must list the registered-copy line in its acceptance; the design doc line was added), the rating procedure (L1), and a rating-write operation in the operation table (none exists).",
+      "created_at": "2026-11-17T04:20:17.680355Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-17T01:17:21.528575Z",
-  "updated_at": "2026-11-17T01:18:17.758510Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T04:20:18.206654Z",
+  "closed_at": "2026-11-17T04:20:18.202598Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
