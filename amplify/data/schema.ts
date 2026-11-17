@@ -1556,6 +1556,11 @@ const definitions = {
       procedureKey: a.string().required(),
       /** The standing responsibility this automation fills (a key of the agent catalog). Set by `papyrus automations adopt`, never inferred. An automation with none starts no run (PPY-c8175e). */
       responsibility: a.string(),
+      /** The registered copy of the agent definition this automation runs (PPY-fba046): its id, the registered version (1, then one higher for each changed digest), the digest of the effective definition and the definition as registered. The runner and Today read this, not Git. Set only by registering a definition. */
+      definitionId: a.string(),
+      definitionVersion: a.integer(),
+      definitionDigest: a.string(),
+      definition: a.json(),
       inputTemplate: a.json(),
       limits: a.json(),
       createdBy: a.string(),
