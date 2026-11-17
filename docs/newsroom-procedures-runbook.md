@@ -28,12 +28,18 @@ Procedure kinds and the registry:
 
 - The first line of every procedure file declares its kind:
   `-- papyrus-procedure-kind: <kind>`.
-- `corpora/papyrus-required-procedures.json` lists, under `procedures`, the file that
+- `corpora/papyrus-required-procedures.json` lists, under `procedures`, the file name that
   runs for each kind, and under `requiredCliProcedures` the kind each CLI command needs.
 - `poetry run python -m papyrus_content.procedure_registry` checks that the three agree
   (a file without a kind, two files with one kind, a registry entry whose file declares
   another kind or does not exist, a file the registry does not list, a CLI command whose
   kind has no entry). CI runs it, and `papyrus procedures seed-required` runs it first.
+- The procedure files live in `src/papyrus_content/data/procedures/` so the wheel
+  carries them (a PyPI install, a container job and a local pod have no checkout);
+  `procedures/newsroom/<name>.tac` is a link to each, so every path in docs and
+  commands still works. Code asks for a kind (`procedure_file_for_kind`) and gets
+  the checkout's file when `PAPYRUS_ROOT/procedures/newsroom/<name>` exists, else the
+  packaged one through importlib.resources. Edit the file under either path.
 
 CLI cloud resolution contract:
 

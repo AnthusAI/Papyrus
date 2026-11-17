@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
 import sys
 from pathlib import Path
 
@@ -13,8 +12,8 @@ if str(REPO_ROOT / "src") not in sys.path:
 
 from papyrus_content import procedure_registry as registry_module  # noqa: E402
 
-_FIRST = "procedures/newsroom/first.tac"
-_SECOND = "procedures/newsroom/second.tac"
+_FIRST = "first.tac"
+_SECOND = "second.tac"
 
 
 def _problems(context) -> list[str]:
@@ -24,7 +23,7 @@ def _problems(context) -> list[str]:
 @given("the procedure files and the registry of this checkout")
 def step_real(context):
     context.registry = registry_module.load_registry_config()
-    context.sources = registry_module.discover_procedure_files(REPO_ROOT)
+    context.sources = registry_module.discover_procedure_files()
 
 
 @then("the registry and the procedure files agree")
@@ -100,7 +99,7 @@ def step_swapped(context):
 
 @when("the registry sends the first kind to a file that is not there")
 def step_missing(context):
-    context.registry["procedures"]["demo.first"] = "procedures/newsroom/gone.tac"
+    context.registry["procedures"]["demo.first"] = "gone.tac"
 
 
 @then("the check says the first kind points at a file that is not a procedure file")
@@ -110,7 +109,7 @@ def step_missing_named(context):
 
 @when("a third procedure file is added that the registry does not list")
 def step_third(context):
-    context.sources["procedures/newsroom/third.tac"] = "-- papyrus-procedure-kind: demo.third\nProcedure {}\n"
+    context.sources["third.tac"] = "-- papyrus-procedure-kind: demo.third\nProcedure {}\n"
 
 
 @then("the check names the third file as not listed")
@@ -130,20 +129,25 @@ def step_command_named(context):
 
 @when("the first file is edited to declare another kind")
 def step_edit_on_disk(context):
-    directory = context.root / "procedures" / "newsroom"
-    directory.mkdir(parents=True)
-    (context.root / _FIRST).write_text("-- papyrus-procedure-kind: demo.other\nProcedure {}\n", encoding="utf-8")
     from unittest import mock
 
-    patcher = mock.patch.object(registry_module, "load_registry_config", lambda: copy.deepcopy(context.registry))
-    patcher.start()
-    context.add_cleanup(patcher.stop)
+    from papyrus_content import env
+
+    directory = context.root / "procedures" / "newsroom"
+    directory.mkdir(parents=True)
+    (directory / _FIRST).write_text("-- papyrus-procedure-kind: demo.other\nProcedure {}\n", encoding="utf-8")
+    for patcher in (
+        mock.patch.object(registry_module, "load_registry_config", lambda: copy.deepcopy(context.registry)),
+        mock.patch.object(env, "PAPYRUS_ROOT", context.root),
+    ):
+        patcher.start()
+        context.add_cleanup(patcher.stop)
 
 
 @then("loading the first kind refuses it")
 def step_refuses(context):
     try:
-        registry_module.procedure_path_for_kind("demo.first", context.root)
+        registry_module.procedure_file_for_kind("demo.first")
     except registry_module.ProcedureRegistryError as error:
         assert "does not declare the kind demo.first" in str(error)
     else:
