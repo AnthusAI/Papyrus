@@ -503,17 +503,19 @@ LANGUAGE = text("A language overlay (en, es, es-419, zh-Hans ...): only what is 
 RESOLVE_LANGUAGE = text("The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. "
                         "Leave it out for the guidelines every language shares.")
 GUIDELINE_DOCUMENT = {"type": "object", "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."}
+GUIDELINE_FILES = {"type": "object", "additionalProperties": {"type": "string"},
+                   "description": "Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set."}
 GUIDELINE_GUARD = text("The current version id of that guideline lineage when you read it (guidelines_get returns it as expectedCurrentVersionId), "
                        "or none for the first save.")
 GUIDELINE_CHANGES = many(record({"path": text(), "from": anything(), "to": anything()}, ("path",)))
 _GUIDELINE_REF = {"itemId": "item-editorial-doctrine-writing-v2", "versionNumber": 2, "contentHash": "sha256:5c1e"}
-_GUIDELINE_DOCUMENT = {"schemaVersion": 1, "audience": "General readers", "tone": ["Warm and plain."], "constraints": [{"id": "no-hype", "text": "No hype."}]}
+_GUIDELINE_DOCUMENT = {"schemaVersion": 2, "audience": "General readers", "tone": ["Warm and plain."], "constraints": [{"id": "no-hype", "text": "No hype."}]}
 
 GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "guidelines_get", ("show",), "Read a kind of guidelines for the publication or one section, the current version or an older one.", "read",
         obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "version": whole("A version number; the current version when left out.")}, ("kind",)),
-        record({"kind": text(), "section": text(), "language": text(), "document": GUIDELINE_DOCUMENT, "itemId": text(), "versionNumber": whole(), "contentHash": text(), "updatedAt": text(),
+        record({"kind": text(), "section": text(), "language": text(), "document": GUIDELINE_DOCUMENT, "files": GUIDELINE_FILES, "itemId": text(), "versionNumber": whole(), "contentHash": text(), "updatedAt": text(),
                 "updatedBy": text(), "changeReason": {"type": "string"}, "isCurrent": flag(),
                 "expectedCurrentVersionId": text("What to pass to guidelines_save to replace this lineage's current version.")},
                ("kind", "document", "itemId", "versionNumber", "contentHash", "expectedCurrentVersionId")),
@@ -543,20 +545,22 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "guidelines_diff", ("diff",), "Show what saving a guideline document would change, without saving it.", "read",
-        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "document": GUIDELINE_DOCUMENT}, ("kind", "document")),
-        record({"kind": text(), "section": text(), "language": text(), "changes": GUIDELINE_CHANGES, "constraintChanges": many({"type": "object"}), "wouldCreateVersion": whole(minimum=0)},
+        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "document": GUIDELINE_DOCUMENT, "files": GUIDELINE_FILES}, ("kind",)),
+        record({"kind": text(), "section": text(), "language": text(), "changes": GUIDELINE_CHANGES, "constraintChanges": many({"type": "object"}), "wouldCreateVersion": whole(minimum=0),
+                "fileChanges": many(record({"path": text(), "change": choice("added", "changed", "removed")}, ("path", "change")))},
                ("kind", "changes", "constraintChanges", "wouldCreateVersion")),
         ("unknown_kind",),
         (Example({"kind": "writing", "document": _GUIDELINE_DOCUMENT}, {"kind": "writing", "changes": [{"path": "audience", "from": "Engineers", "to": "General readers"}],
                                                                      "constraintChanges": [], "wouldCreateVersion": 3}),),
         file_field="document", group="guidelines",
-        notes="A writing or video document is stored whole, so the diff compares it with the current document field by field. An image document is laid over the "
-              "current profile, as image_profile_diff does.",
+        notes="Give a document, or for guidelines stored as files (writing) the files. A document is compared with the current one field by field, and a writing "
+              "document's field files over the rule files the current version holds; fileChanges lists the files that would be added, changed or removed. An image document "
+              "is laid over the current profile, as image_profile_diff does.",
     ),
     Operation(
         "guidelines_save", ("save",), "Save a guideline document as the next version of its kind and scope.", "write",
-        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "document": GUIDELINE_DOCUMENT, "reason": REASON, "expectedCurrentVersionId": GUIDELINE_GUARD},
-            ("kind", "document", "reason", "expectedCurrentVersionId")),
+        obj({"kind": KIND, "section": SECTION, "language": LANGUAGE, "document": GUIDELINE_DOCUMENT, "files": GUIDELINE_FILES, "reason": REASON, "expectedCurrentVersionId": GUIDELINE_GUARD},
+            ("kind", "reason", "expectedCurrentVersionId")),
         record({"kind": text(), "section": text(), "language": text(), "itemId": text(), "versionNumber": whole(), "contentHash": text(),
                 "unchanged": flag("True when the document equals the current version, so no version was made."),
                 "repeated": flag("True when this is the first answer to the same request id, returned again.")}, ("kind", "itemId", "versionNumber", "contentHash")),
@@ -565,8 +569,9 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
                  {"kind": "writing", **_GUIDELINE_REF}),),
         file_field="document", group="guidelines",
         notes="Only an admin may save; an editor gets not_authorized. Adding, changing or removing a binding constraint needs an admin who is a person: an agent gets "
-              "human_required and nothing is saved. The first save of a lineage passes none as expectedCurrentVersionId. The document is stored whole, as given. "
-              "Saving a document that equals the current one makes no version. Every problem with a document is listed by field in details.problems.",
+              "human_required and nothing is saved. The first save of a lineage passes none as expectedCurrentVersionId. Give a document, or for writing guidelines the "
+              "files (papyrus guidelines save --dir DIR): the set is stored exactly as given and exports back byte for byte. Saving structured fields keeps the rule files "
+              "the current version holds. Saving what equals the current version makes no version. Every problem with a document is listed by field in details.problems.",
     ),
     Operation(
         "guidelines_history", ("history",), "List the versions of a kind of guidelines, newest first, with who changed it and why.", "read",

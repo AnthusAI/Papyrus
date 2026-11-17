@@ -179,7 +179,7 @@ def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handl
         envelope = execute(spec["op"], arguments, caller, handlers={spec["op"]: _dry_run_handler})
         preview = (previews or {}).get(spec["op"])
         if preview and envelope["ok"]:
-            asked = {name: arguments[name] for name in ("kind", "section", "document") if name in arguments}
+            asked = {name: arguments[name] for name in ("kind", "section", "language", "document") if name in arguments}
             shown = execute(preview, asked, caller, handlers)
             if not shown["ok"]:
                 return finish(shown)

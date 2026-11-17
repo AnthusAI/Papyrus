@@ -17,10 +17,11 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 
 from papyrus_content.guidelines import (Field, GuidelineError, GuidelineStore, KindSpec, register_kind, resolve_guidelines, resolve_writing,  # noqa: E402
                                         unregister_kind, validate_document)
+from papyrus_content.guidelines import field_files, kind_spec  # noqa: E402
 from papyrus_content.guidelines.document import PROSE, digest, texts  # noqa: E402
 from papyrus_content.guidelines.fakes import FakeBackend, FakeFiles  # noqa: E402
 
-SITE = {"schemaVersion": 1, "voice": {"name": "House"}, "tone": ["Warm."], "voicePatterns": ["Opens plainly."], "lexicon": {"prefer": ["inspect"], "avoid": ["synergy"]},
+SITE = {"schemaVersion": 2, "voice": {"name": "House"}, "tone": ["Warm."], "voicePatterns": ["Opens plainly."], "lexicon": {"prefer": ["inspect"], "avoid": ["synergy"]},
         "bodyMarkus": "Write plainly.", "constraints": [{"id": "no-hype", "text": "No hype."}], "locked": ["headline"], "headline": {"order": ["title"]},
         "audience": "General readers"}
 
@@ -73,18 +74,18 @@ def step_one_row(context, slug):
     assert row["slug"] == slug and row["bodyMarkus"] == "" and json.loads(row["metadata"]) == {} and row["body"] == []
 
 
-@then('exactly one file is stored in S3 as the "{role}" of that row')
+@then('one file for each guideline file is stored in S3 as a "{role}" file of that row')
 def step_one_file(context, role):
-    assert len(context.backend.attachments) == 1 and len(context.backend.bodies) == 1
-    attachment = context.backend.attachments[0]
-    assert attachment["role"] == role and attachment["ownerId"] == context.backend.items[0]["id"] and attachment["ownerKind"] == "item"
+    wanted = len(context.store.read("writing")["files"])
+    assert wanted and len(context.backend.attachments) == wanted == len(context.backend.bodies)
+    assert all(a["role"] == role and a["ownerId"] == context.backend.items[0]["id"] and a["ownerKind"] == "item" for a in context.backend.attachments)
 
 
 @then("reading the writing guidelines returns the same document, and the row's content hash matches it")
 def step_read_same(context):
     read = context.store.read("writing")
     assert read["document"] == context.saved
-    assert context.backend.items[0]["contentHash"] == digest(context.saved) == read["reference"]["contentHash"]
+    assert context.backend.items[0]["contentHash"] == field_files.set_digest(read["files"]) == read["reference"]["contentHash"]
 
 
 @when("an admin saves the same document again naming the current version")
@@ -144,7 +145,7 @@ def step_history(context, newer, older):
 @when('an admin saves a writing document with an empty tone sentence and an unknown field "{field}"')
 def step_bad_document(context, field):
     context.before = counts(context)
-    save(context, {"schemaVersion": 1, "tone": [""], field: 1})
+    save(context, {"schemaVersion": 2, "tone": [""], field: 1})
 
 
 @then("the save is refused as invalid")
@@ -236,7 +237,7 @@ def step_site(context):
 
 
 def section_document(context, section, **fields):
-    save(context, {"schemaVersion": 1, **fields}, section)
+    save(context, {"schemaVersion": 2, **fields}, section)
 
 
 @given('the section "{section}" has writing guidelines with the tone "{tone}" and the voice pattern "{pattern}"')
@@ -385,7 +386,7 @@ class FailingOnce(FakeFiles):
 
 @when('an admin saves a minimal "{kind}" document with the reason "{reason}"')
 def step_minimal(context, kind, reason):
-    context.saved = {"schemaVersion": 1}
+    context.saved = {"schemaVersion": kind_spec(kind).schema_version, **({"audience": "General readers"} if kind == "writing" else {})}
     save(context, context.saved, kind=kind, reason=reason)
     assert context.error is None, context.error
 
@@ -433,6 +434,7 @@ def step_again(context):
     assert context.error is None, context.error
 
 
-@then("exactly one catalog row and one file are stored")
+@then("exactly one catalog row and one file for each guideline file are stored")
 def step_one_and_one(context):
-    assert counts(context) == (1, 1), counts(context)
+    files = len(context.store.read("writing")["files"])
+    assert counts(context) == (1, files), counts(context)

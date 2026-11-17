@@ -44,6 +44,8 @@ assert.equal(mediaTypeAllowedForRole("image_record", "image/png", general), fals
 // Guideline documents are JSON; the files they name are raw bytes; neither takes pictures.
 assert.equal(mediaTypeAllowedForRole("doctrine_document", "application/json", general), true);
 assert.equal(mediaTypeAllowedForRole("doctrine_document", "image/png", general), false);
+assert.equal(mediaTypeAllowedForRole("doctrine_files", "text/markdown", general), true);
+assert.equal(mediaTypeAllowedForRole("doctrine_files", "image/png", general), false);
 assert.equal(mediaTypeAllowedForRole("doctrine_asset", "application/octet-stream", general), true);
 assert.equal(mediaTypeAllowedForRole("doctrine_asset", "application/json", general), false);
 assert.equal(mediaTypeAllowedForRole("metadata", "application/octet-stream", general), false);

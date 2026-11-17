@@ -278,12 +278,16 @@ _ENTRIES = dict([
   _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, and for one language (its overlays laid on top), with where every field came from.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
-     "--kind KIND [--section KEY] [--language TAG] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
-  _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
-     "--kind KIND [--section KEY] [--language TAG] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
+     "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines save", "Save a document, or for writing guidelines the guideline files of a folder, as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
+     "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
   _e("guidelines check", "Check files against the guideline files in a folder (one folder per guideline, each with GUIDELINE.md) with no network and no model: listed words, patterns and lengths are decided; a rule that needs judgement is listed as not checked offline. Exits 1 when an error guideline finds something.",
      "--dir DIR [--scope section/ID|channel/NAME]... [--language TAG] FILE...", "both", "reads", "guidelines"),
+  _e("guidelines export", "Write the guideline files of a kind (writing) to a folder, byte for byte as they were saved. Reads the site; changes nothing there.",
+     "--kind KIND --dir DIR [--section KEY] [--language TAG] [--version N]", "editor", "reads", "guidelines"),
+  _e("guidelines convert", "One-time: convert this site's writing guidelines from one JSON document each to guideline files. A dry run that reports every lineage unless --apply; an admin who is a person applies it.",
+     "[--apply] [--section KEY]... [--language TAG]...", "editor", "apply", "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------

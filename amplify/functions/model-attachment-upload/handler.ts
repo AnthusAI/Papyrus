@@ -63,6 +63,7 @@ const ALLOWED_ROLES = new Set([
   "announcement_document",
   "doctrine_document",
   "doctrine_asset",
+  "doctrine_files",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",

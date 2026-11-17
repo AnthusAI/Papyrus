@@ -2939,6 +2939,13 @@
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
           },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set."
+          },
           "itemId": {
             "type": "string",
             "minLength": 1
@@ -3138,11 +3145,17 @@
           "document": {
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set."
           }
         },
         "required": [
-          "kind",
-          "document"
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -3187,6 +3200,30 @@
           "wouldCreateVersion": {
             "type": "integer",
             "minimum": 0
+          },
+          "fileChanges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "change": {
+                  "type": "string",
+                  "enum": [
+                    "added",
+                    "changed",
+                    "removed"
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "change"
+              ]
+            }
           }
         },
         "required": [
@@ -3225,6 +3262,13 @@
             "type": "object",
             "description": "A guideline document of that kind: schemaVersion and the fields the kind allows."
           },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set."
+          },
           "reason": {
             "type": "string",
             "minLength": 1,
@@ -3238,7 +3282,6 @@
         },
         "required": [
           "kind",
-          "document",
           "reason",
           "expectedCurrentVersionId"
         ],
