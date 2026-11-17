@@ -26,35 +26,35 @@ reference below, and treat a picture you apply without a person as a suggestion:
 
 ## Reference: the operations
 
-Each operation is a command and a tool with the same input and the same JSON result. A person-only operation returns `human_required` to an agent.
+Each operation is a command and a tool with the same input and the same JSON result. Each operation names the lowest rung of the site's agent policy that lets an agent call it; below that rung the gate answers an agent `human_required`, and a person-only operation answers `human_required` or `blocked` at every rung.
 
 | Operation (MCP tool) | Command | What it does | Agent may call | Errors it can return |
 | --- | --- | --- | --- | --- |
-| `image_profile_get` | `papyrus images profile get` | Read the publication's visual style profile, the current version or an older one. | yes | `not_found` |
-| `image_profile_resolve` | `papyrus images profile resolve` | Show the style that would apply to a Story, section and use, with the layer every field came from. | yes | `constraint_conflict`, `image_type_required`, `image_type_unknown`, `not_found` |
-| `image_profile_diff` | `papyrus images profile diff` | Show what saving a style document would change, without saving it. | yes | `constraint_conflict` |
-| `image_profile_save` | `papyrus images profile save` | Save a style document as a new profile version. | yes | `human_required`, `stale_version`, `constraint_conflict` |
-| `image_profile_history` | `papyrus images profile history` | List the profile's versions, newest first, with who changed it and why. | yes | only the common ones |
-| `image_profile_init` | `papyrus images profile init` | Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing. | yes | only the common ones |
-| `image_profile_example_add` | `papyrus images profile example add` | Add an example or an avoid-this picture to the profile, as a new version. | yes | `human_required`, `image_type_unknown`, `not_found`, `stale_version` |
-| `image_profile_example_remove` | `papyrus images profile example remove` | Remove an example picture from the profile, as a new version. | yes | `not_found`, `stale_version` |
-| `image_capabilities` | `papyrus images capabilities` | Say which image models this site can use and whether spending is approved. | yes | only the common ones |
-| `image_brief_draft` | `papyrus images brief` | Work out a starting brief and stock search from a Story's title and deck. | yes | `image_type_required`, `not_found` |
-| `image_prompt_preview` | `papyrus images prompt` | Show exactly what would be asked of the image model, and what it would cost, without making anything. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `set_needs_person`, `source_not_allowed` |
-| `image_search` | `papyrus images search` | Find stock pictures for a Story, four at a time. | yes | `image_type_required`, `image_type_unknown`, `not_found`, `source_not_allowed` |
-| `image_generate` | `papyrus images generate` | Make pictures from a brief in the publication's style. The pictures arrive later. | yes | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed`, `spend_ceiling_exceeded` |
-| `image_figure_add` | `papyrus images figure add` | Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing. | yes | `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed` |
-| `image_round_get` | `papyrus images round` | Read a round of pictures and say whether they are all done. | yes | `not_found` |
-| `image_candidate_get` | `papyrus images show` | Read one picture's full record, with a short-lived preview address. | yes | `not_found` |
-| `image_list` | `papyrus images list` | List the rounds and pictures made for a Story or Reference, newest first. | yes | `not_found` |
-| `image_retry` | `papyrus images retry` | Make a new picture to replace one that failed. The ones that worked stay. | yes | `candidate_closed`, `candidate_not_ready`, `capability_unsupported`, `generation_not_configured`, `not_found`, `provider_busy` |
-| `image_iterate` | `papyrus images iterate` | Make new pictures from one you have, with an instruction such as 'less busy'. | yes | `candidate_closed`, `candidate_not_ready`, `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `not_found`, `provider_busy`, `set_needs_person` |
-| `image_select` | `papyrus images select` | Record a picture as the pick. It changes no Story and is not approval. | yes | `candidate_closed`, `candidate_not_ready`, `not_found` |
-| `image_unapply` | `papyrus images unapply` | Undo an applied picture: the Story gets a new version with the old cover or the placeholder back. | yes | `candidate_closed`, `not_found`, `stale_version` |
-| `image_review` | `papyrus images review` | Keep or remove a picture that was added without a person looking at it. Only a person may. | no, a person only | `human_required`, `not_found`, `stale_version` |
-| `image_review_queue` | `papyrus images review-queue` | List the pictures that were added without a person, oldest first. | yes | only the common ones |
-| `image_apply` | `papyrus images apply` | Put a picture on a Story: copy it into the site's media and record where it came from. It never publishes. | yes | `candidate_closed`, `candidate_not_ready`, `checks_failed`, `human_required`, `image_type_unknown`, `not_found`, `source_not_allowed`, `stale_version` |
-| `image_discard` | `papyrus images discard` | Reject a picture, or a whole round (which keeps the placeholder). The private file is deleted; the record stays. | yes | `candidate_closed`, `not_found` |
+| `image_profile_get` | `papyrus images profile get` | Read the publication's visual style profile, the current version or an older one. | from `observe` | `not_found` |
+| `image_profile_resolve` | `papyrus images profile resolve` | Show the style that would apply to a Story, section and use, with the layer every field came from. | from `observe` | `constraint_conflict`, `image_type_required`, `image_type_unknown`, `not_found` |
+| `image_profile_diff` | `papyrus images profile diff` | Show what saving a style document would change, without saving it. | from `observe` | `constraint_conflict` |
+| `image_profile_save` | `papyrus images profile save` | Save a style document as a new profile version. | from `prepare` | `human_required`, `stale_version`, `constraint_conflict` |
+| `image_profile_history` | `papyrus images profile history` | List the profile's versions, newest first, with who changed it and why. | from `observe` | only the common ones |
+| `image_profile_init` | `papyrus images profile init` | Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing. | from `observe` | only the common ones |
+| `image_profile_example_add` | `papyrus images profile example add` | Add an example or an avoid-this picture to the profile, as a new version. | from `prepare` | `human_required`, `image_type_unknown`, `not_found`, `stale_version` |
+| `image_profile_example_remove` | `papyrus images profile example remove` | Remove an example picture from the profile, as a new version. | from `prepare` | `not_found`, `stale_version` |
+| `image_capabilities` | `papyrus images capabilities` | Say which image models this site can use and whether spending is approved. | from `observe` | only the common ones |
+| `image_brief_draft` | `papyrus images brief` | Work out a starting brief and stock search from a Story's title and deck. | from `observe` | `image_type_required`, `not_found` |
+| `image_prompt_preview` | `papyrus images prompt` | Show exactly what would be asked of the image model, and what it would cost, without making anything. | from `observe` | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `set_needs_person`, `source_not_allowed` |
+| `image_search` | `papyrus images search` | Find stock pictures for a Story, four at a time. | from `observe` | `image_type_required`, `image_type_unknown`, `not_found`, `source_not_allowed` |
+| `image_generate` | `papyrus images generate` | Make pictures from a brief in the publication's style. The pictures arrive later. | from `draft` | `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed`, `spend_ceiling_exceeded` |
+| `image_figure_add` | `papyrus images figure add` | Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing. | from `draft` | `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed` |
+| `image_round_get` | `papyrus images round` | Read a round of pictures and say whether they are all done. | from `observe` | `not_found` |
+| `image_candidate_get` | `papyrus images show` | Read one picture's full record, with a short-lived preview address. | from `observe` | `not_found` |
+| `image_list` | `papyrus images list` | List the rounds and pictures made for a Story or Reference, newest first. | from `observe` | `not_found` |
+| `image_retry` | `papyrus images retry` | Make a new picture to replace one that failed. The ones that worked stay. | from `draft` | `candidate_closed`, `candidate_not_ready`, `capability_unsupported`, `generation_not_configured`, `not_found`, `provider_busy` |
+| `image_iterate` | `papyrus images iterate` | Make new pictures from one you have, with an instruction such as 'less busy'. | from `draft` | `candidate_closed`, `candidate_not_ready`, `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `not_found`, `provider_busy`, `set_needs_person` |
+| `image_select` | `papyrus images select` | Record a picture as the pick. It changes no Story and is not approval. | from `draft` | `candidate_closed`, `candidate_not_ready`, `not_found` |
+| `image_unapply` | `papyrus images unapply` | Undo an applied picture: the Story gets a new version with the old cover or the placeholder back. | from `draft` | `candidate_closed`, `not_found`, `stale_version` |
+| `image_review` | `papyrus images review` | Keep or remove a picture that was added without a person looking at it. Only a person may. | no (human_required) | `human_required`, `not_found`, `stale_version` |
+| `image_review_queue` | `papyrus images review-queue` | List the pictures that were added without a person, oldest first. | from `observe` | only the common ones |
+| `image_apply` | `papyrus images apply` | Put a picture on a Story: copy it into the site's media and record where it came from. It never publishes. | from `draft` | `candidate_closed`, `candidate_not_ready`, `checks_failed`, `human_required`, `image_type_unknown`, `not_found`, `source_not_allowed`, `stale_version` |
+| `image_discard` | `papyrus images discard` | Reject a picture, or a whole round (which keeps the placeholder). The private file is deleted; the record stays. | from `draft` | `candidate_closed`, `not_found` |
 
 Every operation may also return: `invalid_input`, `not_authorized`, `service_unavailable`, `not_implemented`.
 
@@ -70,7 +70,8 @@ Success: `{"ok": true, "op": "...", "publication": "...", "result": {...}, "warn
 | `unknown_operation` | There is no image operation by that name. | no | operation, or command for the CLI |
 | `not_implemented` | This operation is described but not built yet. | no | operation |
 | `not_authorized` | You are not an editor or admin of this site, or the grant lacks the permission. | no |  |
-| `human_required` | A person has to do this one; an agent may not. | no |  |
+| `human_required` | A person has to do this one, or approve it; the agent's rung does not let it through. A review request is raised and the run ends asked. | no |  |
+| `blocked` | No agent may do this at any rung: it changes policy, budget or accounts. | no |  |
 | `set_needs_person` | A set of several pictures is for a person choosing. Unattended work gets one picture. | no |  |
 | `not_found` | No such Story, Reference, round or picture in this publication. | no |  |
 | `constraint_conflict` | The request asks for something one of the publication's rules forbids. | no | the constraint |
