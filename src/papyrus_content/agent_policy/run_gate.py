@@ -15,7 +15,7 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from .resolve import decide_start
@@ -39,6 +39,7 @@ class RunDecision:
     policy_version: int | None = None
     reason_code: str | None = None     # not_adopted, rung_off or paused when nothing starts
     reason: str | None = None          # the same in words, for the run record and the person reading it
+    state: Any = field(default=None, compare=False, repr=False)   # the policy as read for this run: the run's gate answers come from it
 
     def run_fields(self) -> dict[str, Any]:
         """What the run's record carries, started or skipped. Absent for a person's own run."""
@@ -99,6 +100,6 @@ class PolicyGate:
             raise PolicyUnreadable(f"The agent policy could not be read: {type(error).__name__}: {error}") from error
         decision = decide_start(state, responsibility, {})
         if decision.start:
-            return RunDecision(True, responsibility, decision.rung, decision.policy_version)
+            return RunDecision(True, responsibility, decision.rung, decision.policy_version, state=state)
         code = PAUSED if decision.reason_code == "paused" else RUNG_OFF
         return RunDecision(False, responsibility, decision.rung, decision.policy_version, code, decision.reason)

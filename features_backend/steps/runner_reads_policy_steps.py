@@ -34,7 +34,7 @@ class SiteBackend(tpr.NewsroomClient):
 
     def __init__(self, table):
         super().__init__()
-        self.table, self.records, self.automations, self.queries = table, {}, {}, []
+        self.table, self.records, self.automations, self.queries, self.reviews = table, {}, {}, [], {}
 
     def graphql(self, query, variables):
         if "startNewsroomProcedureRun" in query:
@@ -51,8 +51,13 @@ class SiteBackend(tpr.NewsroomClient):
         return result
 
     def get_record(self, model, record_id):
-        assert model == "Automation"
-        return self.automations.get(record_id)
+        assert model in ("Automation", "ReviewRequest")
+        return (self.automations if model == "Automation" else self.reviews).get(record_id)
+
+    def create_record(self, model, record):
+        assert model == "ReviewRequest"
+        self.reviews[record["id"]] = record
+        return record
 
 
 @given('a site backend with the published procedure "{key}"')

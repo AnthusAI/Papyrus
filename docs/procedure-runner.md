@@ -58,8 +58,15 @@ For each request, the runner does these steps:
    Every finished run also records its **outcome**, one of `acted`, `nothing`, `asked`, `failed`, `unknown`, with a short
    reason code (`outcomeReason`), plus the automation and the subject (story and version, or Reference) it was started for.
    `runStatus` is the mechanics; the outcome is what came of it. A procedure that looked and found nothing returns
-   `run_outcome: "nothing"` with a `run_outcome_reason` code such as `no_new_filing`; one that raised a review request returns
-   `run_outcome: "asked"` with a reason; a procedure that returns neither did its work (`acted`). A `nothing` or `asked`
+   `run_outcome: "nothing"` with a `run_outcome_reason` code such as `no_new_filing` (a procedure must declare both fields in its
+   `output`, because Tactus drops undeclared output keys; `procedures/newsroom/reference_curation.tac` does, and ends `nothing` with
+   `already_curated` or `in_progress`); a procedure that returns neither did its work (`acted`). **`asked` is never a procedure's own
+   word.** A procedure that needs a person's leave names the operations it wants in `gate_operations` and does none of them; the runner
+   asks the one gate about each (`agent_gate/run_end.py`, on the policy it read for the run). If a person must do or approve one, the
+   review-request code files one hard-gate review request on the run (`gate-<run id>`) and the run ends `asked` with the reason
+   `human_required`, whatever word the procedure declared. If the operation is one no agent may do, the run ends `failed` with
+   `gate_blocked`. Every answer, in order, with the policy version and the id of the request filed, is stored under `gate` in the
+   run's `output` (kept on a run the gate stopped). A person's own run has no policy, so no gate is asked. A `nothing` or `asked`
    without a reason, or any other value, is recorded as `failed` with the reason `invalid_outcome`. A procedure error is
    `failed` with `procedure_error` (`timed_out` for a deadline). `unknown` is never set here: only settling an interrupted
    run sets it. Runs recorded before outcomes have none and are shown as "Recorded before outcomes"; they are not rewritten.

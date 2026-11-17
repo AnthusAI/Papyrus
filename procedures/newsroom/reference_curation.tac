@@ -25,11 +25,18 @@ Procedure {
         force = field.boolean{default = false, description = "Redo stages that already finished"}
     },
     output = {
-        result = field.object{required = true}
+        result = field.object{required = true},
+        run_outcome = field.string{description = "nothing when the Reference was already curated or another run holds it; the runner records it"},
+        run_outcome_reason = field.string{description = "already_curated or in_progress"}
     },
     function(input)
         local curate = Tool.get("papyrus_curate_reference")
         local result = curate({reference_id = input.reference_id, force = input.force == true})
+        -- A Reference that is already curated, or that another run is curating, needs nothing: the run says so with its reason
+        -- (src/papyrus_content/run_outcomes.py) instead of ending "Did it".
+        if result.outcome == "already_curated" or result.outcome == "in_progress" then
+            return {result = result, run_outcome = "nothing", run_outcome_reason = result.outcome}
+        end
         return {result = result}
     end
 }

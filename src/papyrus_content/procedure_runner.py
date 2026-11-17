@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 from . import agent_wakes, request_meter, run_outcomes, wake_keys
+from .agent_gate import run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
@@ -277,7 +278,18 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         outcome = {"success": False, "error": f"{type(error).__name__}: {error}", "seconds": 0}
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
-    ended = run_outcomes.finished_outcome(bool(outcome.get("success")), outcome.get("output"), outcome.get("error"))
+    output = outcome.get("output")
+    gate = None
+    if outcome.get("success") and decision.state is not None and decision.responsibility:
+        gate = run_end.settle(client, decision.state, decision.responsibility, run_id, output)   # the gate's answers; a person's needed answer is `asked`
+    if gate is not None:
+        output = {**output, "gate": gate.record}   # every answer, in order, on the run record
+    if gate is not None and gate.error:
+        ended = run_outcomes.finished_outcome(False, None, gate.error) | {"outcomeReason": run_end.REVIEW_REQUEST_FAILED}
+    elif gate is not None and gate.blocked and gate.declaration is None:
+        ended = run_outcomes.finished_outcome(False, None, f"The run asked for {', '.join(gate.blocked)}, which no agent may do.") | {"outcomeReason": run_end.GATE_BLOCKED}
+    else:
+        ended = run_outcomes.finished_outcome(bool(outcome.get("success")), {**output, **gate.declaration} if gate and gate.declaration else output, outcome.get("error"))
     succeeded = ended["runStatus"] == "completed"
     usage, cost_usd = usage_record(outcome)
     trigger = request.get("trigger") or {}
@@ -285,9 +297,9 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         "id": run_id, "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
         "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
         "startedAt": started_at, "finishedAt": now(), "attempt": 1,
-        "resultSummary": summarize_output(outcome.get("output"), outcome.get("seconds", 0)) if succeeded else None,
+        "resultSummary": summarize_output(output, outcome.get("seconds", 0)) if succeeded else None,
         "errorSummary": None if succeeded else ended["error"][:MAX_SUMMARY_CHARACTERS],
-        "output": outcome.get("output") if succeeded else None,
+        "output": output if succeeded or gate is not None else None,   # a run the gate stopped keeps its answers
         "error": None if succeeded else {"message": ended["error"], "logTail": outcome.get("logTail")}}
     cost_recorded = usage is not None
     try:
@@ -303,7 +315,7 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
             "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
             "seconds": outcome.get("seconds"),
             "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
-            "output": outcome.get("output") if succeeded else None}
+            "output": output if succeeded or gate is not None else None}
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
