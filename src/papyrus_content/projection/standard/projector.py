@@ -38,6 +38,7 @@ from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_
 from ...markus_renderer.video import csp_text as video_csp_text
 from ...renditions import PrefixedRenditionStore, RenditionCatalog
 
+from ...item_language import IMPORTED_TRANSLATION, translation_kind
 from ...story_from_reference import url_key
 from ..model import ItemSummary, ProjectedItem, SiteIndex
 from ..site_relations import EMPTY as EMPTY_RELATIONS, SiteRelations
@@ -122,6 +123,16 @@ MERMAID_LIBRARY_PATH = "_plugins/mermaid-11.17.2.min.js"   # the vendored librar
 MERMAID_BLOCK = '<pre><code class="language-mermaid">'
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
 VIDEO_CSP_PATH = "_config/content-security-policy.txt"   # the policy fragment the site's edge needs for the video frames, generated from ``embeds``
+
+
+def _writer_of(summary: ItemSummary, kind: str) -> str | None:
+    """The name an imported translation's page gives as its author (the writer its provenance records); None for a machine translation. A page never
+    says "written by" with no name, so an imported version without one is refused."""
+    if kind != IMPORTED_TRANSLATION:
+        return None
+    if not summary.written_by:
+        raise ValueError(f"The imported translation {summary.item_id} records no writer (metadata.localization.writtenBy), so its page cannot say who wrote it.")
+    return summary.written_by
 
 
 def own_page_actions_stylesheet(standard: StandardSettings) -> bool:
@@ -2075,8 +2086,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
         fields.update(primary_language=view.primary, alternates=tuple(alternate.as_dict() for alternate in alternates), link_map=view.links)
         original = view.original_of(extra["entry"].summary) if kind == "item" and extra.get("entry") is not None else None
         if original is not None:   # a translated Story page says so, and where the original is (the label is the page's data, never the Story's text)
-            head = dataclasses.replace(head, translation_of=(self.head.absolute(original.url) or original.url, original.tag))
-            fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url}
+            summary = extra["entry"].summary
+            kind = translation_kind(summary.translation_kind)
+            head = dataclasses.replace(head, translation_of=(self.head.absolute(original.url) or original.url, original.tag),
+                                       translator=_writer_of(summary, kind))
+            fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url, "kind": kind,
+                                     **({"writtenBy": _writer_of(summary, kind)} if kind == IMPORTED_TRANSLATION else {})}
         return head, fields
 
     def _page(self, kind: str, head: PageHead, site: SiteIndex, *, entries=(), **extra) -> StandardPage:
@@ -2153,7 +2168,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
         view = self._view
         original = view.original_of(entry.summary) if view is not None and view.multilingual else None
-        translation = (self.standard.identity.language, self.head.absolute(original.url) or original.url) if original is not None else None
+        translation = ((self.standard.identity.language, self.head.absolute(original.url) or original.url, translation_kind(entry.summary.translation_kind),
+                        _writer_of(entry.summary, translation_kind(entry.summary.translation_kind))) if original is not None else None)
         return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin, self._hook_byline(entry), translation)
 
     def _chrome(self, page: StandardPage) -> SiteChrome:

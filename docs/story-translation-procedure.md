@@ -273,21 +273,29 @@ again saves nothing new. An explicit `papyrus stories localize --story` asks aga
 **Publishing stays the ordinary command**, `papyrus ops content publish --id VERSION_ID`; the import never publishes. `--dry-run` prints the alignment (each block, its kind, the
 English and the copy), the findings and the version it would replace, and writes nothing.
 
-Until the correction view and the page label of "Not yet" below are built, the page of an imported translation still carries the machine translation's line ("Traducido por IA...")
-and its Markdown twin says `Translation: machine`; the stored record says `imported`.
+The page and the Markdown twin of an imported translation say who wrote the copy and never that an AI translated it (below).
 
 ### What a reader and an agent see
 
-The page of a translation says, in the page's language and apart from the Story's text, that an AI translated it, with a link to the original:
+The page of a translation says, in the page's language and apart from the Story's text, who made it, with a link to the original. The line reads the
+version's translation kind (`metadata.localization.translation`). A machine translation says an AI translated it:
 
 > Traducido por IA del [original en inglés]
+
+An imported translation (finished copy written by a person or another agent) says who wrote it, by the name its provenance records, and never claims AI:
+
+> Escrito por Ana Writer, a partir del [original en inglés]
+
+The words of the second line are the interface string `translation.importedLabel`, with `{author}` and `{original}`; a language that serves an imported
+translation without it is refused when the page is drawn ([interface strings](multilingual-serving.md#interface-strings)).
 
 - The words are two interface strings of the language, `translation.label` (with `{original}` where the link goes) and `translation.original`
   ([interface strings](multilingual-serving.md#interface-strings)); a public language without them is refused. The label is the page's data, computed from
   the language group (the page is in a language other than the primary's and the group's primary page is served), never text in the Story's body, so a
   correction to the Story cannot remove it and the Markdown the translator sees never contains it.
 - Agents read the same facts: the JSON-LD has `inLanguage` and `translationOfWork` (`{@type, url, inLanguage}` of the original), and the Markdown twin
-  says `Language: es-419 · Translation: machine · Translated from: <original URL>`. The head has `hreflang` for each published language and `x-default`
+  says `Language: es-419 · Translation: machine · Translated from: <original URL>`; for an imported translation `Translation: imported · Written by: <name>`,
+  and the JSON-LD adds `translator`. The head has `hreflang` for each published language and `x-default`
   (the original), as for every page of a group.
 - Every page of the group lists the others, so publishing or unpublishing a translation (or the original) renders the other languages of the group again,
   in the same projection (`docs/multilingual-serving.md`).
@@ -312,7 +320,6 @@ A translation shows the original's pictures by default, with the alt text, capti
 - The `translation.published` notification to correctors (admin class) and the correction flow, which records "reviewed by a person" and would change the
   page's label to "translated by AI and reviewed by a person" (PPY-ef71cd, PPY-c0aebc). Until then every translated page says it was translated by AI.
 - JSON-LD `translator`: no decision yet on whom to name for a machine translation.
-- The page label and the Markdown twin for an imported translation: both still say it was translated by AI and `Translation: machine`; the record says `imported` (above), and the label would read from it.
 - Quotations marked as translated, with the original wording one tap away (PPY-c0aebc).
 - Translating a Story again in the languages already published when only its text changed a little: every new text is a new request (a run translates only the changed blocks).
 - Listing keys with the language (`typeStatus`, `sectionStatus`, `headStageKey`), so the console, the reader app and the board show one language at a time
