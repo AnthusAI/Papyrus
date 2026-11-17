@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b64b0bb4-a3e1-46eb-9f02-8ebc5715c968",
+  "title": "Import finished copy as a Story's translation: papyrus stories import-translation",
+  "description": "Papyrus can machine-translate a published English Story (papyrus stories localize) and a person can correct a published translation (stories correct-translation), but there is no supported way to attach finished, separately written copy as the companion edition of an English Story. Two Beijing drafts (Spanish es-419 and Chinese zh-Hans, written by people and other agents) need it.\n\nBuild: papyrus stories import-translation --story LINEAGE --language TAG --body-file F [--front-matter-file F] --written-by NAME --reason TEXT [--dry-run]. Writes an unpublished version of the sibling lineage {primary}--{language}, paired with the published English version; provenance says who wrote it (not machine-generated); every block is owner human and pinned so a later localize run keeps it; runs the same parity, glossary and language-policy checks the localize path runs and holds error findings with a flag review request; refuses unknown or disabled languages, an unpublished English Story, a translation as the source, a body that cannot be aligned block for block, and altered links, credits or figures; writes the LocalizationRequest so stories localize --all counts it up to date; --dry-run prints the alignment and findings and writes nothing; publishing stays the ordinary publish command.\n\nSpecs: features_backend/translation-import.feature. Docs: agent-cli-guide, story-translation-procedure, multilingual-publishing plan.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-17T09:02:21.813098Z",
+  "updated_at": "2026-11-17T09:02:30.274120Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
