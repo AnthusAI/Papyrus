@@ -57,10 +57,17 @@
       "text": "Built and merged to develop: PR #1651 (merge 77cf3ba28). The first agent, rate, runs the procedure rate_items daily; at observe it records what it would rate and why and writes nothing; a five is only ever a candidate for a person; the write goes through the one gate (new operation ratings_set, rung draft), so raising the rung is a policy change. Specs: features_backend/rating-agent.feature (20 scenarios). Not done: accepted References are not read (no index lists the ones with no stars); nothing has been adopted, no rung set, nothing run on a live site. The first run is blocked on papyrus agents set-rung (PPY-e6f31e, not built), the siteBucket on Machines on Machines' router publication, and the model key (PPY-6af46b). Exact steps: docs/releasing.md, 'The first agent: rating on Machines on Machines'.",
       "created_at": "2026-11-17T08:09:03.666547Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9dab344b-833d-4ccd-952a-dd0f114994e5",
+      "author": "home",
+      "text": "2026-11-17 MoM rating agent first-run steps (5.130.0 CLI, signed-in lane). Step 1 head-index: dry run reported 26 keys to set (doc says apply first); applied; re-run dry shows 0 to set, 719 already right, 1 no-head (a zh-Hans translation Story with every row superseded; suggests papyrus stories repair-versions, not run). Step 2 adopt rate dry run + real: ok. Step 3 set-rung observe dry run ok (policy v0 -> v1); --apply FAILED, NOT AccessDenied: 'GraphQL request failed: The variables input contains a field that is not defined for input object type ModelSiteDocumentVersionConditionInput'. Likely CLI/site-store bug: create sends condition {id: {attributeExists: false}} but SiteDocumentVersion is keyed by documentId+version, no id field (compare src/papyrus_content/agent_policy/catalogue.py line 31). Nothing written (policy still v0). Steps 4-5 not run; rung is unset so they would only record rung_off. Needs a fix and release before retry.",
+      "created_at": "2026-11-17T16:27:06.244428Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:12.953918Z",
-  "updated_at": "2026-11-17T08:09:03.970834Z",
+  "updated_at": "2026-11-17T16:27:06.245106Z",
   "closed_at": "2026-11-17T08:09:03.970580Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
