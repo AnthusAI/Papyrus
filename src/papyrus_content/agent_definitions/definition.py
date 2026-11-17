@@ -45,6 +45,7 @@ from papyrus_content.agent_policy.document import RUNGS, TIERS
 from papyrus_content.images.operations import operation as operation_named
 
 from ..responsibilities import BY_KEY
+from .cron import CronError, scheduler_expression
 
 SCHEMA_VERSION = 1
 SUFFIX = ".yaml"
@@ -150,6 +151,11 @@ def _wakes(wakes: Any, add) -> None:
         cron = schedule["cron"]
         if not (isinstance(cron, str) and len(cron.split()) == 5 and all(_CRON_FIELD.match(part) for part in cron.split())):
             add("wakes.schedule", "cron must be five fields: minute, hour, day of month, month, day of week")
+        else:
+            try:
+                scheduler_expression(cron)
+            except CronError as error:
+                add("wakes.schedule", f"cron cannot be run by the scheduler: {error}")
         try:
             ZoneInfo(str(schedule["timeZone"]))
         except (ZoneInfoNotFoundError, ValueError):

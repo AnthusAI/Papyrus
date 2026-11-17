@@ -101,7 +101,10 @@ export function wakeQueuePiece(brandId: string): AgentPiece {
       });
       const queue = new Queue(scope, "WakeQueue", {
         queueName: names.queue,
-        fifo: true, // the wake key is the deduplication id, set on each message, so no content-based deduplication
+        fifo: true,
+        // A sender that can name the deduplication id (the wake key's digest) does, and that id wins. EventBridge Scheduler cannot name one, so a schedule's wake is
+        // deduplicated by its body, which holds the scheduled time: a tick delivered twice is one message, and the run record's own condition still makes it one run.
+        contentBasedDeduplication: true,
         visibilityTimeout: Duration.seconds(WAKE_VISIBILITY_TIMEOUT_SECONDS),
         retentionPeriod: WAKE_RETENTION,
         encryption: QueueEncryption.SQS_MANAGED,

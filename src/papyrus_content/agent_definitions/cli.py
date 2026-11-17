@@ -1,11 +1,13 @@
 """``papyrus agents``: ``validate`` checks a folder of agent definition files with no network, no sign-in and no model (slice D1, PPY-68abaa);
-``apply`` applies the definitions to a site as its deploy does (slice D2, PPY-df3e74, ``release.py``).
+``apply`` applies the definitions to a site as its deploy does (slice D2, PPY-df3e74, ``release.py``); ``schedules`` makes the site's schedule group
+agree with the applied definitions (slice C1, PPY-2a53cd, ``schedules.py``).
 
 Later slices add the other ``papyrus agents`` commands (set-rung, runbook, explain) to this group.
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import TextIO
@@ -13,7 +15,7 @@ from typing import TextIO
 from papyrus_content.images.cli import ERROR_EXIT_CODE
 from papyrus_content.images.handlers import error_envelope
 
-from . import definition, release
+from . import definition, release, schedules
 
 GROUP = "agents"
 VALIDATE_USAGE = ("Usage: papyrus agents validate --dir DIR [--core DIR]\n"
@@ -33,12 +35,22 @@ APPLY_USAGE = ("Usage: papyrus agents apply [--dir DIR] [--core DIR] [--root DIR
                "  would change; --check also exits 2 when anything differs from Git. Run it as the operator (PAPYRUS_GRAPHQL_AUTH=iam).")
 
 
+SCHEDULES_USAGE = ("Usage: papyrus agents schedules --site SITE [--dry-run | --check]\n"
+                   "  Make the site's EventBridge Scheduler group (papyrus-<site>-agent-schedules) agree with the agents' registered definitions, as the deploy does\n"
+                   "  right after `papyrus agents apply`. Each agent that names a schedule, is not retired and is switched on gets one entry named agent-<id>: the\n"
+                   "  definition's cron expression in its time zone, with the site's wake queue as its only target. An entry that no agent names is deleted. A timer\n"
+                   "  only raises a wake; the run that follows re-checks the policy and the pause. Entries whose names do not start agent- are never touched.\n"
+                   "  --site is the site's brand id (the name the wake queue is built from). The agent must name its router publication\n"
+                   "  (papyrus automations update <id> --monitor M --publication P). --dry-run reads and says what would change; --check also exits 2 when anything\n"
+                   "  differs. Run it as the operator (PAPYRUS_GRAPHQL_AUTH=iam); running it again with nothing changed writes nothing.")
+
+
 def route_tree() -> dict:
-    return {"validate": {}, "apply": {}}
+    return {"validate": {}, "apply": {}, "schedules": {}}
 
 
 def usage_for(words: list[str]) -> str | None:
-    return {"validate": VALIDATE_USAGE, "apply": APPLY_USAGE}.get(" ".join(words))
+    return {"validate": VALIDATE_USAGE, "apply": APPLY_USAGE, "schedules": SCHEDULES_USAGE}.get(" ".join(words))
 
 
 def validate_command(argv: list[str], stdout: TextIO | None = None) -> int:
@@ -130,11 +142,67 @@ def apply_command(argv: list[str], stdout: TextIO | None = None, client_factory=
     return finish({"ok": True, "op": "agents_apply", "result": {"action": action, "definitions": results}, "warnings": []}, 0)
 
 
+def _aws_clients():
+    import boto3   # the operator's environment and the build's both provide it
+
+    return boto3.client("sqs"), boto3.client("scheduler")
+
+
+def schedules_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, aws_factory=None, reader_factory=None) -> int:
+    out = stdout or sys.stdout
+    if argv in (["--help"], ["-h"]):
+        out.write(SCHEDULES_USAGE + "\n")
+        return 0
+
+    def finish(envelope: dict, code: int) -> int:
+        out.write(json.dumps(envelope, indent=2) + "\n")
+        return code
+
+    def refuse(message: str, code: str = "invalid_input", **details) -> int:
+        return finish(error_envelope("agents_schedules", code, message, details=details), ERROR_EXIT_CODE)
+
+    site, dry_run, check, rest = None, False, False, list(argv)
+    while rest:
+        word = rest.pop(0)
+        if word == "--dry-run":
+            dry_run = True
+        elif word == "--check":
+            check = True
+        elif word == "--site" and rest:
+            site = rest.pop(0)
+        else:
+            return refuse(f"{word} is not a flag of agents schedules, or has no value.", path=word)
+    if dry_run and check:
+        return refuse("agents schedules takes --check or --dry-run, not both: both read only, --check also fails on a difference.")
+    if not site:
+        return refuse("Give --site with the site's brand id.", path="--site")
+    try:
+        from papyrus_content.automations import monitoring_reader_from_environment
+        from papyrus_content.graphql_authoring import AUTOMATION_FIELDS
+
+        rows = (client_factory or _client)().list_tenant_rows("Automation", AUTOMATION_FIELDS)
+        sqs, scheduler = (aws_factory or _aws_clients)()
+        result = schedules.reconcile_site(sqs, scheduler, rows, site, reader=(reader_factory or monitoring_reader_from_environment)(),
+                                          endpoint=os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT") or None, apply=not (dry_run or check))
+    except (schedules.ScheduleError, schedules.CronError) as error:
+        return refuse(str(error))
+    action = "check" if check else "dry-run" if dry_run else "apply"
+    changed = result["created"] or result["updated"] or result["deleted"]
+    if check and changed:
+        return refuse("The schedule group differs from the definitions: "
+                      + "; ".join(f"{name} {word}" for word, names in (("is missing", result["created"]), ("differs", result["updated"]), ("is not named by any definition", result["deleted"])) for name in names)
+                      + ". The deploy reconciles them (papyrus agents schedules).", "constraint_conflict")
+    warnings = [] if result["groupDeployed"] else [f"The schedule group {result['group']} is not deployed yet, and no agent needs one."]
+    return finish({"ok": True, "op": "agents_schedules", "result": {"action": action, **result}, "warnings": warnings}, 0)
+
+
 def command(argv: list[str], stdout: TextIO | None = None) -> int:
     if argv[:1] == ["validate"]:
         return validate_command(argv[1:], stdout)
     if argv[:1] == ["apply"]:
         return apply_command(argv[1:], stdout)
+    if argv[:1] == ["schedules"]:
+        return schedules_command(argv[1:], stdout)
     out = stdout or sys.stdout
-    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply.", details={"command": " ".join(argv)}), indent=2) + "\n")
+    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply, schedules.", details={"command": " ".join(argv)}), indent=2) + "\n")
     return ERROR_EXIT_CODE
