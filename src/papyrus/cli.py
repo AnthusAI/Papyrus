@@ -404,6 +404,12 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         from papyrus_content.guidelines.cli import command as guidelines_command
         return guidelines_command(args[1:])
+    if group == "agents":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.agent_definitions.cli import command as agents_command
+        return agents_command(args[1:])
     if group == "announcements":
         if len(args) == 1:
             print_group_help(group)
