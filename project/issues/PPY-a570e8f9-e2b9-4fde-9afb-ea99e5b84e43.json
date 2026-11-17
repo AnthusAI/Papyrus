@@ -19,9 +19,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b76132b1-e1e0-4876-9217-193389984d51",
+      "author": "home",
+      "text": "Merged to develop in AnthusAI/Papyrus#1631 (attempts.py, four features, 160 announcement scenarios pass locally, CI green) and AnthusAI/Caducus#21 (specs only: Caducus already accepts and dedupes any event id; no Caducus release needed). Not released. Not done: the old X row shape still uses story.announce:...:r<round> until PPY-efd06c deletes it; the single-consumer queue per account and the X transport arrive with efd06c; the 'Outcome unknown' mark in the list is e4ae3a (attempts.shown has the words). A budget stop's nextAttemptAt comes from the transport's answer (wait_until); efd06c supplies the cycle end.",
+      "created_at": "2026-11-17T00:56:12.319541Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:35.334622Z",
-  "updated_at": "2026-11-16T22:46:03.902519Z",
+  "updated_at": "2026-11-17T00:56:12.320070Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

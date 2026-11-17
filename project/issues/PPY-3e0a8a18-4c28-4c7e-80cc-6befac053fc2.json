@@ -15,9 +15,24 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9119e9e0-1678-42e4-89e3-212efd0b6751",
+      "author": "home",
+      "text": "2026-11-16, from slice 2 (PPY-a570e8, PR #1631). Done there: a Delivery with an open attempt (started or unknown) is refused for correction (OpenAttempt); an attempt never opens on a lower generation or a superseded Delivery, so a half-finished correction cannot send the old generation. Still open on this task: (1) refuse to supersede a Delivery that was never sent (it is edited, not corrected; slice-1 specs correct a ready Delivery, so those change with it); (2) a different second correction is a conflict: compare content hashes of the existing successor and the plan, and never let ensure_text write the second caller's text under the first caller's row; (3) a retry with a fresh read of the old row, which already points at the expected successor, writes the supersedes relation and returns instead of raising AlreadySuperseded. Gherkin for all three is listed in this task's added criteria.",
+      "created_at": "2026-11-17T00:39:53.400420Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "47b0fdf5-42e6-41e5-b1e6-fbf625d1e47f",
+      "author": "home",
+      "text": "2026-11-16, from slice 2 (PPY-a570e8, PR #1631). Done there: a Delivery with an open attempt (started or unknown) is refused for correction (OpenAttempt); an attempt never opens on a lower generation or a superseded Delivery, so a half-finished correction cannot send the old generation. Still open on this task: (1) refuse to supersede a Delivery that was never sent (it is edited, not corrected; slice-1 specs correct a ready Delivery, so those change with it); (2) a different second correction is a conflict: compare content hashes of the existing successor and the plan, and never let ensure_text write the second caller's text under the first caller's row; (3) a retry with a fresh read of the old row, which already points at the expected successor, writes the supersedes relation and returns instead of raising AlreadySuperseded. Gherkin for all three is in this task's added criteria.",
+      "created_at": "2026-11-17T00:40:58.231190Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:35.778869Z",
-  "updated_at": "2026-11-16T22:46:04.702594Z",
+  "updated_at": "2026-11-17T00:40:58.231773Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
