@@ -37,6 +37,9 @@ NO_RUN_RECORD = "No run record"
 FINISHED_STATUSES = ("completed", "failed")
 
 PROCEDURE_ERROR, TIMED_OUT, INVALID_OUTCOME, NOT_RUNNABLE = "procedure_error", "timed_out", "invalid_outcome", "not_runnable"
+# A run the runner did not start because the site's policy could not be read is `failed` for this reason. A policy that says not to
+# start is a `nothing` outcome with the reason code of the decision: not_adopted, rung_off or paused (agent_policy/run_gate.py).
+POLICY_UNREADABLE = "policy_unreadable"
 
 
 class InvalidOutcome(ValueError):

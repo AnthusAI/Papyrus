@@ -40,7 +40,8 @@ class StartDecision:
     rung: str
     policy_version: int
     source: str
-    reason: str | None = None       # why nothing starts; None when it does
+    reason: str | None = None       # why nothing starts, in words; None when it does
+    reason_code: str | None = None  # the same, as a short code: "paused" or "off"
 
     def run_fields(self) -> dict[str, Any]:
         """What the run record carries, started or skipped: the version of the policy and the rung it ran under."""
@@ -68,11 +69,11 @@ def decide_start(state: PolicyState, responsibility: str, context: Mapping[str, 
     found = effective(state, responsibility, context)
     site, entry = state.document.get("site", {}), state.document.get("agents", {}).get(responsibility, {})
     if site.get("paused"):
-        reason = f"The site is paused: {site['pausedReason']}"
+        reason, code = f"The site is paused: {site['pausedReason']}", "paused"
     elif entry.get("paused"):
-        reason = f"{responsibility} is paused: {entry['pausedReason']}"
+        reason, code = f"{responsibility} is paused: {entry['pausedReason']}", "paused"
     elif found.rung == "off":
-        reason = f"{responsibility} is off"
+        reason, code = f"{responsibility} is off", "off"
     else:
-        reason = None
-    return StartDecision(reason is None, found.rung, found.policy_version, found.source, reason)
+        reason, code = None, None
+    return StartDecision(reason is None, found.rung, found.policy_version, found.source, reason, code)

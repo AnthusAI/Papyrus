@@ -14,6 +14,7 @@ from typing import Any
 
 from .. import wake_keys
 
+from ..agent_policy import PersonStart
 from ..procedure_runner import ProcedureNotRunnable, execute_in_child, run_procedure_request
 
 SUFFIX = "story-localize"
@@ -62,7 +63,7 @@ def run_from_cli(client, *, story: str, language: str, ceiling_usd: float | None
                "input": {"story": story, "language": language, "ceiling_usd": ceiling_usd or 0, "procedure_key": procedure_key},
                "trigger": {"kind": "cli", "title": f"{procedure_key}: {story} into {language}", "summary": "Started with papyrus stories localize"}}
     try:
-        return run_procedure_request(request, client=client, execute=execute, seconds_available=RUN_SECONDS + 60,
+        return run_procedure_request(request, client=client, policy=PersonStart(), execute=execute, seconds_available=RUN_SECONDS + 60,
                                      environment=child_environment(client, openai_api_key=key))
     except ProcedureNotRunnable as error:
         raise ValueError(f"{error}. Register the procedure on this site first: papyrus procedures register --file procedures/newsroom/story_localize.tac "

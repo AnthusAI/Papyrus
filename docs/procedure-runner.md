@@ -65,7 +65,24 @@ For each request, the runner does these steps:
    `papyrus automations runs` and the console show each outcome as a word with a mark (✓ Did it, – Nothing to do, ? Asked,
    ✗ Failed, ! Outcome unknown). **Release order:** the site backend (which carries the new `ProcedureRun` fields,
    including `wakeKey`) goes out before the runner image and the CLI that write them.
-7. When the request came from a trigger, it names the run on the trigger's row in the monitoring table as soon
+7. **Before anything is loaded, the runner reads the site's agent policy** (PPY-c8175e; `agent_policy/run_gate.py`). It reads the
+   automation named by the request's trigger and its `responsibility`, then the site's policy document (the live version only: the
+   `SiteDocument` row, the live `SiteDocumentVersion` row, and the version's body from S3, all by key), and asks `decide_start`.
+   The request names where the policy is with `tenantId` and `siteBucket`, which the router and Run now copy from the router
+   publication (`tenantId`, `siteBucket`); a request without them is refused and starts nothing.
+   * No automation named, or an automation with no `responsibility` (not yet adopted with `papyrus automations adopt`): the run
+     record is finished as `nothing` with the reason `not_adopted`.
+   * The responsibility is `off` (including a responsibility the policy does not name, and a site with no policy document) or
+     paused (the site or the agent): `nothing` with the reason `rung_off` or `paused`, and the words in `resultSummary`.
+   * Either way nothing is loaded or run, no story is advanced, and the record names the `responsibility`, `policyVersion` and
+     `rung` it was decided under. A run that starts records the same three fields on its finished record.
+   * A policy that cannot be read (S3 or the API fails, or the body does not match its hash) fails the run with the reason
+     `policy_unreadable`. There is no fallback that starts a run anyway.
+   * A run a person starts in their own session (`papyrus stories localize`) uses `PersonStart`: a person's action is never limited by
+     an agent's rung, and its record carries no responsibility or rung.
+   The runner's role gains `s3:GetObject` on `tenants/*/site/agents/*` (the policy bodies). **Before enforcement reaches a site**, adopt
+   its automations and write their policy lines: see [releasing](releasing.md#enforcing-the-agent-policy-on-a-site).
+8. When the request came from a trigger, it names the run on the trigger's row in the monitoring table as soon
    as the run exists (status `running`, `runId`) and records the outcome (status, outcome, reason, error) there when it ends.
 
 The runner signs its AppSync calls with its own role. The procedure tools in the child process do the

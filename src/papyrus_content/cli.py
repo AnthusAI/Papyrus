@@ -454,6 +454,7 @@ PORTED_COMMANDS = frozenset(
         "automations:runs",
         "automations:create",
         "automations:update",
+        "automations:adopt",
         "automations:run",
         "reviews:list",
         "reviews:show",

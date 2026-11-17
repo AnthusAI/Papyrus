@@ -223,6 +223,8 @@ def update_cloud_procedure_run_record(client: PapyrusGraphQLAuthoringClient, pay
                 "outcome": payload["outcome"],
                 "outcomeReason": payload.get("outcomeReason"),
                 "automationId": payload.get("automationId"),
+                # Under which responsibility, policy version and rung the run was decided (PPY-c8175e). Sent only when a policy applied.
+                **{key: payload[key] for key in ("responsibility", "policyVersion", "rung") if payload.get(key) is not None},
                 "subjectKind": payload.get("subjectKind"),
                 "subjectId": payload.get("subjectId"),
                 "subjectVersion": payload.get("subjectVersion"),

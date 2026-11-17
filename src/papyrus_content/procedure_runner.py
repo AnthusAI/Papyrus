@@ -23,6 +23,8 @@ from . import request_meter, run_outcomes, wake_keys
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
+from .agent_policy import Gate, PolicyGate, PolicyUnreadable
+from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
 
@@ -62,12 +64,22 @@ def validate_request(request: dict) -> dict:
         raise ProcedureNotRunnable(str(invalid)) from invalid
     if not isinstance(request.get("input") or {}, dict):
         raise ProcedureNotRunnable("input must be an object")
+    tenant_id, site_bucket = str(request.get("tenantId") or ""), str(request.get("siteBucket") or "")
+    if tenant_id:
+        from .tenancy import TenantError, validate_tenant_id
+        try:
+            validate_tenant_id(tenant_id)
+        except TenantError as invalid:
+            raise ProcedureNotRunnable(str(invalid)) from invalid
+    if site_bucket and not S3_BUCKET.match(site_bucket):
+        raise ProcedureNotRunnable("siteBucket must be an S3 bucket name")
     timeout = request.get("timeoutSeconds")
     if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout < 1):
         raise ProcedureNotRunnable("timeoutSeconds must be a positive whole number")
     return {"appsyncEndpoint": endpoint, "procedureKey": key, "wakeKey": wake_key, "openaiKeyParameter": parameter or None,
             "timeoutSeconds": None if timeout is None else min(timeout, MAX_TIMEOUT_SECONDS),
             "input": dict(request.get("input") or {}), "publicationId": str(request.get("publicationId") or ""),
+            "tenantId": tenant_id or None, "siteBucket": site_bucket or None,
             "actorLabel": str(request.get("actorLabel") or "Papyrus procedure runner"),
             "trigger": request.get("trigger") if isinstance(request.get("trigger"), dict) else None}
 
@@ -167,11 +179,12 @@ def start_run_record(client, request: dict) -> dict[str, Any]:
     return {"runId": started["runId"], "duplicate": bool(started.get("duplicate")), "versionId": started.get("procedureVersionId")}
 
 
-def refuse_run(client, run_id: str, error: Exception, *, now: Callable[[], str]) -> None:
-    """The run record exists but the procedure cannot be loaded: the record says so, so it never stays `started` for a run that never began."""
+def refuse_run(client, run_id: str, error: Exception, *, now: Callable[[], str], reason: str = run_outcomes.NOT_RUNNABLE) -> None:
+    """The run record exists but the run cannot begin (the procedure cannot be loaded, or the policy cannot be read): the record says so,
+    so it never stays `started` for a run that never began."""
     stamp = now()
     update_cloud_procedure_run_record(client, {
-        "id": run_id, "runStatus": "failed", "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
+        "id": run_id, "runStatus": "failed", "outcome": "failed", "outcomeReason": reason,
         "startedAt": stamp, "finishedAt": stamp, "errorSummary": str(error)[:MAX_SUMMARY_CHARACTERS],
         "error": {"message": str(error)}, "attempt": 1})
 
@@ -205,7 +218,27 @@ def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
     return {**summary, "perCall": calls[:MAX_RECORDED_CALLS], **extra}, estimate["costUsd"]
 
 
-def run_procedure_request(request: dict, *, client, execute: Callable[..., dict], seconds_available: float,
+def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], str]) -> dict:
+    """The site's policy says this wake starts nothing: the record says so (a finished run that did nothing, with the reason code), names
+    the responsibility, policy version and rung it was decided under, and the words say why. Nothing of the procedure is loaded."""
+    stamp, trigger = now(), request.get("trigger") or {}
+    update_cloud_procedure_run_record(client, {
+        "id": run_id, "runStatus": "completed", "outcome": "nothing", "outcomeReason": decision.reason_code,
+        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
+        "startedAt": stamp, "finishedAt": stamp, "attempt": 1, "resultSummary": decision.reason[:MAX_SUMMARY_CHARACTERS]})
+    return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "skipped": True,
+            "runStatus": "completed", "outcome": "nothing", "outcomeReason": decision.reason_code, "reason": decision.reason,
+            "responsibility": decision.responsibility, "rung": decision.rung, "policyVersion": decision.policy_version, "error": None}
+
+
+def policy_for(request: dict, client, s3: Callable[[], Any]) -> PolicyGate:
+    """The gate that reads this request's site policy. A request that does not say where the policy is starts nothing."""
+    if not (request.get("tenantId") and request.get("siteBucket")):
+        raise ProcedureNotRunnable("the request names no site policy: tenantId and siteBucket are required, so no run starts without one")
+    return PolicyGate.for_site(client, s3=s3(), bucket=request["siteBucket"], tenant_id=request["tenantId"])
+
+
+def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
                           run_started: Callable[[str], None] | None = None) -> dict:
     request = validate_request(request)
@@ -214,6 +247,15 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
     if started["duplicate"]:   # this wake already has its run: nothing more happens for it
         return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
                 "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
+    try:
+        decision = policy.decide(request)   # the site's policy is read here, before anything is loaded or run
+    except PolicyUnreadable as error:
+        refuse_run(client, run_id, error, now=now, reason=run_outcomes.POLICY_UNREADABLE)
+        not_started = ProcedureNotRunnable(str(error))
+        not_started.run_id = run_id
+        raise not_started from error
+    if not decision.start:
+        return skip_run(client, run_id, request, decision, now=now)
     started_at = now()
     if run_started is not None:
         try:
@@ -241,7 +283,7 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
     trigger = request.get("trigger") or {}
     record = {
         "id": run_id, "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
-        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger),
+        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
         "startedAt": started_at, "finishedAt": now(), "attempt": 1,
         "resultSummary": summarize_output(outcome.get("output"), outcome.get("seconds", 0)) if succeeded else None,
         "errorSummary": None if succeeded else ended["error"][:MAX_SUMMARY_CHARACTERS],
@@ -257,6 +299,7 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
         cost_recorded = False
         update_cloud_procedure_run_record(client, record)
     return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "versionId": procedure["version"]["id"],
+            **decision.run_fields(),
             "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
             "seconds": outcome.get("seconds"),
             "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
@@ -312,8 +355,9 @@ def handler(event, context):
                                                                WithDecryption=True)["Parameter"]["Value"]
         os.environ.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam")
         client = PapyrusGraphQLAuthoringClient()
+        policy = policy_for(request, client, lambda: boto3.client("s3"))
         seconds_available = context.get_remaining_time_in_millis() / 1000 if hasattr(context, "get_remaining_time_in_millis") else 840
-        result = run_procedure_request(request, client=client, execute=execute_in_child,
+        result = run_procedure_request(request, client=client, policy=policy, execute=execute_in_child,
                                        seconds_available=seconds_available,
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
                                        run_started=lambda run_id: record_trigger_run(table, trigger, run_id))
@@ -324,6 +368,8 @@ def handler(event, context):
     if result.get("duplicate"):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
+    if result.get("skipped"):
+        return result   # the policy started nothing: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
         finish_story_stage_run(table, trigger, result)
     if table is not None:

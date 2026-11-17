@@ -39,6 +39,10 @@ mismatched record can never stop Distinctive's TTAB analysis:
 
 Two records for the same trigger: the one with the lowest id governs.
 
+The router's rule above only decides whether the router *sends* the request. The procedure runner then reads the site's agent policy
+before it starts the run ([procedure runner](procedure-runner.md)), and starts nothing for an automation that has not been adopted
+or whose responsibility is `off` or paused. See "Adopting an automation" below.
+
 ### How a run counts as "running" for `maxConcurrent`
 
 A run counts while its row says `starting`, `started` or `running` and it began less than its timeout plus two
@@ -280,6 +284,7 @@ papyrus automations run --id distinctive.ttab --input '{"proceeding":"97752244",
 papyrus automations create --id distinctive.ttab --title "Analyze new TTAB rulings" \
   --monitor ttab --publication distinctive --procedure distinctive.ttab.ruling-analysis \
   --input '{"proceeding":"{sourceIdPrefix}","opinion_url":"{documentUrl}"}' [--dry-run]
+papyrus automations adopt --id distinctive.ttab --responsibility KEY [--dry-run] [--json]
 papyrus automations update --id distinctive.ttab [--enabled false] [--title T] [--input JSON] \
   [--timeout-seconds N] [--max-concurrent N] [--budget-usd N] [--dry-run]
 ```
@@ -291,6 +296,22 @@ line on this lane: `run --dry-run`, and `runs --limit` above the site's default 
 lane (`PAPYRUS_GRAPHQL_AUTH=iam`, with credentials that can read the monitoring table through the SSM parameter
 `/papyrus/monitoring/table-name` and invoke the procedure runner) for those. `create` and `update` use the authoring client
 on either lane.
+
+## Adopting an automation
+
+An automation carries an optional `responsibility`: the one standing responsibility of the agent catalog it fills (`rate`, `translate`,
+`announce` and so on). It is set only by `papyrus automations adopt`, by an admin who is a person, and is never inferred from the
+procedure or the trigger. Adopting writes nothing else: it never sets a rung and never starts or stops a run.
+
+```bash
+papyrus automations adopt --id distinctive.ttab --responsibility KEY --dry-run
+papyrus automations adopt --id distinctive.ttab --responsibility KEY
+```
+
+The runner starts a run only for an adopted automation whose responsibility the site's agent policy raises above `off` and has not
+paused. Otherwise the run is recorded as "Nothing to do" with the reason `not_adopted`, `rung_off` or `paused` (shown by
+`papyrus automations runs`), with the policy version and rung it was decided under. An adopted automation is not changed to another
+responsibility by a second `adopt`. The steps for a site are in [releasing](releasing.md#enforcing-the-agent-policy-on-a-site).
 
 ## Console
 

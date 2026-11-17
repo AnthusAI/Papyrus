@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from papyrus_content.agent_policy import PersonStart
 from papyrus_content import model_attachments, procedure_runner as pr, site_procedures as sp
 from papyrus_content.monitoring_cloud import DynamoStore
 from papyrus_content.monitoring_router import Router, RouterStore, run_router, validate_router_config
@@ -170,7 +171,7 @@ def test_the_runner_materializes_skills_records_the_run_and_its_output(tmp_path)
                     inputs=inputs, timeout=timeout_seconds)
         return {"success": True, "output": {"title": "Wemby"}, "seconds": 42}
 
-    result = pr.run_procedure_request(REQUEST, client=client, execute=execute, seconds_available=900,
+    result = pr.run_procedure_request(REQUEST, policy=PersonStart(), client=client, execute=execute, seconds_available=900,
                                       environment={}, workroot=tmp_path)
 
     assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "wakeKey": REQUEST["wakeKey"], "versionId": "version-1",
@@ -191,7 +192,7 @@ def run_with(request, outcome, *, client=None, seconds_available=900, tmp_path=N
         seen["timeout"] = timeout_seconds
         return outcome
 
-    result = pr.run_procedure_request({**REQUEST, **request}, client=client, execute=execute, seconds_available=seconds_available,
+    result = pr.run_procedure_request({**REQUEST, **request}, policy=PersonStart(), client=client, execute=execute, seconds_available=seconds_available,
                                       environment={}, workroot=tmp_path, **kwargs)
     return result, client, seen
 
@@ -309,7 +310,7 @@ def test_the_automation_id_in_the_request_survives_validation():
 def test_a_failed_run_is_recorded_as_failed_with_its_error(tmp_path):
     client = NewsroomClient()
 
-    result = pr.run_procedure_request(REQUEST, client=client, workroot=tmp_path, seconds_available=900, environment={},
+    result = pr.run_procedure_request(REQUEST, policy=PersonStart(), client=client, workroot=tmp_path, seconds_available=900, environment={},
                                       execute=lambda *a, **k: {"success": False, "error": "timed out after 840 s", "seconds": 840})
 
     assert result["runStatus"] == "failed" and client.updates[0]["errorSummary"] == "timed out after 840 s"
@@ -317,9 +318,9 @@ def test_a_failed_run_is_recorded_as_failed_with_its_error(tmp_path):
 
 def test_only_a_published_version_runs_and_skills_cannot_escape_the_workdir(tmp_path):
     with pytest.raises(pr.ProcedureNotRunnable, match="published"):
-        pr.run_procedure_request(REQUEST, client=NewsroomClient(status="draft"), execute=None, seconds_available=900, environment={})
+        pr.run_procedure_request(REQUEST, policy=PersonStart(), client=NewsroomClient(status="draft"), execute=None, seconds_available=900, environment={})
     escaping = NewsroomClient(skills=[("../outside/SKILL.md", b"x")])
-    result = pr.run_procedure_request(REQUEST, client=escaping, workroot=tmp_path, seconds_available=900, environment={},
+    result = pr.run_procedure_request(REQUEST, policy=PersonStart(), client=escaping, workroot=tmp_path, seconds_available=900, environment={},
                                       execute=lambda *a, **k: {"success": True})
     assert result["runStatus"] == "failed" and "escapes" in result["error"]
 

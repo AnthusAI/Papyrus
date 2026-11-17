@@ -95,6 +95,11 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/shared/*/OPENAI_API_KEY"
                   - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/*/*/OPENAI_API_KEY"
+              - Sid: SiteAgentPolicyBody
+                Effect: Allow
+                Action: s3:GetObject
+                # The body of a site's agent policy document, read before each run starts (PPY-c8175e). Only that document's objects, in any site's bucket.
+                Resource: !Sub "arn:${AWS::Partition}:s3:::*/tenants/*/site/agents/*"
               - Sid: TriggerOutcomes
                 Effect: Allow
                 Action: dynamodb:UpdateItem

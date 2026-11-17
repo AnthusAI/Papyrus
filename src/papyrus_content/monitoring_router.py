@@ -70,6 +70,7 @@ from .email_submission_authorization import (
     EditorLookupUnavailable,
     publication_ids_for_editor,
 )
+from .policy_location import policy_location
 from . import request_meter, wake_keys
 from .auto_accept import accept_by_rule, run_auto_accept, validate_auto_accept
 from .research_assignments_worker import run_research_assignments, validate_research_assignments
@@ -384,6 +385,13 @@ def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
             raise ItemInvalid("Email publication scope is missing or outside its configured destination")
 
 
+def _site_bucket(publication_id: str, value: Any) -> str:
+    from .policy_location import S3_BUCKET
+    if not isinstance(value, str) or not S3_BUCKET.match(value):
+        raise ValueError(f"router publication {publication_id} siteBucket must be an S3 bucket name")
+    return value
+
+
 def validate_router_publications(raw: dict) -> list[dict]:
     publications, seen = [], set()
     for entry in raw.get("publications") or []:
@@ -409,6 +417,7 @@ def validate_router_publications(raw: dict) -> list[dict]:
         publications.append({
             **({"criteriaSince": str(since).strip()} if since is not None else {}),
             **({"tenantId": tenant} if tenant else {}),
+            **({"siteBucket": _site_bucket(publication_id, entry["siteBucket"])} if entry.get("siteBucket") else {}),
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
             **({"userPoolId": pool_id} if pool_id else {}),
             "corpusId": corpus_id, "corpusKey": corpus_key_of(corpus_id),
@@ -2283,7 +2292,7 @@ class Router:
                 request = {"wakeKey": wake_keys.change_key(wake_keys.owner(gate.automation_id, trigger["procedureKey"]),
                                                            result["referenceId"], None, NEW_REFERENCE),
                            "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
-                           "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": trigger["procedureKey"],
+                           "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": trigger["procedureKey"], **policy_location(publication),
                            "input": procedure_trigger_input(trigger, publication, disc, result["referenceId"]),
                            "actorLabel": f"Papyrus monitor {self.monitor_id}",
                            "trigger": {"kind": "monitor", "monitorId": self.monitor_id, "sourceId": disc["sourceId"],
