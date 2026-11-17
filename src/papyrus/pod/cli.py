@@ -13,7 +13,7 @@ from papyrus_content.operator_errors import OperatorError
 from papyrus_content.relation_types import load_vocabulary_namespace
 
 from . import context, profile
-from .check import POD_LEVEL, check_pod
+from .check import POD_LEVEL, REVIEW_CLAIMS_LINE, check_pod
 
 ROUTES = {"init": {}, "id": {}, "check": {}}
 USAGE = {
@@ -114,6 +114,7 @@ def _check(args: list[str], out: TextIO) -> int:
     else:
         print(f"level: 1 ({report.typed} of {report.notes} notes typed)", file=out)
         print(f"history: {report.history}", file=out)
+        print(f"review: {REVIEW_CLAIMS_LINE}", file=out)
     if not report.problems:
         print("ok: no problems", file=out)
         return 0

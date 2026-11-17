@@ -1,14 +1,14 @@
 """The pod profile: what a note may say, pinned in one place.
 
-Profile version 1 pins Vault-LD 0.5.0 at commit 025e71b. A new Vault-LD release changes nothing here until this pin moves. Lifecycle keys
-(``stage``, ``rating`` and the review stamps) are not part of version 1.
+Profile version 2 pins Vault-LD 0.5.0 at commit 025e71b. A new Vault-LD release changes nothing here until this pin moves. Version 2 adds the
+lifecycle keys (``stage``, ``format``, ``rating``, the review stamps and the two reasons), named and valued as on the newsroom's content item.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 
-PROFILE_VERSION = 1
+PROFILE_VERSION = 2
 VAULT_LD_VERSION = "0.5.0"
 VAULT_LD_COMMIT = "025e71b"
 
@@ -55,7 +55,22 @@ PLAIN_KEYS: tuple[Key, ...] = (
     Key("language", "schema:inLanguage", STRING),
     Key("draft", "papyrus:draft", BOOLEAN),
     Key("redirects", "papyrus:redirect", TEXT_LIST),
+    # Lifecycle keys: the cloud Item's names and values. `type` and `section` are the profile's own keys above.
+    Key("stage", "papyrus:stage", STRING),
+    Key("format", "papyrus:format", STRING),
+    Key("rating", "papyrus:rating", INTEGER),
+    Key("reviewedBy", "papyrus:reviewedBy", STRING),
+    Key("reviewedOn", "papyrus:reviewedOn", DATE),
+    Key("reviewedHash", "papyrus:reviewedHash", STRING),
+    Key("spikedReason", "papyrus:spikedReason", STRING),
+    Key("heldReason", "papyrus:heldReason", STRING),
 )
+
+# The ten stages of a content item. A note with a stage is built only at "published"; a note with none is built unless `draft: true`.
+STAGES = ("idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published", "held", "spiked", "retired")
+# A pod grants one to four stars. Five needs a person's approval in the newsroom, so a pod refuses it.
+RATINGS = (1, 2, 3, 4)
+REVIEW_HASH_PREFIX = "sha256:"
 
 # Link keys other than the relation types: `section` points at a note, `url` is an outside address.
 LINK_KEYS: tuple[Key, ...] = (
