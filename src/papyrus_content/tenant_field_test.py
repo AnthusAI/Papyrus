@@ -4,28 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from papyrus_content import graphql_authoring
 from papyrus_content.tenancy import TENANT_FIELD_MODELS, TENANT_MODELS, tenant_field_stamped_payload
 from procedures.newsroom.tests.test_tenancy import InMemoryGraphQLBackend, tenant_client
 
 
 class IntrospectableBackend(InMemoryGraphQLBackend):
-    """Sets the deploy flag the way a site whose schema has tenantId does; any schema query fails, as it does for the workers' role."""
-
-    def __init__(self, with_tenant_field: bool = True) -> None:
-        super().__init__()
-        self.with_tenant_field = with_tenant_field
-        self.flag = "1" if with_tenant_field else ""
+    """A site whose schema has tenantId; any schema query fails, as it does for the workers' role."""
 
     def _read(self, field, variables):
         if field == "__type":
             raise AssertionError("no schema query is allowed")
         return super()._read(field, variables)
-
-
-@pytest.fixture(autouse=True)
-def tenant_field_flag(monkeypatch):
-    monkeypatch.setenv(graphql_authoring.TENANT_FIELD_ENVIRONMENT_VARIABLE, "1")
 
 
 def test_the_field_models_exclude_global_identity_and_the_fully_tenant_models():
@@ -52,11 +41,4 @@ def test_a_tenant_client_stamps_its_tenant_on_every_write(model):
 def test_a_client_without_a_tenant_writes_exactly_as_before():
     backend = IntrospectableBackend()
     tenant_client(backend, None).create_record("Message", {"id": "row-1"})
-    assert "tenantId" not in backend.tables["Message"]["row-1"]
-
-
-def test_a_site_whose_api_has_no_tenant_field_yet_is_written_without_it(monkeypatch):
-    monkeypatch.delenv(graphql_authoring.TENANT_FIELD_ENVIRONMENT_VARIABLE)
-    backend = IntrospectableBackend(with_tenant_field=False)
-    tenant_client(backend, "alpha").create_record("Message", {"id": "row-1"})
     assert "tenantId" not in backend.tables["Message"]["row-1"]

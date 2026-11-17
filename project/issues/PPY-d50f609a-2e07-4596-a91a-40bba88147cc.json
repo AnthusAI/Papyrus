@@ -1,0 +1,20 @@
+{
+  "id": "PPY-d50f609a-2e07-4596-a91a-40bba88147cc",
+  "title": "Agents work as the Story's persona",
+  "description": "The context pack gets a persona layer for the reporter, copywriter and editor profiles (and the announcement writer): the persona's name, instructions and voice notes, placed after the site's writing guidelines and policies and never overriding them. The pack hash includes the persona version, so a draft records which persona version shaped it.\nScenario: a copywriter pack for a Story with persona A contains A's instructions and no other persona's. Scenario: a site with personas off gets the same pack as today.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-40443baa-fee3-4b94-811c-569f70a62024",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-17T18:50:48.275270Z",
+  "updated_at": "2026-11-17T18:50:48.275306Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -100,6 +100,10 @@ def plan(client, definitions: list[Definition], procedures: set[str]) -> tuple[l
             continue
         row = rows.get(item.id)
         if row is None:
+            if client.get_record("Automation", item.id) is not None:   # a point read: the row exists, so the tenantId index does not list it
+                problems.append(f"{item.id}: the automation {item.id} exists but carries no tenantId, so the site's tenantId index does not list it, and creating it again would fail. "
+                                "Stamp it first: papyrus content backfill-tenant-id --tenant <the site's tenant id> --models Automation (a dry run unless --apply).")
+                continue
             entries.append(Entry(item.id, "new", 1, digest(item.data)))
             continue
         existing = read_record(row)

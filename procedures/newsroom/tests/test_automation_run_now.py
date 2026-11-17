@@ -133,6 +133,22 @@ def test_the_router_publication_needs_a_key_parameter_and_the_monitoring_table_m
         au.run_now(automation(), reader=None, writer=None, invoke=lambda r: None, actor="a", supplied_input=INPUT)
 
 
+def test_the_router_publication_must_name_the_site_policy_or_the_runner_would_refuse_the_run():
+    for missing in ("tenantId", "siteBucket"):
+        config = fx.router_config()
+        config["publications"][0].pop(missing)
+        table = WritableTable([config])
+        invoked: list = []
+        for dry_run in (False, True):
+            with pytest.raises(AutomationError, match=f"no {missing} for the site's agent policy"):
+                start(table=table, invoked=invoked, dry_run=dry_run)
+        assert invoked == [] and table.puts == []
+    config = fx.router_config()
+    config["publications"][0].pop("tenantId"), config["publications"][0].pop("siteBucket")
+    with pytest.raises(AutomationError, match="no tenantId and no siteBucket"):
+        start(table=WritableTable([config]))
+
+
 def test_a_runner_that_cannot_be_started_is_recorded_and_reported():
     table = WritableTable()
 

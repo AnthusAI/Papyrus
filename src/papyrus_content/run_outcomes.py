@@ -40,6 +40,8 @@ PROCEDURE_ERROR, TIMED_OUT, INVALID_OUTCOME, NOT_RUNNABLE = "procedure_error", "
 # A run the runner did not start because the site's policy could not be read is `failed` for this reason. A policy that says not to
 # start is a `nothing` outcome with the reason code of the decision: not_adopted, rung_off or paused (agent_policy/run_gate.py).
 POLICY_UNREADABLE = "policy_unreadable"
+# A wake whose request names no site policy (no tenant id or no site bucket) is `failed` for this reason, recorded on the run like any refusal.
+NO_SITE_POLICY = "no_site_policy"
 
 
 class InvalidOutcome(ValueError):

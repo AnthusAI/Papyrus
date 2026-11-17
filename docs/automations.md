@@ -204,7 +204,8 @@ The input is the one you give. If you give none, the record's `inputTemplate` is
 placeholder; the TTAB template does (`{sourceIdPrefix}`, `{documentUrl}`), so for TTAB you give the input.
 
 Run now is refused, with the reason and without a row, when the automation is not a monitor automation, is
-disabled, has no router publication for this site, or is at its `maxConcurrent`. Otherwise it:
+disabled, has no router publication for this site, has no `openaiKeyParameter`, `tenantId` or `siteBucket` on that publication (the runner reads the site's agent policy from
+the last two and refuses a wake that does not name them), or is at its `maxConcurrent`. Otherwise it:
 
 1. writes `MANUAL#<automationId>#<timestamp>` in the monitor's partition (`MONITOR#<monitorId>`) of the monitoring table,
    with who started it and the runner request, status `starting`;
@@ -339,7 +340,7 @@ A site's Amplify build runs `papyrus agents apply` right after it registers the 
 role on the operator lane, from the site's checkout. The core definitions are the files in the wheel; a site's own, and its additions to a core one, are in
 the folder `papyrus-site-agents` at the checkout root (a site without it has the core ones only; `--dir` names another folder). Nothing is done by hand.
 
-* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table.
+* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table. The index lists only rows that carry a `tenantId`: every write by a client that has the site's tenant stamps it (`features_backend/automation-tenant-id.feature`), and rows written before that are stamped once by `papyrus content backfill-tenant-id --tenant <id>` (a dry run unless `--apply`; [multi-tenancy](multi-tenancy.md#stamping-tenantid-on-rows-written-without-one)). Until then a definition whose automation exists without a `tenantId` stops the step, naming that command, and nothing is written, because the create it would otherwise try fails on a row that is already there.
 * **Checked first.** Every definition is validated exactly as `papyrus agents validate` does, each named procedure must be registered (a core kind or one
   in the site's `papyrus-site-procedures.json`), and the automation a definition lands on must be its own. Any failure stops the step with a plain error
   naming each problem **before anything is written**, and fails the build. Nothing falls back.
