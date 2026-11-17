@@ -10,11 +10,12 @@ import yaml
 
 from papyrus_content.guidelines import (Field, GuidelineError, GuidelineStore, KindSpec, kind_names, register_kind, resolve_guidelines, resolve_writing, slug_for,
                                         unregister_kind, validate_document)
+from papyrus_content.guidelines import field_files
 from papyrus_content.guidelines.document import PROSE, digest, texts
 from papyrus_content.guidelines.fakes import FakeBackend, FakeFiles
 
 ROOT = Path(__file__).resolve().parents[3]
-SITE = {"schemaVersion": 1, "voice": {"name": "House"}, "audience": "General readers", "tone": ["Warm."], "voicePatterns": ["Opens plainly."],
+SITE = {"schemaVersion": 2, "voice": {"name": "House"}, "audience": "General readers", "tone": ["Warm."], "voicePatterns": ["Opens plainly."],
         "lexicon": {"prefer": ["inspect"], "avoid": ["synergy"]}, "bodyMarkus": "Write plainly.",
         "constraints": [{"id": "no-hype", "text": "No hype."}], "locked": ["headline"], "headline": {"order": ["title"]}}
 
@@ -49,7 +50,7 @@ def test_the_repository_style_profiles_validate_unchanged(name):
 
 
 def test_problems_are_reported_by_field():
-    bad = {"schemaVersion": 1, "tone": ["ok", ""], "lexicon": {"avoid": "x", "ban": []}, "glossary": [{"use": "a"}], "mystery": 1,
+    bad = {"schemaVersion": 2, "tone": ["ok", ""], "lexicon": {"avoid": "x", "ban": []}, "glossary": [{"use": "a"}], "mystery": 1,
            "locked": ["tone"], "constraints": [{"id": "a"}]}
     paths = {path for path, _ in problems("writing", bad)}
     assert paths == {"tone", "lexicon", "glossary", "mystery", "locked", "constraints"}
@@ -61,25 +62,25 @@ def test_schema_version_is_required():
 
 
 def test_a_section_document_cannot_hold_publication_only_fields():
-    assert problems("writing", {"schemaVersion": 1, "density": {"minWords": 1}}, "section") == [("density", "publication_only")]
+    assert problems("writing", {"schemaVersion": 2, "density": {"minWords": 1}}, "section") == [("density", "publication_only")]
 
 
 # --- the store ----------------------------------------------------------------------------------------------------------------------------------
 
-def test_a_save_writes_a_catalog_row_and_one_s3_document():
+def test_a_save_writes_a_catalog_row_and_one_s3_file_for_each_guideline_file():
     backend, store = make()
     result = save(store, SITE)
     assert result["changed"] and result["reference"]["versionNumber"] == 1
     (row,) = backend.items
     assert row["slug"] == "editorial-doctrine-writing" and row["type"] == "doctrine" and row["status"] == "private"
     assert row["bodyMarkus"] == "" and json.loads(row["metadata"]) == {} and row["body"] == []
-    assert row["contentHash"] == digest(SITE) and row["changeReason"] == "First" and row["versionCreatedBy"] == "Ada"
-    (attachment,) = backend.attachments
-    assert attachment["role"] == "doctrine_document" and attachment["ownerKind"] == "item" and attachment["ownerId"] == row["id"]
-    assert attachment["storagePath"] == f"newsroom/payloads/item/{row['id']}/doctrine-document/guidelines.json"
-    assert json.loads(backend.bodies[attachment["storagePath"]]) == SITE
+    files = store.read("writing")["files"]
+    assert row["contentHash"] == field_files.set_digest(files) and row["changeReason"] == "First" and row["versionCreatedBy"] == "Ada"
+    assert len(backend.attachments) == len(files) == len(SITE) - 1 and {a["role"] for a in backend.attachments} == {"doctrine_files"}
+    assert all(a["ownerKind"] == "item" and a["ownerId"] == row["id"] and a["mediaType"] == "text/markdown" for a in backend.attachments)
+    assert {a["sortKey"] for a in backend.attachments} == set(files) and all(path.endswith("/GUIDELINE.md") for path in files)
     read = store.read("writing")
-    assert read["document"] == SITE and read["reference"]["contentHash"] == digest(SITE)
+    assert read["document"] == SITE and read["reference"]["contentHash"] == row["contentHash"]
 
 
 def test_every_read_is_an_index_query():
@@ -95,7 +96,7 @@ def test_an_unchanged_document_makes_no_version():
     backend, store = with_site()
     current = store.read("writing")["reference"]["itemId"]
     result = save(store, copy.deepcopy(SITE), expected=current)
-    assert result["changed"] is False and len(backend.items) == 1 and len(backend.attachments) == 1
+    assert result["changed"] is False and len(backend.items) == 1 and len(backend.attachments) == len(SITE) - 1
 
 
 def test_a_second_save_supersedes_the_first_and_history_lists_both():
@@ -119,7 +120,7 @@ def test_a_stale_save_is_refused_and_stores_nothing():
 def test_an_invalid_document_or_missing_reason_is_refused():
     backend, store = make()
     with pytest.raises(GuidelineError) as caught:
-        save(store, {"schemaVersion": 1, "tone": [""]})
+        save(store, {"schemaVersion": 2, "tone": [""]})
     assert caught.value.code == "invalid_input" and caught.value.details["problems"][0]["path"] == "tone"
     with pytest.raises(GuidelineError):
         save(store, SITE, reason=" ")
@@ -153,32 +154,32 @@ def test_slugs_mirror_the_doctrine_lineages():
 # --- the writing resolver ----------------------------------------------------------------------------------------------------------------------
 
 def test_a_section_adds_tone_and_voice_patterns_after_the_sites():
-    _, store = with_site({"schemaVersion": 1, "tone": ["Brisk."], "voicePatterns": ["Short leads."], "bodyMarkus": "Be quick."})
+    _, store = with_site({"schemaVersion": 2, "tone": ["Brisk."], "voicePatterns": ["Short leads."], "bodyMarkus": "Be quick."})
     document = resolve_writing(store, "news")["document"]
     assert document["tone"] == ["Warm.", "Brisk."] and document["voicePatterns"] == ["Opens plainly.", "Short leads."]
     assert document["bodyMarkus"] == "Write plainly.\n\nBe quick."
 
 
 def test_a_section_cannot_remove_a_word_the_site_avoids():
-    _, store = with_site({"schemaVersion": 1, "lexicon": {"avoid": ["leverage"], "prefer": []}})
+    _, store = with_site({"schemaVersion": 2, "lexicon": {"avoid": ["leverage"], "prefer": []}})
     assert resolve_writing(store, "news")["document"]["lexicon"] == {"prefer": ["inspect"], "avoid": ["synergy", "leverage"]}
 
 
 def test_a_section_replaces_the_audience_when_the_site_leaves_it_open():
-    _, store = with_site({"schemaVersion": 1, "audience": "Engineers", "voice": {"name": "Desk"}})
+    _, store = with_site({"schemaVersion": 2, "audience": "Engineers", "voice": {"name": "Desk"}})
     answer = resolve_writing(store, "news")
     assert answer["document"]["audience"] == "Engineers" and answer["document"]["voice"] == {"name": "Desk"} and answer["warnings"] == []
 
 
 def test_a_section_cannot_replace_a_field_the_site_locks():
-    _, store = with_site({"schemaVersion": 1, "headline": {"order": ["subtitle"]}})
+    _, store = with_site({"schemaVersion": 2, "headline": {"order": ["subtitle"]}})
     answer = resolve_writing(store, "news")
     assert answer["document"]["headline"] == {"order": ["title"]}
     assert [(w["code"], w["field"]) for w in answer["warnings"]] == [("locked_field_ignored", "headline")]
 
 
 def test_a_sections_binding_constraint_is_ignored_with_a_warning():
-    _, store = with_site({"schemaVersion": 1, "constraints": [{"id": "x", "text": "Anything."}]})
+    _, store = with_site({"schemaVersion": 2, "constraints": [{"id": "x", "text": "Anything."}]})
     answer = resolve_writing(store, "news")
     assert answer["document"]["constraints"] == SITE["constraints"]
     assert [w["code"] for w in answer["warnings"]] == ["section_constraint_ignored"]
@@ -197,7 +198,7 @@ def test_a_section_without_a_document_resolves_to_the_sites_alone():
 
 
 def test_every_resolved_field_names_its_layer_and_version():
-    backend, store = with_site({"schemaVersion": 1, "tone": ["Brisk."], "audience": "Engineers"})
+    backend, store = with_site({"schemaVersion": 2, "tone": ["Brisk."], "audience": "Engineers"})
     answer = resolve_writing(store, "news")
     assert answer["fieldSources"]["tone"] == [{"layer": "publication", "version": 1}, {"layer": "section", "version": 1}]
     assert answer["fieldSources"]["audience"] == [{"layer": "section", "version": 1}]
@@ -212,7 +213,7 @@ def test_a_glossary_entry_replaces_the_sites_unless_locked_and_keeps_its_avoids(
     site = {**SITE, "glossary": [{"term": "Papyrus", "use": "Papyrus", "avoid": ["Papirus"]}]}
     backend, store = make()
     save(store, site)
-    save(store, {"schemaVersion": 1, "glossary": [{"term": "Papyrus", "use": "the newsroom", "avoid": ["PPY"]}, {"term": "Cyclotron", "use": "Cyclotron"}]}, "news")
+    save(store, {"schemaVersion": 2, "glossary": [{"term": "Papyrus", "use": "the newsroom", "avoid": ["PPY"]}, {"term": "Cyclotron", "use": "Cyclotron"}]}, "news")
     glossary = resolve_writing(store, "news")["document"]["glossary"]
     assert glossary[0] == {"term": "Papyrus", "use": "the newsroom", "avoid": ["Papirus", "PPY"]} and glossary[1]["term"] == "Cyclotron"
     first = store.read("writing")["reference"]["itemId"]

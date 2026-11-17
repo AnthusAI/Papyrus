@@ -6,10 +6,14 @@ Item version as a ModelAttachment with the role ``doctrine_document`` (``newsroo
 pattern Story bodies use. Nothing here knows what is *in* a document or which kinds exist; the kind registry in ``document.py`` is the only place
 that changes when a kind is added.
 
+A kind whose form is ``files`` (the writing guidelines, schema version 2) is stored as a set of guideline files instead: one ModelAttachment with the role ``doctrine_files`` for each
+file (sortKey = its path), and ``contentHash`` is the hash over the set (``field_files.py``). Nothing else about the row, the versions or the guard changes.
+
 Every read is a query on a named index (``itemBySlug``, ``modelAttachmentsByOwnerRoleAndSortKey``) plus one download; nothing lists a table.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any, Protocol
@@ -17,9 +21,11 @@ from typing import Any, Protocol
 from papyrus_content.editorial_context import _check_tenant
 from papyrus_content.record_helpers import to_aws_json
 
+from . import field_files
 from .document import GuidelineError, digest, kind_spec, overlay_language, slug_for, validate_document
 
 ROLE = "doctrine_document"
+FILES_ROLE = "doctrine_files"   # a set of guideline files (schema version 2 of the writing guidelines): one ModelAttachment per file, sortKey = the file's path in the set
 ASSET_ROLE = "doctrine_asset"   # binary files a document names (a design system's fonts): one ModelAttachment each, sortKey = the file's name in the document
 PENDING = "pending"   # versionState of a version whose row exists but whose files are not all stored yet: no reader sees it, a retry of the same save finishes it
 NO_DOCUMENT_GUARD = "none"   # expectedCurrentVersionId for the first save of a lineage
@@ -75,6 +81,27 @@ class GuidelineStore:
         current = [row for row in self.versions(kind, section, language=language) if row.get("versionState") == "current"]
         return current[0] if current else None
 
+    def _set_of(self, row: dict) -> dict[str, str]:
+        """The guideline files one catalog row names: one attachment index query and one download for each file. A version saved before the writing guidelines became files
+        is kept as history only; this reads files, so it says so rather than guessing at the old document."""
+        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"], limit=500)
+        live = [a for a in attachments if str(a.get("status") or "active").lower() not in {"deleted", "aborted"}]
+        wanted = [a for a in live if a.get("role") == FILES_ROLE]
+        if not wanted:
+            if any(a.get("role") == ROLE for a in live):
+                raise GuidelineError("legacy_version", f"The guidelines {row.get('slug')} version {row.get('versionNumber')} were saved before guidelines became files; the version is kept as history only.",
+                                     {"itemId": row["id"], "convert": "papyrus guidelines convert"})
+            raise GuidelineError("not_found", f"The guidelines {row.get('slug')} version {row.get('versionNumber')} have no stored files.", {"itemId": row["id"]})
+        files: dict[str, str] = {}
+        for attachment in wanted:
+            body = self.files.get(attachment)
+            if body is None:
+                raise GuidelineError("not_found", f"The file {attachment.get('sortKey')} of {row['id']} could not be read.", {"itemId": row["id"]})
+            files[attachment["sortKey"]] = body.decode("utf-8")
+        if row.get("contentHash") and field_files.set_digest(files) != row["contentHash"]:
+            raise GuidelineError("document_hash_mismatch", f"The stored files of {row['id']} do not match its content hash.", {"itemId": row["id"]})
+        return files
+
     def _document_of(self, row: dict) -> dict:
         attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"], limit=100)
         wanted = [a for a in attachments if a.get("role") == ROLE and str(a.get("status") or "active").lower() not in {"deleted", "aborted"}]
@@ -99,6 +126,10 @@ class GuidelineStore:
             next((r for r in rows if r.get("versionState") == "current"), None)
         if row is None:
             return None
+        if kind_spec(kind).form == "files":
+            files = self._set_of(row)
+            view = field_files.view_of(files, section=section, language=overlay_language(kind, language))
+            return {"document": view.document, "files": files, "rules": view.rules, "reference": reference(row), "row": row}
         return {"document": self._document_of(row), "reference": reference(row), "row": row}
 
     def assets_of(self, row: dict) -> dict[str, dict]:
@@ -120,11 +151,14 @@ class GuidelineStore:
 
     def save(self, kind: str, document: Any, *, section: str | None = None, expected_current_version_id: str | None = None, actor: str, reason: str,
              now: str | None = None, assets: dict[str, bytes] | None = None, saved_by: dict | None = None, even_if_unchanged: bool = False,
-             language: str | None = None) -> dict:
+             language: str | None = None, files: dict[str, str] | None = None) -> dict:
         """Save a document as the lineage's next version. ``{changed, reference}``.
 
         ``assets`` are binary files the document names (file name -> bytes), stored beside it as ModelAttachments of the same version. The caller puts
         their hashes in the document, so the content hash covers them.
+
+        A kind stored as files (the writing guidelines) is saved as a set: ``files`` is the exact set to store, or, when only the structured ``document`` is given, its
+        field files over the rule files the current version already holds. The version's ``contentHash`` is the hash over the set. ``{changed, reference, document, files, rules}``.
 
         The first save names ``none``; a later one names the Item id it replaces and is refused as stale when that is no longer current. A document equal to
         the current one makes no version, unless ``even_if_unchanged`` (a document whose current version still holds it in an older shape is rewritten in the new one). The row is created first, in the state ``pending``, because the upload function only accepts a file for an Item that exists; the files follow, and only then does the row become
@@ -135,23 +169,29 @@ class GuidelineStore:
         spec = kind_spec(kind)
         language = overlay_language(kind, language)
         scope = "section" if section or language else "publication"   # a language overlay follows a section's rules: no binding constraints, no publication-only fields
-        problems = validate_document(kind, document, scope)
-        if problems:
-            raise GuidelineError("invalid_input", "The document has problems: " + "; ".join(f"{p.path or 'document'} {p.message}" for p in problems),
-                                 {"problems": [{"path": p.path, "message": p.message, "code": p.code} for p in problems]})
-        if not str(reason or "").strip():
-            raise GuidelineError("invalid_input", "A reason is required.")
         rows = self._rows(kind, section, language)
         versions = [row for row in rows if row.get("versionState") != PENDING]
         pending = next((row for row in rows if row.get("versionState") == PENDING), None)
         current = next((r for r in versions if r.get("versionState") == "current"), None)
+        rules: list[dict] = []
+        if spec.form == "files":
+            if files is None:
+                self._refuse(validate_document(kind, document, scope))
+                files = field_files.with_fields(self._set_of(current) if current is not None else None, document, slug=slug_for(kind, section, language), section=section, language=language)
+            view = field_files.view_of(files, section=section, language=language)
+            document, rules = view.document, view.rules
+        elif files is not None:
+            raise GuidelineError("invalid_input", f"{kind} guidelines are one document, not guideline files.")
+        self._refuse(validate_document(kind, document, scope))
+        if not str(reason or "").strip():
+            raise GuidelineError("invalid_input", "A reason is required.")
         guard = NO_DOCUMENT_GUARD if current is None else current["id"]
         if expected_current_version_id != guard:
             raise GuidelineError("stale_version", "The guidelines have changed since you read them. Read them again and apply your change to the new version.",
                                  {"expectedCurrentVersionId": guard})
-        content_hash = digest(document)
+        content_hash = field_files.set_digest(files) if files is not None else digest(document)
         if current is not None and current.get("contentHash") == content_hash and not even_if_unchanged:
-            return {"changed": False, "reference": reference(current)}
+            return {"changed": False, "reference": reference(current), "document": document, "files": files, "rules": rules}
         stamp = now or _now()
         record = next_record(spec.name, section, versions, content_hash, actor=actor, reason=reason, now=stamp,
                              tenant_slug=getattr(self.client, "tenant_slug", None), saved_by=saved_by, language=language)
@@ -159,14 +199,34 @@ class GuidelineStore:
             self.client.create_record("Item", {**record, "versionState": PENDING})
         else:
             self.client.update_record("Item", {**{key: value for key, value in record.items() if key != "id"}, "id": pending["id"], "versionState": PENDING})
-        self._put_document(record, document, stamp)
+        if files is not None:
+            for path in sorted(files):
+                self._put_file(record, path, files[path], stamp)
+        else:
+            self._put_document(record, document, stamp)
         for name, body in (assets or {}).items():
             self._put_asset(record, name, body, stamp)
         self.client.update_record("Item", {"id": record["id"], "versionState": "current"})
         for row in versions:
             if row.get("versionState") == "current":
                 self.client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
-        return {"changed": True, "reference": reference(record)}
+        return {"changed": True, "reference": reference(record), "document": document, "files": files, "rules": rules}
+
+    @staticmethod
+    def _refuse(problems: list) -> None:
+        if problems:
+            raise GuidelineError("invalid_input", "The document has problems: " + "; ".join(f"{p.path or 'document'} {p.message}" for p in problems),
+                                 {"problems": [{"path": p.path, "message": p.message, "code": p.code} for p in problems]})
+
+    def _put_file(self, record: dict, path: str, text: str, now: str) -> dict:
+        from papyrus_content.model_attachments import attachment_safe_id, build_model_payload_attachment, semantic_version_key
+
+        entry = build_model_payload_attachment({
+            "ownerKind": "item", "ownerId": record["id"], "ownerLineageId": record["lineageId"], "ownerVersionNumber": record["versionNumber"],
+            "ownerVersionKey": semantic_version_key("item", record["id"]), "role": FILES_ROLE, "sortKey": path, "filename": attachment_safe_id(f"{hashlib.sha1(path.encode()).hexdigest()[:8]}-{path}"),
+            "content": text.encode("utf-8"), "mediaType": "text/markdown", "now": now,
+        })
+        return self.files.put(entry["attachment"], entry["body"])
 
     def _put_document(self, record: dict, document: dict, now: str) -> dict:
         from papyrus_content.model_attachments import build_json_model_payload_attachment, semantic_version_key

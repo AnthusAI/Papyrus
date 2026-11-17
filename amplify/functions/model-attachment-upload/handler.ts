@@ -65,6 +65,7 @@ const ALLOWED_ROLES = new Set([
   "delivery_text",            // a Delivery's words, one file in S3 (src/papyrus_content/announcements/deliveries.py)
   "doctrine_document",
   "doctrine_asset",
+  "doctrine_files",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",

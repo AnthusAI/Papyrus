@@ -839,6 +839,8 @@ export type GuidelinesGetResult = {
   language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
   document: Record<string, unknown>;
+  /** Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set. */
+  files?: Record<string, unknown>;
   itemId: string;
   versionNumber: number;
   contentHash: string;
@@ -893,7 +895,9 @@ export type GuidelinesDiffInput = {
   /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
   language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
-  document: Record<string, unknown>;
+  document?: Record<string, unknown>;
+  /** Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set. */
+  files?: Record<string, unknown>;
 };
 
 export type GuidelinesDiffResult = {
@@ -907,6 +911,10 @@ export type GuidelinesDiffResult = {
   }[];
   constraintChanges: Record<string, unknown>[];
   wouldCreateVersion: number;
+  fileChanges?: ({
+    path: string;
+    change: "added" | "changed" | "removed";
+  })[];
 };
 
 /** Save a guideline document as the next version of its kind and scope. */
@@ -918,7 +926,9 @@ export type GuidelinesSaveInput = {
   /** A language overlay (en, es, es-419, zh-Hans ...): only what is particular to that language, laid over the guidelines every language shares. Leave it out for the shared guidelines. */
   language?: string;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
-  document: Record<string, unknown>;
+  document?: Record<string, unknown>;
+  /** Guideline files by path, such as plain-claims/GUIDELINE.md: the exact text of each file of the set. Writing guidelines are stored as this set. */
+  files?: Record<string, unknown>;
   /** Why, in plain words. It is recorded with who and when. */
   reason: string;
   /** The current version id of that guideline lineage when you read it (guidelines_get returns it as expectedCurrentVersionId), or none for the first save. */

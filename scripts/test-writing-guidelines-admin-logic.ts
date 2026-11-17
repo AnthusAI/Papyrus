@@ -17,8 +17,8 @@ test("an empty field is left out, and fields the form does not edit are carried 
 });
 
 test("a section's document never carries the site-only fields", () => {
-  const saved = documentFromForm(formFromDocument({ schemaVersion: 1, tone: ["Warm."] }), { schemaVersion: 1, tone: ["Warm."], locked: ["audience"], constraints: [{ id: "x", text: "y" }] }, "section");
-  assert.deepEqual(saved, { schemaVersion: 1, tone: ["Warm."] });
+  const saved = documentFromForm(formFromDocument({ schemaVersion: 2, tone: ["Warm."] }), { schemaVersion: 2, tone: ["Warm."], locked: ["audience"], constraints: [{ id: "x", text: "y" }] }, "section");
+  assert.deepEqual(saved, { schemaVersion: 2, tone: ["Warm."] });
 });
 
 test("a reason is required and blank spaces are not one", () => {
@@ -37,7 +37,7 @@ test("each field says where it came from in words, and a locked field says so", 
 });
 
 test("changes between two versions are described in plain words", () => {
-  const changes = diffDocuments({ schemaVersion: 1, tone: ["a"], audience: "x" }, { schemaVersion: 1, tone: ["b"], bodyMarkus: "Lead." });
+  const changes = diffDocuments({ schemaVersion: 2, tone: ["a"], audience: "x" }, { schemaVersion: 2, tone: ["b"], bodyMarkus: "Lead." });
   assert.deepEqual(changes.map((change) => change.path), ["audience", "bodyMarkus", "tone"]);
   assert.deepEqual(changes.map(describeChange), ['Audience: removed "x"', 'Guidance in your own words: added "Lead."', 'Tone: changed from ["a"] to ["b"]']);
 });
