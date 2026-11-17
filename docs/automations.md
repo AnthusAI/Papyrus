@@ -338,6 +338,7 @@ A site's Amplify build runs `papyrus agents apply` right after it registers the 
 role on the operator lane, from the site's checkout. The core definitions are the files in the wheel; a site's own, and its additions to a core one, are in
 the folder `papyrus-site-agents` at the checkout root (a site without it has the core ones only; `--dir` names another folder). Nothing is done by hand.
 
+* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table.
 * **Checked first.** Every definition is validated exactly as `papyrus agents validate` does, each named procedure must be registered (a core kind or one
   in the site's `papyrus-site-procedures.json`), and the automation a definition lands on must be its own. Any failure stops the step with a plain error
   naming each problem **before anything is written**, and fails the build. Nothing falls back.

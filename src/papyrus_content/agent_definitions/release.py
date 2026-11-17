@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .. import request_meter
+from ..graphql_authoring import AUTOMATION_FIELDS
 from ..automations import AutomationError, build_record, read_record, stored_payload
 from ..procedure_deploy import ProcedureDeployError, load_site_registry
 from ..procedure_registry import registered_kinds
@@ -88,8 +88,9 @@ def _trigger(definition: Definition) -> dict[str, Any]:
 
 def plan(client, definitions: list[Definition], procedures: set[str]) -> tuple[list[Entry], list[dict[str, Any]]]:
     """What each definition needs on this site, and the records to retire. Reads only; raises one ``ReleaseError`` naming every problem."""
-    with request_meter.sweep("agents-apply"):   # a declared sweep: the site's few automations, once per deploy, to find the ones whose definition left Git
-        rows = {row["id"]: row for row in client.list_records("Automation")}
+    # The site's automations through the Automation tenantId index (one Query, as Today reads them): the ones whose definition left Git are not named
+    # by any file, so the index is the only way to find them. Never a whole-table read.
+    rows = {row["id"]: row for row in client.list_tenant_rows("Automation", AUTOMATION_FIELDS)}
     entries: list[Entry] = []
     problems: list[str] = []
     for item in definitions:

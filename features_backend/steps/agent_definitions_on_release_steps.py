@@ -36,7 +36,7 @@ class Site:
         self.s3, self.table = FakeS3(), FakeTable()
         self.policy = AgentPolicyStore(SiteStore(self.s3, "bucket", self.table, now=lambda: "2026-11-17T00:00:00Z"))
 
-    def list_records(self, model):
+    def list_tenant_rows(self, model, fields):
         assert model == "Automation"
         return [dict(row) for row in self.rows.values()]
 

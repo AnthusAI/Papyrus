@@ -14,7 +14,7 @@ class Site:
     def __init__(self):
         self.rows, self.writes = {}, 0
 
-    def list_records(self, model):
+    def list_tenant_rows(self, model, fields):
         return list(self.rows.values())
 
     def get_record(self, model, record_id):
