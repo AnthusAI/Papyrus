@@ -49,8 +49,8 @@ raised above `off` in the site's policy, starts nothing: the run is recorded as 
 2. Adopt each automation (an admin who is a person, signed in with `papyrus login`). Dry run first:
    `papyrus automations adopt --id AUTOMATION_ID --responsibility KEY --dry-run`, then the same without `--dry-run`. Adopting sets no rung.
 3. Write the policy line for that responsibility at the rung that matches today's behaviour, with a reason. **Ryan approves the rung;
-   an engineer never picks it.** (There is no operator command for this yet: it is `papyrus agents set-rung` of slice H3, PPY-e6f31e, which also needs a
-   production write adapter for the site store. Until it exists, enforcement cannot be turned on for a site that has automations.)
+   an engineer never picks it.** (`papyrus agents set-rung --id AGENT --rung RUNG --reason TEXT`, a dry run until `--apply`; see
+   [the first agent](#the-first-agent-rating-on-machines-on-machines-ppy-d85860) for what it checks and the storage permission it needs.)
 4. Check: `papyrus automations runs --id AUTOMATION_ID` after the next wake shows the run with the policy version and rung, not
    "Nothing to do (not_adopted)".
 
@@ -124,7 +124,8 @@ The first run, in this order, signed in with `papyrus login` as an admin, `--sit
 ```
 papyrus --site machines-on-machines automations adopt --id rate --responsibility rate --dry-run
 papyrus --site machines-on-machines automations adopt --id rate --responsibility rate
-papyrus --site machines-on-machines agents set-rung ...          # sets rate to observe; NOT BUILT: see below
+papyrus --site machines-on-machines agents set-rung --id rate --rung observe --reason "<Ryan's reason>"            # dry run: prints before and after
+papyrus --site machines-on-machines agents set-rung --id rate --rung observe --reason "<Ryan's reason>" --apply    # sets rate to observe
 papyrus --site machines-on-machines automations update --id rate --monitor hn --publication machines-on-machines --enabled true
 papyrus --site machines-on-machines agents schedules --site machines-on-machines --dry-run
 papyrus --site machines-on-machines agents schedules --site machines-on-machines
@@ -133,8 +134,14 @@ papyrus --site machines-on-machines automations runs --id rate
 ```
 
 * `adopt` names the responsibility and sets no rung. Until a rung is set the policy says `off` for `rate`, and a wake is recorded as "Nothing to do (rung_off)", never run.
-* **Setting the rung `observe` has no command yet.** `papyrus agents set-rung` is slice H3 (PPY-e6f31e) and needs the production write adapter for the site's policy store; until it is
-  built, no one can put `rate` at `observe` on a site, and the agent cannot start. This is the one step that blocks the first run. The rung is Ryan's decision and is written with his reason.
+* **`papyrus agents set-rung` sets the rung** (slice H3, PPY-e6f31e; spec `features_backend/agent-set-rung.feature`). It is admin-only (an admin who is a person, signed in with
+  `papyrus login`; an editor is refused and an agent is blocked), always takes `--reason`, and is a dry run unless `--apply`: the dry run prints the agent's policy entry before and
+  after and the version it would be, and writes nothing. `--apply` saves a new version of the site's policy document (who, when and why on the version; every older version stays) in
+  the site's media bucket at `tenants/<tenant>/site/agents/<version>.json`, through the same site store the runner reads, so the next wake runs under it. It refuses a rung that is not on the
+  ladder, a rung above the highest one the agent's definition needs (`rate` needs no more than `draft`), and `publish_auto` for every agent until the gate that enforces the "doubt stops
+  automatic publishing" floor is built (slice E4, PPY-36e7c9). **The rung is Ryan's decision and is written with his reason; an engineer never picks it.** The write needs the signed-in
+  admin's role to be allowed to put objects under `tenants/*/site/agents/` in the site's media bucket: the Amplify storage rules (`amplify/storage/resource.ts`) grant admins only `media/*`
+  and `newsroom/*`, so **that grant is a separate IAM change that a person reviews and applies before the first `--apply`**; until it is, the call stops with an S3 `AccessDenied` and writes nothing.
 * `update --monitor hn --publication machines-on-machines` links the schedule automation to the router publication that gives each tick the site's endpoint, model key and policy location
   (`hn` is the router config's monitor id). `--enabled true` switches it on; the schedule entry is created by `agents schedules` (the next deploy does it too).
 * What the first run shows: `automations runs --id rate` lists the run as "✓ Did it (proposed)" or "– Nothing to do (nothing_unrated)", with the policy version and rung `observe`. The

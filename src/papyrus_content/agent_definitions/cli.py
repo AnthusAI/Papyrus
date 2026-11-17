@@ -2,7 +2,8 @@
 ``apply`` applies the definitions to a site as its deploy does (slice D2, PPY-df3e74, ``release.py``); ``schedules`` makes the site's schedule group
 agree with the applied definitions (slice C1, PPY-2a53cd, ``schedules.py``).
 
-Later slices add the other ``papyrus agents`` commands (set-rung, runbook, explain) to this group.
+``set-rung`` sets an agent's rung in the site's policy document (slice H3, PPY-e6f31e, ``agent_policy/set_rung.py``). Later slices add the other
+``papyrus agents`` commands (pause, resume, wake, runbook, explain) to this group.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
+from papyrus_content.agent_rungs import RUNGS
 from papyrus_content.images.cli import ERROR_EXIT_CODE
 from papyrus_content.images.handlers import error_envelope
 
@@ -45,12 +47,23 @@ SCHEDULES_USAGE = ("Usage: papyrus agents schedules --site SITE [--dry-run | --c
                    "  differs. Run it as the operator (PAPYRUS_GRAPHQL_AUTH=iam); running it again with nothing changed writes nothing.")
 
 
+SET_RUNG_USAGE = ("Usage: papyrus --site SITE agents set-rung --id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE ...] [--apply]\n"
+                  "  Set how far one agent may go on this site: write its rung into the agent policy document as a new version that records who, when and why.\n"
+                  "  Admin only, and only a person: sign in with `papyrus login` as an admin. A dry run unless --apply: it prints the agent's policy entry before and after and\n"
+                  "  the version it would be, and writes nothing. --apply saves it; the old version stays in the history. Raising and lowering are the same command.\n"
+                  f"  RUNG is one of: {', '.join(RUNGS)}. AGENT is the id of an agent definition (`papyrus agents validate --dir DIR` lists them). It is refused when the rung is above\n"
+                  "  the highest rung the definition's operations need, when it is publish_auto while a hard floor forbids it, and when the reason is missing.\n"
+                  "  --scope narrows the change to the override for one scope (list, channel, kind, storyType or section), for example --scope channel=linkedin; repeat it to name more than one.\n"
+                  "  --dir and --core name the definition folders as `papyrus agents apply` does (default ./papyrus-site-agents when it exists, then the core definitions).\n"
+                  "  The policy body is written to tenants/<tenant>/site/agents/ in the site's media bucket, which the signed-in role must be allowed to write.")
+
+
 def route_tree() -> dict:
-    return {"validate": {}, "apply": {}, "schedules": {}}
+    return {"validate": {}, "apply": {}, "schedules": {}, "set-rung": {}}
 
 
 def usage_for(words: list[str]) -> str | None:
-    return {"validate": VALIDATE_USAGE, "apply": APPLY_USAGE, "schedules": SCHEDULES_USAGE}.get(" ".join(words))
+    return {"validate": VALIDATE_USAGE, "apply": APPLY_USAGE, "schedules": SCHEDULES_USAGE, "set-rung": SET_RUNG_USAGE}.get(" ".join(words))
 
 
 def validate_command(argv: list[str], stdout: TextIO | None = None) -> int:
@@ -196,7 +209,92 @@ def schedules_command(argv: list[str], stdout: TextIO | None = None, client_fact
     return finish({"ok": True, "op": "agents_schedules", "result": {"action": action, **result}, "warnings": warnings}, 0)
 
 
+def _policy_store_for_site(client):
+    """The policy store over the site's own catalogue and media bucket: the bucket the site publishes, where the runner reads ``tenants/<tenant>/site/agents/``."""
+    from papyrus_content.agent_policy import AgentPolicyStore
+    from papyrus_content.agent_policy.catalogue import SiteCatalogueTable
+    from papyrus_content.env import storage_bucket_from_amplify_outputs
+    from papyrus_content.site_store import SiteStore
+    from papyrus_content.story_images import user_lane_s3_client
+    from papyrus_content.user_auth_mode import user_auth_requested
+
+    bucket = storage_bucket_from_amplify_outputs()
+    if not bucket:
+        raise ValueError("The site's media bucket is not known: sign in to the site (papyrus login) so its published bucket is read, or run where its amplify_outputs.json is.")
+    if user_auth_requested():
+        s3 = user_lane_s3_client()
+    else:
+        import boto3
+
+        s3 = boto3.client("s3")
+    return AgentPolicyStore(SiteStore(s3, bucket, SiteCatalogueTable(client)))
+
+
+def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, policy_factory=None, caller_factory=None) -> int:
+    out = stdout or sys.stdout
+    if argv in (["--help"], ["-h"]):
+        out.write(SET_RUNG_USAGE + "\n")
+        return 0
+
+    def finish(envelope: dict, code: int) -> int:
+        out.write(json.dumps(envelope, indent=2) + "\n")
+        return code
+
+    def refuse(message: str, code: str = "invalid_input", **details) -> int:
+        return finish(error_envelope("agents_set_rung", code, message, details=details), ERROR_EXIT_CODE)
+
+    values: dict[str, str] = {}
+    scope: dict[str, str] = {}
+    apply = False
+    rest = list(argv)
+    while rest:
+        word = rest.pop(0)
+        if word == "--apply":
+            apply = True
+        elif word == "--scope" and rest:
+            dimension, _, value = rest.pop(0).partition("=")
+            if not value:
+                return refuse("--scope takes DIMENSION=VALUE, for example --scope channel=linkedin.", path="--scope")
+            scope[dimension] = value
+        elif word in ("--id", "--rung", "--reason", "--dir", "--core") and rest:
+            values[word] = rest.pop(0)
+        else:
+            return refuse(f"{word} is not a flag of agents set-rung, or has no value.", path=word)
+    for flag in ("--id", "--rung", "--reason"):
+        if not values.get(flag, "").strip():
+            return refuse(f"Give {flag}.", path=flag)
+    from papyrus_content.agent_policy import PolicyError, set_rung
+    from papyrus_content.images.handlers import Caller
+    from papyrus_content.images.profile_handlers import identify
+
+    try:
+        site_folder = Path(values["--dir"]) if "--dir" in values else Path(release.SITE_FOLDER)
+        if "--dir" in values and not site_folder.is_dir():
+            return refuse(f"The folder of definitions {site_folder} is not there.", path="--dir")
+        core = Path(values["--core"]) if "--core" in values else definition.CORE_DIRECTORY
+        definitions = release.load(site_folder if site_folder.is_dir() else None, core)
+        client = (client_factory or _client)()
+        kind = "agent" if os.environ.get("PAPYRUS_ACTOR_KIND", "").strip().lower() == "agent" else "person"
+        caller = (caller_factory or identify)(client, Caller(kind=kind))
+        tenant_id = getattr(client, "tenant_id", None)
+        if not tenant_id:
+            return refuse("The site's tenant is not known: pass --site, or sign in to the site, so the policy of one site is changed.", path="--site")
+        policy = (policy_factory or _policy_store_for_site)(client)
+        act = set_rung.apply if apply else set_rung.plan
+        change = act(policy, tenant_id, caller, definitions, values["--id"], values["--rung"], reason=values["--reason"], scope=scope or None)
+    except release.ReleaseError as error:
+        return refuse(str(error))
+    except PolicyError as error:
+        return refuse(error.message, error.code)
+    except ValueError as error:
+        return refuse(str(error))
+    warnings = [] if change.changed else [f"{change.responsibility} is already as asked; nothing was written."]
+    return finish({"ok": True, "op": "agents_set_rung", "result": {"action": "apply" if apply else "dry-run", **change.as_dict()}, "warnings": warnings}, 0)
+
+
 def command(argv: list[str], stdout: TextIO | None = None) -> int:
+    if argv[:1] == ["set-rung"]:
+        return set_rung_command(argv[1:], stdout)
     if argv[:1] == ["validate"]:
         return validate_command(argv[1:], stdout)
     if argv[:1] == ["apply"]:
@@ -204,5 +302,5 @@ def command(argv: list[str], stdout: TextIO | None = None) -> int:
     if argv[:1] == ["schedules"]:
         return schedules_command(argv[1:], stdout)
     out = stdout or sys.stdout
-    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply, schedules.", details={"command": " ".join(argv)}), indent=2) + "\n")
+    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply, schedules, set-rung.", details={"command": " ".join(argv)}), indent=2) + "\n")
     return ERROR_EXIT_CODE
