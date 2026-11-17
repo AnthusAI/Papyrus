@@ -3,7 +3,7 @@
   "title": "Deferred monitor items are lost: retry_deferred resends the stored request with no wake key",
   "description": "**Problem.** A monitor item deferred before the wake-key release keeps the request it was stored with, which has no wake key. On a later sweep `retry_deferred` (`monitoring_router.py`, around line 2319) copies that request, marks the row starting, and invokes the runner. The new runner refuses a run with no wake key (`procedure_runner.py:60-62`) and the row is recorded as not runnable. Only rows with status `deferred` are retried, so the item is lost. For Distinctive that is a ruling that never gets its analysis.\n\n**Fix.** `retry_deferred` builds the wake key from the row at every retry, exactly as the first attempt does (owner and procedure key, the Reference id, 'new reference'; all are on the row as `automationId`, `procedureKey`, `referenceId`). The key is never something stored and trusted, so old and new rows need no special case.\n\n**Acceptance criteria**\n- Every retry of a deferred row builds its wake key from the row; the stored request's key, if any, is ignored.\n- A row stored before the wake-key release starts exactly once on the next sweep.\n- A row retried twice never starts two runs (same key, one run).\n- The release notes and the release checklist (the 5.130 plan task) say to read the count of deferred, starting and startFailed trigger rows per site before and after the window.\n\n**Gherkin features needed**\n- deferred-item-wake-key.feature: 'an item deferred before wake keys starts once on the next sweep'; 'a retried item uses the same key as its first attempt'; 'a row with a stored key that differs from the row's own gets the row's key'. Scenarios go through the router sweep entry point, not a helper.\n\n**Dependencies:** blocks the release of 5.130 (see the Release 5.130 plan task). Follows PPY-70c6e8 (wake keys, closed) and does not reopen it. B6 (PPY-4af216) deletes the deferred sweep later.\n\n**Report:** papyrus-track-report-1.md, section 3a hazard 2, and page one row 1.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -21,10 +21,18 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "04be94b9-a6da-4988-b474-71a5daafda26",
+      "author": "home",
+      "text": "Fixed in PR #1640 (merged to develop): retry_deferred builds the wake key from the row (automationId or procedure, referenceId, new Reference) on every retry and ignores any stored key. Rows without a Reference id are marked startFailed with the reason and counted. Gherkin: features_backend/deferred-item-wake-key.feature. Not done: the 5.130 release notes and checklist line to read deferred/starting/startFailed counts per site (docs/automations.md notes it); release not cut.",
+      "created_at": "2026-11-17T02:29:50.292117Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-17T01:16:30.650946Z",
-  "updated_at": "2026-11-17T01:18:11.736294Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T02:29:50.469547Z",
+  "closed_at": "2026-11-17T02:29:50.469423Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
