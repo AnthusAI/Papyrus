@@ -72,10 +72,17 @@
       "text": "2026-11-17 MoM rating agent first-run steps (5.130.0 CLI, signed-in lane). Step 1 head-index: dry run reported 26 keys to set (doc says apply first); applied; re-run dry shows 0 to set, 719 already right, 1 no-head (a zh-Hans translation Story with every row superseded; suggests papyrus stories repair-versions, not run). Step 2 adopt rate dry run + real: ok. Step 3 set-rung observe dry run ok (policy v0 -> v1); --apply FAILED, NOT AccessDenied: 'GraphQL request failed: The variables input contains a field that is not defined for input object type ModelSiteDocumentVersionConditionInput'. Likely CLI/site-store bug: create sends condition {id: {attributeExists: false}} but SiteDocumentVersion is keyed by documentId+version, no id field (compare src/papyrus_content/agent_policy/catalogue.py line 31). Nothing written (policy still v0). Steps 4-5 not run; rung is unset so they would only record rung_off. Needs a fix and release before retry.",
       "created_at": "2026-11-17T16:27:06.416014Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7ddc1668-7085-4c4c-83b8-2da8f0ba5d35",
+      "author": "home",
+      "text": "2026-11-17 MoM rating agent resume with 5.130.2 CLI. set-rung observe dry run then --apply: OK (policy v0 -> v1, rate=observe, reason recorded). automations update --id rate --monitor hn --publication machines-on-machines --enabled true: OK, rate now enabled; show reports schedule 30 3 * * * America/New_York 'from its definition'. agents schedules dry run AND real both FAILED: botocore LoginRefreshRequired (AWS session expired); the command is operator lane (AWS credentials / --auth iam), not the signed-in lane, so I did not use AWS creds to write; needs Ryan or coordinator to aws login and run it. automations run --id rate --input {} : started (manual run requested), but 2+ minutes later automations runs --id rate still lists 0 runs and show says no runs; no failed-closed record seen yet. No story updated after the run (newest published update 15:56Z), so no ratings appear written. Open: schedules step; why the manual run left no run record.",
+      "created_at": "2026-11-17T17:43:46.243744Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T01:18:00.727665Z",
-  "updated_at": "2026-11-17T16:27:06.416242Z",
+  "updated_at": "2026-11-17T17:43:46.243990Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
