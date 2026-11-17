@@ -449,6 +449,7 @@ PORTED_COMMANDS = frozenset(
         "newsroom:section-labels",
         "newsroom:seed-required-procedures",
         "newsroom:register-procedure",
+        "newsroom:check-wake-guard",
         "automations:list",
         "automations:show",
         "automations:runs",
@@ -1115,6 +1116,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         sections_concepts(flags)
     elif route == "newsroom:seed-required-procedures":
         newsroom_seed_required_procedures(flags)
+    elif route == "newsroom:check-wake-guard":
+        from .wake_guard_check import procedures_check_wake_guard
+        procedures_check_wake_guard(flags)
     elif route == "newsroom:register-procedure":
         from .site_procedures import procedures_register
         procedures_register(flags)

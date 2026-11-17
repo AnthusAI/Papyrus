@@ -91,6 +91,48 @@ The runner keeps no state of its own. Asynchronous invocations are not retried
 (`MaximumRetryAttempts: 0`), so a failure never starts a second run. Failed events go to the dead-letter
 queue.
 
+## Proving the once-only create on a real site
+
+The newsroom function (`amplify/functions/procedure-action/handler.ts`) answers a wake key that already has its run as
+`duplicate: true`. It recognises the data API's refusal of the second create by its error type, the conditional-check failure
+(`DynamoDB:ConditionalCheckFailedException`), or by its text, also when either is nested inside another error. Any other error is thrown, so
+an answer it does not recognise is a failed start and never a second run. The scenarios in `features/wake-key-duplicate.feature` call the
+handler with each shape of that error. They use an in-memory data client, so they cannot show what the real data API sends. A site that
+runs the wake queue must have the real answer shown once: `papyrus procedures check-wake-guard`.
+
+The check asks the site to start one wake key twice as the signed-in person. The wake key is `procedure:<procedure key>|manual|wake-guard-check-<time>`:
+no automation, router or schedule ever builds a key like it. The start is the external-execution path, so **no procedure is loaded or run**.
+The first start makes one `ProcedureRun` record; the second must answer `duplicate: true` with the same run id. The command then
+finishes the record as `completed`, outcome `nothing`, reason `wake_guard_check`, so it does not sit `started`. It stays on the site as the
+evidence: nothing deletes it, and it holds no text beyond the one-line summary.
+
+Run it on one site that is on a release with wake keys (5.130 or later), as a signed-in admin, in this order. `<procedure key>` is any
+published procedure with no required parameter; a procedure with one is refused at the parameter check and nothing is written.
+
+```
+papyrus --site <site> procedures check-wake-guard --procedure-key <procedure key> --dry-run
+papyrus --site <site> procedures check-wake-guard --procedure-key <procedure key> --json
+```
+
+The first line writes nothing and prints the wake key it would use:
+
+```
+procedures	check-wake-guard	dry-run	procedure:<procedure key>|manual|wake-guard-check-<time>
+```
+
+The second prints, and exits 0 only when the second answer was a duplicate of the first run:
+
+```
+{"ok": true, "command": "procedures check-wake-guard", "status": "proved", "wakeKey": "procedure:<procedure key>|manual|wake-guard-check-<time>",
+ "runId": "procedure-run-wake-<32 hex digits>",
+ "answers": {"first": {"duplicate": false, "runId": "procedure-run-wake-<32 hex>", ...}, "second": {"duplicate": true, "runId": "procedure-run-wake-<32 hex>", "runStatus": "started", ...}}}
+```
+
+If the site answers anything else, the command exits non-zero with `Expected created, then duplicate of <run id>; got ...` and still finishes the first
+record. Record the JSON on PPY-a5513c and PPY-567bf9. A second look at the site (`papyrus automations runs`, or the console's recent runs
+for the procedure) shows exactly one record for that wake key, with the outcome `nothing` and the reason `wake_guard_check`. Run it again with a
+new time in the key for another proof; never reuse a request id.
+
 ## Registering a site's procedure
 
 A publication's own procedures live in its repository (for example `procedures/ttab_ruling_analysis.tac`
