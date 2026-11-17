@@ -25,7 +25,10 @@ def current_companion(client, story, language):
     from .story_reporting import story_versions
 
     rows = story_versions(client, localization_lineage_id(story, language))
-    return next((r for r in rows if r.get("versionState") == "current"), rows[0] if rows else None)
+    return next(
+        (r for r in rows if r.get("versionState") == "current"),
+        rows[0] if rows else None,
+    )
 
 
 def require_translation_owned(client, story, language):
@@ -60,7 +63,11 @@ def import_edition(
         _status_keys,
         utc_now_iso,
     )
-    from .story_reporting import published_story_version, story_versions, _carry_media_forward
+    from .story_reporting import (
+        published_story_version,
+        story_versions,
+        _carry_media_forward,
+    )
     from .story_checklist import sync_checklist
     from .record_helpers import to_aws_json, compact_dict
     from .language_serving import localized_slug, unique_slug
@@ -95,6 +102,19 @@ def import_edition(
     if request and request.get("state") in ("wanted", "started"):
         raise ValueError("A translation is queued or in flight; resolve it before importing an authored edition.")
     rows = story_versions(client, locale)
+    # A retry may arrive before the lineage GSI sees the successful initial write.
+    # Read its deterministic primary key before attempting another create.
+    if not rows:
+        persisted = client.get_record("Item", f"{locale}-v1")
+        if persisted:
+            rows = [persisted]
+
+    def finalize(record):
+        # Media uses deterministic IDs/upserts; checklist sync preserves existing
+        # decisions. Both can safely finish a partially successful prior import.
+        _carry_media_forward(client, record["id"], envelope, front_matter, [primary])
+        sync_checklist(client, locale, story=record)
+
     if rows:
         existing = next((r for r in rows if r.get("versionState") == "current"), rows[0])
         if (
@@ -103,7 +123,15 @@ def import_edition(
             and existing.get("bodyMarkus") == body
             and metadata(existing).get("frontMatterYaml") == front_matter
         ):
-            return {"lineage": locale, "language": target, "unchanged": True, "record": existing, "published": False}
+            if apply:
+                finalize(existing)
+            return {
+                "lineage": locale,
+                "language": target,
+                "unchanged": True,
+                "record": existing,
+                "published": False,
+            }
         raise ValueError(f"{locale} already exists; an authored import never replaces another edition.")
 
     # Use the edition's own title for its stable address, not the primary's title.
@@ -112,13 +140,21 @@ def import_edition(
             r.get("language") == target and r.get("section") == primary.get("section") for r in client.list_by_index("itemBySlug", value)
         )
 
-    slug = unique_slug(localized_slug(front["title"], serving.slugs[target], primary_slug=primary["slug"]), taken)
+    slug = unique_slug(
+        localized_slug(front["title"], serving.slugs[target], primary_slug=primary["slug"]),
+        taken,
+    )
     if not slug:
         raise ValueError("The edition title cannot form an address.")
     now = utc_now_iso()
     record_id = f"{locale}-v1"
     fields = ItemFields(
-        type=primary["type"], slug=slug, section=primary.get("section"), front_matter_yaml=front_matter, body_markus=body, aliases=[]
+        type=primary["type"],
+        slug=slug,
+        section=primary.get("section"),
+        front_matter_yaml=front_matter,
+        body_markus=body,
+        aliases=[],
     )
     provenance = {
         "kind": "independent",
@@ -166,7 +202,6 @@ def import_edition(
     if not apply:
         return result
     client.create_record("Item", compact_dict(row))
-    _carry_media_forward(client, record_id, envelope, front_matter, [primary])
-    sync_checklist(client, locale)
+    finalize(row)
     result["record"] = row
     return result
