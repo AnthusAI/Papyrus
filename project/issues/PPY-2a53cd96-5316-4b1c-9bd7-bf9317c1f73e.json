@@ -3,7 +3,7 @@
   "title": "The schedule trigger: an agent runs on a clock from data",
   "description": "Build the `schedule` trigger kind that is stored today and starts nothing. A definition may carry a schedule (a cron expression and a time zone). A small reconciler, fed by the change feed of the agent definitions, creates, updates or deletes one EventBridge Scheduler entry per scheduled agent, named from the agent id, in the site's schedule group. The entry's only target is the site's wake queue; its message carries the scheduled time, which becomes the wake key, so a redelivered tick runs once. A timer does nothing else: the run re-reads everything. The schedule group, the role the scheduler assumes and the reconciler's role are in the template; no schedule is made by hand. Daylight saving time is handled by the scheduler's time zone support, not by code.\n\n**Acceptance criteria**\n- An agent with a daily schedule runs once a day at that local time, across a daylight-saving change.\n- Changing or removing the schedule in the definition changes or removes the entry.\n- A paused agent's tick is consumed and recorded as nothing-started with the reason 'paused'.\n- No schedule exists that a definition does not name.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- schedule-trigger.feature: a daily agent runs once per day; a duplicate tick runs once; a changed time takes effect at the next tick; removing the schedule removes the entry; a tick for a paused agent starts nothing and says why; the local time holds across a clock change.\n\n**Infrastructure as code touched:** Site backend: EventBridge Scheduler group, scheduler role (send to the wake queue only), reconciler function and role.\n\n**Part of:** Timers: the schedule trigger and follow-ups. Slice code C1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,10 +22,18 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "520de166-d3ab-4811-94cb-66cf190633b3",
+      "author": "home",
+      "text": "Built and merged to develop (not released) in two PRs. #1649: the schedule group, the scheduler's role (send to this site's wake queue only) and an alarm on a dropped tick in the agents stack (3 resources; per piece: wake-queue 6, schedule-group 3, agents stack 9; first stage 1974 of 2000, headroom 26, unchanged); papyrus agents schedules --site <brand id> (reconciler: one agent-<id> entry per switched-on, not-retired agent with a schedule, local cron plus zone by name, target the site's wake queue, key <agent>|schedule|<scheduled time>; stale agent- entries removed; idempotent; dry-run/check), run by the production build right after agents apply; cron translation to the scheduler's six fields and refusal of day-of-month plus day-of-week; wake queue gets content-based deduplication because the scheduler cannot set an id. #1650: the schedule kind is live in the records, console and CLI (no more 'not yet supported'). Specs: features_backend/schedule-trigger.feature (29 scenarios), automation-records.feature updated. Not applied: no IAM change. The build role needs, before any release that carries the step: sqs:GetQueueUrl on the wake queue; scheduler:ListSchedules; Get/Create/Update/DeleteSchedule on the site group's schedules; iam:PassRole on the scheduler role (to scheduler only); monitoring-table read. Not verified on real AWS: Scheduler to FIFO delivery and the InvocationDroppedCount alarm metric. Not done: an enabled agent's entry appears at the next deploy or when someone runs papyrus agents schedules (no hook on enable); MoM router publication has tenantId but no siteBucket; the first deploy defers the group (step reports it).",
+      "created_at": "2026-11-17T07:00:48.301086Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:03.357616Z",
-  "updated_at": "2026-11-17T01:18:18.358662Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T07:00:48.783417Z",
+  "closed_at": "2026-11-17T07:00:48.783305Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
