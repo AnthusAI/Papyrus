@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from papyrus_content.agent_rungs import PERSON_ONLY, RUNGS
+
 # --- schema helpers (JSON Schema, camelCase properties, kept to the small subset the MCP table and the validator understand) ------------------------
 
 
@@ -125,7 +127,8 @@ class Operation:
     errors: tuple[str, ...]                # codes from ERRORS this operation may return, beyond COMMON_ERRORS
     examples: tuple[Example, ...]          # input and result pairs: docs, skill and the parity tests
     permission: Literal["editor"] = "editor"   # editor: an editor or admin of this site. Spend also needs the site's approved generation.
-    agent_allowed: bool = True             # False: only a person may call it; an agent gets human_required
+    agent_rung: str = ""                   # the lowest rung of the site's agent policy that lets an agent call it, or "person" when no rung does (see below)
+    agent_refusal: Literal["human_required", "blocked"] = "human_required"   # what the gate answers an agent that may never call it
     audience: Literal["staff"] = "staff"   # readers get no image operations
     positional: tuple[str, ...] = ()       # input properties the CLI takes as plain words, in order
     flags: tuple[tuple[str, str], ...] = ()    # (input property, CLI flag name) where the flag is not the property in kebab-case
@@ -133,6 +136,18 @@ class Operation:
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
     group: Literal["images", "guidelines", "announcements"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+
+    def __post_init__(self) -> None:
+        # A read names no rung and is allowed from `observe`. Every operation that writes or spends must say its rung: there is no default to forget.
+        if not self.agent_rung and self.effect == "read":
+            object.__setattr__(self, "agent_rung", "observe")
+        if self.agent_rung != PERSON_ONLY and self.agent_rung not in RUNGS[1:]:
+            raise ValueError(f"{self.name} must name the lowest rung that lets an agent call it ({', '.join(RUNGS[1:])}), or {PERSON_ONLY!r}")
+
+    @property
+    def agent_allowed(self) -> bool:
+        """Whether any rung lets an agent call it. False: only a person may; the gate answers an agent ``agent_refusal`` at every rung."""
+        return self.agent_rung != PERSON_ONLY
 
     @property
     def mcp_name(self) -> str:
@@ -156,7 +171,8 @@ ERRORS = (
     ErrorCode("unknown_operation", "There is no image operation by that name.", details="operation, or command for the CLI"),
     ErrorCode("not_implemented", "This operation is described but not built yet.", details="operation"),
     ErrorCode("not_authorized", "You are not an editor or admin of this site, or the grant lacks the permission."),
-    ErrorCode("human_required", "A person has to do this one; an agent may not."),
+    ErrorCode("human_required", "A person has to do this one, or approve it; the agent's rung does not let it through. A review request is raised and the run ends asked."),
+    ErrorCode("blocked", "No agent may do this at any rung: it changes policy, budget or accounts."),
     ErrorCode("set_needs_person", "A set of several pictures is for a person choosing. Unattended work gets one picture."),
     ErrorCode("not_found", "No such Story, Reference, round or picture in this publication."),
     ErrorCode("constraint_conflict", "The request asks for something one of the publication's rules forbids.", details="the constraint"),
@@ -243,6 +259,7 @@ OPERATIONS: tuple[Operation, ...] = (
         file_field="document",
         notes="Adding, changing or removing a binding constraint needs an admin who is a person; an agent gets human_required. The document is laid over the current profile "
               "(objects merge, lists replace, null removes a key). For the very first profile pass none as expectedCurrentVersionId. Saving a document that changes nothing makes no version.",
+        agent_rung="prepare",
     ),
     Operation(
         "image_profile_history", ("profile", "history"), "List the profile's versions, newest first, with who changed it and why.", "read",
@@ -285,6 +302,7 @@ OPERATIONS: tuple[Operation, ...] = (
         notes="From the command line, --file PICTURE uploads the picture first (the same three steps the newsroom takes) and fills in attachmentId. "
               "Only a person may set sendToProvider: an agent asking for it gets human_required, because the service cannot tell whether a picture shows identifiable "
               "people or logos. An example belongs to one image type; a child type does not inherit its parent's examples.",
+        agent_rung="prepare",
     ),
     Operation(
         "image_profile_example_remove", ("profile", "example", "remove"), "Remove an example picture from the profile, as a new version.", "write",
@@ -297,6 +315,7 @@ OPERATIONS: tuple[Operation, ...] = (
                  {"versionNumber": 5, "removedFrom": ["cover-illustration"]}),),
         positional=("attachmentId",),
         notes="The file stays for older profile versions, so a picture made from an older version keeps the examples it was made with.",
+        agent_rung="prepare",
     ),
     # --- planning
     Operation(
@@ -350,6 +369,7 @@ OPERATIONS: tuple[Operation, ...] = (
                   "estimate": _ESTIMATE}),),
         flags=(("imageTypes", "image-types"), ("sectionId", "section")),
         notes="Spends only when the site's image generation is configured and approved.",
+        agent_rung="draft",
     ),
     Operation(
         "image_figure_add", ("figure", "add"),
@@ -370,6 +390,7 @@ OPERATIONS: tuple[Operation, ...] = (
         file_field="figure",
         notes="Needs an image type whose sources include figure-system. The figure is drawn and rendered elsewhere; this only records it. "
               "The CLI reads the figure.json acceptance fields from --file and takes uploadIds through --input-file.",
+        agent_rung="draft",
     ),
     Operation(
         "image_round_get", ("round",), "Read a round of pictures and say whether they are all done.", "read",
@@ -408,6 +429,7 @@ OPERATIONS: tuple[Operation, ...] = (
                                                    "estimate": _ESTIMATE}),),
         positional=("candidateId",),
         notes="The design lists only candidateId; speed is added because it says a retry can choose standard (section 7.4).",
+        agent_rung="draft",
     ),
     Operation(
         "image_iterate", ("iterate",), "Make new pictures from one you have, with an instruction such as 'less busy'.", "spend",
@@ -421,6 +443,7 @@ OPERATIONS: tuple[Operation, ...] = (
                  {"roundId": "round-2", "candidates": [{"id": "candidate-6", "position": 0, "status": "queued", "lane": "batch"}], "estimate": _ESTIMATE}),),
         positional=("candidateId",),
         notes="The profile and its rules are resolved again and put back into the request; an instruction cannot remove them.",
+        agent_rung="draft",
     ),
     # --- deciding
     Operation(
@@ -431,6 +454,7 @@ OPERATIONS: tuple[Operation, ...] = (
         (Example({"candidateId": "candidate-1", "reason": "Calmest of the four."},
                  {"candidateId": "candidate-1", "selection": {"by": "account-1", "byKind": "agent", "at": "2026-11-07T18:05:00Z", "reason": "Calmest of the four."}}),),
         positional=("candidateId",),
+        agent_rung="draft",
     ),
     Operation(
         "image_unapply", ("unapply",), "Undo an applied picture: the Story gets a new version with the old cover or the placeholder back.", "write",
@@ -444,6 +468,7 @@ OPERATIONS: tuple[Operation, ...] = (
                  {"patch": {"frontMatter": {"image": None}}, "restored": "placeholder", "savedVersion": {"versionId": "item-story-containment-note-v8", "versionNumber": 8}}),),
         flags=(("mediaAssetId", "media-asset"),),
         notes="The media asset and its record stay. Any editor or agent may unapply.",
+        agent_rung="draft",
     ),
     Operation(
         "image_review", ("review",), "Keep or remove a picture that was added without a person looking at it. Only a person may.", "write",
@@ -453,8 +478,9 @@ OPERATIONS: tuple[Operation, ...] = (
                 "savedVersion": record({"versionId": text(), "versionNumber": whole()})}, ("mediaAssetId", "decision", "reviewStatus")),
         ("human_required", "not_found", "stale_version"),
         (Example({"mediaAssetId": "media-asset-1", "decision": "keep"}, {"mediaAssetId": "media-asset-1", "decision": "keep", "reviewStatus": "human-verified"}),),
-        agent_allowed=False, positional=("mediaAssetId",),
+        positional=("mediaAssetId",),
         notes="Keep marks the picture human-verified with who and when. Remove runs image_unapply. Either answers the linked review request.",
+        agent_rung=PERSON_ONLY,
     ),
     Operation(
         "image_review_queue", ("review-queue",), "List the pictures that were added without a person, oldest first.", "read",
@@ -484,6 +510,7 @@ OPERATIONS: tuple[Operation, ...] = (
         positional=("candidateId",),
         notes="Alt text is required and must describe the picture: never copy the brief, which is an instruction to the model. A picture is human-verified only when a person passes reviewed "
               "(recorded with who and when). Every other apply, an agent's always, leaves it unreviewed and opens a review request.",
+        agent_rung="draft",
     ),
     Operation(
         "image_discard", ("discard",), "Reject a picture, or a whole round (which keeps the placeholder). The private file is deleted; the record stays.", "write",
@@ -492,6 +519,7 @@ OPERATIONS: tuple[Operation, ...] = (
         ("candidate_closed", "not_found"),
         (Example({"roundId": "round-1", "reason": "Kept the placeholder."}, {"discarded": ["candidate-1", "candidate-2"]}),),
         positional=("candidateId",), flags=(("roundId", "round"),),
+        agent_rung="draft",
     ),
 )
 
@@ -572,6 +600,7 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
               "human_required and nothing is saved. The first save of a lineage passes none as expectedCurrentVersionId. Give a document, or for writing guidelines the "
               "files (papyrus guidelines save --dir DIR): the set is stored exactly as given and exports back byte for byte. Saving structured fields keeps the rule files "
               "the current version holds. Saving what equals the current version makes no version. Every problem with a document is listed by field in details.problems.",
+        agent_rung="prepare",
     ),
     Operation(
         "guidelines_history", ("history",), "List the versions of a kind of guidelines, newest first, with who changed it and why.", "read",
@@ -644,11 +673,13 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         record({"paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text()}, ("paused",)), (),
         (Example({}, {"paused": True, "pausedBy": "Ada Admin", "pausedAt": "2026-11-13T10:02:00Z", "pauseReason": "Paused by hand."}),), group="announcements",
         notes="The site's announcements function lets only an admin change the pause. Announcements also pause by themselves, for the budget or a broken X connection, and say why.",
+        agent_rung="propose",
     ),
     Operation(
         "announcements_resume", ("resume",), "Resume announcements and announce the Stories that waited.", "write",
         obj({}), record({"released": many({"type": "object"}), "paused": flag()}, ("released", "paused")), (),
         (Example({}, {"released": [], "paused": False}),), group="announcements",
+        agent_rung=PERSON_ONLY,
     ),
     Operation(
         "announcements_settings_show", ("settings", "show"), "Show the site's announcement settings: mode, bar, Story types, sections, account, budget, prices and the pause.", "read",
@@ -663,10 +694,11 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
              "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
              "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
              "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
-        record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "human_required"),
-        (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements", agent_allowed=False,
+        record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "blocked"),
+        (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements",
         notes="A person only: it sets what the publication says in public and how much it may spend. There is no approval setting: a draft that passes the automatic checks is posted. "
               "prices is given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
+        agent_rung=PERSON_ONLY, agent_refusal="blocked",
     ),
     Operation(
         "announcements_account_status", ("account", "status"), "Show mode, pause, the cycle's spend against the budget, and the connected account.", "read",

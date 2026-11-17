@@ -4,7 +4,7 @@ Feature: An agent is one definition file that fills the 11-point template
   whether it is paid and whether it is safe to repeat, each operation it uses with the lowest rung that allows it, its model tier (never a model
   name), and the 11 lines of the template: trigger, inputs, decision, may write, must never, seen and reversed, records, fails, cost and bound,
   measured and Gherkin. A definition that cannot fill a line is refused with the line named. An operation must be one the operation table knows, and
-  one an agent may call; an operation that writes needs a rung of propose or higher, because observe writes nothing. A definition never sets a
+  one an agent may call; the rung it names for an operation may never be lower than the lowest rung the operation table allows an agent to call it at. A definition never sets a
   rung for the agent itself: how far the agent may go is the site's policy, and a deploy never changes it. Core definitions ship in the engine. A site
   may add its own complete definitions, and may extend a core definition with instructions and further must-never rules, but it can never remove a
   must-never rule or change another field of a core definition. papyrus agents validate checks a folder of definitions with no network and no model.
@@ -56,11 +56,11 @@ Feature: An agent is one definition file that fills the 11-point template
     When the definition folders are validated
     Then the refusal names the definition "illustrate-stories", the line "operations.image_review" and the code "person_only_operation"
 
-  Scenario: An operation that writes cannot be allowed at observe
+  Scenario: An operation cannot be allowed at a rung below the one the operation table needs
     Given a definitions folder with the complete definition "illustrate-stories" for the responsibility "illustrate"
     And the definition "illustrate-stories" uses the operation "image_apply" at the rung "observe"
     When the definition folders are validated
-    Then the refusal names the definition "illustrate-stories", the line "operations.image_apply" and the code "write_needs_propose"
+    Then the refusal names the definition "illustrate-stories", the line "operations.image_apply" and the code "rung_below_table"
 
   Scenario: An unknown responsibility is refused
     Given a definitions folder with the complete definition "illustrate-stories" for the responsibility "daydream"

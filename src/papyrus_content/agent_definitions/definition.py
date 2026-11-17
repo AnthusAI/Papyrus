@@ -59,8 +59,6 @@ FIELDS = (*REQUIRED, *OPTIONAL)
 POLICY_FIELDS = ("rung", "paused", "pausedReason", "budget", "quietWindow", "model", "loopLimit", "overrides")
 OVERLAY_FIELDS = ("schemaVersion", "extends", "instructions", "mustNever", "removes")
 EXECUTORS = ("lambda", "container")
-#: Observe writes nothing but its own record of what it would have done, so every operation that writes needs propose or higher.
-WRITING_RUNGS = RUNGS[2:]
 
 _ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 _WORD = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -170,8 +168,8 @@ def _operations(operations: Any, add) -> None:
             add(here, "is for a person only; an agent may not call it", "person_only_operation")
         if rung not in RUNGS[1:]:
             add(here, f"needs the lowest rung that allows it, one of: {', '.join(RUNGS[1:])}")
-        elif found is not None and found.agent_allowed and found.effect != "read" and rung not in WRITING_RUNGS:
-            add(here, f"{name} writes, so it needs the rung propose or higher; observe writes nothing", "write_needs_propose")
+        elif found is not None and found.agent_allowed and RUNGS.index(rung) < RUNGS.index(found.agent_rung):
+            add(here, f"{name} needs the rung {found.agent_rung} or higher in the operation table; a definition may ask for more, never less", "rung_below_table")
 
 
 def _template(template: Any, add) -> None:

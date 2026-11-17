@@ -310,3 +310,13 @@ def invalid_window(context):
 def nothing_written(context):
     assert len(context.catalogue.writes) == context.writes_before_reads
     assert context.s3.objects == context.s3_before_reads
+
+
+@when('an admin tries to resume "{responsibility}" because "{why}"')
+def admin_tries_to_resume(context, responsibility, why):
+    _try(context, lambda: _policy(context).resume(TENANT, ADMIN, reason=why, responsibility=responsibility))
+
+
+@then('the refusal says "{responsibility}" is not named')
+def refusal_names(context, responsibility):
+    assert context.refusal is not None and responsibility in context.refusal.message
