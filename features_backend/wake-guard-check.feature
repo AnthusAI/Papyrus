@@ -11,7 +11,7 @@ Feature: The once-only create is proved on a real site with one command
   Scenario: The second start of the same key is a duplicate of the first
     When the wake guard check runs for the procedure "newsroom.fact-check"
     Then the check is proved
-    And the site holds 1 run record
+    And the check left 1 run record on the site
     And the record is finished as nothing to do with the reason "wake_guard_check"
     And no procedure was loaded or run
 
@@ -28,4 +28,4 @@ Feature: The once-only create is proved on a real site with one command
   Scenario: A request id that is not recognisable as a check is refused
     When the wake guard check runs with the request id "request-41"
     Then the check is refused for its request id
-    And the site holds 0 run records
+    And the check left 0 run records on the site

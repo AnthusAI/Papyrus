@@ -67,8 +67,8 @@ def _proved(context):
     assert context.result["answers"]["first"]["duplicate"] is False and context.result["answers"]["second"]["duplicate"] is True
 
 
-@then("the site holds {count:d} run record")
-@then("the site holds {count:d} run records")
+@then("the check left {count:d} run record on the site")
+@then("the check left {count:d} run records on the site")
 def _holds(context, count):
     assert len(context.backend.records) == count, context.backend.records
 
