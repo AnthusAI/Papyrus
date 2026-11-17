@@ -84,7 +84,7 @@ class GuidelineStore:
     def _set_of(self, row: dict) -> dict[str, str]:
         """The guideline files one catalog row names: one attachment index query and one download for each file. A version saved before the writing guidelines became files
         is kept as history only; this reads files, so it says so rather than guessing at the old document."""
-        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"], limit=500)
+        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"])
         live = [a for a in attachments if str(a.get("status") or "active").lower() not in {"deleted", "aborted"}]
         wanted = [a for a in live if a.get("role") == FILES_ROLE]
         if not wanted:
@@ -103,7 +103,7 @@ class GuidelineStore:
         return files
 
     def _document_of(self, row: dict) -> dict:
-        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"], limit=100)
+        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"])
         wanted = [a for a in attachments if a.get("role") == ROLE and str(a.get("status") or "active").lower() not in {"deleted", "aborted"}]
         if not wanted:
             raise GuidelineError("not_found", f"The guidelines {row.get('slug')} version {row.get('versionNumber')} have no stored document.", {"itemId": row["id"]})
@@ -134,7 +134,7 @@ class GuidelineStore:
 
     def assets_of(self, row: dict) -> dict[str, dict]:
         """The asset attachments of one version by file name: one index query, nothing downloaded."""
-        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"], limit=100)
+        attachments = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"])
         return {a["sortKey"]: a for a in attachments if a.get("role") == ASSET_ROLE and str(a.get("status") or "active").lower() not in {"deleted", "aborted"}}
 
     def get_asset(self, attachment: dict) -> bytes:

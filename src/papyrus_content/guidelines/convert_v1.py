@@ -24,7 +24,7 @@ REASON = "Converted to guideline files (schema version 2); the guidelines are un
 
 def _legacy_document(store: GuidelineStore, row: dict) -> dict:
     """The JSON document of a version saved in the old shape."""
-    attachments = store.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"], limit=100)
+    attachments = store.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", row["id"])
     wanted = [a for a in attachments if a.get("role") == ROLE and str(a.get("status") or "active").lower() not in {"deleted", "aborted"}]
     if not wanted:
         raise GuidelineError("not_found", f"The guidelines {row.get('slug')} version {row.get('versionNumber')} have no stored document.", {"itemId": row["id"]})

@@ -28,8 +28,6 @@ from .document import GuidelineError, safe_key
 WRITING = "writing"
 SCHEMA_VERSION = 2
 FILE_NAME = guideline_files.FILE_NAME
-MAX_FILES = 200
-MAX_FILE_BYTES = 256 * 1024
 
 TEXT, BULLETS, JSON = "text", "bullets", "json"
 
@@ -138,15 +136,11 @@ def parse_set(files: dict[str, str], *, section: str | None = None, language: st
     otherwise is refused (a section's rules never sit in the publication's set)."""
     view = SetView()
     problems = view.problems
-    if len(files) > MAX_FILES:
-        problems.append(guideline_files.Problem("", "", f"holds {len(files)} files; the limit is {MAX_FILES}", "too_many_files"))
     folders: dict[str, dict[str, str]] = {}
     for path, text in sorted(files.items()):
         bad = _check_path(path)
         if bad:
             problems.append(guideline_files.Problem(path, "", bad, "stray_file"))
-        elif len(text.encode("utf-8")) > MAX_FILE_BYTES:
-            problems.append(guideline_files.Problem(path, "", f"is larger than {MAX_FILE_BYTES // 1024} KB", "too_large"))
         else:
             folders.setdefault(path.split("/", 1)[0], {})[path.split("/", 1)[1]] = text
     if not folders and not problems:
