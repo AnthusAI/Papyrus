@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: newsroom.editor
 -- Papyrus automated newsroom editor procedure.
 --
 -- Dry-run only: this procedure returns assignment Item, EditionItem, and

@@ -16,6 +16,7 @@ from .cloud_procedures import (
     load_required_cli_procedure_config,
 )
 from .ids import safe_id
+from .procedure_registry import procedure_path_for_kind, validate_procedure_registry
 from .model_attachments import (
     MODEL_ATTACHMENT_OWNER_MODELS,
     build_text_model_payload_attachment,
@@ -660,15 +661,7 @@ def newsroom_seed_required_procedures(flags: list[str]) -> None:
 
 def _required_procedure_seed_specs() -> list[dict[str, Any]]:
     config = load_required_cli_procedure_config()
-    source_by_key = {
-        "newsroom.research.explorer": PAPYRUS_ROOT / "procedures" / "newsroom" / "research_explorer.tac",
-        "newsroom.reporting.context": PAPYRUS_ROOT / "procedures" / "newsroom" / "reporter.tac",
-        "newsroom.rotating.section.selector": PAPYRUS_ROOT / "procedures" / "newsroom" / "rotating_section_selector.tac",
-        "newsroom.reference.summarization": PAPYRUS_ROOT / "procedures" / "newsroom" / "reference_summarization.tac",
-        "ontology.relationship-explainer": PAPYRUS_ROOT / "procedures" / "newsroom" / "ontology_relationship_explainer.tac",
-        "ontology.concept-profiler": PAPYRUS_ROOT / "procedures" / "newsroom" / "ontology_concept_profiler.tac",
-        "submissions.email.process": PAPYRUS_ROOT / "procedures" / "newsroom" / "email_submission_processor.tac",
-    }
+    validate_procedure_registry()
     details_by_key = {
         "newsroom.research.explorer": {
             "title": "Newsroom Research Explorer",
@@ -824,15 +817,13 @@ def _required_procedure_seed_specs() -> list[dict[str, Any]]:
     }
     seeds: list[dict[str, Any]] = []
     for procedure_key in config["keys"]:
-        source_path = source_by_key.get(procedure_key)
+        source_path = procedure_path_for_kind(procedure_key)
         details = details_by_key.get(procedure_key)
-        if not source_path or not details:
+        if not details:
             raise ValueError(
                 f"Missing seed metadata for required procedure '{procedure_key}'. "
                 "Update newsroom_seed_required_procedures metadata."
             )
-        if not source_path.exists():
-            raise ValueError(f"Missing procedure source file for {procedure_key}: {source_path}")
         slug = safe_id(procedure_key)[:120]
         seeds.append(
             {

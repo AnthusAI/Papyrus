@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: ingestion.reference.register
 -- Papyrus ingestion reference registration procedure.
 --
 -- This procedure receives one reference intake payload and returns a normalized

@@ -1,3 +1,4 @@
+-- papyrus-procedure-kind: newsroom.research.explorer
 -- Papyrus knowledge-aware exploratory newsroom researcher.
 --
 -- Dry-run only: this procedure produces the same Message-backed research

@@ -24,6 +24,17 @@ After editing local `.tac` files, reseed to refresh cloud procedure source:
 AWS_PROFILE=<profile> AWS_REGION=<region> npm run seed:amplify -- --identifier <sandbox-id>
 ```
 
+Procedure kinds and the registry:
+
+- The first line of every procedure file declares its kind:
+  `-- papyrus-procedure-kind: <kind>`.
+- `corpora/papyrus-required-procedures.json` lists, under `procedures`, the file that
+  runs for each kind, and under `requiredCliProcedures` the kind each CLI command needs.
+- `poetry run python -m papyrus_content.procedure_registry` checks that the three agree
+  (a file without a kind, two files with one kind, a registry entry whose file declares
+  another kind or does not exist, a file the registry does not list, a CLI command whose
+  kind has no entry). CI runs it, and `papyrus procedures seed-required` runs it first.
+
 CLI cloud resolution contract:
 
 - Required CLI procedure aliases are defined in
