@@ -35,6 +35,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from . import wake_keys
 from .automation_gate import decide, limits_of
 
 STAGE_ENTERED = "story.stage_entered"
@@ -180,7 +181,8 @@ def _start(client, automation, *, row, chain, reader, writer, invoke, stamp, sit
     hop = chain["hops"] + 1
     values = {"story": story, "version": version, "versionNumber": int(row.get("versionNumber") or 1), "stage": stage, "runKey": sk,
               "automationId": automation["id"], "hop": hop}
-    request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+    request = {"wakeKey": wake_keys.change_key(wake_keys.owner(automation["id"], automation["procedureKey"]), story, version, STAGE_ENTERED),
+               "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
                "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"],
                "input": {**(automation.get("inputTemplate") or {}), **values}, "actorLabel": bot_label(automation["id"]),
                "timeoutSeconds": gate.timeout_seconds,

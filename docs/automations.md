@@ -178,6 +178,9 @@ but no model call stores only `toolsUsed` (no cost). `automations runs` prints `
 
 ## Run now
 
+Each Run now carries its own wake key, `<automation id>|manual|<request id>` with a fresh request id, so it never collides with a
+scheduled or changed-record run of the same automation (`docs/procedure-runner.md`).
+
 * Command line: `papyrus automations run --id distinctive.ttab --input '{"proceeding":"97752244","opinion_url":"https://..."}'`
   (`--dry-run` checks everything and starts nothing; `--json`). It needs the same things `runs` needs (AWS
   credentials that can read the monitoring table through the SSM parameter) plus `dynamodb:PutItem` on it and
