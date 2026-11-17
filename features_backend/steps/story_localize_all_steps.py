@@ -620,7 +620,7 @@ class Monitor:
         self.rows = []
 
     def router_config(self, monitor_id):
-        return {"publications": [{"publicationId": "mom", "appsyncEndpoint": "https://site.test/graphql", "openaiKeyParameter": "/key"}]}
+        return {"publications": [{"publicationId": "mom", "appsyncEndpoint": "https://site.test/graphql", "openaiKeyParameter": "/key", "tenantId": "mom", "siteBucket": "mom-site-bucket"}]}
 
     def trigger_rows(self, monitor_id, publication_id, procedure_key):
         return [row for row in self.rows if row["sk"].startswith("TRIGGER#")]

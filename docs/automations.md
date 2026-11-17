@@ -204,7 +204,8 @@ The input is the one you give. If you give none, the record's `inputTemplate` is
 placeholder; the TTAB template does (`{sourceIdPrefix}`, `{documentUrl}`), so for TTAB you give the input.
 
 Run now is refused, with the reason and without a row, when the automation is not a monitor automation, is
-disabled, has no router publication for this site, or is at its `maxConcurrent`. Otherwise it:
+disabled, has no router publication for this site, has no `openaiKeyParameter`, `tenantId` or `siteBucket` on that publication (the runner reads the site's agent policy from
+the last two and refuses a wake that does not name them), or is at its `maxConcurrent`. Otherwise it:
 
 1. writes `MANUAL#<automationId>#<timestamp>` in the monitor's partition (`MONITOR#<monitorId>`) of the monitoring table,
    with who started it and the runner request, status `starting`;
