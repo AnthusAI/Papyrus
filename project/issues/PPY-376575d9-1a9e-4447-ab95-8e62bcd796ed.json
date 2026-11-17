@@ -1,0 +1,20 @@
+{
+  "id": "PPY-376575d9-1a9e-4447-ab95-8e62bcd796ed",
+  "title": "Imported translations use the standard byline: remove the Written by notice, importedLabel and translator",
+  "description": "Ryan rejected PPY-5faf82 (PR 1655). Byline standard: 'By various bots' or 'By various bots and AUTHOR', produced by the site byline hook from front matter drafting.by AI and author. Remove translation.importedLabel, the Written by twin header, JSON-LD translator. import-translation --written-by becomes front matter author; --drafting-by-ai sets drafting.by AI; notice of an imported translation is only the neutral link to the original. metadata.localization.translation=imported stays record data.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-17T12:35:48.924833Z",
+  "updated_at": "2026-11-17T12:35:48.925876Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
