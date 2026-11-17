@@ -1400,12 +1400,14 @@ def stories_correct_translation(flags: list[str]) -> None:
 
 
 def stories_import_translation(flags: list[str]) -> None:
-    """papyrus stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME --reason TEXT [--dry-run] [--json]
+    """papyrus stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]
 
     Attaches finished copy, written separately by people or other agents, as the translation of a published Story. It saves the copy as the next version of
     ``<story>--<language>`` the way the translation procedure saves one (unpublished, paired with the English version it translates, the original's
     pictures carried, its address drafted by the language's slug policy), with the writer as its author and a provenance that says the copy was written,
-    not machine-generated. Every block is the writer's: owner human, pinned, so a later translation run keeps the copy exactly.
+    not machine-generated. The version's front matter gets ``author: NAME`` (--written-by) and, only with --drafting-by-ai (bots helped write the copy),
+    ``drafting: {by: AI}``, in place of the English's; the site's standard byline reads from those two keys ("By NAME", or "By various bots and NAME") and is
+    translated into the page's language like every byline. The page of an imported translation says nothing of who translated it, only where the original is. Every block is the writer's: owner human, pinned, so a later translation run keeps the copy exactly.
 
     FILE is the body in Markdown. The front matter is YAML with the Story's own reader-facing texts (title, dek or deck, and blurb and imageAlt when the
     English has them), in its own file or as a leading --- block of the body file. The copy must have the English's blocks in the same order (blocks are
@@ -1427,6 +1429,7 @@ def stories_import_translation(flags: list[str]) -> None:
     front_matter_file = normalize_string(options.get("front-matter-file"))
     written_by = _required_option(options, "written-by")
     reason = _required_option(options, "reason")
+    drafting_by_ai = parse_boolean_option(options.get("drafting-by-ai"), default=False, label="--drafting-by-ai")
     dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
     as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
 
@@ -1440,7 +1443,7 @@ def stories_import_translation(flags: list[str]) -> None:
     client, claims = create_authoring_client()
     applied_by = normalize_string((claims or {}).get("sub")) or "papyrus-cli"
     done = import_translation(client, story=story, language=language, body=body, front_matter=front_matter, written_by=written_by, applied_by=applied_by,
-                              reason=reason, apply=not dry_run)
+                              reason=reason, drafting_by_ai=drafting_by_ai, apply=not dry_run)
     record = done.record
     if as_json:
         print(json.dumps({"dryRun": dry_run, "lineage": done.lineage, "language": done.language, "blocks": done.pairs, "findings": done.findings,

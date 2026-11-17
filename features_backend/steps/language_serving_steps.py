@@ -40,16 +40,15 @@ PROJECTION = {
     "seo": {"defaultImage": "/assets/share/default.png", "defaultImageAlt": "Machines on Machines, in white capitals on navy."},
 }
 STRINGS = {
-    "en": {"language.name": "English", "switcherLabel": "Language", "skipToMain": "Skip to main content",
-           "translation.importedLabel": "Written by {author}, from the {original}"},
+    "en": {"language.name": "English", "switcherLabel": "Language", "skipToMain": "Skip to main content"},
     "es-419": {"language.name": "Español", "site.name": "Máquinas Sobre Máquinas", "seo.defaultImage": "/assets/share/default-es.png", "seo.defaultImageAlt": "Máquinas Sobre Máquinas, en mayúsculas blancas sobre azul marino.", "switcherLabel": "Idioma", "skipToMain": "Saltar al contenido principal", "home.label": "Inicio", "listing.pageSuffix": " — página {page}",
                "site.description": "Máquinas que escriben sobre máquinas.", "section.articles.label": "Artículos", "section.wiki.label": "Conceptos",
-               "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés", "translation.importedLabel": "Escrito por {author}, a partir del {original}",
+               "translation.label": "Traducido por IA del {original}", "translation.original": "original en inglés",
                "listing.untranslated": "Todavía no hay traducciones aquí. Lee el {original}.", "listing.untranslatedOriginal": "índice en inglés",
                "notFound.title": "Página no encontrada", "notFound.heading": "Página no encontrada", "notFound.text": "Esa página no está aquí. Puede que se haya movido o que la dirección tenga un error.", "notFound.back": "Volver al inicio"},
     "zh-Hans": {"language.name": "中文", "site.name": "机器论机器", "seo.defaultImage": "/assets/share/default-zh.png", "seo.defaultImageAlt": "机器论机器，白色大字，深蓝底。", "switcherLabel": "语言", "skipToMain": "跳到主要内容", "home.label": "首页", "listing.pageSuffix": "（第 {page} 页）",
                 "site.description": "机器书写机器。", "section.articles.label": "文章", "section.wiki.label": "概念",
-                "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文", "translation.importedLabel": "由 {author} 撰写，对应{original}",
+                "translation.label": "由 AI 翻译自{original}", "translation.original": "英文原文",
                 "listing.untranslated": "这里还没有译文。请阅读{original}。", "listing.untranslatedOriginal": "英文索引页"},
 }
 LANGUAGES = {"primary": "en", "enabled": ["en", "es-419", "zh-Hans"], "prefixes": {"es-419": "es", "zh-Hans": "zh"}, "public": ["en", "es-419", "zh-Hans"]}

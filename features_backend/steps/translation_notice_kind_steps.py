@@ -1,4 +1,4 @@
-"""A translated page says who wrote the translation (features_backend/translation-notice-kind.feature).
+"""A translated page says what it is, and never claims AI for copy a person wrote (features_backend/translation-notice-kind.feature).
 
 Machine translations come from the scripted run of story_localize_steps.py, imported ones from the real ``stories import-translation`` of
 translation_import_steps.py; both are published through the real ``publish_item`` and projected by the real standard projector on the synthetic site of
@@ -57,13 +57,6 @@ def _twin(context, prefix: str) -> str:
     return _text(context, key)
 
 
-@given('the Spanish imported-translation line is "{text}"')
-def step_imported_line(context, text):
-    site = _site(context)
-    site.strings["es-419"]["translation.importedLabel"] = text
-    site.build()
-
-
 @given("the copy has the two paragraphs the site shows and no picture")
 def step_copy_without_picture(context):
     context.copy["blocks"] = context.copy["blocks"][:2]
@@ -74,54 +67,52 @@ def step_publish_language(context, language):
     _publish(context, language)
 
 
-def _says(html_text: str, line: str, link_words: str, original_url: str, hreflang: str) -> None:
-    pattern = rf'<p class="markus-translation">{re.escape(line)} <a href="{re.escape(original_url)}" hreflang="{hreflang}">{re.escape(link_words)}</a></p>'
-    if not re.search(pattern, html_text):
-        pattern = rf'<p class="markus-translation">{re.escape(line)}<a href="{re.escape(original_url)}" hreflang="{hreflang}">{re.escape(link_words)}</a></p>'   # no space in Chinese
-    assert re.search(pattern, html_text), re.findall(r'<p class="markus-translation">.*?</p>', html_text)
+def _line(html_text: str) -> str:
+    lines = re.findall(r'<p class="markus-translation">.*?</p>', html_text)
+    assert len(lines) == 1, lines
+    return lines[0]
+
+
+def _link(words: str, hreflang: str = "en") -> str:
+    return f'<a href="/articles/waymo-crashes-fall/" hreflang="{hreflang}">{words}</a>'
 
 
 @then('the Spanish page says "{line}" and links the English page to its "{words}"')
 def step_spanish_line(context, line, words):
     assert context.draw_error is None, context.draw_error
-    _says(_text(context, SPANISH), line, words, "/articles/waymo-crashes-fall/", "en")
+    assert _line(_text(context, SPANISH)) == f'<p class="markus-translation">{line} {_link(words)}</p>', _line(_text(context, SPANISH))
 
 
-@then('the Chinese page says "{line}" and links the English page to its "{words}"')
-def step_chinese_line(context, line, words):
+@then('the Spanish page\'s translation line is only the link to the English page, "{words}"')
+def step_spanish_only_link(context, words):
     assert context.draw_error is None, context.draw_error
-    _says(_text(context, _chinese_page(context)), line, words, "/articles/waymo-crashes-fall/", "en")
+    assert _line(_text(context, SPANISH)) == f'<p class="markus-translation">{_link(words)}</p>', _line(_text(context, SPANISH))
 
 
-@then("the Spanish page does not say who wrote the copy")
-def step_no_writer_line(context):
-    assert "Escrito por" not in _text(context, SPANISH)
+@then('the Chinese page\'s translation line is only the link to the English page, "{words}"')
+def step_chinese_only_link(context, words):
+    assert context.draw_error is None, context.draw_error
+    line = _line(_text(context, _chinese_page(context)))
+    assert line == f'<p class="markus-translation">{_link(words)}</p>', line
 
 
-@then("the Spanish page does not say an AI translated it")
+@then("the Spanish page does not say an AI translated it or who wrote it")
 def step_spanish_no_ai(context):
-    assert "IA" not in re.search(r'<p class="markus-translation">.*?</p>', _text(context, SPANISH)).group(0)
+    line = _line(_text(context, SPANISH))
+    assert "IA" not in line and "Escrito" not in line and "Traducido" not in line, line
 
 
 @then("the Chinese page does not say an AI translated it")
 def step_chinese_no_ai(context):
-    assert "AI" not in re.search(r'<p class="markus-translation">.*?</p>', _text(context, _chinese_page(context))).group(0)
+    line = _line(_text(context, _chinese_page(context)))
+    assert "AI" not in line and "翻译" not in line, line
 
 
-@then('the Spanish Markdown twin says it was written by "{writer}"')
-def step_twin_writer(context, writer):
-    assert f"Written by: {writer}" in _twin(context, "es"), _twin(context, "es")
-
-
-@then('the Chinese Markdown twin says it was written by "{writer}"')
-def step_twin_writer_zh(context, writer):
-    text = _twin(context, "zh")
-    assert "Language: zh-Hans" in text and "Translation: imported" in text and f"Written by: {writer}" in text, text
-
-
-@then("the Spanish Markdown twin names no writer")
-def step_twin_no_writer(context):
-    assert "Written by" not in _twin(context, "es")
+@then('the Spanish Markdown twin says language "{tag}" and the English page it was translated from, and names no translation kind and no writer')
+def step_twin_neutral(context, tag):
+    twin = _twin(context, "es")
+    assert f"Language: {tag}" in twin and f"Translated from: {ENGLISH_URL}" in twin, twin
+    assert "Translation:" not in twin and "Written by" not in twin, twin
 
 
 @then("the Spanish page's JSON-LD names no translator")
@@ -129,14 +120,8 @@ def step_no_translator(context):
     assert "translator" not in _ld(_text(context, SPANISH))
 
 
-@then('the Spanish page\'s JSON-LD names "{writer}" as translator and is a translationOfWork of the English page in "{original}"')
-def step_translator(context, writer, original):
+@then('the Spanish page\'s JSON-LD names no translator and is a translationOfWork of the English page in "{original}"')
+def step_translation_of_work(context, original):
     data = _ld(_text(context, SPANISH))
-    assert data["translator"] == {"@type": "Person", "name": writer}, data
+    assert "translator" not in data, data
     assert data["translationOfWork"] == {"@type": data["@type"], "url": ENGLISH_URL, "inLanguage": original}, data
-
-
-@then('drawing the Spanish page is refused naming "{text}"')
-def step_refused(context, text):
-    assert context.draw_error and text in html.unescape(context.draw_error), context.draw_error
-    assert not _site(context).exists(SPANISH), "the page was drawn anyway"

@@ -241,7 +241,7 @@ section stay the English's.
 
 **What it saves.** The next version of `{story}--{language}` (`localization_lineage_id`), unpublished, with no board stage, paired with the published English version it
 translates (`languageGroupId`, `sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`, `syncState: current`), the language's drafted address, and the original's
-stored pictures, exactly as a machine translation is saved. The version's author is `--written-by` and its change reason is `imported copy written by NAME: REASON`. An
+stored pictures, exactly as a machine translation is saved. The version's author is `--written-by` and its change reason is `imported copy written by NAME: REASON`. Its front matter says who made it for the site's standard byline: `author` is the writer (`--written-by`) and `drafting: {by: AI}` is there only with `--drafting-by-ai` (bots helped write the copy), in place of the English Story's `author` and `drafting`, which a machine translation keeps. The site's byline then reads "By NAME" or "By various bots and NAME", translated into the page's language like every byline. An
 earlier version of the lineage (a machine translation, an earlier import) is superseded, never deleted; the command prints which it replaces.
 
 **Provenance.** The provenance record (`localization_provenance`) has an `authorship` entry (`kind: written`, `machineGenerated: false`, who wrote it, who imported it (the
@@ -273,29 +273,27 @@ again saves nothing new. An explicit `papyrus stories localize --story` asks aga
 **Publishing stays the ordinary command**, `papyrus ops content publish --id VERSION_ID`; the import never publishes. `--dry-run` prints the alignment (each block, its kind, the
 English and the copy), the findings and the version it would replace, and writes nothing.
 
-The page and the Markdown twin of an imported translation say who wrote the copy and never that an AI translated it (below).
+The page and the Markdown twin of an imported translation never say that an AI translated it, and say nothing of the writer beyond the byline (below).
 
 ### What a reader and an agent see
 
-The page of a translation says, in the page's language and apart from the Story's text, who made it, with a link to the original. The line reads the
+The page of a translation says, in the page's language and apart from the Story's text, what it is, with a link to the original. The line reads the
 version's translation kind (`metadata.localization.translation`). A machine translation says an AI translated it:
 
 > Traducido por IA del [original en inglés]
 
-An imported translation (finished copy written by a person or another agent) says who wrote it, by the name its provenance records, and never claims AI:
+An imported translation (finished copy written by a person or another agent) never claims AI and does not say who wrote it, because the byline does; its line
+is only the link, in the words of `translation.original`:
 
-> Escrito por Ana Writer, a partir del [original en inglés]
-
-The words of the second line are the interface string `translation.importedLabel`, with `{author}` and `{original}`; a language that serves an imported
-translation without it is refused when the page is drawn ([interface strings](multilingual-serving.md#interface-strings)).
+> [original en inglés]
 
 - The words are two interface strings of the language, `translation.label` (with `{original}` where the link goes) and `translation.original`
   ([interface strings](multilingual-serving.md#interface-strings)); a public language without them is refused. The label is the page's data, computed from
   the language group (the page is in a language other than the primary's and the group's primary page is served), never text in the Story's body, so a
   correction to the Story cannot remove it and the Markdown the translator sees never contains it.
 - Agents read the same facts: the JSON-LD has `inLanguage` and `translationOfWork` (`{@type, url, inLanguage}` of the original), and the Markdown twin
-  says `Language: es-419 · Translation: machine · Translated from: <original URL>`; for an imported translation `Translation: imported · Written by: <name>`,
-  and the JSON-LD adds `translator`. The head has `hreflang` for each published language and `x-default`
+  says `Language: es-419 · Translation: machine · Translated from: <original URL>`; for an imported translation `Language: es-419 · Translated from: <original URL>`
+  (no kind, no writer), and neither has a JSON-LD `translator`. The head has `hreflang` for each published language and `x-default`
   (the original), as for every page of a group.
 - Every page of the group lists the others, so publishing or unpublishing a translation (or the original) renders the other languages of the group again,
   in the same projection (`docs/multilingual-serving.md`).
