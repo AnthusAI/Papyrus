@@ -51,10 +51,17 @@
       "text": "Release blockers found by D2 (PR #1648), do not release until settled: (1) core/rate.yaml names procedure rate_items which no registry lists, so papyrus agents apply would fail every site's build until PPY-d85860 registers that procedure under a matching registry kind (or the definition leaves core/); see docs/releasing.md. (2) The agents apply step queries Automation by the tenantId index and needs a tenant id in the build environment (PAPYRUS_TENANT_ID or the site file's): confirm on a pre-production site first. (3) The first build of 'procedures seed-required' must confirm the data schema admits the build role on the procedure mutations.",
       "created_at": "2026-11-17T06:10:56.517075Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d0122eb9-c3da-4689-a3a3-729446e6f584",
+      "author": "home",
+      "text": "5.130 window, 2026-11-17 (Claude, for Ryan).\nRelease: runner and router held in #1659; 5.130.0 released via #1660 (tag v5.130.0, PyPI and npm 5.130.0). MoM bump #317/#318 -> Amplify job 137 FAILED: the agents stack's wake-queue mapping (agents/wake-queue/RunnerMapping) needs the runner role's ReadWakeQueues, which ships with the held runner stack. Ryan approved the refusal window for other sites: runner hold lifted in #1661, released as 5.130.1 via #1662 (tag v5.130.1); pipeline run 44109625394 deployed papyrus-procedure-runner (UPDATE_COMPLETE, ReadWakeQueues in the template). papyrus-monitoring stays held.\nRetry: Amplify job 138 SUCCEED (BUILD, DEPLOY, VERIFY). FINDING: the build log shows none of procedures seed-required, agents apply, agents schedules. MoM's Amplify app buildSpec (set by the site's own stack) is the plain ampx pipeline-deploy spec; those steps live only in the app-shell cms build spec. So rate is NOT registered on MoM (automations list shows only story-localize) and the first-build schema/role check has not happened. Needs a decision: how MoM (non-cms site) gets the steps.\nBefore window: TRIGGER rows in the monitoring table: MoM 0 (deferred 0, starting 0, startFailed 0); Distinctive 14 completed, none deferred.\nGuidelines: convert dry run matched the plan (writing v3 4 files, es-419 v2 2, zh-Hans v1 1); --apply converted all 3; convert again shows already_files; resolve (base, es-419, zh-Hans) and export (4 files) work; base document identical to the saved 5.126 show output.\nNot done: once-only check (checklist step 11), run outcome check, other sites' bumps.",
+      "created_at": "2026-11-17T15:38:59.752663Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T01:18:00.727665Z",
-  "updated_at": "2026-11-17T06:10:56.517588Z",
+  "updated_at": "2026-11-17T15:38:59.753502Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
