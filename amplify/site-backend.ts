@@ -41,6 +41,7 @@ import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { agentPieces } from "./agents/pieces";
+import { ADMIN_AGENT_POLICY_GRANT_STACK_NAME, ADMIN_AGENT_POLICY_GROUP, addAdminAgentPolicyGrant } from "./agents/admin-policy-grant";
 import { addAgentsStack } from "./agents/stack";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
@@ -943,6 +944,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   wireAnnouncements(backend, siteBackendIdentity.brandId);
   // Every always-on agent resource is in the one `agents` stack, which the first deploy of a new site leaves out (amplify/agents/stack.ts).
   addAgentsStack((name) => backend.createStack(name), agentPieces(siteBackendIdentity.brandId), isBootstrapStage(process.env));
+  // The signed-in admin may put and get the agent policy document's versions (`papyrus agents set-rung --apply`). A dedicated site only: the grant names every
+  // tenant's prefix, which a shared stack's admin must not hold.
+  if (tenancyMode !== "shared") {
+    addAdminAgentPolicyGrant(
+      backend.createStack(ADMIN_AGENT_POLICY_GRANT_STACK_NAME),
+      backend.auth.resources.groups[ADMIN_AGENT_POLICY_GROUP].role,
+      storageBucket.bucketArn,
+    );
+  }
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 
   if (tenancyMode === "shared") {

@@ -8,8 +8,8 @@ Related: [releasing](releasing.md) (the first agent), [guidelines files cutover]
 
 ## 1. The IAM statements
 
-Marks: **[repo]** the statement is already written in a template in the repo and is applied by the release itself (no person's click). **[to write]** nothing in the repo
-defines it yet; the text below is what the template change would say, and it is a separate reviewed PR plus a person's apply. **[verify]** something I could not settle from the repo.
+Marks: **[repo]** the statement is already written in a template in the repo and is applied by the release itself (no person's click). **[to write]** (none remain) nothing in the repo
+defined it; the text below is what was or would be written. **[verify]** something I could not settle from the repo.
 
 ### 1.1 Runner role: receive and delete wakes, read policy bodies [repo]
 
@@ -61,14 +61,19 @@ while the runner (held) does not yet consume the queue. See section 2, step 3.
 new PolicyStatement({ effect: Effect.ALLOW, actions: ["sqs:SendMessage"], resources: [wakeQueueArn(brandId, partition, region, account)] })
 ```
 
-### 1.4 Build role: scheduler, queue and monitoring reads, PassRole to the scheduler only [to write; verify which role]
+### 1.4 Build role: scheduler, queue and monitoring reads, PassRole to the scheduler only [repo: already covered by AdministratorAccess, nothing written]
 
 - **Who:** the Amplify build role that runs `papyrus agents schedules --site <brand>` in the site's production build (`infra/amplify-app-shell/lib/build-specs.ts`, `scheduleSync`).
 - **Why:** it reconciles one EventBridge Scheduler entry per switched-on agent that names a schedule, and reads the router publication through the monitoring table. It never creates a group or role.
-- **Where today:** nothing in the repo grants these. [automations](automations.md#what-the-schedulers-role-may-do-and-what-the-deploy-step-needs) says the build role "signs GraphQL requests only".
-  **But** `infra/amplify-app-shell/lib/amplify-app-shell.ts` creates a dedicated site's `AmplifyServiceRole` with `AdministratorAccess` (documented risk), and MoM's `infra/site.json` is an
-  `amplify-app-shell` site. If MoM's live build role is that role, 1.4 is already covered and needs no grant; if it is narrower (for example a shared-tier role), the statements below are needed.
-  **[verify]** by reading the live role (I ran no AWS command). Where I would write it: a new helper beside `addCiReceiptGate` in `amplify-app-shell.ts`, so it is in a template, never by hand.
+- **Where, as built (2026-11-17):** no statement was written. The production build of every app-shell site with a `cms` section runs as that app's `AmplifyServiceRole`
+  (`iamServiceRole: cmsServiceRole.roleArn` on the `App`, `infra/amplify-app-shell/lib/amplify-app-shell.ts`), and that role carries the managed `AdministratorAccess`
+  policy (documented risk). `infra/amplify-app-shell/examples/machines-on-machines.site.json` is a `cms` site, its production spec runs `papyrus agents schedules`
+  as that role (`build-specs.ts`, `scheduleSync`), and the only deny on the role is the shared tier's (`shared-stack-deny.ts`, `papyrus-shared-*` resources), which
+  the site's own queue, schedule group and scheduler role (`papyrus-machines-on-machines-*`) are not. So `sqs:GetQueueUrl`, the scheduler actions, `iam:PassRole` to the scheduler
+  role and the monitoring-table read are all allowed already. The statements below are the least the step needs, kept as the reference if the role is ever narrowed; a
+  narrower role is the point at which they become a template change.
+  **[verify on deploy]** I ran no AWS command: that MoM's live app uses this role (that it was created from this template, not by hand) is read from the template and the example
+  config, not from the account. `papyrus agents schedules --dry-run` run by the build role is the check, and it needs no change to any role.
 
 ```json
 [
@@ -92,27 +97,33 @@ new PolicyStatement({ effect: Effect.ALLOW, actions: ["sqs:SendMessage"], resour
 The last two names (the table's name, the parameter's name) are what `papyrus automations run` reads today; I did not look them up and the final text must copy them from that code path.
 The group-level `scheduler:*` on the pipeline role (`infra/pipeline/papyrus-stack-pipeline.yaml`, `schedule/default/papyrus-*`) is for stack deploys and is not this.
 
-### 1.5 Signed-in admin: write the policy body [to write; not expressible in the storage rules]
+### 1.5 Signed-in admin: write the policy body [repo: written, not a storage rule]
 
 - **Who:** the signed-in admin's Cognito group role (identity pool), used by `papyrus agents set-rung --apply` (`src/papyrus_content/agent_policy/store.py` through `story_images.user_lane_s3_client`).
 - **Why:** `--apply` puts `tenants/<tenant>/site/agents/<version>.json` in the site's media bucket (`site_store.py`). Until the grant exists the call stops with S3 `AccessDenied` and writes nothing.
-- **Where today:** `amplify/storage/resource.ts` grants admins only `media/*`, `newsroom/*`, `corpora/*` (read) and `preview/*` (read). Amplify's storage rules take a prefix with a trailing `/*`, and the path here has a wildcard in the middle, so
-  I do not think a rule in `defineStorage` can say it **[verify]**. The statement belongs on the admin group's role in the site backend (`amplify/site-backend.ts`, next to the other grants; the admin group is declared in `amplify/auth/resource.ts`):
+- **Can `defineStorage` say it?** No. `amplify/storage/resource.ts` grants admins `media/*`, `newsroom/*`, `corpora/*` (read) and `preview/*` (read); a rule takes a prefix ending in `/*`, and
+  `tenants/*/site/agents/*` has a wildcard in the middle. The repo's mechanism for a grant a storage rule cannot express is an IAM statement in `amplify/site-backend.ts`
+  (the Lambda grants beside `grantMediaReadWriteDelete`). Those go on Lambda roles in the function's own stack; for a group role the same mechanism would put a bucket ARN
+  on a role in the auth stack, and the storage stack already depends on that stack (its rules attach to the group roles), so the two would depend on each other.
+- **As built:** `amplify/agents/admin-policy-grant.ts` adds one `AWS::IAM::Policy` to the `admin` group's role (`backend.auth.resources.groups.admin.role`), in its own stack
+  `admin-agent-policy-grant` created in `site-backend.ts` for a dedicated site (not a shared stack: the prefix names every tenant). Get and put only, no delete, no list; the editor and curator groups and
+  the authenticated role get nothing. `scripts/test-admin-agent-policy-grant.ts` locks the exact statement and that only the admin role carries it
+  (`amplify/agents/admin-policy-grant.feature`):
 
 ```json
 {"Sid": "AdminWriteAgentPolicyBody", "Effect": "Allow",
- "Action": ["s3:PutObject"],
+ "Action": ["s3:GetObject", "s3:PutObject"],
  "Resource": "arn:aws:s3:::<media bucket>/tenants/*/site/agents/*"}
 ```
 
-Add `s3:GetObject` on the same resource if `--dry-run` must read the live version as the admin (it reads the current version through the same store); the runner's read is 1.1. No delete: every version stays.
-Scope it to the `admin` group's role only, never the authenticated role (an editor is refused by the CLI, but the role is the real control). This deploys with the site's bump, so it is a code change in the repo, plus a person's review of the IAM view.
-It must be in place before the first `set-rung --apply`.
+`s3:GetObject` is there because `--dry-run` and `--apply` read the live version as the admin through the same store; the runner's read is 1.1. It deploys with the site's bump, so
+it must be in the release that precedes the first `set-rung --apply`. **[verify on deploy]** that the identity pool hands a signed-in admin the group's role (Cognito
+`cognito:preferred_role`) rather than the authenticated role: `set-rung --apply` by an admin on a bumped site is the check, and `AccessDenied` there means the role mapping, not this statement.
 
 ### 1.6 What needs a person's click
 
 The pipeline-roles stack (`role-stack-deploy`, environment `pipeline-roles`) needs approval only if a statement above is outside what the pipeline roles may deploy. From my reading, 1.1 and 1.2 use IAM actions the roles already have
-(role and inline-policy writes on `papyrus-*`); the track report found no role-stack run waiting on 2026-11-16. Check the `plan` job of the first run after the PR merges. 1.4 and 1.5 are the real grants.
+(role and inline-policy writes on `papyrus-*`); the track report found no role-stack run waiting on 2026-11-16. Check the `plan` job of the first run after the PR merges. 1.4 needs no grant (the build role is `AdministratorAccess`) and 1.5 deploys with the site's bump as a stack in the site's backend, so neither is a person's apply in the pipeline-roles stack; a person reviews the IAM view of the `admin-agent-policy-grant` stack in the bump's change set.
 
 ## 2. Release order and the wake-key hazards
 
@@ -197,7 +208,7 @@ During and after:
 ## 7. Open questions for Ryan
 
 1. Hold `papyrus-monitoring` too, so the router does not start sending to a queue nobody consumes? Recommended yes.
-2. Is MoM's live build role the `AdministratorAccess` role the app-shell template creates (then 1.4 needs no grant), or a narrower one? I did not read it.
-3. The admin write grant (1.5) is a code change in the site backend, not a storage rule. OK to write it there, scoped to the `admin` group, `s3:PutObject` only?
+2. Answered from the templates: the app-shell `cms` build role is `AdministratorAccess`, so 1.4 writes nothing. Not read from the live account; the first `agents schedules --dry-run` on the build confirms it.
+3. Built as described in 1.5 (get and put on the one prefix, admin group only, dedicated sites only). Not available to a shared stack: say if it should be.
 4. One shared runner means every site that runs procedures must be on 5.129 before the window and is refused until its own bump. Which sites bump in the same window, or is a short refusal window acceptable on the others?
 5. The model key is not rotated. The first run will fail closed. Do you want the release and `observe` set anyway so the wiring is proven, accepting a failed first run?
