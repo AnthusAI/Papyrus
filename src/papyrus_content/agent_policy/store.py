@@ -109,9 +109,11 @@ class AgentPolicyStore:
         return self.change(tenant_id, caller, reason, edit)
 
     def resume(self, tenant_id: str, caller: Caller, *, reason: str, responsibility: str | None = None) -> PolicyState:
-        """Lift a pause. Ticks skipped while paused stay skipped; nothing is replayed."""
+        """Lift a pause. Ticks skipped while paused stay skipped; nothing is replayed. An agent the document does not name is refused by name."""
         def edit(document: dict) -> None:
-            target = document["site"] if responsibility is None else document["agents"].get(responsibility, {})
+            if responsibility is not None and responsibility not in document["agents"]:
+                raise PolicyError("invalid_input", f"{responsibility} is not named in the agent policy, so there is nothing to resume.")
+            target = document["site"] if responsibility is None else document["agents"][responsibility]
             target.pop("paused", None)
             target.pop("pausedReason", None)
 
