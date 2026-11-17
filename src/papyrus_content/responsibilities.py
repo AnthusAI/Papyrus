@@ -1,4 +1,4 @@
-"""The responsibility catalog: the work an always-on agent can be given (docs/design/always-on-agents-architecture.md section 2.1).
+"""The responsibility catalog (pure Python, so the site Lambdas can read it): the work an always-on agent can be given (docs/design/always-on-agents-architecture.md section 2.1).
 
 A responsibility is a key in the agent policy document (``papyrus_content.agent_policy``) and in every definition file. The catalog names them once; a definition
 that names another is refused. The keys that the policy document already uses (rate, ideate, improve, translate, announce) are kept as they are.

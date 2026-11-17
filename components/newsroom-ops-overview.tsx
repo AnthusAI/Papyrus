@@ -21,6 +21,7 @@ import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import type { NotificationFixture } from "./notification-center";
 import { NotificationCenter } from "./notification-center";
+import { TodayPanel } from "./today-panel";
 import type { CorrectCaptureAction } from "./reference-capture-client";
 import type { ReviewChoice } from "./reference-review-card";
 
@@ -104,6 +105,7 @@ export function NewsroomOpsOverview({
 
   const below = (
     <div className="space-y-12 pt-6" data-newsroom-overview-below {...FEED_SURFACE_PROPS}>
+        <TodayPanel isDemo={demo} />
         {attentionAssignments.length ? (
           <section aria-label="Open assignments" className="space-y-3">
             <h2 className="text-sm font-medium text-muted-foreground">Open assignments</h2>

@@ -973,6 +973,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | submitSignup                         | denied, or returns nothing of "beta" |
       | suggestEditorialRewrite              | denied, or returns nothing of "beta" |
       | suggestReferenceLinks                | denied, or returns nothing of "beta" |
+      | todayOverview                        | denied, or returns nothing of "beta" |
       | transitionProposal                   | denied, or returns nothing of "beta" |
       | tryEditorialPolicy                   | denied, or returns nothing of "beta" |
       | unpublishItem                        | denied, or returns nothing of "beta" |

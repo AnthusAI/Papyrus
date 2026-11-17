@@ -9,13 +9,15 @@ import {
 } from "../monitoring-view/wire";
 import { connectToSiteApi } from "../../site-api-access";
 
-/** The reads the function makes of its own site's API with its own role. It writes nothing there. */
+/** The reads the function makes of its own site's API with its own role. It writes nothing there. Today reads the day's runs through the status index and the agents through the tenant index. */
 export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
   "Query/fields/getAutomation",
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
   "Query/fields/listAutomations",
+  "Query/fields/listAutomationsByTenant",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
+  "Query/fields/listProcedureRunsByStatusAndRequestedAt",
 ];
 
 /** The procedure runner stack's function (infra/procedures/papyrus-procedure-runner.yaml); Run now starts it asynchronously. */

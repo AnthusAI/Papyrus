@@ -19,7 +19,7 @@ Tree = dict[str, "Tree"]
 
 CONTENT_GROUPS = ("stories", "editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items", "home-page",
                   "automations", "reviews", "videos")
-LEAF_GROUPS = ("doctor", "links", "login", "logout", "whoami", "auth", "help", "guide")
+LEAF_GROUPS = ("doctor", "links", "today", "login", "logout", "whoami", "auth", "help", "guide")
 REFERENCE_EXTRAS = ("list", "show", "text", "register", "search", "capture-transcripts", "repair-titles", "capture-thumbnails",
                     "curate-recent", "summaries", "summarize", "summarize-batch", "summary-cleanup-legacy", "quality", "title-subtitle")
 ASSIGNMENT_EXTRAS = ("list", "run-story-cycle", "story-cycle-output", "build-assignment-agent-context")

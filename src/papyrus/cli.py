@@ -378,6 +378,13 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         from papyrus_content.cli_doctor import run as doctor_run
         return doctor_run(args[1:])
 
+    if args[0] == "today":
+        from papyrus_content.options import parse_boolean_option, parse_options
+        from papyrus_content.today import command as today_command
+        flags = [*global_flags, *args[1:]]
+        options = parse_options(flags)
+        return today_command(options, as_json=parse_boolean_option(options.get("json"), False, "--json"))
+
     if args[0] == "links":
         from papyrus_content.console_links import links_command
         return links_command(args[1:])

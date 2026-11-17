@@ -122,6 +122,10 @@ PROCEDURE_RUN_FIELDS = (
     "id procedureId procedureKey procedureVersionId procedureVersionNumber assignmentId runStatus requestedBy "
     "requestedAt startedAt finishedAt input normalizedInput resultSummary errorSummary output error attempt newsroomFeedKey"
 )
+PROCEDURE_RUN_TODAY_FIELDS = (   # one run as Today lists it: no input, output or usage, which hold whole bodies
+    "id tenantId procedureKey runStatus outcome outcomeReason automationId responsibility subjectKind subjectId subjectVersion rung "
+    "requestedAt startedAt finishedAt costUsd errorSummary"
+)
 PROCEDURE_RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"   # added after the base list: a backend that predates them refuses a query that names them
 AUTOMATION_FIELDS = (
     "id title description enabled trigger procedureKey inputTemplate limits createdBy createdAt updatedBy updatedAt"
@@ -487,6 +491,8 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemHeadFieldsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": HEAD_INDEX_ROW_FIELDS},
     "itemHeadFieldsWithKeyByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": f"{HEAD_INDEX_ROW_FIELDS} headStageKey"},
     # A Story's language group: every version of the primary and of each localization, one language with sortEq (item_language.py). Tenant-prefixed.
+    # Today (docs/design/always-on-agents-architecture.md section 7.1): the runs of one status inside a time range.
+    "procedureRunsByStatus": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_TODAY_FIELDS},
     "itemsByLanguageGroup": {"field": "listItemsByLanguageGroupAndLanguage", "partitionKey": "languageGroupId", "sortKey": "language", "fields": ITEM_FIELDS},
     # The rows of one version-state partition with what `stories languages` needs (every Item row has a version state).
     "itemLanguageFieldsByVersionState": {"field": "listItemsByVersionStateAndUpdatedAt", "partitionKey": "versionState", "fields": ITEM_LANGUAGE_ROW_FIELDS},
