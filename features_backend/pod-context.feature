@@ -33,15 +33,21 @@ Feature: The pod context is generated from the relation types
 
   Scenario: The context pins the profile and Vault-LD
     When the pod context is generated from the shipped relation types
-    Then the context records profile version 1, Vault-LD 0.5.0 and commit "025e71b"
+    Then the context records profile version 2, Vault-LD 0.5.0 and commit "025e71b"
 
   Scenario: The context says which classes a note may have
     When the pod context is generated from the shipped relation types
     Then the context lists the classes "papyrus:Article", "papyrus:Post", "papyrus:Page", "papyrus:Reference", "papyrus:Concept", "papyrus:Person", "papyrus:Organization", "papyrus:Section" and "papyrus:Relation"
 
-  Scenario: The profile has no lifecycle keys yet
+  Scenario: The profile has the lifecycle keys
     When the pod context is generated from the shipped relation types
-    Then the context defines none of "stage", "rating", "reviewedBy", "reviewedOn", "reviewedHash", "spikedReason", "heldReason"
+    Then the context has the lifecycle keys "stage", "format", "rating", "reviewedBy", "reviewedOn", "reviewedHash", "spikedReason" and "heldReason"
+    And the context defines "rating" as a whole number
+    And the context defines "reviewedOn" as a day
+
+  Scenario: The stage is plain text, not a link
+    When the pod context is generated from the shipped relation types
+    Then the context defines "stage" as plain text
 
   Scenario: Generating twice gives the same bytes
     When the pod context is generated from the shipped relation types

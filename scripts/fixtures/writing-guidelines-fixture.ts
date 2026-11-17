@@ -7,7 +7,7 @@ type Doc = Record<string, any>;
 type Version = { itemId: string; versionNumber: number; document: Doc; by: string; at: string; reason: string };
 
 export const SITE_DOCUMENT: Doc = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   voice: { name: "Plain newsroom" },
   audience: "Readers who build and run AI systems at work.",
   editorialAim: "Explain what changed and why it matters, with evidence.",
@@ -19,7 +19,7 @@ export const SITE_DOCUMENT: Doc = {
   locked: ["audience"],
   constraints: [{ id: "no-hype", text: "Never describe a product as revolutionary." }],
 };
-const SECTION_DOCUMENT: Doc = { schemaVersion: 1, tone: ["Warmer in the Culture section."], lexicon: { avoid: ["synergy"] } };
+const SECTION_DOCUMENT: Doc = { schemaVersion: 2, tone: ["Warmer in the Culture section."], lexicon: { avoid: ["synergy"] } };
 
 export const SECTIONS = [{ key: "ai", name: "AI" }, { key: "culture", name: "Culture" }];
 export const STORIES = [

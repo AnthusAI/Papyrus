@@ -197,6 +197,16 @@ A process that cannot fill a line says so in that line.
 - **Measured.** A guard test fails when a module outside the allowed list writes a concept that is not create-only.
 - **Gherkin.** `knowledge-run-concepts`. Code: `src/papyrus_content/semantic_node_writes.py`.
 
+## Agent definition files
+
+From slice D1 of the always-on agents design (`docs/design/always-on-agents-architecture.md`), an agent is one definition file in Git, `<id>.yaml`, that fills the 11 lines above. The file names the responsibility (from the catalog in `src/papyrus_content/agent_definitions/catalog.py`), the procedure key, what wakes it (changes and an optional schedule with a time zone), what it runs one at a time by, whether it is paid and safe to repeat, each operation it uses with the lowest rung that allows it, the model tier (never a model name), and the template lines under `template:`. A definition that leaves a line out, names an operation the operation table does not have (or one only a person may call, or one that writes at the rung `observe`), or names a responsibility the catalog does not have, is refused with the line named.
+
+A definition never sets how far the agent may go. The rung, a pause, a budget and a model belong to the site's agent policy document, so a deploy cannot change them; a definition that names one is refused.
+
+Core definitions ship in the engine (`src/papyrus_content/agent_definitions/core/`). A site adds its own complete definitions, or extends a core one with a file named for it that holds `extends`, `instructions` and further `mustNever` rules. A site can add and can do nothing else: it cannot change another field and it cannot remove a must-never rule.
+
+`papyrus agents validate --dir DIR [--core DIR]` checks a folder with no network, sign-in or model, and exits 2 with every problem named by definition and line. Specified in `agent-definition.feature`.
+
 ## Restoring newsroom data
 
 Every Amplify Data table (references, messages, votes, curation decisions and the rest) has DynamoDB point-in-time recovery on, for every site, with no site setting (PPY-39a16b). It is set in `amplify/site-backend.ts` and reaches a site with that site's next deploy.

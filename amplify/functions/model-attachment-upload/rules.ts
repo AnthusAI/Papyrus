@@ -16,6 +16,8 @@ export const CANDIDATE_PICTURE_ROLE = "image_candidate_file";
 // a file the document names (a design system's font) is bytes of no declared type, so it takes application/octet-stream and nothing else.
 export const DOCTRINE_DOCUMENT_ROLE = "doctrine_document";
 export const DOCTRINE_ASSET_ROLE = "doctrine_asset";
+// The writing guidelines are a set of guideline files, one Markdown file each (store.py FILES_ROLE): general text types, general cap.
+export const DOCTRINE_FILES_ROLE = "doctrine_files";
 export const OCTET_STREAM_ROLES = new Set([DOCTRINE_ASSET_ROLE]);
 export const OCTET_STREAM_MEDIA_TYPE = "application/octet-stream";
 

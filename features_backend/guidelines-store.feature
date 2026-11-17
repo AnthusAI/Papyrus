@@ -11,7 +11,7 @@ Feature: Guideline documents are stored as a catalog row in the database and one
     Given a publication with no guidelines
     When an admin saves a writing document whose body says "Write plainly." with the reason "First guidelines"
     Then exactly one catalog row is stored, for the slug "editorial-doctrine-writing", with an empty body and no metadata
-    And exactly one file is stored in S3 as the "doctrine_document" of that row
+    And one file for each guideline file is stored in S3 as a "doctrine_files" file of that row
     And reading the writing guidelines returns the same document, and the row's content hash matches it
 
   Scenario: Saving an unchanged document makes no new version
@@ -91,7 +91,7 @@ Feature: Guideline documents are stored as a catalog row in the database and one
     And the interrupted version is not visible: there are no writing guidelines and no history
     When the same save is made again
     Then the "writing" guidelines are at version 1 with their document attached
-    And exactly one catalog row and one file are stored
+    And exactly one catalog row and one file for each guideline file are stored
     When an admin changes the audience to "Engineers" with the reason "Narrowed"
     Then the writing guidelines are at version 2 and say the audience is "Engineers"
 
@@ -99,4 +99,4 @@ Feature: Guideline documents are stored as a catalog row in the database and one
     When the upload of a first writing document fails
     And an admin saves a writing document whose body says "Write plainly." with the reason "Second try"
     Then the "writing" guidelines are at version 1 with their document attached
-    And exactly one catalog row and one file are stored
+    And exactly one catalog row and one file for each guideline file are stored

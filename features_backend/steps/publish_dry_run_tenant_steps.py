@@ -14,7 +14,7 @@ from papyrus_content.guidelines import GuidelineStore  # noqa: E402
 from papyrus_content.guidelines.fakes import FakeBackend, FakeFiles  # noqa: E402
 from papyrus_content.publishing import DryRunClient  # noqa: E402
 
-DOCUMENT = {"schemaVersion": 1, "voice": {"name": "House"}, "tone": ["Warm."], "bodyMarkus": "Write plainly."}
+DOCUMENT = {"schemaVersion": 2, "voice": {"name": "House"}, "tone": ["Warm."], "bodyMarkus": "Write plainly."}
 
 
 def site(context, tenant):

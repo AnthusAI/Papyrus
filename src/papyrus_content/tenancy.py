@@ -34,6 +34,7 @@ TENANT_FIELD_MODELS = frozenset({
     "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory", "EditorialPolicy",
     "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile", "ReaderHandle", "ReaderVote",
     "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry", "LocalizationRequest", "EntityLabel",
+    "AnnouncementDecision", "Delivery",
 })
 TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus", "headStageKey", "languageGroupId")
 TENANT_SLUG_FIELD = "tenantSlug"
@@ -48,9 +49,11 @@ TENANT_PREFIXED_INDEXES = frozenset({"itemsByHeadStage", "itemsByLanguageGroup"}
 #: rows can be listed by tenant through another index (Reference through its corpora, docs/tenant-key-inventory.md) is not here.
 TENANT_FIELD = "tenantId"
 TENANT_LISTING_QUERIES = {
+    "AnnouncementDecision": "listAnnouncementDecisionsByTenant",
     "Automation": "listAutomationsByTenant",
     "CategoryKeyword": "listCategoryKeywordsByTenant",
     "CurationDelegationRecord": "listCurationDelegationRecordsByTenant",
+    "Delivery": "listDeliveriesByTenant",
     "EditionItem": "listEditionItemsByTenant",
     "EditorialCheckRun": "listEditorialCheckRunsByTenant",
     "EditorialCheckSettings": "listEditorialCheckSettingsByTenant",

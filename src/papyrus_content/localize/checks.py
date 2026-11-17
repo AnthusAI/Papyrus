@@ -76,11 +76,16 @@ def tally(findings: Iterable[Finding]) -> tuple[int, int, int, int]:
             sum(1 for f in findings if f.replacement is not None))
 
 
+ADVISORY_POLICIES = frozenset({"names-adapted"})
+
+
 def faithfulness_worse(before: Iterable[Finding], after: Iterable[Finding]) -> bool:
     """Whether a rewrite made faithfulness worse: it added a faithfulness finding the earlier text did not have, or more errors."""
     old = {f.key() for f in before if f.category == "faithfulness"}
     new = [f for f in after if f.category == "faithfulness"]
-    added = [f for f in new if f.key() not in old and f.severity in ("error", "warn")]
+    # ``names-adapted`` is advice, not a loss: it says a capitalized name was written the target language's way and leaves it to the glossary and the judge. A repair that
+    # puts "Ejército de EE. UU." where the translation kept "U.S. Army" adds it by being right, so it never makes a rewrite worse by itself.
+    added = [f for f in new if f.key() not in old and f.severity in ("error", "warn") and f.policy not in ADVISORY_POLICIES]
     errors = lambda findings: sum(1 for f in findings if f.category == "faithfulness" and f.severity == "error")  # noqa: E731
     return bool(added) or errors(new) > errors(before)
 

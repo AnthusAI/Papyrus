@@ -44,8 +44,19 @@ For each request, the runner does these steps:
 6. It updates the ProcedureRun to `completed` with the procedure's output, or to `failed` with the error,
    and stores the usage and an estimated cost (`docs/automations.md`). A run that overruns the deadline is recorded
    as `failed` ("timed out"), never left `running`.
+   Every finished run also records its **outcome**, one of `acted`, `nothing`, `asked`, `failed`, `unknown`, with a short
+   reason code (`outcomeReason`), plus the automation and the subject (story and version, or Reference) it was started for.
+   `runStatus` is the mechanics; the outcome is what came of it. A procedure that looked and found nothing returns
+   `run_outcome: "nothing"` with a `run_outcome_reason` code such as `no_new_filing`; one that raised a review request returns
+   `run_outcome: "asked"` with a reason; a procedure that returns neither did its work (`acted`). A `nothing` or `asked`
+   without a reason, or any other value, is recorded as `failed` with the reason `invalid_outcome`. A procedure error is
+   `failed` with `procedure_error` (`timed_out` for a deadline). `unknown` is never set here: only settling an interrupted
+   run sets it. Runs recorded before outcomes have none and are shown as "Recorded before outcomes"; they are not rewritten.
+   `papyrus automations runs` and the console show each outcome as a word with a mark (✓ Did it, – Nothing to do, ? Asked,
+   ✗ Failed, ! Outcome unknown). **Release order:** the site backend (which carries the new `ProcedureRun` fields) goes out
+   before the runner image and the CLI that write them.
 7. When the request came from a trigger, it names the run on the trigger's row in the monitoring table as soon
-   as the run exists (status `running`, `runId`) and records the outcome (status, error) there when it ends.
+   as the run exists (status `running`, `runId`) and records the outcome (status, outcome, reason, error) there when it ends.
 
 The runner signs its AppSync calls with its own role. The procedure tools in the child process do the
 same (`PAPYRUS_GRAPHQL_AUTH=iam`). The OpenAI key comes from the publication's Amplify secret in SSM.

@@ -22,7 +22,9 @@ from behave import given, step, then, when
 
 from papyrus import cli
 from papyrus.pod import context as pod_context
+from papyrus.pod.notes import body_hash, parse
 from papyrus_content import graphql_authoring
+from papyrus_content.relation_types import load_vocabulary_namespace
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "pod"
 EXAMPLE_BASE = "https://example.org/id/"
@@ -118,6 +120,27 @@ def started_pod(context):
 @given("a copy of the fixture pod")
 def fixture_pod(context):
     shutil.copytree(FIXTURE, _new_pod_dir(context))
+
+
+@given('a started pod with an Article "{path}" carrying these keys:')
+def started_pod_with_article(context, path):
+    started_pod(context)
+    _write(context, path, f"---\nid: {EXAMPLE_BASE}sample-0020\ntype: papyrus:Article\n{context.text}\n---\nWords.\n")
+
+
+@given('the pod note "{path}" is stamped with the hash of its body')
+def stamped_with_hash(context, path):
+    target = context.pod / path
+    text = target.read_text(encoding="utf-8")
+    _, body, _ = parse(text)
+    closing = text.index("\n---\n", 4)
+    target.write_text(f"{text[:closing]}\nreviewedHash: {body_hash(body)}{text[closing:]}", encoding="utf-8")
+
+
+@given('the pod note "{path}" is rewritten with Windows line endings')
+def windows_line_endings(context, path):
+    target = context.pod / path
+    target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
 
 
 @given('the pod file "{path}" has this text:')
@@ -234,6 +257,29 @@ def report_names_problem(context, text, path):
     assert any(line.startswith(f"{path}: ") and text in line for line in lines), (text, path, context.output)
 
 
+@then('the pod report does not say "{text}"')
+def report_does_not_say(context, text):
+    assert text not in context.output + context.error, (text, context.output)
+
+
+@then("the pod report says that line once")
+def report_says_once(context):
+    assert context.output.count("review keys in a pod are claims") == 1, context.output
+
+
+@then('the pod report gives the current hash of the body of "{path}"')
+def report_gives_hash(context, path):
+    _, body, _ = parse((context.pod / path).read_text(encoding="utf-8"))
+    assert body_hash(body) in context.output, (body_hash(body), context.output)
+
+
+@then('the pod note "{path}" carries the keys {keys}')
+def note_carries_keys(context, path, keys):
+    front, _, _ = parse((context.pod / path).read_text(encoding="utf-8"))
+    missing = [key for key in _quoted(keys) if key not in front]
+    assert not missing, missing
+
+
 @then("the pod folder is exactly as it was")
 def folder_unchanged(context):
     assert _snapshot(context.pod) == context.before
@@ -265,6 +311,16 @@ def has_neither(context, first, second):
 def names_base(context, path, base):
     declared = json.loads((context.pod / path).read_text(encoding="utf-8"))["@context"]
     assert declared[0] == "papyrus.context.jsonld" and declared[1]["@base"] == base, declared
+
+
+@then('the pod file "{path}" records the vocabulary namespace "{namespace}"')
+def records_namespace(context, path, namespace):
+    assert json.loads((context.pod / path).read_text(encoding="utf-8"))["@context"]["papyrus"] == namespace
+
+
+@then('the pod file "{path}" records the namespace the shipped relation-types file declares')
+def records_shipped_namespace(context, path):
+    assert json.loads((context.pod / path).read_text(encoding="utf-8"))["@context"]["papyrus"] == load_vocabulary_namespace()
 
 
 @then('the pod prints {count:d} ids, each starting with "{prefix}"')
@@ -312,21 +368,36 @@ def relation_terms(context):
     assert found == context.text.split(), found
 
 
-@then('the context records profile version 1, Vault-LD 0.5.0 and commit "{commit}"')
+@then('the context records profile version 2, Vault-LD 0.5.0 and commit "{commit}"')
 def records_pin(context, commit):
     pin = json.loads(context.generated)["papyrusPod"]
-    assert (pin["profile"], pin["vaultLd"], pin["vaultLdCommit"]) == (1, "0.5.0", commit), pin
+    assert (pin["profile"], pin["vaultLd"], pin["vaultLdCommit"]) == (2, "0.5.0", commit), pin
+
+
+@then('the context defines "{key}" as plain text')
+def defines_plain_text(context, key):
+    assert _terms(context)[key] == f"papyrus:{key}", _terms(context)[key]
+
+
+@then('the context defines "{key}" as a whole number')
+def defines_whole_number(context, key):
+    assert _terms(context)[key] == {"@id": f"papyrus:{key}", "@type": "xsd:integer"}, _terms(context)[key]
+
+
+@then('the context defines "{key}" as a day')
+def defines_day(context, key):
+    assert _terms(context)[key] == {"@id": f"papyrus:{key}", "@type": "xsd:date"}, _terms(context)[key]
+
+
+@then("the context has the lifecycle keys {keys}")
+def defines_keys(context, keys):
+    terms = _terms(context)
+    assert all(key in terms for key in _quoted(keys)), _quoted(keys)
 
 
 @then("the context lists the classes {classes}")
 def lists_classes(context, classes):
     assert json.loads(context.generated)["papyrusPod"]["classes"] == _quoted(classes)
-
-
-@then("the context defines none of {keys}")
-def defines_none(context, keys):
-    terms = _terms(context)
-    assert not [key for key in _quoted(keys) if key in terms]
 
 
 @then("the two contexts are byte for byte the same")

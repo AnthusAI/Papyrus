@@ -272,18 +272,25 @@ _ENTRIES = dict([
      "POD --id-base URL", "files", "local"),
   _e("pod id", "Print new permanent ids for notes, each the pod's id base and a random identifier (never made from a file name). Writes nothing.", "POD [N]", "files", "reads"),
   _e("pod check", "Report a pod's level and every problem: ids, types, keys, links, the context files. Reads only; exits 1 when there is any problem.", "POD", "files", "reads"),
+  # ---- agents (definition files; src/papyrus_content/agent_definitions/) -----------------------------------------------------------------
+  _e("agents validate", "Check a folder of agent definition files (one <id>.yaml each) with no network and no model: every line of the 11-point template filled, known operations and responsibilities, and a site that only adds to a core definition. Exits 2 when any is refused, naming each by definition and line.",
+     "--dir DIR [--core DIR]", "files", "reads"),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, and for one language (its overlays laid on top), with where every field came from.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
-     "--kind KIND [--section KEY] [--language TAG] --file PATH [--input-file PATH]", "editor", "reads", "guidelines"),
-  _e("guidelines save", "Save a document as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
-     "--kind KIND [--section KEY] [--language TAG] --file PATH --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
+     "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) [--input-file PATH]", "editor", "reads", "guidelines"),
+  _e("guidelines save", "Save a document, or for writing guidelines the guideline files of a folder, as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
+     "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) --reason TEXT --expected-current-version-id ID|none [--input-file PATH] [--dry-run]  "
      "(--dry-run prints the diff and saves nothing; an agent that changes a binding rule is refused with human_required)", "editor", _DRY, "guidelines"),
   _e("guidelines check", "Check files against the guideline files in a folder (one folder per guideline, each with GUIDELINE.md) with no network and no model: listed words, patterns and lengths are decided; a rule that needs judgement is listed as not checked offline. Exits 1 when an error guideline finds something.",
      "--dir DIR [--scope section/ID|channel/NAME]... [--language TAG] FILE...", "both", "reads", "guidelines"),
+  _e("guidelines export", "Write the guideline files of a kind (writing) to a folder, byte for byte as they were saved. Reads the site; changes nothing there.",
+     "--kind KIND --dir DIR [--section KEY] [--language TAG] [--version N]", "editor", "reads", "guidelines"),
+  _e("guidelines convert", "One-time: convert this site's writing guidelines from one JSON document each to guideline files. A dry run that reports every lineage unless --apply; an admin who is a person applies it.",
+     "[--apply] [--section KEY]... [--language TAG]...", "editor", "apply", "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
@@ -391,6 +398,7 @@ GROUP_ORDER = {
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "pod": ["init", "id", "check"],
+  "agents": ["validate"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
@@ -418,6 +426,7 @@ GROUP_SUMMARIES = {
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
 GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id and check. Files only: no sign-in, no site."
+GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline. Files only: no sign-in, no site."
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."

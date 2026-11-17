@@ -65,7 +65,7 @@ export function formFromDocument(document: GuidelineDocument | null): WritingFor
  * a section's document never carries the publication-only fields, so a section form leaves them out. An empty field is left out, never saved empty.
  */
 export function documentFromForm(form: WritingForm, base: GuidelineDocument | null, scope: "publication" | "section"): GuidelineDocument {
-  const document: GuidelineDocument = { ...(base ?? {}), schemaVersion: 1 };
+  const document: GuidelineDocument = { ...(base ?? {}), schemaVersion: 2 };
   const setOrDrop = (key: string, value: unknown, present: boolean) => { if (present) document[key] = value; else delete document[key]; };
   setOrDrop("voice", { ...(base?.voice ?? {}), name: form.voiceName.trim() }, form.voiceName.trim() !== "");
   setOrDrop("audience", form.audience.trim(), form.audience.trim() !== "");

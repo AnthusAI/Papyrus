@@ -317,6 +317,7 @@ site:        { paused: false, quietWindow: ..., budget: ..., tiers: { editorial:
 - Overrides narrow by section, Story type, channel, Announcement kind or list. The narrowest wins.
 - Every change is a new version with who, when and why. Only an admin may change it. An agent is blocked from it at every rung.
 - Each run records the policy version and rung it ran under, so "sent automatically by site policy, version 14" is a fact on the record.
+- Built (slice E1, PPY-51ea61) in `src/papyrus_content/agent_policy/`: an unnamed responsibility is `off`; the narrowest matching override decides, ranked by the dimensions it names in the order list, channel, kind, story type, section; a pause (site or agent) carries its reason in the document; `decide_start` answers start or skip and returns the `policyVersion` and `rung` the run record carries. The operation gate (E2) and hard floors (E4) are separate slices.
 - Changed in the newsroom (the Agents page) or with `papyrus agents set-rung` (slice H3).
 
 ### 5.3 Starting quiet and being promoted

@@ -1,6 +1,10 @@
 # `pod: true` marks a relation type as part of the pod profile: it becomes a link key in the generated pod context
 # (src/papyrus/pod/context.py) and a note may carry it. Every other type is newsroom bookkeeping and never appears in a pod.
 schemaVersion: 1
+# The address the Papyrus pod vocabulary is published at: a new pod records it as the `papyrus` prefix in its generated context (`papyrus pod init --namespace` chooses another).
+vocabularyNamespace: https://p.apyr.us/ns#
+# The address the Papyrus pod vocabulary is published at: a new pod records it as the `papyrus` prefix in its generated context (`papyrus pod init --namespace` chooses another).
+vocabularyNamespace: https://p.apyr.us/ns#
 relationTypes:
   - key: classified_as
     label: classified as
@@ -522,3 +526,25 @@ relationTypes:
     isTransitive: false
     pod: true
     contextPackTags: [reference_graph, research]
+  - key: announces
+    label: announces
+    inverseLabel: announced by
+    description: An Announcement (the decision to say something) is about a Story, at the version of the Story it looked at. One row for each pair; a Story's Announcements are read from the Story through the object-state index. The Announcement knows nothing about channels; each channel's version is a Delivery.
+    domain: editorial
+    allowedSubjectKinds: [announcement]
+    allowedObjectKinds: [item]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [editing, publication]
+  - key: supersedes
+    label: supersedes
+    inverseLabel: superseded by
+    description: A Delivery that corrects another Delivery of the same Announcement, channel and account. The corrected Delivery is marked superseded and points forward; the live Delivery is the highest generation.
+    domain: editorial
+    allowedSubjectKinds: [delivery]
+    allowedObjectKinds: [delivery]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: true
+    contextPackTags: [editing, publication]

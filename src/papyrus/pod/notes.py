@@ -6,6 +6,7 @@ the very top of the file. A note with no front matter is a plain note, which is 
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -71,6 +72,11 @@ def parse(text: str) -> tuple[dict | None, str, str | None]:
                 return None, body, "every front matter key must be text"
             return loaded, body, None
     return None, text, "front matter opens with --- and is never closed with a second ---"
+
+
+def body_hash(body: str) -> str:
+    """The hash a ``reviewedHash`` holds: ``sha256:`` and the hex digest of the body's UTF-8 text, with Windows line ends read as plain newlines."""
+    return "sha256:" + hashlib.sha256(body.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
 def walk(pod: Path) -> list[Note]:

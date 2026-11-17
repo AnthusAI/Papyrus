@@ -126,6 +126,22 @@ class _Slot:
     checked: bool = False
 
 
+def _slot_at(body_slots: list[_Slot], body: str, finding: Finding) -> _Slot | None:
+    """The body block whose text holds a document-level finding: by its span in the assembled body, else by the quoted excerpt."""
+    if finding.span and finding.span[0] is not None:
+        from humanus.check import Utf16Offsets
+
+        position, offsets = 0, Utf16Offsets(body)
+        at = offsets.to_index(finding.span[0])
+        for slot in body_slots:
+            text = slot.text.strip("\n")
+            if position <= at < position + max(len(text), 1):
+                return slot
+            position += len(text) + 2   # join_body's blank line
+        return None
+    return next((slot for slot in body_slots if finding.excerpt and finding.excerpt in slot.text), None)
+
+
 def _spaced(language: str) -> bool:
     return language.split("-")[0] in SPACED_LANGUAGES_BASES
 
@@ -261,8 +277,8 @@ class Localizer:
 
     # --- stages 7 and 8: refine until it converges ----------------------------------------------------------------------------------------------
 
-    def _converge(self, slots: list[_Slot]) -> None:
-        machine = [slot for slot in slots if slot.owner == "machine" and slot.source.translated and not slot.conflict]
+    def _converge(self, slots: list[_Slot], only: list[_Slot] | None = None) -> None:
+        machine = [slot for slot in (slots if only is None else only) if slot.owner == "machine" and slot.source.translated and not slot.conflict]
         before = tally(f for slot in machine for f in slot.findings)
         number = 0
         while True:
@@ -364,10 +380,13 @@ class Localizer:
         translated_fields = {slot.source.kind[len(FIELD_PREFIX):]: slot.text for slot in slots if slot.source.kind.startswith(FIELD_PREFIX)}
         body_slots = [slot for slot in slots if slot.source.kind not in ("title", "deck") and not slot.source.kind.startswith(FIELD_PREFIX)]
         body = join_body([slot.text for slot in body_slots])
-        findings = [f for slot in slots for f in slot.findings]
         document: list[Finding] = []
         if stopped is None:
             document, _ = request.checker.faithfulness_document(request.source.body, body)
+            if self._repair_document(body_slots, body, document):
+                body = join_body([slot.text for slot in body_slots])
+                document, _ = request.checker.faithfulness_document(request.source.body, body)
+        findings = [f for slot in slots for f in slot.findings]
         remaining = [f for f in findings + document if f.category == "faithfulness" and f.severity == "error" and f.status == "violation"]
         hold_reasons = []
         if remaining:
@@ -406,6 +425,30 @@ class Localizer:
                   "translation": {"title": title, "deck": deck, "fields": translated_fields, "body": body, "blocks": [s.text for s in slots]},
                   "provenance": provenance}
         return result
+
+    def _repair_document(self, body_slots: list[_Slot], body: str, document: list[Finding]) -> bool:
+        """Gives the block a whole-document structure finding is about back to the repair loop. The block checks cannot see an extra paragraph inside a
+        container (the container is one block), so the finding is found only on the assembled body; its span says which block holds it. That block gets
+        the finding as a problem to repair (the refine prompt says to delete any paragraph the source does not have), and the loop runs on it alone. Nothing
+        is loosened: the whole body is checked again afterwards, and a rewrite that still adds the paragraph leaves the finding, which holds the translation.
+        Returns whether any block's text changed."""
+        targets: dict[int, tuple[_Slot, Finding]] = {}
+        for finding in document:
+            if finding.policy != "structure" or finding.severity != "error" or finding.status != "violation":
+                continue
+            slot = _slot_at(body_slots, body, finding)
+            if slot is not None and slot.owner == "machine" and slot.source.translated and not slot.conflict and id(slot) not in targets:
+                targets[id(slot)] = (slot, Finding(category="faithfulness", policy="structure", severity="error", status="violation", message=finding.message,
+                                                   excerpt=finding.excerpt, source_excerpt=finding.source_excerpt, drives_rewrite=True))
+        if not targets:
+            return False
+        before = {id(slot): slot.text for slot, _ in targets.values()}
+        for slot, finding in targets.values():
+            slot.findings = slot.findings + [finding]
+        self._converge(body_slots, only=[slot for slot, _ in targets.values()])
+        for slot, finding in targets.values():
+            slot.findings = [f for f in slot.findings if f is not finding]   # the whole-document check is the one record of it
+        return any(slot.text != before[id(slot)] for slot, _ in targets.values())
 
     def _report_back(self, slots: list[_Slot]) -> list[dict[str, Any]]:
         """Stock phrasing the copy edit keeps finding in the translation that the English block has too: advice for the English Story's editor

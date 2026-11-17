@@ -1,5 +1,5 @@
 Feature: Guideline documents pass the same upload rules as every other attachment
-  A guideline document, the design system a site draws with and the visual style profile are each saved as one JSON file attached to a version of a
+  The writing guidelines are a set of Markdown guideline files, one attached file each, and the other guideline documents, the design system a site draws with and the visual style profile are each saved as one JSON file attached to a version of a
   private record, and the files a design system names (its fonts) are attached beside it. The attachment upload function on a deployed backend decides
   which kinds of attachment it accepts, by the role the file plays and the media type it carries. Those kinds were once missing the guideline roles, so
   a deployed backend refused every guideline save with "Unsupported ModelAttachment role", while the in-memory fakes that stand in for S3 in the specs
@@ -9,7 +9,7 @@ Feature: Guideline documents pass the same upload rules as every other attachmen
   Scenario: A guidelines document is saved and read back through the upload function's rules
     Given a publication with no guidelines
     When an admin saves a writing document whose body says "Write plainly." with the reason "First guidelines"
-    Then the saved file is a "doctrine_document" of JSON, which the upload function's rules accept
+    Then each saved guideline file is a "doctrine_files" file of Markdown, which the upload function's rules accept
     And reading the writing guidelines returns the same document, and the row's content hash matches it
 
   Scenario: The files a document names are accepted as raw bytes

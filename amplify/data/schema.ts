@@ -55,6 +55,7 @@ export const OPTIONAL_MODEL_GROUPS = {
   variations: ["StoryVariation"],
   tenancy: ["Tenant", "TenantMembership", "TenantSelection", "TenantDomain", "SiteDocument", "SiteDocumentVersion"],
   localization: ["LocalizationRequest"],
+  announcements: ["AnnouncementDecision", "Delivery"],
 } as const;
 
 /**
@@ -1502,6 +1503,17 @@ const definitions = {
       procedureVersionNumber: a.integer(),
       assignmentId: a.id(),
       runStatus: a.string().required(),
+      /** What came of a finished run: acted, nothing, asked, failed or unknown. Set only when the run finishes or is settled; a run recorded before outcomes has none. */
+      outcome: a.string(),
+      /** A short lower-case code for why: required for `nothing` and `asked`, such as no_new_filing. */
+      outcomeReason: a.string(),
+      automationId: a.string(),
+      responsibility: a.string(),
+      subjectKind: a.string(),
+      subjectId: a.string(),
+      subjectVersion: a.string(),
+      /** The rung the run ran under (off, observe, propose, draft, prepare, publish_soft, publish_auto). Written once agent policy exists. */
+      rung: a.string(),
       requestedBy: a.string(),
       requestedAt: a.datetime().required(),
       startedAt: a.datetime(),
@@ -2943,7 +2955,7 @@ const definitions = {
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 
-  /** The catalogue row of one site document (kind: site | brand | nav); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". */
+  /** The catalogue row of one site document (kind: site | brand | nav | agents); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". */
   SiteDocument: modelWithoutSubscriptions({
       id: a.id().required(),
       tenantId: a.string().required(),

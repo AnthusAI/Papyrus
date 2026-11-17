@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
+from . import front_matter
 
 FILE_NAME = "GUIDELINE.md"
 TYPE = "papyrus:Guideline"
@@ -92,7 +92,7 @@ def split_front_matter(text: str) -> tuple[Any, str] | None:
     found = _FRONT.match(text.replace("\r\n", "\n"))
     if found is None:
         return None
-    return yaml.safe_load(found.group(1)), found.group(2)
+    return front_matter.loads(found.group(1)), found.group(2)
 
 
 def validate_meta(folder: str, meta: Any) -> list[Problem]:
@@ -154,22 +154,29 @@ def validate_meta(folder: str, meta: Any) -> list[Problem]:
     return problems
 
 
+def parse_text(name: str, text: str) -> tuple[Guideline | None, list[Problem]]:
+    """One guideline file's text as a guideline, or the problems with it. The same reader serves a folder on a laptop and a set read back from a site."""
+    try:
+        parts = split_front_matter(text)
+    except front_matter.FrontMatterError as error:
+        return None, [Problem(name, "", f"has front matter that is not valid: it {error}", "not_flat")]
+    if parts is None:
+        return None, [Problem(name, "", "must open with a front matter block between two --- lines", "missing_front_matter")]
+    meta, body = parts
+    problems = validate_meta(name, meta)
+    return (None if problems else Guideline(name, meta, body.strip())), problems
+
+
 def load_guideline(folder: Path) -> tuple[Guideline | None, list[Problem]]:
     name = folder.name
     path = folder / FILE_NAME
     if not path.is_file():
         return None, [Problem(name, "", f"has no {FILE_NAME}", "missing_file")]
     try:
-        parts = split_front_matter(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
         return None, [Problem(name, "", f"could not be read: {error}", "unreadable")]
-    except yaml.YAMLError:
-        return None, [Problem(name, "", "has front matter that is not valid", "not_flat")]
-    if parts is None:
-        return None, [Problem(name, "", "must open with a front matter block between two --- lines", "missing_front_matter")]
-    meta, body = parts
-    problems = validate_meta(name, meta)
-    return (None if problems else Guideline(name, meta, body.strip())), problems
+    return parse_text(name, text)
 
 
 def load_directory(directory: Path) -> Loaded:
@@ -244,3 +251,31 @@ def check_files(guidelines: list[Guideline], files: list[Path], *, scopes: list[
     return {"checked": [str(path) for path in files], "guidelinesApplied": [item.name for item in applying], "findings": findings,
             "notCheckedOffline": sorted(unchecked.values(), key=lambda item: item["guideline"]),
             "summary": {"errors": errors, "warnings": len(findings) - errors}}
+
+
+# --- a set on disk --------------------------------------------------------------------------------------------------------------------------------------
+
+def read_directory(directory: Path) -> dict[str, str]:
+    """Every file under ``directory`` as ``{path inside it: text}``, with the bytes kept as they are (no newline translation), so a save and an export round trip.
+    A name that starts with a dot (``.DS_Store``, ``.git``) is not part of the set. A file that is not UTF-8 text is refused."""
+    found: dict[str, str] = {}
+    for path in sorted(directory.rglob("*")):
+        relative = path.relative_to(directory)
+        if not path.is_file() or any(part.startswith(".") for part in relative.parts):
+            continue
+        try:
+            found[relative.as_posix()] = path.read_bytes().decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ValueError(f"{relative} is not UTF-8 text: {error}") from error
+    return found
+
+
+def write_directory(directory: Path, files: dict[str, str]) -> None:
+    """Write a set under ``directory`` byte for byte. Nothing outside ``directory`` is touched: a path that leaves it is refused before anything is written."""
+    root = directory.resolve()
+    targets = [(root / path).resolve() for path in files]
+    if any(root not in target.parents for target in targets):
+        raise ValueError("A guideline file path leaves the folder it is exported to.")
+    for target, text in zip(targets, files.values()):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(text.encode("utf-8"))

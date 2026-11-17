@@ -3,7 +3,7 @@
   "title": "Guideline files in the cloud (schema version 2)",
   "description": "The cloud stores the GUIDELINE.md files themselves in S3 with the catalog row holding version, who, when, why and a hash over the set. papyrus guidelines save --kind writing --dir uploads the set as a new version (stale versions refused); export --dir writes back byte-identical files. The resolver, layering, section-never-loosens, admin-only saving and derived checks stay. Today's structured fields (voice, audience, tone, lexicon, glossary, headline, constraints) become guideline files with fixed names; schema version 2 of the writing document is converted once per site by a command, then the JSON reader is removed. Decision accepted by Ryan 2026-11-16: yes. Changes what PPY-2a2a8a built.\n\n**Acceptance criteria**\n- Gherkin: Save and export round trip (byte-identical; stale version refused).\n- Gherkin: Layering.\n- Gherkin: Derived checks (each error or warn file derives one check; hand-written checks never touched).\n- Gherkin: One-time conversion of each site's JSON document to files, with the resolved result unchanged.\n- No reader for both shapes remains.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -19,10 +19,25 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8bb34c4b-342d-442c-842d-1f8fd3066e88",
+      "author": "home",
+      "text": "PR #1626 (feat/PPY-1d5c43-guideline-files-cloud): writing guidelines stored as guideline files (role doctrine_files), save/export/diff --dir, field files with fixed names, rule files derive checks, convert command (dry run default) with convert_v1.py as the only reader of the JSON shape. Behave 4 new features + 40 guideline-related features green; no site converted; cutover plan in docs/guidelines-files-cutover.md. Not released.",
+      "created_at": "2026-11-17T00:02:17.199823Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "fa73c742-f54f-4982-b0dd-7e99cb16ac3e",
+      "author": "home",
+      "text": "Merged to develop (PR #1626, merge commit b476dcd6b). Not released. No site converted; cutover plan in docs/guidelines-files-cutover.md. Console files editor filed as PPY-b0c478 (P3).",
+      "created_at": "2026-11-17T00:49:40.235446Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:38.127945Z",
-  "updated_at": "2026-11-16T21:48:53.733065Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T00:49:40.609899Z",
+  "closed_at": "2026-11-17T00:49:40.609731Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

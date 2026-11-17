@@ -31,6 +31,7 @@ Operator groups:
   items         Stories as a whole (items link-references)
   home-page     Public data of the home page (home-page snapshot)
   images        Pictures for Stories: stock search, generation, review, apply and undo (images <command>)
+  agents        Agent definition files, one per always-on agent (agents validate; files only, no sign-in)
   guidelines    Writing, image and video guidelines for the site or a section (guidelines show|resolve|diff|save|history|check)
   announcements Announce Stories on the publication's X account: dry runs, the audit trail, budget and pause (announcements list|show|dry-run|pause|resume|settings|account)
   figures       Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it (figures render|directive|rules|primitives|localize|variant)

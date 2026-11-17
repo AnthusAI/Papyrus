@@ -40,6 +40,8 @@ import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
+import { AGENT_PIECES } from "./agents/pieces";
+import { addAgentsStack } from "./agents/stack";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
@@ -939,6 +941,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   wireProposalActions(backend);
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
   wireAnnouncements(backend, siteBackendIdentity.brandId);
+  // Every always-on agent resource is in the one `agents` stack, which the first deploy of a new site leaves out (amplify/agents/stack.ts).
+  addAgentsStack((name) => backend.createStack(name), AGENT_PIECES, isBootstrapStage(process.env));
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 
   if (tenancyMode === "shared") {

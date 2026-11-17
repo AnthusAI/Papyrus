@@ -115,6 +115,23 @@ def lay_over(kind: str, publication: dict, publication_version: int, overlays: l
     return document, sources, warnings
 
 
+RULE_KEYS = ("name", "severity", "scope", "language", "description", "avoid", "prefer", "pattern", "maxLength", "body")
+
+
+def _lay_rules(layers: list[tuple[list[dict], dict]]) -> tuple[list[dict], list[dict]]:
+    """The rule files of every layer, publication first, as one list: ``(rules, warnings)``. A section adds rules and never replaces or removes one, so a section's rule
+    with the name of an earlier layer's is left out with a warning, and the earlier one stands."""
+    merged: list[dict] = []
+    warnings: list[dict] = []
+    for rules, entry in layers:
+        for rule in rules:
+            if any(item["name"] == rule["name"] for item in merged):
+                warnings.append({"code": "rule_file_shadowed", "field": "guidelineFiles", "message": f"The rule file {rule['name']} of the {entry['layer'].replace('-', ' ')} layer has the name of an earlier layer's; the earlier one stands."})
+                continue
+            merged.append({**{key: rule[key] for key in RULE_KEYS if key in rule}, "layer": entry["layer"], **({"language": entry["language"]} if entry.get("language") else {})})
+    return merged, warnings
+
+
 def _layer(scope: str, found: dict, language: str | None = None) -> dict:
     return {"scope": scope, **({"language": language} if language else {}), **{k: found["reference"][k] for k in ("itemId", "slug", "versionNumber", "contentHash")}}
 
@@ -138,12 +155,14 @@ def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = N
     base = store.read(kind)
     layers = [_layer(PUBLICATION, base)] if base else []
     overlays: list[tuple[dict | None, dict]] = []
+    rule_layers: list[tuple[list[dict], dict]] = [(base.get("rules") or [], {"layer": PUBLICATION, "version": base["reference"]["versionNumber"]})] if base else []
 
     def take(scope: str, found: dict | None, entry: dict) -> None:
         if found is None:
             return
         layers.append(_layer(scope, found, entry.get("language")))
         overlays.append((found["document"], {**entry, "version": found["reference"]["versionNumber"]}))
+        rule_layers.append((found.get("rules") or [], {**entry, "version": found["reference"]["versionNumber"]}))
 
     if section:
         take(SECTION, store.read(kind, section), {"layer": SECTION})
@@ -162,6 +181,11 @@ def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = N
         answer["warnings"].append({"code": f"{kind}_shared_document_missing", "message": f"This publication has no shared {kind} document; only the overlays that exist were applied."})
         base = {"document": {}, "reference": {"versionNumber": 0}}
     document, sources, warnings = lay_over(kind, base["document"], base["reference"]["versionNumber"], overlays)
+    rules, rule_warnings = _lay_rules(rule_layers)
+    if rules:
+        document["guidelineFiles"] = rules
+        sources["guidelineFiles"] = [dict(entry) for rules_of, entry in rule_layers if rules_of]
+    warnings += rule_warnings
     answer.update(found=True, document=document, fieldSources=sources, layers=layers, warnings=answer["warnings"] + warnings)
     return answer
 

@@ -3,17 +3,32 @@
   "title": "Announcement and Delivery records, indexes, announces and supersedes relations",
   "description": "Cloud only, no sender wired. Add the Announcement table (id, dedupeKey created with a condition, kind, announces links to Stories with the version looked at, releaseAt in UTC, approval none/soft/hard, approvedBy/At, state planned/released/cancelled/withdrawn, createdBy, trigger, append-only history) and the Delivery table (announcement, channel, account, audience, mode automatic/manual, text and image as S3 keys plus content hash, draftedBy, checks with guideline id/version/hash, state, blockedReason, resultUrl, providerId, cost, counts, attempts, supersedes/supersededBy). Add the announces and supersedes relation types. Reads by index only: by dedupeKey, an Announcement's Deliveries, an account's Deliveries newest first, planned Announcements by releaseAt, a Story's Announcements through the relation. No subscriptions; short fields only, no text in the catalog.\n\n**Acceptance criteria**\n- Gherkin: An announcement is decided once (same Story published twice makes one Announcement; a crash between the key and the first Delivery finishes on retry; a publish that qualifies on no channel leaves no row).\n- Gherkin: Approval and release (none releases at once, hard gate waits, newer Story version after approval returns to waiting, cancel before release, past releaseAt releases now).\n- Gherkin: No text in the catalog (a Delivery row holds no post text, HTML or Markus).\n- One live Delivery per Announcement, channel and account; a second needs supersedes, set in one transaction that marks the old one superseded.\n- No table scans; every read in the list above is an indexed query.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Section 13 additions (2026-11-16, always-on agent review; changes E, H, J)**\nFields and behaviour:\n- Approval lives on the Delivery, not the Announcement (change J; corrects design section 2). Each Delivery carries `approval`, `approvalPolicy` (where the value came from), `approvedVersion`, `approvedBy`, `approvedAt`. The Announcement keeps only the decision and `releaseAt`. An approval names one version; a later version is not approved.\n- Every wait is a named time on the Delivery (change E): `lockAt` (explicit, filled from the per-kind and per-channel setting at creation; equal to `releaseAt` when there is no separate lock), `nextAttemptAt` with `waitingFor` (`rate limit`, `budget cycle`, `release`), and one sparse `dueAt` that is the earliest of them, with one sparse index on `dueAt`. Also `lockedAt` and `lockedVersion` (a lock is a fact, not something held; change K).\n- Attempt outcomes include an open `started` state and `unknown` (change H; behaviour in PPY-a570e8).\n**Acceptance criteria (added)**\n- Gherkin: a Delivery records approval, approvalPolicy, approvedVersion, approvedBy, approvedAt; a later version than approvedVersion is not approved; two Deliveries of one Announcement can hold different approval values.\n- Gherkin: dueAt is the earliest of lockAt, nextAttemptAt and releaseAt; the sparse dueAt index returns due Deliveries and omits Deliveries with no pending time.\n- The Announcement record holds no approval fields.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nBuilt in PR #1618. The decision model is named `AnnouncementDecision` (the deployed model `Announcement` is the old X row shape, deleted by PPY-efd06c); keep that model name. Both models are in an optional model group that a brand-new site's first deploy defers, because the first stage stood at 2,062 resources against a budget of 2,000 (now 1,972); see PPY-e06835. Outcome words on attempts follow PPY-f58445. Findings from reading the branch (corrections, soft-review silence, a row before its file) are recorded on PPY-3e0a8a, PPY-a570e8 and PPY-e8ec54 and checked by PPY-9922b2.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2274aa91-b564-4b01-944d-8b73cc6579bc",
+      "author": "home",
+      "text": "Merged to develop in PR #1618 (https://github.com/AnthusAI/Papyrus/pull/1618), merge commit 63578960. Not released. Verification: 8 new Gherkin features (56 scenarios, features_backend/announcement-*.feature and delivery-*.feature) and records_test.py pass; CI green on the PR (python unit, behave shards, ts-check, ts-build, ts-test, GSI ledger, tenant inventory and isolation cases, bootstrap stage). Models AnnouncementDecision and Delivery (Announcement is the deployed X row shape until PPY-efd06c). Approval, lockAt/lockedAt/lockedVersion, nextAttemptAt/waitingFor and the sparse dueAt index are on the Delivery. Not in this slice: attempt log (PPY-a570e8), durable triggers, X rewire, review policy, editing window.",
+      "created_at": "2026-11-17T00:17:43.817475Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "685fc7e0-be73-461d-88af-d597acbba921",
+      "author": "home",
+      "text": "Merged to develop in PR #1618 (https://github.com/AnthusAI/Papyrus/pull/1618), merge commit 63578960. Not released. Verification: 8 new Gherkin features (56 scenarios, features_backend/announcement-*.feature and delivery-*.feature) and records_test.py pass; CI green on the PR (python unit, behave shards, ts-check, ts-build, ts-test, GSI ledger, tenant inventory and isolation cases, bootstrap stage). Models AnnouncementDecision and Delivery (Announcement is the deployed X row shape until PPY-efd06c). Approval, lockAt/lockedAt/lockedVersion, nextAttemptAt/waitingFor and the sparse dueAt index are on the Delivery. Not in this slice: attempt log (PPY-a570e8), durable triggers, X rewire, review policy, editing window.",
+      "created_at": "2026-11-17T00:17:48.792401Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:35.132166Z",
-  "updated_at": "2026-11-16T22:46:03.699393Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T00:17:48.792769Z",
+  "closed_at": "2026-11-17T00:17:44.206681Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

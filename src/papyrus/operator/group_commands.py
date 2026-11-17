@@ -124,6 +124,10 @@ def group_subcommands(group: str) -> list[str] | None:
     from papyrus_content.guidelines.cli import route_tree as guidelines_route_tree
 
     return list(guidelines_route_tree())
+  if group == "agents":
+    from papyrus_content.agent_definitions.cli import route_tree as agents_route_tree
+
+    return list(agents_route_tree())
   if group == "announcements":
     from papyrus_content.announcements.cli import route_tree as announcements_route_tree
 
