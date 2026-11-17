@@ -20,10 +20,17 @@
       "text": "PR 1627 merged. Agents stack (amplify/agents/stack.ts, pieces.ts) deferred in bootstrap stage; no piece yet so no stack. Measured on develop without PR 1618: first stage 1972/2000 (headroom 28); FunctionDirectiveStack 328/500. Tests: test-agents-stack, bootstrap cucumber (6 scenarios), function-directive-stack. No IAM.",
       "created_at": "2026-11-17T00:31:42.951515Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e9f52154-0ca6-4a35-9a4f-d1da91e7620b",
+      "author": "home",
+      "text": "PR 1627 merged. Agents stack deferred in bootstrap stage; no piece yet so no stack exists. Measured on develop without PR 1618: first stage 1972/2000 (headroom 28); FunctionDirectiveStack 328/500. Tests: test-agents-stack, bootstrap cucumber (6 scenarios), function-directive-stack. No IAM.",
+      "created_at": "2026-11-17T00:31:54.062690Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:44:33.842823Z",
-  "updated_at": "2026-11-17T00:31:43.463025Z",
+  "updated_at": "2026-11-17T00:31:54.063063Z",
   "closed_at": "2026-11-17T00:31:43.462873Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
