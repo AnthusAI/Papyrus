@@ -41,10 +41,11 @@ from .monitoring_router import (
 )
 
 KINDS = ("monitor", "schedule", "event", "manual")
-ACTIVE_KINDS = frozenset({"monitor"})
+ACTIVE_KINDS = frozenset({"monitor", "schedule"})   # a schedule automation is started by the schedule trigger (agent_definitions/schedules.py)
 AUTOMATION_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MONITOR_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 ENABLED_NOTE = "the router starts nothing for a disabled automation"
+SCHEDULE_ENABLED_NOTE = "a disabled automation has no schedule entry, so nothing wakes it"
 LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged"
 COST_NOTE = "not recorded for this run"
 OUTSIDE_FETCH = 25
@@ -122,6 +123,16 @@ def validate_trigger(trigger: Any) -> dict[str, Any]:
         if not PUBLICATION_ID.match(publication_id):
             raise AutomationError("a monitor trigger needs config.publicationId, the router publication it delivers to.")
         config = {"monitorId": monitor_id, "publicationId": publication_id}
+    if kind == "schedule":
+        # What wakes the agent (its cron and zone) is in its registered definition, not here. The config only names the router publication that
+        # gives each tick the site's endpoint, model key and policy location; a record not yet linked has none.
+        monitor_id, publication_id = str(config.get("monitorId") or ""), str(config.get("publicationId") or "")
+        if monitor_id or publication_id:
+            if not MONITOR_ID.match(monitor_id) or not PUBLICATION_ID.match(publication_id):
+                raise AutomationError("a schedule trigger names its router publication with both config.monitorId (for example ttab) and config.publicationId, or neither.")
+            config = {"monitorId": monitor_id, "publicationId": publication_id}
+        else:
+            config = {}
     if kind == "event" and config.get("event") == STAGE_ENTERED:
         from .content_item_lifecycle import CONTENT_ITEM_STAGES
 
@@ -153,6 +164,8 @@ def validate_input_template(template: Any, trigger: dict[str, Any]) -> dict[str,
         if is_stage_trigger(trigger) and "{" in text:
             raise AutomationError(f"inputTemplate {name}: a story-stage automation's input is static; the engine adds story, version, "
                                   "versionNumber, stage, runKey, automationId and hop.")
+        if trigger["kind"] == "schedule" and "{" in text:
+            raise AutomationError(f"inputTemplate {name}: a schedule automation's input is static: a tick carries no item to fill a placeholder from.")
         if trigger["kind"] == "monitor":
             used = {field for _, field, _, _ in string.Formatter().parse(text) if field is not None}
             unknown = sorted(used - TRIGGER_PLACEHOLDERS)
@@ -235,6 +248,14 @@ def stored_payload(record: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def registered_schedule(row: dict[str, Any]) -> dict[str, str] | None:
+    """The schedule (cron and time zone) the registered definition names, or None. A retired definition names none."""
+    if row.get("definitionRetiredAt"):
+        return None
+    schedule = ((_parse(row.get("definition"), None) or {}).get("wakes") or {}).get("schedule")
+    return {"cron": schedule["cron"], "timeZone": schedule["timeZone"]} if schedule else None
+
+
 def read_record(row: dict[str, Any]) -> dict[str, Any]:
     """A stored row as the record the CLI and console show, with what is and is not live said in words."""
     trigger = _parse(row.get("trigger"), {})
@@ -243,8 +264,9 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row.get("id"), "title": row.get("title"), "description": row.get("description"),
         "enabled": row.get("enabled") is not False,
-        "enabledNote": ENABLED_NOTE,
+        "enabledNote": SCHEDULE_ENABLED_NOTE if kind == "schedule" else ENABLED_NOTE,
         "trigger": {"kind": kind, "config": trigger.get("config") or {}},
+        "schedule": registered_schedule(row) if kind == "schedule" else None,
         "onStage": (trigger.get("config") or {}).get("onStage") if is_stage_trigger(trigger) else None,
         "nextStage": (trigger.get("config") or {}).get("nextStage") if is_stage_trigger(trigger) else None,
         "maxHops": _parse(row.get("limits"), {}).get("maxHops") if is_stage_trigger(trigger) else None,
@@ -258,6 +280,7 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
         "limitsNote": LIMITS_NOTE,
         "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind, "stageTrigger": is_stage_trigger(trigger),
+                                        "linked": bool((trigger.get("config") or {}).get("monitorId") and (trigger.get("config") or {}).get("publicationId")),
                                         "template": _parse(row.get("inputTemplate"), {})}),
         "createdBy": row.get("createdBy"), "createdAt": row.get("createdAt"),
         "updatedBy": row.get("updatedBy"), "updatedAt": row.get("updatedAt"),
@@ -274,6 +297,8 @@ def run_now_availability(info: dict[str, Any]) -> dict[str, Any]:
         return {"available": False, "reason": NOT_SUPPORTED, "needsInput": False, "inputNames": []}
     if not info["enabled"]:
         return {"available": False, "reason": "disabled", "needsInput": False, "inputNames": []}
+    if info["kind"] == "schedule" and not info.get("linked"):
+        return {"available": False, "reason": "not linked to a router publication", "needsInput": False, "inputNames": []}
     return {"available": True, "reason": None, "needsInput": bool(placeholders), "inputNames": sorted(template)}
 
 
@@ -368,10 +393,21 @@ def monitoring_reader_from_environment(env=None) -> MonitoringReader | None:
 # --- the router link --------------------------------------------------------------------------------------
 
 
+def schedule_link(automation: dict[str, Any]) -> dict[str, Any]:
+    """What starts a schedule automation, in words: the time and zone its registered definition names. Reads only the record."""
+    schedule = automation.get("schedule")
+    if not schedule:
+        return {"state": "schedule", "text": "Starts on a schedule, but its registered definition names none, so nothing wakes it."}
+    publication = "" if automation["trigger"]["config"].get("publicationId") else " It names no router publication yet, so it has no schedule entry."
+    return {"state": "schedule", "text": f"Starts on its schedule: {schedule['cron']} in {schedule['timeZone']}, from its definition.{publication}"}
+
+
 def router_link(automation: dict[str, Any], router: dict | None) -> dict[str, Any]:
     """Whether the router's own `procedureTriggers` entry for this automation exists, and whether it agrees.
 
     The router config is the source; the record mirrors it. This only reads and compares."""
+    if automation["trigger"]["kind"] == "schedule":
+        return schedule_link(automation)
     if automation["trigger"]["kind"] != "monitor":
         return {"state": "not_applicable", "text": NOT_SUPPORTED}
     if router is None:
@@ -529,6 +565,27 @@ def mark_deleted_stories(client, runs: list[dict[str, Any]]) -> None:
         run["storyExists"] = known[story]
 
 
+def schedule_history(automation: dict[str, Any], client, limit: int) -> dict[str, Any]:
+    """A schedule automation's runs are the procedure's runs that name it (the wake's run record carries the automation id); the rest are the procedure's other runs.
+
+    Nothing here reads the monitoring table: a tick is a wake on the queue, not a monitor's trigger row."""
+    budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
+    result = {"link": schedule_link(automation), "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None, "outsideRuns": [], "outsideNotice": None}
+    fetch = getattr(client, "recent_procedure_runs", None)
+    if fetch is None:
+        return result
+    try:
+        found = fetch(automation["procedureKey"], OUTSIDE_FETCH)
+    except Exception:   # the record still shows
+        return {**result, "outsideNotice": "outside_unavailable"}
+    own = [run for run in found if run.get("automationId") == automation["id"]][:limit]
+    runs = [{**run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"), "requestedBy": run.get("requestedBy")}, run, False, budget),
+             "origin": "schedule"} for run in own]
+    mark_deleted_stories(client, runs)
+    others = [outside_entry(run, budget) for run in found if run.get("automationId") != automation["id"]][:limit]
+    return {**result, "runs": runs, "lastRun": runs[0] if runs else None, "outsideRuns": others}
+
+
 def automation_history(automation: dict[str, Any], *, reader: MonitoringReader | None, client, limit: int = DEFAULT_RUN_LIMIT,
                        site_endpoint: str | None = None) -> dict[str, Any]:
     """Router link, recent runs (newest first), the last run and the procedure's other runs for one automation.
@@ -540,6 +597,8 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
     empty = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None,
              "outsideRuns": [], "outsideNotice": None}
     stage_trigger = is_stage_trigger(automation["trigger"])
+    if automation["trigger"]["kind"] == "schedule":
+        return schedule_history(automation, client, limit)
     if automation["trigger"]["kind"] != "monitor" and not stage_trigger:
         return {**empty, "link": router_link(automation, None), "notice": NOT_SUPPORTED}
     if reader is None:
@@ -627,7 +686,10 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
     automation is not a monitor automation, is disabled, has no router publication for this site, or is at its
     maxConcurrent (the router defers such a start and retries it; a person is told at once)."""
     if automation["trigger"]["kind"] not in ACTIVE_KINDS:
-        raise AutomationError(f"only monitor automations can be run now; this one is {NOT_SUPPORTED}.")
+        raise AutomationError(f"only monitor and schedule automations can be run now; this one is {NOT_SUPPORTED}.")
+    if not automation["trigger"]["config"].get("monitorId"):
+        raise AutomationError("this automation names no router publication yet, so there is nothing to run it with: "
+                              "papyrus automations update <id> --monitor <monitor> --publication <publication>.")
     if not automation["enabled"]:
         raise AutomationError("this automation is disabled; enable it before running it.")
     if reader is None or (writer is None and not dry_run):
