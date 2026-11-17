@@ -283,6 +283,8 @@ _ENTRIES = dict([
      "[--dir DIR] [--core DIR] [--root DIR] [--site-registry FILE] [--dry-run | --check]", "operator", "dry-run"),
   _e("agents schedules", "Make the site's schedule group agree with the applied definitions, as the deploy does right after agents apply: one EventBridge Scheduler entry for each switched-on, not-retired agent that names a schedule (its cron expression in its time zone, the site's wake queue as the only target), and no entry that no agent names. A timer only raises a wake; the run re-checks the policy and the pause. Never touches an entry whose name does not start agent-. --check exits 2 on any difference.",
      "--site SITE [--dry-run | --check]", "operator", "dry-run"),
+  _e("agents set-rung", "Set how far one agent may go on this site (off, observe, propose, draft, prepare, publish_soft, publish_auto): writes its rung into the agent policy document as a new version with who, when and why. Admin who is a person only. A dry run that prints the policy entry before and after unless --apply. Refuses an unknown rung, a rung above what the agent's definition needs, and publish_auto while a hard floor forbids it.",
+     "--id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE]... [--dir DIR] [--core DIR] [--apply]", "editor", "apply", ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
@@ -409,7 +411,7 @@ GROUP_ORDER = {
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "pod": ["init", "id", "check"],
-  "agents": ["validate", "apply", "schedules"],
+  "agents": ["validate", "apply", "schedules", "set-rung"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
@@ -437,7 +439,7 @@ GROUP_SUMMARIES = {
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
 GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id and check. Files only: no sign-in, no site."
-GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline, apply them to a site as its deploy does, and keep the site's schedule group in step with them."
+GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline, apply them to a site as its deploy does, and keep the site's schedule group in step with them, and set an agent's rung in the site's policy."
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."

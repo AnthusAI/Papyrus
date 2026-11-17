@@ -35,7 +35,7 @@ EMPTY_DOCUMENT: dict[str, Any] = {"schemaVersion": SCHEMA_VERSION, "site": {}, "
 
 
 class PolicyError(Exception):
-    """A refusal. ``code`` is one of ``invalid_input``, ``not_authorized`` (an editor), ``blocked`` (an agent) or ``stale_version``."""
+    """A refusal. ``code`` is one of ``invalid_input``, ``not_authorized`` (an editor), ``blocked`` (an agent), ``stale_version`` or ``constraint_conflict`` (a rung above the definition's ceiling, or one a hard floor forbids)."""
 
     def __init__(self, code: str, message: str):
         super().__init__(message)

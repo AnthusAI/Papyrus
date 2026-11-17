@@ -25,7 +25,7 @@ SITE_FIELDS = ("quietWindow", "budget", "tiers")
 AGENT_FIELDS = ("loopLimit",)
 
 
-def _may_change(caller: Caller) -> None:
+def may_change(caller: Caller) -> None:
     if caller.kind == "agent":
         raise PolicyError("blocked", "An agent may never change the agent policy, at any rung.")
     if not caller.is_admin:
@@ -48,15 +48,20 @@ class AgentPolicyStore:
         row = self._store.version_record(tenant_id, KIND, version)
         return {"version": version, "by": row.get("createdBy"), "at": row.get("createdAt"), "reason": row.get("note")}
 
-    def change(self, tenant_id: str, caller: Caller, reason: str, edit: Callable[[dict], None]) -> PolicyState:
-        """Apply ``edit`` to a copy of the live document and save it as the next version. Returns the live state afterwards."""
-        _may_change(caller)
+    def prepare(self, tenant_id: str, caller: Caller, reason: str, edit: Callable[[dict], None]) -> tuple[PolicyState, dict]:
+        """What ``change`` would save, written nowhere: the live state and the document after ``edit``, checked as ``change`` checks it."""
+        may_change(caller)
         if not isinstance(reason, str) or not reason.strip():
             raise PolicyError("invalid_input", "A policy change needs a reason.")
         state = self.read(tenant_id)
         document = copy.deepcopy(state.document)
         edit(document)
         validate_document(document)
+        return state, document
+
+    def change(self, tenant_id: str, caller: Caller, reason: str, edit: Callable[[dict], None]) -> PolicyState:
+        """Apply ``edit`` to a copy of the live document and save it as the next version. Returns the live state afterwards."""
+        state, document = self.prepare(tenant_id, caller, reason, edit)
         if document == state.document:
             return state
         try:
@@ -67,9 +72,9 @@ class AgentPolicyStore:
 
     # --- the changes people make -----------------------------------------------------------------------------------------------------
 
-    def set_rung(self, tenant_id: str, caller: Caller, responsibility: str, rung: str, *, reason: str,
-                 scope: Mapping[str, str] | None = None) -> PolicyState:
-        """Set an agent's rung, or with ``scope`` the rung of the override for exactly that scope. Raising and lowering are the same operation."""
+    @staticmethod
+    def rung_edit(responsibility: str, rung: str, scope: Mapping[str, str] | None = None) -> Callable[[dict], None]:
+        """The edit that sets an agent's rung, or with ``scope`` the rung of the override for exactly that scope."""
         check_rung(rung, "rung")
         scope = check_scope(scope, "scope") if scope else None
 
@@ -85,7 +90,12 @@ class AgentPolicyStore:
                     return
             overrides.append({**scope, "rung": rung})
 
-        return self.change(tenant_id, caller, reason, edit)
+        return edit
+
+    def set_rung(self, tenant_id: str, caller: Caller, responsibility: str, rung: str, *, reason: str,
+                 scope: Mapping[str, str] | None = None) -> PolicyState:
+        """Set an agent's rung, or with ``scope`` the rung of the override for exactly that scope. Raising and lowering are the same operation."""
+        return self.change(tenant_id, caller, reason, self.rung_edit(responsibility, rung, scope))
 
     def remove_override(self, tenant_id: str, caller: Caller, responsibility: str, scope: Mapping[str, str], *, reason: str) -> PolicyState:
         scope = check_scope(scope, "scope")
