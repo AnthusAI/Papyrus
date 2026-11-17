@@ -51,6 +51,7 @@ OUTSIDE_FETCH = 25
 RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"
 NOT_SUPPORTED = "not yet supported"
 ROUTER_CONFIG_SK = "CONFIG#router"
+REGISTERED_FIELDS = ("definitionId", "definitionVersion", "definitionDigest", "definition")   # the registered copy of an agent definition (agent_definitions/registered.py)
 DEFAULT_LIMITS = {"timeoutSeconds": 840}   # no maxConcurrent: no limit on how many run at once, as before slice 2
 MAX_TIMEOUT_SECONDS = 840          # the runner Lambda's 15 minutes less its recording margin
 MAX_TRIGGER_PAGES = 5
@@ -210,6 +211,9 @@ def build_record(fields: dict[str, Any], *, existing: dict[str, Any] | None = No
     responsibility = fields.get("responsibility", base.get("responsibility"))
     if responsibility:   # only ever set by an adoption (automation_adoption.py); never inferred from the procedure or the trigger
         record["responsibility"] = _text(responsibility, "responsibility", limit=64)
+    for key in REGISTERED_FIELDS:   # the registered copy of an agent definition (agent_definitions/registered.py); set only by registering, carried through every other change
+        if fields.get(key, base.get(key)) is not None:
+            record[key] = fields.get(key, base.get(key))
     if existing:
         record["createdBy"], record["createdAt"] = base.get("createdBy"), base.get("createdAt")
     else:
@@ -225,6 +229,9 @@ def stored_payload(record: dict[str, Any]) -> dict[str, Any]:
         payload[key] = json.dumps(record[key])
     if record.get("responsibility"):   # only sent once adopted, so a site backend that has not got the field is not asked for it
         payload["responsibility"] = record["responsibility"]
+    for key in REGISTERED_FIELDS:      # likewise only once a definition is registered
+        if record.get(key) is not None:
+            payload[key] = json.dumps(record[key]) if key == "definition" else record[key]
     return payload
 
 
@@ -245,6 +252,8 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "supportNote": None if supported else NOT_SUPPORTED,
         "procedureKey": row.get("procedureKey"),
         "responsibility": row.get("responsibility"),
+        "definitionId": row.get("definitionId"), "definitionVersion": row.get("definitionVersion"), "definitionDigest": row.get("definitionDigest"),
+        "definition": _parse(row.get("definition"), None),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
         "limitsNote": LIMITS_NOTE,

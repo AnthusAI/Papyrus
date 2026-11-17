@@ -1,0 +1,33 @@
+schemaVersion: 1
+id: rate
+version: 1
+responsibility: rate
+procedure: rate_items
+wakes:
+  schedule: {cron: "30 3 * * *", timeZone: America/New_York}
+serialBy: agent
+paid: true
+safeToRepeat: true
+operations:
+  guidelines_resolve: observe
+tier: bulk
+template:
+  trigger: Once a day by its schedule. It has no change trigger yet.
+  inputs: Published Stories and accepted References that have no rating, read by index, and the site's rating policy as the site's guidelines state it.
+  decision: For each unrated item, three stars (the default), four stars (clearly better than the usual item), or a five-star candidate. A five-star candidate is a suggestion for a person and is never a rating.
+  mayWrite:
+    - The run record, which at observe lists each item it would rate, the stars it would give and why
+    - A machine rating of three or four stars on an unrated item, only at a rung that allows writing a rating
+    - A five-star candidate suggestion for a person to decide, only at a rung that allows suggestions
+  mustNever:
+    - Assign five stars, or any rating above four; a five is a person's decision alone
+    - Give a rating other than three or four stars; three is the default
+    - Change or replace a rating a person gave
+    - Publish, unpublish, accept or reject a Story or a Reference
+    - Write a rating or a suggestion at a rung that does not allow it; at observe it writes nothing but its run record
+  seenAndReversed: On the day's Today line and the run record, which lists every item with the stars and the reason. A person's rating replaces the machine's, and a machine rating is listed as the machine's.
+  records: One run record per wake, with the policy version and rung it ran under, the items it looked at and what it decided for each.
+  fails: Closed. A failed run rates nothing and ends failed; a run that finds nothing unrated ends nothing with the reason nothing_unrated.
+  costAndBound: One call to the bulk-tier model for each unrated item the run reads, inside the site's weekly budget. No limit on the number of items.
+  measured: How often a person changes the machine's rating, and in which direction. The measure is a later task and has no spec yet.
+  gherkin: [rating-agent-definition.feature]

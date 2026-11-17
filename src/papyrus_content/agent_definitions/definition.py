@@ -4,7 +4,7 @@ One agent is one file, ``<id>.yaml``, in a folder under Git::
 
     schemaVersion: 1
     id: illustrate-stories            # permanent; the file's name
-    version: 1                        # the definition's version, copied onto the site's registered Automation record
+    version: 1                        # the author's own version; the site's registered copy (registered.py) counts the changes the site has applied
     responsibility: illustrate        # a key of the engine's catalog (responsibilities.py)
     procedure: illustrate_story       # the Tactus procedure's key
     wakes:

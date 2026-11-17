@@ -319,6 +319,19 @@ paused. Otherwise the run is recorded as "Nothing to do" with the reason `not_ad
 `papyrus automations runs`), with the policy version and rung it was decided under. An adopted automation is not changed to another
 responsibility by a second `adopt`. The steps for a site are in [releasing](releasing.md#enforcing-the-agent-policy-on-a-site).
 
+## The registered copy of an agent definition
+
+An agent's definition file lives in Git ([always-on agents](design/always-on-agents-architecture.md#31-what-an-agent-definition-is)). The site's backend holds the
+**registered copy** on the agent's Automation record, in four fields: `definitionId`, `definitionVersion`, `definitionDigest` and `definition` (the
+definition as registered). The runner and Today read the record, never the file in Git at run time.
+
+* The digest is SHA-256 of the canonical JSON of the effective definition (a core definition with what the site added to it), so the order of fields
+  never changes it.
+* The first registration is version 1. Registering the same digest again changes nothing and writes nothing. A changed digest writes the next version.
+* Registering writes those four fields and nothing else: not `enabled`, the trigger, the adopted `responsibility` or the agent policy document, so it
+  never sets a rung, a pause or a budget. It needs an Automation that exists, adopted as the definition's own responsibility or not yet adopted.
+* The release calls `agent_definitions.registered.register` for each definition (PPY-df3e74); there is no command for a person to run.
+
 ## Console
 
 Administration, Automation, beside Procedures. It lists each automation (title, trigger, procedure, enabled,

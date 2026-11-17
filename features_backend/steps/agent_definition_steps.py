@@ -220,3 +220,91 @@ def step_answer_lists(context, name):
 def step_answer_names(context, name, line, code):
     problems = context.answer["error"]["details"]["problems"]
     assert any(p["definition"] == name and p["line"] == line and p["code"] == code for p in problems), problems
+
+
+# The engine's shipped core definitions (features_backend/rating-agent-definition.feature).
+def _shipped(name: str) -> dict:
+    return _read(agent_definition.CORE_DIRECTORY, name)
+
+
+@then('the core set holds the definition "{name}" for the responsibility "{responsibility}"')
+def step_core_holds(context, name, responsibility):
+    assert context.loaded.get(name).responsibility == responsibility
+
+
+@then('the definition "{name}" has the tier "{tier}"')
+def step_tier(context, name, tier):
+    assert context.loaded.get(name).data["tier"] == tier
+
+
+@then('the definition "{name}" wakes by a daily schedule and by no change')
+def step_daily(context, name):
+    wakes = context.loaded.get(name).data["wakes"]
+    fields = wakes["schedule"]["cron"].split()
+    assert set(wakes) == {"schedule"} and fields[2:] == ["*", "*", "*"] and fields[0].isdigit() and fields[1].isdigit(), wakes
+
+
+@then('the definition "{name}" runs one at a time by "{scope}"')
+def step_serial(context, name, scope):
+    assert context.loaded.get(name).data["serialBy"] == scope
+
+
+@then('the definition "{name}" is paid and safe to repeat')
+def step_paid(context, name):
+    data = context.loaded.get(name).data
+    assert data["paid"] is True and data["safeToRepeat"] is True
+
+
+@then('every operation of the definition "{name}" is named at the lowest rung the operation table allows')
+def step_table_rungs(context, name):
+    from papyrus_content.images.operations import operation
+
+    operations = context.loaded.get(name).data["operations"]
+    assert operations
+    for operation_name, rung in operations.items():
+        assert operation(operation_name).agent_rung == rung, (operation_name, rung)
+
+
+@then('the definition "{name}" must never "{start}"')
+def step_must_never(context, name, start):
+    assert any(rule.startswith(start) for rule in context.loaded.get(name).must_never), context.loaded.get(name).must_never
+
+
+@then('the definition "{name}" names no rung, pause, budget or model')
+def step_no_policy(context, name):
+    data = _shipped(name)
+    assert not set(data) & set(agent_definition.POLICY_FIELDS), data
+    assert data["tier"] in agent_definition.TIERS
+
+
+@when("papyrus agents validate is run on the engine's core definitions with the network closed")
+def step_cli_core(context):
+    out = io.StringIO()
+
+    def closed(*args, **kwargs):
+        raise AssertionError("the offline check opened a network connection")
+
+    with patch.object(socket.socket, "connect", closed), contextlib.redirect_stdout(out):
+        context.status = agents_cli.command(["validate", "--dir", str(agent_definition.CORE_DIRECTORY)], stdout=out)
+    context.answer = json.loads(out.getvalue())
+
+
+@then('the answer lists "{name}" among the definitions using the operation "{operation}"')
+def step_answer_operation(context, name, operation):
+    listed = next(item for item in context.answer["result"]["definitions"] if item["id"] == name)
+    assert operation in listed["operations"], listed
+
+
+@given('a site definitions folder that extends the core definition "{base}" with the must-never rule "{rule}"')
+def step_extends_shipped(context, base, rule):
+    _write(_folder(context, "site"), base, {"schemaVersion": 1, "extends": base, "mustNever": [rule]})
+
+
+@when("the engine's core definitions are validated with that site folder")
+def step_validate_shipped_with_site(context):
+    context.loaded = agent_definition.load_sets(_folder(context, "site"))
+
+
+@then('the effective definition "{name}" keeps every must-never rule of the shipped definition')
+def step_keeps_shipped(context, name):
+    assert all(rule in context.loaded.get(name).must_never for rule in _shipped(name)["template"]["mustNever"])
