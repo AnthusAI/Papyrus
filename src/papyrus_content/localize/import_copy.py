@@ -7,8 +7,10 @@ version it translates, carries the original's pictures, gets its address from th
 
 What is different from a machine translation, and nothing else:
 
-* **Authorship.** The version's author is the person or agent that wrote it (``--written-by``); ``metadata.localization.translation`` is ``imported``,
-  not ``machine``; the provenance has an ``authorship`` entry (written by, imported by, why, ``machineGenerated: false``). No model wrote or rewrote it.
+* **Authorship.** The version's author is the person or agent that wrote it (``--written-by``); its front matter ``author`` is that name and has
+  ``drafting: {by: AI}`` only when the caller says bots helped (``--drafting-by-ai``), so the site's standard byline reads "By NAME" or "By various bots
+  and NAME", and the language edition translates it like every byline; ``metadata.localization.translation`` is ``imported``, not ``machine``, as a record
+  (the page says nothing of AI for it); the provenance has an ``authorship`` entry (written by, imported by, why, ``machineGenerated: false``). No model wrote or rewrote it.
 * **Every block is the writer's.** In the version's alignment every block is ``owner: human`` and ``pinned: true``, so a later translation run keeps the
   copy exactly: a changed or deleted English block under it is a conflict, never an overwrite (``engine.plan_slots``).
 * **No model is called.** The checks are the translation run's own, minus the bilingual judge: the parity rules and the glossary (numbers, links,
@@ -197,7 +199,7 @@ def _finding_row(block: int | None, kind: str, finding: Finding) -> dict[str, An
 
 
 def import_translation(client, *, story: str, language: str, body: str, front_matter: str | None, written_by: str, applied_by: str, reason: str,
-                       apply: bool = True, now: str | None = None) -> Imported:
+                       drafting_by_ai: bool = False, apply: bool = True, now: str | None = None) -> Imported:
     """Saves finished copy as the next version of ``<story>--<language>``, paired with the published English version. ``apply`` False only works out the
     alignment and the findings and writes nothing. Every refusal raises with its reason and saves nothing."""
     if not written_by or not reason:
@@ -232,7 +234,7 @@ def import_translation(client, *, story: str, language: str, body: str, front_ma
 
     key = run_key(source, request.language, procedure_version=PROCEDURE_KEY,
                   checker_versions={**checker.versions, "copy": hashlib.sha256(json.dumps(texts, ensure_ascii=False).encode("utf-8")).hexdigest()[:32],
-                                    "writtenBy": written_by})
+                                    "writtenBy": written_by, "draftingByAi": drafting_by_ai})
     request.run_key = key   # the version, its hold and the request all carry the import's own key
     versions = _versions(client, lineage)
     current = next((row for row in versions if row.get("versionState") == "current"), versions[0] if versions else None)
@@ -263,7 +265,8 @@ def import_translation(client, *, story: str, language: str, body: str, front_ma
                                          current, lineage)}
     result.record = save(client, request, outcome, now=now, author=written_by,
                          change_reason=f"imported copy written by {written_by}: {reason}",
-                         localization={"translation": TRANSLATION_KIND, "writtenBy": written_by, "importedBy": applied_by, "reason": result.reason,
+                         byline={"author": written_by, "draftingByAi": drafting_by_ai},
+                         localization={"translation": TRANSLATION_KIND, "writtenBy": written_by, "draftingByAi": drafting_by_ai, "importedBy": applied_by, "reason": result.reason,
                                        "outcome": state})
     if result.held:
         hold(client, request, result.reason, raised_by=PROCEDURE_KEY)
