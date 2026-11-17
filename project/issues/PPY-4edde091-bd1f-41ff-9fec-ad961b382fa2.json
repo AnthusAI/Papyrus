@@ -17,9 +17,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b07bbd5e-8fed-429f-b248-d02158bb6da7",
+      "author": "home",
+      "text": "Done in PR #1636 (merged to develop, not released). MAX_FILES and MAX_FILE_BYTES removed: files are stored one object each with a hash over the set, so no service limit is enforced by them. The limit=500/100 arguments on the attachment index reads were removed; list_by_index already pages to the last page. features_backend/guidelines-no-caps.feature proves 250 files, a 300 KiB file, and 620 attachments read 100 per page.",
+      "created_at": "2026-11-17T01:45:32.330875Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-17T01:17:40.162010Z",
-  "updated_at": "2026-11-17T01:18:20.569749Z",
+  "updated_at": "2026-11-17T01:45:32.331219Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
