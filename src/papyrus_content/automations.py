@@ -29,6 +29,7 @@ from typing import Any
 
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
+from .policy_location import policy_location
 from . import wake_keys
 from .run_outcomes import outcome_shown
 from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
@@ -207,6 +208,9 @@ def build_record(fields: dict[str, Any], *, existing: dict[str, Any] | None = No
         "updatedBy": actor,
         "updatedAt": now,
     }
+    responsibility = fields.get("responsibility", base.get("responsibility"))
+    if responsibility:   # only ever set by an adoption (automation_adoption.py); never inferred from the procedure or the trigger
+        record["responsibility"] = _text(responsibility, "responsibility", limit=64)
     if existing:
         record["createdBy"], record["createdAt"] = base.get("createdBy"), base.get("createdAt")
     else:
@@ -220,6 +224,8 @@ def stored_payload(record: dict[str, Any]) -> dict[str, Any]:
                                                  "createdBy", "createdAt", "updatedBy", "updatedAt")}
     for key in ("trigger", "inputTemplate", "limits"):
         payload[key] = json.dumps(record[key])
+    if record.get("responsibility"):   # only sent once adopted, so a site backend that has not got the field is not asked for it
+        payload["responsibility"] = record["responsibility"]
     return payload
 
 
@@ -239,6 +245,7 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "supported": supported,
         "supportNote": None if supported else NOT_SUPPORTED,
         "procedureKey": row.get("procedureKey"),
+        "responsibility": row.get("responsibility"),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
         "limitsNote": LIMITS_NOTE,
@@ -650,7 +657,7 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
     wake_key = wake_keys.manual_key(wake_keys.owner(automation["id"], automation["procedureKey"]), uuid.uuid4().hex)
     request = {"wakeKey": wake_key, "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
                "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"],
-               "input": input_values, "actorLabel": f"{actor} (run now)"[:200], "timeoutSeconds": gate.timeout_seconds,
+               **policy_location(publication), "input": input_values, "actorLabel": f"{actor} (run now)"[:200], "timeoutSeconds": gate.timeout_seconds,
                "trigger": {"kind": "manual", "automationId": automation["id"], "monitorId": config["monitorId"], "pk": pk, "sk": key,
                            "title": f"{automation['procedureKey']}: run now by {actor}"[:200],
                            "summary": f"Started by {actor} with Run now on automation {automation['id']}"[:500]}}
@@ -778,7 +785,7 @@ def _signed_in_lane() -> bool:
 
 
 def run_command(command: str, flags: list[str]) -> None:
-    """`papyrus automations list|show|runs|run|create|update`.
+    """`papyrus automations list|show|runs|run|create|update|adopt`.
 
     Signed in with `papyrus login`, list|show|runs|run ask the site's `automationOverview` and `runAutomation` (see
     `automations_signed_in`). Otherwise the reads use the selected GraphQL lane and the monitoring table and the Lambda
@@ -795,6 +802,10 @@ def run_command(command: str, flags: list[str]) -> None:
         code = signed_in_command(command, options, as_json=as_json, apply=apply)
         if code:
             raise SystemExit(code)
+        return
+    if command == "adopt":
+        from .automation_adoption import run_command as adopt_command
+        adopt_command(options, as_json=as_json, apply=resolve_mutation_apply(options, "automations adopt"))
         return
     if command in {"create", "update"}:
         apply = resolve_mutation_apply(options, f"automations {command}")

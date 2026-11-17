@@ -11,6 +11,7 @@ TESTS = Path(__file__).resolve().parents[2] / "procedures" / "newsroom" / "tests
 sys.path.insert(0, str(TESTS))
 import automation_fixture as fx  # noqa: E402
 from fake_client import FakeAuthoringClient  # noqa: E402
+from papyrus_content.agent_policy import PersonStart
 from papyrus_content import automation_view, automations as au, procedure_runner as pr  # noqa: E402
 from test_automation_gate import AUTOMATION, PROCEDURE, SiteClient, automation as automation_row, sweep, trigger_rows  # noqa: E402
 from test_monitoring_ttab import NOW  # noqa: E402
@@ -258,7 +259,7 @@ def record_run(context, client, calls):
     context.outcome = pr.run_procedure_request(
         {"appsyncEndpoint": "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql", "procedureKey": PROCEDURE, "wakeKey": "distinctive.ttab|manual|request-1",
          "input": {"proceeding": "1", "opinion_url": "https://x/a.pdf"}},
-        client=client, execute=lambda *a, **k: {"success": True, "output": {"title": "x"}, "seconds": 3, "usage": calls},
+        policy=PersonStart(), client=client, execute=lambda *a, **k: {"success": True, "output": {"title": "x"}, "seconds": 3, "usage": calls},
         seconds_available=900, environment={})
 
 

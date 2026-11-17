@@ -9,6 +9,7 @@ sys.path.insert(0, str(TESTS))
 import automation_fixture as fx  # noqa: E402
 import test_automations as ta  # noqa: E402
 import test_procedure_runner as tpr  # noqa: E402
+from papyrus_content.agent_policy import PersonStart
 from papyrus_content import automations as au, model_attachments, procedure_runner as pr  # noqa: E402
 
 
@@ -70,7 +71,7 @@ def runner_runs(context):
     context.client = tpr.NewsroomClient()
     request = {**tpr.REQUEST, "trigger": getattr(context, "trigger", None)}
     try:
-        context.result = pr.run_procedure_request(request, client=context.client, execute=lambda *a, **k: context.execution,
+        context.result = pr.run_procedure_request(request, policy=PersonStart(), client=context.client, execute=lambda *a, **k: context.execution,
                                                   seconds_available=900, environment={})
     finally:
         model_attachments.download_attachment_buffer = original

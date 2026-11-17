@@ -35,6 +35,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from .policy_location import policy_location
 from . import wake_keys
 from .automation_gate import decide, limits_of
 
@@ -183,7 +184,7 @@ def _start(client, automation, *, row, chain, reader, writer, invoke, stamp, sit
               "automationId": automation["id"], "hop": hop}
     request = {"wakeKey": wake_keys.change_key(wake_keys.owner(automation["id"], automation["procedureKey"]), story, version, STAGE_ENTERED),
                "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
-               "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"],
+               "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"], **policy_location(publication),
                "input": {**(automation.get("inputTemplate") or {}), **values}, "actorLabel": bot_label(automation["id"]),
                "timeoutSeconds": gate.timeout_seconds,
                "trigger": {"kind": "event", "event": STAGE_ENTERED, "automationId": automation["id"], "monitorId": config["monitorId"],

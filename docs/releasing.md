@@ -37,6 +37,26 @@ Re-measure after any release that created indexes, once its CloudFormation updat
 
 A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary and the reviewer approves in GitHub, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" has an approval waiting. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
 
+## Enforcing the agent policy on a site
+
+From the release that carries PPY-c8175e, the shared procedure runner reads each site's agent policy before it starts a run
+([procedure runner](procedure-runner.md)). An automation that is not adopted onto a responsibility, or whose responsibility is not
+raised above `off` in the site's policy, starts nothing: the run is recorded as "Nothing to do" with the reason `not_adopted` or
+`rung_off`. So for every site that runs automations, **before the release that carries the runner reaches it**:
+
+1. In the router config, name the site's `tenantId` and `siteBucket` on its publication (the site's media bucket; the policy body is at
+   `tenants/<tenant>/site/agents/<version>.json` in it).
+2. Adopt each automation (an admin who is a person, signed in with `papyrus login`). Dry run first:
+   `papyrus automations adopt --id AUTOMATION_ID --responsibility KEY --dry-run`, then the same without `--dry-run`. Adopting sets no rung.
+3. Write the policy line for that responsibility at the rung that matches today's behaviour, with a reason. **Ryan approves the rung;
+   an engineer never picks it.** (There is no operator command for this yet: it is `papyrus agents set-rung` of slice H3, PPY-e6f31e, which also needs a
+   production write adapter for the site store. Until it exists, enforcement cannot be turned on for a site that has automations.)
+4. Check: `papyrus automations runs --id AUTOMATION_ID` after the next wake shows the run with the policy version and rung, not
+   "Nothing to do (not_adopted)".
+
+Distinctive's TTAB analysis is the automation `distinctive.ttab`. The responsibility catalog has no entry for a ruling analysis, so which one it
+is adopted as, and at which rung, is Ryan's decision; the commands are on PPY-e713eb.
+
 ## The publish switch
 
 The `release` and `pypi` jobs run only when the repository variable `PUBLISH_ENABLED`

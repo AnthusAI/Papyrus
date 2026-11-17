@@ -1539,8 +1539,10 @@ const schema = a.schema({
       subjectVersion: a.string(),
       /** The wake that started the run (docs/design/always-on-agents-architecture.md A2). The run's id is derived from it, so one wake is one run. Runs recorded before wake keys have none. */
       wakeKey: a.string(),
-      /** The rung the run ran under (off, observe, propose, draft, prepare, publish_soft, publish_auto). Written once agent policy exists. */
+      /** The rung the run was decided under (off, observe, propose, draft, prepare, publish_soft, publish_auto). Written by the runner from the site's agent policy; a person's own run has none. */
       rung: a.string(),
+      /** The version of the site's agent policy document the run was decided under (PPY-c8175e). */
+      policyVersion: a.integer(),
       requestedBy: a.string(),
       requestedAt: a.datetime().required(),
       startedAt: a.datetime(),
@@ -1576,6 +1578,8 @@ const schema = a.schema({
       enabled: a.boolean().required(),
       trigger: a.json().required(),
       procedureKey: a.string().required(),
+      /** The standing responsibility this automation fills (a key of the agent catalog). Set by `papyrus automations adopt`, never inferred. An automation with none starts no run (PPY-c8175e). */
+      responsibility: a.string(),
       inputTemplate: a.json(),
       limits: a.json(),
       createdBy: a.string(),

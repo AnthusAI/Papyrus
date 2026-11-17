@@ -67,6 +67,8 @@ def _e(path: str, summary: str, usage: str, lane: str, writes: str, guide: str =
 
 _ENTRIES = dict([
   # ---- references: find -------------------------------------------------------------------------------------------
+  _e("automations adopt", "Name the standing responsibility an automation fills, so the runner enforces the agent policy for it (admin who is a person; sets no rung).",
+     "--id AUTOMATION_ID --responsibility KEY [--dry-run] [--json]", "both", _DRY, ""),
   _e("references list", "List References, newest first (no stars filter: use `references search` or `stories list --min-stars`).",
      "[--status pending|accepted|rejected] [--order newest] [--limit N] [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),
   _e("references show", "Show one Reference by record id (`...-v1`) or lineage id.", "REFERENCE_ID | --reference REFERENCE_ID [--corpus-key KEY] [--backend local|cloud]", "both", "reads", "find"),

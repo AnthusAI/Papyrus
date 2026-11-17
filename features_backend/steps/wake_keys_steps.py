@@ -7,6 +7,7 @@ from behave import given, then, when
 TESTS = Path(__file__).resolve().parents[2] / "procedures" / "newsroom" / "tests"
 sys.path.insert(0, str(TESTS))
 import test_procedure_runner as tpr  # noqa: E402
+from papyrus_content.agent_policy import PersonStart
 from papyrus_content import model_attachments, procedure_runner as pr, wake_keys  # noqa: E402
 
 
@@ -60,7 +61,7 @@ def deliver(context, key):
         context.executed.append(key)
         return {"success": True, "output": {"title": "x"}, "seconds": 1}
 
-    result = pr.run_procedure_request(request, client=context.client, execute=execute, seconds_available=900, environment={})
+    result = pr.run_procedure_request(request, policy=PersonStart(), client=context.client, execute=execute, seconds_available=900, environment={})
     context.results.append(result)
     return result
 
