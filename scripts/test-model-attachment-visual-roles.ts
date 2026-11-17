@@ -56,7 +56,7 @@ assert.equal(byteLimitForRole("metadata", 25 * 1024 * 1024), 25 * 1024 * 1024);
 // The function applies these rules and registers the roles; items keep the private newsroom prefix.
 const source = readFileSync(join(process.cwd(), "amplify/functions/model-attachment-upload/handler.ts"), "utf8");
 assert.match(source, /"visual_example",\s*\n\s*"visual_negative",/);
-assert.match(source, /"doctrine_document",\s*\n\s*"doctrine_asset",\n\]\);/, "guideline documents and their files are accepted roles");
+assert.match(source, /"doctrine_document",\s*\n\s*"doctrine_asset",\s*\n\s*"doctrine_files",\n\]\);/, "guideline documents and their files are accepted roles");
 assert.match(source, /assertVisualUpload\(/);
 assert.match(source, /ownerKind === "publishedItem" \? "media\/payloads" : "newsroom\/payloads"/, "only published items are stored under the public prefix");
 
