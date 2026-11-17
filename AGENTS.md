@@ -62,6 +62,7 @@ Git Flow. Agents commit, push and open pull requests as normal delivery.
 - Stage deliberately; trees are often dirty. Never `git add -A` while someone else's work is in flight.
 - Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change is merged to `develop` and whether it has been released.
 - When finished, remove your worktree: `git worktree remove <path>` from the shared checkout.
+- Briefing an agent: put the brief and the definition of done in [docs/agent-briefs.md](docs/agent-briefs.md) into every brief.
 
 ```bash
 cd ~/Projects/Papyrus && git fetch origin
