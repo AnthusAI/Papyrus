@@ -15,8 +15,8 @@ def test_every_run_status_the_runner_writes_is_read():
     for path in (ROOT / "src/papyrus_content/procedure_runner.py", ROOT / "src/papyrus_content/run_outcomes.py"):
         written |= set(re.findall(r"""runStatus["']?\s*[:=]\s*"([a-zA-Z]+)\"""", path.read_text()))
     started = (ROOT / "amplify/functions/procedure-action/handler.ts").read_text()
-    written |= set(re.findall(r'runStatus: isExternalCliRun \? "([a-zA-Z]+)" : "([a-zA-Z]+)"', started)[0])   # a run that starts as queued or running
-    assert {"completed", "failed", "queued", "running", "notRunnable"} <= written, written
+    written |= set(re.findall(r'runStatus: isExternalCliRun \? "([a-zA-Z]+)" : "([a-zA-Z]+)"', started)[0])   # a run that starts as queued or started
+    assert {"completed", "failed", "queued", "started", "notRunnable"} <= written, written
     assert written <= set(today.RUN_STATUSES), written - set(today.RUN_STATUSES)
 
 

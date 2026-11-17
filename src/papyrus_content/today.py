@@ -31,7 +31,7 @@ from .run_outcomes import OUTCOME_SHOWN
 from .tenancy import rows_for_tenant
 
 #: Every `runStatus` the runner writes. Each is one index query for the day.
-RUN_STATUSES = ("queued", "running", "completed", "failed", "notRunnable")
+RUN_STATUSES = ("queued", "started", "running", "completed", "failed", "notRunnable")
 DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DEFAULT_TIME_ZONE = "UTC"
 SORT_KEY = "requestedAt"

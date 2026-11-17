@@ -334,7 +334,7 @@ For one day (the viewer's own day on the page, `--day` and `--time-zone` on the 
 - **Each line opens the runs.** On the page a line expands to the day's runs (outcome, reason, cost, run id) and links to the Automation page; on the
   command line it prints `papyrus automations runs --id ID`, and `--runs` lists every run of the day.
 
-Every read is an index. The day's runs are one key-condition query per run status (`queued`, `running`, `completed`, `failed`, `notRunnable`; `RUN_STATUSES`
+Every read is an index. The day's runs are one key-condition query per run status (`queued`, `started`, `running`, `completed`, `failed`, `notRunnable`; `RUN_STATUSES`
 in `today.py`) on the `ProcedureRun` status index (`runStatus` + `requestedAt`), so only the rows requested inside the day are read. The agents are read through
 the Automation `tenantId` index. Nothing lists a whole table. The page refreshes when the tab is focused and every five minutes; it uses no subscription.
 
