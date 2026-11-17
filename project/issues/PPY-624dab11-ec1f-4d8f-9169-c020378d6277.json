@@ -3,7 +3,7 @@
   "title": "The procedure runner deploys through the release pipeline",
   "description": "The `papyrus-procedure-runner` stack is updated today by a hand-run change set, against the rule that nothing is created by hand. Add it to the release pipeline's stack list (`infra/pipeline/stacks.json`) with its allowed-changes entry, so a release builds the image, makes the change set, checks it and executes it, as it does for the monitoring stack. Any role change it needs follows the pipeline-roles approval path.\n\n**Acceptance criteria**\n- A release that changes the runner updates the stack with no hand step.\n- A pull request touching it prints the dry run.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- (infrastructure; covered by the pipeline's own checks) pipeline dry run lists the runner stack; a Remove or Replace not on the allowed list stops the run.\n\n**Infrastructure as code touched:** `infra/pipeline/stacks.json`, `infra/pipeline/allowed-changes.json`, `infra/procedures/papyrus-procedure-runner.yaml`. Pipeline-roles change needs approval after merge.\n\n**Part of:** Infrastructure as code and the shared tier. Slice code I1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -32,11 +32,18 @@
         "model": "Claude Sonnet 5.5",
         "name": "Claude"
       }
+    },
+    {
+      "id": "a5e3bdb8-2672-4ed8-82d6-8302f929f1bc",
+      "author": "home",
+      "text": "Done: runner deployed by the release (PR 1562, run 43961274505); docs, tests, Gherkin merged in PR 1620.",
+      "created_at": "2026-11-17T01:18:52.375094Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:09.558410Z",
-  "updated_at": "2026-11-16T22:56:50.472023Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T01:18:52.583885Z",
+  "closed_at": "2026-11-17T01:18:52.583667Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
