@@ -109,10 +109,10 @@ Before the first run (each is a separate decision or piece of work):
 1. **The release.** The procedure, the definition and the `ratings` operation reach Machines on Machines through a release and the site's bump, in the quiet window the
    always-on agents track report describes (the runner and the backends switch together, one site at a time; this site's guideline conversion first). The site's build then registers
    `rate_items` and applies the definition on its own: the automation `rate` appears **disabled**, with its registered copy. (Engineer, with Ryan's go for the window.)
-2. **The router publication names the site's policy.** In `infra/monitoring/router-config/hn.json`, the `machines-on-machines` publication has `tenantId` and still needs `siteBucket`:
-   the site's media bucket, where the policy body lives at `tenants/machines-on-machines/site/agents/<version>.json`. Its media bucket is named on the same publication as
-   `monitorStories.storageBucketName`; confirm that is the bucket the policy store writes to, then add `"siteBucket": "<that bucket>"` to the publication in a pull request. The release applies it.
-   Until it does, the runner refuses every wake ("the request names no site policy"). (Engineer.)
+2. **The router publication names the site's policy.** In `infra/monitoring/router-config/hn.json`, the `machines-on-machines` publication has `tenantId` and `siteBucket`
+   (PPY-d85860): the site's media bucket, where the policy body lives at `tenants/machines-on-machines/site/agents/<version>.json`. It is the same bucket the publication names as
+   `monitorStories.storageBucketName`, and the one `papyrus agents set-rung` writes to (the site's published `media_bucket`, the `storage.bucket_name` of its `amplify_outputs.json`).
+   The release applies the router config. Until it has, the runner refuses every wake ("the request names no site policy"). (Engineer.)
 3. **The model key.** The site's key (`/amplify/shared/d260vp72hqglnc/OPENAI_API_KEY`, the router publication's `openaiKeyParameter`) expired on 14 November; the run fails closed
    without a working one (`The run has no model key`). PPY-6af46b. (Ryan rotates it.)
 4. **Permissions for the schedule step** (the build role's scheduler, queue and monitoring reads), listed under "The schedule group is reconciled by the site's deploy" above. (Ryan grants.)
