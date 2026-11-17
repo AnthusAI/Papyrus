@@ -224,6 +224,58 @@ papyrus stories correct-translation --story LINEAGE --language es-419 --edits-fi
   translation's hold carries over and still needs its review request answered.
 - The version keeps `metadata.localization.reviewed` as it was: recording "reviewed by a person" and the page label are the correction view's (below).
 
+### Finished copy written elsewhere
+
+Copy that people or other agents wrote separately, and that is already finished, is attached to a published English Story as its companion edition with
+one command (`localize/import_copy.py`; spec `features_backend/translation-import.feature`; PPY-b64b0b). It reuses the procedure's own record-writing path
+(`record.save`), so the version looks like any translation to the rest of Papyrus; what differs is who wrote it and that no model is involved.
+
+```sh
+papyrus stories import-translation --story LINEAGE --language es-419 --body-file es.md --front-matter-file es.yaml --written-by "Person or agent" --reason "why" --dry-run
+papyrus stories import-translation --story LINEAGE --language es-419 --body-file es.md --front-matter-file es.yaml --written-by "Person or agent" --reason "why"
+```
+
+**The files.** `--body-file` is the body in Markdown. The front matter is YAML with the Story's own reader-facing texts: `title`, the dek (`dek` or `deck`), and `blurb` and
+`imageAlt` when the English has them; it is `--front-matter-file`, or a leading `---` block of the body file (not both). Any other key is refused: tags, sources, pictures and
+section stay the English's.
+
+**What it saves.** The next version of `{story}--{language}` (`localization_lineage_id`), unpublished, with no board stage, paired with the published English version it
+translates (`languageGroupId`, `sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`, `syncState: current`), the language's drafted address, and the original's
+stored pictures, exactly as a machine translation is saved. The version's author is `--written-by` and its change reason is `imported copy written by NAME: REASON`. An
+earlier version of the lineage (a machine translation, an earlier import) is superseded, never deleted; the command prints which it replaces.
+
+**Provenance.** The provenance record (`localization_provenance`) has an `authorship` entry (`kind: written`, `machineGenerated: false`, who wrote it, who imported it (the
+signed-in session), the reason, the version it replaces), no model and no cost, and `metadata.localization.translation` is `imported` where a machine translation has
+`machine`. In its alignment every block is `owner: human`, `pinned: true`, naming the English block it pairs with, so a later translation run keeps the copy exactly: a changed or
+deleted English block under it is a conflict and nothing is overwritten (`plan_slots`), as for a correction.
+
+**Alignment.** The copy has the English's blocks in the same order: the title, the dek, the front matter texts, then the body's blocks (separated by blank lines; a `:::` container,
+a fenced code block and a figure directive are one block each), and each block is of the same kind. Everything a translator never sees (`blocks.protect`: link targets, web
+addresses, citations, inline code, a figure's `src`, `credit` and other settings) must be the English's, in any order within the block, and every code block, comment and rule must be
+the English's as written; a figure's `alt` and `caption` and a container's `title` are the copy's own. Otherwise the import is refused, nothing is saved, and the message says how the
+block counts differ and the first block where they stop matching (a paragraph split or joined), or which block changed which fixed part and how.
+
+**Checks.** The translation run's own checks without the bilingual judge: the parity rules and the glossary (numbers, links, citations, code, directives, structure, house terms)
+of each block against its English block, the same rules over the whole body, and the language's copy-edit policies on each block. No model is called, so an import costs nothing and
+needs no key; it also cannot catch a changed meaning that the rules cannot see (a dropped hedge or attribution): the person or agent who wrote the copy answers for that.
+Every finding is printed with its block. An error-severity faithfulness finding holds the version exactly as it holds a machine translation: `metadata.localization.outcome: held`
+and a flag review request (`localize-<first 24 characters of the run key>`, raised by `papyrus.story.import-translation`) that a person answers before the version publishes
+(`papyrus reviews answer`). Other findings are advice and do not hold.
+
+**What it refuses, saving nothing.** A language Humanus has no pack for, or that the site does not write in (`languages.enabled`); a Story whose English version is not published
+(the copy pairs with a published version, and a translation publishes only while its original is: publish the English Story first); a Story marked do not localize; a Story that
+is itself a translation; a translation run in progress for the Story and language; and a copy that cannot be aligned, or that changes a link, credit or figure, as above.
+
+**The request.** The Story's `LocalizationRequest` for the language is written finished (`saved`, or `held`), for this source version and text, with no automation and no publish
+choice, so `papyrus stories localize --all` counts the language up to date (a held copy counts too: it waits for a person) and the dispatcher leaves it alone. The same copy imported
+again saves nothing new. An explicit `papyrus stories localize --story` asks again and runs; it keeps every block as written.
+
+**Publishing stays the ordinary command**, `papyrus ops content publish --id VERSION_ID`; the import never publishes. `--dry-run` prints the alignment (each block, its kind, the
+English and the copy), the findings and the version it would replace, and writes nothing.
+
+Until the correction view and the page label of "Not yet" below are built, the page of an imported translation still carries the machine translation's line ("Traducido por IA...")
+and its Markdown twin says `Translation: machine`; the stored record says `imported`.
+
 ### What a reader and an agent see
 
 The page of a translation says, in the page's language and apart from the Story's text, that an AI translated it, with a link to the original:
@@ -260,6 +312,7 @@ A translation shows the original's pictures by default, with the alt text, capti
 - The `translation.published` notification to correctors (admin class) and the correction flow, which records "reviewed by a person" and would change the
   page's label to "translated by AI and reviewed by a person" (PPY-ef71cd, PPY-c0aebc). Until then every translated page says it was translated by AI.
 - JSON-LD `translator`: no decision yet on whom to name for a machine translation.
+- The page label and the Markdown twin for an imported translation: both still say it was translated by AI and `Translation: machine`; the record says `imported` (above), and the label would read from it.
 - Quotations marked as translated, with the original wording one tap away (PPY-c0aebc).
 - Translating a Story again in the languages already published when only its text changed a little: every new text is a new request (a run translates only the changed blocks).
 - Listing keys with the language (`typeStatus`, `sectionStatus`, `headStageKey`), so the console, the reader app and the board show one language at a time
