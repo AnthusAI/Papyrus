@@ -82,10 +82,10 @@ function Detail({ record, demo, onRunNow }: { record: AutomationRecord; demo: bo
     <article className="news-desk-doctrine-card" data-automation-detail={record.id}>
       <div className="news-desk-doctrine-card__header"><div><h3>{record.title}</h3><span>{record.description ?? record.id}</span></div></div>
       <dl className="news-desk-monitoring__usage">
-        <div><dt>Trigger</dt><dd>{triggerText(record.trigger)}{record.supported ? "" : ` (${record.supportNote ?? "not yet supported"})`}</dd></div>
+        <div><dt>Trigger</dt><dd>{triggerText(record.trigger, record.schedule)}{record.supported ? "" : ` (${record.supportNote ?? "not yet supported"})`}</dd></div>
         <div><dt>Procedure</dt><dd>{record.procedureKey}</dd></div>
         <div><dt>Input</dt><dd>{Object.keys(record.inputTemplate).length ? Object.entries(record.inputTemplate).map(([name, template]) => `${name} = ${template}`).join("; ") : "none"}</dd></div>
-        <div><dt>Enabled</dt><dd>{enabledText(record)} ({ENABLED_NOTE})</dd></div>
+        <div><dt>Enabled</dt><dd>{enabledText(record)} ({record.enabledNote})</dd></div>
         <div><dt>Limits</dt><dd>timeout {record.limits.timeoutSeconds ?? "?"} s, {atATimeText(record.limits)}{record.limits.budgetUsdPerRun !== undefined ? `, about $${record.limits.budgetUsdPerRun} per run, advisory` : ""} ({record.limitsNote})</dd></div>
         <div><dt>Router</dt><dd data-automation-link={record.link?.state ?? "unchecked"}>{linkText(record.link)}</dd></div>
       </dl>
@@ -124,10 +124,10 @@ function ListItem({ record, selected, onSelect }: { record: AutomationRecord; se
     <li data-automation={record.id}>
       <div>
         <strong>{record.title}</strong>
-        <span>{triggerText(record.trigger)}{record.supported ? "" : ` (${record.supportNote ?? "not yet supported"})`}</span>
+        <span>{triggerText(record.trigger, record.schedule)}{record.supported ? "" : ` (${record.supportNote ?? "not yet supported"})`}</span>
       </div>
       <span>Procedure: {record.procedureKey}</span>
-      <span>{enabledText(record)} ({ENABLED_NOTE})</span>
+      <span>{enabledText(record)} ({record.enabledNote})</span>
       <span data-automation-last-run>
         Last run: <span aria-hidden="true">{statusMark(last?.status)} </span>{statusText(last?.status)}{last ? `, ${formatUtc(last.startedAt)}` : ""}
       </span>

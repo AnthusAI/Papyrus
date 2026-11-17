@@ -13,13 +13,14 @@ describes that, links to it, controls it, costs it and shows what it did.
 |---|---|
 | `monitor` triggers | Live, because the monitoring router already runs them. The router's `procedureTriggers` entry still says what starts and with what input; the record mirrors it and now governs it (below). |
 | `event` trigger "story enters a stage" | **Live from the command line and the runner** (below, "Story-state triggers"). |
-| `schedule`, `manual` triggers, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
+| `schedule` trigger | **Live** (below, "The schedule trigger"). The time and zone come from the agent's registered definition; the record names the router publication that gives each tick the site's endpoint, model key and policy location (`config.monitorId` and `config.publicationId`, both or neither, set with `papyrus automations update`). The console and the command line show the time and zone in words, not "not yet supported". Its input is static. |
+| `manual` trigger, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
 | `enabled` | **Real for monitor automations.** The router reads the record before each start. A disabled automation starts nothing, and the trigger row says `skipped` with the reason "automation disabled". |
 | `limits.timeoutSeconds` | **Enforced.** It goes to the runner with the request and becomes the procedure's deadline, capped at 840 s (the runner Lambda's 15 minutes less its recording margin). |
 | `limits.maxConcurrent` | **Optional; unset means no limit, as before.** When set, a new start at the limit is **deferred**, not dropped: the trigger row says `deferred` with the reason ("deferred: concurrency limit: 1 running, at most 1 at a time") and the router starts it on a later run when there is room. |
 | `limits.budgetUsdPerRun` | **Advisory.** A run is never stopped for it. The history compares each run's recorded cost with it and flags a run over it. |
 | Cost per run | **Recorded** (below). |
-| Run now | **Live** for monitor automations, from the command line and the console. |
+| Run now | **Live** for monitor automations and for schedule automations that name a router publication, from the command line and the console. |
 
 The monitoring router, the procedure runner and the registered procedure still own the starting. The router's
 `CONFIG#router` entry stays the source of truth for what starts; the record is read for whether it may and with

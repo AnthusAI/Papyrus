@@ -5,8 +5,10 @@ Feature: Automation records describe what starts a procedure by itself
   and a monitor automation mirrors that trigger without changing it. The record never starts anything itself;
   the router reads it before each start, which is covered in automation-limits-and-run-now.feature.
   Editors and admins read an automation's recent runs, joined from the monitor's trigger rows and the
-  procedure runs recorded in the site's backend. Only monitor automations are live; the other kinds are
-  stored and say they are not yet supported.
+  procedure runs recorded in the site's backend. Monitor and schedule automations are live; the other kinds are
+  stored and say they are not yet supported. A schedule automation is started by the schedule trigger
+  (schedule-trigger.feature): its time and zone come from its registered definition, so the record says when it
+  starts in words, offers no router link to compare, and lists the runs that name it. Its input is static.
 
   Scenario: An operator records the TTAB monitor's trigger as an automation
     Given a site backend with no automations
@@ -26,12 +28,19 @@ Feature: Automation records describe what starts a procedure by itself
     When an editor opens the automation overview
     Then the automation's router link is "input_differs"
 
-  Scenario: Schedule, event and manual automations are stored but not live
+  Scenario: Event and manual automations are stored but not live
     Given a site backend with no automations
-    When an operator creates a "schedule" automation "digest" running "distinctive.weekly-digest"
+    When an operator creates a "manual" automation "digest" running "distinctive.weekly-digest"
     Then the automation is stored
     And the automation is marked "not yet supported"
     And the automation has no run history
+
+  Scenario: A schedule automation is live and is not shown as unsupported
+    Given a site backend with no automations
+    When an operator creates a "schedule" automation "digest" running "distinctive.weekly-digest"
+    Then the automation is stored
+    And the automation is a supported schedule automation
+    And Run now is not offered because it names no router publication yet
 
   Scenario: A record that cannot work is refused with a reason
     Given a site backend with no automations

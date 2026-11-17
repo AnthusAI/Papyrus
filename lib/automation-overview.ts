@@ -14,7 +14,7 @@ export type AutomationUsage = {
 };
 
 export type AutomationRun = {
-  origin: "monitor" | "manual" | "stage";
+  origin: "monitor" | "manual" | "stage" | "schedule";
   /** The stage a story entered to start this run (origin "stage"). */
   stage?: string | null;
   requestedBy: string | null;
@@ -71,7 +71,7 @@ export type AutomationOutsideRun = {
 export type AutomationRunNow = { available: boolean; reason: string | null; needsInput: boolean; inputNames: string[] };
 
 export type AutomationLink = {
-  state: "linked" | "input_differs" | "trigger_not_found" | "publication_not_in_router" | "router_not_found" | "not_applicable";
+  state: "linked" | "input_differs" | "trigger_not_found" | "publication_not_in_router" | "router_not_found" | "not_applicable" | "schedule";
   text: string;
   routerMode?: string | null;
   routerEnabled?: boolean;
@@ -86,6 +86,8 @@ export type AutomationRecord = {
   enabled: boolean;
   enabledNote: string;
   trigger: { kind: "monitor" | "schedule" | "event" | "manual"; config: Record<string, unknown> };
+  /** Schedule automations: the time and zone the registered definition names (null when it names none or is retired). */
+  schedule?: { cron: string; timeZone: string } | null;
   /** Story-stage automations only: the stage that fires it, where the engine moves the story after, and the bot-hop limit. */
   onStage?: string | null;
   nextStage?: string | null;
@@ -119,8 +121,9 @@ export type AutomationResult = AutomationOverview | { state: "unavailable" } | {
 
 const KIND_WORDS: Record<string, string> = { monitor: "Monitor", schedule: "Schedule", event: "Event", manual: "Manual" };
 
-export function triggerText(trigger: AutomationRecord["trigger"]): string {
+export function triggerText(trigger: AutomationRecord["trigger"], schedule?: AutomationRecord["schedule"]): string {
   const kind = KIND_WORDS[trigger.kind] ?? trigger.kind;
+  if (trigger.kind === "schedule" && schedule) return `${kind}: ${schedule.cron}, ${schedule.timeZone}`;
   if (trigger.kind === "monitor") {
     return `${kind} ${String(trigger.config.monitorId ?? "?")}, delivering to ${String(trigger.config.publicationId ?? "?")}`;
   }
@@ -185,6 +188,7 @@ export function toolsText(run: Pick<AutomationRun, "toolsUsed">): string {
 
 export function whoText(run: Pick<AutomationRun, "origin" | "requestedBy" | "sourceId"> & { stage?: string | null }): string {
   if (run.origin === "stage") return `Story entered ${run.stage ?? "a stage"}`;
+  if (run.origin === "schedule") return "Schedule tick";
   return run.origin === "manual" ? `Run now by ${run.requestedBy ?? "someone"}` : `Item: ${run.sourceId ?? "unknown"}`;
 }
 
@@ -224,7 +228,7 @@ export function inputTemplateText(names: string[]): string {
   return JSON.stringify(Object.fromEntries(names.map((name) => [name, ""])), null, 2);
 }
 
-const LINK_WORDS: Record<AutomationLink["state"], string> = {
+const LINK_WORDS: Record<Exclude<AutomationLink["state"], "schedule">, string> = {
   linked: "Linked: the router's trigger matches this record.",
   input_differs: "Differs: the router's input template is not the same as this record's.",
   trigger_not_found: "Not linked: the router has no trigger for this procedure.",
@@ -234,6 +238,7 @@ const LINK_WORDS: Record<AutomationLink["state"], string> = {
 };
 
 export function linkText(link: AutomationLink | null): string {
+  if (link?.state === "schedule") return link.text;
   return link ? LINK_WORDS[link.state] ?? link.text : "Not checked";
 }
 
@@ -242,7 +247,7 @@ const NOTICE_WORDS: Record<string, string> = {
   monitoring_unavailable: "Run history could not be read right now. The record is shown without it.",
   other_publication: "This automation belongs to another publication, so its runs are not shown here.",
   publication_not_routed: "This publication is not one of the router's outputs, so there are no runs to show.",
-  "not yet supported": "Only monitor automations run today. This one is stored but nothing starts it.",
+  "not yet supported": "Only monitor and schedule automations run today. This one is stored but nothing starts it.",
 };
 
 export const OUTSIDE_NOTICE = "The procedure's other runs could not be read right now.";

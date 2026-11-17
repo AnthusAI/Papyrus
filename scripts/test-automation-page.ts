@@ -23,7 +23,7 @@ async function main() {
   for (const expected of [
     "Analyze new TTAB rulings", "Monitor ttab, delivering to example", "Procedure: example.ttab.ruling-analysis",
     "Enabled (the router starts nothing for a disabled automation)", "Last run: … Started, no result recorded yet, 2026-10-23 11:59 UTC",
-    "Weekly digest", "Schedule (not yet supported)", "Disabled", "Last run: No runs",
+    "Weekly digest", "Schedule: 0 9 * * 1, America/New_York", "Disabled (a disabled automation has no schedule entry, so nothing wakes it)", "Last run: No runs",
     "Choose an automation to see its recent runs",
   ]) assert.ok(list.includes(expected), `list shows: ${expected}`);
 
@@ -88,7 +88,7 @@ async function main() {
   const sent = renderToStaticMarkup(createElement(RunNowControl, { record, initialPhase: "done", initialMessage: runNowMessage({ state: "started", automationId: record.id, requestedBy: "x" }) }));
   assert.ok(text(sent).includes("Started. The run appears in the list below"));
   const unavailable = text(renderToStaticMarkup(createElement(RunNowControl, { record: FIXTURE_AUTOMATION_OVERVIEW.automations[1] })));
-  assert.ok(unavailable.includes("Run now is not available: not yet supported"));
+  assert.ok(unavailable.includes("the automation is disabled. Enable it first"), "a switched-off schedule automation says why Run now is not offered");
   const disabledRecord = { ...record, runNow: { available: false, reason: "disabled", needsInput: false, inputNames: [] } };
   assert.ok(text(renderToStaticMarkup(createElement(RunNowControl, { record: disabledRecord }))).includes("the automation is disabled. Enable it first"));
 
@@ -103,11 +103,19 @@ async function main() {
   assert.ok(runNowMessage({ state: "unavailable" }).includes("Nothing was started"));
   assert.equal(runNowMessage({ error: "forbidden" }), "Run now is for editors and admins.");
 
-  // A single automation opens its detail without a click; a stored schedule says nothing runs it.
+  // A single automation opens its detail without a click; a schedule automation says when it starts, and one of a kind nothing starts says so.
   const single = { ...FIXTURE_AUTOMATION_OVERVIEW, automations: [FIXTURE_AUTOMATION_OVERVIEW.automations[1]] };
   const schedule = text(render(single));
-  assert.ok(schedule.includes("Only monitor automations run today"));
+  assert.ok(schedule.includes("Starts on its schedule: 0 9 * * 1 in America/New_York, from its definition."));
+  assert.ok(!schedule.includes("not yet supported"), "a schedule automation is not shown as unsupported");
   assert.ok(schedule.includes("No runs yet"));
+  const manual = {
+    ...FIXTURE_AUTOMATION_OVERVIEW.automations[1], trigger: { kind: "manual" as const, config: {} }, schedule: null, supported: false, supportNote: "not yet supported",
+    link: { state: "not_applicable" as const, text: "not yet supported" }, notice: "not yet supported" as const,
+  };
+  const unsupported = text(render({ ...FIXTURE_AUTOMATION_OVERVIEW, automations: [manual] }));
+  assert.ok(unsupported.includes("Only monitor and schedule automations run today"));
+  assert.ok(unsupported.includes("Manual (not yet supported)"));
 
   // Status is words and marks, never colour alone; no colour is encoded in the markup.
   assert.match(html, /data-run-status="failed"/);
@@ -143,6 +151,9 @@ async function main() {
   assert.equal(durationText(null), "duration not recorded");
   assert.equal(durationText(190), "3 min 10 s");
   assert.equal(triggerText({ kind: "manual", config: {} }), "Manual");
+  assert.equal(triggerText({ kind: "schedule", config: {} }, { cron: "0 6 * * *", timeZone: "America/New_York" }), "Schedule: 0 6 * * *, America/New_York");
+  assert.equal(triggerText({ kind: "schedule", config: {} }, null), "Schedule");
+  assert.equal(whoText({ origin: "schedule", requestedBy: null, sourceId: null }), "Schedule tick");
   assert.equal(
     triggerText({ kind: "event", config: { event: "story.stage_entered", onStage: "copywriting", nextStage: "typesetting" } }),
     "Event: a story enters copywriting, then moves it to typesetting",

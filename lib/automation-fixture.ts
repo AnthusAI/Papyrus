@@ -12,7 +12,7 @@ function run(fields: Partial<AutomationRun> & Pick<AutomationRun, "status" | "st
   };
 }
 
-/** A realistic overview for tests and the `?demo=1` newsroom: one live monitor automation and one stored schedule. */
+/** A realistic overview for tests and the `?demo=1` newsroom: one live monitor automation and one switched-off schedule automation. */
 export const FIXTURE_AUTOMATION_OVERVIEW: AutomationOverview = {
   state: "ready",
   asOf: "2026-10-23T12:00:00Z",
@@ -71,19 +71,20 @@ export const FIXTURE_AUTOMATION_OVERVIEW: AutomationOverview = {
       title: "Weekly digest",
       description: null,
       enabled: false,
-      enabledNote: "the router starts nothing for a disabled automation",
-      trigger: { kind: "schedule", config: { cron: "0 9 * * 1" } },
-      supported: false,
-      supportNote: "not yet supported",
+      enabledNote: "a disabled automation has no schedule entry, so nothing wakes it",
+      trigger: { kind: "schedule", config: { monitorId: "ttab", publicationId: "example" } },
+      schedule: { cron: "0 9 * * 1", timeZone: "America/New_York" },
+      supported: true,
+      supportNote: null,
       procedureKey: "example.weekly-digest",
       inputTemplate: {},
       limits: { timeoutSeconds: 840 },
       limitsNote: "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged",
-      runNow: { available: false, reason: "not yet supported", needsInput: false, inputNames: [] },
+      runNow: { available: false, reason: "disabled", needsInput: false, inputNames: [] },
       createdAt: "2026-10-23T10:05:00Z",
       updatedAt: "2026-10-23T10:05:00Z",
-      link: { state: "not_applicable", text: "not yet supported" },
-      notice: "not yet supported",
+      link: { state: "schedule", text: "Starts on its schedule: 0 9 * * 1 in America/New_York, from its definition." },
+      notice: null,
       skippedAlreadyHadReference: 0,
       lastRun: null,
       runs: [],
