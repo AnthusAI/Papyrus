@@ -69,6 +69,7 @@ Feature: Finished copy written by a person or another agent is attached as a Sto
     When the English Story's second paragraph says "The [report](https://example.test/report) covers 14 cities." in version 4 and the translation is run again
     Then the second paragraph of the newest translation still says "El [informe](https://example.test/report) abarca 12 ciudades."
     And the newest provenance marks that paragraph as a conflict
+    And the newest translation is held saying the person's wording no longer matches the English
 
   Scenario: The Story's translation request is written finished, so translating the whole site leaves the copy alone
     When "Ana Writer" imports the copy as the "es-419" translation of "story-waymo" because "Beijing draft"
