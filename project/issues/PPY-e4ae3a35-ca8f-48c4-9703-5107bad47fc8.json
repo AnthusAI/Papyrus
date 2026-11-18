@@ -33,10 +33,17 @@
       "text": "Branch feat/PPY-e4ae3a-announcements-list, PR #1677 (base develop). Drawer lines and list read announcements_where / announcements_recent through the new read-only announcementsRead door; explain is papyrus announcements explain --story X. Open: the blocked-draft raiser (block_and_flag) is built and specified, its caller arrives with the X rewire (PPY-efd06c).",
       "created_at": "2026-11-18T14:53:44.306305Z",
       "comment_type": "default"
+    },
+    {
+      "id": "16d78761-0270-4224-a07e-5fc34c4680f1",
+      "author": "home",
+      "text": "Branch feat/PPY-e4ae3a-announcements-list, PR #1677 (base develop). Drawer lines and list read announcements_where / announcements_recent through the new read-only announcementsRead door; explain is papyrus announcements explain --story X. Open: the blocked-draft raiser (block_and_flag) is built and specified, its caller arrives with the X rewire (PPY-efd06c).",
+      "created_at": "2026-11-18T14:53:57.395196Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:37.669456Z",
-  "updated_at": "2026-11-18T14:53:44.307426Z",
+  "updated_at": "2026-11-18T14:53:57.396275Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
