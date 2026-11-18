@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d6d3cf30-1678-4c2e-9ba7-d4e511a11c86",
+  "issue_id": "PPY-c5cd6542-ac9b-47ed-a8aa-2cea32bb1b9c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-18T12:24:35.343Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Pinned translation block under changed English was published silently",
+    "description": "A person's pinned block whose English source changed or was removed was kept and recorded as a conflict in provenance, but the run did not hold, so a stale paragraph (the 'relaunch' paragraph in the Spanish journalism translation) went out. Fixed on branch fix/localize-conflict-holds: a conflict now holds the run with the paragraph numbers.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
