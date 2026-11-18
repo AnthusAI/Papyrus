@@ -21,9 +21,24 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "51710795-47e1-451e-9fbe-6aa289938838",
+      "author": "home",
+      "text": "Branch feat/PPY-b53c09-delivery-counts; PR to follow (see board).",
+      "created_at": "2026-11-18T14:13:12.085333Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c0d59c68-2c84-4f9a-850a-374384f6a6ae",
+      "author": "home",
+      "text": "PR AnthusAI/Papyrus#1676 on branch feat/PPY-b53c09-delivery-counts.",
+      "created_at": "2026-11-18T14:19:06.036055Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:18.568770Z",
-  "updated_at": "2026-11-16T22:43:51.206651Z",
+  "updated_at": "2026-11-18T14:19:06.037401Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
