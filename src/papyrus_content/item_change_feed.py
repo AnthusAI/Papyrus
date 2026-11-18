@@ -200,7 +200,10 @@ def handle(records: list[Mapping[str, Any]], *, decode: Callable[[Any], Any], li
     sent = 0
     for record in records:
         stream = record.get("dynamodb") or {}
-        found = changes_of(decode(stream.get("OldImage")), decode(stream.get("NewImage")), record.get("eventName") or "")
+        old, new = decode(stream.get("OldImage")), decode(stream.get("NewImage"))
+        if site.tenant_id and (new or {}).get("tenantId") not in (None, "", site.tenant_id):
+            continue   # a row of another tenant is not this site's change: nothing about it is read or sent
+        found = changes_of(old, new, record.get("eventName") or "")
         if not found:
             continue
         try:

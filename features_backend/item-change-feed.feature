@@ -112,6 +112,11 @@ Feature: Every change to a Story or its checklist wakes the agents that listen f
     When the queue accepts wakes again and the batch is retried
     Then the queue holds 2 wakes, for the agents "fact-check" and "sources-check"
 
+  Scenario: A row of another tenant is nobody's wake
+    When a person saves version 4 of a Story that belongs to the tenant "beta"
+    Then the queue holds 0 wakes
+    And the listener index was not read
+
   Scenario: A removed row is no change
     When the table removes a version of the Story "story-1"
     Then the queue holds 0 wakes

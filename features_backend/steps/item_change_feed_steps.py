@@ -195,6 +195,11 @@ def person_saves(context, number, story):
     deliver(context, ("INSERT", None, _story(number)))
 
 
+@when('a person saves version {number:d} of a Story that belongs to the tenant "{tenant}"')
+def foreign_tenant(context, number, tenant):
+    deliver(context, ("INSERT", None, _story(number, tenantId=tenant)))
+
+
 @when('the command line saves version {number:d} of the Story "{story}" as a person')
 def cli_saves(context, number, story):
     deliver(context, ("INSERT", None, _story(number, versionCreatedBy="papyrus-cli")))
