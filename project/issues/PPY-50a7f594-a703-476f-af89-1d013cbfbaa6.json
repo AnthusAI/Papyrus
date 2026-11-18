@@ -33,10 +33,17 @@
       "text": "Merged to develop in #1680 (not released). All four acceptance lines met. QUESTION for Ryan: should a site pod's load ever publish (the standard says a non-draft Story loads published)? Built: load never publishes.",
       "created_at": "2026-11-18T17:19:14.806754Z",
       "comment_type": "default"
+    },
+    {
+      "id": "84663086-edf2-4542-a7b5-f9307e6b0e68",
+      "author": "home",
+      "text": "PR #1680 merged to develop (lifecycle on load; pod build/load help fixed in the same PR).",
+      "created_at": "2026-11-18T17:26:08.560355Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:38.552032Z",
-  "updated_at": "2026-11-18T17:19:15.491166Z",
+  "updated_at": "2026-11-18T17:26:08.561146Z",
   "closed_at": "2026-11-18T17:19:15.490760Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
