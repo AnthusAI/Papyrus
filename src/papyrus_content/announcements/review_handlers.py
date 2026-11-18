@@ -5,8 +5,9 @@ Setting the policy goes through ``AgentPolicyStore`` (admins who are people; an 
 """
 from __future__ import annotations
 
+import os
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Mapping
 
 from papyrus_content.editorial_context import hosted_publication
 from papyrus_content.images.handlers import Caller, Handler, ImageOperationError, Outcome
@@ -99,12 +100,55 @@ def record_manual(client: Any, arguments: dict, caller: Caller, policy: AgentPol
     return Outcome({"id": written["id"], "state": written["state"], "resultUrl": written["resultUrl"], "attempt": attempt_log(written)[-1]}, _publication(client))
 
 
+def correct(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, judge: Any = None, story: Any = None, environ: Mapping[str, str] | None = None) -> Outcome:
+    """Correct a Delivery that went: the words are checked as a new Delivery's are, then the next generation is written (``Deliveries.supersede``). Writes nothing when the
+    words fail or the Delivery may not be corrected, and says why in plain words. Sends nothing: the new Delivery goes through the worker under its own review."""
+    from . import corrections
+    from .deliveries import Deliveries
+    from .records import RecordError
+
+    environment = os.environ if environ is None else environ
+    deliveries = Deliveries(client, files)
+    old = deliveries.get(arguments["delivery"])
+    if old is None:
+        raise ImageOperationError("not_found", f"No Delivery {arguments['delivery']!r} on this site.")
+
+    def origin() -> str:
+        value = (environment.get("SITE_ORIGIN") or "").strip()
+        if not value:
+            raise ImageOperationError("service_unavailable", "Set SITE_ORIGIN to the site's public address (for example https://news.example) so the post's link can be checked.")
+        return value
+
+    def made_judge() -> Any:
+        if judge is not None:
+            return judge
+        from papyrus_content import fact_check
+        from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
+        from papyrus_content.multi_search_research import openai_llm
+
+        return fact_check.llm_judge(openai_llm(model=DEFAULT_LLM_MODEL), model=DEFAULT_LLM_MODEL)
+
+    try:
+        checks = corrections.check_words(old, arguments["text"], story=story or (lambda: corrections.story_of(client, old["announcementId"], item_url_style=environment.get("ITEM_URL_STYLE", "html"))),
+                                         site_origin=origin, judge=made_judge)
+        by = caller.subject or "papyrus-cli"
+        written = corrections.correct(deliveries, old, arguments["text"], checks, by=by, drafted_by=by if caller.kind == "person" else "machine")
+    except corrections.ChecksFailed as failed:
+        raise ImageOperationError("checks_failed", str(failed), details={"checks": failed.checks}) from failed
+    except RecordError as refused:
+        raise ImageOperationError("constraint_conflict", str(refused)) from refused
+    return Outcome({"id": written["id"], "generation": int(written["generation"]), "supersedes": written["supersedes"], "state": written["state"], "approval": written["approval"],
+                    "checks": [{"name": check["name"], "passed": check["passed"]} for check in checks]}, _publication(client))
+
+
 REVIEW_HANDLERS: dict[str, Callable[..., Outcome]] = {"announcements_review_show": review_show, "announcements_review_set": review_set, "announcements_delivery_review_set": delivery_review_set,
-                                                 "announcements_record_manual": record_manual}
+                                                 "announcements_record_manual": record_manual, "announcements_correct": correct}
 
 
-def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_factory: Callable[[Any], AgentPolicyStore] | None = None, files: Any = None) -> dict[str, Handler]:
-    """Each call opens the signed-in person's own client and the site's policy store. ``files`` is where a Delivery's words are read (the Delivery's own attachments when None)."""
+def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_factory: Callable[[Any], AgentPolicyStore] | None = None, files: Any = None, *, judge: Any = None, story: Any = None,
+                       environ: Mapping[str, str] | None = None) -> dict[str, Handler]:
+    """Each call opens the signed-in person's own client and the site's policy store. ``files`` is where a Delivery's words are read (the Delivery's own attachments when None). ``judge``, ``story`` and ``environ`` are for the check of a correction's words (the model's judge, the
+    Story's facts, ``SITE_ORIGIN``); a spec passes fakes."""
     def factory():
         if client_factory is not None:
             return client_factory()
@@ -125,4 +169,5 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_f
             return function(client, arguments, caller, store(client))
         return handler
 
-    return {name: wrap(partial(function, files=files) if function is record_manual else function) for name, function in REVIEW_HANDLERS.items()}
+    extras = {record_manual: {"files": files}, correct: {"files": files, "judge": judge, "story": story, "environ": environ}}
+    return {name: wrap(partial(function, **extras[function]) if function in extras else function) for name, function in REVIEW_HANDLERS.items()}

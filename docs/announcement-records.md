@@ -111,6 +111,17 @@ A pod keeps the same two records as notes with the same field names: an Announce
 - **Never sent automatically.** `Deliveries.releasable` answers no for a manual Delivery, `Attempts.open` and `Attempts.hand_over` refuse it (`ManualDelivery`), so no `AccountWorker` or channel ever picks it up.
 - Specs: `features_backend/delivery-manual-mode.feature`.
 
+## Correcting from the command line (PPY-3e0a8a)
+
+`papyrus announcements correct DELIVERY --text TEXT` (operation `announcements_correct`; code `announcements/corrections.py`, handler `review_handlers.correct`) is the one door to `Deliveries.supersede` for a person or an agent at `prepare`.
+
+- **The words are checked first.** An X Delivery's text goes through `drafting.check_draft` against the Announcement's Story (length, markup, the facts); any failure is `checks_failed`, lists every problem and writes nothing. A Delivery on another channel has the record's own rule (the words are not empty). The new Delivery records the checks that passed.
+- **The new Delivery is the old one's next generation:** same channel, account, mode, audience and picture, under the review value the old one had (`approval`, `approvalPolicy`), so it goes only as that review says. The old one becomes `superseded`.
+- **Refused as `constraint_conflict`, in the sentence the record raises:** a Delivery that never went (`NotSent`), one with an open attempt (`OpenAttempt`), a different correction that already exists (`CorrectedDifferently`), and one that already has another successor (`AlreadySuperseded`: a second live Delivery is never made). The same words again finish a half-written correction.
+- **Writes by default**; `--dry-run` checks the input and stops before the handler. A check needs `SITE_ORIGIN` and a model for the fact check.
+- **Not here:** deleting the old X post (the withdraw operation, PPY-efd06c; X stays off).
+- Specs: `features_backend/announcements-correct-cli.feature`; `src/papyrus_content/announcements/corrections_test.py`.
+
 ## Not in this slice
 
-The channel transport for X and the queue with one consumer for each account, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), text versions and pinned edits (PPY-e8ec54), and the buttons that act on a line (release, stop, correct). Nothing sends.
+The channel transport for X and the queue with one consumer for each account, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), text versions and pinned edits (PPY-e8ec54), and the buttons that act on a line (release, stop, correct; the command line's `correct` is built). Nothing sends.

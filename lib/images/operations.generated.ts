@@ -1287,14 +1287,30 @@ export type AnnouncementsUnlockResult = {
   id: string;
 };
 
-/** Correct a Delivery with a new public text: the next generation, which supersedes the one that went. */
+/** Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. */
 export type AnnouncementsCorrectInput = {
-  /** The Delivery's id. */
+  /** The id of the Delivery that went and is to be corrected. */
   delivery: string;
+  /** The corrected public text. It is checked like the text of a new Delivery. */
+  text: string;
 };
 
 export type AnnouncementsCorrectResult = {
+  /** The new Delivery's id. */
   id: string;
+  /** The new Delivery's generation. */
+  generation: number;
+  /** The id of the Delivery it replaces. */
+  supersedes: string;
+  /** The new Delivery's state. */
+  state: string;
+  /** The review the new Delivery goes under: the one the old Delivery had. */
+  approval: string;
+  /** The checks the new text passed. */
+  checks: {
+    name: string;
+    passed: boolean;
+  }[];
 };
 
 /** Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names that person. */

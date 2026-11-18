@@ -773,10 +773,20 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
         notes="A person only; an agent is told human_required. Built with the editing window (PPY-e8ec54).",
     ),
     Operation(
-        "announcements_correct", ("correct",), "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.", "write",
-        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g2"}),),
+        "announcements_correct", ("correct",), "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.", "write",
+        obj({"delivery": text("The id of the Delivery that went and is to be corrected."), "text": text("The corrected public text. It is checked like the text of a new Delivery.")}, ("delivery", "text")),
+        record({"id": text("The new Delivery's id."), "generation": {"type": "integer", "description": "The new Delivery's generation."}, "supersedes": text("The id of the Delivery it replaces."),
+                "state": text("The new Delivery's state."), "approval": text("The review the new Delivery goes under: the one the old Delivery had."),
+                "checks": many(obj({"name": text(), "passed": {"type": "boolean"}}, ("name", "passed")), "The checks the new text passed.")}, ("id", "generation", "supersedes", "state", "approval", "checks")),
+        ("not_found", "constraint_conflict", "checks_failed"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "text": "A look at how slow water shapes stone, corrected."},
+                 {"id": "announcement-1#x#handle#g2", "generation": 2, "supersedes": "announcement-1#x#handle#g1", "state": "ready", "approval": "none",
+                  "checks": [{"name": "length", "passed": True}, {"name": "markup", "passed": True}, {"name": "facts", "passed": True}]}),),
         group="announcements", positional=("delivery",), agent_rung="prepare",
-        notes="An agent follows that Delivery's review value: the correction is made at prepare, and it goes only as its own approval says. Built with corrections (PPY-3e0a8a).",
+        notes="An agent follows that Delivery's review value: the correction is made at prepare, and it goes only as its own approval says. Only a Delivery that went is corrected, and only once an "
+              "attempt has an answer: a Delivery that never went is edited, an open attempt is settled first, another person's different correction is a conflict, and a Delivery that "
+              "already has a correction is refused, each as constraint_conflict with the reason in plain words. The text goes through the checks of a new Delivery before anything is "
+              "written; a check that fails is checks_failed and nothing is written. The old post is not deleted (that is the withdraw operation, PPY-efd06c).",
     ),
     Operation(
         "announcements_record_manual", ("record-manual",), "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names that person.", "write",
