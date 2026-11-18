@@ -393,6 +393,10 @@ class Localizer:
         hold_reasons = []
         if remaining:
             hold_reasons.append("faithfulness: " + "; ".join(f"{f.policy}: {f.message}" for f in remaining[:5]))
+        conflicted = [position + 1 for position, slot in enumerate(slots) if slot.conflict]
+        if conflicted:   # a person's wording sits under English that changed or was removed: only a person can say whether it still holds
+            hold_reasons.append("a person's wording no longer matches the English in paragraph(s) " + ", ".join(str(n) for n in conflicted)
+                                + ": keep it, correct it or remove it")
         if self.held_for_cost:
             hold_reasons.append(self.held_for_cost)
         outcome = "waiting" if stopped == "waiting" else ("held" if hold_reasons else "saved")
