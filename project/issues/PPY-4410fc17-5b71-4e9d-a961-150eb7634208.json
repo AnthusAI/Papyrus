@@ -19,9 +19,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3de21459-eedd-4cb7-97d1-7c0f5042d576",
+      "author": "home",
+      "text": "Implemented on branch feat/PPY-4410fc-manual-mode, PR https://github.com/AnthusAI/Papyrus/pull/1681 (not merged).",
+      "created_at": "2026-11-18T17:18:47.021484Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:36.957785Z",
-  "updated_at": "2026-11-16T21:48:45.805045Z",
+  "updated_at": "2026-11-18T17:18:47.021999Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
