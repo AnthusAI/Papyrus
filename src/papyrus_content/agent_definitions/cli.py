@@ -161,7 +161,7 @@ def _aws_clients():
     return boto3.client("sqs"), boto3.client("scheduler")
 
 
-def schedules_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, aws_factory=None, reader_factory=None) -> int:
+def schedules_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, aws_factory=None, reader_factory=None, site_store_factory=None) -> int:
     out = stdout or sys.stdout
     if argv in (["--help"], ["-h"]):
         out.write(SCHEDULES_USAGE + "\n")
@@ -193,11 +193,13 @@ def schedules_command(argv: list[str], stdout: TextIO | None = None, client_fact
         from papyrus_content.automations import monitoring_reader_from_environment
         from papyrus_content.graphql_authoring import AUTOMATION_FIELDS
 
-        rows = (client_factory or _client)().list_tenant_rows("Automation", AUTOMATION_FIELDS)
+        client = (client_factory or _client)()
+        rows = client.list_tenant_rows("Automation", AUTOMATION_FIELDS)
+        lists = _lists_for_site(client, site_store_factory)
         sqs, scheduler = (aws_factory or _aws_clients)()
         result = schedules.reconcile_site(sqs, scheduler, rows, site, reader=(reader_factory or monitoring_reader_from_environment)(),
-                                          endpoint=os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT") or None, apply=not (dry_run or check))
-    except (schedules.ScheduleError, schedules.CronError) as error:
+                                          endpoint=os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT") or None, apply=not (dry_run or check), lists=lists)
+    except (schedules.ScheduleError, schedules.CronError, ValueError) as error:
         return refuse(str(error))
     action = "check" if check else "dry-run" if dry_run else "apply"
     changed = result["created"] or result["updated"] or result["deleted"]
@@ -209,9 +211,8 @@ def schedules_command(argv: list[str], stdout: TextIO | None = None, client_fact
     return finish({"ok": True, "op": "agents_schedules", "result": {"action": action, **result}, "warnings": warnings}, 0)
 
 
-def _policy_store_for_site(client):
-    """The policy store over the site's own catalogue and media bucket: the bucket the site publishes, where the runner reads ``tenants/<tenant>/site/agents/``."""
-    from papyrus_content.agent_policy import AgentPolicyStore
+def _site_store_for(client):
+    """The site store over the site's own catalogue and media bucket: the bucket the site publishes, where the runner reads ``tenants/<tenant>/site/<kind>/``."""
     from papyrus_content.agent_policy.catalogue import SiteCatalogueTable
     from papyrus_content.env import storage_bucket_from_amplify_outputs
     from papyrus_content.site_store import SiteStore
@@ -227,7 +228,24 @@ def _policy_store_for_site(client):
         import boto3
 
         s3 = boto3.client("s3")
-    return AgentPolicyStore(SiteStore(s3, bucket, SiteCatalogueTable(client)))
+    return SiteStore(s3, bucket, SiteCatalogueTable(client))
+
+
+def _policy_store_for_site(client):
+    from papyrus_content.agent_policy import AgentPolicyStore
+
+    return AgentPolicyStore(_site_store_for(client))
+
+
+def _lists_for_site(client, site_store_for=None) -> dict:
+    """The periodic lists of the site (``list_cadence.schedule.wanted``): each is a schedule entry the group must hold. A site that has never saved list settings has none."""
+    from papyrus_content.list_cadence import schedule as list_schedule
+    from papyrus_content.list_cadence.store import ListSettingsStore
+
+    tenant_id = getattr(client, "tenant_id", None)
+    if not tenant_id:
+        raise ValueError("The site's tenant is not known, so its lists cannot be read and their schedule entries would be deleted: sign in to the site (papyrus login).")
+    return list_schedule.wanted(ListSettingsStore((site_store_for or _site_store_for)(client)).read(tenant_id).document)
 
 
 def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, policy_factory=None, caller_factory=None) -> int:
