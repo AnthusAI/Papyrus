@@ -66,6 +66,13 @@ refuses({ ...base, lists: [] }, /lists must be a list of 1 to 20 lists/);
 refuses({ ...base, lists: [base.lists[0], base.lists[0]] }, /duplicate ids: stories/);
 refuses({ ...base, lists: [{ ...base.lists[0], approval: "sometimes" }] }, /approval must be "admin" or "none"/);
 refuses({ ...base, lists: [{ ...base.lists[0], kind: "alert" }] }, /unknown settings: kind/);
+const family = resolveNotificationsConfig({ ...base, lists: [{ ...base.lists[0], family: "new-stories", cadence: "daily", sendAt: { time: "06:00" }, timeZone: "America/New_York" }] } as never);
+assert.deepEqual(family.lists[0].sendAt, { time: "06:00" }, "a periodic list keeps its local send time, so a switch can wait for the next period start");
+assert.equal(family.lists[0].family, "new-stories");
+refuses({ ...base, lists: [{ ...base.lists[0], family: "Not A Family" }] }, /family/);
+refuses({ ...base, lists: [{ ...base.lists[0], cadence: "hourly" }] }, /cadence must be one of/);
+refuses({ ...base, lists: [{ ...base.lists[0], cadence: "daily" }] }, /sendAt/);
+refuses({ ...base, lists: [{ ...base.lists[0], cadence: "each", timeZone: "America/New_York" }] }, /names no sendAt or timeZone/);
 refuses({ ...base, theme: { ...base.theme, accent: "red;}" } }, /notifications plugin theme.accent/, "an unsafe theme stops the synth, worded for this plugin");
 refuses({ ...base, extra: 1 }, /unknown settings: extra/);
 {
@@ -80,7 +87,7 @@ refuses({ ...base, extra: 1 }, /unknown settings: extra/);
 }
 
 // Caducus is pinned exactly; the requirement file the bundler installs says the same.
-assert.equal(CADUCUS_REQUIREMENT, "caducus[notify]==0.3.0");
+assert.equal(CADUCUS_REQUIREMENT, "caducus[notify]==0.4.0");
 assert.ok(NOTIFICATIONS_REQUIREMENTS.includes(CADUCUS_REQUIREMENT));
 const requirements = readFileSync(new URL("../amplify/plugins/notifications/function/requirements.txt", import.meta.url), "utf8").split("\n");
 assert.ok(requirements.includes(CADUCUS_REQUIREMENT), "requirements.txt pins the same Caducus");
