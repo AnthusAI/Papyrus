@@ -35,6 +35,7 @@ Feature: A Story and the Announcements list show each Delivery in words and mark
     Given the decision "story-published:slow-water" of kind "story_published" is made for the Story "slow-water" with these Deliveries
       | channel | account  | approval | text        |
       | x       | handle-1 | none     | First words |
+    And the Delivery "x" "handle-1" has been sent
     And the person "ellie" corrects the Delivery "x" "handle-1" with the words "Corrected words"
     When the Story "slow-water" is read through the door for where it was announced
     Then the answer holds 1 Announcement

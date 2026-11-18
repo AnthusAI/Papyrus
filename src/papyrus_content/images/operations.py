@@ -779,6 +779,18 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
         notes="An agent follows that Delivery's review value: the correction is made at prepare, and it goes only as its own approval says. Built with corrections (PPY-3e0a8a).",
     ),
     Operation(
+        "announcements_record_manual", ("record-manual",), "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names that person.", "write",
+        obj({"delivery": text("The Delivery's id."), "url": text("The address of the post, an http or https URL.")}, ("delivery", "url")),
+        record({"id": text(), "state": text(), "resultUrl": text(), "attempt": {"type": "object", "description": "The attempt that was written: number, at, outcome, by and url."}}, ("id", "state", "resultUrl", "attempt")),
+        ("not_found", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "url": "https://example.org/status/1"},
+                 {"id": "announcement-1#x#handle#g1", "state": "sent", "resultUrl": "https://example.org/status/1",
+                  "attempt": {"number": 1, "at": "2026-11-17T09:05:00Z", "outcome": "sent", "by": "Ada Admin", "url": "https://example.org/status/1"}}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only, and the attempt names the signed-in person who posted it: an agent is told human_required. Only a manual Delivery that is ready (its words drafted and checked) is recorded, "
+              "once. No channel ever sends a manual Delivery.",
+    ),
+    Operation(
         "announcements_withdraw", ("withdraw",), "Withdraw a Delivery that went: this deletes a public post.", "write",
         obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
         group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,

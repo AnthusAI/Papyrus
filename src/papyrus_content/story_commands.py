@@ -698,6 +698,10 @@ def stories_show(flags: list[str]) -> None:
                          f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
         if signal["source"] == "editor":
             print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+        from .pod_claims import claim_lines
+
+        for line in claim_lines(latest):
+            print("\t".join(["stories", "show", "claim", line]))
         from datetime import datetime, timezone
 
         from .story_schedule import BLOCKED_MESSAGE, BLOCKED, OVERDUE, effective_state, scheduled_versions

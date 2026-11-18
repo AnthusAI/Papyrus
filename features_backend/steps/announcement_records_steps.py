@@ -85,7 +85,7 @@ def plans_from(context, table):
         policy = values["policy"] if "policy" in headings else DEFAULT_POLICY
         plans.append(Plan(
             channel=values["channel"], account_id=values["account"], approval=values["approval"], approval_policy=policy,
-            text=values.get("text") or f"Words for {values['channel']}", image_key=values.get("image") or None, lock_at=values.get("lock at") or None,
+            text=values.get("text") or f"Words for {values['channel']}", mode=values.get("mode") or "automatic", state=values.get("state") or "ready", image_key=values.get("image") or None, lock_at=values.get("lock at") or None,
             audience=tuple(name.strip() for name in values["lists"].split(",")) if values.get("lists") else (),
         ))
     return plans
@@ -187,6 +187,11 @@ def fail_next_upload(context):
 @then("the call fails")
 def call_fails(context):
     assert context.error is not None, "the call went through"
+
+
+@then("the call went through")
+def call_went_through(context):
+    assert context.error is None, repr(context.error)
 
 
 @then('the call is refused saying "{text:Q}"')
@@ -447,6 +452,36 @@ def correct(context, who, channel, account, words, generation=None, plan_account
     old = delivery_row(context, channel, account, generation)
     plan = Plan(channel=channel, account_id=plan_account or account, approval=old["approval"], approval_policy=old["approvalPolicy"], text=words)
     attempt(context, lambda: context.deliveries.supersede(old, plan, by=who, now=context.now))
+
+
+@step('the Delivery "{channel:Q}" "{account:Q}" has been sent')
+def delivery_sent(context, channel, account):
+    row = delivery_row(context, channel, account)
+    context.deliveries.finish(row, "sent", by="worker", note="sent", now=context.now)
+
+
+@step('generation {generation:d} of "{channel:Q}" "{account:Q}" has been sent')
+def generation_sent(context, generation, channel, account):
+    row = delivery_row(context, channel, account, generation)
+    context.deliveries.finish(row, "sent", by="worker", note="sent", now=context.now)
+
+
+@step('"{who:Q}" has read the Delivery "{channel:Q}" "{account:Q}" before anyone corrects it')
+def read_before(context, who, channel, account):
+    context.copies = getattr(context, "copies", {})
+    context.copies[who] = delivery_row(context, channel, account)
+
+
+@step('"{who:Q}" corrects the Delivery they read with the words "{words:Q}"')
+def corrects_the_copy(context, who, words):
+    old = context.copies[who]
+    plan = Plan(channel=old["channel"], account_id=old["accountId"], approval=old["approval"], approval_policy=old["approvalPolicy"], text=words)
+    attempt(context, lambda: context.deliveries.supersede(old, plan, by=who, now=context.now))
+
+
+@step("the next write of a relation fails as if the connection dropped")
+def fail_next_relation(context):
+    context.backend.fail_next("create", "SemanticRelation")
 
 
 @step('the person "{who:Q}" corrects the Delivery "{channel:Q}" "{account:Q}" with the words "{words:Q}"')

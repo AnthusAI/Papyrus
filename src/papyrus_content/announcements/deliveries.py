@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Iterator, Mapping, Protocol, Sequence
 
 from .records import (
-    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
+    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MANUAL, MODES, NONE, READY, SENT, SOFT, SUPERSEDED, SYSTEM,
     BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
@@ -36,6 +36,7 @@ INDEX_BY_DUE = "deliveriesByDue"
 
 # Why a Delivery is not releasable yet, in the words the list shows.
 NOT_WAITING = "not waiting to be sent"
+BY_HAND = "a person posts it by hand and records the address"
 NOT_READY = "the words are not ready"
 BEFORE_RELEASE = "waiting for its release time"
 NEEDS_APPROVAL = "waiting for approval"
@@ -68,8 +69,20 @@ class OpenAttempt(RecordError):
     a correction or a second attempt could put a second post out."""
 
 
+class NotSent(RecordError):
+    """The Delivery never went out, so there is nothing to correct. Its words are edited on the Delivery itself (``write_words``, or a new text version)."""
+
+
 class Conflict(RecordError):
     """Another writer changed the row since it was read. Read it again and decide again."""
+
+
+class CorrectedDifferently(Conflict):
+    """Someone already corrected the Delivery, with other words than these. ``successor`` is their Delivery; nothing of this caller's was written."""
+
+    def __init__(self, old: str, successor: str):
+        super().__init__(f"{old} was already corrected by {successor} with different words; read it again and decide whether that correction is the one you want.")
+        self.successor = successor
 
 
 class DeliveryFiles(Protocol):
@@ -266,6 +279,25 @@ class Deliveries:
             raise RecordError(f"{row['id']} has no words, so it is not ready.")
         return self._change(row, {"state": READY}, by=by, note="ready", now=now)
 
+    def write_words(self, row: Mapping[str, Any], plan: Plan, *, by: str, now: str | None = None) -> dict[str, Any]:
+        """Give a draft that has no words its first words: an edit of the same Delivery, not a correction. The Delivery becomes ready at the approval the plan names.
+
+        The words file is written first (the Delivery row exists, so the upload is accepted) and the row second, so a crash between them leaves a draft with no words
+        and the same call is made again."""
+        if row.get("textKey") or row.get("state") != DRAFTED:
+            raise RecordError(f"{row['id']} is {row.get('state')} and already has its words or is past the draft; only a draft with no words is written into.")
+        self.check(plan)
+        now = now or now_iso()
+        file = self.files.describe(row["id"], plan.text)
+        self.files.put(row["id"], plan.text, now=now)
+        approved = plan.approval == NONE
+        changes: dict[str, Any] = {
+            "state": READY, "textKey": file["key"], "contentHash": content_hash(file["sha256"], plan.image_key), "imageKey": plan.image_key, "draftedBy": plan.drafted_by,
+            "approval": plan.approval, "approvalPolicy": plan.approval_policy,
+            "approvedVersion": int(row["version"]) if approved else None, "approvedBy": SYSTEM if approved else None, "approvedAt": now if approved else None,
+        }
+        return self._change(row, changes, by=by, note="words written", now=now)
+
     def approve(self, row: Mapping[str, Any], *, version: int, by: str, now: str | None = None) -> dict[str, Any]:
         """Approve one version of the Delivery. Approving a version that is not the current one is refused: an approval names the version a person saw."""
         if int(version) != int(row["version"]):
@@ -365,6 +397,8 @@ class Deliveries:
         when an attempt opens (``attempts.Attempts.open``)."""
         now = utc(now)
         state = row.get("state")
+        if row.get("mode") == MANUAL:
+            return False, BY_HAND
         if state == DRAFTED:
             return False, NOT_READY
         budget_wait_ended = state == BLOCKED and row.get("waitingFor") == BUDGET_CYCLE and row.get("nextAttemptAt")
@@ -402,35 +436,51 @@ class Deliveries:
     # --- a correction -----------------------------------------------------------------------------------------------------------------------------
 
     def supersede(self, old: Mapping[str, Any], plan: Plan, *, release_at: str | None = None, by: str, now: str | None = None) -> dict[str, Any]:
-        """Replace a Delivery with a corrected one: the next generation, written with ``supersedes``, and the old one marked ``superseded`` and pointing forward.
+        """Replace a Delivery that went out with a corrected one: the next generation, written with ``supersedes``, and the old one marked ``superseded`` and pointing forward.
+
+        Only a sent Delivery is corrected (``NotSent``); one that never went is edited, not corrected. A Delivery with an attempt that has no answer yet is settled first
+        (``OpenAttempt``). The old row is read again here, so a caller's copy may be stale.
 
         AppSync has no transaction across writes, so this is three ordered, conditional writes that a retry finishes:
 
         1. create the next generation (conditional on its id, so two corrections of one Delivery cannot both win);
-        2. mark the old Delivery superseded (conditional on its ``updatedAt``, and only when it has no ``supersededBy``);
+        2. mark the old Delivery superseded (conditional on its ``revision``, and only when it has no ``supersededBy``);
         3. write the ``supersedes`` relation (an upsert).
 
-        A crash after 1 leaves a successor that names the old Delivery and an old one still live. Calling ``supersede`` again finds that successor and completes 2 and 3.
-        The live Delivery of a channel and account is always the highest generation, so no reader sees two."""
+        A crash after 1 leaves a successor that names the old Delivery and an old one still live; after 2, an old one that points at the successor and no relation.
+        Calling ``supersede`` again with the same words finds the successor and writes whatever is missing, from a fresh read of the old row or a stale one.
+        A call with other words finds the successor and raises ``CorrectedDifferently``: it is somebody else's correction, and neither its row nor its words file is
+        touched. The live Delivery of a channel and account is always the highest generation, so no reader sees two."""
         now = now or now_iso()
         if (plan.channel, plan.account_id) != (old["channel"], old["accountId"]):
             raise RecordError("A correction is for the same channel and account as the Delivery it replaces.")
-        if old.get("supersededBy"):
-            raise AlreadySuperseded(old["id"], old["supersededBy"])
-        generation = int(old["generation"]) + 1
-        successor_id = delivery_id(old["announcementId"], old["channel"], old["accountId"], generation)
+        current = self.get(old["id"]) or dict(old)
+        generation = int(current["generation"]) + 1
+        successor_id = delivery_id(current["announcementId"], current["channel"], current["accountId"], generation)
+        if current.get("supersededBy") not in (None, successor_id):
+            raise AlreadySuperseded(current["id"], current["supersededBy"])
         found = self.get(successor_id)
         if found is None:
-            current = self.get(old["id"]) or old
+            if current.get("supersededBy"):
+                raise RecordError(f"{current['id']} points at {successor_id}, which does not exist.")
             if open_attempt_of(current):
                 raise OpenAttempt(f"{old['id']} has an attempt with no answer yet (attempt {open_attempt_of(current)['number']}); it is settled before a correction is made.")
-        if found and found.get("supersedes") != old["id"]:
-            raise RecordError(f"{successor_id} exists and does not correct {old['id']}.")
-        if found:
+            if current.get("state") != SENT:
+                raise NotSent(f"{old['id']} is {current.get('state')}, not sent; a Delivery that never went is edited, not corrected.")
+            successor = self.create(current["announcementId"], plan, release_at=release_at or current["releaseAt"], by=by, now=now, generation=generation, supersedes=current["id"])
+        else:
+            if found.get("supersedes") != current["id"]:
+                raise RecordError(f"{successor_id} exists and does not correct {old['id']}.")
+            if found.get("contentHash") != self._plan_hash(successor_id, plan):
+                raise CorrectedDifferently(current["id"], successor_id)
             self.ensure_text(found, plan.text, now=now)
-        successor = found or self.create(old["announcementId"], plan, release_at=release_at or old["releaseAt"], by=by, now=now, generation=generation, supersedes=old["id"])
-        self._finish_supersede(old, successor, by=by, now=now)
+            successor = found
+        self._finish_supersede(current, successor, by=by, now=now)
         return self.get(successor["id"]) or successor
+
+    def _plan_hash(self, row_id: str, plan: Plan) -> str | None:
+        """The content hash a Delivery made from this plan carries (None for a draft with no words)."""
+        return content_hash(self.files.describe(row_id, plan.text)["sha256"], plan.image_key) if plan.text else None
 
     def _finish_supersede(self, old: Mapping[str, Any], successor: Mapping[str, Any], *, by: str, now: str) -> None:
         current = self.get(old["id"]) or dict(old)

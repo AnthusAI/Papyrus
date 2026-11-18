@@ -23,22 +23,15 @@
   ],
   "comments": [
     {
-      "id": "1a8f40b1-9afd-493d-8eb4-8a330c7d1a6f",
+      "id": "c1b4c46c-2e57-4f3a-b009-11ac8c1bfd26",
       "author": "home",
-      "text": "Question for Ryan (needs a Caducus change, so a design decision outside this repo). Enforcement here: a FamilyAudience (subclass of Caducus PublicAudience, caducus 0.3.0) applies the one-list-per-family rule and records membership 'since' in the one place Caducus writes a reader's lists (_set_lists), so subscribe, confirm, save-preferences, import and one-click unsubscribe all hold it. It overrides two private Caducus methods (_set_lists, _subscription_row). Q1: may the rule move upstream into AnthusAI/Caducus (a 'family' on AudienceList and 'since' on the SUB row), after which this subclass is deleted? Q2: Caducus Router.fan_out_page calls audience.subscriber_page(list_id, cursor) with no event, so a periodic Delivery cannot yet be limited to 'members at the period start'. FamilyAudience.subscriber_page already takes as_of (specs prove the noon switch through it), but nothing passes it. Proposal: an optional 'audienceAsOf' on the Caducus event, stored on the FANOUT row and handed to subscriber_page; Papyrus CaducusEmail.submit would then send list_cadence.family.period_start for a periodic Delivery. Q3: items published between a noon switch and the next period's start (afternoon story) reach the reader by neither route under the stated rule (every-item membership ended, daily summary starts the following period); confirm that gap is intended.",
-      "created_at": "2026-11-18T17:20:30.666273Z",
-      "comment_type": "default"
-    },
-    {
-      "id": "8eedb0a6-b237-45ff-aa74-deaa7fc25450",
-      "author": "home",
-      "text": "Branch feat/PPY-a19b9d-cadence-family, PR https://github.com/AnthusAI/Papyrus/pull/1683 (not merged).",
-      "created_at": "2026-11-18T17:20:51.441174Z",
+      "text": "PR #1683 open, NOT merged: one-list-per-family works but is a subclass of Caducus PublicAudience overriding private methods, and the periodic audience cannot yet be limited to period-start members. QUESTION for Ryan: may the family rule and membership since move upstream into Caducus (AnthusAI/Caducus, release path), with an optional audienceAsOf on the event? Also confirm that an item published after a noon switch and before the next period start reaching the reader by neither route is intended.",
+      "created_at": "2026-11-18T17:53:23.215968Z",
       "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:16.750449Z",
-  "updated_at": "2026-11-18T17:20:51.441537Z",
+  "updated_at": "2026-11-18T17:53:23.216186Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
