@@ -3,7 +3,7 @@
   "title": "Attempt log follow-up: release Caducus with the attempt id and remove :r<round> event ids",
   "description": "**Problem.** PPY-a570e8 (closed) says Caducus accepts `delivery:<id>:a<N>`, but Caducus PR #21 is merged to Caducus `develop` only; Caducus's latest release is 0.3.0 and Papyrus pins `==0.3.0`. The old `:r<round>` event id is still in `announcements/channel.py:32`. Closed with one criterion unmet; filed here, not reopened.\n\n**Change.** (1) Release Caducus with the attempt id and bump the Papyrus pin, before any work that sends on the new records. (2) Remove `:r<round>` event ids from Papyrus code. Item (2) may be done inside PPY-efd06c (X on the new records), which deletes the old path anyway; whichever is chosen is written on both tasks.\n\n**Acceptance criteria**\n- A Caducus release containing PR #21 exists and Papyrus pins it.\n- No `:r<round>` event id remains in Papyrus; sends use `delivery:<id>:a<N>`.\n- A scenario sends through the channel entry point and shows the attempt id reaching Caducus.\n\n**Gherkin features needed**\n- attempt-event-id.feature: 'a send uses the attempt event id'; 'a retry uses the next attempt number, never a round suffix'.\n\n**Dependencies:** relates PPY-a570e8 and PPY-efd06c. Does not block the rating agent. Must land before any work that sends on the new records (X on the new records, PPY-efd06c).\n\n**Report:** papyrus-track-report-1.md, section 1 (#1631 row; follow-up 4); checklist step 13.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -28,11 +28,18 @@
       "text": "Branch fix/PPY-ab48d4-attempt-event-ids. No Caducus release is needed: Caducus v0.3.0 (the pinned release) already treats event ids as opaque strings; PR #21 on Caducus develop only added specs (diff v0.3.0..develop is features/ and docs, a test: commit that cannot cut a release). Verified by sending delivery:<id>:a<N> through the worker into the real Caducus 0.3.0 router, delivery log and x channel (features_backend/attempt-event-id.feature). Papyrus no longer builds any :r<round> event id: the old X row shape's event id is now delivery:<announcementId>:a<N> (row field attempt replaces round). Acceptance 1 (a release containing PR #21) is withdrawn as not needed.",
       "created_at": "2026-11-18T12:48:16.717997Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b1e54f59-6719-4742-8dab-3b7c884e91c1",
+      "author": "home",
+      "text": "Merged to develop in #1671. No Caducus release was needed: v0.3.0 already treats event ids as opaque; Caducus PR 21 only added specs. :r<round> removed from Papyrus; sends use delivery:<id>:a<N>; verified against Caducus 0.3.0 pieces. Acceptance line 1 withdrawn on that evidence.",
+      "created_at": "2026-11-18T13:54:16.163977Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T01:17:21.737537Z",
-  "updated_at": "2026-11-18T12:48:16.719328Z",
-  "closed_at": null,
+  "updated_at": "2026-11-18T13:54:16.477392Z",
+  "closed_at": "2026-11-18T13:54:16.477245Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

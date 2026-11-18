@@ -30,10 +30,17 @@
       "text": "Branch feat/PPY-97c0f2-announcement-review-policy; PR opened against develop. Review policy built as the announce rung with overrides and requireReviewedSource; unmet lines listed in the PR.",
       "created_at": "2026-11-18T13:11:19.533352Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2a087f51-9c2f-4eae-8ef6-1e59fb3ea5bd",
+      "author": "home",
+      "text": "Merged to develop in #1673 (not released), ticket left open. Unmet: (1) post spacing per account (no channel settings home yet); (2) Announcements list display of policy waits for PPY-e4ae3a; (3) withdraw-by-agent-on-retire waits for PPY-3e0a8a; (4) none-rung via set-rung blocked by the ladder floor until PPY-36e7c9; (5) requireReviewedSource is publication-wide until channel/list rule objects exist. QUESTION for Ryan: no human review stamp existed as data; defined as the Story checklist step review_people done by a person against the Story's current version. Confirm or change.",
+      "created_at": "2026-11-18T13:54:16.949963Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:49:19.342619Z",
-  "updated_at": "2026-11-18T13:11:19.536286Z",
+  "updated_at": "2026-11-18T13:54:16.950274Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
