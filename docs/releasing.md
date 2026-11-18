@@ -97,6 +97,16 @@ Right after it registers the procedures, a site's Amplify build runs `papyrus ag
 
 Right after `papyrus agents apply`, the production build runs `papyrus agents schedules --site <brand id>` ([details](automations.md#the-schedule-trigger)): one EventBridge Scheduler entry for each switched-on agent that names a schedule, targeting the site's wake queue. **Unlike the apply step, it needs permissions the build role does not have yet** (the scheduler actions on the site's group, `iam:PassRole` on the scheduler role, the wake queue's address and the monitoring table read; the exact list is in automations.md). **Do not release a version that carries this step until a person has granted them**, or every site's build stops at it. The schedule group and the scheduler role are in the site's `agents` stack, which the first deploy of a new site leaves out.
 
+## The Item change feed and the listener index (PPY-8a374e)
+
+The release that carries slice B2 does three things, all ordinary updates (nothing is added to a new site's first deploy, whose resource count does not move; `npm run test:agents-stack` prints the count and proves it):
+
+1. **The Item table gets a stream** (both images; it had none and no reader). It is switched on only with the `agents` stack that reads it, so a site's second deploy turns it on and a first deploy does not. Enabling a stream is a property change on an existing table: no index is added, so the one-new-index-per-table rule is untouched.
+2. **The `agents` stack gains the feed**: a function, its role and policy, and the stream mapping (4 resources), for a dedicated site that has a tenant id. A shared stack gets none.
+3. **The production build writes the listener index** right after the schedule step: `papyrus agents listeners` ([details](automations.md#the-listener-index-and-the-item-change-feed)). It needs nothing the schedule step does not. A site whose index has not been written has no listeners, so the feed sends nothing until its first build with this step; no agent is switched on by it (the runner still checks the policy for every wake).
+
+What a deploy cannot show, and a person checks once on a real site after the release: a board move and a CLI save each put one wake per listening agent on the queue, a repeat of the same record puts none, and the dead-letter queue stays empty (PPY-8a374e lists the proof that remains).
+
 ## The first agent: rating on Machines on Machines (PPY-d85860)
 
 The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/rating-agent.feature`) is the first

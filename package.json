@@ -26,6 +26,7 @@
     "test:pretext-layout": "tsx scripts/test-pretext-layout.ts",
     "test:public-forms": "tsx scripts/test-public-forms.ts",
     "test:wake-keys": "tsx --test amplify/functions/procedure-action/wake-key.test.ts && cucumber-js --profile wakeKeyDuplicate && poetry run behave features_backend/wake-keys.feature features_backend/wake-guard-check.feature",
+    "test:item-change-feed": "poetry run pytest -q src/papyrus_content/item_change_feed_test.py src/papyrus_content/agent_listeners_test.py src/papyrus_content/agent_definitions/release_test.py && poetry run behave features_backend/item-change-feed.feature",
     "test:agent-policy": "poetry run pytest -q src/papyrus_content/agent_policy src/papyrus_content/site_store_test.py && poetry run behave features_backend/agent-policy.feature features_backend/site-documents.feature",
     "test:guidelines": "poetry run pytest -q src/papyrus_content/guidelines && poetry run behave features_backend/guidelines-store.feature features_backend/guidelines-writing-resolve.feature features_backend/guidelines-image-sections.feature features_backend/image-profile.feature",
     "test:tenant-claims": "tsx --test scripts/test-tenant-claims.ts && poetry run pytest -q src/papyrus_content/tenant_records_test.py && poetry run behave features_backend/tenant-session-claims.feature",

@@ -41,6 +41,7 @@ import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { agentPieces } from "./agents/pieces";
+import { enableItemStream } from "./agents/item-change-feed";
 import { ADMIN_AGENT_POLICY_GRANT_STACK_NAME, ADMIN_AGENT_POLICY_GROUP, addAdminAgentPolicyGrant } from "./agents/admin-policy-grant";
 import { addAgentsStack } from "./agents/stack";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
@@ -943,7 +944,27 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
   wireAnnouncements(backend, siteBackendIdentity.brandId);
   // Every always-on agent resource is in the one `agents` stack, which the first deploy of a new site leaves out (amplify/agents/stack.ts).
-  addAgentsStack((name) => backend.createStack(name), agentPieces(siteBackendIdentity.brandId), isBootstrapStage(process.env));
+  // The Item change feed (slice B2) reads the Item table's stream, so the stream is switched on with the stack that reads it, never in the first deploy. A dedicated site
+  // with a tenant id only: a shared stack's rows carry tenants it does not act for, and the listener index is one site's document.
+  const bootstrapStage = isBootstrapStage(process.env);
+  const itemStreamArn = tenancyMode !== "shared" && backendTenantId !== "" && !bootstrapStage ? enableItemStream(backend) : undefined;
+  addAgentsStack(
+    (name) => backend.createStack(name),
+    agentPieces(siteBackendIdentity.brandId, {
+      itemChangeFeed:
+        itemStreamArn === undefined
+          ? undefined
+          : {
+              streamArn: itemStreamArn,
+              graphqlUrl: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string,
+              apiId: backend.data.resources.graphqlApi.apiId as string,
+              tenantId: backendTenantId,
+              bucketName: storageBucket.bucketName,
+              bucketArn: storageBucket.bucketArn,
+            },
+    }),
+    bootstrapStage,
+  );
   // The signed-in admin may put and get the agent policy document's versions (`papyrus agents set-rung --apply`). A dedicated site only: the grant names every
   // tenant's prefix, which a shared stack's admin must not hold.
   if (tenancyMode !== "shared") {

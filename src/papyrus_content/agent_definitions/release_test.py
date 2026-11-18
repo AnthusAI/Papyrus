@@ -114,3 +114,35 @@ def test_an_automation_that_exists_without_a_tenant_id_stops_the_apply_and_names
     code, body = run([], site, core, tmp_path)
     assert code == 2 and "rate" in body["error"]["message"] and "carries no tenantId" in body["error"]["message"]
     assert "content backfill-tenant-id" in body["error"]["message"] and site.writes == 0
+
+
+class StoreSite(Site):
+    tenant_id = "alpha"
+
+
+def listeners_run(argv, core, tmp_path, store):
+    out = io.StringIO()
+    code = cli.listeners_command([*argv, "--core", str(core), "--root", str(tmp_path)], out, client_factory=lambda: StoreSite(), site_store_factory=lambda client: store)
+    return code, json.loads(out.getvalue())
+
+
+def test_listeners_writes_the_index_once_and_check_fails_on_a_difference(core, tmp_path):
+    from papyrus_content.site_store import SiteStore
+    from papyrus_content.site_store_test import FakeS3, FakeTable
+
+    store = SiteStore(FakeS3(), "bucket", FakeTable(), now=lambda: "2026-11-18T00:00:00Z")
+    code, body = listeners_run(["--check"], core, tmp_path, store)
+    assert code == 2 and body["error"]["code"] == "constraint_conflict" and store.current_version("alpha", "listeners") == 0
+    code, body = listeners_run(["--dry-run"], core, tmp_path, store)
+    assert code == 0 and body["result"]["action"] == "dry-run" and body["result"]["index"]["applied"] is False and store.current_version("alpha", "listeners") == 0
+    code, body = listeners_run([], core, tmp_path, store)
+    assert code == 0 and body["result"]["index"]["applied"] is True and store.current_version("alpha", "listeners") == 1
+    code, body = listeners_run([], core, tmp_path, store)
+    assert code == 0 and body["result"]["index"]["action"] == "unchanged" and store.current_version("alpha", "listeners") == 1
+    assert listeners_run(["--check"], core, tmp_path, store)[0] == 0
+
+
+def test_listeners_needs_the_site_tenant(core, tmp_path):
+    out = io.StringIO()
+    code = cli.listeners_command(["--core", str(core), "--root", str(tmp_path)], out, client_factory=lambda: Site(), site_store_factory=lambda client: None)
+    assert code == 2 and "tenant" in json.loads(out.getvalue())["error"]["message"]

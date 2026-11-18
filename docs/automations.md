@@ -400,6 +400,33 @@ These are written as templates and code and are not applied until the release th
   to the scheduler service; and the same read of the monitoring table and its parameter that `papyrus automations run` uses, to read the router publication.
   It needs nothing on the queue's messages, and it never creates a group or a role.
 
+## The listener index and the Item change feed
+
+An agent that listens for a change to a Story or its checklist (`wakes.changes` with `kind: Item`) is woken by the Item change feed (slice B2, PPY-8a374e), a
+stream consumer on the Item table in the site's `agents` stack. It must find the agents that listen without listing the Automation table on every change, so
+the deploy writes **the listener index**: `papyrus agents listeners` (the site's build runs it right after `agents schedules`; a person may run it again, with
+`--dry-run` or `--check`). The index is one small site document of kind `listeners` (versioned, its body an S3 object at `tenants/<tenant>/site/listeners/<version>.json`,
+as the agent policy is), derived from the definitions in Git, keyed by the change (`Item/stage_entered`, `Item/version_created`, `Item/step_changed`), each entry naming the
+agent, its procedure, whether it is paid, its serial scope and its filter. The same definitions write nothing; a changed set writes the next version; a definition removed
+from Git leaves the index at the next deploy. It holds no rung, pause or budget: the runner checks the policy for every wake, so a deploy still cannot change them.
+
+* **What the deploy step needs:** nothing new for an app-shell `cms` site (its build role has the access the schedule step uses). Any other build role needs
+  `s3:PutObject` and `s3:GetObject` on `tenants/<tenant>/site/listeners/*` in the site's bucket, and the site API's `getSiteDocument`, `getSiteDocumentVersion`,
+  `createSiteDocument`, `createSiteDocumentVersion` and `updateSiteDocument`, as the policy document's writer holds them.
+* **What the feed may do** (its role, in the agents stack): read the Item stream; call `getSiteDocument` on its own site's API and read the listener index's objects of its
+  own tenant; look up and send to its own site's wake queue. It reads no table, receives and deletes no wake, and calls no model.
+* **The feed's changes and what a filter may name.** `version_created` (a new version of an Item that is not a checklist step): `type`, `stage`, `section`, `language`,
+  `versionNumber`, `actorKind`. `stage_entered` (a first version created at a stage, or the stage field changed in place, as a board move does): `type`, `stage`, `from`,
+  `section`, `language`, `actorKind`. `step_changed` (a checklist step got a new state; a note is no change): `step`, `state`, `actorKind`. A filter is a flat set of these
+  fields; every one must equal the change's field as text.
+* **The wake.** Key `<agent>|<Story lineage>|<version id>|<what>` (`what` is the change; a stage entry names its stage, `stage_entered.<stage>`); the message group is the agent plus
+  the Story. The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the quiet window for paid steps (PPY-67e3cd) and the
+  loop guard (PPY-4e7e8b) need; those two sit between the feed and the queue and are not built yet. An agent's own change (`automation:<agent>`) never wakes that agent.
+* **Who is the writer.** A version's `versionCreatedBy` and a step's recorded actor name an agent as `automation:<id>`. An agent's stage move is recorded on the version
+  (`move_story_stage`); a change of the stage field with no new record of the move is a person's, made in the console board.
+* **Limits of a stream.** A new version created at a different stage from its predecessor is not a stage entry (the stream holds no previous version), and a stage entered
+  again at the same version has the same key, so it starts nothing again.
+
 ## Console
 
 Administration, Automation, beside Procedures. It lists each automation (title, trigger, procedure, enabled,

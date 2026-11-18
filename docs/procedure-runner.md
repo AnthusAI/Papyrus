@@ -145,6 +145,17 @@ holds `lambda:InvokeFunction` on the runner any more.
 (`startFailed`, with the queue's name). Release order: the runner and monitoring stacks (role statements, consumer, router) go in one quiet window with the sites'
 bumps, as in [releasing](releasing.md); the queue's duplicate drop is shown once on a real site before the queue is used there (PPY-817340 proves the run record's once-only create).
 
+## The Item change feed
+
+A DynamoDB stream on the Item table (switched on with the `agents` stack that reads it, never in a new site's first deploy) invokes the feed function
+(`amplify/agents/item-change-feed.ts`, `amplify/functions/item-change-feed/handler.py`, `src/papyrus_content/item_change_feed.py`; slice B2, PPY-8a374e). For each
+record it normalizes the change (a version created, a stage entered, a checklist step's new state), finds the agents that listen in the site's listener index
+(one document, read by its live version; see [automations](automations.md#the-listener-index-and-the-item-change-feed)), and puts one wake on the site's queue for
+each through `agent_wakes.send_wake`. The key is `<agent>|<lineage>|<version>|<what>`, so a stream record delivered twice makes the same keys and starts nothing
+twice (the queue drops the repeat for five minutes, the run record's condition after that). Whoever wrote the change (the console board, the command line, an agent,
+a person) the record is the same. An agent's own change never wakes that agent, a change nobody listens for sends nothing, and nothing lists a table. A record whose
+wakes cannot all be sent is reported failed and Lambda retries from it. The Item table had no stream and no reader before; it holds one reader now, the feed.
+
 ## Proving the once-only create on a real site
 
 The newsroom function (`amplify/functions/procedure-action/handler.ts`) answers a wake key that already has its run as
