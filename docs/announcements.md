@@ -4,7 +4,7 @@ Status: backend built and merged to `develop` (epic PPY-09ee86, stories PPY-9f4d
 
 The records that replace this row shape (one Announcement, one Delivery for each channel) are in [announcement records](announcement-records.md); the X rewire onto them is PPY-efd06c.
 
-A Story that qualifies is announced once on the publication's own X account, automatically. There is **no approval step**: the text passes the automatic checks or is not posted.
+A Story that qualifies is announced once on the publication's own X account, automatically. There is **no approval step** on this X path: the text passes the automatic checks or is not posted. The Delivery records carry a per-publication human review (none, soft or hard) as the announce rung of the agent policy; see [announcement records](announcement-records.md#review-policy-ppy-97c0f2). Nothing is wired to it yet, and no site's behaviour changed.
 
 ## What decides
 

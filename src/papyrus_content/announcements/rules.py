@@ -36,6 +36,7 @@ def view(document: Mapping[str, Any], connection: Mapping[str, Any]) -> dict[str
     rules, pause = document.get("rules") or {}, document.get("pause") or {}
     return {
         "mode": document.get("mode", OFF), "minStars": rules.get("minStars"), "storyTypes": rules.get("storyTypes") or [], "sections": rules.get("sections") or [],
+        "requireReviewedSource": bool(rules.get("requireReviewedSource")),
         "accountId": connection.get("accountId"), "accountHandle": connection.get("handle"), "connected": connection.get("connection") == CONNECTED,
         "connectionStatus": connection.get("connection"), "budget": document.get("budget"), "billingCycleDay": document.get("billingCycleDay"),
         "prices": document.get("prices") or {}, "labelConfirmed": bool(document.get("labelConfirmed")),

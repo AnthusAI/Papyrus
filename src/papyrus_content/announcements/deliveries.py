@@ -25,7 +25,7 @@ from typing import Any, Iterator, Mapping, Protocol, Sequence
 
 from . import links
 from .records import (
-    APPROVALS, AUTOMATIC, BLOCKED, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
+    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
     BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
@@ -269,6 +269,26 @@ class Deliveries:
         if row.get("state") not in LIVE_STATES:
             raise RecordError(f"{row['id']} is {row.get('state')}; only a live Delivery is approved.")
         return self._change(row, {"approvedVersion": int(version), "approvedBy": by, "approvedAt": now or now_iso()}, by=by, note=f"approved version {version}", now=now)
+
+    def change_approval(self, row: Mapping[str, Any], approval: str, *, by: str, now: str | None = None) -> dict[str, Any]:
+        """An editor changes the review of this one Delivery, before it goes. The publication's policy and the Announcement's other Deliveries are not touched, and the row
+        records that a person chose it (``approvalPolicy``).
+
+        Moving to ``none`` is the editor's own decision to let the current version go: it is approved by that person. Moving away from ``none`` takes back the policy's
+        approval (``system``) of the current version, so it waits for a person; an approval a person gave stays."""
+        if approval not in APPROVALS:
+            raise RecordError(f"approval is one of {', '.join(APPROVALS)}; not {approval!r}.")
+        if row.get("state") not in BEFORE_SEND_STATES:
+            raise RecordError(f"{row['id']} is {row.get('state')}; the review of a Delivery changes only before it goes.")
+        if approval == row.get("approval"):
+            return dict(row)
+        now = now or now_iso()
+        changes: dict[str, Any] = {"approval": approval, "approvalPolicy": f"set for this Delivery by {by}"}
+        if approval == NONE:
+            changes.update(approvedVersion=int(row["version"]), approvedBy=by, approvedAt=now)
+        elif row.get("approvedBy") == SYSTEM:
+            changes.update(approvedVersion=None, approvedBy=None, approvedAt=None)
+        return self._change(row, changes, by=by, note=f"review changed from {row.get('approval')} to {approval}", now=now)
 
     def is_approved(self, row: Mapping[str, Any]) -> bool:
         """Whether the current version is approved. A later version than ``approvedVersion`` is not."""

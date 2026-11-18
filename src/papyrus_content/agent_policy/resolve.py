@@ -4,7 +4,7 @@ Pure functions over a ``PolicyState``; they read nothing and write nothing, so a
 
 * An unnamed responsibility is at ``off``. A new agent is quiet until a person names it.
 * The agent's own entry gives its rung; an override that matches the call replaces it. The narrowest matching override wins:
-  the one that names the earliest dimension of ``SCOPE_DIMENSIONS`` (list, then channel, kind, story type, section) the other
+  the one that names the earliest dimension of ``SCOPE_DIMENSIONS`` (list, then kind, channel, story type, section) the other
   does not, so a scope that adds a dimension to another's is narrower than it. Two overrides cannot share a scope (the validator
   refuses it), so the answer never depends on the order they are written in.
 * A pause, on the site or on the agent, starts nothing and says why. ``off`` starts nothing. Nothing is queued for later:

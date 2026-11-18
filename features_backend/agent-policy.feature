@@ -66,6 +66,13 @@ Feature: The agent policy document
     And the rung of "announce" for list "weekly" and channel "linkedin" is "publish_auto"
     And the rung of "announce" for channel "email" is "publish_soft"
 
+  Scenario: A kind override is narrower than a channel override
+    Given a site where "announce" is at "publish_soft"
+    And an admin gave "announce" the rung "publish_auto" for channel "linkedin" because "LinkedIn goes by itself"
+    And an admin gave "announce" the rung "prepare" for kind "roundup" because "Roundups wait for a person"
+    Then the rung of "announce" for channel "linkedin" and kind "roundup" is "prepare"
+    And the rung of "announce" for channel "linkedin" and kind "story_published" is "publish_auto"
+
   Scenario: Two overrides cannot claim the same scope
     Given a site where "improve" is at "prepare"
     And an admin gave "improve" the rung "publish_soft" for section "briefs" because "Briefs are low risk"

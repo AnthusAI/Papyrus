@@ -155,6 +155,11 @@ from papyrus_content.announcements.handlers import signed_in_handlers as _announ
 
 HANDLERS.update(_announcement_handlers())
 
+# Announcement review (PPY-97c0f2): the announce rung and its overrides, and one Delivery's review.
+from papyrus_content.announcements.review_handlers import signed_in_handlers as _review_handlers  # noqa: E402
+
+HANDLERS.update(_review_handlers())
+
 
 # The rating operation (PPY-d85860) runs on the same lane: whoever runs it, a person's session or the procedure runner's role, opens its own authoring client.
 from papyrus_content.rating_handlers import signed_in_handlers as _rating_handlers  # noqa: E402

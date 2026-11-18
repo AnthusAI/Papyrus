@@ -1,6 +1,6 @@
 # Announcement and Delivery records
 
-Status: records, indexes and relation types (PPY-3792dd, slice 1 of epic PPY-a36492) and the attempt log (PPY-a570e8, slice 2) merged to `develop`; cloud only, nothing is wired to send. Design: `~/Projects/papyrus-announcement-delivery-design.md` sections 2, 2.1, 2.2 and 13.
+Status: records, indexes and relation types (PPY-3792dd, slice 1 of epic PPY-a36492), the attempt log (PPY-a570e8, slice 2) and the review policy (PPY-97c0f2) merged to `develop`; cloud only, nothing is wired to send, and no site's behaviour changed. Design: `~/Projects/papyrus-announcement-delivery-design.md` sections 2, 2.1, 2.2 and 13.
 
 Two records replace "one row for each announcement on each channel":
 
@@ -35,6 +35,18 @@ A retry is an attempt. A Delivery's `attempts` field is a log that only grows; e
 
 Caducus needs no change to accept the id shape (its event id is any non-empty text it dedupes on); it has its own spec for `delivery:<id>:a<N>`.
 
+## Review policy (PPY-97c0f2)
+
+Human review is a per-publication setting, not a rule. `announcementReview` is the announce responsibility's rung in the site's agent policy document (`src/papyrus_content/announcements/review_policy.py`; ladder in `src/papyrus_content/agent_policy/`): `hard` is `prepare` (a person must release it), `soft` is `publish_soft` (a person may edit or stop it before its lock time; silence lets it go), `none` is `publish_auto` (fully automatic). A rung below `prepare` prepares no Delivery, and the result says why. There is no second setting and no code default: an `announce` entry that is not in the document means off.
+
+- **Overrides, narrowest wins:** the publication, then a channel, then an Announcement kind, then a list (newsletters). Each is optional, and they are the ladder's overrides, so one resolver answers every responsibility. A kind override beats a channel override (the ladder ranked them the other way round until this slice).
+- **Written to each Delivery.** The value chosen is the Delivery's `approval`, and `approvalPolicy` says where it came from and the policy version, for example `override: kind roundup (agent policy version 4)` or `publication policy (agent policy version 4)`. It applies to Announcements made afterwards; a Delivery keeps what it was made under unless an editor changes that one (`Deliveries.change_approval`, the operation `announcements_delivery_review_set`), which then reads `set for this Delivery by <person>`.
+- **`requireReviewedSource` is not a rung.** It is a condition on the input, in the announcement settings (`rules.requireReviewedSource`, off unless a person turns it on, `papyrus announcements settings set --require-reviewed-source`). When on, `intake.announce_story` makes an Announcement only for a Story a person has reviewed on its current version: the Story's checklist step `review_people` done by a person against that version number (`ChecklistReviewStamps`). A Story edited after its review has no stamp until a person marks the step again, and a Delivery whose Story changed goes back to a draft and is made ready again only once the Story is reviewed (`intake.make_ready`).
+- **Floors under every policy.** A Story with no rating or under three stars is never announced, and a five counts only when a person gave it (`intake.floor_refusal`).
+- **What a person and an agent may do** is rows of the one operation table (`announcements_*`, group `announcements`): an agent may release under `none` (rung `publish_auto`), is told `human_required` under `soft` or `hard`, may draft from `draft` and correct from `prepare`, and is `blocked` from changing a pinned block, the review policy or the budget. `announcements_review_set` sets the publication's value or one override (admins who are people only); `none` is refused while the ladder's hard floor for doubt (PPY-36e7c9) is missing, as `agents set-rung` refuses `publish_auto`.
+- **In the list:** `review_policy.approval_label(row)` gives the words and a mark for each Delivery (`Released automatically by publication policy` with `bot`, `Released by a person (ellie)` with `user-check`, `Goes at its lock time unless a person stops it` with `hourglass`, `Waits for a person to release it` with `hand`). The console list that shows them is PPY-e4ae3a.
+- **Specs:** `announcement-review-policy.feature`, `announcement-review-floors.feature`, `announcement-review-permissions.feature`, and the settings scenarios in `announcement-settings.feature`.
+
 ## Reads: every one is an index or a get
 
 | Read | Index |
@@ -55,4 +67,4 @@ No subscriptions. The code is in `src/papyrus_content/announcements/` (`records.
 
 ## Not in this slice
 
-The channel transport for X and the queue with one consumer for each account, the "Outcome unknown" mark in the list, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), the review policy (PPY-97c0f2), text versions and pinned edits (PPY-e8ec54), and the console. Nothing sends.
+The channel transport for X and the queue with one consumer for each account, the "Outcome unknown" mark in the list, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), text versions and pinned edits (PPY-e8ec54), and the console. Nothing sends.

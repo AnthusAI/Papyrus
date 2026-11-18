@@ -40,7 +40,7 @@ def update_settings(services: Services, changes: Mapping[str, Any], *, by: str) 
     sentence. Stories that waited on a guard are announced when the change lifts it (a bigger budget, a connected account, a billing cycle day)."""
     document = services.settings.read()
     proposed = {**document, "rules": dict(document["rules"])}
-    for name in ("minStars", "storyTypes", "sections"):
+    for name in ("minStars", "storyTypes", "sections", "requireReviewedSource"):
         if name in changes:
             proposed["rules"][name] = changes[name]
     for name in ("mode", "billingCycleDay", "labelConfirmed", "prices"):
