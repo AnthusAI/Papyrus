@@ -29,15 +29,17 @@ Feature: The pod context is generated from the relation types
       member_of
       supports
       contradicts
+      announces
+      supersedes
       """
 
   Scenario: The context pins the profile and Vault-LD
     When the pod context is generated from the shipped relation types
-    Then the context records profile version 2, Vault-LD 0.5.0 and commit "025e71b"
+    Then the context records profile version 3, Vault-LD 0.5.0 and commit "025e71b"
 
   Scenario: The context says which classes a note may have
     When the pod context is generated from the shipped relation types
-    Then the context lists the classes "papyrus:Article", "papyrus:Post", "papyrus:Page", "papyrus:Reference", "papyrus:Concept", "papyrus:Person", "papyrus:Organization", "papyrus:Section" and "papyrus:Relation"
+    Then the context lists the classes "papyrus:Article", "papyrus:Post", "papyrus:Page", "papyrus:Reference", "papyrus:Concept", "papyrus:Person", "papyrus:Organization", "papyrus:Section", "papyrus:Relation", "papyrus:Announcement" and "papyrus:Delivery"
 
   Scenario: The profile has the lifecycle keys
     When the pod context is generated from the shipped relation types

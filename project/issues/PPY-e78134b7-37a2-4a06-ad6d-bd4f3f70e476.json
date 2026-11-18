@@ -23,9 +23,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "58ae716a-4f92-4754-a97f-40d73d142b10",
+      "author": "home",
+      "text": "Branch feat/PPY-e78134-pod-notes; PR to follow. Note: papyrus pod load does not exist yet (not on the board); the loader is PodHistory in src/papyrus_content/announcements/pod_history.py plus papyrus.pod.announcement_notes.read, ready for the load command to call.",
+      "created_at": "2026-11-18T15:56:57.981247Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:38.792114Z",
-  "updated_at": "2026-11-16T22:02:50.248188Z",
+  "updated_at": "2026-11-18T15:56:57.982551Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

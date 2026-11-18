@@ -15,8 +15,8 @@ from urllib.parse import urlsplit
 
 from papyrus_content.guidelines import files as guideline_files
 
-from . import context, profile
-from .notes import Note, body_hash, parse, walk
+from . import attempts as attempt_lines, context, profile
+from .notes import Note, body_hash, name_index, parse, walk
 from .profile import Key, RelationType
 
 POD_LEVEL = "(pod)"
@@ -24,6 +24,10 @@ GUIDELINES_FOLDER = "guidelines"
 HASH_FORM = re.compile(r"^sha256:[0-9a-f]{64}$")
 REVIEW_CLAIMS_LINE = ("review keys in a pod are claims, not newsroom review; nothing in a pod satisfies a gate, a required step, "
                       "publishRequiresRating or a five-star rule")
+STATES_OF = {"Relation": profile.RELATION_STATES, "Announcement": profile.ANNOUNCEMENT_STATES, "Delivery": profile.DELIVERY_STATES}
+LINK_TARGETS = {"section": "Section", "announcement": "Announcement"}    # a link key that must name a note of one class
+PAGE_ONLY_KEYS = ("stage", "draft", "format", "redirects", "section")
+UTC_TIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z$")
 WIKI_LINK = re.compile(r"^\[\[([^\[\]]*)\]\]$")
 
 
@@ -84,6 +88,7 @@ class _Checker:
         self.site_keys: dict[str, Key] = {}
         self.links: list[Link] = []
         self.ends: dict[tuple[str, str], Note] = {}
+        self.announcements: dict[str, Note] = {}     # a Delivery note's path -> the Announcement note it belongs to
 
     def problem(self, path: str, message: str) -> None:
         self.report.problems.append(Problem(path, message))
@@ -108,6 +113,7 @@ class _Checker:
             self._check_note(note, by_name)
         self._check_duplicate_ids(typed)
         self._check_duplicate_links()
+        self._check_records()
         self._check_history()
 
     # ---- the context files -----------------------------------------------------------------------------------------
@@ -128,13 +134,7 @@ class _Checker:
     # ---- one typed note -------------------------------------------------------------------------------------------
 
     def _index(self) -> dict[str, list[Note]]:
-        index: dict[str, list[Note]] = {}
-        for note in self.notes:
-            stem = note.path.removesuffix(".md")
-            parts = stem.split("/")
-            for start in range(len(parts)):
-                index.setdefault("/".join(parts[start:]), []).append(note)
-        return index
+        return name_index(self.notes)
 
     def _check_note(self, note: Note, by_name: dict[str, list[Note]]) -> None:
         front = note.front or {}
@@ -160,6 +160,44 @@ class _Checker:
             self.problem(note.path, "is a Reference and has no url; a Reference is one outside work, found by its address")
         if class_name == "Relation":
             self._check_relation_note(note, front)
+        if class_name in profile.NEVER_PAGES:
+            self._check_record_note(note, front, class_name)
+
+    def _check_record_note(self, note: Note, front: dict, class_name: str) -> None:
+        """An Announcement or a Delivery is a record of what was said and where. It is never a page, so it carries none of the keys that decide a page."""
+        for name in PAGE_ONLY_KEYS:
+            if name in front:
+                self.problem(note.path, f"{_a(class_name)} is never a page, so it has no {name!r}; that key is for a note that is built into a site")
+        required = {"Announcement": ("kind", "state"), "Delivery": ("announcement", "channel", "account", "mode", "state")}[class_name]
+        missing = [name for name in required if name not in front]
+        if missing:
+            self.problem(note.path, f"is {_a(class_name)} and has no {', no '.join(missing)}")
+        if class_name == "Delivery":
+            if not note.body.strip():
+                self.problem(note.path, "is a Delivery and has no words; the words, exactly as posted, are the body of the note")
+            self._check_state_matches_attempts(note, front)
+
+    def _check_attempts(self, note: Note, value: object) -> None:
+        if not isinstance(value, list):
+            self.problem(note.path, "key 'attempts' takes a list of lines, one for each attempt")
+            return
+        for position, line in enumerate(value, 1):
+            _, why = attempt_lines.parse(line, position)
+            if why:
+                self.problem(note.path, f"attempt {position} {why}")
+
+    def _check_state_matches_attempts(self, note: Note, front: dict) -> None:
+        """A Delivery that is sent or failed says how its last attempt ended."""
+        state = front.get("state")
+        wanted = {"sent": "sent", "failed": "refused"}.get(state) if isinstance(state, str) else None
+        lines = front.get("attempts", [])
+        if not wanted or not isinstance(lines, list):
+            return
+        parsed = [attempt_lines.parse(line, position)[0] for position, line in enumerate(lines, 1)]
+        if None in parsed:
+            return    # a line that cannot be read was reported with its key
+        if not parsed or parsed[-1].outcome != wanted:
+            self.problem(note.path, f"is {state} and its last attempt did not end {wanted}; the state says how the last attempt ended")
 
     def _check_lifecycle(self, note: Note, front: dict) -> None:
         if "stage" in front and "draft" in front:
@@ -200,18 +238,21 @@ class _Checker:
         keys = {key.name: key for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS)}
         for name in self.relations:
             keys[name] = Key(name, f"papyrus:{name}", profile.LINK_LIST)
-        if class_name == "Relation":
-            for key in profile.RELATION_KEYS:
+        if class_name in profile.CLASS_KEYS:
+            for key in profile.CLASS_KEYS[class_name]:
                 keys[key.name] = key
-            for name in self.relations:
-                keys.pop(name, None)
+            if class_name == "Relation":
+                for name in self.relations:
+                    keys.pop(name, None)
         keys.update(self.site_keys)
         return keys
 
     def _unknown_key(self, note: Note, name: str, class_name: str | None) -> None:
-        relation_only = {key.name for key in profile.RELATION_KEYS}
-        if name in relation_only:
-            self.problem(note.path, f"key {name!r} belongs to a Relation note, and this note is {'a ' + class_name if class_name else 'not a Relation'}")
+        owners = [owner for owner, keys in profile.CLASS_KEYS.items() if any(key.name == name for key in keys)]
+        if owners:
+            names = [_a(owner) + " note" for owner in owners]
+            owned = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
+            self.problem(note.path, f"key {name!r} belongs to {owned}, and this note is {_a(class_name) if class_name else 'not one of them'}")
             return
         pool = [*self._keys_for(class_name)]
         match = difflib.get_close_matches(name, pool, n=1)
@@ -250,10 +291,17 @@ class _Checker:
                 self.problem(note.path, f"key 'stage' is {value!r}; a stage is one of {', '.join(profile.STAGES)}{hint}")
             elif name == "reviewedHash" and not HASH_FORM.match(value):
                 self.problem(note.path, "key 'reviewedHash' is sha256: and 64 hex digits, the hash of the body that was reviewed")
-            elif name == "state" and class_name == "Relation" and value not in profile.RELATION_STATES:
-                self.problem(note.path, f"key 'state' is {value!r}; a state is one of {', '.join(profile.RELATION_STATES)}")
+            elif name == "state" and class_name in STATES_OF and value not in STATES_OF[class_name]:
+                self.problem(note.path, f"key 'state' is {value!r}; a state is one of {', '.join(STATES_OF[class_name])}")
+            elif name == "mode" and value != profile.POD_MODE:
+                self.problem(note.path, f"key 'mode' is {value!r}; a pod delivers in {profile.POD_MODE} mode only, because sending automatically needs a connected account, a budget guard and Caducus, which a newsroom has and a pod does not")
+            elif name == "releaseAt" and not _utc_time(value):
+                self.problem(note.path, "key 'releaseAt' takes a time in UTC written 2026-11-16T14:00Z")
             return
         if kind == profile.TEXT_LIST:
+            if name == "attempts":
+                self._check_attempts(note, value)
+                return
             items = value if isinstance(value, list) else [value]
             for item in items:
                 if not isinstance(item, str) or not item:
@@ -298,9 +346,11 @@ class _Checker:
         target = self._resolve(note, key.name, item, by_name)
         if target is None:
             return
-        if key.name == "section":
-            if not target.typed or (target.front or {}).get("type") != "papyrus:Section":
-                self.problem(note.path, f"key 'section' names {target.path}, which is not a Section note")
+        if key.name in LINK_TARGETS:
+            if (target.front or {}).get("type") != f"{profile.CLASS_PREFIX}{LINK_TARGETS[key.name]}":
+                self.problem(note.path, f"key {key.name!r} names {target.path}, which is not {_a(LINK_TARGETS[key.name])} note")
+            elif key.name == "announcement":
+                self.announcements[note.path] = target
             return
         if key.name in self.relations:
             self._record_link(note, note, key.name, target, f"the key {key.name}")
@@ -379,6 +429,49 @@ class _Checker:
             else:
                 stated[signature] = link
 
+    # ---- Announcement and Delivery notes ------------------------------------------------------------------------------
+
+    def _check_records(self) -> None:
+        announcing = {link.source.path for link in self.links if link.relation == "announces"}
+        for note in self.notes:
+            if note.front and note.front.get("type") == "papyrus:Announcement" and note.path not in announcing:
+                self.problem(note.path, "is an Announcement and announces no Story; an Announcement is about at least one Story, so add announces: [\"[[story]]\"]")
+        corrects: dict[str, Note] = {}      # a Delivery's path -> the Delivery it corrects
+        successors: dict[str, list[Note]] = {}
+        for link in (link for link in self.links if link.relation == "supersedes"):
+            new, old = link.source, link.target
+            successors.setdefault(old.path, []).append(new)
+            corrects[new.path] = old
+            same = [self.announcements.get(new.path) is self.announcements.get(old.path)] + [(new.front or {}).get(name) == (old.front or {}).get(name) for name in ("channel", "account")]
+            if not all(same):
+                self.problem(new.path, f"supersedes {old.path}, which is for another Announcement, channel or account; a correction is for the same Announcement, channel and account as the Delivery it replaces")
+            if (old.front or {}).get("state") != "superseded":
+                self.problem(old.path, f"is corrected by {new.path} and its state is not superseded; the Delivery that was corrected says so")
+        for old_path, news in successors.items():
+            if len(news) > 1:
+                self.problem(old_path, f"is corrected by {len(news)} Deliveries ({', '.join(new.path for new in news)}); a Delivery has one correction, and the live Delivery is the last of the chain")
+        live: dict[tuple, list[Note]] = {}
+        for note in self.notes:
+            front = note.front or {}
+            if front.get("type") == "papyrus:Delivery" and note.path not in successors and note.path in self.announcements:
+                key = (self.announcements[note.path].path, front.get("channel"), front.get("account"))
+                live.setdefault(key, []).append(note)
+        for (announcement, channel, account), group in live.items():
+            if len(group) > 1:
+                for note in group:
+                    self.problem(note.path, f"is one of {len(group)} live Deliveries of {announcement} for {channel} {account} ({', '.join(other.path for other in group if other is not note)}); there is one live Delivery for each Announcement, channel and account, and a second is a correction, so it supersedes the first")
+        for note in self.notes:
+            front = note.front or {}
+            if front.get("type") == "papyrus:Delivery" and front.get("state") == "superseded" and note.path not in successors:
+                self.problem(note.path, "is superseded and no Delivery supersedes it; add supersedes to the Delivery that corrects it")
+            seen, step = {note.path}, corrects.get(note.path)
+            while step is not None:
+                if step.path in seen:
+                    self.problem(note.path, "is in a ring of corrections: each Delivery in the ring supersedes another")
+                    break
+                seen.add(step.path)
+                step = corrects.get(step.path)
+
     # ---- identity ---------------------------------------------------------------------------------------------------
 
     def _check_duplicate_ids(self, typed: list[Note]) -> None:
@@ -394,18 +487,33 @@ class _Checker:
                     self.problem(note.path, f"has the same id as {others} ({value}); every note has its own id")
 
     def _check_history(self) -> None:
-        committed = _committed_ids(self.pod, [note.path for note in self.notes])
+        committed = _committed_fronts(self.pod, [note.path for note in self.notes])
         if committed is None:
             self.report.history = "ids are not compared with earlier commits: the pod is not in a git repository with a commit"
             return
-        self.report.history = "ids are compared with the last commit"
+        self.report.history = "ids are compared with the last commit, and so are the attempt lines of Delivery notes"
         for note in self.notes:
-            before = committed.get(note.path)
-            if before is None:
+            earlier = committed.get(note.path)
+            if earlier is None:
                 continue
+            before = earlier.get("id")
             now = (note.front or {}).get("id")
-            if before != now:
+            if isinstance(before, str) and before and before != now:
                 self.problem(note.path, f"its id changed since the last commit (was {before}, now {now if now else 'none'}); an id never changes, so restore it with git")
+            self._check_attempt_history(note, earlier)
+
+    def _check_attempt_history(self, note: Note, earlier: dict) -> None:
+        """The attempts of a Delivery are a log that only grows: a line that was committed is never changed, moved or removed."""
+        before = earlier.get("attempts")
+        if earlier.get("type") != "papyrus:Delivery" or not isinstance(before, list):
+            return
+        now = (note.front or {}).get("attempts")
+        now = now if isinstance(now, list) else []
+        for index, line in enumerate(before):
+            if index >= len(now) or now[index] != line:
+                found = f"now {now[index]!r}" if index < len(now) else "now missing"
+                self.problem(note.path, f"attempt line {index + 1} changed since the last commit (was {line!r}, {found}); an attempt line never changes, so restore it with git and add a new line for what happened since")
+                return
 
 
 def _a(name: str) -> str:
@@ -415,6 +523,16 @@ def _a(name: str) -> str:
 def _wiki(value: str) -> str | None:
     match = WIKI_LINK.match(value.strip())
     return match.group(1) if match else None
+
+
+def _utc_time(value: object) -> bool:
+    if not isinstance(value, str) or not UTC_TIME.match(value):
+        return False
+    try:
+        datetime.datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return False
+    return True
 
 
 def _iso_date(value: object) -> bool:
@@ -427,8 +545,8 @@ def _iso_date(value: object) -> bool:
     return True
 
 
-def _committed_ids(pod: Path, paths: list[str]) -> dict[str, str] | None:
-    """The id each note had at the last commit, by path (a note with no committed id is left out); None when the pod is not in a git repository with a commit."""
+def _committed_fronts(pod: Path, paths: list[str]) -> dict[str, dict] | None:
+    """The front matter each note had at the last commit, by path (a note with none committed is left out); None when the pod is not in a git repository with a commit."""
     try:
         for probe in (["--is-inside-work-tree"], ["--verify", "-q", "HEAD"]):
             if subprocess.run(["git", "-C", str(pod), "rev-parse", *probe], capture_output=True, check=False).returncode != 0:
@@ -439,7 +557,7 @@ def _committed_ids(pod: Path, paths: list[str]) -> dict[str, str] | None:
         return None
     if batch.returncode != 0:
         return None
-    data, position, ids = batch.stdout, 0, {}
+    data, position, fronts = batch.stdout, 0, {}
     for path in paths:
         end = data.index(b"\n", position)
         header = data[position:end].split()
@@ -449,7 +567,6 @@ def _committed_ids(pod: Path, paths: list[str]) -> dict[str, str] | None:
         size = int(header[2])
         front, _, _ = parse(data[position:position + size].decode("utf-8", errors="replace"))
         position += size + 1
-        value = (front or {}).get("id")
-        if isinstance(value, str) and value:
-            ids[path] = value
-    return ids
+        if front:
+            fronts[path] = front
+    return fronts

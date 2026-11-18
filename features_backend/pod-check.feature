@@ -394,7 +394,7 @@ Feature: papyrus pod check reports a pod's level and every problem
     And the pod file "papyrus.context.jsonld" has "\"title\": \"schema:name\"" replaced by "\"title\": \"schema:headline\""
     When I run the pod command "papyrus pod check POD"
     Then the pod command exits with status 1
-    And the pod report names the problem "is not profile version 2" for the note "papyrus.context.jsonld"
+    And the pod report names the problem "is not profile version 3" for the note "papyrus.context.jsonld"
 
   Scenario: A generated context that records no usable vocabulary namespace is reported
     Given a copy of the fixture pod
