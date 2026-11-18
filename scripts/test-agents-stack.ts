@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Template } from "aws-cdk-lib/assertions";
 import { agentPieces } from "../amplify/agents/pieces";
+import { ITEM_FEED_API_FIELDS, ITEM_STREAM_VIEW, type ItemChangeFeedSource } from "../amplify/agents/item-change-feed";
 import { AGENTS_STACK_NAME, addAgentsStack, countPieceResources, type AgentPiece } from "../amplify/agents/stack";
 import { SCHEDULE_GROUP_NAME_SUFFIX, SCHEDULER_ROLE_NAME_SUFFIX, scheduleNames } from "../amplify/agents/schedule-group";
 import {
@@ -80,7 +81,16 @@ assert.throws(() => addAgentsStack(stackFactory().createStack, [fixturePiece, fi
 
 // The real pieces, each priced in a scratch stack.
 const SAMPLE_BRAND = "sample-site";
-const pieces = agentPieces(SAMPLE_BRAND);
+const feedSource: ItemChangeFeedSource = {
+  streamArn: "arn:aws:dynamodb:us-east-1:123456789012:table/Item-sample/stream/2026-01-01T00:00:00.000",
+  graphqlUrl: "https://example123456789012345678.appsync-api.us-east-1.amazonaws.com/graphql",
+  apiId: "exampleapiid",
+  tenantId: "sample-tenant",
+  bucketName: "sample-bucket",
+  bucketArn: "arn:aws:s3:::sample-bucket",
+};
+const pieces = agentPieces(SAMPLE_BRAND, { itemChangeFeed: feedSource });
+assert.deepEqual(agentPieces(SAMPLE_BRAND).map((piece) => piece.id), ["wake-queue", "schedule-group"], "a backend that gives no Item stream (shared, or the bootstrap stage) has no feed piece");
 const prices = pieces.map((piece) => {
   const scratch = new Stack(new App(), "scratch");
   const construct = new Construct(scratch, piece.id);
@@ -181,10 +191,50 @@ assert.equal(scheduleNames("Machines.On Machines").group, "papyrus-machines-on-m
 assert.ok(scheduleNames("x".repeat(80)).group.length <= 64 && scheduleNames("x".repeat(80)).role.length <= 64, "the longest group and role names fit the 64-character limit");
 assert.throws(() => scheduleNames("---"), /brand id/);
 
-const { resources: firstStage, templates } = measureBootstrapStage();
+
+// The Item change feed piece (slice B2): the function, its role and policy and the stream mapping. No queue, no alarm, no table.
+const feedScratch = new Stack(new App(), "feed-scratch", { env: { account: "123456789012", region: "us-east-1" } });
+const feedPiece = pieces.find((piece) => piece.id === "item-change-feed");
+assert.ok(feedPiece, "the Item change feed is an agent piece");
+const feedConstruct = new Construct(feedScratch, feedPiece.id);
+feedPiece.add(feedConstruct);
+assert.equal(countPieceResources(feedConstruct), 4, "the feed is a function, its role and policy, and one stream mapping");
+console.log(`item change feed piece: ${countPieceResources(feedConstruct)} resources (function, role, policy, stream mapping)`);
+const feedTemplate = Template.fromStack(feedScratch);
+feedTemplate.resourceCountIs("AWS::Lambda::Function", 1);
+feedTemplate.resourceCountIs("AWS::Lambda::EventSourceMapping", 1);
+feedTemplate.resourceCountIs("AWS::SQS::Queue", 0);
+feedTemplate.resourceCountIs("AWS::CloudWatch::Alarm", 0);
+feedTemplate.resourceCountIs("AWS::DynamoDB::Table", 0);
+feedTemplate.hasResourceProperties("AWS::Lambda::EventSourceMapping", {
+  EventSourceArn: feedSource.streamArn,
+  StartingPosition: "LATEST",
+  FunctionResponseTypes: ["ReportBatchItemFailures"],
+  FilterCriteria: { Filters: [{ Pattern: JSON.stringify({ eventName: ["INSERT", "MODIFY"] }) }] },
+});
+feedTemplate.hasResourceProperties("AWS::Lambda::Function", {
+  Environment: { Variables: { PAPYRUS_AGENT_PUBLICATION_ID: SAMPLE_BRAND, PAPYRUS_TENANT_ID: "sample-tenant", PAPYRUS_SITE_BUCKET: "sample-bucket", PAPYRUS_GRAPHQL_AUTH: "iam", PAPYRUS_GRAPHQL_ENDPOINT: feedSource.graphqlUrl } },
+});
+assert.equal(ITEM_STREAM_VIEW, "NEW_AND_OLD_IMAGES", "the feed compares the old and new image to tell a board move from any other update");
+const feedPolicy = JSON.stringify(Object.values(feedTemplate.findResources("AWS::IAM::Policy")));
+for (const field of ITEM_FEED_API_FIELDS) assert.ok(feedPolicy.includes(`types/${field}`), `it may call ${field}`);
+assert.ok(feedPolicy.includes("sample-bucket/tenants/sample-tenant/site/listeners/*"), "it reads the listener index's objects of its own tenant and nothing else in the bucket");
+assert.ok(feedPolicy.includes(names.queue) && feedPolicy.includes("sqs:SendMessage") && feedPolicy.includes("sqs:GetQueueUrl"), "it puts wakes on its own site's queue");
+for (const forbidden of ["dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "sqs:ReceiveMessage", "sqs:DeleteMessage", "lambda:Invoke", "Mutation/fields", "Query/fields/list", "Query/fields/*", "s3:PutObject", "s3:ListBucket"]) {
+  assert.ok(!feedPolicy.includes(forbidden), `the feed must not hold ${forbidden}`);
+}
+// The names the Python feed reads are the ones the piece sets.
+const feedSourceText = readFileSync(path.join(root, "src/papyrus_content/item_change_feed.py"), "utf8");
+for (const variable of ["PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_TENANT_ID", "PAPYRUS_SITE_BUCKET", "PAPYRUS_GRAPHQL_ENDPOINT"]) assert.ok(feedSourceText.includes(`"${variable}"`), `the feed reads ${variable}`);
+assert.ok(readFileSync(path.join(root, "src/papyrus_content/agent_listeners.py"), "utf8").includes('KIND = "listeners"'), "the index kind the policy reads (tenants/<tenant>/site/listeners/) is the kind the deploy writes");
+
+// The first stage is measured with a tenant id set (the feed's source), so it proves the feed and the Item stream are left out when they could be there.
+const { resources: firstStage, templates } = measureBootstrapStage(true, { PAPYRUS_TENANT_ID: "sample-tenant" });
 assert.ok(!templates.some((name) => name.toLowerCase().includes(AGENTS_STACK_NAME)), "the first stage must not include the agents stack");
+assert.ok(!templates.some((name) => name.toLowerCase().includes("item-change-feed")), "the first stage must not include the Item change feed");
 // The second deploy (the whole backend, no bootstrap variable) holds the agents stack with every piece, as the real backend builds it.
-const later = measureBootstrapStage(false);
+// A site with a tenant id (the feed's source) as the real backend builds it: the Item stream is on and the feed is in the stack.
+const later = measureBootstrapStage(false, { PAPYRUS_TENANT_ID: "sample-tenant" });
 const agentTemplates = later.templates.filter((name) => name.toLowerCase().includes(AGENTS_STACK_NAME));
 assert.equal(agentTemplates.length, 1, `the second deploy has exactly one agents stack; found ${agentTemplates.join(", ") || "none"}`);
 assert.equal(later.resourcesByTemplate[agentTemplates[0]], total, "the agents stack holds exactly the pieces' resources and nothing else");
