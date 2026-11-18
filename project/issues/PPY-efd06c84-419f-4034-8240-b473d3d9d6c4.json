@@ -39,9 +39,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "edb57156-d9b9-477d-a8c6-6bd5600fd227",
+      "author": "home",
+      "text": "home 2026-11-18: still blocked, not started: PPY-e8ec54 (editing window), PPY-97c0f2 (review_people stamp definition, Ryan), PPY-e3bb2b (durable triggers) are open. Infra chain (8a374e feed, 3ff011 timers, 9b9e64 feeds) is merged; X stays off.",
+      "created_at": "2026-11-18T23:56:03.375510Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:35.555689Z",
-  "updated_at": "2026-11-17T01:18:20.293727Z",
+  "updated_at": "2026-11-18T23:56:03.375738Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

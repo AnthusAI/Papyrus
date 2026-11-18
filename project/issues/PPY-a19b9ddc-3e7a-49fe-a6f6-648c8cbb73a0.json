@@ -47,10 +47,17 @@
       "text": "Merged: PR 1683 on Caducus 0.4.0 (tag v0.4.0, PyPI 0.4.0). Subclass deleted.",
       "created_at": "2026-11-18T23:55:49.349528Z",
       "comment_type": "default"
+    },
+    {
+      "id": "54b207cf-be43-4a32-a1eb-e81326ba29d0",
+      "author": "home",
+      "text": "home: merged, PR 1683 on Caducus 0.4.0 (tag v0.4.0, PyPI 0.4.0); subclass deleted.",
+      "created_at": "2026-11-18T23:56:02.658581Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:16.750449Z",
-  "updated_at": "2026-11-18T23:55:49.351749Z",
+  "updated_at": "2026-11-18T23:56:02.659622Z",
   "closed_at": "2026-11-18T23:55:48.425749Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
