@@ -102,6 +102,15 @@ A pod keeps the same two records as notes with the same field names: an Announce
 - **A load is history and sends nothing.** `PodHistory.load` writes the same Announcement, Delivery and `announces` and `supersedes` relation rows, once (the key is `pod:<the note's id>`; a second load finds the first and a record the newsroom has changed is not overwritten). It has no channel and no worker, a loaded Delivery waits for no time so the due index never holds it, and its approval is `hard` with no approved version, recorded as a claim made in a pod. `papyrus.pod.announcement_notes.read` refuses a pod that does not pass the check. The command that calls it is `papyrus pod load` (not yet built); Stories are loaded first, so the `announces` links name the newsroom's own Story versions.
 - **Vocabulary.** `announces` and `supersedes` are pod relation types, and `cites` and `authored_by` take a Story as their subject (a Story cites a source and names its author with plain keys). Profile version 3; a pod's `papyrus.context.jsonld` is regenerated with `papyrus pod init` into an empty folder and copied over.
 
+## Manual mode (PPY-4410fc)
+
+`mode: manual` is a field on the Delivery, for what has no API or no budget. Papyrus drafts and checks the words (the same draft and check path; a draft whose checks fail is blocked), a person posts them elsewhere and records the address, and the Delivery is `sent` with that person's name in its attempt log.
+
+- **Record it.** `papyrus announcements record-manual DELIVERY --url URL` (operation `announcements_record_manual`; code `Attempts.record_manual`). One conditional write holds the attempt (`outcome: sent`, `by` the signed-in person, `url`), the state `sent` and `resultUrl`. The attempt has no event id: there is no provider event.
+- **Refused:** an address that is not an http or https URL; a Delivery that is not manual, not `ready` (drafted, blocked, superseded) or already `sent` (an earlier record never changes, so recording twice is refused); a missing or changed words file; a caller that is not a person (an agent is told `human_required`).
+- **Never sent automatically.** `Deliveries.releasable` answers no for a manual Delivery, `Attempts.open` and `Attempts.hand_over` refuse it (`ManualDelivery`), so no `AccountWorker` or channel ever picks it up.
+- Specs: `features_backend/delivery-manual-mode.feature`.
+
 ## Not in this slice
 
 The channel transport for X and the queue with one consumer for each account, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), text versions and pinned edits (PPY-e8ec54), and the buttons that act on a line (release, stop, correct). Nothing sends.

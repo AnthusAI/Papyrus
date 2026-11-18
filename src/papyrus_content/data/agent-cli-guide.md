@@ -708,12 +708,14 @@ papyrus announcements explain --story story-containment-note
 papyrus announcements show story-containment-note
 papyrus announcements pause
 papyrus announcements resume
+papyrus announcements record-manual 'announcement-1#x#handle#g1' --url https://example.org/status/1
 ```
 
 - `prices.json` holds `{"prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}}` copied from X's price list (docs.x.com/x-api/getting-started/pricing); `--input-file` is how an object is given. The site's `announcements` function checks every rule and refuses with the plain sentence (`settings_refused`); nothing is saved when one fails. `--billing-cycle-day` is the day of the month your X billing cycle starts: the budget is per cycle.
 - `dry-run STORY` prints the exact post, its link with the UTM tags, its weight and every check, for any Story in any mode, and records nothing. `eligible` and `reason` say whether the rules would announce it.
 - `list` and `show` give the plain `label` (`Dry run: not sent`, `Posting`, `Posted`, `Failed`, `Blocked: paused`, `Blocked: budget reached`, `Blocked: check failed`, `Withdrawn`) beside the state, the post id, the cost and the history of who did what and when. The post text is in S3; `show` returns it in `document`.
 - `pause` stops all posting and says who and when; `resume` announces the Stories that waited (a dry run does this at once; with mode On the site's own function hands them to X). A pause the budget caused ends by itself when the budget has room (a new cycle, or a raised budget); a pause a person made, and one a broken X connection caused, never does.
+- `record-manual DELIVERY --url URL` is for a Delivery whose mode is `manual` (no API or no budget): Papyrus drafts and checks the words, a person posts them by hand and pastes the address, and the Delivery becomes `sent` with that person's name in its attempt log. Only a person records it (an agent is told `human_required`), only once, only for a ready Delivery, and the address must be an `http://` or `https://` URL. No worker or channel ever sends a manual Delivery.
 - Connecting the X account needs the browser (OAuth): the newsroom's Administration, Announcements page (`docs/x-announcements-setup.md`). The CLI never accepts a token or secret.
 
 ## Ideas

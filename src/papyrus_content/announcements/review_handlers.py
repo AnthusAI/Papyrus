@@ -5,6 +5,7 @@ Setting the policy goes through ``AgentPolicyStore`` (admins who are people; an 
 """
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING, Any, Callable
 
 from papyrus_content.editorial_context import hosted_publication
@@ -80,11 +81,30 @@ def delivery_review_set(client: Any, arguments: dict, caller: Caller, policy: Ag
     return Outcome({"id": changed["id"], "approval": changed["approval"], "approvalPolicy": changed["approvalPolicy"], "approvedBy": changed.get("approvedBy")}, _publication(client))
 
 
-REVIEW_HANDLERS: dict[str, Callable[..., Outcome]] = {"announcements_review_show": review_show, "announcements_review_set": review_set, "announcements_delivery_review_set": delivery_review_set}
+def record_manual(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None) -> Outcome:
+    """A person posted a manual Delivery's words by hand: record the address. The attempt names the signed-in person (never a machine)."""
+    from .attempts import Attempts
+    from .deliveries import Deliveries
+    from .records import RecordError, attempt_log
+
+    if caller.kind != "person" or not caller.subject:
+        raise ImageOperationError("human_required", "A manual post is recorded by the signed-in person who posted it.")
+    deliveries = Deliveries(client, files)
+    if deliveries.get(arguments["delivery"]) is None:
+        raise ImageOperationError("not_found", f"No Delivery {arguments['delivery']!r} on this site.")
+    try:
+        written = Attempts(deliveries).record_manual(arguments["delivery"], arguments["url"], by=caller.subject)
+    except RecordError as error:
+        raise ImageOperationError("constraint_conflict", str(error)) from error
+    return Outcome({"id": written["id"], "state": written["state"], "resultUrl": written["resultUrl"], "attempt": attempt_log(written)[-1]}, _publication(client))
 
 
-def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_factory: Callable[[Any], AgentPolicyStore] | None = None) -> dict[str, Handler]:
-    """Each call opens the signed-in person's own client and the site's policy store."""
+REVIEW_HANDLERS: dict[str, Callable[..., Outcome]] = {"announcements_review_show": review_show, "announcements_review_set": review_set, "announcements_delivery_review_set": delivery_review_set,
+                                                 "announcements_record_manual": record_manual}
+
+
+def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_factory: Callable[[Any], AgentPolicyStore] | None = None, files: Any = None) -> dict[str, Handler]:
+    """Each call opens the signed-in person's own client and the site's policy store. ``files`` is where a Delivery's words are read (the Delivery's own attachments when None)."""
     def factory():
         if client_factory is not None:
             return client_factory()
@@ -105,4 +125,4 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_f
             return function(client, arguments, caller, store(client))
         return handler
 
-    return {name: wrap(function) for name, function in REVIEW_HANDLERS.items()}
+    return {name: wrap(partial(function, files=files) if function is record_manual else function) for name, function in REVIEW_HANDLERS.items()}

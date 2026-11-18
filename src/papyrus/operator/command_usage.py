@@ -334,6 +334,8 @@ _ENTRIES = dict([
   _e("announcements release", "Release a Delivery: hand it to its channel now.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements unlock", "Unlock a Delivery after its lock time, so it can be edited again.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements correct", "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements record-manual", "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names the signed-in person. A person only.",
+     "DELIVERY_ID --url URL [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements withdraw", "Withdraw a Delivery that went: this deletes a public post.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
   _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",

@@ -18,7 +18,7 @@ if str(REPO_ROOT / "src") not in sys.path:
 from papyrus.pod import announcement_notes, pages  # noqa: E402
 from papyrus.pod.notes import walk  # noqa: E402
 from papyrus_content.announcements import links, records  # noqa: E402
-from papyrus_content.announcements.attempts import AccountWorker, NotReleasable  # noqa: E402
+from papyrus_content.announcements.attempts import AccountWorker, ManualDelivery, NotReleasable  # noqa: E402
 from papyrus_content.announcements.attempts_fakes import FakeChannel  # noqa: E402
 from papyrus_content.announcements.deliveries import Deliveries  # noqa: E402
 from papyrus_content.announcements.links import StoryRef  # noqa: E402
@@ -131,6 +131,8 @@ def worker_sends(context, channel, account):
             context.sent.append(row["id"])
         except NotReleasable as refused:
             context.refusals.append(refused.reason)
+        except ManualDelivery as refused:
+            context.refusals.append(str(refused))
 
 
 # ---- Then: pages ------------------------------------------------------------------------------------------------------------------
