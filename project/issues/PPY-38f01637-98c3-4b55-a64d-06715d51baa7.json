@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a684508a-e6b2-4dcc-8064-540161e50017",
+      "author": "home",
+      "text": "Audit: read-only calendar done. Unmet: drag to reschedule with undo; recently published on the calendar.",
+      "created_at": "2026-11-18T16:59:14.421177Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:38.479477Z",
-  "updated_at": "2026-11-12T18:41:40.647460Z",
+  "updated_at": "2026-11-18T16:59:14.421402Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
