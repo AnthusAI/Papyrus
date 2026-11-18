@@ -117,7 +117,7 @@ def definition_schedule(context, agent, cron, zone):
 
 @when('the definition of "{agent}" no longer names a schedule')
 def definition_without_schedule(context, agent):
-    write_definition(context, agent, {"changes": [{"kind": "Item", "change": "ready"}]})
+    write_definition(context, agent, {"changes": [{"kind": "Item", "change": "step_changed"}]})
 
 
 @when('the definition of "{agent}" is removed from Git')

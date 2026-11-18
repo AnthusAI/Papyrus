@@ -7,7 +7,7 @@
     "indexCases": 229,
     "subscriptionCases": 9,
     "operationCases": 136,
-    "functionCases": 70,
+    "functionCases": 72,
     "surfaceCases": 9
   },
   "cases": [
@@ -7177,6 +7177,22 @@
       "subject": "category-action",
       "operation": "iam-call-without-tenant",
       "probe": "the platform operator role invokes amplify/functions/category-action without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
+      "id": "function:change-feed",
+      "kind": "function",
+      "subject": "change-feed",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/change-feed (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:change-feed:iam-without-tenant",
+      "kind": "function",
+      "subject": "change-feed",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/change-feed without naming a tenant",
       "expect": "refused before any read"
     },
     {

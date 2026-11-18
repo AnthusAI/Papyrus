@@ -42,6 +42,8 @@ import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { agentPieces } from "./agents/pieces";
 import { enableItemStream } from "./agents/item-change-feed";
+import { allowChangeFeedRelay, enableFeedStreams } from "./agents/change-feeds";
+import { planFeeds, type FeedTable, type StreamReaderId } from "./agents/stream-readers";
 import { ADMIN_AGENT_POLICY_GRANT_STACK_NAME, ADMIN_AGENT_POLICY_GROUP, addAdminAgentPolicyGrant } from "./agents/admin-policy-grant";
 import { addAgentsStack } from "./agents/stack";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
@@ -947,7 +949,21 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   // The Item change feed (slice B2) reads the Item table's stream, so the stream is switched on with the stack that reads it, never in the first deploy. A dedicated site
   // with a tenant id only: a shared stack's rows carry tenants it does not act for, and the listener index is one site's document.
   const bootstrapStage = isBootstrapStage(process.env);
-  const itemStreamArn = tenancyMode !== "shared" && backendTenantId !== "" && !bootstrapStage ? enableItemStream(backend) : undefined;
+  const feedsRun = tenancyMode !== "shared" && backendTenantId !== "" && !bootstrapStage;
+  const itemStreamArn = feedsRun ? enableItemStream(backend) : undefined;
+  // The change feeds of the other tables (slice B3) follow the same rule, and no table gets a third stream reader: the readers that exist on each stream are counted
+  // here (amplify/agents/stream-readers.ts), a table with fewer than two gets a feed of its own, and one with two gets the feed behind a reader that stays on the stream.
+  const homePagePlugin = plugins.find(({ plugin }) => plugin.manifest.name === "home-page");
+  const streamReaders: StreamReaderId[] = [
+    "reference-word-index",
+    ...(homePagePlugin ? (["home-page-references"] as const) : []),
+    ...(homePagePlugin && (homePagePlugin.config as { threads?: boolean }).threads ? (["home-page-threads"] as const) : []),
+    ...(enableConsoleResponder ? (["console-responder"] as const) : []),
+    ...(enableSlackAgent ? (["slack-delivery"] as const) : []),
+    ...(tenancyMode !== "shared" && backend.data.resources.tables.LocalizationRequest ? (["localization-dispatch"] as const) : []),
+  ];
+  const feedStreams = feedsRun ? enableFeedStreams(backend) : undefined;
+  const feedPlacements = planFeeds(streamReaders);
   addAgentsStack(
     (name) => backend.createStack(name),
     agentPieces(siteBackendIdentity.brandId, {
@@ -956,6 +972,18 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
           ? undefined
           : {
               streamArn: itemStreamArn,
+              graphqlUrl: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string,
+              apiId: backend.data.resources.graphqlApi.apiId as string,
+              tenantId: backendTenantId,
+              bucketName: storageBucket.bucketName,
+              bucketArn: storageBucket.bucketArn,
+            },
+      changeFeeds:
+        feedStreams === undefined
+          ? undefined
+          : {
+              streams: feedStreams,
+              placements: feedPlacements,
               graphqlUrl: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string,
               apiId: backend.data.resources.graphqlApi.apiId as string,
               tenantId: backendTenantId,
@@ -975,6 +1003,27 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
     );
   }
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
+  if (feedStreams !== undefined) {
+    // The readers that carry a feed pass their batches to it: they may invoke the one function, and it is named in their settings. No resource is added.
+    const carriers: Record<StreamReaderId, LambdaFunction | undefined> = {
+      "reference-word-index": referenceWordIndex.consumer,
+      "slack-delivery": enableSlackAgent ? (backend.slackDelivery.resources.lambda as LambdaFunction) : undefined,
+      "home-page-threads": homePagePlugin ? ((backend as any).homePageTrigger?.resources.lambda as LambdaFunction | undefined) : undefined,
+      "home-page-references": undefined,
+      "console-responder": undefined,
+      "localization-dispatch": undefined,
+    };
+    const relayed = new Map<LambdaFunction, string[]>();
+    for (const table of Object.keys(feedPlacements) as FeedTable[]) {
+      const placement = feedPlacements[table];
+      const streamArn = feedStreams[table];
+      if (placement.mode !== "behind" || streamArn === undefined) continue;
+      const carrier = carriers[placement.reader];
+      if (carrier === undefined) throw new Error(`The ${table} change feed sits behind ${placement.reader}, which this backend does not have.`);
+      relayed.set(carrier, [...(relayed.get(carrier) ?? []), streamArn]);
+    }
+    for (const [carrier, streamArns] of relayed) allowChangeFeedRelay(carrier, siteBackendIdentity.brandId, streamArns);
+  }
 
   if (tenancyMode === "shared") {
     // The loop at the top reaches the functions Amplify defines. A shared stack also has functions that wires and plugins make with `new Function`

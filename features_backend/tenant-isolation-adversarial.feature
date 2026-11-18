@@ -1000,6 +1000,8 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | automation-view            | iam-call-without-tenant          | refused before any read            |
       | category-action            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | category-action            | iam-call-without-tenant          | refused before any read            |
+      | change-feed                | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | change-feed                | iam-call-without-tenant          | refused before any read            |
       | cli-login-pages            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | cli-login-pages            | iam-call-without-tenant          | refused before any read            |
       | console-chat-responder     | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
