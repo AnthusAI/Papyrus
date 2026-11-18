@@ -90,13 +90,16 @@ class Announcements:
 
     def announce(
         self, *, dedupe_key: str, kind: str, stories: Sequence[StoryRef], plans: Sequence[Plan], created_by: str, trigger: str,
-        release_at: str | None = None, now: str | None = None,
+        release_at: str | None = None, now: str | None = None, stories_optional: bool = False,
     ) -> Outcome | None:
         """Decide to announce. Returns None, writing nothing, when no channel qualifies (``plans`` is empty). Calling it again for the same once-only key finds the
-        Announcement and completes whatever a crash left undone; it never makes a second Announcement."""
+        Announcement and completes whatever a crash left undone; it never makes a second Announcement.
+
+        An Announcement is about at least one Story, unless ``stories_optional``: a periodic issue that a person fills (a draft waiting for words, or one made from a
+        person's own note) may have none yet."""
         if not plans:
             return None
-        if not stories:
+        if not stories and not stories_optional:
             raise RecordError("An Announcement is about at least one Story.")
         now = now or now_iso()
         for plan in plans:

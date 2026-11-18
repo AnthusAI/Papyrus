@@ -140,6 +140,8 @@ class Attempts:
         text = self.deliveries.text(row)
         if text is None:
             return "its words file is missing"
+        if not text.strip():
+            return "it has no words"
         described = self.deliveries.files.describe(row["id"], text)
         if content_hash(described["sha256"], row.get("imageKey")) != row.get("contentHash"):
             return "its words file does not match the row's content hash"

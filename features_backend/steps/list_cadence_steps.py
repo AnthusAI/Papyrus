@@ -10,6 +10,7 @@ import io
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import parse
@@ -23,16 +24,17 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 from papyrus_content import agent_wakes, automations as au  # noqa: E402
 from papyrus_content.agent_definitions import cli as agents_cli, schedules  # noqa: E402
 from papyrus_content.announcements.decisions import Announcements  # noqa: E402
-from papyrus_content.announcements.attempts import Attempts  # noqa: E402
+from papyrus_content import run_outcomes, today  # noqa: E402
+from papyrus_content.announcements.attempts import NotReleasable, Attempts  # noqa: E402
 from papyrus_content.announcements.deliveries import Deliveries  # noqa: E402
 from papyrus_content.announcements.records import json_list  # noqa: E402
 from papyrus_content.announcements.links import StoryRef  # noqa: E402
 from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles, RecordsBackend  # noqa: E402
 from papyrus_content.images.handlers import Caller  # noqa: E402
-from papyrus_content.list_cadence.announce import Candidate  # noqa: E402
+from papyrus_content.list_cadence.announce import Candidate, IssueNoteError, PersonNote  # noqa: E402
 from papyrus_content.list_cadence.settings import ListSettingsError  # noqa: E402
 from papyrus_content.list_cadence.store import ListSettingsStore  # noqa: E402
-from papyrus_content.list_cadence.wake import ListWakeError, run_list, run_story_change, scheduled_time  # noqa: E402
+from papyrus_content.list_cadence.wake import ListWakeError, run_list, run_story_change, scheduled_time, write_note  # noqa: E402
 from schedule_fakes import MONITOR, FakeScheduler, FakeSqs, Reader, Site, WakeQueue  # noqa: E402
 
 ACCOUNT = "mom-sending"
@@ -56,12 +58,12 @@ def attempt(context, action):
     context.error = None
     try:
         return action()
-    except (ListSettingsError, ListWakeError) as error:
+    except (ListSettingsError, ListWakeError, IssueNoteError) as error:
         context.error = error
         return None
 
 
-def list_entry(cadence, *, agent="announce-lists", day=None, time=None, zone=None, stars=3, sections=(), reviewed=False, rung=None):
+def list_entry(cadence, *, agent="announce-lists", day=None, time=None, zone=None, stars=3, sections=(), reviewed=False, rung=None, empty=None):
     entry = {"name": "A list", "cadence": cadence, "rule": {"sections": list(sections), "types": [], "tags": [], "minStars": stars},
              "requireReviewedSource": reviewed, "workingDocument": "story" if cadence == "weekly" else "delivery", "template": "roundup", "agent": agent}
     if cadence != "each":
@@ -69,6 +71,8 @@ def list_entry(cadence, *, agent="announce-lists", day=None, time=None, zone=Non
         entry["timeZone"] = zone
     if rung:
         entry["rung"] = rung
+    if empty:
+        entry["emptyPeriod"] = empty
     return entry
 
 
@@ -80,8 +84,8 @@ def candidate(lineage, stars, section="science", reviewed=False):
     return Candidate(StoryRef(lineage, f"{lineage}-v1", 1), section, "article", [], int(stars), reviewed)
 
 
-def draft(lists, candidates):
-    return f"For {', '.join(list_id for list_id, _ in lists)}: " + ", ".join(c.story.lineage_id for c in candidates)
+def draft(lists, candidates, notes=()):
+    return f"For {', '.join(list_id for list_id, _ in lists)}: " + ", ".join([c.story.lineage_id for c in candidates] + [f"{note.by} wrote: {note.text}" for note in notes])
 
 
 def reconcile(context):
@@ -110,7 +114,7 @@ def background(context, site):
     context.announcements = Announcements(context.backend, Deliveries(context.backend, MemoryDeliveryFiles(context.backend)))
     context.now = "2026-11-16T14:00:00Z"
     context.candidates, context.policy_rung, context.announcement = [], "prepare", None
-    context.qualified, context.late_at, context.since_seen = {}, None, []
+    context.qualified, context.late_at, context.since_seen, context.notes = {}, None, [], []
     context.error, context.result, context.state, context.writes_mark, context.deploy_ok, context.deploy_output = None, None, None, 0, True, ""
 
 
@@ -166,8 +170,10 @@ def stories_since(context, scheduled, since):
 
 @given('the weekly list "{list_id}" is sent on "{day}" at "{time}" in "{zone}"{rest:Rest}')
 def given_weekly(context, list_id, day, time, zone, rest):
-    own = (quoted(rest) or [None])[0] if "own rung" in rest else None
-    entry = list_entry("weekly", day=day, time=time, zone=zone, reviewed="requires a reviewed source" in rest, rung=None if own in (None, "-") else own)
+    own = re.search(r'with its own rung "([^"]*)"', rest)
+    empty = re.search(r'its empty period is "([^"]*)"', rest)
+    entry = list_entry("weekly", day=day, time=time, zone=zone, reviewed="requires a reviewed source" in rest, rung=None if own is None or own.group(1) == "-" else own.group(1),
+                       empty=empty.group(1) if empty else None)
     save(context, "ryan", list_id, entry, "Set up in the scenario")
     assert context.error is None, context.error
     reconcile(context)
@@ -216,6 +222,9 @@ def when_saves_fault(context, who, fault):
         entry = list_entry("daily", time="06:00", zone=quoted(fault)[0])
     elif "the time" in fault:
         entry = list_entry("daily", time=quoted(fault)[0], zone="America/New_York")
+    elif "the empty period" in fault:
+        base = list_entry("weekly", day="monday", time="04:00", zone="America/New_York") if "weekly cadence" in fault else list_entry("each")
+        entry = {**base, "emptyPeriod": quoted(fault)[0]}
     elif "cadence of" in fault:
         entry = {**list_entry("daily", time="06:00", zone="America/New_York"), "cadence": quoted(fault)[0]}
     else:
@@ -332,7 +341,8 @@ def handle(context, message):
 
     def run():
         state = context.lists.read(context.site_id)
-        return run_list(request, state, context.announcements, candidates_for=lambda _list, _entry, scheduled, since: stories_since(context, scheduled, since), draft=draft,
+        return run_list(request, state, context.announcements, candidates_for=lambda _list, _entry, scheduled, since: stories_since(context, scheduled, since),
+                        notes_for=lambda _list, _entry, scheduled, since: [note for written, note in context.notes if (since is None or written > since) and written <= scheduled], draft=draft,
                         policy_rung=lambda _: context.policy_rung, account_id=ACCOUNT, by=BY, now=context.late_at or scheduled_time(request))
 
     context.result = attempt(context, run)
@@ -397,7 +407,7 @@ def run_says(context, reason):
 
 @then('the run is refused with "{text}"')
 def run_refused(context, text):
-    assert isinstance(context.error, (ListWakeError, ListSettingsError)) and text in str(context.error), context.error
+    assert isinstance(context.error, (ListWakeError, ListSettingsError, IssueNoteError)) and text in str(context.error), context.error
 
 
 @then('the Announcement "{key}" is planned for "{when}"')
@@ -532,3 +542,110 @@ def looked_since_start(context):
 @then("no email was sent")
 def nothing_sent(context):
     assert all(row["state"] not in ("sending", "sent") and not json_list(row.get("attempts")) for row in rows(context, "Delivery"))
+
+
+# --- an empty period (features_backend/empty-period.feature) --------------------------------------------------------------------------------------
+
+
+@given('a person {who} wrote the note "{text}" for the period at "{time}"')
+def person_note_before(context, who, text, time):
+    context.notes.append((time, PersonNote(who, text)))
+
+
+@when('{who} writes "{text}" into the draft of the list "{list_id}" for the period of "{time}"')
+def writes_into_draft(context, who, text, list_id, time):
+    caller = PEOPLE[who]
+    context.result = attempt(context, lambda: write_note(list_id, time, caller, text, context.lists.read(context.site_id), context.announcements, draft=draft,
+                                                         policy_rung=lambda _: context.policy_rung, account_id=ACCOUNT, now=context.late_at or time))
+
+
+@then('the Announcement "{key}" is about no Story')
+def about_no_story(context, key):
+    assert not context.announcements.stories(the_announcement_of(context, key)["id"])
+
+
+def live_delivery(context, key):
+    (delivery,) = context.announcements.deliveries.live_for_announcement(the_announcement_of(context, key)["id"])
+    return delivery
+
+
+@then('the email of the Announcement "{key}" is a draft with no words')
+def draft_no_words(context, key):
+    delivery = live_delivery(context, key)
+    assert delivery["state"] == "drafted" and not delivery.get("textKey") and not delivery.get("contentHash"), delivery
+    assert context.announcements.deliveries.text(delivery) is None
+
+
+@then('the email of the Announcement "{key}" is ready with the words "{words}"')
+def delivery_words(context, key, words):
+    delivery = live_delivery(context, key)
+    assert delivery["state"] == "ready", delivery["state"]
+    assert context.announcements.deliveries.text(delivery) == words, context.announcements.deliveries.text(delivery)
+
+
+@then('the Delivery of the list "{list_id}" may not go at "{time}" because "{reason}"')
+def may_not_go(context, list_id, time, reason):
+    (delivery,) = [row for row in context.announcements.deliveries.for_account("email", ACCOUNT) if row["audience"] == [list_id] and row["state"] in ("drafted", "ready")]
+    ok, why = context.announcements.deliveries.releasable(delivery, time)
+    assert (ok, why) == (False, reason), (ok, why)
+
+
+@then('the Delivery of the list "{list_id}" may go at "{time}"')
+def may_go(context, list_id, time):
+    (delivery,) = [row for row in context.announcements.deliveries.for_account("email", ACCOUNT) if row["audience"] == [list_id] and row["state"] in ("drafted", "ready")]
+    assert context.announcements.deliveries.releasable(delivery, time) == (True, None)
+
+
+@then('opening an attempt for the Delivery of the list "{list_id}" at "{time}" is refused because "{reason}"')
+def attempt_refused(context, list_id, time, reason):
+    (delivery,) = [row for row in context.announcements.deliveries.for_account("email", ACCOUNT) if row["audience"] == [list_id] and row["state"] in ("drafted", "ready")]
+    try:
+        Attempts(context.announcements.deliveries).open(delivery["id"], by="sender", now=time)
+    except NotReleasable as refused:
+        assert refused.reason == reason, refused.reason
+    else:
+        raise AssertionError("an attempt opened for a Delivery that may not go")
+
+
+@then('the run tells the runner it found nothing to do because "{code}"')
+def declares_nothing(context, code):
+    assert context.result.declaration() == {run_outcomes.OUTCOME_KEY: "nothing", run_outcomes.REASON_KEY: code}, context.result.declaration()
+    assert run_outcomes.declared_outcome(context.result.declaration()) == ("nothing", code)
+
+
+@then("the run tells the runner it did its work")
+def declares_acted(context):
+    assert context.result.declaration() == {} and run_outcomes.declared_outcome(context.result.declaration()) == ("acted", None)
+
+
+class TodayClient:
+    """Answers only the reads Today may make."""
+
+    tenant_id = "site"
+
+    def __init__(self, runs):
+        self.runs = runs
+
+    def list_by_index(self, index, key, *, sort_condition=None, **_):
+        low, high = sort_condition["between"]
+        return [dict(row) for row in self.runs if row["runStatus"] == key and low <= row["requestedAt"] <= high]
+
+    def list_tenant_rows(self, model, fields, **_):
+        return []
+
+
+@then('Today for "{day}" in "{zone}" shows the run of "{time}" as "{shown}" with the reason "{reasons}"')
+def today_shows(context, day, zone, time, shown, reasons):
+    finished = run_outcomes.finished_outcome(True, context.result.declaration(), None)
+    run = {"id": "run-1", "procedureKey": "announce_list", "runStatus": finished["runStatus"], "outcome": finished["outcome"], "outcomeReason": finished["outcomeReason"],
+           "responsibility": "announce", "automationId": "announce-lists", "requestedAt": time.replace("Z", ".000Z"), "finishedAt": time.replace("Z", ".000Z"), "costUsd": 0.0}
+    overview = today.today_overview(TodayClient([run]), day=day, time_zone=zone, now=datetime.fromisoformat("2026-11-16T17:00:00+00:00"))
+    (line,) = overview["rows"]
+    assert today.counts_text(line["counts"]) == shown, today.counts_text(line["counts"])
+    assert today.reasons_text(line["reasons"]["nothing"]) == reasons, line["reasons"]
+    assert any(f"Nothing to do: {reasons}" in text for text in today.render(overview)), today.render(overview)
+
+
+@then('the list "{list_id}" sends nothing in an empty period')
+def sends_nothing_by_default(context, list_id):
+    assert context.lists.read(context.site_id).get(list_id)["emptyPeriod"] == "nothing"
