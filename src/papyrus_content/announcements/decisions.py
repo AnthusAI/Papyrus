@@ -22,11 +22,14 @@ from . import links
 from .deliveries import Conflict, DeliveryExists, Deliveries, Plan
 from .links import StoryRef
 from .records import (
-    CANCELLED, DECISION_MODEL, PLANNED, RELEASED, RecordError, announcement_id, history_with, now_iso, stored, stored_dedupe_key, utc,
+    BLOCKED, CANCELLED, DECISION_MODEL, DELIVERY_WITHDRAWN, DRAFTED, FAILED, PLANNED, READY, RELEASED, SENDING, SENT, RecordError, announcement_id, history_with, now_iso, stored,
+    stored_dedupe_key, utc,
 )
 
 INDEX_BY_DEDUPE_KEY = "announcementDecisionsByDedupeKey"
 INDEX_BY_STATE = "announcementDecisionsByState"
+#: The Delivery states of something that has not gone and may be withdrawn.
+UNSENT_STATES = (DRAFTED, READY, BLOCKED, FAILED)
 
 
 class AlreadyDecided(RecordError):
@@ -182,6 +185,23 @@ class Announcements:
         cancelled = self._change(row, {"state": CANCELLED}, by=by, note="cancelled before release", now=now, expect_state=PLANNED)
         for delivery in self.deliveries.live_for_announcement(row["id"]):
             self.deliveries.finish(delivery, "withdrawn", by=by, note="the Announcement was cancelled before release", now=now)
+        return cancelled
+
+    def cancel_unsent(self, row: Mapping[str, Any], *, reason: str, by: str, now: str | None = None) -> dict[str, Any]:
+        """Stop an Announcement none of whose Deliveries has gone, planned or released: an issue that was never sent before the next period began. Its Deliveries that
+        are waiting (drafted, ready, blocked, or failed with nobody having tried again) are withdrawn with the same reason, so nothing can send them later. Refused when any
+        Delivery is sending or sent: that is no longer an unsent issue, and a correction to something out is a new Delivery."""
+        if row.get("state") not in (PLANNED, RELEASED):
+            raise RecordError(f"{row['id']} is {row.get('state')}; only a planned or released Announcement is cancelled as unsent.")
+        now = now or now_iso()
+        live = self.deliveries.live_for_announcement(row["id"])
+        out = [delivery for delivery in live if delivery.get("state") in (SENDING, SENT)]
+        if out:
+            raise RecordError(f"{row['id']} has a Delivery that is {out[0]['state']}, so it is not unsent.")
+        cancelled = self._change(row, {"state": CANCELLED}, by=by, note=reason, now=now, expect_state=row["state"])
+        for delivery in live:
+            if delivery.get("state") in UNSENT_STATES:
+                self.deliveries.finish(delivery, DELIVERY_WITHDRAWN, by=by, note=reason, now=now)
         return cancelled
 
     def story_changed(self, announcement: Mapping[str, Any], story: StoryRef, *, by: str, now: str | None = None) -> list[dict[str, Any]]:

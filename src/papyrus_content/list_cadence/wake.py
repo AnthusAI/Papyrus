@@ -11,6 +11,7 @@ from typing import Callable, Mapping, Sequence
 from papyrus_content import wake_keys
 from papyrus_content.announcements.decisions import Announcements
 
+from .periods import read_history
 from .announce import Candidate, Drafter, Result, announce_period, announce_story
 from .store import ListState
 
@@ -26,9 +27,10 @@ def scheduled_time(request: Mapping) -> str:
     return parts[2]
 
 
-def run_list(request: Mapping, state: ListState, announcements: Announcements, *, candidates_for: Callable[[str, Mapping, str], Sequence[Candidate]], draft: Drafter,
+def run_list(request: Mapping, state: ListState, announcements: Announcements, *, candidates_for: Callable[[str, Mapping, str, str | None], Sequence[Candidate]], draft: Drafter,
              policy_rung: Callable[[str], str], account_id: str, by: str, now: str | None = None) -> Result:
-    """One tick. ``candidates_for(list id, settings, scheduled time)`` is the Stories the period holds that the run read; ``policy_rung(list id)`` the site policy's rung."""
+    """One tick. ``candidates_for(list id, settings, scheduled time, since)`` is the Stories that qualified since ``since`` (when the list's last issue was sent, or None
+    when it never sent one) that the run read; ``policy_rung(list id)`` the site policy's rung."""
     list_id = (request.get("input") or {}).get("listId")
     entry = state.get(list_id) if list_id else None
     if entry is None:
@@ -36,7 +38,8 @@ def run_list(request: Mapping, state: ListState, announcements: Announcements, *
     if entry["cadence"] == "each":
         raise ListWakeError(f"{list_id} is an every-item list: a clock does not wake it.")
     time = scheduled_time(request)
-    return announce_period(announcements, list_id, entry, time, candidates_for(list_id, entry, time), draft=draft, policy_rung=policy_rung(list_id),
+    history = read_history(announcements.deliveries, account_id, list_id)
+    return announce_period(announcements, list_id, entry, time, candidates_for(list_id, entry, time, history.last_sent_at), history=history, draft=draft, policy_rung=policy_rung(list_id),
                            account_id=account_id, by=by, now=now)
 
 

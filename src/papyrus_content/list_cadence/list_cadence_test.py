@@ -54,3 +54,19 @@ def test_a_period_is_the_lists_local_date_or_local_iso_week():
 @pytest.mark.parametrize("own, policy, expected", [(None, "prepare", "prepare"), ("publish_auto", "prepare", "prepare"), ("propose", "publish_soft", "propose"), ("off", "publish_auto", "off")])
 def test_a_list_can_narrow_the_policys_rung_and_never_widen_it(own, policy, expected):
     assert effective_rung({"rung": own} if own else {}, policy) == expected
+
+
+def test_an_announcement_with_a_sent_delivery_is_not_cancelled_as_unsent():
+    from papyrus_content.announcements.decisions import Announcements
+    from papyrus_content.announcements.deliveries import Deliveries, Plan
+    from papyrus_content.announcements.records import RecordError
+    from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles, RecordsBackend
+
+    backend = RecordsBackend()
+    announcements = Announcements(backend, Deliveries(backend, MemoryDeliveryFiles(backend)))
+    plan = Plan(channel="email", account_id="acct", approval="none", approval_policy="rung publish_auto (list weekly)", text="words", audience=("weekly",))
+    made = announcements.announce(dedupe_key="roundup:weekly:2026-W47", kind="roundup", stories=[StoryRef("a", "a-v1", 1)], plans=[plan], created_by="bot", trigger="schedule",
+                                  release_at="2026-11-16T09:00:00Z", now="2026-11-16T09:00:00Z")
+    announcements.deliveries.finish(made.deliveries[0], "sent", by="bot", note="sent", now="2026-11-16T09:05:00Z")
+    with pytest.raises(RecordError, match="not unsent"):
+        announcements.cancel_unsent(made.announcement, reason="r", by="bot", now="2026-11-23T09:00:00Z")
