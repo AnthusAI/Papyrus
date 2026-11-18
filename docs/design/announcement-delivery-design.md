@@ -147,7 +147,7 @@ Some publications run fully automatic: the first person to see an announcement i
 | Today | Becomes | Migrates? |
 |---|---|---|
 | X `Announcement` row | Announcement (`story_published`) plus one Delivery (`x`, account) | **Reshape, no data move.** X is off everywhere. Any dry-run rows are deleted, not converted. |
-| X "round" and `:r2` event ids | Attempt numbers on one Delivery | Code only. Needs the attempt-id shape in Caducus. |
+| X "round" and `:r2` event ids | Attempt numbers on one Delivery | Code only. Caducus 0.3.0 already takes `delivery:<id>:a<N>`: it treats an event id as an opaque string. |
 | X withdraw | Delivery state `withdrawn`; Announcement `withdrawn` when all its Deliveries are | Code only. |
 | `AnnouncementSpend`, `XConnection`, `AnnouncementSettings` | Unchanged. Settings gain nothing; channel rules already live there. | No. |
 | Newsletter `ISSUE#` row, kind `roundup` | Announcement (`roundup`) that announces the issue Story at its approved version, plus one Delivery (`email`, lists). Approval and send time move to the Announcement. Counts move to the Delivery. `resultUrl` is the archive page. | **Yes.** Sent issues on Shipped and Distinctive are converted once by a command, so the archive and history stay whole. |
@@ -412,7 +412,7 @@ Depends on the pod epic (profile, `pod check`, `pod load`) and on the Caducus mo
 | # | Slice | Notes |
 |---|---|---|
 | 1 | Announcement and Delivery records, indexes, the `announces` and `supersedes` relation types | Cloud only. No sender wired. |
-| 2 | Attempt log and attempt event ids | Small Caducus change: accept `delivery:<id>:a<N>`; remove the round suffix. |
+| 2 | Attempt log and attempt event ids | Papyrus only: no Caducus change (Caducus 0.3.0 treats an event id as an opaque string). Remove the round suffix. |
 | 3 | X on the new records | Rewire eligibility, drafting, budget guard, withdraw. X stays off. Delete the old row shape in the same change. |
 | 4 | Corrections | New Delivery with `supersedes`; delete the old post on X. |
 | 5a | Editing window, versions, pinned human edits, lock time | Delivery text versions; `owner: human, pinned`; candidate versions; lock and unlock. |

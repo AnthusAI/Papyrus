@@ -22,7 +22,7 @@ from typing import Any, Callable, Mapping
 from papyrus_content import fact_check
 
 from . import budget as budget_module
-from .channel import FAILED, QUEUED, REFUSED, SENT, WITHDRAWN, Broadcaster, ChannelNotAvailable, DeliveryView, event_id
+from .channel import FAILED, QUEUED, REFUSED, SENT, WITHDRAWN, Broadcaster, ChannelNotAvailable, DeliveryView, attempt_event_id
 from .drafting import Draft, DraftRefused, Llm, RuleLane, draft_announcement
 from .eligibility import StoryFacts, load_story, verdict
 from .post import tagged_link
@@ -142,11 +142,16 @@ def process_story(services: Services, lineage_id: str, *, trigger: str, by: str 
     return _announce(services, settings, story, link, row, trigger, by)
 
 
+def _event_id(row: Mapping[str, Any]) -> str:
+    """The Caducus event id of the row's current attempt: ``delivery:<announcementId>:a<N>`` (``channel.attempt_event_id``). Caducus dedupes on it."""
+    return attempt_event_id(row["id"], int(row.get("attempt") or 1))
+
+
 def _row(settings: Mapping[str, Any], story: StoryFacts, link: str, trigger: str, now: str, **fields: Any) -> dict[str, Any]:
     return {
         "id": announcement_id(settings["accountId"], story.lineage_id), "accountId": settings["accountId"], "accountHandle": settings.get("accountHandle"),
         "storyLineageId": story.lineage_id, "storyItemId": story.item_id, "storyVersionNumber": story.version_number, "channel": CHANNEL, "mode": settings["mode"],
-        "trigger": trigger, "link": link, "attempts": 0, "round": 1, "history": [], "createdAt": now, "updatedAt": now, **fields,
+        "trigger": trigger, "link": link, "attempts": 0, "attempt": 1, "history": [], "createdAt": now, "updatedAt": now, **fields,
     }
 
 
@@ -199,7 +204,7 @@ def _announce(services: Services, settings: dict[str, Any], story: StoryFacts, l
         row = services.store.update(row, fields, note=note, by=by, now=now, document=document if draft is not None else None)
         if dry:
             return result("dry_run", "", row)
-    services.broadcaster.submit(account_id=settings["accountId"], event_id=event_id(settings["accountId"], row["storyLineageId"], int(row.get("round") or 1)),
+    services.broadcaster.submit(account_id=settings["accountId"], event_id=_event_id(row),
                                 text=document["post"], url=link)
     return sync_row(services, row, by=by)
 
@@ -241,7 +246,7 @@ def sync_row(services: Services, row: dict[str, Any], *, by: str = SYSTEM_ACTOR)
     """Copy what Caducus recorded for a ``posting`` row onto it. Only the delivery log says whether X took the post; this is the only place a row becomes posted."""
     if row["state"] != POSTING:
         return result("exists", row["state"], row)
-    view: DeliveryView | None = services.broadcaster.delivery(event_id(row["accountId"], row["storyLineageId"], int(row.get("round") or 1)))
+    view: DeliveryView | None = services.broadcaster.delivery(_event_id(row))
     now = _iso(services.now())
     if view is None or view.status == QUEUED:
         return result("queued", "", row)
@@ -254,9 +259,9 @@ def sync_row(services: Services, row: dict[str, Any], *, by: str = SYSTEM_ACTOR)
         _tell(services, "announcement.failed", story=row["storyLineageId"], reason=view.reason)
         return result("failed", view.reason or "", row)
     if view.status == REFUSED:
-        # Caducus's guard refused (a pause, or the budget). A refusal is final for that event id, so the next announcement is round + 1.
+        # Caducus's guard refused (a pause, or the budget). A refusal is final for that event id, so the next try is the next attempt (a new event).
         code = BUDGET_REACHED if "udget" in (view.reason or "") else PAUSED
-        row = services.store.update(row, {**cost, "state": BLOCKED, "blockedReason": code, "round": int(row.get("round") or 1) + 1}, note=view.reason or "Refused by the guard", by=by, now=now)
+        row = services.store.update(row, {**cost, "state": BLOCKED, "blockedReason": code, "attempt": int(row.get("attempt") or 1) + 1}, note=view.reason or "Refused by the guard", by=by, now=now)
         return result("blocked", code, row, message=view.reason)
     if view.status == WITHDRAWN:
         row = services.store.update(row, {**cost, "state": WITHDRAWN_STATE, "withdrawnBy": view.withdrawn_by, "withdrawnAt": view.withdrawn_at or now}, note=f"Withdrawn by {view.withdrawn_by}", by=by, now=now)
