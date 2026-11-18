@@ -96,8 +96,13 @@ function scheduleSync(config: AmplifyAppShellSiteConfig): string {
   return `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus agents schedules --site ${config.brand.toLowerCase()}`;
 }
 
+// Right after the schedule group: write the site's listener index (slice B2, PPY-8a374e), the one small document the Item change feed reads to find the agents
+// that listen for a change, so a change never lists the Automation table. It is derived from the same definitions, writes nothing when they have not changed,
+// and holds no rung or pause. Never allowed to fail quietly either (features/agent-sync.feature).
+const LISTENER_SYNC = `${CHECKOUT_AS_PAPYRUS_ROOT} ${BUILD_ROLE_LANE} papyrus agents listeners`;
+
 function procedureSyncCommands(config: AmplifyAppShellSiteConfig): string[] {
-  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC, AGENT_SYNC, scheduleSync(config)];
+  return [...pythonProvisioningCommands(config), PROCEDURE_SYNC, AGENT_SYNC, scheduleSync(config), LISTENER_SYNC];
 }
 
 const GATE_FAILURE_MESSAGE_PREFIX = "No LeftBlock CI receipt for";

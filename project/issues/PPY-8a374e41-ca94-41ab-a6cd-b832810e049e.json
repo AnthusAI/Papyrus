@@ -23,9 +23,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f77fdfc2-7cf5-4be2-95af-474979c9d388",
+      "author": "home",
+      "text": "Built on branch feat/PPY-8a374e-item-change-feed, PR 1686 (to develop, not merged). Item stream (both images) switched on with the agents stack; feed function (4 resources) in amplify/agents/item-change-feed.ts; logic in src/papyrus_content/item_change_feed.py; listener index (agent_listeners.py, site document kind listeners) written by the new deploy step papyrus agents listeners (build spec runs it after agents schedules). Specs: features_backend/item-change-feed.feature (18 scenarios), pytest, agent-sync infra test.\n\nLeft for PPY-67e3cd (coalescing window): the wake's trigger carries paid, serialBy, actorKind (agent or person), actorLabel and at; the window sits between the feed and send_wake and keys on agent+lineage+step without the version. Left for PPY-4e7e8b (loop guard): same fields; count agent changes per Story since the last actorKind person. Neither is built.\n\nLeft for PPY-4af216 (B6): story_triggers.stage_automations still lists the Automation table per stage delivery (CLI path); monitoring_router gate lists it per sweep. Not removed here because the Stage Bots have no replacement until B6 moves them onto the feed.\n\nLive proof that needs a deploy (not done): (1) second deploy of a site adds the Item stream and the feed; (2) papyrus agents listeners writes listener index version 1; (3) a console board move and a CLI save each put one wake per listening agent on the queue; (4) the same stream record again puts none inside five minutes and starts no second run after; (5) dead-letter queue stays empty; (6) feed lag alarm is PPY-45ef76.",
+      "created_at": "2026-11-18T21:04:45.150265Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T16:58:28.182828Z",
-  "updated_at": "2026-11-16T22:46:03.478923Z",
+  "updated_at": "2026-11-18T21:04:45.151286Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

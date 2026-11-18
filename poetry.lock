@@ -830,14 +830,14 @@ files = [
 
 [[package]]
 name = "caducus"
-version = "0.3.0"
+version = "0.4.0"
 description = "CLI for collecting ops events and running reinforcement-memory analysis."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "caducus-0.3.0-py3-none-any.whl", hash = "sha256:223669d919f46d086d75cce6e79151c37cc95cf1a5ce2c18fccf0e1852a5db7c"},
-    {file = "caducus-0.3.0.tar.gz", hash = "sha256:251e2e15d008f86598b66d56440da60366e395434efc2c81abb2cd9729b5bdc6"},
+    {file = "caducus-0.4.0-py3-none-any.whl", hash = "sha256:172bb5fc966889928f9188dafb4722987d94ba4f2263c358eeaaf142ae526f8b"},
+    {file = "caducus-0.4.0.tar.gz", hash = "sha256:c234a8600ee459b9cdca6984201717b0961b5fcd99f8ec8f7a254e2e66d9ae48"},
 ]
 
 [package.dependencies]
@@ -9107,4 +9107,4 @@ transcripts = ["youtube-transcript-api"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "ea1148bff7df273da10b0e4e577e3ba17a9a71ec46839c8cf052ca9e62d00d87"
+content-hash = "4eb94568d5cd307d86dbdb6fa944e9241a4e6aba6d684a29015f3232b966f5c7"

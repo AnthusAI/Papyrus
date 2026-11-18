@@ -4610,7 +4610,7 @@
     {
       "name": "announcements_correct",
       "audience": "staff",
-      "description": "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.",
+      "description": "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.",
       "agentAllowed": true,
       "agentRung": "prepare",
       "agentRefusal": "human_required",
@@ -4621,11 +4621,17 @@
           "delivery": {
             "type": "string",
             "minLength": 1,
-            "description": "The Delivery's id."
+            "description": "The id of the Delivery that went and is to be corrected."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The corrected public text. It is checked like the text of a new Delivery."
           }
         },
         "required": [
-          "delivery"
+          "delivery",
+          "text"
         ],
         "additionalProperties": false
       },
@@ -4634,11 +4640,57 @@
         "properties": {
           "id": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "The new Delivery's id."
+          },
+          "generation": {
+            "type": "integer",
+            "description": "The new Delivery's generation."
+          },
+          "supersedes": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The id of the Delivery it replaces."
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new Delivery's state."
+          },
+          "approval": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The review the new Delivery goes under: the one the old Delivery had."
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "passed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "passed"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The checks the new text passed."
           }
         },
         "required": [
-          "id"
+          "id",
+          "generation",
+          "supersedes",
+          "state",
+          "approval",
+          "checks"
         ]
       }
     },

@@ -1016,6 +1016,8 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | home-page/function         | iam-call-without-tenant          | refused before any read            |
       | image-service              | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | image-service              | iam-call-without-tenant          | refused before any read            |
+      | item-change-feed           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | item-change-feed           | iam-call-without-tenant          | refused before any read            |
       | knowledge-query            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | knowledge-query            | iam-call-without-tenant          | refused before any read            |
       | localization-dispatch      | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |

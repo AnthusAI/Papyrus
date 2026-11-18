@@ -36,10 +36,17 @@
       "text": "PR #1684 merged to develop: supersede refuses unsent Deliveries, a different second correction is a conflict, a retry finishes the relation. Still open: deleting the old X post (no code exists; X stays off) and a CLI handler for announcements correct.",
       "created_at": "2026-11-18T17:53:23.011757Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5a517a2a-0032-474c-a9f4-77a1c618f043",
+      "author": "home",
+      "text": "home: 2026-11-18: CLI handler built on branch feat/PPY-3e0a8a-correct-cli, PR #1687 (base develop, not merged). papyrus announcements correct DELIVERY --text TEXT: checks the text like a new Delivery (X: check_draft), then Deliveries.supersede; writes unless --dry-run; refusals are constraint_conflict sentences. Spec features_backend/announcements-correct-cli.feature (12 scenarios). Still open: deleting the old X post (PPY-efd06c).",
+      "created_at": "2026-11-18T22:10:05.453421Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:35.778869Z",
-  "updated_at": "2026-11-18T17:53:23.012050Z",
+  "updated_at": "2026-11-18T22:10:05.454682Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

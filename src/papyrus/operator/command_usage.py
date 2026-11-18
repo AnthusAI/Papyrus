@@ -288,6 +288,8 @@ _ENTRIES = dict([
      "[--dir DIR] [--core DIR] [--root DIR] [--site-registry FILE] [--dry-run | --check]", "operator", "dry-run"),
   _e("agents schedules", "Make the site's schedule group agree with the applied definitions, as the deploy does right after agents apply: one EventBridge Scheduler entry for each switched-on, not-retired agent that names a schedule (its cron expression in its time zone, the site's wake queue as the only target), and no entry that no agent names. A timer only raises a wake; the run re-checks the policy and the pause. Never touches an entry whose name does not start agent-. --check exits 2 on any difference.",
      "--site SITE [--dry-run | --check]", "operator", "dry-run"),
+  _e("agents listeners", "Write the site's listener index as the deploy does right after agents schedules: one small document, derived from the agent definitions in Git, that says which agents listen for which change, so the Item change feed finds them without listing the Automation table. The same definitions write nothing; a changed set writes the next version. It holds no rung, pause or budget. --check exits 2 when the index differs.",
+     "[--dir DIR] [--core DIR] [--root DIR] [--dry-run | --check]", "operator", "dry-run"),
   _e("agents set-rung", "Set how far one agent may go on this site (off, observe, propose, draft, prepare, publish_soft, publish_auto): writes its rung into the agent policy document as a new version with who, when and why. Admin who is a person only. A dry run that prints the policy entry before and after unless --apply. Refuses an unknown rung, a rung above what the agent's definition needs, and publish_auto while a hard floor forbids it.",
      "--id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE]... [--dir DIR] [--core DIR] [--apply]", "editor", "apply", ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
@@ -333,7 +335,8 @@ _ENTRIES = dict([
   _e("announcements pinned", "Change or unpin a block a person pinned.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements release", "Release a Delivery: hand it to its channel now.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements unlock", "Unlock a Delivery after its lock time, so it can be edited again.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
-  _e("announcements correct", "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements correct", "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. The text is checked like a new Delivery's.",
+     "DELIVERY_ID --text TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements record-manual", "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names the signed-in person. A person only.",
      "DELIVERY_ID --url URL [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements withdraw", "Withdraw a Delivery that went: this deletes a public post.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
@@ -433,7 +436,7 @@ GROUP_ORDER = {
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "pod": ["init", "id", "check", "build", "load"],
-  "agents": ["validate", "apply", "schedules", "set-rung"],
+  "agents": ["validate", "apply", "schedules", "listeners", "set-rung"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
@@ -461,7 +464,7 @@ GROUP_SUMMARIES = {
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
 GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id, check, build and load. Only load signs in to a site."
-GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline, apply them to a site as its deploy does, and keep the site's schedule group in step with them, and set an agent's rung in the site's policy."
+GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline, apply them to a site as its deploy does, keep the site's schedule group and listener index in step with them, and set an agent's rung in the site's policy."
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
