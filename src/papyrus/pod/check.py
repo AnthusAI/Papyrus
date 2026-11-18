@@ -24,6 +24,7 @@ GUIDELINES_FOLDER = "guidelines"
 HASH_FORM = re.compile(r"^sha256:[0-9a-f]{64}$")
 REVIEW_CLAIMS_LINE = ("review keys in a pod are claims, not newsroom review; nothing in a pod satisfies a gate, a required step, "
                       "publishRequiresRating or a five-star rule")
+FIVE_STAR_CANDIDATE = "five-star-candidate"
 WIKI_LINK = re.compile(r"^\[\[([^\[\]]*)\]\]$")
 
 
@@ -31,6 +32,7 @@ WIKI_LINK = re.compile(r"^\[\[([^\[\]]*)\]\]$")
 class Problem:
     path: str
     message: str
+    code: str = ""      # set for a problem a loader treats differently from the rest; "five-star-candidate" is a rating of 5
 
 
 @dataclass
@@ -292,7 +294,7 @@ class _Checker:
         if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 5:
             self.problem(note.path, "key 'rating' takes a whole number from 1 to 4")
         elif value == 5:
-            self.problem(note.path, "key 'rating' is 5, which a pod never grants; this note is a five-star candidate, and a person confirms five stars in the newsroom. Use 4 here")
+            self.report.problems.append(Problem(note.path, "key 'rating' is 5, which a pod never grants; this note is a five-star candidate, and a person confirms five stars in the newsroom. Use 4 here", FIVE_STAR_CANDIDATE))
 
     def _check_link(self, note: Note, key: Key, item: object, by_name: dict[str, list[Note]], class_name: str | None) -> None:
         target = self._resolve(note, key.name, item, by_name)

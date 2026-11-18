@@ -171,6 +171,8 @@ def save_story_version(
     machine_write: dict[str, str] | None = None,
     item_type: str | None = None,
     measurements: dict[str, Any] | None = None,
+    overrides: dict[str, Any] | None = None,
+    metadata_updates: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded.
 
@@ -178,6 +180,7 @@ def save_story_version(
     ``item_type`` gives the new version another Story type (the type is a field of the version, not of the lineage); the published version keeps the
     type it was published with, so the live address does not move until the new version is published.
     ``measurements`` (``story_measure.story_measurements``) are kept in the new version's metadata; a version saved without them has none, never the previous version's.
+    ``overrides`` replaces columns of the new row (``papyrus pod load`` sets the section this way); ``metadata_updates`` replaces keys of the new version's metadata.
     """
     now = now or utc_now_iso()
     versions = story_versions(client, lineage_id)
@@ -189,7 +192,7 @@ def save_story_version(
     fields = ItemFields(
         type=require_story_type(item_type, "The Story type") if item_type and item_type != latest["type"] else latest["type"],
         slug=latest["slug"],
-        section=latest.get("section"),
+        section=(overrides or {}).get("section", latest.get("section")),
         front_matter_yaml=front_matter_yaml,
         body_markus=body_markus,
         aliases=list(latest.get("aliases") or []),
@@ -206,10 +209,12 @@ def save_story_version(
     metadata.pop("measurements", None)
     if measurements is not None:
         metadata["measurements"] = measurements
+    metadata.update(metadata_updates or {})
     apply_stamp(metadata, machine_write, created=False, now=now)
     record = {
         **{name: value for name, value in _without_server_fields(latest).items() if name not in SCHEDULE_FIELDS},   # a schedule pins the version it was set on, never the next one
         **compact_dict(columns),
+        **(overrides or {}),
         "id": record_id,
         "lineageId": lineage_id,
         "versionNumber": next_number,
