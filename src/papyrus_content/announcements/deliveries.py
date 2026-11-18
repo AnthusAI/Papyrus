@@ -330,6 +330,16 @@ class Deliveries:
             raise RecordError(f"A Delivery state is one of {', '.join(DELIVERY_STATES)}; not {state!r}.")
         return self._change(row, {"state": state}, by=by, note=note, now=now)
 
+    def record_counts(self, row: Mapping[str, Any], counts: Mapping[str, int], cost: str | None, *, by: str, now: str | None = None) -> dict[str, Any]:
+        """Write the counts Caducus's records add up to (``counts.DeliveryCounts.refresh`` calls this), and the cost when Caducus charged something. The state is not
+        touched: counts say what became of the readers, the attempts say how the send went. The history line names the counts so a change is visible."""
+        from .counts import counts_text
+
+        changes: dict[str, Any] = {"counts": dict(counts)}
+        if cost is not None:
+            changes["cost"] = cost
+        return self._change(row, changes, by=by, note=f"counts from Caducus: {counts_text(counts)}", now=now)
+
     def move_release(self, row: Mapping[str, Any], release_at: str, *, by: str, now: str | None = None) -> dict[str, Any]:
         """A new release time. The lock time follows when it was equal to the old release time (no separate lock)."""
         release = utc(release_at)

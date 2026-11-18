@@ -48,5 +48,12 @@ export const FIXTURE_TODAY: TodayOverview = {
     { automationId: "digest.weekly", title: "Weekly digest", state: "Did not run", whyCode: "disabled", why: "Disabled: the router starts nothing for a disabled automation" },
     { automationId: "newsletter.daily", title: "Daily summary", state: "Did not run", whyCode: "no_wake", why: "Nothing woke it today" },
   ],
+  sends: [
+    {
+      deliveryId: "announcement-weekly#email#site#g1", announcementId: "announcement-weekly", kind: "roundup", releasedAt: "2026-11-16T13:00:00Z", lists: ["weekly"], items: 5,
+      state: "sent", stateShown: "✓ Sent", stateWords: "Sent", attempts: 1, lastAttempt: "sent",
+      counts: { queued: 0, sent: 12, failed: 0, suppressed: 1, skipped: 2, delivered: 11, bounced: 1, complained: 0 }, countsText: "12 sent, 1 suppressed, 2 skipped, 11 delivered, 1 bounced", cost: null,
+    },
+  ],
   totals: { runs: 15, counts: { ...none, acted: 8, nothing: 4, asked: 1, failed: 1, unknown: 1 }, costUsd: 0.43, costKnownRuns: 14, costUnknownRuns: 1 },
 };
