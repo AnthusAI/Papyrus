@@ -25,7 +25,7 @@ DEFAULT_PRICES = {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0
 DEFAULT_SETTINGS: dict[str, Any] = {
     "mode": "off",
     "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None},
-    "rules": {"minStars": MAX_STARS, "storyTypes": list(STORY_TYPES), "sections": []},
+    "rules": {"minStars": MAX_STARS, "storyTypes": list(STORY_TYPES), "sections": [], "requireReviewedSource": False},
     "budget": None,
     # The day of the month the owner's X billing cycle starts (1 to 31): the budget is per cycle, so the spend counter needs to know where a cycle begins.
     "billingCycleDay": None,
@@ -64,6 +64,9 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
     sections = rules.get("sections", [])
     if not isinstance(sections, list) or any(not isinstance(item, str) or not item for item in sections):
         raise _fail("sections_invalid", "Sections must be a list of section names.")
+    require_reviewed = rules.get("requireReviewedSource", False)
+    if not isinstance(require_reviewed, bool):
+        raise _fail("require_reviewed_source_invalid", "Reviewed only is on or off.")
     budget = proposed.get("budget")
     if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget < 0):
         raise _fail("budget_invalid", "The budget is an amount of money, zero or more, per X billing cycle.")
@@ -87,7 +90,7 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
             raise _fail("budget_needed", "Enter a budget per X billing cycle before turning announcements on.")
     return {
         "mode": mode,
-        "rules": {"minStars": stars, "storyTypes": list(types), "sections": list(sections)},
+        "rules": {"minStars": stars, "storyTypes": list(types), "sections": list(sections), "requireReviewedSource": require_reviewed},
         "budget": budget,
         "billingCycleDay": cycle_day,
         "prices": {name: prices[name] for name in ("createPost", "createPostWithUrl", "deletePost", "readPost", "asOf")},

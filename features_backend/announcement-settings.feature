@@ -45,6 +45,20 @@ Feature: The site owner decides what is announced
     Then the minimum rating is 4 stars
     And the sections are "Security"
 
+  Scenario: Reviewed Stories are not required until the owner turns it on
+    When ellie reads the announcement settings
+    Then reviewed Stories are not required
+
+  Scenario: The owner can require that a person reviewed a Story before it is announced
+    When ryan saves the announcement settings requiring reviewed Stories
+    Then reviewed Stories are required
+    When ryan saves the announcement settings with a minimum of 4 stars
+    Then reviewed Stories are required
+
+  Scenario: Reviewed Stories required is on or off and nothing else
+    When ryan saves the announcement settings with reviewed Stories required set to "sometimes"
+    Then the announcement request is refused with "Reviewed only is on or off."
+
   Scenario: The prices are editable and carry the date they were copied
     When ryan saves the price of a post with a link as 0.25 as of "2026-12-01"
     Then the price of a post with a link is 0.25 as of "2026-12-01"

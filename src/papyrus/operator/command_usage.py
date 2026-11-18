@@ -315,9 +315,18 @@ _ENTRIES = dict([
   _e("announcements resume", "Resume announcements and announce the Stories that waited.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements settings show", "Show mode, bar, Story types, sections, account, budget, prices and the pause.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements settings set", "Change announcement settings (a person only; admins save). Every rule is checked and every problem listed.",
-     "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--budget TEXT] "
+     "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--require-reviewed-source | --no-require-reviewed-source] [--budget TEXT] "
      "[--billing-cycle-day N] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements review show", "Show the publication's announcement review and each override, and what a channel and kind would get.", "[--channel TEXT] [--kind TEXT] [--list TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements review set", "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "--approval none|soft|hard|inherit [--channel TEXT] [--kind TEXT] [--list TEXT] --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements delivery review", "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "DELIVERY_ID --approval none|soft|hard [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements draft", "Draft a Delivery, add a candidate text or picture, or edit a block nobody pinned.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements pinned", "Change or unpin a block a person pinned.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements release", "Release a Delivery: hand it to its channel now.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements unlock", "Unlock a Delivery after its lock time, so it can be edited again.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements correct", "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements withdraw", "Withdraw a Delivery that went: this deletes a public post.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
   _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
      "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),

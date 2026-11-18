@@ -41,6 +41,15 @@ export type ImageOperationName =
   | "announcements_settings_show"
   | "announcements_settings_set"
   | "announcements_account_status"
+  | "announcements_review_show"
+  | "announcements_review_set"
+  | "announcements_delivery_review_set"
+  | "announcements_draft"
+  | "announcements_pinned_change"
+  | "announcements_release"
+  | "announcements_unlock"
+  | "announcements_correct"
+  | "announcements_withdraw"
   | "ratings_set"
 ;
 
@@ -1110,7 +1119,7 @@ export type AnnouncementsSettingsShowInput = Record<string, unknown>;
 export type AnnouncementsSettingsShowResult = {
   settings: {
     mode: "off" | "dry_run" | "on";
-    /** minStars, storyTypes and sections: what is announced. */
+    /** minStars, storyTypes, sections and requireReviewedSource: what is announced. */
     rules?: Record<string, unknown>;
     /** Dollars for each X billing cycle. No default. */
     budget?: number | null;
@@ -1135,6 +1144,8 @@ export type AnnouncementsSettingsSetInput = {
   storyTypes?: string[];
   /** Limit to these sections. */
   sections?: string[];
+  /** On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. */
+  requireReviewedSource?: boolean;
   /** Dollars for each X billing cycle, such as 10.00. No default. */
   budget?: string;
   /** The day of the month your X billing cycle starts. */
@@ -1148,7 +1159,7 @@ export type AnnouncementsSettingsSetInput = {
 export type AnnouncementsSettingsSetResult = {
   settings: {
     mode: "off" | "dry_run" | "on";
-    /** minStars, storyTypes and sections: what is announced. */
+    /** minStars, storyTypes, sections and requireReviewedSource: what is announced. */
     rules?: Record<string, unknown>;
     /** Dollars for each X billing cycle. No default. */
     budget?: number | null;
@@ -1174,6 +1185,122 @@ export type AnnouncementsAccountStatusResult = {
   standing?: string;
   pauseReason?: string;
   pricesAsOf?: string;
+};
+
+/** Show the publication's announcement review and each override, and what a channel and kind would get. */
+export type AnnouncementsReviewShowInput = {
+  /** Narrow to one channel, such as linkedin. */
+  channel?: string;
+  /** Narrow to one kind of Announcement, such as roundup or story_published. */
+  kind?: string;
+  /** Narrow to one newsletter list. */
+  list?: string;
+};
+
+export type AnnouncementsReviewShowResult = {
+  policyVersion: number;
+  approval?: string | null;
+  rung: string;
+  overrides: Record<string, unknown>[];
+  /** With a channel and kind: the approval, the rung and where it came from. */
+  chosen?: Record<string, unknown> | null;
+};
+
+/** Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards. */
+export type AnnouncementsReviewSetInput = {
+  /** none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it. inherit takes an override away, so that scope follows the next wider one. */
+  approval: "none" | "soft" | "hard" | "inherit";
+  /** Narrow to one channel, such as linkedin. */
+  channel?: string;
+  /** Narrow to one kind of Announcement, such as roundup or story_published. */
+  kind?: string;
+  /** Narrow to one newsletter list. */
+  list?: string;
+  /** Why, in plain words. It is recorded with who and when. */
+  reason: string;
+};
+
+export type AnnouncementsReviewSetResult = {
+  policyVersion: number;
+  approval?: string | null;
+  rung?: string;
+  scope?: Record<string, unknown> | null;
+  changed: boolean;
+};
+
+/** Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change. */
+export type AnnouncementsDeliveryReviewSetInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it. */
+  approval: "none" | "soft" | "hard";
+};
+
+export type AnnouncementsDeliveryReviewSetResult = {
+  id: string;
+  approval: string;
+  approvalPolicy: string;
+  approvedBy?: string | null;
+};
+
+/** Draft a Delivery, add a candidate text or picture, or edit a block nobody pinned. */
+export type AnnouncementsDraftInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsDraftResult = {
+  id: string;
+};
+
+/** Change or unpin a block a person pinned. */
+export type AnnouncementsPinnedChangeInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsPinnedChangeResult = {
+  id: string;
+};
+
+/** Release a Delivery: hand it to its channel now. */
+export type AnnouncementsReleaseInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsReleaseResult = {
+  id: string;
+};
+
+/** Unlock a Delivery after its lock time, so it can be edited again. */
+export type AnnouncementsUnlockInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsUnlockResult = {
+  id: string;
+};
+
+/** Correct a Delivery with a new public text: the next generation, which supersedes the one that went. */
+export type AnnouncementsCorrectInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsCorrectResult = {
+  id: string;
+};
+
+/** Withdraw a Delivery that went: this deletes a public post. */
+export type AnnouncementsWithdrawInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsWithdrawResult = {
+  id: string;
 };
 
 /** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
@@ -1231,6 +1358,15 @@ export interface ImageOperations {
   announcements_settings_show: { input: AnnouncementsSettingsShowInput; result: AnnouncementsSettingsShowResult };
   announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
+  announcements_review_show: { input: AnnouncementsReviewShowInput; result: AnnouncementsReviewShowResult };
+  announcements_review_set: { input: AnnouncementsReviewSetInput; result: AnnouncementsReviewSetResult };
+  announcements_delivery_review_set: { input: AnnouncementsDeliveryReviewSetInput; result: AnnouncementsDeliveryReviewSetResult };
+  announcements_draft: { input: AnnouncementsDraftInput; result: AnnouncementsDraftResult };
+  announcements_pinned_change: { input: AnnouncementsPinnedChangeInput; result: AnnouncementsPinnedChangeResult };
+  announcements_release: { input: AnnouncementsReleaseInput; result: AnnouncementsReleaseResult };
+  announcements_unlock: { input: AnnouncementsUnlockInput; result: AnnouncementsUnlockResult };
+  announcements_correct: { input: AnnouncementsCorrectInput; result: AnnouncementsCorrectResult };
+  announcements_withdraw: { input: AnnouncementsWithdrawInput; result: AnnouncementsWithdrawResult };
   ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
 }
 
@@ -1274,6 +1410,15 @@ export const IMAGE_OPERATIONS = {
   announcements_settings_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements settings show" },
   announcements_settings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements settings set" },
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
+  announcements_review_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements review show" },
+  announcements_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements review set" },
+  announcements_delivery_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements delivery review" },
+  announcements_draft: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements draft" },
+  announcements_pinned_change: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements pinned" },
+  announcements_release: { effect: "write", agentAllowed: true, agentRung: "publish_auto", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements release" },
+  announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
+  announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
+  announcements_withdraw: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },
   ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
 } as const;
 

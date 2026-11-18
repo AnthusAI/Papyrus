@@ -4036,7 +4036,7 @@
               },
               "rules": {
                 "type": "object",
-                "description": "minStars, storyTypes and sections: what is announced."
+                "description": "minStars, storyTypes, sections and requireReviewedSource: what is announced."
               },
               "budget": {
                 "type": [
@@ -4119,6 +4119,10 @@
             },
             "description": "Limit to these sections."
           },
+          "requireReviewedSource": {
+            "type": "boolean",
+            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default."
+          },
           "budget": {
             "type": "string",
             "minLength": 1,
@@ -4157,7 +4161,7 @@
               },
               "rules": {
                 "type": "object",
-                "description": "minStars, storyTypes and sections: what is announced."
+                "description": "minStars, storyTypes, sections and requireReviewedSource: what is announced."
               },
               "budget": {
                 "type": [
@@ -4250,6 +4254,426 @@
         "required": [
           "mode",
           "paused"
+        ]
+      }
+    },
+    {
+      "name": "announcements_review_show",
+      "audience": "staff",
+      "description": "Show the publication's announcement review and each override, and what a channel and kind would get.",
+      "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Narrow to one channel, such as linkedin."
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Narrow to one kind of Announcement, such as roundup or story_published."
+          },
+          "list": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Narrow to one newsletter list."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "policyVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "approval": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rung": {
+            "type": "string",
+            "minLength": 1
+          },
+          "overrides": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "chosen": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "With a channel and kind: the approval, the rung and where it came from."
+          }
+        },
+        "required": [
+          "policyVersion",
+          "rung",
+          "overrides"
+        ]
+      }
+    },
+    {
+      "name": "announcements_review_set",
+      "audience": "staff",
+      "description": "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "blocked",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "approval": {
+            "type": "string",
+            "enum": [
+              "none",
+              "soft",
+              "hard",
+              "inherit"
+            ],
+            "description": "none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it. inherit takes an override away, so that scope follows the next wider one."
+          },
+          "channel": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Narrow to one channel, such as linkedin."
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Narrow to one kind of Announcement, such as roundup or story_published."
+          },
+          "list": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Narrow to one newsletter list."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          }
+        },
+        "required": [
+          "approval",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "policyVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "approval": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rung": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "policyVersion",
+          "changed"
+        ]
+      }
+    },
+    {
+      "name": "announcements_delivery_review_set",
+      "audience": "staff",
+      "description": "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          },
+          "approval": {
+            "type": "string",
+            "enum": [
+              "none",
+              "soft",
+              "hard"
+            ],
+            "description": "none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it."
+          }
+        },
+        "required": [
+          "delivery",
+          "approval"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "approval": {
+            "type": "string",
+            "minLength": 1
+          },
+          "approvalPolicy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "approvedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "approval",
+          "approvalPolicy"
+        ]
+      }
+    },
+    {
+      "name": "announcements_draft",
+      "audience": "staff",
+      "description": "Draft a Delivery, add a candidate text or picture, or edit a block nobody pinned.",
+      "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "announcements_pinned_change",
+      "audience": "staff",
+      "description": "Change or unpin a block a person pinned.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "blocked",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "announcements_release",
+      "audience": "staff",
+      "description": "Release a Delivery: hand it to its channel now.",
+      "agentAllowed": true,
+      "agentRung": "publish_auto",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "announcements_unlock",
+      "audience": "staff",
+      "description": "Unlock a Delivery after its lock time, so it can be edited again.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "announcements_correct",
+      "audience": "staff",
+      "description": "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.",
+      "agentAllowed": true,
+      "agentRung": "prepare",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "announcements_withdraw",
+      "audience": "staff",
+      "description": "Withdraw a Delivery that went: this deletes a public post.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
         ]
       }
     },

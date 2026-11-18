@@ -630,7 +630,7 @@ ANNOUNCEMENT = record({
     "withdrawnBy": text(), "createdAt": text(), "updatedAt": text(),
 }, ("id", "state", "label"))
 SETTINGS = record({
-    "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes and sections: what is announced."},
+    "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes, sections and requireReviewedSource: what is announced."},
     "budget": {"type": ["number", "null"], "description": "Dollars for each X billing cycle. No default."}, "billingCycleDay": {"type": ["integer", "null"]},
     "prices": {"type": "object", "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."},
     "labelConfirmed": flag(), "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
@@ -638,7 +638,7 @@ SETTINGS = record({
 _EX_ROW = {"id": "mom#story-1", "accountId": "mom", "storyLineageId": "story-1", "state": "dry_run", "label": "Dry run: not sent", "mode": "dry_run", "weight": 120, "cost": "0",
            "attempts": 0, "history": [{"at": "2026-11-13T09:00:00Z", "by": "system:announcements", "state": "dry_run", "note": "Dry run: not sent"}],
            "createdAt": "2026-11-13T09:00:00Z", "updatedAt": "2026-11-13T09:00:00Z"}
-_EX_SETTINGS = {"mode": "dry_run", "rules": {"minStars": 5, "storyTypes": ["article"], "sections": []}, "budget": 10, "billingCycleDay": 1,
+_EX_SETTINGS = {"mode": "dry_run", "rules": {"minStars": 5, "storyTypes": ["article"], "sections": [], "requireReviewedSource": False}, "budget": 10, "billingCycleDay": 1,
                 "prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}, "labelConfirmed": True,
                 "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None}}
 
@@ -691,12 +691,13 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
              "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
              "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
+             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default."),
              "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
              "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
              "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
         record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "blocked"),
         (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements",
-        notes="A person only: it sets what the publication says in public and how much it may spend. There is no approval setting: a draft that passes the automatic checks is posted. "
+        notes="A person only: it sets what the publication says in public and how much it may spend. Human review is not here: it is the announce rung of the agent policy (announcements_review_set). "
               "prices is given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
         agent_rung=PERSON_ONLY, agent_refusal="blocked",
     ),
@@ -710,6 +711,83 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + ANNOUNCEMENT_OPERATIONS
+
+# --- review: the announce rung, its overrides, and what an agent may do with a Delivery (PPY-97c0f2) ---------------------------------------------------------
+_APPROVAL = choice("none", "soft", "hard", description="none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it.")
+_REVIEW_SCOPE = {"channel": text("Narrow to one channel, such as linkedin."), "kind": text("Narrow to one kind of Announcement, such as roundup or story_published."),
+                 "list": text("Narrow to one newsletter list.")}
+_REVIEW_RESULT = record({"policyVersion": whole(minimum=0), "approval": {"type": ["string", "null"]}, "rung": text(), "scope": {"type": ["object", "null"]}, "changed": flag()},
+                        ("policyVersion", "changed"))
+
+REVIEW_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "announcements_review_show", ("review", "show"), "Show the publication's announcement review and each override, and what a channel and kind would get.", "read",
+        obj({"channel": _REVIEW_SCOPE["channel"], "kind": _REVIEW_SCOPE["kind"], "list": _REVIEW_SCOPE["list"]}),
+        record({"policyVersion": whole(minimum=0), "approval": {"type": ["string", "null"]}, "rung": text(), "overrides": many({"type": "object"}),
+                "chosen": {"type": ["object", "null"], "description": "With a channel and kind: the approval, the rung and where it came from."}}, ("policyVersion", "rung", "overrides")), (),
+        (Example({"channel": "linkedin", "kind": "roundup"}, {"policyVersion": 3, "approval": "soft", "rung": "publish_soft", "overrides": [{"scope": {"kind": "roundup"}, "approval": "hard", "rung": "prepare"}],
+                                                              "chosen": {"approval": "hard", "rung": "prepare", "policy": "override: kind roundup (agent policy version 3)"}}),), group="announcements",
+        notes="announcementReview is the rung of the announce responsibility in the site's agent policy: hard is prepare, soft is publish_soft, none is publish_auto. "
+              "Narrowest wins: the publication, then a channel, then an Announcement kind, then a list.",
+    ),
+    Operation(
+        "announcements_review_set", ("review", "set"), "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "write",
+        obj({"approval": choice("none", "soft", "hard", "inherit", description=f"{_APPROVAL['description']} inherit takes an override away, so that scope follows the next wider one."), **_REVIEW_SCOPE,
+             "reason": REASON}, ("approval", "reason")),
+        _REVIEW_RESULT, ("constraint_conflict",),
+        (Example({"approval": "hard", "kind": "roundup", "reason": "Roundups wait for a person."}, {"policyVersion": 4, "approval": "hard", "rung": "prepare", "scope": {"kind": "roundup"}, "changed": True}),),
+        group="announcements", agent_rung=PERSON_ONLY, agent_refusal="blocked",
+        notes="An admin who is a person only; an agent is blocked at every rung. Each change is a new version of the agent policy with who, when and why. An Announcement already planned keeps the review it was "
+              "made under unless an editor changes that one (announcements_delivery_review_set). none is the rung publish_auto, which the ladder's hard floor refuses until the doubt gate exists (PPY-36e7c9).",
+    ),
+    Operation(
+        "announcements_delivery_review_set", ("delivery", "review"), "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "write",
+        obj({"delivery": text("The Delivery's id."), "approval": _APPROVAL}, ("delivery", "approval")),
+        record({"id": text(), "approval": text(), "approvalPolicy": text(), "approvedBy": {"type": ["string", "null"]}}, ("id", "approval", "approvalPolicy")), ("not_found",),
+        (Example({"delivery": "announcement-1#linkedin#page#g1", "approval": "hard"}, {"id": "announcement-1#linkedin#page#g1", "approval": "hard", "approvalPolicy": "set for this Delivery by Ada Admin", "approvedBy": None}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only (an editor or an admin). An agent gets human_required: it may not choose how much review a Delivery gets.",
+    ),
+    Operation(
+        "announcements_draft", ("draft",), "Draft a Delivery, add a candidate text or picture, or edit a block nobody pinned.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
+        group="announcements", positional=("delivery",), agent_rung="draft",
+        notes="Described by PPY-97c0f2; built with the editing window (PPY-e8ec54).",
+    ),
+    Operation(
+        "announcements_pinned_change", ("pinned",), "Change or unpin a block a person pinned.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY, agent_refusal="blocked",
+        notes="A person only. An agent is blocked at every rung: what a person pinned stays. Built with the editing window (PPY-e8ec54).",
+    ),
+    Operation(
+        "announcements_release", ("release",), "Release a Delivery: hand it to its channel now.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
+        group="announcements", positional=("delivery",), agent_rung="publish_auto",
+        notes="Under none the policy released it, so an agent at publish_auto may. Under soft or hard an agent is told human_required: a person releases it. A person always may. Built with the channel transport.",
+    ),
+    Operation(
+        "announcements_unlock", ("unlock",), "Unlock a Delivery after its lock time, so it can be edited again.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only; an agent is told human_required. Built with the editing window (PPY-e8ec54).",
+    ),
+    Operation(
+        "announcements_correct", ("correct",), "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g2"}),),
+        group="announcements", positional=("delivery",), agent_rung="prepare",
+        notes="An agent follows that Delivery's review value: the correction is made at prepare, and it goes only as its own approval says. Built with corrections (PPY-3e0a8a).",
+    ),
+    Operation(
+        "announcements_withdraw", ("withdraw",), "Withdraw a Delivery that went: this deletes a public post.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person. An agent is told human_required. The ticket allows an agent to withdraw only when a Story is retired; the table cannot say \"only when\", so that exception is not built "
+              "and is part of corrections (PPY-3e0a8a).",
+    ),
+)
+
+OPERATIONS = OPERATIONS + REVIEW_OPERATIONS
 
 RATING_OPERATIONS: tuple[Operation, ...] = (
     Operation(
