@@ -17,10 +17,17 @@
       "text": "Branch feat/PPY-b0c478-guidelines-editor; PR to follow (see PR on GitHub).",
       "created_at": "2026-11-18T15:55:32.113376Z",
       "comment_type": "default"
+    },
+    {
+      "id": "796468a0-ef7e-47b6-92d6-446bbf2d2da5",
+      "author": "home",
+      "text": "PR #1678 (feat/PPY-b0c478-guidelines-editor).",
+      "created_at": "2026-11-18T15:55:53.869571Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T00:02:16.910278Z",
-  "updated_at": "2026-11-18T15:55:32.113971Z",
+  "updated_at": "2026-11-18T15:55:53.870301Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
