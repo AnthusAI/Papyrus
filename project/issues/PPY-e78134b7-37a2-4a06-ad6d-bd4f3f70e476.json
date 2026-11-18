@@ -37,10 +37,17 @@
       "text": "Merged to develop in #1679 (not released). Met: history load as library, attempt-line check, never a page, widened relations. NOT met: no papyrus pod load command exists (not on the board); left open until it does.",
       "created_at": "2026-11-18T16:53:53.658535Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5696cd77-fa10-4959-b1f6-1ac5eff7a176",
+      "author": "home",
+      "text": "Update: pod load exists after #1680; wire Announcement/Delivery notes into it (needs each Story note's newsroom reference from the Story load). Left open.",
+      "created_at": "2026-11-18T17:19:15.789022Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:38.792114Z",
-  "updated_at": "2026-11-18T16:53:53.658779Z",
+  "updated_at": "2026-11-18T17:19:15.789263Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
