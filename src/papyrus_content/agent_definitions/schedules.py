@@ -13,6 +13,10 @@ A definition may name a schedule, a cron expression of five fields and a time zo
 * An entry in the group that begins ``agent-`` and that no live agent names is deleted, so no schedule exists that a definition does not name.
   Entries with any other name (the one-shot follow-up helper's, slice C2) are not this module's and are never touched.
 
+* One entry for each **periodic list** (slice N1, PPY-4d74d9): the site's list settings (``list_cadence``) name the cron expression, the time zone and the agent
+  that runs the list. The entry is ``agent-list-<list id>``; its wake runs that agent with the input ``listId`` and a key that names the list, so two lists of one
+  agent that tick together are two wakes. A list whose agent is not an agent of the site, or is switched off, is refused by name.
+
 The reconciler runs in the deploy step beside ``papyrus agents apply`` and is safe to run again: a second run with nothing changed writes nothing.
 It checks everything before it writes anything and stops with one message that names every problem. It creates nothing by hand: the group and the
 role the scheduler assumes are in the site's ``agents`` stack (amplify/agents/schedule-group.ts), and this module only writes entries into that group.
@@ -23,7 +27,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 from .. import agent_wakes, wake_keys
 from ..automations import read_record
@@ -34,6 +38,8 @@ from .release import registered_schedules
 GROUP_PREFIX, GROUP_SUFFIX = "papyrus-", "-agent-schedules"
 ROLE_SUFFIX = "-agent-scheduler"
 ENTRY_PREFIX = "agent-"
+LIST_ENTRY_PREFIX = "list-"           # a list's entry is ``agent-list-<list id>``: it is one of the agent entries this module manages
+LIST_OWNER_SEPARATOR = ":list:"        # the wake key's owner of a list's tick: ``<agent>:list:<list id>``
 MAX_ENTRY_NAME = 64
 MAX_DESCRIPTION = 512
 SCHEDULED_TIME = "<aws.scheduler.scheduled-time>"   # the scheduler's context attribute: the time the entry was scheduled for, in UTC
@@ -72,20 +78,24 @@ def entry_name(automation_id: str) -> str:
 # --- the wake each entry sends ------------------------------------------------------------------------------------
 
 
-def wake_request(record: dict, schedule: dict, publication: dict) -> dict[str, Any]:
-    """The runner's request for one tick of this agent, with the wake key the scheduler completes with the scheduled time."""
+def wake_request(record: dict, schedule: dict, publication: dict, *, list_id: str | None = None) -> dict[str, Any]:
+    """The runner's request for one tick of this agent, with the wake key the scheduler completes with the scheduled time.
+
+    A tick of a list (slice N1, PPY-4d74d9) is a tick of the agent that runs the list: the same request, with the list in the wake key's owner (so two lists of one
+    agent that tick together are two wakes) and in the run's input (``listId``) and in words."""
     automation_id = record["id"]
-    owner = wake_keys.owner(automation_id, record["procedureKey"])
+    owner = wake_keys.owner(f"{automation_id}{LIST_OWNER_SEPARATOR}{list_id}" if list_id else automation_id, record["procedureKey"])
     limits = record.get("limits") or {}
     cron_words = f"{schedule['cron']} {schedule['timeZone']}"
+    what = f"{automation_id} for the list {list_id}" if list_id else automation_id
     request: dict[str, Any] = {
         "wakeKey": wake_keys.schedule_key(owner, SCHEDULED_TIME), "publicationId": publication["publicationId"],
         "appsyncEndpoint": publication["appsyncEndpoint"], "procedureKey": record["procedureKey"],
-        **policy_location(publication), "input": dict(record.get("inputTemplate") or {}),
-        "actorLabel": f"{automation_id} (schedule)"[:200],
+        **policy_location(publication), "input": {**dict(record.get("inputTemplate") or {}), **({"listId": list_id} if list_id else {})},
+        "actorLabel": f"{what} (schedule)"[:200],
         "trigger": {"kind": "schedule", "automationId": automation_id, "monitorId": record["trigger"]["config"]["monitorId"],
-                    "title": f"{record['procedureKey']}: scheduled run of {automation_id}"[:200],
-                    "summary": f"Scheduled run of {automation_id} ({cron_words})"[:500]}}
+                    "title": f"{record['procedureKey']}: scheduled run of {what}"[:200],
+                    "summary": f"Scheduled run of {what} ({cron_words})"[:500]}}
     if publication.get("openaiKeyParameter"):
         request["openaiKeyParameter"] = publication["openaiKeyParameter"]
     if limits.get("timeoutSeconds"):
@@ -93,13 +103,14 @@ def wake_request(record: dict, schedule: dict, publication: dict) -> dict[str, A
     return request
 
 
-def entry_for(record: dict, schedule: dict, publication: dict, names: Names, *, queue_arn: str, role_arn: str) -> dict[str, Any]:
-    """The arguments of ``create_schedule`` for this agent: the local expression and zone, the wake queue as the only target, the wake as the message."""
-    request = wake_request(record, schedule, publication)
+def entry_for(record: dict, schedule: dict, publication: dict, names: Names, *, queue_arn: str, role_arn: str, list_id: str | None = None) -> dict[str, Any]:
+    """The arguments of ``create_schedule`` for this agent (or, with ``list_id``, for this agent's tick of that list): the local expression and zone, the wake queue
+    as the only target, the wake as the message."""
+    request = wake_request(record, schedule, publication, list_id=list_id)
     wake = agent_wakes.wake_of(request)
     return {
-        "Name": entry_name(record["id"]), "GroupName": names.group,
-        "Description": f"Wakes {record['id']}: {schedule['cron']} in {schedule['timeZone']}"[:MAX_DESCRIPTION],
+        "Name": entry_name(f"{LIST_ENTRY_PREFIX}{list_id}" if list_id else record["id"]), "GroupName": names.group,
+        "Description": f"Wakes {record['id']}{f' for the list {list_id}' if list_id else ''}: {schedule['cron']} in {schedule['timeZone']}"[:MAX_DESCRIPTION],
         "ScheduleExpression": scheduler_expression(schedule["cron"]), "ScheduleExpressionTimezone": schedule["timeZone"],
         "FlexibleTimeWindow": {"Mode": "OFF"}, "State": "ENABLED",
         "Target": {"Arn": queue_arn, "RoleArn": role_arn, "Input": agent_wakes.message_body(request),
@@ -117,15 +128,36 @@ def live_schedules(rows: Iterable[dict[str, Any]]) -> dict[str, tuple[dict, dict
     return {agent: (records[agent], schedule) for agent, schedule in schedules.items() if records[agent]["enabled"]}
 
 
-def desired_entries(rows: Iterable[dict[str, Any]], names: Names, *, publication_for: Callable[[dict], dict], queue_arn: str, role_arn: str,
-                    endpoint: str | None = None) -> dict[str, dict[str, Any]]:
-    """The entry each live agent needs, by entry name. Raises one ``ScheduleError`` naming every agent that cannot have one."""
-    entries: dict[str, dict[str, Any]] = {}
+def live_list_agents(rows: Iterable[dict[str, Any]], lists: Mapping[str, Mapping[str, Any]]) -> tuple[dict[str, tuple[dict, dict]], list[str]]:
+    """``{list id: (the agent's record, the list's schedule)}`` for each periodic list whose agent can run it, and a sentence for each list whose agent cannot:
+    one that is not an automation of this site, is retired, or is switched off. A list nothing would wake would never send, so it is said, not skipped."""
+    records = {record["id"]: record for record in (read_record(row) for row in rows)}
+    found: dict[str, tuple[dict, dict]] = {}
     problems: list[str] = []
-    for agent, (record, schedule) in sorted(live_schedules(rows).items()):
+    for list_id, schedule in sorted(lists.items()):
+        record = records.get(schedule["agent"])
+        if record is None or record.get("definitionRetiredAt"):
+            problems.append(f"The list {list_id} names the agent {schedule['agent']}, which is not an agent of this site (or is retired), so nothing would wake the list.")
+        elif not record["enabled"]:
+            problems.append(f"The list {list_id} names the agent {schedule['agent']}, which is switched off, so nothing would wake the list: switch the agent on.")
+        else:
+            found[list_id] = (record, {"cron": schedule["cron"], "timeZone": schedule["timeZone"]})
+    return found, problems
+
+
+def desired_entries(rows: Iterable[dict[str, Any]], names: Names, *, publication_for: Callable[[dict], dict], queue_arn: str, role_arn: str,
+                    endpoint: str | None = None, lists: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
+    """The entry each live agent needs, by entry name, and, from ``lists`` (``list_cadence.schedule.wanted``), the entry each periodic list needs. Raises one
+    ``ScheduleError`` naming every agent or list that cannot have one."""
+    entries: dict[str, dict[str, Any]] = {}
+    rows = list(rows)
+    wakes = [(agent, record, schedule, None) for agent, (record, schedule) in sorted(live_schedules(rows).items())]
+    list_agents, problems = live_list_agents(rows, lists or {})
+    wakes += [(f"the list {list_id} (agent {record['id']})", record, schedule, list_id) for list_id, (record, schedule) in sorted(list_agents.items())]
+    for agent, record, schedule, list_id in wakes:
         config = record["trigger"]["config"]
         if not (config.get("monitorId") and config.get("publicationId")):
-            problems.append(f"{agent} is switched on with a schedule but names no router publication: give it one with papyrus automations update {agent} --monitor <monitor> --publication <publication>, "
+            problems.append(f"{agent} is switched on with a schedule but names no router publication: give it one with papyrus automations update {record['id']} --monitor <monitor> --publication <publication>, "
                             "so the tick carries the site's endpoint, model key and policy location.")
             continue
         if agent_wakes.site_id(config["publicationId"]) != names.site:
@@ -138,7 +170,7 @@ def desired_entries(rows: Iterable[dict[str, Any]], names: Names, *, publication
             missing = [field for field in ("appsyncEndpoint", "tenantId", "siteBucket") if not publication.get(field)]
             if missing:
                 raise ScheduleError(f"{agent}: the router publication {config['publicationId']} names no {', '.join(missing)}, so the runner would refuse every tick.")
-            entry = entry_for(record, schedule, publication, names, queue_arn=queue_arn, role_arn=role_arn)
+            entry = entry_for(record, schedule, publication, names, queue_arn=queue_arn, role_arn=role_arn, list_id=list_id)
         except (ScheduleError, CronError, agent_wakes.WakeError, wake_keys.InvalidWakeKey) as error:
             problems.append(f"{agent}: {error}" if not str(error).startswith(agent) else str(error))
             continue
@@ -238,14 +270,15 @@ def router_publication(reader, config: dict) -> dict:
     return publication
 
 
-def reconcile_site(sqs, scheduler, rows: Iterable[dict[str, Any]], site: str, *, reader, endpoint: str | None, apply: bool) -> dict[str, Any]:
-    """Everything the deploy step does: find the site's queue, work out the entries from the records, make the group agree."""
+def reconcile_site(sqs, scheduler, rows: Iterable[dict[str, Any]], site: str, *, reader, endpoint: str | None, apply: bool,
+                   lists: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, Any]:
+    """Everything the deploy step does: find the site's queue, work out the entries from the records (and from the site's list settings, ``lists``), make the group agree."""
     names = names_for(site)
     rows = list(rows)
-    live = live_schedules(rows)
+    live = {**live_schedules(rows), **{f"list:{list_id}": value for list_id, value in (lists or {}).items()}}
     if live and reader is None:
         raise ScheduleError("The schedules need the monitoring table (the router publication of each agent), which is not connected to this account.")
     queue_arn, role_arn = queue_facts(sqs, names) if live else ("", "")
     desired = desired_entries(rows, names, publication_for=lambda record: router_publication(reader, record["trigger"]["config"]),
-                              queue_arn=queue_arn, role_arn=role_arn, endpoint=endpoint)
+                              queue_arn=queue_arn, role_arn=role_arn, endpoint=endpoint, lists=lists)
     return reconcile(scheduler, names, desired, apply=apply)
