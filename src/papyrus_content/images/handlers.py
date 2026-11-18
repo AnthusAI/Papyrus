@@ -155,10 +155,20 @@ from papyrus_content.announcements.handlers import signed_in_handlers as _announ
 
 HANDLERS.update(_announcement_handlers())
 
-# Announcement review (PPY-97c0f2): the announce rung and its overrides, and one Delivery's review.
-from papyrus_content.announcements.review_handlers import signed_in_handlers as _review_handlers  # noqa: E402
+# Announcement review (PPY-97c0f2): the announce rung and its overrides, and one Delivery's review. They read the site's agent policy and the Delivery records, which the
+# monitoring router and the image service never do, so the module is imported by the call and not by this file (infra/monitoring/build.py leaves it out of the router zip).
+REVIEW_OPERATIONS = ("announcements_review_show", "announcements_review_set", "announcements_delivery_review_set")
 
-HANDLERS.update(_review_handlers())
+
+def _review_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.announcements.review_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _review_handler(name) for name in REVIEW_OPERATIONS})
 
 
 # The rating operation (PPY-d85860) runs on the same lane: whoever runs it, a person's session or the procedure runner's role, opens its own authoring client.
