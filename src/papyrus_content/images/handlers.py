@@ -170,6 +170,20 @@ def _review_handler(name: str) -> Handler:
 
 HANDLERS.update({name: _review_handler(name) for name in REVIEW_OPERATIONS})
 
+# The Announcements list, a Story's lines and "why was this not announced" (PPY-e4ae3a) read the same records and are imported by the call for the same reason.
+LIST_OPERATIONS = ("announcements_where", "announcements_recent", "announcements_explain")
+
+
+def _list_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.announcements.list_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _list_handler(name) for name in LIST_OPERATIONS})
+
 
 # The rating operation (PPY-d85860) runs on the same lane: whoever runs it, a person's session or the procedure runner's role, opens its own authoring client.
 from papyrus_content.rating_handlers import signed_in_handlers as _rating_handlers  # noqa: E402

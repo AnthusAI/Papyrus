@@ -67,6 +67,7 @@ import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
+import { StoryAnnouncementsCard } from "./announcement-lines";
 import { StorySchedulePanel } from "./story-schedule-panel";
 import { useScheduleZone } from "../lib/schedule-zone";
 import { scheduleFromEntries, scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
@@ -614,6 +615,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
           {!isNew && scheduleZone !== null ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
+          {!isNew ? <div className="rounded-md bg-muted" data-skeleton-announcements /> : null}
           {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
           <div className="rounded-md bg-muted" data-skeleton-headline />
           <div className="grid gap-6">
@@ -774,6 +776,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               }}
             />
           ) : null}
+
+          {editor.id !== null ? <StoryAnnouncementsCard door={backend.announcementsDoor} lineageId={lineageId ?? editor.id} /> : null}
 
           {editor.id !== null ? (
             <div className="max-w-md" data-newsroom-article-stars>

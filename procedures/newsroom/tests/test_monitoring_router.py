@@ -1086,7 +1086,7 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
     assert not [name for name in names if name.split("/")[0] in {"youtube_transcript_api", "defusedxml", "requests", "urllib3", "certifi", "charset_normalizer"}], \
         "the router zip carries no YouTube transcript package, nor the packages only it needed"
     assert any(name.startswith("yaml/") for name in names) and any(name.startswith("idna/") for name in names)
-    assert out.stat().st_size < 6_100_000  # PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
+    assert out.stat().st_size < 6_150_000  # (the operation table grows with each operation the router carries but never calls: PPY-e4ae3a added three) PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
     code = (
         "import sys; sys.path.insert(0, sys.argv[1])\n"
         "import papyrus_content.monitoring_router as r, papyrus_content.monitoring_intake as i, papyrus_content.editorial_context as e\n"

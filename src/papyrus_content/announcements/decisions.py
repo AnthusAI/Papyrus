@@ -18,9 +18,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from . import links
+from . import link_reads
 from .deliveries import Conflict, DeliveryExists, Deliveries, Plan
-from .links import StoryRef
+from .link_reads import StoryRef
 from .records import (
     BLOCKED, CANCELLED, DECISION_MODEL, DELIVERY_WITHDRAWN, DRAFTED, FAILED, PLANNED, READY, RELEASED, SENDING, SENT, RecordError, announcement_id, history_with, now_iso, stored,
     stored_dedupe_key, utc,
@@ -54,6 +54,13 @@ class Announcements:
         self.client = client
         self.deliveries = deliveries or Deliveries(client)
 
+    @staticmethod
+    def _links():
+        """The writer of the relations, imported when one is written: it needs PyYAML (the relation types), which a read does not."""
+        from . import links
+
+        return links
+
     # --- reads: every one is an index or a get ----------------------------------------------------------------------------------------------------
 
     def get(self, row_id: str) -> dict[str, Any] | None:
@@ -74,13 +81,13 @@ class Announcements:
         return [dict(row) for row in self.client.list_by_index(INDEX_BY_STATE, PLANNED, sort_condition={"between": [utc(start), utc(end)]})]
 
     def stories(self, announcement: str) -> list[dict[str, Any]]:
-        return links.stories_of_announcement(self.client, announcement)
+        return link_reads.stories_of_announcement(self.client, announcement)
 
     def for_story(self, lineage_id: str) -> list[dict[str, Any]]:
         """Where a Story was announced: each Announcement that announces it, with its live Deliveries, one line per channel. Read through the relation, then
         one Announcement and one Deliveries index query each; nothing lists a table."""
         found = []
-        for link in links.announcements_of_story(self.client, lineage_id):
+        for link in link_reads.announcements_of_story(self.client, lineage_id):
             announcement = self.get(link["subjectId"])
             if announcement:
                 found.append({"announcement": announcement, "versionLookedAt": link.get("objectVersionNumber"), "deliveries": self.deliveries.live_for_announcement(announcement["id"])})
@@ -120,7 +127,7 @@ class Announcements:
                 self.deliveries.ensure_text(exists.row, plan.text, now=now)
                 delivered.append(exists.row)
         for story in stories:
-            links.announces(self.client, row_id, story, now=now)
+            self._links().announces(self.client, row_id, story, now=now)
         return Outcome(announcement, delivered, created)
 
     def _create(self, row_id: str, dedupe_key: str, kind: str, release: str, created_by: str, trigger: str, now: str) -> dict[str, Any]:
@@ -211,6 +218,6 @@ class Announcements:
         """A newer version of a Story the Announcement is about: it looks at that version now, and each Delivery that has not gone returns to a draft, so an approval
         of the earlier version no longer counts."""
         now = now or now_iso()
-        links.announces(self.client, announcement["id"], story, now=now)
+        self._links().announces(self.client, announcement["id"], story, now=now)
         return [self.deliveries.next_version(row, by=by, note=f"{story.lineage_id} changed to version {story.version_number}", now=now)
                 for row in self.deliveries.live_for_announcement(announcement["id"])]

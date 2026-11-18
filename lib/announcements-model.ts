@@ -29,21 +29,6 @@ export type XUsage = { postsThisCycle: string | null; postCap: string | null; ca
 
 export type AnnouncementFailure = { ok: false; error: string; message?: string };
 
-/** One announcement as the announcement backend (PPY-9f4d66) lists it. Only what this page shows. */
-export type AnnouncementRow = {
-  id: string;
-  storyTitle: string;
-  state: "dry_run" | "ready" | "posting" | "posted" | "failed" | "blocked" | "withdrawn";
-  blockedReason?: string | null;
-  text: string;
-  link: string;
-  weightedLength: number;
-  at: string;
-  postUrl?: string | null;
-  costUsd?: number | null;
-  error?: string | null;
-};
-
 /** The three-star decision (PPY-0e8d66): nothing below it is public or announced. The function holds the same number. */
 export const QUALITY_FLOOR_STARS = 3;
 export const STAR_CHOICES = [3, 4, 5] as const;
@@ -131,12 +116,6 @@ export function failureText(failure: AnnouncementFailure): string {
   if (failure.message) return failure.message;
   if (failure.error === "forbidden") return "Your role cannot do this.";
   return "Announcements are not available on this site yet.";
-}
-
-export function stateWords(state: AnnouncementRow["state"]): string {
-  return {
-    dry_run: "Dry run: not sent", ready: "Ready", posting: "Posting", posted: "Posted", failed: "Failed", blocked: "Blocked", withdrawn: "Withdrawn",
-  }[state];
 }
 
 /** The ratings the sort of the list keys to; the key of the saved section ids is stable even when a title changes. */

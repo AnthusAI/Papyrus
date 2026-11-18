@@ -91,10 +91,12 @@ class RecordsBackend:
             rows = [row for row in rows if _meets(row[sort_key], condition)]
         return copy.deepcopy(sorted(rows, key=lambda row: str(row.get(sort_key) or "")) if sort_key else rows)
 
-    def iterate_newest_first(self, index: str, key: str, **_: Any) -> Iterator[dict[str, Any]]:
+    def iterate_newest_first(self, index: str, key: str, *, sort_before: str | None = None, **_: Any) -> Iterator[dict[str, Any]]:
         definition = INDEX_DEFINITIONS[index]
         self.reads.append((index, key))
         rows = self._partition(index, definition, key)
+        if sort_before is not None:
+            rows = [row for row in rows if str(row[definition["sortKey"]]) < sort_before]
         yield from copy.deepcopy(sorted(rows, key=lambda row: str(row.get(definition["sortKey"]) or ""), reverse=True))
 
     def _partition(self, index: str, definition: dict[str, Any], key: str) -> list[dict[str, Any]]:

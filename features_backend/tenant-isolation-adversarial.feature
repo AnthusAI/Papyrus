@@ -848,6 +848,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | abortModelAttachmentUpload           | denied, or returns nothing of "beta" |
       | addStoryAgentNote                    | denied, or returns nothing of "beta" |
       | announcementsPause                   | denied, or returns nothing of "beta" |
+      | announcementsRead                    | denied, or returns nothing of "beta" |
       | announcementsSaveSettings            | denied, or returns nothing of "beta" |
       | announcementsSettings                | denied, or returns nothing of "beta" |
       | announcementsXBegin                  | denied, or returns nothing of "beta" |

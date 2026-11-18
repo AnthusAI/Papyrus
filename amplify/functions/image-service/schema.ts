@@ -28,6 +28,16 @@ export const imageServiceSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("imageService", imageService)),
+  /**
+   * The announcements door (PPY-e4ae3a): reads only, for the Story drawer's lines and the Announcements list (`announcements_where`, `announcements_recent`). Editors and admins
+   * at the door, the same function and data source; everything that changes an announcement stays on the command line and in the agents' tools.
+   */
+  announcementsRead: a
+    .query()
+    .arguments({ op: a.string().required(), input: a.json(), actorKind: a.string() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("imageService", imageService)),
   imageRead: a
     .query()
     .arguments({ op: a.string().required(), input: a.json(), actorKind: a.string() })

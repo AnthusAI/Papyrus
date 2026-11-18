@@ -23,9 +23,8 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any, Iterator, Mapping, Protocol, Sequence
 
-from . import links
 from .records import (
-    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
+    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
     BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
@@ -387,6 +386,13 @@ class Deliveries:
             raise RecordError(f"{row['id']} is {row.get('state')}; only a failed Delivery is tried again.")
         return self._change(row, {"state": READY}, by=by, note="tried again by a person", now=now)
 
+    def block_draft(self, row: Mapping[str, Any], *, by: str, note: str, now: str | None = None) -> dict[str, Any]:
+        """The checks on a draft's words failed: it is blocked before any attempt, and nothing about it is pending (no time, so it is never overdue). A person's answer, or a
+        change to an input, is what moves it on (``resume``)."""
+        if row.get("state") not in (DRAFTED, READY):
+            raise RecordError(f"{row['id']} is {row.get('state')}; only a draft or a ready Delivery is blocked for a failed check.")
+        return self._change(row, {"state": BLOCKED, "blockedReason": CHECK_FAILED_CODE}, by=by, note=note, now=now)
+
     def resume(self, row: Mapping[str, Any], *, by: str, now: str | None = None) -> dict[str, Any]:
         """A person lifted the pause (or answered the reason a Delivery was blocked): back to ready, with no wait left on the row. The next try is the next attempt."""
         if row.get("state") != BLOCKED:
@@ -432,6 +438,8 @@ class Deliveries:
             self._change(current, {"state": SUPERSEDED, "supersededBy": successor["id"]}, by=by, note=f"corrected by {successor['id']}", now=now)
         elif current["supersededBy"] != successor["id"]:
             raise AlreadySuperseded(old["id"], current["supersededBy"])
+        from . import links   # the writer of the relations needs PyYAML (the relation types), which the reads of a Delivery do not
+
         links.supersedes(self.client, successor["id"], old["id"], now=now)
 
     def history(self, row: Mapping[str, Any]) -> list[dict[str, Any]]:

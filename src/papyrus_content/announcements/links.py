@@ -11,7 +11,6 @@ One row for each pair, with a deterministic id, so writing a link again changes 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from typing import Any
 
 from ..ids import hash_short
@@ -19,19 +18,9 @@ from ..reference_links import relation_state_keys
 from ..relation_types import semantic_relation_type_fields_for_predicate
 from .records import ANNOUNCEMENT_KIND, ANNOUNCES, DELIVERY_KIND, STORY_KIND, SUPERSEDES
 
+from .link_reads import BY_OBJECT, BY_SUBJECT, CURRENT, StoryRef, announcements_of_story, stories_of_announcement  # noqa: F401  (re-exported: the read side is link_reads.py)
+
 MODEL = "SemanticRelation"
-CURRENT = "current"
-BY_OBJECT = "semanticRelationsByObjectState"
-BY_SUBJECT = "semanticRelationsBySubjectState"
-
-
-@dataclass(frozen=True)
-class StoryRef:
-    """A Story as an Announcement saw it: the lineage, the version row that was read and its number."""
-
-    lineage_id: str
-    item_id: str
-    version_number: int
 
 
 def link_id(predicate: str, subject_id: str, object_lineage_id: str) -> str:
@@ -77,14 +66,3 @@ def supersedes(client, new_delivery_id: str, old_delivery_id: str, *, now: str) 
     row = _row(SUPERSEDES, subject=(DELIVERY_KIND, new_delivery_id), object_=(DELIVERY_KIND, old_delivery_id, old_delivery_id, None), now=now, note="a correction")
     client.upsert(MODEL, row)
     return row
-
-
-def announcements_of_story(client, lineage_id: str) -> list[dict[str, Any]]:
-    """The ``announces`` links that point at a Story, from the object-state index: one indexed query, never a list of the table."""
-    return client.list_by_index(BY_OBJECT, f"{STORY_KIND}#{lineage_id}#{CURRENT}", sort_eq=ANNOUNCES)
-
-
-def stories_of_announcement(client, announcement_id: str) -> list[dict[str, Any]]:
-    """The Stories an Announcement is about, from the subject-state index."""
-    rows = client.list_by_index(BY_SUBJECT, f"{ANNOUNCEMENT_KIND}#{announcement_id}#{CURRENT}")
-    return [row for row in rows if row.get("predicate") == ANNOUNCES]

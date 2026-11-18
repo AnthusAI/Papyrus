@@ -281,6 +281,20 @@ module.exports = {
     require: ["features/step_definitions/story-schedule.steps.js"],
     format: ["summary"],
   },
+  // The Story drawer's "where it was announced" and the Announcements list, on the local preview's seeded data (demo mode: no server credentials). Needs `npm run dev:preview`
+  // and PAPYRUS_BASE_URL pointing at it.
+  storyAnnouncements: {
+    paths: ["features/newsroom-story-announcements.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/story-announcements.steps.js"],
+    tags: "",
+    format: ["summary"],
+  },
+  announcementsPage: {
+    paths: ["features/newsroom-announcements.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/newsroom-announcements.steps.js"],
+    tags: "",
+    format: ["summary"],
+  },
   autoAcceptedList: {
     paths: ["features/newsroom-auto-accepted-list.feature"],
     require: ["features/step_definitions/auto-accepted-list.steps.js"],

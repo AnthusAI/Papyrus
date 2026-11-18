@@ -789,6 +789,69 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
 
 OPERATIONS = OPERATIONS + REVIEW_OPERATIONS
 
+# --- the Announcements list, the Story drawer's lines and "why not announced" (PPY-e4ae3a) ---------------------------------------------------------------
+_MARKED = record({"words": text("The words a person reads."), "mark": text("The name of a Lucide icon drawn beside the words; the words always carry the meaning.")}, ("words", "mark"))
+_ATTENTION = record({"kind": choice("overdue", "outcome_unknown", "check_failed"), "words": text(), "mark": text(), "since": text("When it began, as a UTC time.")}, ("kind", "words", "mark"))
+DELIVERY_LINE = record({
+    "id": text("The Delivery's id."), "announcementId": text(), "channel": text(), "accountId": text(), "generation": whole(), "state": text("The Delivery's state."),
+    "words": text("The state in words, such as Sent or Blocked: check failed."), "mark": text("The Lucide icon of the state."),
+    "approval": {"type": ["object", "null"], "description": "The review in words and a mark: words, mark and approval (none, soft or hard). Null for a Delivery that will not go."},
+    "releaseAt": {"type": ["string", "null"]}, "lockAt": {"type": ["string", "null"]}, "dueAt": {"type": ["string", "null"], "description": "The earliest time it is still waiting for."},
+    "waitingFor": {"type": ["string", "null"]}, "nextAttemptAt": {"type": ["string", "null"]}, "blockedReason": {"type": ["string", "null"]},
+    "attempts": whole("How many attempts were opened.", minimum=0), "lastAttempt": {"type": ["object", "null"], "description": "The last attempt: number, at, outcome, code, words and mark."},
+    "resultUrl": {"type": ["string", "null"]},
+    "attention": many(_ATTENTION, "What needs a person's eye: Overdue (due, with no attempt), Outcome unknown (an attempt with no answer yet, until Caducus settles it), "
+                                  "or a failed check."),
+}, ("id", "announcementId", "channel", "accountId", "state", "words", "mark", "attempts", "attention"))
+ANNOUNCEMENT_ENTRY = record({
+    "id": text(), "kind": text(), "state": text(), "releaseAt": text(), "trigger": {"type": ["string", "null"]}, "createdBy": {"type": ["string", "null"]},
+    "versionLookedAt": {"type": ["integer", "null"], "description": "The version of the Story the Announcement looked at."},
+    "reviewFlag": {"type": ["object", "null"], "description": "The one open review flag for a blocked draft, once for each Announcement: id, words, mark, reason and ask."},
+    "deliveries": many(DELIVERY_LINE, "One line for each live Delivery, in channel order."),
+    "stories": many({"type": "object"}, "In the list: the Stories it is about, each with lineageId and title."),
+}, ("id", "kind", "state", "releaseAt", "deliveries"))
+_EX_LINE = {"id": "announcement-1#x#handle-1#g1", "announcementId": "announcement-1", "channel": "x", "accountId": "handle-1", "generation": 1, "state": "ready", "words": "Ready",
+            "mark": "calendar-check", "approval": {"words": "Goes at its lock time unless a person stops it (publication policy)", "mark": "hourglass", "approval": "soft"},
+            "releaseAt": "2026-11-17T09:00:00Z", "lockAt": "2026-11-17T09:00:00Z", "dueAt": "2026-11-17T09:00:00Z", "waitingFor": None, "nextAttemptAt": None, "blockedReason": None,
+            "attempts": 0, "lastAttempt": None, "resultUrl": None, "attention": [{"kind": "overdue", "words": "Overdue", "mark": "clock-alert", "since": "2026-11-17T09:00:00Z"}]}
+_EX_ENTRY = {"id": "announcement-1", "kind": "story_published", "state": "planned", "releaseAt": "2026-11-17T09:00:00Z", "trigger": "story published", "createdBy": "announce",
+             "versionLookedAt": 3, "reviewFlag": None, "deliveries": [_EX_LINE]}
+
+LIST_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "announcements_where", ("where",), "Where a Story was announced: each Announcement that announces it, with one line for each live Delivery.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)), record({"story": text(), "announcements": many(ANNOUNCEMENT_ENTRY)}, ("story", "announcements")), (),
+        (Example({"story": "slow-water"}, {"story": "slow-water", "announcements": [_EX_ENTRY]}),), positional=("story",), group="announcements",
+        notes="Read through the announces relation from the Story's side, then each Announcement's Deliveries from its index; nothing lists a table. A Story that was never announced answers with no "
+              "Announcements. Each line says its state, its review and what needs a person (Overdue, Outcome unknown) in words, with a mark. A blocked draft shows its one review flag once for each Announcement.",
+    ),
+    Operation(
+        "announcements_recent", ("recent",), "The Announcements list: Announcements newest first, one line for each live Delivery, and every Delivery that is overdue.", "read",
+        obj({"limit": whole("The size of a page; 25 when left out. A page never splits Announcements released at the same moment."),
+             "before": text("The next value of the last page: shows the Announcements released before that time.")}),
+        record({"announcements": many(ANNOUNCEMENT_ENTRY), "overdue": many(DELIVERY_LINE, "Every Delivery that is due and has no attempt, read from the sparse due index."),
+                "next": {"type": ["string", "null"], "description": "Pass as before for the next page; null on the last page."}}, ("announcements", "overdue", "next")), (),
+        (Example({}, {"announcements": [_EX_ENTRY], "overdue": [_EX_LINE], "next": None}),), group="announcements",
+        notes="Newest release first from the planned-by-release-time index, one partition for each state; overdue from the due index. Each line says what it waits for, in words and a mark: "
+              "Overdue for a due Delivery with no attempt, Outcome unknown for an attempt left open until Caducus settles it. Nothing is subscribed to.",
+    ),
+    Operation(
+        "announcements_explain", ("explain",), "Why a Story was or was not announced, for each channel, naming the rule. Reads the rules; writes nothing.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"story": text(), "title": text(), "stars": whole(minimum=0),
+                "channels": many(record({"channel": text(), "announced": flag(), "rule": text("The rule: announced, off, not_published, type_not_announced, section_not_announced, below_bar, "
+                                                                                                 "below_floor, machine_five, story_not_reviewed, no_delivery or would_announce."),
+                                         "words": text(), "delivery": text()}, ("channel", "announced", "rule", "words")))}, ("story", "channels")),
+        ("not_found",),
+        (Example({"story": "slow-water"}, {"story": "slow-water", "title": "Slow water", "stars": 2,
+                                           "channels": [{"channel": "x", "announced": False, "rule": "below_bar", "words": "It has 2 stars, and the bar for announcements is 3 stars."}]}),),
+        group="announcements",
+        notes="The one question that is not a row: nothing is written for a Story that was not announced. The answer follows the order the announce path runs its rules.",
+    ),
+)
+
+OPERATIONS = OPERATIONS + LIST_OPERATIONS
+
 RATING_OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "ratings_set", ("set",), "Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated.", "write",
