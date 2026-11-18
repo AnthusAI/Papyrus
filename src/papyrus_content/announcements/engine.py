@@ -22,11 +22,10 @@ from typing import Any, Callable, Mapping
 from papyrus_content import fact_check
 
 from . import budget as budget_module
-from .channel import FAILED, QUEUED, REFUSED, SENT, WITHDRAWN, Broadcaster, ChannelNotAvailable, DeliveryView
+from .channel import FAILED, QUEUED, REFUSED, SENT, WITHDRAWN, Broadcaster, ChannelNotAvailable, DeliveryView, attempt_event_id
 from .drafting import Draft, DraftRefused, Llm, RuleLane, draft_announcement
 from .eligibility import StoryFacts, load_story, verdict
 from .post import tagged_link
-from .records import attempt_event_id
 from .rules import DRY_RUN, OFF, ON, PAUSE_BUDGET, SYSTEM, post_price, view
 from .store import (ACCOUNT_NEEDS_RECONNECTING, BLOCKED, BUDGET_REACHED, CHECK_FAILED, DRY_RUN as DRY_RUN_STATE, FAILED as FAILED_STATE, PAUSED, POSTED, POSTING,
                     SETTINGS_INCOMPLETE, WITHDRAWN as WITHDRAWN_STATE, AlreadyAnnounced, AnnouncementStore, announcement_id)
@@ -144,7 +143,7 @@ def process_story(services: Services, lineage_id: str, *, trigger: str, by: str 
 
 
 def _event_id(row: Mapping[str, Any]) -> str:
-    """The Caducus event id of the row's current attempt: ``delivery:<announcementId>:a<N>`` (``records.attempt_event_id``). Caducus dedupes on it."""
+    """The Caducus event id of the row's current attempt: ``delivery:<announcementId>:a<N>`` (``channel.attempt_event_id``). Caducus dedupes on it."""
     return attempt_event_id(row["id"], int(row.get("attempt") or 1))
 
 

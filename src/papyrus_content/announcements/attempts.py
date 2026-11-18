@@ -24,10 +24,11 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 from ..run_outcomes import OUTCOME_SHOWN
+from .channel import attempt_event_id
 from .deliveries import Conflict, Deliveries, OpenAttempt, content_hash
 from .records import (
     ATTEMPT_REFUSED, ATTEMPT_SENT, BLOCKED, BUDGET_CYCLE, BUDGET_REACHED_CODE, FAILED, PAUSED_CODE, RATE_LIMIT, RATE_LIMIT_CODE, READY, SENDING, SENT, STARTED, SUPERSEDED,
-    UNKNOWN, RecordError, account_key, attempt_event_id, attempt_log, now_iso, open_attempt_of, utc,
+    UNKNOWN, RecordError, account_key, attempt_log, now_iso, open_attempt_of, utc,
 )
 
 FLAG_RAISER = "announce"

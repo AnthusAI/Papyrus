@@ -103,12 +103,6 @@ def delivery_id(announcement: str, channel: str, account_id: str, generation: in
     return f"{announcement}#{channel}#{account_id}#g{generation}"
 
 
-def attempt_event_id(delivery: str, number: int) -> str:
-    """The Caducus event id of attempt ``number`` of a Delivery: ``delivery:<deliveryId>:a<N>``. Caducus dedupes on it, so one attempt is one event and the same
-    attempt submitted twice posts once. A retry is the next attempt, so it is a new event. There is no other suffix."""
-    return f"delivery:{delivery}:a{number}"
-
-
 def attempt_log(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     """The Delivery's attempts, oldest first."""
     return json_list(row.get("attempts"))

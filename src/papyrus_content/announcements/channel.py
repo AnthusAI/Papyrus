@@ -22,6 +22,12 @@ AUDIENCE_PREFIX = "CHANNELACCT#x#"
 QUEUED, SENT, FAILED, REFUSED, WITHDRAWN = "queued", "sent", "failed", "refused", "withdrawn"
 
 
+def attempt_event_id(delivery: str, number: int) -> str:
+    """The Caducus event id of attempt ``number`` of a Delivery: ``delivery:<deliveryId>:a<N>``. Caducus dedupes on it, so one attempt is one event and the same
+    attempt submitted twice posts once. A retry is the next attempt, so it is a new event. There is no other suffix."""
+    return f"delivery:{delivery}:a{number}"
+
+
 def audience(account_id: str) -> str:
     return AUDIENCE_PREFIX + account_id
 
