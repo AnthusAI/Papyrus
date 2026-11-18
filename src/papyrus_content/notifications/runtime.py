@@ -27,7 +27,6 @@ from caducus.notify.triage import TriageSettings
 
 from papyrus_content.newsletter.postal import PostalAddress
 
-from .family import FamilyAudience
 from .public import audience_settings
 from .renderer import ThemedRenderer
 from .sending import SiteEmailChannel, SiteMailer
@@ -75,14 +74,13 @@ def assemble(
     log = DeliveryLog(store, clock, retention_days)
     readers = AudienceDirectory(directory)
     # The audience raises its confirmation through the router, and the router fans public kinds out over the audience.
-    audience = FamilyAudience(
+    audience = PublicAudience(
         store,
         audience_settings(settings, unsuppress),
         AudienceKeys.from_secret(key_secret),
         domains,
         clock,
         lambda detail: router.handle_detail(detail),
-        families={entry["id"]: entry["family"] for entry in settings.lists if entry.get("family")},
     )
     readers.audience = audience
     router = Router(

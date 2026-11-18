@@ -17,7 +17,7 @@
 * ``rung`` is optional. It can only narrow what the site's agent policy allows (``announce.effective_rung``).
 * ``family`` (optional) names the cadence family: lists that carry the same items at different cadences (every item, daily summary) share one, and a reader holds at most
   one list of a family at a time (slice N2, ``family.py``). A list that names none is its own family, which is how a curated weekly newsletter stays unaffected by a
-  reader's daily or every-item choice. Two lists of one family cannot share a cadence: a reader would have nothing to choose between.
+  reader's daily or every-item choice. Two lists of one family cannot share a cadence: a reader would have nothing to choose between. A family has at most one periodic list, because a reader's move waits for its next period start.
 * ``agent`` is the automation whose wake runs the list. It is checked against the registered agents when the schedule is reconciled, not here.
 """
 from __future__ import annotations
@@ -181,6 +181,13 @@ def validate_document(document: Any) -> dict[str, Any]:
         if slot in seen:
             raise _invalid(f"lists.{list_id} and lists.{seen[slot]} are both {entry['cadence']} lists of the family {slot[0]}: a family has one list for each cadence.")
         seen[slot] = list_id
+    periodic: dict[str, str] = {}
+    for list_id, entry in sorted(checked.items()):
+        if entry["cadence"] in PERIODIC:
+            family = entry.get("family", list_id)
+            if family in periodic:
+                raise _invalid(f"lists.{list_id} and lists.{periodic[family]} are both periodic lists of the family {family}: a reader's move waits for the next period start of the family's periodic list, so a family has one.")
+            periodic[family] = list_id
     return {"schemaVersion": SCHEMA_VERSION, "lists": checked}
 
 
