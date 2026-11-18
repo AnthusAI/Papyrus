@@ -32,11 +32,11 @@ Feature: Every announcement can be traced
     When the account's announcements are listed
     Then they were read through the account index only
 
-  Scenario: A guard refusal is final for its event and the next round has a new event id
+  Scenario: A guard refusal is final for its event and the next try is the next attempt
     Given a 5-star Article is published
     When Caducus's guard refuses it with "Budget reached for this cycle"
     And the announcement is refreshed
     Then the announcement is "Blocked: budget reached"
     When the owner raises the budget to $50.00
     Then the announcement is "Posting"
-    And the events handed over are the Article's event and its "r2" event
+    And the events handed over are the announcement's attempt 1 and attempt 2 events

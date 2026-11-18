@@ -25,7 +25,7 @@ Feature: A qualifying Story is announced once, or shown as a dry run
     Given the mode is On
     When a 5-star Article is published
     Then the announcement is "Posting"
-    And exactly one event "story.announce:mom:" followed by the Article's lineage was handed to the X channel
+    And exactly one event was handed to the X channel under the announcement's first attempt id
 
   Scenario: The delivery's result is copied onto the announcement
     Given the mode is On

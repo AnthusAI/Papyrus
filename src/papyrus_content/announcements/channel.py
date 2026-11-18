@@ -15,21 +15,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Mapping, Protocol
 
-EVENT_PREFIX = "story.announce:"
 KIND = "story.announce"
 AUDIENCE_PREFIX = "CHANNELACCT#x#"
 
 # Delivery statuses Papyrus acts on (Caducus delivery log).
 QUEUED, SENT, FAILED, REFUSED, WITHDRAWN = "queued", "sent", "failed", "refused", "withdrawn"
-
-
-def event_id(account_id: str, lineage_id: str, round_number: int = 1) -> str:
-    """The event id of the old X row shape; PPY-efd06c deletes it with that shape, and an attempt's event id is ``records.attempt_event_id`` (no round).
-
-    The Caducus event id: it dedupes in the site's table, so one account never gets two posts for one Story lineage. A guard refusal is final for its event id, so
-    the announcement made after the guard lifted is round 2, 3, ... and carries the round in its id."""
-    base = f"{EVENT_PREFIX}{account_id}:{lineage_id}"
-    return base if round_number == 1 else f"{base}:r{round_number}"
 
 
 def audience(account_id: str) -> str:

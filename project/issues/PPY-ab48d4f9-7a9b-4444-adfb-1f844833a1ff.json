@@ -21,9 +21,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d5820d61-275e-48e4-b82c-25984c8ada1c",
+      "author": "home",
+      "text": "Branch fix/PPY-ab48d4-attempt-event-ids. No Caducus release is needed: Caducus v0.3.0 (the pinned release) already treats event ids as opaque strings; PR #21 on Caducus develop only added specs (diff v0.3.0..develop is features/ and docs, a test: commit that cannot cut a release). Verified by sending delivery:<id>:a<N> through the worker into the real Caducus 0.3.0 router, delivery log and x channel (features_backend/attempt-event-id.feature). Papyrus no longer builds any :r<round> event id: the old X row shape's event id is now delivery:<announcementId>:a<N> (row field attempt replaces round). Acceptance 1 (a release containing PR #21) is withdrawn as not needed.",
+      "created_at": "2026-11-18T12:48:16.717997Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-17T01:17:21.737537Z",
-  "updated_at": "2026-11-17T01:18:20.023999Z",
+  "updated_at": "2026-11-18T12:48:16.719328Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
