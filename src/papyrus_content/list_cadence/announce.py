@@ -161,9 +161,9 @@ def announce_period(announcements: Announcements, list_id: str, entry: Mapping[s
 
 def add_note(announcements: Announcements, list_id: str, entry: Mapping[str, Any], scheduled_time: str, caller: Caller, text: str, *, draft: Drafter, policy_rung: str,
              account_id: str, now: str | None = None) -> Result:
-    """A person writes into the period's draft: the draft gets its words, as a correction (the next generation of its Delivery, ready), and from then on it is an
+    """A person writes into the period's draft: the draft gets its words, as an edit of the same Delivery (ready), and from then on it is an
     issue like any other: the list's rung decides whether it needs approval. Only a person's own words count, and only a draft that has none yet is written into; an
-    issue that has words is changed by a correction like any other."""
+    issue that has words is changed like any other."""
     if caller.kind != "person":
         raise IssueNoteError("Only a person's own words make an empty period an issue; an agent's are not content.")
     if not isinstance(text, str) or not text.strip():
@@ -177,10 +177,10 @@ def add_note(announcements: Announcements, list_id: str, entry: Mapping[str, Any
         raise IssueNoteError(f"There is no open issue {key} to write into: an empty period makes a draft only on a list set to draft_only.")
     (delivery,) = [row for row in announcements.deliveries.live_for_announcement(announcement["id"]) if row["channel"] == CHANNEL and row["accountId"] == account_id]
     if delivery.get("textKey") or delivery["state"] != records.DRAFTED:
-        raise IssueNoteError(f"{key} already has its words; a change to it is a correction.")
+        raise IssueNoteError(f"{key} already has its words; a change to it is an edit of its words, or a correction once it was sent.")
     words = draft([(list_id, entry)], [], [PersonNote(caller.subject, text.strip())])
-    corrected = announcements.deliveries.supersede(delivery, email_plan(words, rung, [list_id], account_id=account_id, drafted_by=caller.subject), by=caller.subject, now=now)
-    return Result(Outcome(announcement, [corrected], False), "a person wrote the issue", (list_id,))
+    written = announcements.deliveries.write_words(delivery, email_plan(words, rung, [list_id], account_id=account_id, drafted_by=caller.subject), by=caller.subject, now=now)
+    return Result(Outcome(announcement, [written], False), "a person wrote the issue", (list_id,))
 
 
 def announce_story(announcements: Announcements, lists: Mapping[str, Mapping[str, Any]], candidate: Candidate, *, draft: Drafter,

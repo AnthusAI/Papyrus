@@ -13,7 +13,8 @@ Feature: An attempt opens only on a Delivery that may be sent
     And one worker serves the channel "x" account "handle-1"
 
   Scenario: An attempt never opens on a lower generation
-    Given the next update of a Delivery fails as if the connection dropped
+    Given the Delivery "x" "handle-1" has been sent
+    And the next update of a Delivery fails as if the connection dropped
     When the person "ellie" corrects generation 1 of "x" "handle-1" with the words "Corrected words"
     Then the call fails
     When the worker sends generation 1 of "x" "handle-1"
@@ -23,14 +24,16 @@ Feature: An attempt opens only on a Delivery that may be sent
     And exactly 1 flag was raised about generation 1 of "x" "handle-1"
 
   Scenario: An attempt never opens on a superseded Delivery
-    Given the person "ellie" corrects the Delivery "x" "handle-1" with the words "Corrected words"
+    Given the Delivery "x" "handle-1" has been sent
+    And the person "ellie" corrects the Delivery "x" "handle-1" with the words "Corrected words"
     When the worker sends generation 1 of "x" "handle-1"
     Then the call is refused saying "superseded"
     And nothing was sent
     And exactly 1 flag was raised about generation 1 of "x" "handle-1"
 
   Scenario: Asking twice raises the flag once
-    Given the person "ellie" corrects the Delivery "x" "handle-1" with the words "Corrected words"
+    Given the Delivery "x" "handle-1" has been sent
+    And the person "ellie" corrects the Delivery "x" "handle-1" with the words "Corrected words"
     When the worker sends generation 1 of "x" "handle-1"
     And the worker sends generation 1 of "x" "handle-1"
     Then exactly 1 flag was raised about generation 1 of "x" "handle-1"
