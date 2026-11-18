@@ -23,14 +23,16 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 from papyrus_content import agent_wakes, automations as au  # noqa: E402
 from papyrus_content.agent_definitions import cli as agents_cli, schedules  # noqa: E402
 from papyrus_content.announcements.decisions import Announcements  # noqa: E402
+from papyrus_content.announcements.attempts import Attempts  # noqa: E402
 from papyrus_content.announcements.deliveries import Deliveries  # noqa: E402
+from papyrus_content.announcements.records import json_list  # noqa: E402
 from papyrus_content.announcements.links import StoryRef  # noqa: E402
 from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles, RecordsBackend  # noqa: E402
 from papyrus_content.images.handlers import Caller  # noqa: E402
 from papyrus_content.list_cadence.announce import Candidate  # noqa: E402
 from papyrus_content.list_cadence.settings import ListSettingsError  # noqa: E402
 from papyrus_content.list_cadence.store import ListSettingsStore  # noqa: E402
-from papyrus_content.list_cadence.wake import ListWakeError, run_list, run_story_change  # noqa: E402
+from papyrus_content.list_cadence.wake import ListWakeError, run_list, run_story_change, scheduled_time  # noqa: E402
 from schedule_fakes import MONITOR, FakeScheduler, FakeSqs, Reader, Site, WakeQueue  # noqa: E402
 
 ACCOUNT = "mom-sending"
@@ -108,6 +110,7 @@ def background(context, site):
     context.announcements = Announcements(context.backend, Deliveries(context.backend, MemoryDeliveryFiles(context.backend)))
     context.now = "2026-11-16T14:00:00Z"
     context.candidates, context.policy_rung, context.announcement = [], "prepare", None
+    context.qualified, context.late_at, context.since_seen = {}, None, []
     context.error, context.result, context.state, context.writes_mark, context.deploy_ok, context.deploy_output = None, None, None, 0, True, ""
 
 
@@ -145,6 +148,17 @@ def edited_by_hand(context, list_id, stars):
 @given("these Stories are in the period")
 def stories(context):
     context.candidates = [candidate(row["story"], row["stars"], row["section"], row["reviewed"] == "yes") for row in context.table]
+    context.qualified = {row["story"]: row["qualified"] for row in context.table if "qualified" in context.table.headings}
+
+
+def stories_since(context, scheduled, since):
+    """The Stories a reader of the site would hand the run: those that qualified after the list's last sent issue and by the time of the tick. A table with no
+    ``qualified`` column has no times, so every Story is read, and only when the list has never sent."""
+    context.since_seen.append(since)
+    if not context.qualified:
+        assert since is None, "the Stories in this period have no qualified times, but the list has sent before"
+        return list(context.candidates)
+    return [c for c in context.candidates if (since is None or context.qualified[c.story.lineage_id] > since) and context.qualified[c.story.lineage_id] <= scheduled]
 
 
 # --- saving and changing lists --------------------------------------------------------------------------------------------------------------------
@@ -318,8 +332,8 @@ def handle(context, message):
 
     def run():
         state = context.lists.read(context.site_id)
-        return run_list(request, state, context.announcements, candidates_for=lambda *_: context.candidates, draft=draft, policy_rung=lambda _: context.policy_rung,
-                        account_id=ACCOUNT, by=BY, now=context.now)
+        return run_list(request, state, context.announcements, candidates_for=lambda _list, _entry, scheduled, since: stories_since(context, scheduled, since), draft=draft,
+                        policy_rung=lambda _: context.policy_rung, account_id=ACCOUNT, by=BY, now=context.late_at or scheduled_time(request))
 
     context.result = attempt(context, run)
     context.queue.delete(message)
@@ -328,6 +342,11 @@ def handle(context, message):
 @when("the runner handles the next scheduled message")
 def handles_next(context):
     handle(context, context.queue.receive())
+
+
+@when('the runner is delayed until "{time}"')
+def delayed(context, time):
+    context.late_at = time
 
 
 @when("the runner handles every scheduled message")
@@ -442,3 +461,74 @@ def same_announcement_fields(context):
     announcements = rows(context, "AnnouncementDecision")
     assert len({frozenset(row) for row in announcements}) == 1
     assert sorted(row["kind"] for row in announcements) == ["roundup", "roundup", "story_published"]
+
+
+# --- period keys and what carries forward (features_backend/period-keys.feature) -------------------------------------------------------------------
+
+
+@given('the Delivery of the list "{list_id}" is approved and sent at "{time}"')
+@when('the Delivery of the list "{list_id}" is approved and sent at "{time}"')
+def approved_and_sent(context, list_id, time):
+    deliveries = context.announcements.deliveries
+    ready = sorted((row for row in rows(context, "Delivery") if row["audience"] == [list_id] and row["state"] == "ready"), key=lambda row: row["createdAt"])
+    assert ready, "the list has no Delivery waiting to go"
+    approved = deliveries.approve(ready[-1], version=1, by="ryan", now=time)
+    attempts = Attempts(deliveries)
+    _, entry = attempts.open(approved["id"], by="sender", now=time)
+    attempts.close(approved["id"], entry["number"], "sent", by="sender", now=time)
+
+
+@given('the due Announcements are released at "{time}"')
+@when('the due Announcements are released at "{time}"')
+def release_due(context, time):
+    assert context.announcements.release_due(time), "no Announcement was due"
+
+
+def the_announcement_of(context, key):
+    row = context.announcements.by_dedupe_key(key)
+    assert row, f"no Announcement for {key}: {[r['dedupeKey'] for r in rows(context, 'AnnouncementDecision')]}"
+    return row
+
+
+@then('the Announcement "{key}" is cancelled because "{reason}"')
+def cancelled_because(context, key, reason):
+    row = the_announcement_of(context, key)
+    assert row["state"] == "cancelled", row["state"]
+    assert json_list(row["history"])[-1]["note"] == reason, row["history"]
+
+
+@then('the Announcement "{key}" was decided for "{when}", the first of the two ticks')
+def decided_for(context, key, when):
+    assert the_announcement_of(context, key)["releaseAt"] == when
+
+
+@then('the Announcement "{key}" is not cancelled')
+def not_cancelled(context, key):
+    assert the_announcement_of(context, key)["state"] != "cancelled"
+
+
+@then('the Announcement "{key}" is about the Stories {stories}')
+def announcement_about(context, key, stories):
+    found = sorted(link["objectLineageId"] for link in context.announcements.stories(the_announcement_of(context, key)["id"]))
+    assert found == sorted(quoted(stories)), found
+
+
+@then('the Delivery of the Announcement "{key}" is {state}')
+def delivery_of(context, key, state):
+    (delivery,) = context.announcements.deliveries.for_announcement(the_announcement_of(context, key)["id"])
+    assert delivery["state"] == state, delivery["state"]
+
+
+@then('the run looked for Stories since "{time}"')
+def looked_since(context, time):
+    assert context.since_seen[-1] == time, context.since_seen
+
+
+@then("the run looked for Stories since the list's first issue")
+def looked_since_start(context):
+    assert context.since_seen[-1] is None, context.since_seen
+
+
+@then("no email was sent")
+def nothing_sent(context):
+    assert all(row["state"] not in ("sending", "sent") and not json_list(row.get("attempts")) for row in rows(context, "Delivery"))

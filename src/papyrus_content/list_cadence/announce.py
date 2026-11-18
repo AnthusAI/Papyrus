@@ -2,7 +2,8 @@
 
 * A periodic list (``daily``, ``weekly``) is woken by its schedule entry. The once-only key is ``roundup:<list>:<local period>`` (``records.roundup_key``): the
   local date for a daily list, the local ISO week for a weekly one, so a second tick for the same period finds the same Announcement, and a changed send time
-  cannot make a second one for a period that has one.
+  cannot make a second one for a period that has one. When a period's Announcement exists, the list's earlier issues that never went are cancelled and their items carry forward
+  (``periods.py``).
 * An every-item list is woken by a Story's page going live or its rating changing. The once-only key is ``story-published:<lineage>``: a republish finds the same
   Announcement. One Announcement has one email Delivery whose audience is every every-item list the Story qualifies for.
 
@@ -29,6 +30,7 @@ from papyrus_content.announcements.deliveries import Plan
 from papyrus_content.announcements.links import StoryRef
 from papyrus_content.newsletter.alerts import rule_matches
 
+from .periods import History, carry_forward
 from .settings import QUALITY_FLOOR_STARS
 
 CHANNEL = "email"
@@ -61,6 +63,7 @@ class Result:
     outcome: Outcome | None
     reason: str
     list_ids: tuple[str, ...] = ()
+    cancelled: tuple[str, ...] = ()   # the once-only keys of earlier issues that never went and were cancelled so their items carry forward
 
 
 Drafter = Callable[[Sequence[tuple[str, Mapping[str, Any]]], Sequence[Candidate]], str]
@@ -100,8 +103,12 @@ def email_plan(text: str, rung: str, list_ids: Sequence[str], *, account_id: str
 
 
 def announce_period(announcements: Announcements, list_id: str, entry: Mapping[str, Any], scheduled_time: str, candidates: Sequence[Candidate], *,
-                    draft: Drafter, policy_rung: str, account_id: str, by: str, now: str | None = None) -> Result:
-    """One tick of a periodic list: the Announcement for the list's local period and its email Delivery, or nothing when no item reached the bar."""
+                    history: History, draft: Drafter, policy_rung: str, account_id: str, by: str, now: str | None = None) -> Result:
+    """One tick of a periodic list: the Announcement for the list's local period and its email Delivery, or nothing when no item reached the bar.
+
+    ``candidates`` are the Stories that qualified since the list's last sent issue (``history.last_sent_at``), so what an earlier issue did not send is in them. Once this
+    period's Announcement exists (made now or by an earlier call), each earlier issue of the list that never went is cancelled and its items are eligible here again;
+    a retry after a crash between the two finishes the cancelling."""
     if entry["cadence"] == "each":
         raise ValueError(f"{list_id} is an every-item list; it is woken by a Story, not a clock (announce_story).")
     rung = effective_rung(entry, policy_rung)
@@ -115,7 +122,8 @@ def announce_period(announcements: Announcements, list_id: str, entry: Mapping[s
     outcome = announcements.announce(dedupe_key=key, kind=ROUNDUP, stories=[candidate.story for candidate in chosen],
                                      plans=[email_plan(text, rung, [list_id], account_id=account_id, drafted_by=by)], created_by=by, trigger="schedule",
                                      release_at=scheduled_time, now=now)
-    return Result(outcome, "decided" if outcome and outcome.created else "already decided for this period", (list_id,))
+    cancelled = carry_forward(announcements, history, key, scheduled_time, by=by, now=now)
+    return Result(outcome, "decided" if outcome and outcome.created else "already decided for this period", (list_id,), cancelled)
 
 
 def announce_story(announcements: Announcements, lists: Mapping[str, Mapping[str, Any]], candidate: Candidate, *, draft: Drafter,
