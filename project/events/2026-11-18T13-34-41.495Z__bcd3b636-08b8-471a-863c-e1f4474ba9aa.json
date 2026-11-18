@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bcd3b636-08b8-471a-863c-e1f4474ba9aa",
+  "issue_id": "PPY-99282982-f363-4834-b423-e250738bf3bf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-18T13:34:41.495Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A curator agent proposes guideline changes from newsroom talk",
+    "description": "A scheduled agent reads threads since its last run and, where editors keep agreeing on something (a running joke, a line not to cross), proposes an edit to the site's guidelines or humour rubric as a review request quoting the threads. A person accepts or rejects; nothing changes guidelines on its own. Scenario: three threads say puns on agency names are tired; the curator proposes a rubric line citing them. Scenario: no recurring point means no proposal.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-15050c47-b59b-4ba0-a961-893afcb5b891",
+    "labels": []
+  }
+}
