@@ -1,6 +1,6 @@
 # Announcement and Delivery records
 
-Status: records, indexes and relation types (PPY-3792dd, slice 1 of epic PPY-a36492), the attempt log (PPY-a570e8, slice 2) and the review policy (PPY-97c0f2) merged to `develop`; cloud only, nothing is wired to send, and no site's behaviour changed. Design: `~/Projects/papyrus-announcement-delivery-design.md` sections 2, 2.1, 2.2 and 13.
+Status: records, indexes and relation types (PPY-3792dd, slice 1 of epic PPY-a36492), the attempt log (PPY-a570e8, slice 2), the review policy (PPY-97c0f2) and the Story drawer and Announcements list (PPY-e4ae3a) merged to `develop`; cloud only, nothing is wired to send, and no site's behaviour changed. Design: `~/Projects/papyrus-announcement-delivery-design.md` sections 2, 2.1, 2.2 and 13.
 
 Two records replace "one row for each announcement on each channel":
 
@@ -35,6 +35,16 @@ A retry is an attempt. A Delivery's `attempts` field is a log that only grows; e
 
 Caducus needs no change to accept the id shape (its event id is any non-empty text it dedupes on); it has its own spec for `delivery:<id>:a<N>`.
 
+## Counts (PPY-b53c09)
+
+Caducus keeps the record of each reader; an email Delivery holds counts only. `counts` is eight numbers of readers (`queued`, `sent`, `failed`, `suppressed`, `skipped`, `delivered`, `bounced`, `complained`) and `cost` is what Caducus charged. Code: `counts.py`, `email_channel.py`, `sends.py`; specs `delivery-counts.feature`.
+
+- **Recomputed, never added to.** `DeliveryCounts.refresh` reads Caducus's delivery-log rows of every attempt's event and writes the totals when they changed. `AccountWorker.send` and `settle` do it for an email Delivery, and `AccountWorker.refresh_counts` does it later, because the provider reports delivery, bounces and complaints after the send.
+- **`sent` is every message the provider accepted.** `delivered`, `bounced` and `complained` are what became of them. A reader is counted once, by the row that says most about them.
+- **Suppression is Caducus's, at send time.** A reader suppressed when their turn comes is counted `suppressed` and not mailed; a reader who turned the list off is `skipped`. A complaint or a permanent bounce also takes the reader off every list, so later sends never reach them, and Caducus records no row for a reader who is not a confirmed subscriber of any list of the event. A reader on two lists of one Delivery is one delivery (Caducus keys it by event, reader and channel).
+- **No reader on the row.** The row holds no address, no pseudonym and no words.
+- **Today.** `todayOverview` returns `sends`: one line for each email Delivery of an Announcement released in the day (lists, items, state in words with a mark, counts, cost), read by index (`sends.py`).
+
 ## Review policy (PPY-97c0f2)
 
 Human review is a per-publication setting, not a rule. `announcementReview` is the announce responsibility's rung in the site's agent policy document (`src/papyrus_content/announcements/review_policy.py`; ladder in `src/papyrus_content/agent_policy/`): `hard` is `prepare` (a person must release it), `soft` is `publish_soft` (a person may edit or stop it before its lock time; silence lets it go), `none` is `publish_auto` (fully automatic). A rung below `prepare` prepares no Delivery, and the result says why. There is no second setting and no code default: an `announce` entry that is not in the document means off.
@@ -44,8 +54,22 @@ Human review is a per-publication setting, not a rule. `announcementReview` is t
 - **`requireReviewedSource` is not a rung.** It is a condition on the input, in the announcement settings (`rules.requireReviewedSource`, off unless a person turns it on, `papyrus announcements settings set --require-reviewed-source`). When on, `intake.announce_story` makes an Announcement only for a Story a person has reviewed on its current version: the Story's checklist step `review_people` done by a person against that version number (`ChecklistReviewStamps`). A Story edited after its review has no stamp until a person marks the step again, and a Delivery whose Story changed goes back to a draft and is made ready again only once the Story is reviewed (`intake.make_ready`).
 - **Floors under every policy.** A Story with no rating or under three stars is never announced, and a five counts only when a person gave it (`intake.floor_refusal`).
 - **What a person and an agent may do** is rows of the one operation table (`announcements_*`, group `announcements`): an agent may release under `none` (rung `publish_auto`), is told `human_required` under `soft` or `hard`, may draft from `draft` and correct from `prepare`, and is `blocked` from changing a pinned block, the review policy or the budget. `announcements_review_set` sets the publication's value or one override (admins who are people only); `none` is refused while the ladder's hard floor for doubt (PPY-36e7c9) is missing, as `agents set-rung` refuses `publish_auto`.
-- **In the list:** `review_policy.approval_label(row)` gives the words and a mark for each Delivery (`Released automatically by publication policy` with `bot`, `Released by a person (ellie)` with `user-check`, `Goes at its lock time unless a person stops it` with `hourglass`, `Waits for a person to release it` with `hand`). The console list that shows them is PPY-e4ae3a.
+- **In the list:** `review_policy.approval_label(row)` gives the words and a mark for each Delivery (`Released automatically by publication policy` with `bot`, `Released by a person (ellie)` with `user-check`, `Goes at its lock time unless a person stops it` with `hourglass`, `Waits for a person to release it` with `hand`). The console list that shows them is the Announcements list below.
 - **Specs:** `announcement-review-policy.feature`, `announcement-review-floors.feature`, `announcement-review-permissions.feature`, and the settings scenarios in `announcement-settings.feature`.
+
+## The Story drawer and the Announcements list (PPY-e4ae3a)
+
+One Announcement, one line for each Delivery, in words and marks. `lines.py` says every word and names every mark (a Lucide icon), so the console, `papyrus announcements` and the agents' tools show the same sentence; `components/announcement-marks.tsx` draws them, and `announcement-list-marks.feature` fails if the backend can say a mark the console does not draw. A state is never colour alone, and the fills have no borders.
+
+- **The drawer** (`components/announcement-lines.tsx`, `StoryAnnouncementsCard`, in the Story editor under the schedule) reads `announcements_where`: the Story's Announcements through the `announces` relation (one object-state index query), then one Announcement get and one Deliveries query for each, and shows one line for each live Delivery. A correction shows only the live generation.
+- **The list** (the Announcements card of Administration > Announcements) reads `announcements_recent`: Announcements newest first from the planned-by-release-time index (one partition for each state, merged), each one's Deliveries from the Deliveries index, and what is overdue from the sparse due index. A page is a page size, not a cap; it ends where the release time changes, so Announcements released together are never split, and `next` is the release time to ask `before` for the page after it (the index starts below it as a key condition).
+- **Each line says** its state (`Draft`, `Ready`, `Sending`, `Blocked: check failed`, `Sent`, `Failed`, `Dry run: not sent`, `Withdrawn`, `Superseded by a correction`), its review (`approval_words.py`: `Released automatically by ...` with `bot`, `Released by a person (...)` with `user-check`, `Goes at its lock time unless a person stops it` with `hourglass`, `Waits for a person to release it` with `hand`; none for a Delivery that will not go), what it waits for (a named time), and its last attempt.
+- **Overdue** is a Delivery whose `dueAt` has passed (before now, not at it) and which has no attempt: the schedule did not wake it. It is read from the sparse due index, and a draft blocked by a failed check has no due time, so it is never overdue.
+- **Outcome unknown** is a Delivery with an attempt that has no answer (`started` or `unknown`). It stays until Caducus's record settles it (`Attempts.settle`); no clock decides, so it reads the same a week later.
+- **A blocked draft asks once.** `Deliveries.block_draft` blocks a draft whose checks failed (`blockedReason` `check failed`, nothing pending) and `blocked_drafts.block_and_flag` raises one review request, a flag, for the Announcement, with an id made from the Announcement's id: a second channel's failed check finds the first flag. The drawer and the list read it with one get by that id and show it once for the Announcement, with `flag`; an answered flag is no longer shown. The drafting that fails the checks arrives with the X rewire (PPY-efd06c), which calls `block_and_flag`.
+- **`papyrus announcements explain --story X`** (`explain.py`) answers why a Story was or was not announced, for each channel, naming the rule: `announced`, the channel's own rules (`off`, `not_published`, `type_not_announced`, `section_not_announced`, `below_bar`), the floors (`below_floor`, `machine_five`), the source rule (`story_not_reviewed`), the review policy (`no_delivery`), or `would_announce`. It reads the rules and writes nothing. A channel with its own rules (an email list's section rule) adds itself to `CHANNEL_RULES` when it is built. It is a command and an agents' tool; the console does not offer it.
+- **The door.** `announcementsRead` (`amplify/functions/image-service/schema.ts`, served by the image service function like `guidelinesRead`) runs `announcements_where` and `announcements_recent` for editors and admins and refuses everything else: reads only, and what changes an announcement stays on the command line and in the agents' tools. The function carries no PyYAML, so the read side of the relations is `link_reads.py` and the writer (`links.py`, which needs the relation types) is imported only when a link is written; a spec loads the read path with PyYAML blocked. No table, no model, no index and no resource was added; the schema gains one query field on the existing function and data source.
+- **Specs:** `announcement-list-lines.feature`, `announcement-list-marks.feature`, `announcement-explain.feature` (behave), `newsroom-story-announcements.feature` and the list scenarios of `newsroom-announcements.feature` (cucumber, on the local preview's seeded data).
 
 ## Reads: every one is an index or a get
 
@@ -57,14 +81,27 @@ Human review is a per-publication setting, not a rule. `announcementReview` is t
 | An account's Deliveries, newest first | `listDeliveriesByAccountKeyAndCreatedAt` (`<channel>#<account>`) |
 | Deliveries that are due (sparse) | `listDeliveriesByDueKeyAndDueAt` |
 | A Story's Announcements | the `announces` relation, `listSemanticRelationsByObjectState` (`item#<lineage>#current`, predicate `announces`) |
+| The day's email sends (Today) | `listAnnouncementDecisionsByStateAndReleaseAt` for `released` and `withdrawn`, then each Announcement's Deliveries and `announces` links |
 | Rows of one tenant | `listAnnouncementDecisionsByTenant`, `listDeliveriesByTenant` |
 
-No subscriptions. The code is in `src/papyrus_content/announcements/` (`records.py`, `decisions.py`, `deliveries.py`, `links.py`); the specs are `features_backend/announcement-*.feature` and `delivery-*.feature`.
+No subscriptions. The code is in `src/papyrus_content/announcements/` (`records.py`, `decisions.py`, `deliveries.py`, `links.py`, `counts.py`); the specs are `features_backend/announcement-*.feature` and `delivery-*.feature`.
 
 ## Relation types
 
 `announces` runs from an Announcement to a Story and names the version looked at; `supersedes` runs from a Delivery to the Delivery it corrects. Both are in `papyrus-semantic-relation-types.yml`.
 
+## In a pod (PPY-e78134)
+
+A pod keeps the same two records as notes with the same field names: an Announcement note (`type: papyrus:Announcement`: `kind`, `state`, `releaseAt`, and `announces` links to the Stories) and a Delivery note (`type: papyrus:Delivery`: `announcement`, `channel`, `account`, `mode`, `state`, `resultUrl`, `attempts`, and `supersedes` to the Delivery it corrects). The words of a Delivery are the body of its note, exactly as posted. Code: `src/papyrus/pod/` (`profile.py`, `check.py`, `attempts.py`, `pages.py`, `announcement_notes.py`) and `src/papyrus_content/announcements/pod_history.py`; specs `features_backend/pod-announcement-delivery-notes.feature`.
+
+- **Records of what happened.** A Delivery note's state is `sent`, `failed`, `withdrawn` or `superseded`; an Announcement note's is `released`, `cancelled` or `withdrawn`. `sent` and `failed` say how the last attempt ended. A pod holds nothing that is waiting to go.
+- **Manual mode only.** `mode: manual` is the one value `papyrus pod check` accepts. Sending automatically needs a connected account, a budget guard and Caducus, which a newsroom has and a pod does not; a pod gets no local stand-in.
+- **Attempts only grow.** `attempts` is a list of one-line entries, `<number> <time in UTC> sent|refused [by <name> | <code>]`. `papyrus pod check` fails when an earlier line differs from the last commit (changed, moved or removed), as it does for an id.
+- **One live Delivery for each Announcement, channel and account.** A second is a correction: it `supersedes` the first, and the first says `state: superseded`.
+- **Never a page.** The body is outside the graph, a note of either type carries none of `stage`, `draft`, `format`, `redirects` or `section`, and `papyrus.pod.pages` never lists one as a page.
+- **A load is history and sends nothing.** `PodHistory.load` writes the same Announcement, Delivery and `announces` and `supersedes` relation rows, once (the key is `pod:<the note's id>`; a second load finds the first and a record the newsroom has changed is not overwritten). It has no channel and no worker, a loaded Delivery waits for no time so the due index never holds it, and its approval is `hard` with no approved version, recorded as a claim made in a pod. `papyrus.pod.announcement_notes.read` refuses a pod that does not pass the check. The command that calls it is `papyrus pod load` (not yet built); Stories are loaded first, so the `announces` links name the newsroom's own Story versions.
+- **Vocabulary.** `announces` and `supersedes` are pod relation types, and `cites` and `authored_by` take a Story as their subject (a Story cites a source and names its author with plain keys). Profile version 3; a pod's `papyrus.context.jsonld` is regenerated with `papyrus pod init` into an empty folder and copied over.
+
 ## Not in this slice
 
-The channel transport for X and the queue with one consumer for each account, the "Outcome unknown" mark in the list, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), text versions and pinned edits (PPY-e8ec54), and the console. Nothing sends.
+The channel transport for X and the queue with one consumer for each account, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), text versions and pinned edits (PPY-e8ec54), and the buttons that act on a line (release, stop, correct). Nothing sends.

@@ -35,6 +35,7 @@ DELIVERY_STATES = (*LIVE_STATES, SENT, FAILED, DRY_RUN, DELIVERY_WITHDRAWN, SUPE
 # A Delivery is waiting for its release time or its lock only while it is a draft or ready.
 BEFORE_SEND_STATES = (DRAFTED, READY)
 
+EMAIL = "email"   # the channel whose Deliveries carry counts
 NONE, SOFT, HARD = "none", "soft", "hard"
 APPROVALS = (NONE, SOFT, HARD)
 AUTOMATIC, MANUAL = "automatic", "manual"
@@ -48,6 +49,8 @@ ATTEMPT_OUTCOMES = (STARTED, ATTEMPT_SENT, ATTEMPT_REFUSED, UNKNOWN)
 OPEN_OUTCOMES = (STARTED, UNKNOWN)
 # The codes of a refusal that is a wait, not an answer: the next try is the next attempt.
 PAUSED_CODE, BUDGET_REACHED_CODE, RATE_LIMIT_CODE = "paused", "budget reached", "rate limit"
+#: Why a draft is blocked before any attempt: the checks on its words failed (the design's ``blockedReason``).
+CHECK_FAILED_CODE = "check failed"
 SYSTEM = "system"   # who approved a Delivery whose approval is ``none``: the publication's policy did, and ``approvalPolicy`` says which
 
 #: The one partition of the sparse due index: a Delivery carries it only while it has a pending time.

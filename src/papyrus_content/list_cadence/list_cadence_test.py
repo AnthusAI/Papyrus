@@ -70,3 +70,29 @@ def test_an_announcement_with_a_sent_delivery_is_not_cancelled_as_unsent():
     announcements.deliveries.finish(made.deliveries[0], "sent", by="bot", note="sent", now="2026-11-16T09:05:00Z")
     with pytest.raises(RecordError, match="not unsent"):
         announcements.cancel_unsent(made.announcement, reason="r", by="bot", now="2026-11-23T09:00:00Z")
+
+
+def test_a_delivery_with_no_words_is_a_draft_and_never_ready_or_sent():
+    from papyrus_content.announcements.attempts import Attempts, NotReleasable
+    from papyrus_content.announcements.decisions import Announcements
+    from papyrus_content.announcements.deliveries import Deliveries, Plan
+    from papyrus_content.announcements.records import RecordError
+    from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles, RecordsBackend
+
+    backend = RecordsBackend()
+    deliveries = Deliveries(backend, MemoryDeliveryFiles(backend))
+    announcements = Announcements(backend, deliveries)
+    ready_empty = Plan(channel="email", account_id="acct", approval="none", approval_policy="p", text=" ", audience=("weekly",))
+    with pytest.raises(RecordError, match="no words"):
+        deliveries.check(ready_empty)
+    draft = Plan(channel="email", account_id="acct", approval="none", approval_policy="p", text="", audience=("weekly",), state="drafted")
+    made = announcements.announce(dedupe_key="roundup:weekly:2026-W47", kind="roundup", stories=[], stories_optional=True, plans=[draft], created_by="bot", trigger="schedule",
+                                  release_at="2026-11-16T09:00:00Z", now="2026-11-16T09:00:00Z")
+    row = made.deliveries[0]
+    assert row["state"] == "drafted" and not row.get("textKey") and not backend.records.get("Attachment")
+    with pytest.raises(RecordError, match="no words"):
+        deliveries.mark_ready(row, by="bot")
+    with pytest.raises(NotReleasable):
+        Attempts(deliveries).open(row["id"], by="sender", now="2026-11-16T10:00:00Z")
+    with pytest.raises(RecordError, match="at least one Story"):
+        announcements.announce(dedupe_key="roundup:weekly:2026-W48", kind="roundup", stories=[], plans=[draft], created_by="bot", trigger="schedule")

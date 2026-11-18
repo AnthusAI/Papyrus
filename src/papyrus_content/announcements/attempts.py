@@ -25,9 +25,10 @@ from typing import Any, Mapping, Protocol
 
 from ..run_outcomes import OUTCOME_SHOWN
 from .channel import attempt_event_id
+from .counts import DeliveryCounts
 from .deliveries import Conflict, Deliveries, OpenAttempt, content_hash
 from .records import (
-    ATTEMPT_REFUSED, ATTEMPT_SENT, BLOCKED, BUDGET_CYCLE, BUDGET_REACHED_CODE, FAILED, PAUSED_CODE, RATE_LIMIT, RATE_LIMIT_CODE, READY, SENDING, SENT, STARTED, SUPERSEDED,
+    EMAIL, ATTEMPT_REFUSED, ATTEMPT_SENT, BLOCKED, BUDGET_CYCLE, BUDGET_REACHED_CODE, FAILED, PAUSED_CODE, RATE_LIMIT, RATE_LIMIT_CODE, READY, SENDING, SENT, STARTED, SUPERSEDED,
     UNKNOWN, RecordError, account_key, attempt_log, now_iso, open_attempt_of, utc,
 )
 
@@ -140,6 +141,8 @@ class Attempts:
         text = self.deliveries.text(row)
         if text is None:
             return "its words file is missing"
+        if not text.strip():
+            return "it has no words"
         described = self.deliveries.files.describe(row["id"], text)
         if content_hash(described["sha256"], row.get("imageKey")) != row.get("contentHash"):
             return "its words file does not match the row's content hash"
@@ -331,9 +334,19 @@ class AccountWorker:
         self.handled.append(delivery)
         row, entry = self.attempts.open(delivery, by=by, now=now)
         self.attempts.hand_over(row, entry, self.transport, by=by, now=now)
-        return self.attempts.read(delivery, entry, self.transport, by=by, now=now)
+        return self._counted(self.attempts.read(delivery, entry, self.transport, by=by, now=now), by=by, now=now)
 
     def settle(self, delivery: str, *, by: str, now: str | None = None) -> dict[str, Any]:
         self._mine(delivery)
         self.handled.append(delivery)
-        return self.attempts.settle(delivery, self.transport, by=by, now=now)
+        return self._counted(self.attempts.settle(delivery, self.transport, by=by, now=now), by=by, now=now)
+
+    def refresh_counts(self, delivery: str, *, by: str, now: str | None = None) -> dict[str, Any]:
+        """Read Caducus's records of the Delivery again and write its counts. The provider reports deliveries, bounces and complaints after the send, so whatever
+        wakes the Delivery later (the due check, a provider event) calls this."""
+        self._mine(delivery)
+        return DeliveryCounts(self.deliveries).refresh(delivery, self.transport, by=by, now=now)  # type: ignore[arg-type]
+
+    def _counted(self, row: dict[str, Any], *, by: str, now: str | None) -> dict[str, Any]:
+        """An email Delivery's counts follow its attempt: they are read from Caducus's records every time the worker has touched the Delivery."""
+        return self.refresh_counts(row["id"], by=by, now=now) if row.get("channel") == EMAIL else row

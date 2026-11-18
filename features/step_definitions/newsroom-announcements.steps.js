@@ -10,7 +10,7 @@ const text = (world) => page(world).locator(PANEL).innerText();
 
 Given("I open the announcements page at {int} by {int}", async function (width, height) {
   await this.openPath("/newsroom/administration/announcements?demo=1", width, height);
-  await page(this).waitForSelector(`${PANEL} [data-announcements-rows]`, { state: "visible", timeout: 30_000 });
+  await page(this).waitForSelector(`${PANEL} [data-announcements-list]`, { state: "visible", timeout: 30_000 });
 });
 
 Then("the announcements page should show the section {string}", async function (title) {
@@ -106,9 +106,55 @@ Then("the budget field should read {string}", async function (value) {
 Then("the price table should say {string}", async function (words) {
   assert.ok((await page(this).locator("[data-announcements-prices] caption").innerText()).includes(words));
 });
-Then("the announcement {string} should read {string}", async function (title, state) {
-  const row = page(this).locator("[data-announcement]").filter({ hasText: title }).first();
-  assert.ok((await row.locator("[data-announcement-state]").innerText()).includes(state));
+
+/** The Announcement of a kind about a Story (the list names the Stories each is about); later steps speak of "it". */
+const entryOf = (world, kind, title) => page(world).locator("[data-announcement-entry]").filter({ has: page(world).locator(".ann-entry__head strong", { hasText: new RegExp(`^${kind}$`) }) }).filter({ hasText: title }).first();
+const lineOf = (world, channel) => world.entry.locator(`[data-delivery-line^='${channel.toLowerCase()}#']`).first();
+
+Then("the {string} announcement about {string} should have {int} line(s), one for each Delivery", async function (kind, title, count) {
+  this.entry = entryOf(this, kind, title);
+  assert.equal(await this.entry.locator("[data-delivery-line]").count(), count);
+});
+Then("in it the {string} line should read {string} with an icon", async function (channel, words) {
+  const state = lineOf(this, channel).locator("[data-delivery-state-words]");
+  assert.ok((await state.innerText()).includes(words), await state.innerText());
+  assert.equal(await state.locator("svg").count(), 1, "the state has an icon beside its words");
+});
+Then("in it the {string} line should say {string} with an icon", async function (channel, words) {
+  const line = lineOf(this, channel);
+  const attention = line.locator("[data-attention]").filter({ hasText: words });
+  assert.equal(await attention.count(), 1, await line.innerText());
+  assert.equal(await attention.locator("svg").count(), 1, "the warning has an icon beside its words");
+});
+Then("in it the {string} line should show the review {string} with an icon", async function (channel, words) {
+  const review = lineOf(this, channel).locator("[data-delivery-review]");
+  assert.ok((await review.innerText()).includes(words), await review.innerText());
+  assert.equal(await review.locator("svg").count(), 1);
+});
+Then("the announcement should show the review flag once", async function () {
+  const flags = this.entry.locator("[data-review-flag]");
+  assert.equal(await flags.count(), 1);
+  assert.ok((await flags.innerText()).includes("Review requested: a draft was blocked"));
+  assert.equal(await flags.locator("svg").count(), 1);
+});
+Then("the overdue section should hold an {string} line", async function (channel) {
+  const overdue = page(this).locator("[data-announcements-overdue]");
+  await overdue.waitFor({ state: "visible" });
+  assert.ok((await overdue.locator(`[data-delivery-line^='${channel.toLowerCase()}#']`).count()) >= 1);
+  assert.ok((await overdue.locator("[data-attention='overdue']").first().innerText()).includes("Overdue"));
+});
+Then("the page should say that a Delivery has an attempt with no answer yet", async function () {
+  assert.ok((await page(this).locator("[data-announcements-unknown]").innerText()).includes("Outcome unknown"));
+});
+Then("every state on the list should be an icon together with words", async function () {
+  const bare = await page(this).evaluate(() => [...document.querySelectorAll("[data-delivery-state-words], [data-attention], [data-delivery-review]")]
+    .filter((node) => !node.querySelector("svg") || !(node.textContent || "").trim().replace(/\s+/g, "")).map((node) => node.outerHTML.slice(0, 120)));
+  assert.deepEqual(bare, []);
+});
+Then("nothing on the list should have a border", async function () {
+  const bordered = await page(this).evaluate(() => [...document.querySelectorAll("[data-announcements-list] *")]
+    .filter((node) => ["Top", "Right", "Bottom", "Left"].some((side) => parseFloat(getComputedStyle(node)[`border${side}Width`]) > 0 && getComputedStyle(node)[`border${side}Style`] !== "none")).length);
+  assert.equal(bordered, 0);
 });
 Then("the announcements page should not scroll sideways", async function () {
   const fits = await page(this).evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);

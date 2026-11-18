@@ -10,15 +10,18 @@ import {
 import { connectToSiteApi } from "../../site-api-access";
 import { allowWakeSending } from "../../agents/wake-queue";
 
-/** The reads the function makes of its own site's API with its own role. It writes nothing there. Today reads the day's runs through the status index and the agents through the tenant index. */
+/** The reads the function makes of its own site's API with its own role. It writes nothing there. Today reads the day's runs through the status index, the agents through the tenant index, and the day's email sends through the released-Announcements index, each one's Deliveries and its `announces` links. */
 export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
   "Query/fields/getAutomation",
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
+  "Query/fields/listAnnouncementDecisionsByStateAndReleaseAt",
   "Query/fields/listAutomations",
   "Query/fields/listAutomationsByTenant",
+  "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
   "Query/fields/listProcedureRunsByStatusAndRequestedAt",
+  "Query/fields/listSemanticRelationsBySubjectState",
 ];
 
 /** Run now writes one row of its own to the monitoring table, in a monitor's partition (`MONITOR#<id>`), and nothing else. */

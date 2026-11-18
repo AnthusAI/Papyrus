@@ -39,6 +39,29 @@ export type TodayRow = TodayCosts & {
 
 export type TodayDidNotRun = { automationId: string; title: string; state: "Did not run"; whyCode: "disabled" | "unsupported" | "no_wake"; why: string };
 
+export type TodaySendCounts = Record<"queued" | "sent" | "failed" | "suppressed" | "skipped" | "delivered" | "bounced" | "complained", number>;
+
+/** One email send: an email Delivery of an Announcement released in the day, with the counts Caducus's records add up to. */
+export type TodaySend = {
+  deliveryId: string;
+  announcementId: string;
+  kind: string;
+  releasedAt: string;
+  lists: string[];
+  items: number;
+  state: string;
+  /** Where the send stands as a mark and its words, as the command line prints it. */
+  stateShown: string;
+  /** The same words without the mark: the page draws its own mark (a Lucide icon). */
+  stateWords: string;
+  attempts: number;
+  lastAttempt: string | null;
+  counts: TodaySendCounts;
+  countsText: string;
+  /** What Caducus charged, a decimal string, or null when nothing was charged. */
+  cost: string | null;
+};
+
 export type TodayOverview = {
   state: "ready";
   asOf: string;
@@ -48,6 +71,7 @@ export type TodayOverview = {
   end: string;
   rows: TodayRow[];
   didNotRun: TodayDidNotRun[];
+  sends: TodaySend[];
   totals: TodayCosts & { runs: number; counts: TodayCounts };
 };
 
@@ -65,6 +89,22 @@ export const OTHER_WORDS: Record<"notFinished" | "beforeOutcomes", string> = {
   notFinished: "Not finished yet",
   beforeOutcomes: "Recorded before outcomes",
 };
+/** The words of each send count, in the order a send lists them. A count of zero is left out; a send with none says so. */
+export const SEND_COUNT_WORDS: Record<keyof TodaySendCounts, string> = {
+  queued: "Queued", sent: "Sent", failed: "Failed", suppressed: "Suppressed", skipped: "Skipped", delivered: "Delivered", bounced: "Bounced", complained: "Complained",
+};
+export const SEND_COUNT_ORDER = Object.keys(SEND_COUNT_WORDS) as (keyof TodaySendCounts)[];
+
+export const NO_SEND_COST = "no cost recorded";
+
+export function sendCostText(cost: string | null): string {
+  return cost === null ? NO_SEND_COST : dollars(Number(cost));
+}
+
+export function sendItemsText(items: number): string {
+  return `${items} item${items === 1 ? "" : "s"}`;
+}
+
 export const OUTCOME_ORDER: TodayOutcome[] = ["acted", "nothing", "asked", "failed", "unknown"];
 export const OTHER_ORDER: ("notFinished" | "beforeOutcomes")[] = ["notFinished", "beforeOutcomes"];
 

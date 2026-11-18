@@ -23,9 +23,8 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any, Iterator, Mapping, Protocol, Sequence
 
-from . import links
 from .records import (
-    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
+    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
     BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
@@ -190,12 +189,12 @@ class Deliveries:
         existing = self.get(row_id)
         if existing:
             raise DeliveryExists(existing)
-        file = self.files.describe(row_id, plan.text)
+        file = self.files.describe(row_id, plan.text) if plan.text else None   # a draft a person has yet to write has no words and no file
         approved = plan.approval == NONE
         row: dict[str, Any] = {
             "id": row_id, "announcementId": announcement, "channel": plan.channel, "accountId": plan.account_id, "accountKey": account_key(plan.channel, plan.account_id),
             "audience": list(plan.audience) or None, "mode": plan.mode, "state": plan.state, "generation": generation, "version": 1,
-            "textKey": file["key"], "imageKey": plan.image_key, "contentHash": content_hash(file["sha256"], plan.image_key),
+            "textKey": file["key"] if file else None, "imageKey": plan.image_key, "contentHash": content_hash(file["sha256"], plan.image_key) if file else None,
             "draftedBy": plan.drafted_by, "checks": list(plan.checks) or None,
             "approval": plan.approval, "approvalPolicy": plan.approval_policy,
             "approvedVersion": 1 if approved else None, "approvedBy": SYSTEM if approved else None, "approvedAt": now if approved else None,
@@ -211,7 +210,8 @@ class Deliveries:
             if "conditional" in str(error).lower():
                 raise DeliveryExists(self.get(row_id) or row) from error
             raise
-        self.files.put(row_id, plan.text, now=now)
+        if plan.text:
+            self.files.put(row_id, plan.text, now=now)
         return row
 
     def add(self, announcement: str, plan: Plan, *, release_at: str, by: str, now: str | None = None) -> dict[str, Any]:
@@ -222,7 +222,7 @@ class Deliveries:
 
     def ensure_text(self, row: Mapping[str, Any], text: str, *, now: str | None = None) -> None:
         """Finish a crashed create: write the words when the row exists and the file does not. The words are the same text the row's hash names."""
-        if self.files.get(row["id"]) is None:
+        if text and row.get("textKey") and self.files.get(row["id"]) is None:
             self.files.put(row["id"], text, now=now or now_iso())
 
     def check(self, plan: Plan) -> None:
@@ -233,6 +233,8 @@ class Deliveries:
             raise RecordError(f"mode is one of {', '.join(MODES)}; not {plan.mode!r}.")
         if plan.state not in (DRAFTED, READY):
             raise RecordError(f"A Delivery starts as drafted or ready; not {plan.state!r}.")
+        if plan.state == READY and not plan.text.strip():
+            raise RecordError("A Delivery with no words is a draft, not ready: only a draft may wait for a person to write it.")
         if not plan.channel or not plan.account_id:
             raise RecordError("A Delivery names its channel and its account.")
         if not plan.approval_policy:
@@ -260,6 +262,8 @@ class Deliveries:
 
     def mark_ready(self, row: Mapping[str, Any], *, by: str, now: str | None = None) -> dict[str, Any]:
         """The words are drafted and checked."""
+        if not row.get("textKey"):
+            raise RecordError(f"{row['id']} has no words, so it is not ready.")
         return self._change(row, {"state": READY}, by=by, note="ready", now=now)
 
     def approve(self, row: Mapping[str, Any], *, version: int, by: str, now: str | None = None) -> dict[str, Any]:
@@ -330,6 +334,16 @@ class Deliveries:
             raise RecordError(f"A Delivery state is one of {', '.join(DELIVERY_STATES)}; not {state!r}.")
         return self._change(row, {"state": state}, by=by, note=note, now=now)
 
+    def record_counts(self, row: Mapping[str, Any], counts: Mapping[str, int], cost: str | None, *, by: str, now: str | None = None) -> dict[str, Any]:
+        """Write the counts Caducus's records add up to (``counts.DeliveryCounts.refresh`` calls this), and the cost when Caducus charged something. The state is not
+        touched: counts say what became of the readers, the attempts say how the send went. The history line names the counts so a change is visible."""
+        from .counts import counts_text
+
+        changes: dict[str, Any] = {"counts": dict(counts)}
+        if cost is not None:
+            changes["cost"] = cost
+        return self._change(row, changes, by=by, note=f"counts from Caducus: {counts_text(counts)}", now=now)
+
     def move_release(self, row: Mapping[str, Any], release_at: str, *, by: str, now: str | None = None) -> dict[str, Any]:
         """A new release time. The lock time follows when it was equal to the old release time (no separate lock)."""
         release = utc(release_at)
@@ -371,6 +385,13 @@ class Deliveries:
         if row.get("state") != FAILED:
             raise RecordError(f"{row['id']} is {row.get('state')}; only a failed Delivery is tried again.")
         return self._change(row, {"state": READY}, by=by, note="tried again by a person", now=now)
+
+    def block_draft(self, row: Mapping[str, Any], *, by: str, note: str, now: str | None = None) -> dict[str, Any]:
+        """The checks on a draft's words failed: it is blocked before any attempt, and nothing about it is pending (no time, so it is never overdue). A person's answer, or a
+        change to an input, is what moves it on (``resume``)."""
+        if row.get("state") not in (DRAFTED, READY):
+            raise RecordError(f"{row['id']} is {row.get('state')}; only a draft or a ready Delivery is blocked for a failed check.")
+        return self._change(row, {"state": BLOCKED, "blockedReason": CHECK_FAILED_CODE}, by=by, note=note, now=now)
 
     def resume(self, row: Mapping[str, Any], *, by: str, now: str | None = None) -> dict[str, Any]:
         """A person lifted the pause (or answered the reason a Delivery was blocked): back to ready, with no wait left on the row. The next try is the next attempt."""
@@ -417,6 +438,8 @@ class Deliveries:
             self._change(current, {"state": SUPERSEDED, "supersededBy": successor["id"]}, by=by, note=f"corrected by {successor['id']}", now=now)
         elif current["supersededBy"] != successor["id"]:
             raise AlreadySuperseded(old["id"], current["supersededBy"])
+        from . import links   # the writer of the relations needs PyYAML (the relation types), which the reads of a Delivery do not
+
         links.supersedes(self.client, successor["id"], old["id"], now=now)
 
     def history(self, row: Mapping[str, Any]) -> list[dict[str, Any]]:

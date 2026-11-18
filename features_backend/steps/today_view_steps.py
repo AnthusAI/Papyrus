@@ -25,6 +25,8 @@ class RunIndexClient:
 
     def list_by_index(self, index, key, *, sort_condition=None, **_):
         self.reads.append(("index", index, key, sort_condition))
+        if index != "procedureRunsByStatus":   # the day's email sends (delivery-counts.feature) read the announcement records: none are made here
+            return []
         low, high = sort_condition["between"]
         return [dict(row) for row in self.runs if row["runStatus"] == key and low <= row["requestedAt"] <= high]
 
@@ -251,7 +253,7 @@ def day_cost(context, cost):
 
 @then("each run status was read once, with a time range, from the run status index")
 def indexed(context):
-    reads = [read for read in context.client.reads if read[0] == "index"]
+    reads = [read for read in context.client.reads if read[0] == "index" and read[1] == "procedureRunsByStatus"]
     assert [read[2] for read in reads] == list(today.RUN_STATUSES), reads
     assert all(read[1] == "procedureRunsByStatus" and read[3] and "between" in read[3] for read in reads), reads
 
