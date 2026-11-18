@@ -57,9 +57,14 @@ class Change:
     actor_label: str | None
     at: str | None
     attributes: Mapping[str, Any] = field(default_factory=dict)
+    # What the other tables' feeds (``change_feeds.py``) add to the one shape. An Item change keeps the defaults, so its wake is as it was.
+    table: str = TABLE
+    kind: str = KIND
+    subject: Mapping[str, Any] | None = None   # what the wake is about when that is not a Story: ``{"kind", "id"}``
+    only_for: str | None = None                # the one agent the change is addressed to (an answer wakes the agent that asked), else every listener
 
     def as_dict(self) -> dict[str, Any]:
-        return {"table": TABLE, "kind": KIND, "id": self.id, "lineage": self.lineage, "version": self.version, "change": self.change, "what": self.what,
+        return {"table": self.table, "kind": self.kind, "id": self.id, "lineage": self.lineage, "version": self.version, "change": self.change, "what": self.what,
                 "actorKind": self.actor_kind, "actorLabel": self.actor_label, "at": self.at, **{f"attribute.{name}": value for name, value in self.attributes.items()}}
 
 
@@ -156,7 +161,9 @@ class Site:
 
 def _reason(change: Change, agent: str) -> str:
     by = f"by {change.actor_label}" if change.actor_label else f"by a {change.actor_kind}"
-    if change.change == STAGE_ENTERED:
+    if change.kind != KIND:
+        what = f"{change.kind} {change.lineage} changed: {change.change.replace('_', ' ')}"
+    elif change.change == STAGE_ENTERED:
         what = f"Story {change.lineage} entered {change.attributes.get('stage')}"
     elif change.change == STEP_CHANGED:
         what = f"step {change.attributes.get('step')} of Story {change.lineage} became {change.attributes.get('state')}"
@@ -172,9 +179,10 @@ def wake_request(change: Change, listener: Mapping[str, Any], site: Site) -> dic
         "wakeKey": wake_keys.change_key(wake_keys.owner(agent, procedure), change.lineage, change.version, change.what),
         "publicationId": site.publication_id, "appsyncEndpoint": site.appsync_endpoint, "procedureKey": procedure,
         "actorLabel": f"{AGENT_LABEL_PREFIX}{agent}",
-        "input": {"story": change.lineage, "version": change.version, "change": change.change, "what": change.what,
-                  **{name: value for name, value in change.attributes.items() if value is not None}},
-        "trigger": {"kind": "event", "event": f"{KIND.lower()}.{change.change}", "automationId": agent, "story": change.lineage, "version": change.version,
+        "input": {**({"story": change.lineage} if change.subject is None else {"subject": dict(change.subject)}), "version": change.version, "change": change.change,
+                  "what": change.what, **{name: value for name, value in change.attributes.items() if value is not None}},
+        "trigger": {"kind": "event", "event": f"{change.kind.lower()}.{change.change}", "automationId": agent,
+                    **({"story": change.lineage} if change.subject is None else {"subject": dict(change.subject)}), "version": change.version,
                     "title": f"{procedure}: {change.change.replace('_', ' ')}"[:200], "summary": _reason(change, agent),
                     "paid": bool(listener.get("paid")), "serialBy": listener.get("serialBy"), "actorKind": change.actor_kind,
                     "actorLabel": change.actor_label, "at": change.at},
@@ -188,14 +196,16 @@ def wake_request(change: Change, listener: Mapping[str, Any], site: Site) -> dic
 def wakes_for(change: Change, index: Mapping[str, Any] | None, site: Site) -> list[dict[str, Any]]:
     """One request per agent that listens for the change, in agent order, leaving out the agent that made it."""
     attributes = {**change.attributes, "change": change.change}
-    return [wake_request(change, listener, site) for listener in listener_index.listening(index, KIND, change.change, attributes)
-            if not is_own_change(change, listener["agent"])]
+    return [wake_request(change, listener, site) for listener in listener_index.listening(index, change.kind, change.change, attributes)
+            if not is_own_change(change, listener["agent"]) and change.only_for in (None, listener["agent"])]
 
 
 def handle(records: list[Mapping[str, Any]], *, decode: Callable[[Any], Any], listeners: Callable[[], Mapping[str, Any]], send: Callable[[dict], Any],
-           site: Site) -> dict[str, Any]:
+           site: Site, normalize: Callable[[Mapping[str, Any], Mapping[str, Any] | None, Mapping[str, Any] | None], list[Change]] | None = None,
+           wakes: Callable[[Change, Mapping[str, Any] | None, Site], list[dict[str, Any]]] | None = None, feed: str = "item") -> dict[str, Any]:
     """Process one stream batch in order. The index is read once, and only if some record is a change. A record whose wakes cannot all be sent reports itself
-    (and Lambda retries from it: every key is the same on the retry, so what was already sent starts nothing again)."""
+    (and Lambda retries from it: every key is the same on the retry, so what was already sent starts nothing again). The other tables' feeds (``change_feeds.py``)
+    pass their own ``normalize`` (a record and its decoded images to the changes it makes) and ``wakes``; the loop, the tenant guard and the retry are this one."""
     index: Mapping[str, Any] | None = None
     sent = 0
     for record in records:
@@ -203,17 +213,17 @@ def handle(records: list[Mapping[str, Any]], *, decode: Callable[[Any], Any], li
         old, new = decode(stream.get("OldImage")), decode(stream.get("NewImage"))
         if site.tenant_id and (new or {}).get("tenantId") not in (None, "", site.tenant_id):
             continue   # a row of another tenant is not this site's change: nothing about it is read or sent
-        found = changes_of(old, new, record.get("eventName") or "")
+        found = normalize(record, old, new) if normalize else changes_of(old, new, record.get("eventName") or "")
         if not found:
             continue
         try:
             if index is None:
                 index = listeners()
-            requests = [request for change in found for request in wakes_for(change, index, site)]
+            requests = [request for change in found for request in (wakes or wakes_for)(change, index, site)]
             for request in requests:
                 send(request)
                 sent += 1
         except Exception as error:   # noqa: BLE001 - nothing is guessed: the record is retried whole
-            print(json.dumps({"event": "papyrus_item_change_feed_failed", "error": f"{type(error).__name__}: {error}"[:500], "sequence": stream.get("SequenceNumber")}))
+            print(json.dumps({"event": f"papyrus_{feed}_change_feed_failed", "error": f"{type(error).__name__}: {error}"[:500], "sequence": stream.get("SequenceNumber")}))
             return {"batchItemFailures": [{"itemIdentifier": stream["SequenceNumber"]}], "wakesSent": sent}
     return {"batchItemFailures": [], "wakesSent": sent}

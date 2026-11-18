@@ -427,6 +427,40 @@ from Git leaves the index at the next deploy. It holds no rung, pause or budget:
 * **Limits of a stream.** A new version created at a different stage from its predecessor is not a stage entry (the stream holds no previous version), and a stage entered
   again at the same version has the same key, so it starts nothing again.
 
+## The change feeds of the other tables
+
+An agent may also listen for a change to a Reference, a review request, a Message, a translation request or a Delivery (slice B3, PPY-9b9e64). One function in the site's
+`agents` stack, `papyrus-<site>-change-feed`, does for those tables what the Item feed does for Items, with the same normalized change (`table, kind, id, lineage,
+version, change, actorKind, at`), the same listener index, the same wake and the same loop (`src/papyrus_content/change_feeds.py` over `item_change_feed.py`). The
+changes an agent definition may name are one list, `src/papyrus_content/change_vocabulary.py`; a definition that names another is refused when it is read.
+
+| Kind | Change | What it is | What a filter may name | Wake key `<agent>\|<lineage>\|<version>\|<what>` |
+|---|---|---|---|---|
+| `Reference` | `created` | the first version of a Reference was inserted | `corpusId`, `medium`, `section`, `versionNumber`, `actorKind` | `<agent>\|<lineage>\|<row id>\|created` |
+| `Reference` | `accepted` | its curation status became `accepted` (it may also arrive accepted) | the same, `curationStatus`, `reason` | `...\|accepted` |
+| `Reference` | `rated` | its star rating was set or changed | the same, `stars`, `previousStars` | `...\|rated.<stars>` |
+| `Reference` | `recaptured` | its content was captured again: a new retrieval time or content hash on a Reference that had one | the same, `captureState` | `...\|recaptured.<retrieval time or hash>` |
+| `ReviewRequest` | `answered` | an open request was answered | `decision`, `mode`, `reason`, `subjectType`, `steer`, `raisedBy`, `actorKind` | `<agent>\|<subject id>\|<request id>\|answered` |
+| `Message` | `posted` | a comment was posted | `subjectKind` (`Story`, `Reference`, `Delivery`, or `thread`), `subjectId`, `threadKind`, `actorKind` | `<agent>\|<subject id>\|<message id>\|posted` |
+| `LocalizationRequest` | `wanted` | a translation was asked for (a request inserted or put back `wanted`) | `language`, `sourceVersionNumber`, `automationId`, `publish`, `actorKind` | `<agent>\|<Story>\|<source version id>\|wanted.<language>.<asked at>` |
+| `Delivery` | `state_changed` | a Delivery was drafted or changed state | `state`, `from`, `channel`, `accountId`, `announcementId`, `mode`, `approval`, `actorKind` | `<agent>\|<Delivery id>\|<revision>\|state_changed.<state>` |
+
+* **An answer wakes the agent that asked, and no other.** The request's `raisedBy` (`agent:<id>`, `automation:<id>` or the bare id) names it; the answer is a wake for that
+  agent only if its definition listens for `ReviewRequest/answered`. A request a person raised, or one raised by an agent that does not listen, sends nothing.
+* **A Message is placed on its subject.** A comment's thread is anchored on a Story, Reference or Delivery; the feed reads the thread (one point read by id, through
+  `getMessageThread`) only when some agent listens for a posted Message, and the wake is for the listeners whose filter matches the subject. The wake carries the Message's
+  id, never its text (the agent reads it, as a person's steering). A thread with no anchor is its own subject (`subjectKind` `thread`).
+* **What makes a wake new.** `what` carries what made the change different from the last one at that version (the stars, the state a Delivery entered, the time a
+  translation was asked for), so asking again is a new wake and a record delivered twice is the same one. An agent's own change (`automation:<agent>` or `agent:<agent>`) never wakes it.
+* **Streams and readers.** A DynamoDB stream should have at most two readers, so the feed is not added as a third. `ReviewRequest` and `Delivery` had no stream: the feed is
+  their one reader and switches the stream on, with both images. `Reference` and `LocalizationRequest` have their readers already; with fewer than two the feed reads the
+  stream itself, through a mapping with a filter. A table that has two (the Reference stream with the word index and the home page; the Message stream with the console
+  responder, Slack delivery and the home page) gets the feed behind a reader that stays on the stream: that reader invokes the feed function with its batch and reports what the
+  feed could not finish (`src/papyrus_content/change_feed_relay.py`; the word index, Slack delivery or the home page's thread reader, `amplify/agents/stream-readers.ts`).
+  `npm run test:agents-stack` places the feeds for every combination of readers and proves no table is given a third.
+* **What the feed may do** (its role): read the streams it owns; call `getSiteDocument` and `getMessageThread` on its own site's API; read the listener index's objects of its own
+  tenant; look up and send to its own site's wake queue. It reads no table by scan or list, receives and deletes no wake, and calls no model.
+
 ## Console
 
 Administration, Automation, beside Procedures. It lists each automation (title, trigger, procedure, enabled,

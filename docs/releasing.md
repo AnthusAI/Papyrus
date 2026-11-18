@@ -107,6 +107,17 @@ The release that carries slice B2 does three things, all ordinary updates (nothi
 
 What a deploy cannot show, and a person checks once on a real site after the release: a board move and a CLI save each put one wake per listening agent on the queue, a repeat of the same record puts none, and the dead-letter queue stays empty (PPY-8a374e lists the proof that remains).
 
+## The change feeds for Reference, review requests, Messages, translation requests and Deliveries (PPY-9b9e64)
+
+The release that carries slice B3 is an ordinary update too; a new site's first deploy does not move (`npm run test:agents-stack` prints the first-stage count, 1,978 of the 2,000 budget before and after, and the `agents` stack's own count):
+
+1. **The ReviewRequest and Delivery tables get a stream** (both images; neither had one). It is switched on only with the `agents` stack that reads it. A model group left out of a site's schema has no table, so no stream and no mapping for it. A stream is a property of an existing table: no index is added, so the one-new-index-per-table rule is untouched. Staged where a table gains a stream: nothing else in the release changes a table's stream.
+2. **The `agents` stack gains one feed function** with its role and policy (3 resources) and one mapping, with a filter, for each stream the feed reads itself (up to 5): 8 resources for a site with every table. It reads no stream that already has two readers.
+3. **Where a stream already has two readers** (the Reference stream with the word index and the home page; the Message stream with two or three of the console responder, Slack delivery and the home page) the feed gets no mapping. The reader that stays on the stream (the word index, Slack delivery or the home page) is given the feed's function name and permission to invoke it, and hands its batch over. This changes the reader's function code and settings and adds no resource. Until the `agents` stack has created the function the reader finds none and has nothing to hand over; there are no listeners before the deploy writes the listener index, so nothing is lost.
+4. **The listener index** (`papyrus agents listeners`, unchanged) now holds the new changes for any agent definition that names them.
+
+What a deploy cannot show, and a person checks once on a real site after the release: accepting a Reference puts one wake per listening agent on the queue; answering a review request puts one wake for the agent that asked; a comment on a Story wakes that Story's listeners; a Delivery state change wakes its listeners; a repeat of the same record puts none; and the dead-letter queue stays empty. The Message stream already has three readers on a site that turns on the console responder, Slack and the home page together; the feed adds none there, but that site's stream is over the guidance until one of those readers moves behind another (not done here).
+
 ## The first agent: rating on Machines on Machines (PPY-d85860)
 
 The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/rating-agent.feature`) is the first

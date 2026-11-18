@@ -5,6 +5,7 @@ import { Architecture, CfnEventSourceMapping, Function as LambdaFunction, Runtim
 import type { Construct } from "constructs";
 import { pythonLambdaCode } from "../functions/shared/python-bundle";
 import { connectToSiteApi } from "../site-api-access";
+import { tableStream } from "./stream-readers";
 import { allowWakeSending } from "./wake-queue";
 import type { AgentPiece } from "./stack";
 
@@ -43,20 +44,7 @@ export type ItemChangeFeedSource = {
  * The Item table had no stream before. Returns undefined when the site's schema has no Item table.
  */
 export function enableItemStream(backend: any): string | undefined {
-  const cfnResources = backend.data.resources.cfnResources;
-  const wrapper = cfnResources.amplifyDynamoDbTables?.Item;
-  if (wrapper !== undefined) {
-    wrapper.streamSpecification = { streamViewType: ITEM_STREAM_VIEW };
-    return wrapper.resource.getAtt("TableStreamArn").toString();
-  }
-  const cfnTables = cfnResources.cfnTables ?? {};
-  const found =
-    cfnTables.Item ??
-    cfnTables.ItemTable ??
-    Object.entries(cfnTables).find(([key]) => key.toLowerCase().replace(/table$/, "") === "item")?.[1];
-  if (!found) return undefined;
-  (found as any).streamSpecification = { streamViewType: ITEM_STREAM_VIEW };
-  return (found as any).attrStreamArn;
+  return tableStream(backend, "Item", ITEM_STREAM_VIEW);
 }
 
 export function itemChangeFeedPiece(brandId: string, source: ItemChangeFeedSource): AgentPiece {

@@ -103,7 +103,7 @@ def test_flags_are_checked(core, tmp_path):
 def test_registered_schedules_skip_retired_and_unscheduled():
     live = {"id": "a", "definition": json.dumps({"wakes": {"schedule": {"cron": "0 1 * * *", "timeZone": "UTC"}}})}
     retired = {**live, "id": "b", "definitionRetiredAt": "2026-11-17T00:00:00Z"}
-    changes_only = {"id": "c", "definition": json.dumps({"wakes": {"changes": [{"kind": "Item", "change": "ready"}]}})}
+    changes_only = {"id": "c", "definition": json.dumps({"wakes": {"changes": [{"kind": "Item", "change": "step_changed"}]}})}
     assert list(registered_schedules([live, retired, changes_only, {"id": "d"}])) == ["a"]
 
 

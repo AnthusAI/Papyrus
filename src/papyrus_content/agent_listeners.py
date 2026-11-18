@@ -39,9 +39,14 @@ def build(definitions: Iterable[Definition]) -> dict[str, Any]:
     return {"schemaVersion": SCHEMA_VERSION, "changes": changes}
 
 
+def listeners_of(document: Mapping[str, Any] | None, kind: str, change: str) -> list[dict[str, Any]]:
+    """Every agent that listens for this change, whatever its filter: the one entry of the index for ``kind/change``. Nothing is read to find it."""
+    return list(((document or {}).get("changes") or {}).get(change_name(kind, change)) or [])
+
+
 def listening(document: Mapping[str, Any] | None, kind: str, change: str, attributes: Mapping[str, Any]) -> list[dict[str, Any]]:
     """The listeners of one change whose filter every field of matches ``attributes`` (a filter names fields of the normalized change; values compare as text)."""
-    entries = ((document or {}).get("changes") or {}).get(change_name(kind, change)) or []
+    entries = listeners_of(document, kind, change)
 
     def matches(entry: Mapping[str, Any]) -> bool:
         return all(attributes.get(field) is not None and str(attributes[field]) == str(value) for field, value in (entry.get("filter") or {}).items())
