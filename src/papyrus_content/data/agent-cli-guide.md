@@ -702,6 +702,9 @@ papyrus announcements settings show
 papyrus announcements settings set --mode dry_run --min-stars 5 --story-types article --budget 10.00 --billing-cycle-day 1 --label-confirmed --input-file ./prices.json
 papyrus announcements dry-run story-containment-note
 papyrus announcements list --state dry_run
+papyrus announcements where story-containment-note
+papyrus announcements recent
+papyrus announcements explain --story story-containment-note
 papyrus announcements show story-containment-note
 papyrus announcements pause
 papyrus announcements resume

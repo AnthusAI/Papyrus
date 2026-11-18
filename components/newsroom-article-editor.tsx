@@ -67,6 +67,7 @@ import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
+import { StoryAnnouncementsCard } from "./announcement-lines";
 import { StorySchedulePanel } from "./story-schedule-panel";
 import { useScheduleZone } from "../lib/schedule-zone";
 import { scheduleFromEntries, scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
@@ -774,6 +775,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               }}
             />
           ) : null}
+
+          {editor.id !== null && lineageId ? <StoryAnnouncementsCard door={backend.announcementsDoor} lineageId={lineageId} /> : null}
 
           {editor.id !== null ? (
             <div className="max-w-md" data-newsroom-article-stars>

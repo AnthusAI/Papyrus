@@ -36,7 +36,8 @@ from papyrus_content.agent_policy.resolve import PolicyState, decide_start, effe
 from papyrus_content.agent_policy.store import AgentPolicyStore
 from papyrus_content.images.handlers import Caller
 
-from .records import HARD, NONE, SOFT, SYSTEM
+from .approval_words import approval_label  # noqa: F401  (re-exported: the words are approval_words.py)
+from .records import HARD, NONE, SOFT
 
 RESPONSIBILITY = "announce"
 #: The ways an announcement's review can be narrowed: an Announcement kind, a channel, a list. (The ladder also has Story type and section; the announce rung is not narrowed by those.)
@@ -92,25 +93,6 @@ def choose(state: PolicyState, *, channel: str, kind: str, list_id: str | None =
         return ReviewChoice(None, found.rung, where, scope, state.version,
                             f"announce is at {found.rung}; a Delivery is prepared from prepare upwards (hard), publish_soft (soft) or publish_auto (none)")
     return ReviewChoice(approval, found.rung, where, scope, state.version)
-
-
-# --- the words and marks the list shows --------------------------------------------------------------------------------------------------------------
-
-
-def approval_label(row: Mapping[str, Any]) -> dict[str, str]:
-    """How a Delivery's review reads in the Announcements list: words first, then a mark (a Lucide icon name), never colour alone.
-
-    ``Sent automatically by publication policy`` and ``Released by a person`` are the two the ticket names; a Delivery that has not been released says what it waits for."""
-    approval, policy, by = row.get("approval"), str(row.get("approvalPolicy") or ""), row.get("approvedBy")
-    source = policy.rsplit(" (agent policy version", 1)[0] if policy else "policy"
-    approved = row.get("approvedVersion") is not None and int(row["approvedVersion"]) == int(row.get("version") or 0)
-    if approved and by == SYSTEM:
-        return {"words": f"Released automatically by {source}", "mark": "bot", "approval": str(approval)}
-    if approved:
-        return {"words": f"Released by a person ({by})", "mark": "user-check", "approval": str(approval)}
-    if approval == SOFT:
-        return {"words": f"Goes at its lock time unless a person stops it ({source})", "mark": "hourglass", "approval": SOFT}
-    return {"words": f"Waits for a person to release it ({source})", "mark": "hand", "approval": str(approval)}
 
 
 # --- changing the policy: a person's, an admin's --------------------------------------------------------------------------------------------------------

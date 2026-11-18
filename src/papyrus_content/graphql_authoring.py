@@ -782,11 +782,14 @@ query {operation}(${partition_key}: {partition_type}!{sort_variable}, $limit: In
 """
 
 
-def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String") -> str:
+def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String", sort_key: str | None = None) -> str:
     operation = field[0].upper() + field[1:]
+    # `sort_key` bounds the partition by its sort field (a key condition: only the rows asked for are read), so a later page starts where the last one ended.
+    sort_variable = ", $sortBound: ModelStringKeyConditionInput" if sort_key else ""
+    sort_argument = f", {sort_key}: $sortBound" if sort_key else ""
     return f"""
-query {operation}NewestFirst(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
-  {field}({partition_key}: ${partition_key}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
+query {operation}NewestFirst(${partition_key}: {partition_type}!{sort_variable}, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}{sort_argument}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -1349,16 +1352,20 @@ class PapyrusGraphQLAuthoringClient:
                 break
         return items
 
-    def iterate_newest_first(self, index_name: str, key_value: str, *, page_size: int = 50):
-        """Rows of an index by its sort key, newest first, one page at a time; stop reading and no further page is fetched."""
+    def iterate_newest_first(self, index_name: str, key_value: str, *, page_size: int = 50, sort_before: str | None = None):
+        """Rows of an index by its sort key, newest first, one page at a time; stop reading and no further page is fetched. ``sort_before`` starts below that sort value."""
         index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
+        bounded = sort_before is not None
         query = _newest_first_query(
-            definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String")
+            definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String"), definition["sortKey"] if bounded else None
         )
         next_token = None
         while True:
-            result = self.graphql(query, {definition["partitionKey"]: key_value, "limit": page_size, "nextToken": next_token})
+            variables = {definition["partitionKey"]: key_value, "limit": page_size, "nextToken": next_token}
+            if bounded:
+                variables["sortBound"] = {"lt": sort_before}
+            result = self.graphql(query, variables)
             connection = result.get(definition["field"]) or {}
             for entry in connection.get("items") or []:
                 if entry:

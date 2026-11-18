@@ -11,6 +11,8 @@ import {
   createStoryFromReference,
   type ContentActionError,
 } from "./content-actions-client";
+import type { AnnouncementsDoor } from "./announcement-lines";
+import { announcementsDoor } from "./announcements-door-client";
 import { createDemoArticlesBackend } from "./content-actions-demo";
 import { UNTYPED_ITEM_TYPE } from "./content-item-lifecycle";
 import { ALWAYS_PROJECTED, typeForNewStory, siteStoryTypes } from "./site-story-types";
@@ -111,6 +113,8 @@ export type ArticlesBackend = {
   };
   listRows: () => Promise<NewsroomArticleRow[]>;
   loadArticle: (id: string) => Promise<EditableArticle>;
+  /** The announcements door (reads only): where the Story was announced, one line for each Delivery. */
+  announcementsDoor: AnnouncementsDoor;
 };
 
 export function slugify(value: string): string {
@@ -350,6 +354,7 @@ export function createLiveArticlesBackend(): ArticlesBackend {
     actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, scheduleStory, scheduleList, createStoryFromReference, setItemStars },
     listRows: () => loadArticleRows(dataClient()),
     loadArticle: (id) => loadEditableArticle(dataClient(), id),
+    announcementsDoor,
   };
 }
 

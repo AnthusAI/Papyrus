@@ -23,6 +23,7 @@ import {
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
 import { createLocalPreviewEditableArticle, lineageForPreviewVersion, localPreviewScheduleFields, recordLocalPreviewDesk, recordLocalPreviewVersion, setLocalPreviewSchedule } from "./local-preview-seed";
+import { createDemoAnnouncementsDoor } from "./announcements-demo";
 import { scheduleFromFields } from "./story-schedule";
 import { LOCAL_PREVIEW_TIME_ZONE } from "./schedule-zone";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
@@ -324,5 +325,6 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         starRating: record.starRating ?? null,
       };
     },
+    announcementsDoor: createDemoAnnouncementsDoor(),
   };
 }

@@ -35,4 +35,4 @@ What Papyrus supplies at deploy: the token provider (the account connection), `S
 
 ## CLI and MCP
 
-`papyrus announcements list|show|dry-run|pause|resume|settings show|settings set|account status`, from the one operation table (`src/papyrus_content/images/operations.py`, group `announcements`); see `docs/agent-cli-guide.md`. `settings set` is for a person only.
+`papyrus announcements list|show|where|recent|explain|dry-run|pause|resume|settings show|settings set|account status`, from the one operation table (`src/papyrus_content/images/operations.py`, group `announcements`); see `docs/agent-cli-guide.md`. `settings set` is for a person only.

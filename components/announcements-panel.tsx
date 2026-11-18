@@ -5,14 +5,16 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { callAnnouncements, type AnnouncementsApi } from "../lib/announcements-client";
-import { announcementsSource, AnnouncementsBackendNotDeployed, type AnnouncementsSource } from "../lib/announcements-data";
-import { createFixtureApi, demoAnnouncementsSource } from "../lib/announcements-fixture";
+import { announcementsDoor } from "../lib/announcements-door-client";
+import { createDemoAnnouncementsDoor } from "../lib/announcements-demo";
+import { createFixtureApi } from "../lib/announcements-fixture";
 import {
   MODE_OPTIONS, QUALITY_FLOOR_STARS, SETUP_INTRO, STAR_CHOICES, STORY_TYPE_OPTIONS, X_PRICING_URL, X_STATE_STORAGE_KEY,
-  callbackUrl, connectionWords, failureText, formatDate, formatMoney, formatWhen, modeBlockers, pauseText, setupSteps, stateWords, toggled,
-  type AnnouncementFailure, type AnnouncementMode, type AnnouncementRow, type AnnouncementSettings, type XStatus, type XUsage,
+  callbackUrl, connectionWords, failureText, formatDate, formatMoney, formatWhen, modeBlockers, pauseText, setupSteps, toggled,
+  type AnnouncementFailure, type AnnouncementMode, type AnnouncementSettings, type XStatus, type XUsage,
 } from "../lib/announcements-model";
 import { getPublicNewsroomBasePath } from "../lib/newsroom-base-path";
+import { AnnouncementsList } from "./announcement-lines";
 
 type Message = { kind: "ok" | "problem"; text: string } | null;
 type Section = { id: string; title: string };
@@ -33,7 +35,7 @@ const PRICE_FIELDS: { key: "createPost" | "createPostWithUrl" | "deletePost" | "
  */
 export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boolean; isDemo: boolean; sections: Section[] }) {
   const api: AnnouncementsApi = useMemo(() => (isDemo ? createFixtureApi() : callAnnouncements), [isDemo]);
-  const source: AnnouncementsSource = isDemo ? demoAnnouncementsSource : announcementsSource;
+  const door = useMemo(() => (isDemo ? createDemoAnnouncementsDoor() : announcementsDoor), [isDemo]);
   const live = useRef(true);
   useEffect(() => {
     live.current = true;
@@ -45,8 +47,6 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   const [status, setStatus] = useState<XStatus | null>(null);
   const [usage, setUsage] = useState<XUsage | null>(null);
   const [usageProblem, setUsageProblem] = useState<string | null>(null);
-  const [rows, setRows] = useState<AnnouncementRow[] | null>(null);
-  const [rowsProblem, setRowsProblem] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -72,15 +72,7 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
       if (!live.current) return;
       if (isFailure(used)) { setUsage(null); setUsageProblem(failureText(used)); } else { setUsage(used.usage); setUsageProblem(null); }
     } else { setUsage(null); setUsageProblem(null); }
-    try {
-      const list = await source.list();
-      if (live.current) { setRows(list); setRowsProblem(null); }
-    } catch (error) {
-      if (!live.current) return;
-      setRows(null);
-      setRowsProblem(error instanceof AnnouncementsBackendNotDeployed ? error.message : `The list could not be read: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }, [api, source]);
+  }, [api]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -366,24 +358,8 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
         </div>
       ) : null}
 
-      <Card title="Announcements" note="What would be posted, and what was." id="list">
-        {rowsProblem ? <p className="announcements__quiet" data-announcements-list-problem><TriangleAlert aria-hidden="true" size={16} /> {rowsProblem}</p> : null}
-        {rows && rows.length === 0 ? <p className="announcements__quiet">Nothing has qualified yet.</p> : null}
-        {rows ? (
-          <ul className="announcements__rows" data-announcements-rows>
-            {rows.map((row) => (
-              <li key={row.id} data-announcement={row.id} data-state={row.state}>
-                <p className="announcements__rowhead">
-                  <span className="announcements__state" data-announcement-state>{row.state === "dry_run" ? <FlaskConical aria-hidden="true" size={14} /> : row.state === "posted" ? <CircleCheck aria-hidden="true" size={14} /> : row.state === "failed" ? <CircleX aria-hidden="true" size={14} /> : row.state === "blocked" ? <Ban aria-hidden="true" size={14} /> : <Megaphone aria-hidden="true" size={14} />} {stateWords(row.state)}{row.blockedReason ? `: ${row.blockedReason}` : ""}</span>
-                  <strong>{row.storyTitle}</strong>
-                  <span className="announcements__quiet">{formatWhen(row.at)}</span>
-                </p>
-                <p className="announcements__post" data-announcement-text>{row.text}</p>
-                <p className="announcements__quiet">{row.link} &middot; {row.weightedLength} of 280 characters{row.costUsd ? ` · cost ${formatMoney(row.costUsd)}` : ""}{row.postUrl ? <> &middot; <a href={row.postUrl} target="_blank" rel="noreferrer">view post</a></> : null}{row.error ? ` · ${row.error}` : ""}</p>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+      <Card title="Announcements" note="Where each Story was announced, one line for each channel." id="list">
+        <AnnouncementsList door={door} />
       </Card>
     </div>
   );

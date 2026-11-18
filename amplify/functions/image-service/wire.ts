@@ -18,6 +18,15 @@ export const IMAGE_SERVICE_FUNCTION_FIELDS = [
   "Query/fields/listNewsroomSections",
   // Guideline documents (PPY-8d41d7): the attachment rows that name each version's file, found by owner and role.
   "Query/fields/listModelAttachmentsByOwnerRoleAndSortKey",
+  // The announcements door (PPY-e4ae3a) reads, never writes: an Announcement by id, its Deliveries, what is due, the planned list, the relation both ways, a Story's title and an open flag.
+  "Query/fields/getAnnouncementDecision",
+  "Query/fields/listAnnouncementDecisionsByStateAndReleaseAt",
+  "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
+  "Query/fields/listDeliveriesByDueKeyAndDueAt",
+  "Query/fields/listSemanticRelationsByObjectState",
+  "Query/fields/listSemanticRelationsBySubjectState",
+  "Query/fields/getItem",
+  "Query/fields/getReviewRequest",
   "Mutation/fields/createItem",
   "Mutation/fields/updateItem",
   "Mutation/fields/createModelAttachment",

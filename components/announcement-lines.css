@@ -1,0 +1,26 @@
+/* The Announcements list and the Story drawer's lines. Flat tone fills and rounded rectangles: no borders, no rules. Every state is a mark and words together; a fill only repeats
+   them, so nothing here depends on colour. The tones are mixed from the text colour, so they follow light and dark. */
+.ann-card{display:grid;gap:8px;padding:12px 8px 4px}
+.ann-card__heading{display:flex;align-items:center;gap:6px;margin:0;font:600 13px/1.2 var(--kb-theme-ui-font)}
+.ann-list{display:grid;gap:10px}
+.ann-entry{display:grid;gap:8px;padding:12px;border-radius:12px;background:color-mix(in oklab,currentColor 6%,transparent)}
+.ann-entry__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.ann-entry__head strong{font:700 14px/1.3 var(--kb-theme-ui-font)}
+.ann-entry__stories{margin:0;font:600 14px/1.4 var(--kb-theme-ui-font);overflow-wrap:anywhere}
+.ann-lines{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.ann-line{display:grid;gap:3px;padding:8px 10px;border-radius:10px;background:color-mix(in oklab,currentColor 6%,transparent)}
+.ann-line p{margin:0}
+.ann-line__head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font:500 13px/1.4 var(--kb-theme-ui-font)}
+.ann-line__account{font-weight:400;opacity:.75}
+.ann-line__state,.ann-line__attention,.ann-line__review,.ann-line__quiet{display:inline-flex;align-items:center;gap:5px}
+.ann-line__state{padding:2px 8px;border-radius:8px;background:color-mix(in oklab,currentColor 10%,transparent);font:600 12px/1.4 var(--kb-theme-ui-font)}
+.ann-line__attention{padding:2px 8px;border-radius:8px;background:color-mix(in oklab,currentColor 22%,transparent);font:700 12px/1.4 var(--kb-theme-ui-font)}
+.ann-line__review{font:400 12px/1.4 var(--kb-theme-ui-font)}
+.ann-line__quiet{margin:0;font:400 12px/1.45 var(--kb-theme-ui-font);opacity:.78}
+.ann-line__head svg,.ann-line__review svg,.ann-line__quiet svg,.ann-flag svg{flex:none}
+.ann-flag{display:flex;align-items:flex-start;gap:8px;margin:0;padding:8px 10px;border-radius:10px;background:color-mix(in oklab,currentColor 16%,transparent);font:400 13px/1.45 var(--kb-theme-ui-font)}
+.ann-flag svg{margin-top:2px}
+.ann-problem{display:flex;align-items:flex-start;padding:8px 10px;border-radius:10px;background:color-mix(in oklab,currentColor 10%,transparent);opacity:1}
+.ann-more{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:6px 14px;border:0;border-radius:8px;background:color-mix(in oklab,currentColor 12%,transparent);color:inherit;font:600 13px var(--kb-theme-ui-font);cursor:pointer;justify-self:start}
+.ann-more:disabled{opacity:.55;cursor:default}
+.ann-more:focus-visible{outline:2px solid currentColor;outline-offset:2px}
