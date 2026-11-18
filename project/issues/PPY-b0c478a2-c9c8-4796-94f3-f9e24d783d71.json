@@ -3,7 +3,7 @@
   "title": "Guideline files editor in the console (replace the structured-fields form)",
   "description": "The console's writing guidelines panel still edits structured fields (voice, tone, lexicon, glossary...) and the server turns them into fixed-name guideline files, keeping rule files (PPY-1d5c43). Replace it with a files editor: list the set's guideline files, edit each file's front matter and body, add and remove rule files, show each file's derived check and severity, with Accept/Reject vocabulary and Lucide icons. Same operations (guidelines_get returns files, guidelines_save takes files). Decision: Ryan/PO 2026-11-16, separate later task.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "PR #1678 (feat/PPY-b0c478-guidelines-editor).",
       "created_at": "2026-11-18T15:55:53.869571Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e760afe1-3e04-4c02-87ae-100b3df16796",
+      "author": "home",
+      "text": "Merged to develop in #1678 (not released). Acceptance met.",
+      "created_at": "2026-11-18T16:53:53.377431Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T00:02:16.910278Z",
-  "updated_at": "2026-11-18T15:55:53.870301Z",
-  "closed_at": null,
+  "updated_at": "2026-11-18T16:53:53.525762Z",
+  "closed_at": "2026-11-18T16:53:53.525736Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
