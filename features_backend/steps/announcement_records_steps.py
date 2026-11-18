@@ -85,7 +85,7 @@ def plans_from(context, table):
         policy = values["policy"] if "policy" in headings else DEFAULT_POLICY
         plans.append(Plan(
             channel=values["channel"], account_id=values["account"], approval=values["approval"], approval_policy=policy,
-            text=values.get("text") or f"Words for {values['channel']}", image_key=values.get("image") or None, lock_at=values.get("lock at") or None,
+            text=values.get("text") or f"Words for {values['channel']}", mode=values.get("mode") or "automatic", state=values.get("state") or "ready", image_key=values.get("image") or None, lock_at=values.get("lock at") or None,
             audience=tuple(name.strip() for name in values["lists"].split(",")) if values.get("lists") else (),
         ))
     return plans

@@ -4643,6 +4643,62 @@
       }
     },
     {
+      "name": "announcements_record_manual",
+      "audience": "staff",
+      "description": "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names that person.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The address of the post, an http or https URL."
+          }
+        },
+        "required": [
+          "delivery",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resultUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attempt": {
+            "type": "object",
+            "description": "The attempt that was written: number, at, outcome, by and url."
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "resultUrl",
+          "attempt"
+        ]
+      }
+    },
+    {
       "name": "announcements_withdraw",
       "audience": "staff",
       "description": "Withdraw a Delivery that went: this deletes a public post.",

@@ -49,6 +49,7 @@ export type ImageOperationName =
   | "announcements_release"
   | "announcements_unlock"
   | "announcements_correct"
+  | "announcements_record_manual"
   | "announcements_withdraw"
   | "announcements_where"
   | "announcements_recent"
@@ -1296,6 +1297,22 @@ export type AnnouncementsCorrectResult = {
   id: string;
 };
 
+/** Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names that person. */
+export type AnnouncementsRecordManualInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** The address of the post, an http or https URL. */
+  url: string;
+};
+
+export type AnnouncementsRecordManualResult = {
+  id: string;
+  state: string;
+  resultUrl: string;
+  /** The attempt that was written: number, at, outcome, by and url. */
+  attempt: Record<string, unknown>;
+};
+
 /** Withdraw a Delivery that went: this deletes a public post. */
 export type AnnouncementsWithdrawInput = {
   /** The Delivery's id. */
@@ -1551,6 +1568,7 @@ export interface ImageOperations {
   announcements_release: { input: AnnouncementsReleaseInput; result: AnnouncementsReleaseResult };
   announcements_unlock: { input: AnnouncementsUnlockInput; result: AnnouncementsUnlockResult };
   announcements_correct: { input: AnnouncementsCorrectInput; result: AnnouncementsCorrectResult };
+  announcements_record_manual: { input: AnnouncementsRecordManualInput; result: AnnouncementsRecordManualResult };
   announcements_withdraw: { input: AnnouncementsWithdrawInput; result: AnnouncementsWithdrawResult };
   announcements_where: { input: AnnouncementsWhereInput; result: AnnouncementsWhereResult };
   announcements_recent: { input: AnnouncementsRecentInput; result: AnnouncementsRecentResult };
@@ -1606,6 +1624,7 @@ export const IMAGE_OPERATIONS = {
   announcements_release: { effect: "write", agentAllowed: true, agentRung: "publish_auto", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements release" },
   announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
   announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
+  announcements_record_manual: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements record-manual" },
   announcements_withdraw: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },
   announcements_where: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements where" },
   announcements_recent: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements recent" },

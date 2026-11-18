@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Iterator, Mapping, Protocol, Sequence
 
 from .records import (
-    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
+    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MANUAL, MODES, NONE, READY, SOFT, SUPERSEDED, SYSTEM,
     BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
@@ -36,6 +36,7 @@ INDEX_BY_DUE = "deliveriesByDue"
 
 # Why a Delivery is not releasable yet, in the words the list shows.
 NOT_WAITING = "not waiting to be sent"
+BY_HAND = "a person posts it by hand and records the address"
 NOT_READY = "the words are not ready"
 BEFORE_RELEASE = "waiting for its release time"
 NEEDS_APPROVAL = "waiting for approval"
@@ -365,6 +366,8 @@ class Deliveries:
         when an attempt opens (``attempts.Attempts.open``)."""
         now = utc(now)
         state = row.get("state")
+        if row.get("mode") == MANUAL:
+            return False, BY_HAND
         if state == DRAFTED:
             return False, NOT_READY
         budget_wait_ended = state == BLOCKED and row.get("waitingFor") == BUDGET_CYCLE and row.get("nextAttemptAt")
