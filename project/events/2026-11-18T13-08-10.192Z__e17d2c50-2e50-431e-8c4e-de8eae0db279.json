@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e17d2c50-2e50-431e-8c4e-de8eae0db279",
+  "issue_id": "PPY-8ffd58bc-1c9a-4ace-82a9-1c179d7aa11c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-18T13:08:10.192Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Selection picks the best idea of a batch by the site's own criteria",
+    "description": "Requested by Humorus (HUM-b0d999). story_selection.py judges ideas against mission, policy, kill criteria and recency, one call per section. A satire site needs to pick the funniest idea of the day's batch. Add site-owned selection criteria (a guidelines document kind, publication and section scope; for satire, a humour rubric) and a batch mode: the selector compares the run's candidate Ideas against each other and the criteria, picks up to max-new-stories, and records for every candidate its reason and rank on the Idea, so editors see why one won. Machines never give 5 stars (rating policy).\n\nScenario: given 10 Ideas and a humour rubric, the selector picks 1, moves it to assignment as automation:idea-selection, and records a ranked reason on all 10. Scenario: an editor reverses the pick and promotes another. Scenario: a site with no criteria document selects exactly as today.\nStanding rules: no workarounds, fallbacks or shims; Gherkin specs.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+    "labels": []
+  }
+}

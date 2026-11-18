@@ -308,11 +308,11 @@ def _publish_stub(context):
     return publish_item
 
 
-def _translate(context, language, *, publish=False, runs_again=False):
+def _translate(context, language, *, publish=False, runs_again=False, window=None):
     context.failing = getattr(context, "failing", {})
     context.outcomes = getattr(context, "outcomes", {})
     context.runs.clear()
-    jobs = backfill.survey(context.client, context.settings, [language])
+    jobs = backfill.survey(context.client, context.settings, [language], window=window)
     with mock.patch("papyrus_content.publishing.publish_item", _publish_stub(context)):
         backfill.run_all(context.client, jobs, client_factory=lambda: context.client, run=_scripted_run(context), settings=context.settings,
                          publish_clean_results=publish, concurrency=2, ceiling_usd=None, procedure_key="mom.story-localize", key="key",
@@ -952,7 +952,7 @@ def step_units(context, count):
 @then("the output ends with a plan line for {count:d} Stories to do")
 def step_plan_line(context, count):
     plan = context.output_lines[-1].split("\t")
-    assert plan[2] == "plan" and plan[3].startswith(f"{count} to do, predicted $0.0400"), plan
+    assert plan[2] == "plan" and plan[3].startswith(f"{count} to do, predicted ${count * 0.02:.4f}"), plan
 
 
 # --- the content-actions function --------------------------------------------------------------------------------------------
@@ -1051,3 +1051,121 @@ def step_request_reason(context, language):
 @then("nothing was published")
 def step_nothing_published(context):
     assert not context.publish_calls
+
+
+# --- the range of source updates -----------------------------------------------------------------------------------------------
+
+
+def _published_row(context, story) -> dict:
+    return context.client.tables["PublishedItem"][f"published-{story}"]
+
+
+@given('"{story}" was last published at "{when}"')
+def step_last_published(context, story, when):
+    _published_row(context, story)["versionPublishedAt"] = when
+
+
+@given('"{story}" was first published at "{first}" and last published at "{when}"')
+def step_first_last_published(context, story, first, when):
+    _published_row(context, story).update(publishedAt=first, versionPublishedAt=when)
+
+
+@when('the Stories updated since "{since}" and before "{before}" are surveyed for "{language}"')
+def step_survey_range(context, language, since, before):
+    context.window = backfill.UpdatedWindow.parse(since, before)
+    _survey_in(context, [language])
+
+
+@when('the Stories updated since "{since}" are surveyed for "{language}"')
+def step_survey_since(context, language, since):
+    context.window = backfill.UpdatedWindow.parse(since, None)
+    _survey_in(context, [language])
+
+
+@when('the Stories updated before "{before}" are surveyed for "{language}"')
+def step_survey_before(context, language, before):
+    context.window = backfill.UpdatedWindow.parse(None, before)
+    _survey_in(context, [language])
+
+
+def _survey_in(context, languages):
+    context.client.calls.clear()
+    context.jobs = backfill.survey(context.client, context.settings, languages, window=context.window)
+
+
+@then("the range reports {count:d} Stories left out for having no publish time")
+def step_undated(context, count):
+    assert context.window.undated == count, context.window.undated
+
+
+@when('the range "{text}" is read as the start at "{now}"')
+def step_read_range(context, text, now):
+    from datetime import datetime
+
+    context.window = backfill.UpdatedWindow.parse(text, None, now=datetime.fromisoformat(now.replace("Z", "+00:00")))
+
+
+@then('the range starts at "{when}"')
+def step_range_starts(context, when):
+    assert context.window.since.strftime("%Y-%m-%dT%H:%M:%SZ") == when, context.window.since
+
+
+@when('the Stories updated since "{since}" are translated in this process for "{language}"')
+def step_translate_range(context, language, since):
+    _translate(context, language, window=backfill.UpdatedWindow.parse(since, None))
+
+
+@when('the Stories updated since "{since}" are translated in this process for "{language}" with --publish-clean')
+def step_translate_range_publish(context, language, since):
+    _translate(context, language, publish=True, window=backfill.UpdatedWindow.parse(since, None))
+
+
+@when('the Stories updated since "{since}" are queued on the automation "{automation}" for "{language}" with --publish-clean')
+def step_queue_range(context, since, automation, language):
+    jobs = backfill.survey(context.client, context.settings, [language], window=backfill.UpdatedWindow.parse(since, None))
+    backfill.queue_all(context.client, jobs, automation_id=automation, publish=True)
+    context.jobs = jobs
+
+
+@then('the Spanish request of "{story}" is wanted and names that automation')
+def step_one_queued(context, story):
+    row = context.client.tables["LocalizationRequest"][f"{story}#es-419"]
+    assert row["state"] == "wanted" and row["automationId"] == AUTOMATION, row
+
+
+@then('"{story}" has no new Spanish request')
+def step_no_new_request(context, story):
+    row = context.client.tables.get("LocalizationRequest", {}).get(f"{story}#es-419")
+    assert row is None or row["state"] != "wanted", row
+
+
+@then("it is refused saying --updated-since must be an ISO date or a duration")
+def step_refused_malformed(context):
+    assert context.refusal and "--updated-since must be an ISO date or datetime" in context.refusal and "or a duration" in context.refusal, context.refusal
+
+
+@then("it is refused saying --updated-before must be longer than zero")
+def step_refused_zero(context):
+    assert context.refusal and "--updated-before must be longer than zero" in context.refusal, context.refusal
+
+
+@then("it is refused saying --updated-since must be earlier than --updated-before")
+def step_refused_backwards(context):
+    assert context.refusal and "--updated-since" in context.refusal and "must be earlier than --updated-before" in context.refusal, context.refusal
+
+
+@then("it is refused saying the range narrows --all")
+def step_refused_single(context):
+    assert context.refusal and "narrow --all" in context.refusal, context.refusal
+
+
+@then("the output says no published Story was updated since {date} and there is nothing to translate")
+def step_empty_range(context, date):
+    line = next(row for row in context.output_lines if "No published Story was updated" in row)
+    assert f"since {date}" in line and "nothing to translate" in line, line
+
+
+@then('the output lists "{listed}" and not "{unlisted}"')
+def step_output_lists(context, listed, unlisted):
+    text = "\n".join(context.output_lines)
+    assert listed in text and unlisted not in text, text

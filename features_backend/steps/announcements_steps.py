@@ -432,14 +432,14 @@ def _text_in_s3(context):
     assert context.files.get(row["id"])["text"] == DEFAULT_DRAFT
 
 
-@then("exactly one event \"story.announce:mom:\" followed by the Article's lineage was handed to the X channel")
+@then("exactly one event was handed to the X channel under the announcement's first attempt id")
 def _event(context):
-    assert context.x.submissions == [f"story.announce:mom:{context.lineage}"], context.x.submissions
+    assert context.x.submissions == [f"delivery:{announcement_id('mom', context.lineage)}:a1"], context.x.submissions
 
 
 @then("exactly one event was handed to the X channel")
 def _one_event(context):
-    assert context.x.submissions == [f"story.announce:mom:{context.lineage}"], context.x.submissions
+    assert context.x.submissions == [f"delivery:{announcement_id('mom', context.lineage)}:a1"], context.x.submissions
 
 
 @then("the announcement was posted with a post id and a cost of {cost}")
@@ -597,9 +597,10 @@ def _index_only(context):
     assert context.backend.reads and all(index == "announcementsByAccountAndCreatedAt" for index, _ in context.backend.reads), context.backend.reads
 
 
-@then('the events handed over are the Article\'s event and its "r2" event')
+@then("the events handed over are the announcement's attempt 1 and attempt 2 events")
 def _events(context):
-    assert context.x.submissions == [f"story.announce:mom:{context.lineage}", f"story.announce:mom:{context.lineage}:r2"], context.x.submissions
+    base = f"delivery:{announcement_id('mom', context.lineage)}"
+    assert context.x.submissions == [f"{base}:a1", f"{base}:a2"], context.x.submissions
 
 
 # --- the command line -------------------------------------------------------------------------------------------------------------------------------

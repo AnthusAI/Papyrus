@@ -43,6 +43,7 @@ class StoryFacts:
     summary: str
     body: str
     path: str
+    rated_by: str = ""   # who gave the rating (the Story's starRatedBy); a five is counted only from a person (review_policy.floor_refusal)
 
 
 def _line(value: Any) -> str:
@@ -71,6 +72,7 @@ def load_story(client: Any, lineage_id: str, *, item_url_style: str) -> StoryFac
         summary=summary,
         body=str(source.get("bodyMarkus") or ""),
         path=item_path(source.get("section") or None, str(source.get("slug") or ""), item_url_style),
+        rated_by=str(head.get("starRatedBy") or ""),
     )
 
 

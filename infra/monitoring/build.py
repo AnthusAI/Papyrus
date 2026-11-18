@@ -46,7 +46,11 @@ ROUTER_ROOTS = ("monitoring_router", "monitoring_router_config", "monitoring_int
 KNOWLEDGE_QUERY_PACKAGE = ROOT / "src" / "papyrus_knowledge_query"
 KNOWLEDGE_QUERY_EXCLUDED = frozenset({"cli.py", "lambda_handler.py"})
 # Imported only inside functions on paths the router never runs; they need packages the Lambda does not have.
-ROUTER_EXCLUDED = frozenset({"biblicus_runner"})
+# The announcement review handlers (announcements/review_handlers.py, PPY-97c0f2) are imported by their calls (images/handlers.py), which read the site's agent policy and the Delivery
+# records; the router never makes those calls, so they and what they import stay out of the zip (agent_definitions/cli would bring the automations CLI). The same holds for the Announcements list,
+# a Story's lines and `explain` (PPY-e4ae3a: list_handlers, lines, explain, blocked_drafts).
+ROUTER_EXCLUDED = frozenset({"biblicus_runner", "agent_definitions/cli", "agent_policy/__init__", "announcements/review_handlers", "announcements/review_policy", "announcements/deliveries", "announcements/records",
+                         "announcements/list_handlers", "announcements/lines", "announcements/explain", "announcements/blocked_drafts"})
 # Pure-Python packages copied into the worker zips (the Lambda runtime has boto3/botocore only): PyYAML and idna. (youtube-transcript-api and the
 # packages only it needed, requests and its imports, left in PPY-d294d8: YouTube refuses cloud addresses, so no Lambda reads transcripts.)
 # Compiled extensions are left out; each package runs in its pure-Python mode.

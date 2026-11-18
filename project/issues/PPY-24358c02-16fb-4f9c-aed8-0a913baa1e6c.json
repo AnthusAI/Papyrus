@@ -19,9 +19,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ddb2ab54-5996-419e-8c18-4f4be5f7234e",
+      "author": "home",
+      "text": "Audit: announcements pause/resume/settings/status/preview and stories schedule set/clear/list are done. Unmet: schedule suggest, announcements retry, account connect link, one shared table. Left open.",
+      "created_at": "2026-11-18T16:59:13.959258Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:39.547109Z",
-  "updated_at": "2026-11-12T18:51:02.772887Z",
+  "updated_at": "2026-11-18T16:59:13.959544Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

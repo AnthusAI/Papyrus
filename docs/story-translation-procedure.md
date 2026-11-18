@@ -79,6 +79,7 @@ papyrus stories localize --all --language es-419 --dry-run                      
 papyrus --auth iam stories localize --all --language es-419 --publish-clean       # run them here, publish the clean ones
 papyrus --auth iam stories localize --all --all-languages [--concurrency 3] [--ceiling-usd 1] [--openai-key-parameter SSM_PARAMETER]
 papyrus stories localize --all --language es-419 --automation SITE.story-localize [--publish-clean]   # queue them for the site's runner
+papyrus stories localize --all --all-languages --updated-since 7d [--updated-before 2026-11-17] --dry-run   # only Stories updated in a range
 ```
 
 - **What remains** (`localize/backfill.py`) is found without a read per Story: one paged listing of the published summaries (each has its language, its
@@ -92,6 +93,17 @@ papyrus stories localize --all --language es-419 --automation SITE.story-localiz
   new run could replace what a person has yet to answer. Only Stories that have such a record are read this way; the survey never reads one lineage per Story.
   The same transient-failure rule covers every read of the command, including the downloads and uploads of the attachment store: a read is sent again with a growing pause on a reset connection, a timeout or a data-store
   timeout, up to five attempts, and a failure that persists is that row's `cannot be planned` reason (or `failed`) with its real message.
+- **`--updated-since DATE` and `--updated-before DATE`** keep only the Stories whose source text was updated in a range, for every mode: a dry run, a run in
+  this process, `--automation` queueing and `--publish-clean`. A DATE is an ISO date or datetime in UTC (`2026-11-10`, `2026-11-10T06:00:00Z`; a date alone is
+  midnight UTC; an offset is converted) or a duration counted back from now (`7d`, `36h`, `1w`). The start is included and the end is not; either may be
+  given alone. A malformed value, a duration of zero, or a start that is not before the end is refused before anything is read or written, and the flags are
+  refused without `--all`. A Story's source text was **updated when its current published version was published**: the `versionPublishedAt` of its published
+  summary, which every publish of a new version sets and which the survey already reads, so the range costs no extra read. It is not `publishedAt`, the
+  first publication, which never moves and says when a Story appeared. That is the time that made a translation stale, so a Story translated at its current text
+  is still listed (as `up to date`) when it is in the range. A Story with no `versionPublishedAt` cannot be dated and is left out; the output counts them. A range
+  that holds no Story prints `No published Story was updated ...: nothing to translate` and does nothing. Because the range narrows the survey itself,
+  `--publish-clean` publishes a saved translation only when its Story is in the range: a translation saved earlier for a Story outside it stays unpublished
+  until a run without that range (or `papyrus ops content publish --id VERSION_ID`) publishes it.
 - **In this process** (the default; needs `--auth iam`) each remaining Story is requested and run through the registered procedure exactly as
   `papyrus stories localize --story` does, `--concurrency` at a time (default 3; each run mostly waits for the model). One line per Story and language:
   `saved`, `held` (a person answers its review request), `failed` (its reason; the others go on), `up to date`, `published`, `not published`, with the run's

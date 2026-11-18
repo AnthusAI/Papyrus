@@ -377,6 +377,27 @@ def label_budget_mode(context, amount, mode):
     propose(context, "ryan", mode=mode, labelConfirmed=True, budget=amount)
 
 
+@step("ryan saves the announcement settings requiring reviewed Stories")
+def save_require_reviewed(context):
+    propose(context, "ryan", rules=rules(context, requireReviewedSource=True))
+
+
+@step('ryan saves the announcement settings with reviewed Stories required set to "{value}"')
+def save_require_reviewed_value(context, value):
+    propose(context, "ryan", rules=rules(context, requireReviewedSource=value))
+
+
+@step("reviewed Stories are not required")
+def reviewed_not_required(context):
+    settings = context.answer.get("settings") or context.settings.read()
+    assert settings["rules"].get("requireReviewedSource", False) is False, settings
+
+
+@step("reviewed Stories are required")
+def reviewed_required(context):
+    assert context.settings.read()["rules"]["requireReviewedSource"] is True
+
+
 @step('ryan saves the announcement settings with the story types "{types}"')
 def save_types(context, types):
     propose(context, "ryan", rules=rules(context, storyTypes=types.split(",")))

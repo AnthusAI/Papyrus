@@ -4,7 +4,7 @@ Status: backend built and merged to `develop` (epic PPY-09ee86, stories PPY-9f4d
 
 The records that replace this row shape (one Announcement, one Delivery for each channel) are in [announcement records](announcement-records.md); the X rewire onto them is PPY-efd06c.
 
-A Story that qualifies is announced once on the publication's own X account, automatically. There is **no approval step**: the text passes the automatic checks or is not posted.
+A Story that qualifies is announced once on the publication's own X account, automatically. There is **no approval step** on this X path: the text passes the automatic checks or is not posted. The Delivery records carry a per-publication human review (none, soft or hard) as the announce rung of the agent policy; see [announcement records](announcement-records.md#review-policy-ppy-97c0f2). Nothing is wired to it yet, and no site's behaviour changed.
 
 ## What decides
 
@@ -29,10 +29,10 @@ Settings are never stored twice: this package reads the document `settings.py` o
 
 ## Through Caducus
 
-Papyrus hands Caducus one `story.announce` event per announcement (event id `story.announce:<accountId>:<lineageId>`, class `broadcast`, `audience` `CHANNELACCT#x#<accountId>`, `facts.text` and `facts.url`). Caducus claims the delivery, posts, handles unknown outcomes (it reads the account's recent posts before any retry), waits out rate limits and records the post id and cost. A guard refusal is final for its event id, so the announcement made after the guard lifts is round 2 (`...:r2`).
+Papyrus hands Caducus one `story.announce` event per announcement (event id `delivery:<announcementId>:a<N>`, class `broadcast`, `audience` `CHANNELACCT#x#<accountId>`, `facts.text` and `facts.url`). Caducus claims the delivery, posts, handles unknown outcomes (it reads the account's recent posts before any retry), waits out rate limits and records the post id and cost. A guard refusal is final for its event id, so the try after the guard lifts is the next attempt (`...:a2`).
 
 What Papyrus supplies at deploy: the token provider (the account connection), `SpendGuard`, the price table (`channel.prices_from_settings`), `Directory.account`, the `story.announce` kind and an `x` queue with one consumer (so a budget check and a charge cannot race). That wiring ships with the Caducus release.
 
 ## CLI and MCP
 
-`papyrus announcements list|show|dry-run|pause|resume|settings show|settings set|account status`, from the one operation table (`src/papyrus_content/images/operations.py`, group `announcements`); see `docs/agent-cli-guide.md`. `settings set` is for a person only.
+`papyrus announcements list|show|where|recent|explain|dry-run|pause|resume|settings show|settings set|account status`, from the one operation table (`src/papyrus_content/images/operations.py`, group `announcements`); see `docs/agent-cli-guide.md`. `settings set` is for a person only.

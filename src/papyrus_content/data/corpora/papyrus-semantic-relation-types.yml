@@ -164,9 +164,9 @@ relationTypes:
   - key: authored_by
     label: authored by
     inverseLabel: author of
-    description: Links a reference to an author semantic concept extracted from structured source metadata.
+    description: Links a reference to an author semantic concept extracted from structured source metadata, or a Story to the person or organization that wrote it.
     domain: knowledge
-    allowedSubjectKinds: [reference]
+    allowedSubjectKinds: [reference, item]
     allowedObjectKinds: [semanticNode]
     isDirectional: true
     isSymmetric: false
@@ -176,9 +176,9 @@ relationTypes:
   - key: cites
     label: cites
     inverseLabel: cited by
-    description: Links one reference to another reference it cites in a bibliography or citation list.
+    description: Links one reference to another reference it cites in a bibliography or citation list, or a Story to a reference it cites.
     domain: evidence
-    allowedSubjectKinds: [reference]
+    allowedSubjectKinds: [reference, item]
     allowedObjectKinds: [reference]
     isDirectional: true
     isSymmetric: false
@@ -536,6 +536,7 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: false
+    pod: true
     contextPackTags: [editing, publication]
   - key: supersedes
     label: supersedes
@@ -547,4 +548,5 @@ relationTypes:
     isDirectional: true
     isSymmetric: false
     isTransitive: true
+    pod: true
     contextPackTags: [editing, publication]

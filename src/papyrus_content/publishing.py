@@ -47,6 +47,8 @@ class ItemFields:
     overrides: dict | None = None
     #: ``{"runId", "writer"}`` of a machine write: recorded in ``metadata.machineWrite`` (machine_writes.py).
     machine_write: dict | None = None
+    #: Keys merged into the Item's ``metadata`` as the row is written (``pod`` from ``papyrus pod load``); a key given here replaces the stored one.
+    metadata: dict | None = None
 
 
 @dataclass
@@ -239,6 +241,7 @@ def save_item(
     columns.update({key: value for key, value in (fields.overrides or {}).items()})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     metadata["source"] = {"path": fields.source_path}
+    metadata.update(fields.metadata or {})
     apply_stamp(metadata, fields.machine_write, created=existing is None, now=now)
 
     record = {

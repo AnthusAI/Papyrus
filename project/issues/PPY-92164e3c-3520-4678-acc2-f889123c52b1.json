@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f91f7ecc-0666-4891-847d-5811c6a26916",
+      "author": "home",
+      "text": "Audit: card/drawer set/change/clear done. Unmet: Suggest a time (hour-of-week counts), unrated note, immediate newer-version flag.",
+      "created_at": "2026-11-18T16:59:14.283030Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:38.351788Z",
-  "updated_at": "2026-11-12T18:41:40.498369Z",
+  "updated_at": "2026-11-18T16:59:14.283297Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

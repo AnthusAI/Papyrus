@@ -19,9 +19,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ea58c966-fc0f-4afe-91fa-6b23c7c9e16e",
+      "author": "home",
+      "text": "Audit: audit list/drawer built on new records; satisfied once efd06c creates X Deliveries; retire-withdrawal history unbuilt.",
+      "created_at": "2026-11-18T16:59:14.561396Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:39.148915Z",
-  "updated_at": "2026-11-12T18:51:02.338293Z",
+  "updated_at": "2026-11-18T16:59:14.561645Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

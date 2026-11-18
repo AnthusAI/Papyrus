@@ -176,7 +176,7 @@ _ENTRIES = dict([
   _e("stories head-index", "Fill in and check the head stage key (one row per Story in the head stage index). A dry run unless --apply.",
      "[--apply] [--dry-run] [--stage STAGE ...] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories localize", "Ask for a translation of a published Story into one language: writes the translation request and runs the site's registered translation procedure (here with `--auth iam`, or through --automation). Never publishes.",
-     "--story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run]  (without --automation the run happens in this process: operator lane, key in OPENAI_API_KEY or the parameter)  |  --all (--language TAG | --all-languages) [--publish-clean] [--concurrency N] [--dry-run] [--json]  (every published primary-language Story with no up-to-date translation; one row per Story and language)", "both", _DRY, ""),
+     "--story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run]  (without --automation the run happens in this process: operator lane, key in OPENAI_API_KEY or the parameter)  |  --all (--language TAG | --all-languages) [--publish-clean] [--concurrency N] [--updated-since DATE|7d|1w] [--updated-before DATE|7d|1w] [--dry-run] [--json]  (every published primary-language Story with no up-to-date translation, optionally only those whose current published version was published in the range; one row per Story and language)", "both", _DRY, ""),
   _e("stories import-translation", "Attach finished copy, written by a person or another agent, as the translation of a published Story: an unpublished version whose every block is pinned to the writer (a later translation run keeps it), checked with the parity, glossary and language rules and no model. A copy that does not line up block for block, or changes a link, credit or figure, is refused; error findings hold it. Never publishes.",
      "--story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]  (FILE is Markdown with the English's blocks in order; the front matter is YAML with title, dek, and blurb and imageAlt when the English has them)", "both", _DRY, ""),
   _e("stories correct-translation", "Save a person's correction of a translation as a new version whose edited blocks are pinned to the person (a later translation run keeps them). The approver is metadata only, never on the page. A draft unless --publish.",
@@ -278,6 +278,9 @@ _ENTRIES = dict([
      "POD --id-base URL", "files", "local"),
   _e("pod id", "Print new permanent ids for notes, each the pod's id base and a random identifier (never made from a file name). Writes nothing.", "POD [N]", "files", "reads"),
   _e("pod check", "Report a pod's level and every problem: ids, types, keys, links, the context files. Reads only; exits 1 when there is any problem.", "POD", "files", "reads"),
+  _e("pod build", "Refuses a pod that names a site (building a site from a pod is not part of papyrus pod yet); nothing is built.", "POD", "files", "reads"),
+  _e("pod load", "Load a pod's notes into a site as private newsroom data under the pod's commit. --dry-run prints the plan and writes nothing; a pod with any problem is refused whole.",
+     "POD [--dry-run] [--tenant ID]", "both", "dry-run"),
   # ---- agents (definition files; src/papyrus_content/agent_definitions/) -----------------------------------------------------------------
   _e("agents validate", "Check a folder of agent definition files (one <id>.yaml each) with no network and no model: every line of the 11-point template filled, known operations and responsibilities, and a site that only adds to a core definition. Exits 2 when any is refused, naming each by definition and line.",
      "--dir DIR [--core DIR]", "files", "reads"),
@@ -309,15 +312,31 @@ _ENTRIES = dict([
   _e("announcements list", "List the account's announcements, newest first, with plain labels (Dry run: not sent, Posted, Blocked: budget reached, ...).",
      "[--state posting|posted|failed|blocked|dry_run|withdrawn] [--limit N] [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements show", "Show one Story's announcement: row, history, cost and the stored post text and checks.", "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements where", "Where a Story was announced: each Announcement that announces it, one line for each live Delivery, with its review, what it waits for and what needs a person (Overdue, Outcome unknown).",
+     "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements recent", "The Announcements list: Announcements newest first, one line for each live Delivery, and every Delivery that is overdue. A page is a size; --before takes the last page's next value.",
+     "[--limit N] [--before TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements explain", "Why a Story was or was not announced, for each channel, naming the rule. Reads the rules and writes nothing.", "--story STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements dry-run", "Build the exact post a Story would get (text, UTM link, weight, every check) without sending or recording anything. One model call.",
      "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements pause", "Pause announcements: nothing posts, eligible Stories wait as Blocked: paused.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements resume", "Resume announcements and announce the Stories that waited.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements settings show", "Show mode, bar, Story types, sections, account, budget, prices and the pause.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements settings set", "Change announcement settings (a person only; admins save). Every rule is checked and every problem listed.",
-     "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--budget TEXT] "
+     "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--require-reviewed-source | --no-require-reviewed-source] [--budget TEXT] "
      "[--billing-cycle-day N] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements review show", "Show the publication's announcement review and each override, and what a channel and kind would get.", "[--channel TEXT] [--kind TEXT] [--list TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements review set", "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "--approval none|soft|hard|inherit [--channel TEXT] [--kind TEXT] [--list TEXT] --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements delivery review", "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "DELIVERY_ID --approval none|soft|hard [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements draft", "Draft a Delivery, add a candidate text or picture, or edit a block nobody pinned.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements pinned", "Change or unpin a block a person pinned.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements release", "Release a Delivery: hand it to its channel now.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements unlock", "Unlock a Delivery after its lock time, so it can be edited again.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements correct", "Correct a Delivery with a new public text: the next generation, which supersedes the one that went.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements record-manual", "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names the signed-in person. A person only.",
+     "DELIVERY_ID --url URL [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements withdraw", "Withdraw a Delivery that went: this deletes a public post.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
   _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
      "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
@@ -413,7 +432,7 @@ GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
-  "pod": ["init", "id", "check"],
+  "pod": ["init", "id", "check", "build", "load"],
   "agents": ["validate", "apply", "schedules", "set-rung"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
@@ -441,7 +460,7 @@ GROUP_SUMMARIES = {
   "ops site": "Site copy (operator).",
   "ops": "Content, relations, corpora, categories, messages and site operations.",
 }
-GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id and check. Files only: no sign-in, no site."
+GROUP_SUMMARIES["pod"] = "A folder of Markdown notes as a pod: init, id, check, build and load. Only load signs in to a site."
 GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: validate a folder of them offline, apply them to a site as its deploy does, and keep the site's schedule group in step with them, and set an agent's rung in the site's policy."
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."

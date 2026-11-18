@@ -32,8 +32,8 @@ GIT = ["git", "-c", "user.name=Pod Test", "-c", "user.email=pod-test", "-c", "co
 
 
 def _text(value: str) -> str:
-    """A step argument as written in a feature file: `\\"` stands for a quote."""
-    return value.replace('\\"', '"')
+    """A step argument as written in a feature file: `\\"` stands for a quote and `\\n` for a line end."""
+    return value.replace('\\"', '"').replace("\\n", "\n")
 
 
 def _new_pod_dir(context) -> Path:
@@ -368,10 +368,10 @@ def relation_terms(context):
     assert found == context.text.split(), found
 
 
-@then('the context records profile version 2, Vault-LD 0.5.0 and commit "{commit}"')
+@then('the context records profile version 3, Vault-LD 0.5.0 and commit "{commit}"')
 def records_pin(context, commit):
     pin = json.loads(context.generated)["papyrusPod"]
-    assert (pin["profile"], pin["vaultLd"], pin["vaultLdCommit"]) == (2, "0.5.0", commit), pin
+    assert (pin["profile"], pin["vaultLd"], pin["vaultLdCommit"]) == (3, "0.5.0", commit), pin
 
 
 @then('the context defines "{key}" as plain text')

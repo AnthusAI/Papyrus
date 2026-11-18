@@ -20,9 +20,10 @@ import re
 
 from papyrus_content.agent_rungs import RUNGS  # noqa: E402  (the ladder; re-exported here for the policy package)
 
-#: The ways an override can narrow a rung, narrowest first. When two overrides match one call the one whose
-#: scope names the earlier dimension (and then more of them) wins; see ``resolve.effective``.
-SCOPE_DIMENSIONS = ("list", "channel", "kind", "storyType", "section")
+#: The ways an override can narrow a rung, narrowest first: a list is narrower than an Announcement kind, a kind than a channel, a channel than a Story type, a Story type
+#: than a section (the publication's own rung is the widest). When two overrides match one call the one whose scope names the earlier dimension (and then more of
+#: them) wins; see ``resolve.effective``. Changed by PPY-97c0f2: kind used to rank below channel, which made "roundups hard" lose to "LinkedIn soft".
+SCOPE_DIMENSIONS = ("list", "kind", "channel", "storyType", "section")
 
 TIERS = ("editorial", "work", "bulk", "decision")
 BUDGET_PERIODS = ("day", "week", "month")
