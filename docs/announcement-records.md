@@ -65,6 +65,18 @@ No subscriptions. The code is in `src/papyrus_content/announcements/` (`records.
 
 `announces` runs from an Announcement to a Story and names the version looked at; `supersedes` runs from a Delivery to the Delivery it corrects. Both are in `papyrus-semantic-relation-types.yml`.
 
+## In a pod (PPY-e78134)
+
+A pod keeps the same two records as notes with the same field names: an Announcement note (`type: papyrus:Announcement`: `kind`, `state`, `releaseAt`, and `announces` links to the Stories) and a Delivery note (`type: papyrus:Delivery`: `announcement`, `channel`, `account`, `mode`, `state`, `resultUrl`, `attempts`, and `supersedes` to the Delivery it corrects). The words of a Delivery are the body of its note, exactly as posted. Code: `src/papyrus/pod/` (`profile.py`, `check.py`, `attempts.py`, `pages.py`, `announcement_notes.py`) and `src/papyrus_content/announcements/pod_history.py`; specs `features_backend/pod-announcement-delivery-notes.feature`.
+
+- **Records of what happened.** A Delivery note's state is `sent`, `failed`, `withdrawn` or `superseded`; an Announcement note's is `released`, `cancelled` or `withdrawn`. `sent` and `failed` say how the last attempt ended. A pod holds nothing that is waiting to go.
+- **Manual mode only.** `mode: manual` is the one value `papyrus pod check` accepts. Sending automatically needs a connected account, a budget guard and Caducus, which a newsroom has and a pod does not; a pod gets no local stand-in.
+- **Attempts only grow.** `attempts` is a list of one-line entries, `<number> <time in UTC> sent|refused [by <name> | <code>]`. `papyrus pod check` fails when an earlier line differs from the last commit (changed, moved or removed), as it does for an id.
+- **One live Delivery for each Announcement, channel and account.** A second is a correction: it `supersedes` the first, and the first says `state: superseded`.
+- **Never a page.** The body is outside the graph, a note of either type carries none of `stage`, `draft`, `format`, `redirects` or `section`, and `papyrus.pod.pages` never lists one as a page.
+- **A load is history and sends nothing.** `PodHistory.load` writes the same Announcement, Delivery and `announces` and `supersedes` relation rows, once (the key is `pod:<the note's id>`; a second load finds the first and a record the newsroom has changed is not overwritten). It has no channel and no worker, a loaded Delivery waits for no time so the due index never holds it, and its approval is `hard` with no approved version, recorded as a claim made in a pod. `papyrus.pod.announcement_notes.read` refuses a pod that does not pass the check. The command that calls it is `papyrus pod load` (not yet built); Stories are loaded first, so the `announces` links name the newsroom's own Story versions.
+- **Vocabulary.** `announces` and `supersedes` are pod relation types, and `cites` and `authored_by` take a Story as their subject (a Story cites a source and names its author with plain keys). Profile version 3; a pod's `papyrus.context.jsonld` is regenerated with `papyrus pod init` into an empty folder and copied over.
+
 ## Not in this slice
 
 The channel transport for X and the queue with one consumer for each account, the "Outcome unknown" mark in the list, durable triggers (PPY-e3bb2b), X on the new records (PPY-efd06c), text versions and pinned edits (PPY-e8ec54), and the console. Nothing sends.

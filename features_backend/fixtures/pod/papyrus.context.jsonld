@@ -82,6 +82,23 @@
       "@type": "xsd:date"
     },
     "decidedBy": "papyrus:decidedBy",
+    "kind": "papyrus:kind",
+    "releaseAt": "papyrus:releaseAt",
+    "announcement": {
+      "@id": "papyrus:announcement",
+      "@type": "@id"
+    },
+    "channel": "papyrus:channel",
+    "account": "papyrus:account",
+    "mode": "papyrus:mode",
+    "resultUrl": {
+      "@id": "papyrus:resultUrl",
+      "@type": "@id"
+    },
+    "attempts": {
+      "@id": "papyrus:attempts",
+      "@container": "@set"
+    },
     "mentions": {
       "@id": "papyrus:mentions",
       "@type": "@id",
@@ -151,10 +168,20 @@
       "@id": "papyrus:contradicts",
       "@type": "@id",
       "@container": "@set"
+    },
+    "announces": {
+      "@id": "papyrus:announces",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "supersedes": {
+      "@id": "papyrus:supersedes",
+      "@type": "@id",
+      "@container": "@set"
     }
   },
   "papyrusPod": {
-    "profile": 2,
+    "profile": 3,
     "vaultLd": "0.5.0",
     "vaultLdCommit": "025e71b",
     "classes": [
@@ -166,7 +193,9 @@
       "papyrus:Person",
       "papyrus:Organization",
       "papyrus:Section",
-      "papyrus:Relation"
+      "papyrus:Relation",
+      "papyrus:Announcement",
+      "papyrus:Delivery"
     ],
     "generated": "by papyrus pod init from papyrus-semantic-relation-types.yml; never edited by hand"
   }

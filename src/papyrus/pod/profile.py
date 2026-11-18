@@ -1,14 +1,15 @@
 """The pod profile: what a note may say, pinned in one place.
 
-Profile version 2 pins Vault-LD 0.5.0 at commit 025e71b. A new Vault-LD release changes nothing here until this pin moves. Version 2 adds the
-lifecycle keys (``stage``, ``format``, ``rating``, the review stamps and the two reasons), named and valued as on the newsroom's content item.
+Profile version 3 pins Vault-LD 0.5.0 at commit 025e71b. A new Vault-LD release changes nothing here until this pin moves. Version 2 added the
+lifecycle keys (``stage``, ``format``, ``rating``, the review stamps and the two reasons), named and valued as on the newsroom's content item. Version 3 adds
+the Announcement and Delivery classes with their keys.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 
-PROFILE_VERSION = 2
+PROFILE_VERSION = 3
 VAULT_LD_VERSION = "0.5.0"
 VAULT_LD_COMMIT = "025e71b"
 
@@ -26,7 +27,13 @@ CLASS_KINDS: dict[str, str | None] = {
     "Organization": "semanticNode",
     "Section": None,       # reached only through the `section` key
     "Relation": "semanticRelation",
+    "Announcement": "announcement",
+    "Delivery": "delivery",
 }
+# Notes that are records of what was said and where, never pages: the words are the body, outside the graph, and nothing builds them into a site.
+NEVER_PAGES = ("Announcement", "Delivery")
+# The classes a site may build into pages, when their lifecycle keys allow it.
+PAGE_CLASSES = ("Article", "Post", "Page")
 CLASS_PREFIX = "papyrus:"
 
 STRING, TEXT_LIST, DATE, BOOLEAN, INTEGER, DECIMAL = "string", "string-list", "date", "boolean", "integer", "decimal"
@@ -88,6 +95,32 @@ RELATION_KEYS: tuple[Key, ...] = (
     Key("decidedBy", "papyrus:decidedBy", STRING),
 )
 RELATION_STATES = ("current", "suggested", "rejected")
+
+# The keys of an Announcement note (the decision to say something) and of a Delivery note (one channel's version of it). They have the field names of the
+# newsroom's records. The words of a Delivery are the body. `announces` and `supersedes` are relation types, so they are not listed here.
+ANNOUNCEMENT_KEYS: tuple[Key, ...] = (
+    Key("kind", "papyrus:kind", STRING),
+    Key("state", "papyrus:state", STRING),
+    Key("releaseAt", "papyrus:releaseAt", STRING),
+)
+DELIVERY_KEYS: tuple[Key, ...] = (
+    Key("announcement", "papyrus:announcement", LINK),
+    Key("channel", "papyrus:channel", STRING),
+    Key("account", "papyrus:account", STRING),
+    Key("mode", "papyrus:mode", STRING),
+    Key("state", "papyrus:state", STRING),
+    Key("resultUrl", "papyrus:resultUrl", ADDRESS),
+    Key("attempts", "papyrus:attempts", TEXT_LIST),
+)
+# The keys only one class takes, so a stray key can be told where it belongs.
+CLASS_KEYS: dict[str, tuple[Key, ...]] = {"Relation": RELATION_KEYS, "Announcement": ANNOUNCEMENT_KEYS, "Delivery": DELIVERY_KEYS}
+# A pod records what happened, so the states are the final ones; it never holds a Delivery that is waiting to go.
+ANNOUNCEMENT_STATES = ("released", "cancelled", "withdrawn")
+DELIVERY_STATES = ("sent", "failed", "withdrawn", "superseded")
+# A pod delivers in manual mode only: a person sends it. Sending automatically needs a connected account, a budget guard and Caducus, which a newsroom has.
+POD_MODE = "manual"
+# An attempt is a person's line: `<number> <time> <outcome> [by <name> | <code>]`.
+ATTEMPT_OUTCOMES = ("sent", "refused")
 
 # The `papyrus` prefix is the pod's own vocabulary namespace (chosen at `pod init`, recorded in its generated context); the rest are fixed.
 NAMESPACE_PREFIX = "papyrus"
