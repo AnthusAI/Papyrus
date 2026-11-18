@@ -5,6 +5,8 @@
  */
 import assert from "node:assert/strict";
 import { App, CfnResource, Stack } from "aws-cdk-lib";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import { CfnQueue } from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 import { readFileSync } from "node:fs";
@@ -12,7 +14,7 @@ import path from "node:path";
 import { Template } from "aws-cdk-lib/assertions";
 import { agentPieces } from "../amplify/agents/pieces";
 import { AGENTS_STACK_NAME, addAgentsStack, countPieceResources, type AgentPiece } from "../amplify/agents/stack";
-import { SCHEDULE_GROUP_NAME_SUFFIX, SCHEDULER_ROLE_NAME_SUFFIX, scheduleNames } from "../amplify/agents/schedule-group";
+import { FOLLOW_UP_ENTRY_PREFIX, SCHEDULE_GROUP_NAME_SUFFIX, SCHEDULER_ROLE_NAME_SUFFIX, allowFollowUpTimers, scheduleNames } from "../amplify/agents/schedule-group";
 import {
   RUNNER_RECORDING_MARGIN_SECONDS,
   RUNNER_TIMEOUT_SECONDS,
@@ -180,6 +182,30 @@ assert.ok(schedulesSource.includes(`ROLE_SUFFIX = "${SCHEDULER_ROLE_NAME_SUFFIX}
 assert.equal(scheduleNames("Machines.On Machines").group, "papyrus-machines-on-machines-agent-schedules");
 assert.ok(scheduleNames("x".repeat(80)).group.length <= 64 && scheduleNames("x".repeat(80)).role.length <= 64, "the longest group and role names fit the 64-character limit");
 assert.throws(() => scheduleNames("---"), /brand id/);
+
+// The follow-up timers' permission (slice C2): a function that sets due times may create, update and delete `follow-up-*` entries in this site's group, and pass the
+// scheduler role to the scheduler service. It adds no resource (two statements on the function's own role) and never reaches the reconciler's `agent-*` entries,
+// another site's group or the default group (scheduled publishing's).
+assert.equal(FOLLOW_UP_ENTRY_PREFIX, "follow-up-");
+assert.ok(schedulesSource.includes("ENTRY_PREFIX = \"agent-\""), "the reconciler's entries are agent-*");
+assert.ok(readFileSync(path.join(root, "src/papyrus_content/follow_up_timers.py"), "utf8").includes(`ENTRY_PREFIX = "${FOLLOW_UP_ENTRY_PREFIX}"`), "the Python helper names its entries as the policy says");
+const followUpStack = new Stack(new App(), "follow-up-scratch", { env: { account: "123456789012", region: "us-east-1" } });
+const followUpFunction = new LambdaFunction(followUpStack, "Setter", { runtime: Runtime.NODEJS_20_X, handler: "index.handler", code: Code.fromInline("exports.handler = async () => {}") });
+// A site function already has its default policy (it logs, it reads its table); the scratch one gets one statement so the count shows only what the permission adds.
+followUpFunction.addToRolePolicy(new PolicyStatement({ actions: ["logs:PutLogEvents"], resources: ["*"] }));
+const resourcesBefore = resourceCount(followUpStack);
+allowFollowUpTimers(followUpFunction, SAMPLE_BRAND);
+assert.equal(resourceCount(followUpStack), resourcesBefore, "the permission adds no resource");
+const followUpTemplate = Template.fromStack(followUpStack);
+const followUpStatements = (Object.values(followUpTemplate.findResources("AWS::IAM::Policy"))[0].Properties.PolicyDocument.Statement as { Action: string | string[]; Resource: unknown; Condition?: unknown }[]);
+const manageEntries = followUpStatements.find((statement) => [statement.Action].flat().includes("scheduler:CreateSchedule"));
+assert.deepEqual([manageEntries!.Action].flat().sort(), ["scheduler:CreateSchedule", "scheduler:DeleteSchedule", "scheduler:UpdateSchedule"]);
+assert.deepEqual(manageEntries!.Resource, { "Fn::Join": ["", ["arn:", { Ref: "AWS::Partition" }, `:scheduler:us-east-1:123456789012:schedule/${scheduleSiteNames.group}/follow-up-*`]] });
+const passRole = followUpStatements.find((statement) => [statement.Action].flat().includes("iam:PassRole"));
+assert.deepEqual(passRole!.Resource, { "Fn::Join": ["", ["arn:", { Ref: "AWS::Partition" }, `:iam::123456789012:role/${scheduleSiteNames.role}`]] });
+assert.deepEqual(passRole!.Condition, { StringEquals: { "iam:PassedToService": "scheduler.amazonaws.com" } });
+assert.ok(!followUpStatements.some((statement) => JSON.stringify(statement).includes("scheduler:Get") || JSON.stringify(statement).includes("scheduler:List")), "the function reads no entry");
+console.log("follow-up timers permission: 2 statements, 0 resources");
 
 const { resources: firstStage, templates } = measureBootstrapStage();
 assert.ok(!templates.some((name) => name.toLowerCase().includes(AGENTS_STACK_NAME)), "the first stage must not include the agents stack");

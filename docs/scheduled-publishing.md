@@ -88,3 +88,5 @@ A refusal is `{ok: false, errors: [{code, message, ...}]}`. Codes: `not-allowed`
 ## Not built here
 
 The editors' notice uses a flag review request. The plan's Caducus operator-class kind waits for the notifications convergence (PPY-824c14). Slot suggestion ("Next suggested time") belongs to the field story. Announcements are separate stories.
+
+The Scheduler calls (create or move, delete, one-off in UTC, removed after it runs) are made by the same helper the follow-up timers use ([follow-up timers](follow-up-timers.md)); nothing about the entries changed.

@@ -27,6 +27,7 @@ from typing import Any, Callable, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .content_item_lifecycle import UNTYPED_ITEM_TYPE, is_story_item_type
+from .follow_up_timers import OneShotSchedules
 
 SCHEDULE_FIELDS = ("scheduledPublishAt", "scheduledBy", "scheduledAt", "scheduleState", "scheduleName")
 SCHEDULED, PUBLISHING, BLOCKED = "scheduled", "publishing", "blocked"
@@ -151,47 +152,26 @@ class EventBridgeScheduler:
         self.role_arn = role_arn
         self.dead_letter_arn = dead_letter_arn
         self.name_prefix = name_prefix
-        self._client = client
+        self.timers = OneShotSchedules(client)   # the one helper every one-shot entry goes through (follow_up_timers.py), in the account's default group
 
     @property
     def client(self) -> Any:
-        if self._client is None:
-            import boto3
-
-            self._client = boto3.client("scheduler")
-        return self._client
+        return self.timers.client
 
     def name_for(self, item_id: str) -> str:
         return schedule_name(self.name_prefix, item_id)
 
     def upsert(self, name: str, item_id: str, at: str, tenant_id: str | None = None) -> None:
         """Create the schedule, or move it to the new time (rescheduling keeps its name)."""
-        from .newsletter.scheduler import at_expression
-
-        parameters = {
-            "Name": name,
-            "ScheduleExpression": at_expression(parse_utc(at).timestamp()),
-            "ScheduleExpressionTimezone": "UTC",
-            "FlexibleTimeWindow": {"Mode": "OFF"},
-            "ActionAfterCompletion": "DELETE",
-            "State": "ENABLED",
-            "Target": {
-                "Arn": self.function_arn,
-                "RoleArn": self.role_arn,
-                "Input": json.dumps({"projectionTask": {"task": TASK_NAME, "itemId": item_id, "scheduledPublishAt": at, **({"tenantId": tenant_id} if tenant_id else {})}}),
-                "DeadLetterConfig": {"Arn": self.dead_letter_arn},
-            },
-        }
-        try:
-            self.client.create_schedule(**parameters)
-        except self.client.exceptions.ConflictException:
-            self.client.update_schedule(**parameters)
+        self.timers.set(name, at, {
+            "Arn": self.function_arn,
+            "RoleArn": self.role_arn,
+            "Input": json.dumps({"projectionTask": {"task": TASK_NAME, "itemId": item_id, "scheduledPublishAt": at, **({"tenantId": tenant_id} if tenant_id else {})}}),
+            "DeadLetterConfig": {"Arn": self.dead_letter_arn},
+        })
 
     def delete(self, name: str) -> None:
-        try:
-            self.client.delete_schedule(Name=name)
-        except self.client.exceptions.ResourceNotFoundException:
-            pass
+        self.timers.clear(name)
 
 
 def scheduler_from_environment(environment: Mapping[str, str] | None = None, *, invoked_function_arn: str | None = None, client: Any = None) -> EventBridgeScheduler | None:
