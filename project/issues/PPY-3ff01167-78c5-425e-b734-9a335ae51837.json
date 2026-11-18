@@ -17,9 +17,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "12758b04-9f70-4e3a-8d19-953290603567",
+      "author": "home",
+      "text": "PR #1685 (feat/PPY-3ff011-follow-up-timers, base develop, not merged, not released, nothing deployed). Built: follow_up_timers.py (OneShotSchedules + FollowUpTimers + check_wake), scheduled publishing moved onto OneShotSchedules unchanged, allowFollowUpTimers IAM (follow-up-* in the site group only, 0 resources), features_backend/follow-up-timers.feature (13 scenarios), docs/follow-up-timers.md. Checks green: behave (follow-up-timers, scheduled-publishing, -cli, wake-queue, wake-keys, schedule-trigger, gsi-ledger, list-cadence), pytest, test-agents-stack (first stage 1978/2000 unchanged), test-scheduled-publishing, gsi-ledger. Live proof remaining (needs a deploy): a real one-shot entry in the real group fires into the real FIFO queue (scheduler sets no dedup id; queue dedups by body) and deletes itself; the first consumer function holding allowFollowUpTimers.",
+      "created_at": "2026-11-18T20:14:02.917378Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:03.594850Z",
-  "updated_at": "2026-11-16T22:43:25.916580Z",
+  "updated_at": "2026-11-18T20:14:02.917974Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

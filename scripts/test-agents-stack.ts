@@ -5,6 +5,8 @@
  */
 import assert from "node:assert/strict";
 import { App, CfnResource, Stack } from "aws-cdk-lib";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import { CfnQueue } from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 import { readFileSync } from "node:fs";
@@ -13,7 +15,7 @@ import { Template } from "aws-cdk-lib/assertions";
 import { agentPieces } from "../amplify/agents/pieces";
 import { ITEM_FEED_API_FIELDS, ITEM_STREAM_VIEW, type ItemChangeFeedSource } from "../amplify/agents/item-change-feed";
 import { AGENTS_STACK_NAME, addAgentsStack, countPieceResources, type AgentPiece } from "../amplify/agents/stack";
-import { SCHEDULE_GROUP_NAME_SUFFIX, SCHEDULER_ROLE_NAME_SUFFIX, scheduleNames } from "../amplify/agents/schedule-group";
+import { FOLLOW_UP_ENTRY_PREFIX, SCHEDULE_GROUP_NAME_SUFFIX, SCHEDULER_ROLE_NAME_SUFFIX, allowFollowUpTimers, scheduleNames } from "../amplify/agents/schedule-group";
 import {
   RUNNER_RECORDING_MARGIN_SECONDS,
   RUNNER_TIMEOUT_SECONDS,
@@ -227,6 +229,31 @@ for (const forbidden of ["dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem", 
 const feedSourceText = readFileSync(path.join(root, "src/papyrus_content/item_change_feed.py"), "utf8");
 for (const variable of ["PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_TENANT_ID", "PAPYRUS_SITE_BUCKET", "PAPYRUS_GRAPHQL_ENDPOINT"]) assert.ok(feedSourceText.includes(`"${variable}"`), `the feed reads ${variable}`);
 assert.ok(readFileSync(path.join(root, "src/papyrus_content/agent_listeners.py"), "utf8").includes('KIND = "listeners"'), "the index kind the policy reads (tenants/<tenant>/site/listeners/) is the kind the deploy writes");
+
+// The follow-up timers' permission (slice C2): a function that sets due times may create, update and delete `follow-up-*` entries in this site's group, and pass the
+// scheduler role to the scheduler service. It adds no resource (two statements on the function's own role) and never reaches the reconciler's `agent-*` entries,
+// another site's group or the default group (scheduled publishing's).
+assert.equal(FOLLOW_UP_ENTRY_PREFIX, "follow-up-");
+assert.ok(schedulesSource.includes("ENTRY_PREFIX = \"agent-\""), "the reconciler's entries are agent-*");
+assert.ok(readFileSync(path.join(root, "src/papyrus_content/follow_up_timers.py"), "utf8").includes(`ENTRY_PREFIX = "${FOLLOW_UP_ENTRY_PREFIX}"`), "the Python helper names its entries as the policy says");
+const followUpStack = new Stack(new App(), "follow-up-scratch", { env: { account: "123456789012", region: "us-east-1" } });
+const followUpFunction = new LambdaFunction(followUpStack, "Setter", { runtime: Runtime.NODEJS_20_X, handler: "index.handler", code: Code.fromInline("exports.handler = async () => {}") });
+// A site function already has its default policy (it logs, it reads its table); the scratch one gets one statement so the count shows only what the permission adds.
+followUpFunction.addToRolePolicy(new PolicyStatement({ actions: ["logs:PutLogEvents"], resources: ["*"] }));
+const resourcesBefore = resourceCount(followUpStack);
+allowFollowUpTimers(followUpFunction, SAMPLE_BRAND);
+assert.equal(resourceCount(followUpStack), resourcesBefore, "the permission adds no resource");
+const followUpTemplate = Template.fromStack(followUpStack);
+const followUpStatements = (Object.values(followUpTemplate.findResources("AWS::IAM::Policy"))[0].Properties.PolicyDocument.Statement as { Action: string | string[]; Resource: unknown; Condition?: unknown }[]);
+const manageEntries = followUpStatements.find((statement) => [statement.Action].flat().includes("scheduler:CreateSchedule"));
+assert.deepEqual([manageEntries!.Action].flat().sort(), ["scheduler:CreateSchedule", "scheduler:DeleteSchedule", "scheduler:UpdateSchedule"]);
+assert.deepEqual(manageEntries!.Resource, { "Fn::Join": ["", ["arn:", { Ref: "AWS::Partition" }, `:scheduler:us-east-1:123456789012:schedule/${scheduleSiteNames.group}/follow-up-*`]] });
+const passRole = followUpStatements.find((statement) => [statement.Action].flat().includes("iam:PassRole"));
+assert.deepEqual(passRole!.Resource, { "Fn::Join": ["", ["arn:", { Ref: "AWS::Partition" }, `:iam::123456789012:role/${scheduleSiteNames.role}`]] });
+assert.deepEqual(passRole!.Condition, { StringEquals: { "iam:PassedToService": "scheduler.amazonaws.com" } });
+assert.ok(!followUpStatements.some((statement) => JSON.stringify(statement).includes("scheduler:Get") || JSON.stringify(statement).includes("scheduler:List")), "the function reads no entry");
+console.log("follow-up timers permission: 2 statements, 0 resources");
+
 
 // The first stage is measured with a tenant id set (the feed's source), so it proves the feed and the Item stream are left out when they could be there.
 const { resources: firstStage, templates } = measureBootstrapStage(true, { PAPYRUS_TENANT_ID: "sample-tenant" });

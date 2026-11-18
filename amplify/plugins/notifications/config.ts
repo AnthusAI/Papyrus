@@ -29,6 +29,13 @@ export type NotificationsList = {
   description: string;
   rule: NewsletterRule;
   approval: "admin" | "none";
+  /** The cadence family: lists that carry the same items at different cadences share one, and a reader holds one list of a family. None: its own family. */
+  family?: string;
+  /** `each`, `daily` or `weekly`, as in the site's `lists` document. A reader's switch between lists of a family waits for the next period start of its periodic list. */
+  cadence?: "each" | "daily" | "weekly";
+  /** A periodic list's local send time (`time`, and `day` for a weekly list) and IANA time zone. */
+  sendAt?: { time: string; day?: string };
+  timeZone?: string;
 };
 
 export type NotificationsConfig = {
@@ -58,7 +65,9 @@ const KNOWN_KEYS = [
   "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "theme", "lists",
   "itemUrlStyle", "configurationSet", "consent", "confirmWindowHours",
 ];
-const LIST_KEYS = ["id", "name", "description", "rule", "approval"];
+const LIST_KEYS = ["id", "name", "description", "rule", "approval", "family", "cadence", "sendAt", "timeZone"];
+const CADENCES = ["each", "daily", "weekly"];
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 /** The helpers shared with the newsletter word their errors for it; this plugin says its own name. */
 function inThisPlugin<T>(run: () => T): T {
@@ -79,12 +88,28 @@ function resolveList(raw: unknown, index: number): NotificationsList {
   const list = record(raw, label, LIST_KEYS);
   const approval = list.approval === undefined ? "admin" : list.approval;
   if (approval !== "admin" && approval !== "none") fail(`${label}.approval must be "admin" or "none"`);
+  const family = list.family === undefined ? undefined : matching(list.family, `${label}.family`, NEWSLETTER_LIST_ID, "lowercase letters, digits and hyphens, starting with a letter");
+  const cadence = list.cadence === undefined ? undefined : list.cadence;
+  if (cadence !== undefined && !CADENCES.includes(cadence as string)) fail(`${label}.cadence must be one of: ${CADENCES.join(", ")}`);
+  const periodic = cadence === "daily" || cadence === "weekly";
+  if (periodic) {
+    const sendAt = record(list.sendAt, `${label}.sendAt`, ["time", "day"]);
+    matching(sendAt.time, `${label}.sendAt.time`, /^([01]\d|2[0-3]):[0-5]\d$/, "a local time of day such as 06:00");
+    if (cadence === "weekly" && !WEEKDAYS.includes(sendAt.day as string)) fail(`${label}.sendAt.day must be a weekday name: ${WEEKDAYS.join(", ")}`);
+    if (cadence === "daily" && sendAt.day !== undefined) fail(`${label}.sendAt.day is for a weekly list`);
+    text(list.timeZone, `${label}.timeZone`, 64);
+  } else if (list.sendAt !== undefined || list.timeZone !== undefined) {
+    fail(`${label} is not a periodic list, so it names no sendAt or timeZone`);
+  }
   return {
     id: matching(list.id, `${label}.id`, NEWSLETTER_LIST_ID, "lowercase letters, digits and hyphens, starting with a letter (at most 40 characters)"),
     name: text(list.name, `${label}.name`, 80),
     description: text(list.description, `${label}.description`, 300, { optional: true, fallback: "" }),
     rule: resolveRule(list.rule, `${label}.rule`),
     approval,
+    ...(family === undefined ? {} : { family }),
+    ...(cadence === undefined ? {} : { cadence: cadence as NotificationsList["cadence"] }),
+    ...(periodic ? { sendAt: list.sendAt as NotificationsList["sendAt"], timeZone: list.timeZone as string } : {}),
   };
 }
 

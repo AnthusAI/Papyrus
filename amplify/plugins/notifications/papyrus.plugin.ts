@@ -33,7 +33,7 @@ export const HANDLERS = {
   pause: "papyrus_content.notifications.handler.pause",
 } as const;
 /** Caducus is pinned exactly, beside `papyrus_content`: a package change is a Caducus release, then a Papyrus release. */
-export const CADUCUS_REQUIREMENT = "caducus[notify]==0.3.0";
+export const CADUCUS_REQUIREMENT = "caducus[notify]==0.4.0";
 export const NOTIFICATIONS_REQUIREMENTS = [CADUCUS_REQUIREMENT, "PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12"];
 /** Relative to `amplify/functions/`, which is where the shared bundler looks for a function's `handler.py`. */
 const FUNCTION_DIRECTORY = "../plugins/notifications/function";
@@ -100,7 +100,7 @@ export function notificationsEnvironment(config: NotificationsConfig, names: { t
     FROM_NAME: config.fromName,
     CONFIGURATION_SET: config.configurationSet,
     ITEM_URL_STYLE: config.itemUrlStyle,
-    LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval }))),
+    LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval, family: list.family, cadence: list.cadence, sendAt: list.sendAt, timeZone: list.timeZone }))),
     THEME_JSON: JSON.stringify(config.theme),
     CONSENT: config.consent,
     CONFIRM_WINDOW_SECONDS: String(config.confirmWindowHours * 3600),

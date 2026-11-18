@@ -35,7 +35,7 @@ class Site:
 
     def __init__(
         self, site_id: str = "alpha", *, rule: Mapping[str, Any] | None = None, readers: int = 1, postal_address: str | None = POSTAL,
-        base_path: str = "",
+        base_path: str = "", lists: tuple[Mapping[str, Any], ...] | None = None,
     ) -> None:
         self.settings = Settings(
             site_id=site_id,
@@ -46,7 +46,7 @@ class Site:
             configuration_set=f"papyrus-{site_id}",
             item_url_style="html",
             theme=THEME,
-            lists=(
+            lists=lists or (
                 {"id": "stories", "name": "New stories", "description": "", "rule": dict(rule or {}), "approval": "admin"},
                 {"id": "security", "name": "Security", "description": "", "rule": {"sections": ["security"]}, "approval": "admin"},
             ),

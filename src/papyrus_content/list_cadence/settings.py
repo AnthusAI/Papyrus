@@ -15,6 +15,9 @@
   (the period's draft is made for a person to fill, and goes only if a person adds words and the rung allows). An every-item list has no period, so it names none.
   No placeholder issue is ever sent.
 * ``rung`` is optional. It can only narrow what the site's agent policy allows (``announce.effective_rung``).
+* ``family`` (optional) names the cadence family: lists that carry the same items at different cadences (every item, daily summary) share one, and a reader holds at most
+  one list of a family at a time (slice N2, ``family.py``). A list that names none is its own family, which is how a curated weekly newsletter stays unaffected by a
+  reader's daily or every-item choice. Two lists of one family cannot share a cadence: a reader would have nothing to choose between. A family has at most one periodic list, because a reader's move waits for its next period start.
 * ``agent`` is the automation whose wake runs the list. It is checked against the registered agents when the schedule is reconciled, not here.
 """
 from __future__ import annotations
@@ -40,7 +43,7 @@ LIST_ID = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 AGENT_ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 CLOCK = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 TEMPLATE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-LIST_FIELDS = {"name", "cadence", "sendAt", "timeZone", "rule", "requireReviewedSource", "workingDocument", "template", "agent", "rung", "emptyPeriod"}
+LIST_FIELDS = {"name", "cadence", "sendAt", "timeZone", "rule", "requireReviewedSource", "workingDocument", "template", "agent", "rung", "emptyPeriod", "family"}
 RULE_FIELDS = {"sections", "types", "tags", "minStars"}
 
 EMPTY_DOCUMENT: dict[str, Any] = {"schemaVersion": SCHEMA_VERSION, "lists": {}}
@@ -150,6 +153,11 @@ def validate_list(list_id: str, entry: Any) -> dict[str, Any]:
     if not isinstance(agent, str) or not AGENT_ID.match(agent):
         raise _invalid(f"{where}.agent names the automation whose wake runs this list.")
     stored["agent"] = agent
+    if entry.get("family") is not None:
+        family = entry["family"]
+        if not isinstance(family, str) or not LIST_ID.match(family):
+            raise _invalid(f"{where}.family names the cadence family the list belongs to (lowercase letters, digits and hyphens, starting with a letter).")
+        stored["family"] = family
     if entry.get("rung") is not None:
         if entry["rung"] not in RUNGS:
             raise _invalid(f"{where}.rung must be one of: {', '.join(RUNGS)}.")
@@ -166,7 +174,21 @@ def validate_document(document: Any) -> dict[str, Any]:
     lists = document.get("lists")
     if not isinstance(lists, dict):
         raise _invalid("lists must be an object keyed by list id.")
-    return {"schemaVersion": SCHEMA_VERSION, "lists": {list_id: validate_list(list_id, entry) for list_id, entry in lists.items()}}
+    checked = {list_id: validate_list(list_id, entry) for list_id, entry in lists.items()}
+    seen: dict[tuple[str, str], str] = {}
+    for list_id, entry in sorted(checked.items()):
+        slot = (entry.get("family", list_id), entry["cadence"])
+        if slot in seen:
+            raise _invalid(f"lists.{list_id} and lists.{seen[slot]} are both {entry['cadence']} lists of the family {slot[0]}: a family has one list for each cadence.")
+        seen[slot] = list_id
+    periodic: dict[str, str] = {}
+    for list_id, entry in sorted(checked.items()):
+        if entry["cadence"] in PERIODIC:
+            family = entry.get("family", list_id)
+            if family in periodic:
+                raise _invalid(f"lists.{list_id} and lists.{periodic[family]} are both periodic lists of the family {family}: a reader's move waits for the next period start of the family's periodic list, so a family has one.")
+            periodic[family] = list_id
+    return {"schemaVersion": SCHEMA_VERSION, "lists": checked}
 
 
 def fresh() -> dict[str, Any]:
