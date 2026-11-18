@@ -1,0 +1,20 @@
+{
+  "id": "PPY-69fbaaeb-dfc4-4aa0-8e1d-e128e6d0a4bc",
+  "title": "Idea selection runs as a scheduled agent",
+  "description": "Requested by Humorus (HUM-b0d999). papyrus ideas select is a manual CLI run; there is no core agent definition for it. Register it like rate.yaml with a schedule (default: after the site's ideation run), adopted per site, at the site's rung (propose: the pick waits for an editor; draft: the pick goes on to the site's Story procedure, PPY-8fe7e6, and ends at a hard review request for a person).\nScenario: a site at rung draft gets one picked Idea drafted and a review request each day, and nothing publishes without a person. Scenario: a site at rung propose gets the pick as a review request only.\nStanding rules: no workarounds, fallbacks or shims; Gherkin specs.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-18T13:08:10.472188Z",
+  "updated_at": "2026-11-18T13:08:10.472220Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
