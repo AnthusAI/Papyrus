@@ -11,6 +11,9 @@
 * ``rule.minStars`` is three, four or five. Nothing under three stars goes out on any list (the site's quality floor), so a lower number is refused, and so is
   a list that names none: the floor is written down, not assumed.
 * ``workingDocument`` is ``story`` (an issue Story that is published to the archive; a weekly list only) or ``delivery`` (no archive page).
+* ``emptyPeriod`` is for a periodic list: ``nothing`` (the default: a period with no qualifying item and nothing a person wrote sends nothing and says so) or ``draft_only``
+  (the period's draft is made for a person to fill, and goes only if a person adds words and the rung allows). An every-item list has no period, so it names none.
+  No placeholder issue is ever sent.
 * ``rung`` is optional. It can only narrow what the site's agent policy allows (``announce.effective_rung``).
 * ``agent`` is the automation whose wake runs the list. It is checked against the registered agents when the schedule is reconciled, not here.
 """
@@ -27,6 +30,7 @@ SCHEMA_VERSION = 1
 CADENCES = ("each", "daily", "weekly")
 PERIODIC = ("daily", "weekly")
 WORKING_DOCUMENTS = ("story", "delivery")
+EMPTY_PERIODS = ("nothing", "draft_only")
 WEEKDAYS = ("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
 #: The site's quality floor: nothing below three stars is public or announced (the 3-star decision, PPY-0e8d66).
 QUALITY_FLOOR_STARS = 3
@@ -36,7 +40,7 @@ LIST_ID = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 AGENT_ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 CLOCK = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 TEMPLATE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-LIST_FIELDS = {"name", "cadence", "sendAt", "timeZone", "rule", "requireReviewedSource", "workingDocument", "template", "agent", "rung"}
+LIST_FIELDS = {"name", "cadence", "sendAt", "timeZone", "rule", "requireReviewedSource", "workingDocument", "template", "agent", "rung", "emptyPeriod"}
 RULE_FIELDS = {"sections", "types", "tags", "minStars"}
 
 EMPTY_DOCUMENT: dict[str, Any] = {"schemaVersion": SCHEMA_VERSION, "lists": {}}
@@ -120,6 +124,12 @@ def validate_list(list_id: str, entry: Any) -> dict[str, Any]:
         except (ZoneInfoNotFoundError, ValueError, TypeError, OSError):
             raise _invalid(f"{where}.timeZone must be a time zone name such as America/New_York.") from None
         stored["timeZone"] = zone
+        empty = entry.get("emptyPeriod", "nothing")
+        if empty not in EMPTY_PERIODS:
+            raise _invalid(f"{where}.emptyPeriod must be one of: {', '.join(EMPTY_PERIODS)}.")
+        stored["emptyPeriod"] = empty
+    elif "emptyPeriod" in entry:
+        raise _invalid(f"{where} is an every-item list, which has no period, so it names no emptyPeriod.")
     elif "sendAt" in entry or "timeZone" in entry:
         raise _invalid(f"{where} is an every-item list, so it names no sendAt or timeZone: it is woken by a page going live or a rating changing, not by a clock.")
     review = entry.get("requireReviewedSource", False)
