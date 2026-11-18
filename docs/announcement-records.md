@@ -35,6 +35,16 @@ A retry is an attempt. A Delivery's `attempts` field is a log that only grows; e
 
 Caducus needs no change to accept the id shape (its event id is any non-empty text it dedupes on); it has its own spec for `delivery:<id>:a<N>`.
 
+## Counts (PPY-b53c09)
+
+Caducus keeps the record of each reader; an email Delivery holds counts only. `counts` is eight numbers of readers (`queued`, `sent`, `failed`, `suppressed`, `skipped`, `delivered`, `bounced`, `complained`) and `cost` is what Caducus charged. Code: `counts.py`, `email_channel.py`, `sends.py`; specs `delivery-counts.feature`.
+
+- **Recomputed, never added to.** `DeliveryCounts.refresh` reads Caducus's delivery-log rows of every attempt's event and writes the totals when they changed. `AccountWorker.send` and `settle` do it for an email Delivery, and `AccountWorker.refresh_counts` does it later, because the provider reports delivery, bounces and complaints after the send.
+- **`sent` is every message the provider accepted.** `delivered`, `bounced` and `complained` are what became of them. A reader is counted once, by the row that says most about them.
+- **Suppression is Caducus's, at send time.** A reader suppressed when their turn comes is counted `suppressed` and not mailed; a reader who turned the list off is `skipped`. A complaint or a permanent bounce also takes the reader off every list, so later sends never reach them, and Caducus records no row for a reader who is not a confirmed subscriber of any list of the event. A reader on two lists of one Delivery is one delivery (Caducus keys it by event, reader and channel).
+- **No reader on the row.** The row holds no address, no pseudonym and no words.
+- **Today.** `todayOverview` returns `sends`: one line for each email Delivery of an Announcement released in the day (lists, items, state in words with a mark, counts, cost), read by index (`sends.py`).
+
 ## Review policy (PPY-97c0f2)
 
 Human review is a per-publication setting, not a rule. `announcementReview` is the announce responsibility's rung in the site's agent policy document (`src/papyrus_content/announcements/review_policy.py`; ladder in `src/papyrus_content/agent_policy/`): `hard` is `prepare` (a person must release it), `soft` is `publish_soft` (a person may edit or stop it before its lock time; silence lets it go), `none` is `publish_auto` (fully automatic). A rung below `prepare` prepares no Delivery, and the result says why. There is no second setting and no code default: an `announce` entry that is not in the document means off.
@@ -57,9 +67,10 @@ Human review is a per-publication setting, not a rule. `announcementReview` is t
 | An account's Deliveries, newest first | `listDeliveriesByAccountKeyAndCreatedAt` (`<channel>#<account>`) |
 | Deliveries that are due (sparse) | `listDeliveriesByDueKeyAndDueAt` |
 | A Story's Announcements | the `announces` relation, `listSemanticRelationsByObjectState` (`item#<lineage>#current`, predicate `announces`) |
+| The day's email sends (Today) | `listAnnouncementDecisionsByStateAndReleaseAt` for `released` and `withdrawn`, then each Announcement's Deliveries and `announces` links |
 | Rows of one tenant | `listAnnouncementDecisionsByTenant`, `listDeliveriesByTenant` |
 
-No subscriptions. The code is in `src/papyrus_content/announcements/` (`records.py`, `decisions.py`, `deliveries.py`, `links.py`); the specs are `features_backend/announcement-*.feature` and `delivery-*.feature`.
+No subscriptions. The code is in `src/papyrus_content/announcements/` (`records.py`, `decisions.py`, `deliveries.py`, `links.py`, `counts.py`); the specs are `features_backend/announcement-*.feature` and `delivery-*.feature`.
 
 ## Relation types
 

@@ -36,10 +36,13 @@ assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
   "Query/fields/getAutomation",
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
+  "Query/fields/listAnnouncementDecisionsByStateAndReleaseAt",
   "Query/fields/listAutomations",
   "Query/fields/listAutomationsByTenant",
+  "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
   "Query/fields/listProcedureRunsByStatusAndRequestedAt",
+  "Query/fields/listSemanticRelationsBySubjectState",
 ]);
 assert.ok(AUTOMATION_VIEW_FUNCTION_FIELDS.every((field) => field.startsWith("Query/")), "no mutation is granted");
 

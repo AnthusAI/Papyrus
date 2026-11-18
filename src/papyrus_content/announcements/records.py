@@ -35,6 +35,7 @@ DELIVERY_STATES = (*LIVE_STATES, SENT, FAILED, DRY_RUN, DELIVERY_WITHDRAWN, SUPE
 # A Delivery is waiting for its release time or its lock only while it is a draft or ready.
 BEFORE_SEND_STATES = (DRAFTED, READY)
 
+EMAIL = "email"   # the channel whose Deliveries carry counts
 NONE, SOFT, HARD = "none", "soft", "hard"
 APPROVALS = (NONE, SOFT, HARD)
 AUTOMATIC, MANUAL = "automatic", "manual"

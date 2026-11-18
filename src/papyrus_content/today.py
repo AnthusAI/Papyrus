@@ -29,6 +29,7 @@ from .responsibilities import BY_KEY as RESPONSIBILITIES
 from .automations import ENABLED_NOTE, NOT_SUPPORTED, read_record
 from .run_outcomes import OUTCOME_SHOWN
 from .tenancy import rows_for_tenant
+from .announcements.sends import NO_COST, sends_of_day
 
 #: Every `runStatus` the runner writes. Each is one index query for the day.
 RUN_STATUSES = ("queued", "started", "running", "completed", "failed", "notRunnable")
@@ -183,7 +184,7 @@ def today_overview(client, *, day: str | None = None, time_zone: str | None = No
         for key in COUNT_KEYS:
             totals[key] += group["counts"][key]
     return {
-        "state": "ready", "asOf": _instant(moment), **bounds, "rows": rows, "didNotRun": did_not_run(records, runs),
+        "state": "ready", "asOf": _instant(moment), **bounds, "rows": rows, "didNotRun": did_not_run(records, runs), "sends": sends_of_day(client, bounds),
         "totals": {"runs": len(runs), "counts": totals, "costUsd": round(sum(group["costUsd"] for group in rows), 6),
                    "costKnownRuns": sum(group["costKnownRuns"] for group in rows), "costUnknownRuns": sum(group["costUnknownRuns"] for group in rows)},
     }
@@ -220,6 +221,13 @@ def counts_text(counts: dict[str, int]) -> str:
     return ", ".join(parts)
 
 
+def send_text(send: dict[str, Any]) -> str:
+    """One send as a line: where it stands, the lists, the items, the counts and the cost."""
+    items = f"{send['items']} item{'' if send['items'] == 1 else 's'}"
+    cost = dollars(float(send["cost"])) if send["cost"] is not None else NO_COST
+    return f"{send['stateShown']} · {', '.join(send['lists']) or 'no lists'} · {items} · {send['countsText']} · {cost}"
+
+
 def reasons_text(reasons: dict[str, int]) -> str:
     return ", ".join(f"{count} {code}" for code, count in sorted(reasons.items()))
 
@@ -243,6 +251,9 @@ def render(overview: dict[str, Any]) -> list[str]:
                 lines.append(f"    {mark} {words}: {reasons_text(group['reasons'][outcome])}")
         for target in group["automationIds"]:
             lines.append(f"    runs: papyrus automations runs --id {target}")
+    if overview["sends"]:
+        lines.append(f"SENDS · {len(overview['sends'])} email send{'' if len(overview['sends']) == 1 else 's'}")
+        lines.extend(f"  {send_text(send)}" for send in overview["sends"])
     if overview["didNotRun"]:
         lines.append("DID NOT RUN")
         for entry in overview["didNotRun"]:
