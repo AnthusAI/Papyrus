@@ -29,9 +29,9 @@ from papyrus_content.announcements.decisions import Announcements, Outcome
 from papyrus_content.announcements.deliveries import Plan
 from papyrus_content.images.handlers import Caller
 from papyrus_content.announcements.links import StoryRef
-from papyrus_content.newsletter.alerts import rule_matches
 from papyrus_content.run_outcomes import OUTCOME_KEY, REASON_KEY
 
+from .alert_text import rule_matches
 from .periods import History, carry_forward
 from .settings import QUALITY_FLOOR_STARS
 
@@ -59,6 +59,7 @@ class Candidate:
     tags: Sequence[str]
     stars: int
     reviewed_source: bool = False
+    translation: bool = False   # a translation is no new Story: the readers were told when the original published, so it is never announced
 
 
 @dataclass(frozen=True)

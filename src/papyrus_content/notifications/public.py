@@ -14,10 +14,11 @@ from caducus.notify.handlers.public import READER_ACTIONS, dispatch
 
 from papyrus_content.list_cadence.family import mover
 
-from .events import KIND, PRODUCT
 from .links import SiteLinks
 from .preferences import update_preferences
 from .settings import Settings
+
+KIND, PRODUCT = "story.published", "papyrus"
 
 __all__ = ["READER_ACTIONS", "audience_settings", "handle"]
 
