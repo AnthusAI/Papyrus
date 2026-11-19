@@ -51,10 +51,17 @@
       "text": "Merged to develop in PR #1696: post spacing per account; review stamp (PROVISIONAL, not confirmed by Ryan: checklist step review_people done by a person against the current version) now read from real checklist rows. Still unmet: agent withdraw on retire now exists (PPY-efd06c #1704) - verify; none via set-rung waits on PPY-36e7c9; requireReviewedSource stays publication-wide until channel/list rule objects exist. Left open.",
       "created_at": "2026-11-19T06:57:16.063286Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4ab7c1cb-67c3-4b37-9793-3f3081f1e59a",
+      "author": "home",
+      "text": "lead5: agent withdraw-on-retire is met by #1704 (review_handlers.withdraw: agent allowed only when every Story of the Announcement is retired, else human_required; features_backend/announcements-withdraw.feature). Remaining line items (none rung via set-rung, per-channel requireReviewedSource) wait on PPY-36e7c9 and channel/list rule objects; closing the withdraw item only.",
+      "created_at": "2026-11-19T07:57:24.304679Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:49:19.342619Z",
-  "updated_at": "2026-11-19T06:57:16.063563Z",
+  "updated_at": "2026-11-19T07:57:24.305931Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
