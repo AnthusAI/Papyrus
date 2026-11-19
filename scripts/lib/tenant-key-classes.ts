@@ -100,6 +100,7 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
 
   // global, one partition: a constant.
   newsroomFeedKey: constant,
+  attentionKey: constant,   // `attention`, on a ProcedureRun that needs a person and is not acknowledged (a shared stack puts the tenant in front with tenant_knowledge_keys.global_key)
   dueKey: constant,   // `due`, on a Delivery that has a pending time (a shared stack puts the tenant in front with tenant_knowledge_keys.global_key)
   reviewedFeedKey: constant,
 

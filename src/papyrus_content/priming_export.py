@@ -179,7 +179,10 @@ def reference_for_proceeding(references: Iterable[Mapping[str, Any]], proceeding
 def ttab_rows(client, publication: str, references: list[Mapping[str, Any]], read_extracted: BodyReader | None, *,
               include_unlabeled: bool, skipped: dict[str, int]) -> list[dict[str, Any]]:
     keys = set(ttab_procedure_keys(client, publication))
-    runs = sorted((run for run in client.list_records("ProcedureRun") if run.get("procedureKey") in keys and run.get("runStatus") == "completed"),
+    # Each procedure's runs are one indexed read, found through the definitions of its key; the whole run table is never listed.
+    definition_ids = sorted({str(definition["id"]) for key in keys for definition in client.list_by_index("procedureDefinitionsByKey", key)})
+    runs = sorted((run for procedure_id in definition_ids for run in client.list_by_index("procedureRunsByProcedure", procedure_id)
+                   if run.get("procedureKey") in keys and run.get("runStatus") == "completed"),
                   key=lambda run: str(run.get("requestedAt") or ""))
     latest_run_of_story: dict[str, Mapping[str, Any]] = {}
     for run in runs:
