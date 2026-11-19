@@ -22,10 +22,17 @@
       "text": "Audit: read-only calendar done. Unmet: drag to reschedule with undo; recently published on the calendar.",
       "created_at": "2026-11-18T16:59:14.421177Z",
       "comment_type": "default"
+    },
+    {
+      "id": "97ab495b-0b30-4ebb-9594-f44473b587c3",
+      "author": "home",
+      "text": "Branch feat/PPY-38f016-schedule-view, PR https://github.com/AnthusAI/Papyrus/pull/1699: drag to reschedule with undo, published Stories on the calendar, FullCalendar pinned to 7.1.4.",
+      "created_at": "2026-11-19T04:05:23.718788Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T18:41:38.479477Z",
-  "updated_at": "2026-11-18T16:59:14.421402Z",
+  "updated_at": "2026-11-19T04:05:23.719563Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
