@@ -21,9 +21,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "dae597d9-ad26-495d-8dae-2184db89f0b2",
+      "author": "home",
+      "text": "Frozen by Ryan (always-on feature freeze). PR left open as a draft, not merged.",
+      "created_at": "2026-11-19T13:39:39.588464Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:11.893934Z",
-  "updated_at": "2026-11-16T22:43:40.052402Z",
+  "updated_at": "2026-11-19T13:39:39.589323Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
