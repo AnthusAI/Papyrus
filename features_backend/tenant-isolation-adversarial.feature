@@ -703,6 +703,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listProcedureRunsByAssignmentAndRequestedAt          | returns nothing of "beta"        |
       | listProcedureRunsByStatusAndRequestedAt              | returns nothing of "beta"        |
       | listProcedureRunsByFeedAndRequestedAt                | returns nothing of "beta"        |
+      | listProcedureRunsByAttentionKeyAndDueAt              | returns nothing of "beta"        |
       | listProcedureVersionsByProcedureAndVersion           | returns nothing of "beta"        |
       | listProcedureVersionsByProcedureAndCreatedAt         | returns nothing of "beta"        |
       | listProcedureVersionsByStatusAndUpdatedAt            | returns nothing of "beta"        |

@@ -30,7 +30,7 @@ from typing import Any
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
 from .policy_location import policy_location
-from . import agent_wakes, wake_keys
+from . import agent_wakes, run_attention, wake_keys
 from .run_outcomes import outcome_shown
 from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
 from .monitoring_router import (
@@ -847,8 +847,33 @@ def _signed_in_lane() -> bool:
     return user_auth_requested()
 
 
+def attention_command(command: str, options: dict[str, Any], *, as_json: bool, apply: bool | None) -> None:
+    """`papyrus automations attention` lists the runs that need a person; `acknowledge --run RUN_ID` takes one off the list (PPY-577310)."""
+    from .graphql_authoring import create_authoring_client
+    client = create_authoring_client()[0]
+    if command == "attention":
+        runs = run_attention.list_attention(client)
+        if as_json:
+            print(json.dumps({"ok": True, "command": "automations attention", "runs": runs}, indent=2, default=str))
+            return
+        for run in runs:
+            print("\t".join([str(run.get("id")), outcome_shown(run), str(run.get("procedureKey") or ""), str(run.get("dueAt") or ""),
+                             str(run.get("errorSummary") or "")[:200]]))
+        print(f"{len(runs)} run(s) need attention")
+        return
+    run_id = options.get("run")
+    if not isinstance(run_id, str):
+        raise AutomationError("papyrus automations acknowledge needs --run <run id>.")
+    actor = os.environ.get("PAPYRUS_ACTOR_LABEL") or "papyrus-cli"
+    result = run_attention.acknowledge(client, run_id, actor, _now()) if apply else {"runId": run_id, "changed": False, "reason": "dry run, nothing written"}
+    if as_json:
+        print(json.dumps({"ok": True, "command": "automations acknowledge", "dryRun": not apply, **result}, indent=2))
+    else:
+        print("\t".join(["automations", run_id, "acknowledged" if result["changed"] else f"unchanged ({result['reason']})"]))
+
+
 def run_command(command: str, flags: list[str]) -> None:
-    """`papyrus automations list|show|runs|run|create|update|adopt`.
+    """`papyrus automations list|show|runs|run|create|update|adopt|attention|acknowledge`.
 
     Signed in with `papyrus login`, list|show|runs|run ask the site's `automationOverview` and `runAutomation` (see
     `automations_signed_in`). Otherwise the reads use the selected GraphQL lane and the monitoring table and the Lambda
@@ -865,6 +890,10 @@ def run_command(command: str, flags: list[str]) -> None:
         code = signed_in_command(command, options, as_json=as_json, apply=apply)
         if code:
             raise SystemExit(code)
+        return
+    if command in {"attention", "acknowledge"}:
+        attention_command(command, options, as_json=as_json,
+                          apply=resolve_mutation_apply(options, "automations acknowledge") if command == "acknowledge" else None)
         return
     if command == "adopt":
         from .automation_adoption import run_command as adopt_command
