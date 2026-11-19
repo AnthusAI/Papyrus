@@ -59,13 +59,13 @@
     {
       "id": "cbf121ab-66c6-4346-8579-f26fb5598172",
       "author": "home",
-      "text": "Audit 2026-11-18: built and merged to develop (PR #1642) and released in v5.134.0 line; closing so dependents unblock. Live proof of the wake queue on a real site stays with PPY-817340 and PPY-e713eb.",
+      "text": "Audit 2026-11-18: built and merged to develop (PR #1642, not yet released); closed so dependents unblock. Live proof of the wake queue on a real site stays with PPY-817340 and PPY-e713eb.",
       "created_at": "2026-11-19T02:16:19.808503Z",
       "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:02.081219Z",
-  "updated_at": "2026-11-19T02:16:20.500861Z",
+  "updated_at": "2026-11-19T02:16:48.403851Z",
   "closed_at": "2026-11-19T02:16:20.500652Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
