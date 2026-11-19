@@ -11,15 +11,18 @@
   "labels": [
     "always-on-agents"
   ],
-  "dependencies": [
+  "dependencies": [],
+  "comments": [
     {
-      "target": "PPY-f58445df-45cb-4f2f-9b20-e5d1cf03730e",
-      "type": "blocked-by"
+      "id": "a1b33660-0453-421b-8d81-6c2f3c742865",
+      "author": "home",
+      "text": "Audit 2026-11-19: removed stale blocked-by PPY-f58445 (closed; outcome vocabulary merged in PR #1625). Buildable now.",
+      "created_at": "2026-11-19T11:07:25.109738Z",
+      "comment_type": "default"
     }
   ],
-  "comments": [],
   "created_at": "2026-11-16T22:43:01.577907Z",
-  "updated_at": "2026-11-16T22:43:22.045484Z",
+  "updated_at": "2026-11-19T11:07:25.110435Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
