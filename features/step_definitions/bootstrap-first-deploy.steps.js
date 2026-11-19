@@ -118,3 +118,29 @@ Then("the total is printed against the first-deploy headroom", function () {
 Then("two pieces with the same id are refused", function () {
   assert.ok(/agents stack tests passed/.test(this.agentsOutput));
 });
+
+// ---- agent-model-key-parameter.feature (scripts/test-agents-stack.ts asserts each and exits non-zero otherwise) ----
+
+Then("the Item change feed and the change feed each name the model key's parameter", function () {
+  assert.ok(/model key parameter: named on 2 feed pieces/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("naming the parameter adds no resource to either feed", function () {
+  assert.ok(/no resource added/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("a feed with no parameter named carries no model key setting", function () {
+  assert.ok(/model key parameter: /.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("neither feed's policy holds any ssm or kms action", function () {
+  assert.ok(/no right on the feeds/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("the runner's role holds ssm:GetParameter alone on the one parameter", function () {
+  assert.ok(/one GetParameter on the runner/.test(this.agentsOutput), this.agentsOutput);
+});
+
+Then("a key, a path, an empty value and a name without a leading slash are refused as the model key parameter", function () {
+  runTsx("scripts/test-site-backend-synth.ts", [], {});
+});

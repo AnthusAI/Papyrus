@@ -107,6 +107,19 @@ The release that carries slice B2 does three things, all ordinary updates (nothi
 
 What a deploy cannot show, and a person checks once on a real site after the release: a board move and a CLI save each put one wake per listening agent on the queue, a repeat of the same record puts none, and the dead-letter queue stays empty (PPY-8a374e lists the proof that remains).
 
+## The agents' model key: the parameter a site names (PPY-8a374e, PPY-6af46b)
+
+A run an agent's wake starts needs a model key, and the wake carries the NAME of the SSM parameter that holds it. A site sets the name in its backend configuration (a name is not a secret; the deploy never reads, prints or stores the key):
+
+```ts
+defineSiteBackend({ /* ... */ agents: { openAiKeyParameter: "/papyrus/shipped/openai-api-key" } });
+```
+
+- **What it does.** The Item change feed and the change feed set `PAPYRUS_OPENAI_KEY_PARAMETER` to the name, and each wake they send carries it as `openaiKeyParameter`. Nothing is added to the `agents` stack (no resource, no permission on the feeds), so `npm run test:agents-stack` and the first-stage budget do not move.
+- **Who reads the key.** The procedure runner (`infra/procedures/papyrus-procedure-runner.yaml`), with its own role: statement `AgentModelKeyParameters` gives it `ssm:GetParameter` on `/papyrus/shipped/openai-api-key` and nothing else under `/papyrus/`. The key is a SecureString under the AWS-managed `alias/aws/ssm` key, so no `kms:Decrypt` is granted. A site that names another parameter is a change to that statement, through Git and the release pipeline; nothing is granted by hand.
+- **With no name set** (or a key that has expired), a feed's wakes carry none, the run has no model key and fails closed with `The run has no model key`. There is no fallback key.
+- **Rotation is a separate job.** This setting only names where the key is; rotating it is PPY-6af46b (Ryan rotates the current key).
+
 ## The change feeds for Reference, review requests, Messages, translation requests and Deliveries (PPY-9b9e64)
 
 The release that carries slice B3 is an ordinary update too; a new site's first deploy does not move (`npm run test:agents-stack` prints the first-stage count, 1,978 of the 2,000 budget before and after, and the `agents` stack's own count):

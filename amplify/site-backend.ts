@@ -18,7 +18,7 @@ import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { assertValidMonitoringConfig, assertValidPublicationConfig, assertValidTenancyConfig, resolveTenancyMode, tenancyFunctionEnvironment } from "./site-backend-config";
+import { assertValidAgentsConfig, assertValidMonitoringConfig, assertValidPublicationConfig, assertValidTenancyConfig, resolveTenancyMode, tenancyFunctionEnvironment } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import {
   revalidateDistributionEnvironment,
@@ -152,6 +152,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
   if (publication !== undefined) assertValidPublicationConfig(publication);
   assertValidMonitoringConfig(site.monitoring);
+  assertValidAgentsConfig(site.agents);
   assertValidTenancyConfig(site.tenancy);
   const tenancyMode = resolveTenancyMode(site.tenancy);
   // A shared stack is one of two fixed tiers (docs/shared-stack.md). Its settings (reserved concurrency, alarm thresholds) come from
@@ -977,6 +978,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
               tenantId: backendTenantId,
               bucketName: storageBucket.bucketName,
               bucketArn: storageBucket.bucketArn,
+              openAiKeyParameter: site.agents?.openAiKeyParameter,
             },
       changeFeeds:
         feedStreams === undefined
@@ -989,6 +991,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
               tenantId: backendTenantId,
               bucketName: storageBucket.bucketName,
               bucketArn: storageBucket.bucketArn,
+              openAiKeyParameter: site.agents?.openAiKeyParameter,
             },
     }),
     bootstrapStage,
