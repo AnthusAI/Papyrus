@@ -257,7 +257,7 @@ A schema change: it needs the site backend deployed.
 The rating is private, but it orders the public listings. Listing includes, the featured slot, the home page's list, a section's listing page (`/articles/`),
 a collection page (`/posts/`) and tag pages put the newest bucket first and, inside a bucket, five, four and three stars first, then Stories nobody rated, then
 two and one stars; equal Stories keep their newest-first order. The order of ratings is the one References follow, and the code is shared (`rank_in_buckets` in
-`src/papyrus_content/home_page/ordering.py`; the Story side is `projection/standard/story_order.py`). **A Story bucket is a rolling window** (Ryan, 2026-11-04:
+`src/papyrus_content/quality_ranking.py`, [the algorithm](quality-ranking.md); the Story side is `projection/standard/story_order.py`). **A Story bucket is a rolling window** (Ryan, 2026-11-04:
 "rolling last seven days for the week"): counted back from the UTC day of the projection, `week` (the default of `listings.bucket`) is the last seven days, the
 seven before that, and so on; `day` is the last day, the day before, and so on; `none` is the old newest-first list. An include can say `bucket="day|week|none"`.
 A Reference's bucket rolls the same way (Ryan, 2026-11-05; see [Home page](home-page.md#time-buckets)). The feeds, the sitemap and `llms.txt` stay in date order.

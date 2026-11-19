@@ -275,7 +275,7 @@ def test_a_story_changes_bucket_with_time_alone_and_only_a_later_pass_corrects_t
 
 
 def test_the_order_depends_on_the_day_and_never_on_the_time():
-    from papyrus_content.home_page.ordering import rolling_age
+    from papyrus_content.quality_ranking import rolling_age
 
     assert [rolling_age(day, "week", date(2026, 2, 8)) for day in ("2026-02-08", "2026-02-02", "2026-02-01", "2026-01-26", "2026-02-20", "", None)] == [0, 0, 1, 1, 0, 2**31, 2**31]
     assert rolling_age("2026-02-07T23:59:00Z", "day", date(2026, 2, 8)) == 1

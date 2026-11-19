@@ -1,6 +1,6 @@
 """The order published Stories are listed in: the newest bucket first, and inside a bucket the editors' stars.
 
-Listings used to be newest first. A Story an editor rated now ranks inside its bucket the way a Reference does (``home_page/ordering.py``, one order of
+Listings used to be newest first. A Story an editor rated now ranks inside its bucket the way a Reference does (``quality_ranking.py``, one order of
 ratings for both): five, four and three stars first, then Stories nobody rated, then two and one stars; Stories that rank equal keep their newest-first
 order. A Story bucket is a ROLLING window counted back from the day of the projection, in UTC: ``week`` is the last seven days, the seven before that, and
 so on; ``day`` is the last day, the day before, and so on (``listings.bucket``, and ``bucket`` on a listing include); ``none`` keeps the plain newest-first
@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from datetime import date
 
-from ...home_page.ordering import rank_in_buckets
+from ...quality_ranking import rank_in_buckets
 from .config import NO_BUCKET
 from .entries import StandardEntry
 

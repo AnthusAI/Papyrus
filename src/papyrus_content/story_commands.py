@@ -687,7 +687,7 @@ def stories_show(flags: list[str]) -> None:
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
     metadata = latest.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
-    from .home_page.ordering import utc_today
+    from .quality_ranking import utc_today
     from .projection.standard.config import DEFAULT_STORY_BUCKET
     from .story_signals import signals
 

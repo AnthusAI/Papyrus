@@ -16,7 +16,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
-from ...home_page.ordering import BUCKETS
+from ...quality_ranking import BUCKETS
 from ...markus_renderer.video import PROVIDERS as EMBED_PROVIDERS, VideoRendering
 from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
