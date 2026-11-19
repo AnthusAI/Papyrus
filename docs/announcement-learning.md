@@ -23,3 +23,11 @@ Three layers, each needing a person:
 Rules: only a person records (an agent is told `human_required`); a Delivery that has not gone out and has no preferred version has nothing to record; an unedited send records nothing (no block of the final version is a person's); recording the same answer twice changes nothing; a candidate or a declined edit is given a scope by recording again; an active example is not recorded again with another scope until it is turned off.
 
 Operation: `announcements_example` (`papyrus announcements example DELIVERY [--scope S] [--reason TEXT]`). Specs: `delivery-edit-capture.feature`, `delivery_examples_test.py`.
+
+## Channel guidelines (PPY-9c6b89)
+
+A rule file may be scoped to a channel: `scope: channel/x` (or `channel/linkedin`, `channel/email`) in the publication's or a section's set of writing guidelines, for the craft of that network (hook, length, links, tags,
+tone, image shape). `resolve_guidelines(..., channel="x")` (`papyrus guidelines resolve --kind writing --channel x`) lays in the rules scoped to that channel and leaves out every other channel's; with no channel it
+reads none of them. A field file stays in its own set's scope. The X drafter resolves for `x`, so it reads `channel/x` and the publication's and section's rules; the offline checker reads the same files
+(`papyrus guidelines check --scope channel/x`). A channel rule is laid like any rule file: it adds, and a rule whose name an earlier layer already has is left out with the warning `rule_file_shadowed`, so nothing is
+loosened. Specs: `guidelines-channel-layering.feature`.
