@@ -11,6 +11,7 @@ import copy
 import re
 from typing import Any
 
+from . import edit_windows
 from .x_account import CONNECTED, AnnouncementError, utc_iso
 
 MODES = ("off", "dry_run", "on")
@@ -31,6 +32,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "billingCycleDay": None,
     "prices": DEFAULT_PRICES,
     "labelConfirmed": False,
+    # How long a Delivery stays a draft that people edit, and how long before its release it locks, for each kind of Announcement and channel (edit_windows.py). Empty: no window.
+    "editWindows": [],
 }
 
 
@@ -81,6 +84,7 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
     if not isinstance(prices.get("asOf"), str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", prices["asOf"]):
         raise _fail("price_date_invalid", "Give the date you copied the prices from X, as year-month-day.")
     label = bool(proposed.get("labelConfirmed"))
+    windows = edit_windows.validate(proposed.get(edit_windows.KEY))
     if mode in ("dry_run", "on") and connection_status != CONNECTED:
         raise _fail("account_needed", "Connect an X account before choosing Dry run or On.")
     if mode == "on":
@@ -95,6 +99,7 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
         "billingCycleDay": cycle_day,
         "prices": {name: prices[name] for name in ("createPost", "createPostWithUrl", "deletePost", "readPost", "asOf")},
         "labelConfirmed": label,
+        edit_windows.KEY: windows,
     }
 
 

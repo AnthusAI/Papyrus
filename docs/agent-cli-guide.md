@@ -710,6 +710,12 @@ papyrus announcements pause
 papyrus announcements resume
 papyrus announcements record-manual 'announcement-1#x#handle#g1' --url https://example.org/status/1
 papyrus announcements correct 'announcement-1#x#handle#g1' --text 'A look at how slow water shapes stone, corrected.'
+papyrus announcements versions 'announcement-1#x#handle#g1'                       # who saved each version, which blocks are pinned; --version N shows its words
+papyrus announcements draft 'announcement-1#x#handle#g1' --replaces 1 --text 'Slow water has landed.'   # the next version; name the version you read
+papyrus announcements draft 'announcement-1#x#handle#g1' --candidate --text 'Another wording.'          # kept beside the draft, nothing changes
+papyrus announcements candidate choose 'announcement-1#x#handle#g1' c1 --replaces 2
+papyrus announcements pinned 'announcement-1#x#handle#g1' --replaces 2 --block 2 --unpin
+papyrus announcements unlock 'announcement-1#x#handle#g1' --lock-at 2026-11-17T08:55:00Z   # after the lock time, so it can be edited again
 ```
 
 - `prices.json` holds `{"prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}}` copied from X's price list (docs.x.com/x-api/getting-started/pricing); `--input-file` is how an object is given. The site's `announcements` function checks every rule and refuses with the plain sentence (`settings_refused`); nothing is saved when one fails. `--billing-cycle-day` is the day of the month your X billing cycle starts: the budget is per cycle.

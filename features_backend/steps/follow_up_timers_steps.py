@@ -20,61 +20,9 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 from papyrus_content import agent_wakes, follow_up_timers as fu  # noqa: E402
 from papyrus_content.agent_definitions import schedules  # noqa: E402
 from papyrus_content.story_schedule import EventBridgeScheduler  # noqa: E402
-from schedule_fakes import ACCOUNT, ENDPOINT, REGION, WakeQueue  # noqa: E402
+from schedule_fakes import ACCOUNT, ENDPOINT, REGION, Exceptions, TimerScheduler, WakeQueue, utc  # noqa: E402
 
 OWNER = "deliver"
-
-
-class Exceptions:
-    ConflictException = type("ConflictException", (Exception,), {})
-    ResourceNotFoundException = type("ResourceNotFoundException", (Exception,), {})
-
-
-class TimerScheduler:
-    """The parts of EventBridge Scheduler a one-shot entry uses: create (a second create of one name conflicts), update, delete, and firing at a time."""
-
-    exceptions = Exceptions
-
-    def __init__(self, group, queue):
-        self.group, self.queue, self.entries, self.delivered = group, queue, {}, []
-
-    def create_schedule(self, **entry):
-        assert entry["GroupName"] == self.group, f"an entry outside the site's group: {entry['GroupName']}"
-        if entry["Name"] in self.entries:
-            raise self.exceptions.ConflictException()
-        self.entries[entry["Name"]] = copy.deepcopy(entry)
-
-    def update_schedule(self, **entry):
-        assert entry["GroupName"] == self.group and entry["Name"] in self.entries
-        self.entries[entry["Name"]] = copy.deepcopy(entry)
-
-    def delete_schedule(self, Name, GroupName):  # noqa: N803
-        assert GroupName == self.group
-        if Name not in self.entries:
-            raise self.exceptions.ResourceNotFoundException()
-        del self.entries[Name]
-
-    @staticmethod
-    def at_of(entry):
-        expression = entry["ScheduleExpression"]
-        assert expression.startswith("at(") and entry["ScheduleExpressionTimezone"] == "UTC", expression
-        return datetime.strptime(expression[3:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-
-    def fire_until(self, moment):
-        for name in sorted(self.entries, key=lambda n: self.at_of(self.entries[n])):
-            entry = self.entries[name]
-            if self.at_of(entry) <= moment:
-                self.deliver(name, entry["Target"])
-                if entry["ActionAfterCompletion"] == "DELETE":
-                    del self.entries[name]
-
-    def deliver(self, name, target):
-        self.delivered.append((name, target))
-        self.queue.send(target["Input"], target["SqsParameters"]["MessageGroupId"])
-
-
-def utc(text):
-    return datetime.strptime(text, fu.TIME_FORMAT).replace(tzinfo=timezone.utc)
 
 
 @given('the site "{site}" with its follow-up timers and its wake queue')

@@ -74,13 +74,13 @@ def test_a_different_correction_is_a_conflict_and_writes_nothing_of_its_own():
     with pytest.raises(RuntimeError):
         deliveries.supersede(old, first, by="ellie", now=NOW)
     successor_id = old["id"].replace("#g1", "#g2")
-    files.texts.pop(successor_id, None)   # the first caller's words file was lost with its crash
+    files.texts.pop(files.file_key(successor_id), None)   # the first caller's words file was lost with its crash
     with pytest.raises(CorrectedDifferently, match="already corrected") as raised:
         deliveries.supersede(old, plan("Second correction"), by="sierra", now=NOW)
     assert isinstance(raised.value, Conflict) and raised.value.successor == successor_id
-    assert successor_id not in files.texts
+    assert files.file_key(successor_id) not in files.texts
     deliveries.supersede(old, first, by="ellie", now=NOW)
-    assert files.texts[successor_id] == "First correction"
+    assert files.texts[files.file_key(successor_id)] == "First correction"
 
 
 def test_a_delivery_that_points_at_another_successor_is_refused():
@@ -96,6 +96,6 @@ def test_write_words_edits_a_draft_in_place():
     draft = deliveries.create("announcement-1", plan("", state="drafted"), release_at=RELEASE, by="test", now=NOW)
     written = deliveries.write_words(draft, plan("Hello", drafted_by="ellie"), by="ellie", now=NOW)
     assert written["state"] == "ready" and written["generation"] == 1 and written["textKey"]
-    assert files.texts[draft["id"]] == "Hello" and len(backend.rows("Delivery")) == 1
+    assert files.texts[files.file_key(draft["id"], "v1")] == "Hello" and len(backend.rows("Delivery")) == 1
     with pytest.raises(Exception, match="already has its words"):
         deliveries.write_words(written, plan("Again"), by="ellie", now=NOW)

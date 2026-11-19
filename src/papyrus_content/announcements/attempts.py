@@ -28,6 +28,8 @@ from ..run_outcomes import OUTCOME_SHOWN
 from .channel import attempt_event_id
 from .counts import DeliveryCounts
 from .deliveries import Conflict, Deliveries, OpenAttempt, content_hash
+from .delivery_lock import WAITING_FOR_PERSON, decide, raise_flag
+from .delivery_text import sendable_number
 from .records import (
     EMAIL, ATTEMPT_REFUSED, ATTEMPT_SENT, BLOCKED, BUDGET_CYCLE, BUDGET_REACHED_CODE, FAILED, MANUAL, PAUSED_CODE, RATE_LIMIT, RATE_LIMIT_CODE, READY, SENDING, SENT, STARTED, SUPERSEDED,
     UNKNOWN, RecordError, account_key, attempt_log, now_iso, open_attempt_of, utc,
@@ -159,13 +161,14 @@ class Attempts:
 
     def words_refusal(self, row: Mapping[str, Any]) -> str | None:
         """Why the words cannot go out: the file is missing, or it is not the file the row's content hash names."""
-        text = self.deliveries.text(row)
+        entry = self.deliveries.sendable(row)
+        text = self.deliveries.sent_text(row)
         if text is None:
             return "its words file is missing"
         if not text.strip():
             return "it has no words"
-        described = self.deliveries.files.describe(row["id"], text)
-        if content_hash(described["sha256"], row.get("imageKey")) != row.get("contentHash"):
+        described = self.deliveries.files.describe(row["id"], text, entry["file"])
+        if content_hash(described["sha256"], entry.get("imageKey")) != entry.get("contentHash"):
             return "its words file does not match the row's content hash"
         return None
 
@@ -201,18 +204,24 @@ class Attempts:
         pending = open_attempt_of(row)
         if pending:
             raise OpenAttempt(f"{delivery} has attempt {pending['number']} with no answer yet ({pending['outcome']}); settle it before another attempt opens.")
-        ok, why = self.deliveries.releasable(row, now)
+        # The sender reads only the locked version: a Delivery whose lock time has come is locked by the same write that opens the attempt (delivery_lock.decide).
+        lock = decide(self.deliveries, row, utc(now)) if not row.get("lockedAt") else None
+        locking = dict(lock.changes) if lock and lock.changes else {}
+        if lock and lock.action == WAITING_FOR_PERSON:
+            raise_flag(self.deliveries, row, lock.reason or "")
+        seen = {**row, **locking}
+        ok, why = self.deliveries.releasable(seen, now)
         if not ok:
             raise NotReleasable(delivery, why or "not releasable")
-        refused = self.words_refusal(row)
+        refused = self.words_refusal(seen)
         if refused:
             raise AttemptRefused(delivery, refused, self._flag(row, refused, now))
         log = attempt_log(row)
         number = len(log) + 1
-        entry = {"number": number, "at": now, "eventId": attempt_event_id(delivery, number), "outcome": STARTED, "by": by}
+        entry = {"number": number, "at": now, "eventId": attempt_event_id(delivery, number), "outcome": STARTED, "by": by, "version": sendable_number(seen)}
         written = self.deliveries._change(
-            row, {"attempts": [*log, entry], "state": SENDING, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None},
-            by=by, note=f"attempt {number} started", now=now)
+            row, {**locking, "attempts": [*log, entry], "state": SENDING, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None},
+            by=by, note=f"attempt {number} started" + (f"; {lock.note}" if locking and lock else ""), now=now)
         return written, entry
 
     # --- close ------------------------------------------------------------------------------------------------------------------------------------
@@ -305,7 +314,7 @@ class Attempts:
             raise RecordError(f"{delivery} is not recorded: {refused}.")
         log = attempt_log(row)
         number = len(log) + 1
-        entry = {"number": number, "at": now, "outcome": ATTEMPT_SENT, "closedAt": now, "by": by, "url": address}
+        entry = {"number": number, "at": now, "outcome": ATTEMPT_SENT, "closedAt": now, "by": by, "url": address, "version": sendable_number(row)}
         return self.deliveries._change(
             row, {"attempts": [*log, entry], "state": SENT, "resultUrl": address, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None},
             by=by, note=f"posted by hand by {by}: {address}", now=now)
@@ -355,7 +364,7 @@ class Attempts:
         A manual Delivery is never handed to a provider."""
         if row.get("mode") == MANUAL:
             raise ManualDelivery(row["id"])
-        text = self.deliveries.text(row)
+        text = self.deliveries.sent_text(row)
         try:
             transport.submit(row, text or "", entry["eventId"])
         except RateLimited as limited:

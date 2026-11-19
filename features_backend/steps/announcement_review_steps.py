@@ -379,7 +379,7 @@ def withdrawn_cannot_go(context, channel, account, when):
 
 STUB_ARGUMENTS = {
     "announcements_release": {"delivery": "d1"}, "announcements_unlock": {"delivery": "d1"}, "announcements_withdraw": {"delivery": "d1"}, "announcements_correct": {"delivery": "d1", "text": "Corrected words"},
-    "announcements_draft": {"delivery": "d1"}, "announcements_pinned_change": {"delivery": "d1"}, "announcements_settings_set": {"budget": "10.00"},
+    "announcements_draft": {"delivery": "d1"}, "announcements_pinned_change": {"delivery": "d1", "replaces": 1, "block": 1}, "announcements_settings_set": {"budget": "10.00"},
     "announcements_review_set": {"approval": "none", "reason": "Why"}, "announcements_delivery_review_set": {"delivery": "d1", "approval": "none"},
 }
 
