@@ -159,7 +159,7 @@ def tag_with_concepts(client, target_kind: str, target: str, concepts: list[str]
         raise ValueError("A tag needs to record who added it.")
     if target_kind == "story":
         story = resolve_story(client, target)
-        original = translation_original(story)
+        original = translation_original(story, getattr(client, "tenant_id", None))
         if original:   # a translation has no edges of its own: what a Story is about is written once, on the original, and every language reads it there
             story = resolve_story(client, original)
         lineage, state_kind = story.get("lineageId") or story["id"], "item"
