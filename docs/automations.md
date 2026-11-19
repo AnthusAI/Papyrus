@@ -484,6 +484,18 @@ changes an agent definition may name are one list, `src/papyrus_content/change_v
 * **What the feed may do** (its role): read the streams it owns; call `getSiteDocument` and `getMessageThread` on its own site's API; read the listener index's objects of its own
   tenant; look up and send to its own site's wake queue. It reads no table by scan or list, receives and deletes no wake, and calls no model.
 
+## Runs that need a person (PPY-577310)
+
+A finished run needs a person when its outcome is `failed` or `unknown` and nobody has acknowledged it. Such a run carries `attentionKey` (the constant `attention`, `<tenant>#attention` on a shared stack) and `dueAt` (its finish time); every other run carries neither, so the sparse index `listProcedureRunsByAttentionKeyAndDueAt` holds only what needs a person. `update_cloud_procedure_run_record` writes the two fields in the same update that records the outcome, so every runner path (finished, refused, skipped, wake guard check) is covered. `src/papyrus_content/run_attention.py` is the one module that builds the key, lists the index and acknowledges.
+
+- `papyrus automations attention` lists the runs that need a person, oldest first: one indexed read.
+- `papyrus automations acknowledge --run RUN_ID` (a dry run unless `--apply`) clears both fields and records `acknowledgedBy` and `acknowledgedAt`; the run stays in the history. Acknowledging a run that needs nobody changes nothing and says why.
+- No code path lists the whole `ProcedureRun` table: the procedure list reads each definition's ten latest runs from the procedure index, and the priming export reads a monitor's runs through the definitions of its procedure key and the procedure index.
+- The second index of the design (`automationId` + `requestedAt`, an agent's runs in one query) is added in the release after this one: a deploy adds one index to a table.
+- Release order: the site backend (it carries the fields and the index) before the runner image and the CLI, which write and read them. A runner that writes `attentionKey` to a backend that lacks it is refused.
+
+Specs: `features_backend/run-indexes.feature`.
+
 ## Console
 
 Administration, Automation, beside Procedures. It lists each automation (title, trigger, procedure, enabled,

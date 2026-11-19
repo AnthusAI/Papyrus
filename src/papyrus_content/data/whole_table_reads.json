@@ -47,7 +47,7 @@
   "src/papyrus_content/newsroom_commands.py": 28,
   "src/papyrus_content/newsroom_context_pack.py": 1,
   "src/papyrus_content/ontology_enrichment.py": 2,
-  "src/papyrus_content/priming_export.py": 3,
+  "src/papyrus_content/priming_export.py": 2,
   "src/papyrus_content/projection/source.py": 2,
   "src/papyrus_content/projection/url_compare.py": 1,
   "src/papyrus_content/publish_gate.py": 1,

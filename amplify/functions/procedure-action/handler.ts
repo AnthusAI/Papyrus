@@ -49,17 +49,17 @@ async function listProcedureDefinitions(getClient: () => Promise<DataClient>) {
   const client = await getClient();
   const definitions = await listProcedureDefinitionsPage(client);
   const versions = await listProcedureVersionsPage(client);
-  const runs = await listProcedureRunsPage(client);
   const versionsByProcedureId = groupBy(versions, (entry) => normalizeOptionalString(entry.procedureId) ?? "");
-  const runsByProcedureId = groupBy(runs, (entry) => normalizeOptionalString(entry.procedureId) ?? "");
+  // Each definition's ten latest runs are one indexed query; no read lists the whole run table.
+  const recentRunsByProcedureId = new Map<string, any[]>(
+    await Promise.all(definitions.map(async (definition): Promise<[string, any[]]> => [definition.id, await listRecentProcedureRuns(client, definition.id)])),
+  );
   return {
     items: definitions.map((definition) => {
       const currentVersion = normalizeOptionalString(definition.currentVersionId)
         ? versions.find((entry) => entry.id === definition.currentVersionId) ?? null
         : null;
-      const recentRuns = (runsByProcedureId.get(definition.id) ?? [])
-        .sort((left, right) => String(right.requestedAt ?? "").localeCompare(String(left.requestedAt ?? "")))
-        .slice(0, 10);
+      const recentRuns = recentRunsByProcedureId.get(definition.id) ?? [];
       return {
         ...definition,
         currentVersion,
@@ -417,10 +417,6 @@ async function listProcedureVersionsPage(client: DataClient): Promise<any[]> {
   return await listModelPages((client.models.ProcedureVersion as any));
 }
 
-async function listProcedureRunsPage(client: DataClient): Promise<any[]> {
-  return await listModelPages((client.models.ProcedureRun as any));
-}
-
 async function listProcedureVersionsByProcedure(client: DataClient, procedureId: string): Promise<any[]> {
   const model = client.models.ProcedureVersion as any;
   if (typeof model.listProcedureVersionsByProcedureAndVersion === "function") {
@@ -431,12 +427,17 @@ async function listProcedureVersionsByProcedure(client: DataClient, procedureId:
 }
 
 async function listProcedureRunsByProcedureId(client: DataClient, procedureId: string): Promise<any[]> {
-  const model = client.models.ProcedureRun as any;
-  if (typeof model.listProcedureRunsByProcedureAndRequestedAt === "function") {
-    return await listByIndexPages(model.listProcedureRunsByProcedureAndRequestedAt, { procedureId });
-  }
-  const all = await listProcedureRunsPage(client);
-  return all.filter((entry) => normalizeOptionalString(entry.procedureId) === procedureId);
+  return await listByIndexPages((client.models.ProcedureRun as any).listProcedureRunsByProcedureAndRequestedAt, { procedureId });
+}
+
+/** The ten latest runs of one procedure, newest first: one key-condition query on the procedure index. */
+async function listRecentProcedureRuns(client: DataClient, procedureId: string): Promise<any[]> {
+  const response: DataClientResult<any[]> = await (client.models.ProcedureRun as any).listProcedureRunsByProcedureAndRequestedAt(
+    { procedureId },
+    { authMode: LAMBDA_DATA_AUTH_MODE, limit: 10, sortDirection: "DESC" },
+  );
+  assertNoDataErrors(response.errors, "list recent ProcedureRuns");
+  return response.data ?? [];
 }
 
 async function listModelPages(model: any): Promise<any[]> {

@@ -55,10 +55,10 @@ def client() -> FakeAuthoringClient:
 
 
 def test_a_translation_is_recognised_by_its_derived_lineage() -> None:
-    assert localization_original({"lineageId": LINEAGE, "languageGroupId": ORIGINAL, "language": "es-419"}) == ORIGINAL
+    assert localization_original({"lineageId": LINEAGE, "languageGroupId": ORIGINAL, "language": "es-419"}, None) == ORIGINAL
     assert localization_original({"itemLineageId": LINEAGE, "languageGroupId": "tenant-1#" + ORIGINAL, "language": "es-419"}, "tenant-1") == ORIGINAL
-    assert localization_original({"lineageId": ORIGINAL, "languageGroupId": ORIGINAL, "language": "es-419"}) is None   # a Story of its own, whatever language it is written in
-    assert localization_original({"lineageId": "story-1", "languageGroupId": "story-1-v1", "language": "en"}) is None   # a group that is not the derived one is no translation
+    assert localization_original({"lineageId": ORIGINAL, "languageGroupId": ORIGINAL, "language": "es-419"}, None) is None   # a Story of its own, whatever language it is written in
+    assert localization_original({"lineageId": "story-1", "languageGroupId": "story-1-v1", "language": "en"}, None) is None   # a group that is not the derived one is no translation
 
 
 def test_a_clean_translation_publishes_without_a_checklist_while_its_original_is_published(client) -> None:
