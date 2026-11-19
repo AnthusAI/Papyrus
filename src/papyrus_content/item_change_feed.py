@@ -4,13 +4,16 @@ docs/design/always-on-agents-architecture.md).
 A DynamoDB stream on the Item table invokes the feed (``amplify/functions/item-change-feed``). Whoever wrote the change (the console board, the CLI, an agent,
 a person's save) the record is the same, so the feed starts procedures for all of them and no writer has to call anything. For each stream record it:
 
-1. **normalizes** the change, or finds none. Three changes are real:
+1. **normalizes** the change, or finds none. Four changes are real:
 
    ``version_created``  a new version of an Item (not a checklist step) was inserted.
    ``stage_entered``    a Story entered a stage: a version created at a stage when it is the Story's first, or the stage field changed in place (a board move).
    ``step_changed``     a checklist step (a ``sub-task`` Item) got a new state. A note on a step repeats the previous entry and is not a change.
 
-   Everything else the table does (the previous version being marked superseded, a card's counts being refreshed, a rating) is no change and costs nothing.
+   ``rated``            a Story's star rating was set, changed or cleared in place (PPY-e3bb2b). Its wake key names the new stars and the time of the rating, so rating a
+                        Story again is a new wake and a stream record delivered twice is the same one. A new version that only carries the rating over is no change.
+
+   Everything else the table does (the previous version being marked superseded, a card's counts being refreshed) is no change and costs nothing.
 2. **finds the agents that listen** in the site's listener index (``agent_listeners.py``), by the change's name and each listener's filter. The index is
    one small document read by its live version, never a list of the Automation table or of any table. A change nobody listens for sends nothing.
 3. **puts one wake on the site's queue for each**, through ``agent_wakes.send_wake``: the key is ``<agent>|<lineage>|<version>|<what>``, so the run record made
@@ -34,11 +37,12 @@ from typing import Any, Callable, Mapping
 
 from . import wake_keys
 from . import agent_listeners as listener_index
+from .item_stars import item_stars
 
 TABLE, KIND = "Item", "Item"
 SUB_TASK = "sub-task"
-VERSION_CREATED, STAGE_ENTERED, STEP_CHANGED = "version_created", "stage_entered", "step_changed"
-CHANGES = (VERSION_CREATED, STAGE_ENTERED, STEP_CHANGED)
+VERSION_CREATED, STAGE_ENTERED, STEP_CHANGED, RATED = "version_created", "stage_entered", "step_changed", "rated"
+CHANGES = (VERSION_CREATED, STAGE_ENTERED, STEP_CHANGED, RATED)
 AGENT_LABEL_PREFIX = "automation:"
 MAX_SUMMARY_CHARACTERS = 500
 ACTOR_AGENT, ACTOR_PERSON = "agent", "person"
@@ -110,6 +114,16 @@ def _story_changes(old: Mapping[str, Any] | None, new: Mapping[str, Any], insert
         found.append(Change(STAGE_ENTERED, row_id, lineage, row_id, f"{STAGE_ENTERED}.{new['stage']}", kind, label,
                             (move or {}).get("at") if recorded else new.get("updatedAt"),
                             {**shared, "stage": new["stage"], "from": old.get("stage"), "actorKind": kind}))
+    if not inserted and old is not None:
+        before, after = item_stars(old), item_stars(new)
+        if before != after:
+            # A rating is made in place on the Story's record (an editor's, or the rating agent's, named ``automation:<agent>``). Clearing one is a change too: an agent
+            # that re-checks what to say about the Story must hear that nobody rates it now. The key carries the stars and the moment, so a Story rated 4, 3 and 4 again
+            # is three wakes, and one stream record delivered twice is one.
+            kind, label = _actor_of_label(new.get("starRatedBy"))
+            at = new.get("starRatedAt") or new.get("updatedAt")
+            found.append(Change(RATED, row_id, lineage, row_id, f"{RATED}.{'cleared' if after is None else after}" + (f".{at}" if at else ""), kind, label, at,
+                                {**shared, "stage": new.get("stage"), "stars": after, "previousStars": before, "actorKind": kind}))
     return found
 
 
@@ -165,6 +179,9 @@ def _reason(change: Change, agent: str) -> str:
         what = f"{change.kind} {change.lineage} changed: {change.change.replace('_', ' ')}"
     elif change.change == STAGE_ENTERED:
         what = f"Story {change.lineage} entered {change.attributes.get('stage')}"
+    elif change.change == RATED:
+        stars = change.attributes.get("stars")
+        what = f"Story {change.lineage} was {f'rated {stars} stars' if stars else 'left unrated'}"
     elif change.change == STEP_CHANGED:
         what = f"step {change.attributes.get('step')} of Story {change.lineage} became {change.attributes.get('state')}"
     else:

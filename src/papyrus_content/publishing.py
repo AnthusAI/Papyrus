@@ -27,6 +27,9 @@ from .item_language import ItemLanguageMissing, item_language, item_language_gro
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
 PUBLISHED_ID_PREFIX = "published-"
+#: The key a projection task carries when its item was just published (``{"publishedItemId": ...}``): the page is made, and then the Story's follow-up work (its translations)
+#: is asked for. Nothing in a publish tells another function: a Story's page going live reaches the announce agent from the Item change feed.
+PUBLISHED_TASK_KEY = "published"
 DATE_FORMATS = ("%A, %B %d, %Y", "%B %d, %Y", "%b %d, %Y", "%Y-%m-%d", "%Y/%m/%d")
 MEDIA_COMMON_FIELDS = (
     "type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "

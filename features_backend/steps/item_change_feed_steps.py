@@ -149,12 +149,45 @@ def superseded(context, story):
 @when('the table refreshes the checklist counts on the Story "{story}"')
 def counts(context, story):
     context.pending.append(("MODIFY", _story(3), _story(3, metadata=json.dumps({"checklist": {"total": 9, "done": 4}}), updatedAt="2026-11-18T11:00:00Z")))
-
-
-@when('a person rates the Story "{story}"')
-def rates(context, story):
-    context.pending.append(("MODIFY", _story(3), _story(3, starRating=3)))
     deliver(context, *context.pending)
+
+
+def _rate(context, stars, stage="published", by="ada"):
+    """The rating is made in place on the Story's record; each rating of the scene is one minute after the one before."""
+    context.ratings = getattr(context, "ratings", 0)
+    at = f"2026-11-18T12:{context.ratings:02d}:00Z"
+    context.ratings += 1
+    previous = getattr(context, "rating", None)
+    old = _story(3, stage, **({"starRating": previous} if previous else {}))
+    context.rating = stars
+    new = _story(3, stage, **({"starRating": stars, "starRatedAt": at, "starRatedBy": by} if stars else {"updatedAt": at}))
+    deliver(context, ("MODIFY", old, new))
+
+
+@given('the published Story "{story}" is rated {stars:d} stars')
+def already_rated(context, story, stars):
+    context.rating = stars
+
+
+@when('a person rates the published Story "{story}" {stars:d} stars')
+def rates_published(context, story, stars):
+    _rate(context, stars)
+
+
+@when('a person rates the Story "{story}" {stars:d} stars while it is in "{stage}"')
+def rates_in_stage(context, story, stars, stage):
+    _rate(context, stars, stage)
+
+
+@when('a person clears the rating of the published Story "{story}"')
+def clears_rating(context, story):
+    context.rating = 4
+    _rate(context, None)
+
+
+@when('a person saves version {number:d} of the Story "{story}" carrying its rating of {stars:d} stars over')
+def carries_rating(context, number, story, stars):
+    deliver(context, ("INSERT", None, _story(number, "published", starRating=stars, starRatedAt="2026-11-18T12:00:00Z", starRatedBy="ada")))
 
 
 @when('the table removes a version of the Story "{story}"')
@@ -226,6 +259,24 @@ def holds_for_agents(context, count, agents):
 @then('the wake key is "{key}"')
 def key_is(context, key):
     assert _wakes(context)[0]["wake"]["key"] == key, _wakes(context)[0]["wake"]["key"]
+
+
+@then("the wake says the Story was rated {stars:d} stars by a person")
+def says_rated(context, stars):
+    wake = _wakes(context)[0]
+    assert f"rated {stars} stars" in wake["wake"]["why"] and "ada" in wake["wake"]["why"], wake["wake"]["why"]
+    assert (wake["request"]["trigger"]["actorKind"], wake["request"]["input"]["stars"], wake["request"]["input"]["previousStars"] if "previousStars" in wake["request"]["input"] else None) == ("person", stars, None)
+
+
+@then("the wake says the Story was left unrated")
+def says_unrated(context):
+    why = _wakes(context)[0]["wake"]["why"]
+    assert "left unrated" in why, why
+
+
+@then('the queue holds {count:d} wakes for the agent "{agent}"')
+def holds_none_for(context, count, agent):
+    assert len([w for w in _wakes(context) if w["wake"]["agent"] == agent]) == count, [w["wake"]["key"] for w in _wakes(context)]
 
 
 @then("the wake says the Story entered {stage} and who moved it")

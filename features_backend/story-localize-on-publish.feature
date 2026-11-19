@@ -129,11 +129,11 @@ Feature: A published Story is translated and published by the site's own runner
 
   Scenario: The publish funnel asks for translations and a failure to ask never fails the publish
     Given the site turned on translate on publish with the automation "mom.story-localize" and publishing clean translations
-    When the content-actions function announces that "story-a" is live
-    Then the newsletter and notifications announcement is made
+    When the content-actions function finds that "story-a" is live
+    Then no other function is told
     And requests exist for "es-419" and "zh-Hans" naming source version 1, the automation "mom.story-localize" and the publish choice
-    When the translation requests cannot be written and the function announces that "story-a" is live
-    Then the announcement is still made and the failure is logged with its cause
+    When the translation requests cannot be written and the function finds that "story-a" is live
+    Then the failure is logged with its cause and the publish stands
 
   Scenario: The publish task publishes a clean translation through the console's publish and records it
     Given the site turned on translate on publish with the automation "mom.story-localize" and publishing clean translations

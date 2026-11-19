@@ -47,7 +47,7 @@ from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_defau
 from papyrus_content.item_deck_backfill import ensure_item_decks
 from papyrus_content.item_language_backfill import ensure_item_languages
 from papyrus_content.reference_intake import IntakeError, intake_email_submission_references, intake_references
-from papyrus_content.publish_alerts import PUBLISHED_TASK_KEY, announce_published
+from papyrus_content.publishing import PUBLISHED_TASK_KEY
 from papyrus_content.localize.dispatch import PUBLISH_TASK as PUBLISH_LOCALIZATION_TASK
 from papyrus_content.publishing import (
     ItemFields,
@@ -202,7 +202,7 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     is live, here when the projection succeeds, or by the scheduled retry (which carries the same marker) when it did not."""
     if not projection_configured():
         if published_item_id:
-            announce_published_story(client, item_id, published_item_id)
+            story_is_live(client, item_id, published_item_id)
         return {}
     liveness = {} if unpublished else {"live": False}
     task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
@@ -239,7 +239,7 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if report.follow_up_item_pages:
         schedule_item_pages(item_id)
     if report.ok and published_item_id:
-        announce_published_story(client, item_id, published_item_id)
+        story_is_live(client, item_id, published_item_id)
     return response
 
 
@@ -478,7 +478,7 @@ def build_item_job(client, context, jobs, item_id: str, job_id: str | None, *, u
         jobs.finish(item_id, job_id, ok=report.ok, outcome=outcome)
     if report.ok and not unpublished and isinstance(published, dict):
         # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
-        announce_published_story(client, item_id, published.get("publishedItemId"))
+        story_is_live(client, item_id, published.get("publishedItemId"))
     return report
 
 
@@ -938,11 +938,11 @@ def schedule_item_action(arguments: dict, event: dict) -> dict:
     return run_schedule_operation(str(arguments.get("operation") or ""), arguments.get("arguments") or {}, service, caller_from_event(event))
 
 
-def announce_published_story(client, item_id: str, published_item_id: str | None) -> None:
-    """A Story is live: tell the newsletter and the notifications function, and ask for its translations when the site translates on publish
-    (``languages.auto``; docs/story-translation-procedure.md). Neither can fail the publish, which is already done. A translation request that could
-    not be written is logged and left for ``papyrus stories localize --all``, which finds every Story with no up-to-date translation."""
-    announce_published(item_id, published_item_id)
+def story_is_live(client, item_id: str, published_item_id: str | None) -> None:
+    """A Story's page is live: ask for its translations when the site translates on publish (``languages.auto``; docs/story-translation-procedure.md). It cannot fail
+    the publish, which is already done. A translation request that could not be written is logged and left for ``papyrus stories localize --all``, which finds every
+    Story with no up-to-date translation. Nothing here tells the newsletter, the notifications function or any announcement: the Story's own record entering the
+    published stage reaches the announce agent through the Item change feed (docs/announcement-records.md), so a publish writes only its own records."""
     try:
         from papyrus_content.localize.auto import request_translations
 

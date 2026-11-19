@@ -16,6 +16,7 @@
     "submissions.process-email": "submissions.email.process"
   },
   "procedures": {
+    "announce_story": "announce_story.tac",
     "ingestion.reference.register": "ingestion_reference_register.tac",
     "newsroom.copywriter": "copywriter.tac",
     "newsroom.editor": "editor.tac",
@@ -33,6 +34,45 @@
     "submissions.email.process": "email_submission_processor.tac"
   },
   "procedureMetadata": {
+    "announce_story": {
+      "title": "Announce a Story",
+      "category": "newsroom",
+      "description": "The announce agent's run for one wake: a Story's page went live or its rating changed. It re-reads the Story and decides from the records as they are now; it makes one Announcement and one email Delivery for the Story at a rung the site's agent policy allows, and never sends.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "description": "The Story's lineage id, from the wake"
+          },
+          "version": {
+            "type": "string",
+            "description": "The version row the change was made on, from the wake"
+          },
+          "change": {
+            "type": "string",
+            "description": "stage_entered (the page went live) or rated, from the wake"
+          },
+          "what": {
+            "type": "string",
+            "description": "What changed, as the wake key names it"
+          },
+          "stage": {
+            "type": "string",
+            "description": "The stage the Story entered, from the wake"
+          }
+        },
+        "required": [
+          "story",
+          "version",
+          "change"
+        ]
+      },
+      "defaults": {
+        "what": "",
+        "stage": ""
+      }
+    },
     "ingestion.reference.register": {
       "title": "Reference Registration",
       "category": "ingestion",

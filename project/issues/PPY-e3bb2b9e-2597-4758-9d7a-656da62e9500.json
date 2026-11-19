@@ -27,9 +27,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b4b3e41f-2799-4f71-b17c-f11d1853d8f4",
+      "author": "home",
+      "text": "Branch feat/PPY-e3bb2b-durable-announce-triggers; PR opened against develop (see the PR for acceptance status). Decisions: the record that marks 'page is live' is the Story's Item row entering the published stage (Item/stage_entered stage=published, written by publish_item itself); the rating trigger is a new Item change 'rated' (starRating changed in place). The announce agent (core/announce.yaml, procedure announce_story, list_cadence/story_wake.py) re-reads the Story and decides from the records; the best-effort call publish_alerts.announce_published and its env and grants are deleted.",
+      "created_at": "2026-11-19T03:31:36.205149Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:00:17.162236Z",
-  "updated_at": "2026-11-16T22:46:04.123633Z",
+  "updated_at": "2026-11-19T03:31:36.205706Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

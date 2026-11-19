@@ -4,7 +4,7 @@ Each record kind has a feed that turns a change to a row of its table into a nor
 the rest). A definition names a kind and one of that kind's changes, so a definition that listens for a change no feed can produce is refused when it is read,
 not found missing when it never wakes. The list is the feeds' own: a feed names its changes from here, and a test holds the two together.
 
-* Item           version_created, stage_entered, step_changed
+* Item           version_created, stage_entered, step_changed, rated
 * Reference      created, accepted, rated, recaptured
 * ReviewRequest  answered                (wakes the agent that asked, and only if it listens)
 * Message        posted                  (a comment on a subject; the wake is for that subject's listeners)
@@ -14,7 +14,7 @@ not found missing when it never wakes. The list is the feeds' own: a feed names 
 from __future__ import annotations
 
 CHANGES: dict[str, tuple[str, ...]] = {
-    "Item": ("version_created", "stage_entered", "step_changed"),
+    "Item": ("version_created", "stage_entered", "step_changed", "rated"),
     "Reference": ("created", "accepted", "rated", "recaptured"),
     "ReviewRequest": ("answered",),
     "Message": ("posted",),

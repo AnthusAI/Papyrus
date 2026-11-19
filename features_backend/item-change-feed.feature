@@ -2,8 +2,8 @@ Feature: Every change to a Story or its checklist wakes the agents that listen f
   A DynamoDB stream on the Item table invokes a small feed function (PPY-8a374e, slice B2 of the always-on agents design). Whoever wrote the change (the console
   board, the command line, an agent, a person's save) the stream record is the same, so the feed starts procedures for all of them and no writer has to call
   anything. For each record the feed normalizes the change: a Story version created, a Story entering a stage (a first version created at a stage, or the stage
-  field changed in place, as a board move does), or a checklist step getting a new state. A note on a step, a version being marked superseded and a card's counts
-  being refreshed are no change. It then puts one wake on the site's wake queue for each agent that listens for that change, found in the site's listener index:
+  field changed in place, as a board move does), a checklist step getting a new state, or a Story's star rating being set, changed or cleared in place (PPY-e3bb2b).
+  A note on a step, a version being marked superseded, a card's counts being refreshed and a new version that only carries the rating over are no change. It then puts one wake on the site's wake queue for each agent that listens for that change, found in the site's listener index:
   one small document, written by the deploy from the registered definitions, read by its live version. The feed never lists the Automation table or any other
   table. The wake key is the agent, the Story's lineage, the version and what changed; the run record made from it is the claim, and the queue's message group is
   the agent plus the Story, so one Story's wakes for an agent run one after the other. An agent's own change never wakes that agent. The wake carries whether the
@@ -18,6 +18,7 @@ Feature: Every change to a Story or its checklist wakes the agents that listen f
       | sources-check | story.sources      | false | version_created | type=story           |
       | fact-check    | story.fact_check   | true  | version_created | type=story           |
       | illustrate    | story.illustrate   | true  | step_changed  | step=illustration,state=open |
+      | rating-watch  | story.rating_watch | false | rated         | stage=published      |
 
   Scenario: A console board move wakes the agent for the stage
     When a person moves the Story "story-1" to "copywriting" in the console board
@@ -76,9 +77,34 @@ Feature: Every change to a Story or its checklist wakes the agents that listen f
   Scenario: Book-keeping writes on a Story are no change
     When the table marks the previous version of the Story "story-1" superseded
     And the table refreshes the checklist counts on the Story "story-1"
-    And a person rates the Story "story-1"
     Then the queue holds 0 wakes
     And the listener index was not read
+
+  Scenario: A rating made in place wakes the agent that listens for ratings, once
+    When a person rates the published Story "story-1" 4 stars
+    Then the queue holds 1 wake, for the agent "rating-watch"
+    And the wake key is "rating-watch|story-1|story-1-v3|rated.4.2026-11-18T12:00:00Z"
+    And the wake says the Story was rated 4 stars by a person
+
+  Scenario: Rating the same Story again is a new wake, and a redelivered record is the same one
+    When a person rates the published Story "story-1" 4 stars
+    And a person rates the published Story "story-1" 3 stars
+    Then the queue holds 2 wakes, for the agents "rating-watch" and "rating-watch"
+    When the same stream record is delivered again inside the queue's window
+    Then the queue holds 2 wakes, for the agents "rating-watch" and "rating-watch"
+
+  Scenario: Clearing a rating is a change the agent hears
+    When a person clears the rating of the published Story "story-1"
+    Then the queue holds 1 wake, for the agent "rating-watch"
+    And the wake says the Story was left unrated
+
+  Scenario: A rating on a Story that is not published does not wake an agent that listens for published Stories
+    When a person rates the Story "story-1" 4 stars while it is in "copywriting"
+    Then the queue holds 0 wakes
+
+  Scenario: A new version that only carries the rating over is no rating
+    When a person saves version 4 of the Story "story-1" carrying its rating of 4 stars over
+    Then the queue holds 0 wakes for the agent "rating-watch"
 
   Scenario: A change nobody listens for sends nothing
     When a person saves version 4 of the Story "story-1" with the type "wiki_page"
