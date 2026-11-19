@@ -31,6 +31,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "billingCycleDay": None,
     "prices": DEFAULT_PRICES,
     "labelConfirmed": False,
+    # Post spacing, in minutes, by channel account (``<channel>#<account id>``, as ``records.account_key`` writes it). Empty: no account has spacing, so nothing is held.
+    "spacing": {},
 }
 
 
@@ -67,6 +69,7 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
     require_reviewed = rules.get("requireReviewedSource", False)
     if not isinstance(require_reviewed, bool):
         raise _fail("require_reviewed_source_invalid", "Reviewed only is on or off.")
+    spacing = _spacing(proposed.get("spacing"))
     budget = proposed.get("budget")
     if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget < 0):
         raise _fail("budget_invalid", "The budget is an amount of money, zero or more, per X billing cycle.")
@@ -95,7 +98,28 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
         "billingCycleDay": cycle_day,
         "prices": {name: prices[name] for name in ("createPost", "createPostWithUrl", "deletePost", "readPost", "asOf")},
         "labelConfirmed": label,
+        "spacing": spacing,
     }
+
+
+def _spacing(value: Any) -> dict[str, int]:
+    """Post spacing by channel account: the minutes between one post and the next on that account. An account with no entry has none; an empty setting means no
+    account has any."""
+    if value in (None, {}):
+        return {}
+    if not isinstance(value, dict):
+        raise _fail("spacing_invalid", "Post spacing is a number of minutes for each channel account.")
+    for account, minutes in value.items():
+        if not isinstance(account, str) or account.count("#") != 1 or not all(account.split("#")):
+            raise _fail("spacing_invalid", f"Name the account as <channel>#<account>, such as x#handle; not {account!r}.")
+        if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 1:
+            raise _fail("spacing_invalid", f"Post spacing for {account} is a whole number of minutes, 1 or more; leave the account out for no spacing.")
+    return dict(value)
+
+
+def spacing_minutes(document: dict[str, Any], channel: str, account_id: str) -> int | None:
+    """The minutes of spacing the owner set for one channel account, or None when there is none."""
+    return (document.get("spacing") or {}).get(f"{channel}#{account_id}")
 
 
 class AnnouncementSettings:

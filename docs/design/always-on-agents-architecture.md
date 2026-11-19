@@ -370,7 +370,7 @@ The announcement design's `announcementReview` (`none`, `soft`, `hard`) is the a
 
 - Its overrides (publication, then channel, then kind) are the ladder's overrides. I add **list** as the narrowest scope, for newsletters.
 - The value chosen is written on each Delivery as `approval` with `approvalPolicy` saying where it came from [V: built that way in PR #1618].
-- `requireReviewedSource` is **not** a rung. It is an input rule: no Announcement for a Story no person has reviewed. It stays a separate setting, on the list or channel rule.
+- `requireReviewedSource` is **not** a rung. It is an input rule: no Announcement for a Story no person has reviewed (**PROVISIONAL**: "reviewed" means a person marked the Story checklist step `review_people` done on the current version; Ryan has not confirmed this definition). It stays a separate setting, on the list or channel rule.
 - So PPY-97c0f2 is built as the ladder's first client, not as a setting of its own. One page shows how automatic everything is.
 
 The other switches that say "how automatic" also become rungs (slice E5): the publish gate [V: `publish_gate.py`], `autoAccept` in the router config [V: on by default], and `languages.auto`. `publishRequiresRating` stays a floor.

@@ -16,6 +16,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
+from papyrus_content import story_checklist as checklist  # noqa: E402
 from papyrus_content.agent_gate import GateRun  # noqa: E402
 from papyrus_content.agent_policy import AgentPolicyStore  # noqa: E402
 from papyrus_content.announcements import intake, review_handlers, review_policy  # noqa: E402
@@ -38,14 +39,34 @@ CREATED_BY = "announce agent"
 SETTLED_BY = {"person": "a person", "machine": "a machine"}
 
 
-class MemoryStamps:
-    """The human review stamp as a set of (Story, version) a person reviewed. The real reader is ``intake.ChecklistReviewStamps`` (its own unit test)."""
+class ChecklistClient:
+    """Just the three calls the checklist makes to write and read one sub-task Item: the real stamp reader runs over it."""
 
     def __init__(self) -> None:
-        self.reviewed_versions: set[tuple[str, int]] = set()
+        self.rows: dict[str, dict] = {}
 
-    def reviewed(self, lineage_id: str, version_number: int) -> bool:
-        return (lineage_id, version_number) in self.reviewed_versions
+    def create_record(self, model, record):
+        self.rows[record["id"]] = record
+
+    def update_record(self, model, record):
+        self.rows[record["id"]].update(record)
+
+    def list_by_index(self, index, partition, **_):
+        assert index == checklist.INDEX
+        return [row for row in self.rows.values() if row.get("parentLineageId") == partition]
+
+
+class ChecklistStamps(intake.ChecklistReviewStamps):
+    """PROVISIONAL human review stamp, read the way production reads it (``intake.ChecklistReviewStamps``): a Story's checklist step ``review_people`` done by a person
+    against the Story's current version. Ryan has not confirmed this definition. ``mark`` is what a person or an agent does to the step."""
+
+    def __init__(self) -> None:
+        super().__init__(ChecklistClient())
+
+    def mark(self, lineage_id: str, version: int, state: str, actor_kind: str) -> None:
+        row = checklist._apply(checklist._new_row(lineage_id, intake.REVIEW_STEP), state, {"kind": actor_kind, "label": "Someone"}, "2026-11-16T10:00:00Z",
+                               note="read it", story_version=version)
+        checklist._write(self.client, row)
 
 
 def _fresh_policy(context):
@@ -53,7 +74,7 @@ def _fresh_policy(context):
     clock = iter(f"2026-11-16T00:{minute:02d}:00Z" for minute in range(60))
     context.policy = AgentPolicyStore(SiteStore(context.s3, "bucket", context.catalogue, now=lambda: next(clock)))
     context.require_reviewed = False
-    context.stamps = MemoryStamps()
+    context.stamps = ChecklistStamps()
     context.facts = {}
     context.intake = None
     context.writes = 0
@@ -156,7 +177,7 @@ def story_unrated(context, lineage, version):
 
 @given('a person has reviewed version {version:d} of the Story "{lineage:R}"')
 def person_reviewed(context, version, lineage):
-    context.stamps.reviewed_versions.add((lineage, version))
+    context.stamps.mark(lineage, version, "done", "person")
 
 
 @when('the Story "{lineage:R}" is edited to version {version:d}')
@@ -166,9 +187,35 @@ def story_edited(context, lineage, version):
     context.deliveries_back = intake.story_changed(context.announcements, context.announcement, context.facts[lineage], by=CREATED_BY, now=context.now)
 
 
+@when('the Story "{lineage:R}" is edited to version {version:d} without an Announcement')
+def story_edited_alone(context, lineage, version):
+    old = context.facts[lineage]
+    _story(context, lineage, version, old.stars, old.rated_by)
+
+
 @when('a person reviews version {version:d} of the Story "{lineage:R}"')
 def person_reviews(context, version, lineage):
-    context.stamps.reviewed_versions.add((lineage, version))
+    context.stamps.mark(lineage, version, "done", "person")
+
+
+@given('an agent has marked the review step done on version {version:d} of the Story "{lineage:R}"')
+def agent_reviewed(context, version, lineage):
+    context.stamps.mark(lineage, version, "done", "agent")
+
+
+@given('a person has opened the review step again on version {version:d} of the Story "{lineage:R}"')
+def person_reopened(context, version, lineage):
+    context.stamps.mark(lineage, version, "open", "person")
+
+
+@then('the Story "{lineage:R}" at version {version:d} has a human review stamp')
+def has_stamp(context, lineage, version):
+    assert context.stamps.reviewed(lineage, version), f"{lineage} version {version} has no stamp"
+
+
+@then('the Story "{lineage:R}" at version {version:d} has no human review stamp')
+def has_no_stamp(context, lineage, version):
+    assert not context.stamps.reviewed(lineage, version), f"{lineage} version {version} has a stamp"
 
 
 @when("the words of the drafted Deliveries are made again")

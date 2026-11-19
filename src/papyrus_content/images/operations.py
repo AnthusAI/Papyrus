@@ -633,7 +633,8 @@ SETTINGS = record({
     "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes, sections and requireReviewedSource: what is announced."},
     "budget": {"type": ["number", "null"], "description": "Dollars for each X billing cycle. No default."}, "billingCycleDay": {"type": ["integer", "null"]},
     "prices": {"type": "object", "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."},
-    "labelConfirmed": flag(), "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
+    "labelConfirmed": flag(), "spacing": {"type": "object", "description": "Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing."},
+    "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
 }, ("mode",))
 _EX_ROW = {"id": "mom#story-1", "accountId": "mom", "storyLineageId": "story-1", "state": "dry_run", "label": "Dry run: not sent", "mode": "dry_run", "weight": 120, "cost": "0",
            "attempts": 0, "history": [{"at": "2026-11-13T09:00:00Z", "by": "system:announcements", "state": "dry_run", "note": "Dry run: not sent"}],
@@ -691,14 +692,17 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
              "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
              "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
-             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default."),
+             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review "
+                                          "(a person marked the Story's review step done on its current version) is not confirmed."),
              "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
              "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
-             "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
+             "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account."),
+             "spacing": {"type": "object", "description": "Minutes between one post and the next on a channel account, by account (<channel>#<account>, such as x#handle). A number sets it, null takes it away; "
+                                                           "an account that is not named keeps what it has. Empty by default: no spacing."}}),
         record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "blocked"),
         (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements",
         notes="A person only: it sets what the publication says in public and how much it may spend. Human review is not here: it is the announce rung of the agent policy (announcements_review_set). "
-              "prices is given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
+              "prices and spacing are given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
         agent_rung=PERSON_ONLY, agent_refusal="blocked",
     ),
     Operation(

@@ -117,3 +117,19 @@ def test_requiring_a_reviewed_source_is_off_unless_set_and_must_be_a_flag():
         assert "on or off" in str(error)
     else:
         raise AssertionError("a word was accepted")
+
+
+def test_post_spacing_is_empty_by_default_and_a_whole_number_of_minutes_for_a_named_account():
+    from papyrus_content.announcements.settings import DEFAULT_SETTINGS, spacing_minutes, with_defaults
+
+    assert DEFAULT_SETTINGS["spacing"] == {} and spacing_minutes(with_defaults(None), "x", "handle") is None
+    base = {**DEFAULT_SETTINGS, "rules": {**DEFAULT_SETTINGS["rules"]}}
+    kept = validate({**base, "spacing": {"x#handle": 30}}, "connected")
+    assert spacing_minutes(kept, "x", "handle") == 30 and spacing_minutes(kept, "x", "other") is None
+    for bad in ({"x#handle": 0}, {"x#handle": "30"}, {"x#handle": True}, {"handle": 30}, {"#handle": 30}, "30"):
+        try:
+            validate({**base, "spacing": bad}, "connected")
+        except Exception as error:   # noqa: BLE001 - the plain sentence is the answer
+            assert getattr(error, "code", "") == "spacing_invalid", error
+        else:
+            raise AssertionError(f"{bad!r} was accepted")
