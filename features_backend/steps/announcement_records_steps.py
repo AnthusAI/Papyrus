@@ -175,11 +175,11 @@ def fail_next_upload(context):
     original = context.files.put
     state = {"failed": False}
 
-    def put(delivery, text, *, now):
+    def put(delivery, text, *, now, name="v1"):
         if not state["failed"]:
             state["failed"] = True
             raise RuntimeError("connection dropped")
-        original(delivery, text, now=now)
+        original(delivery, text, now=now, name=name)
 
     context.files.put = put
 
@@ -398,22 +398,22 @@ def announcement_contains_none(context, words):
 
 @then('the Delivery "{channel:Q}" "{account:Q}" has these words in S3 "{words:Q}"')
 def has_words(context, channel, account, words):
-    assert context.files.texts[delivery_row(context, channel, account)["id"]] == words
+    assert context.files.get(delivery_row(context, channel, account)["id"]) == words
 
 
 @then('generation {generation:d} of "{channel:Q}" "{account:Q}" has these words in S3 "{words:Q}"')
 def generation_has_words(context, generation, channel, account, words):
-    assert context.files.texts[delivery_row(context, channel, account, generation)["id"]] == words
+    assert context.files.get(delivery_row(context, channel, account, generation)["id"]) == words
 
 
 @then('the Delivery "{channel:Q}" "{account:Q}" has no words yet')
 def has_no_words(context, channel, account):
-    assert delivery_row(context, channel, account)["id"] not in context.files.texts
+    assert context.files.get(delivery_row(context, channel, account)["id"]) is None
 
 
 @then('the Delivery "{channel:Q}" "{account:Q}" has its words in S3')
 def has_its_words(context, channel, account):
-    assert delivery_row(context, channel, account)["id"] in context.files.texts
+    assert context.files.get(delivery_row(context, channel, account)["id"]) is not None
 
 
 @then('the content hashes of "{first:Q}", "{second:Q}" and "{third:Q}" are all different')
@@ -429,7 +429,7 @@ def row_checked(context, field):
 
 @then('the words of a Delivery are uploaded as role "{role:Q}" for owner kind "{kind:Q}"')
 def upload_shape(context, role, kind):
-    entry = AttachmentFiles(None)._entry("delivery-1", "words", "2026-11-16T14:00:00Z")["attachment"]
+    entry = AttachmentFiles(None)._entry("delivery-1", "words", "2026-11-16T14:00:00Z", "v1")["attachment"]
     assert entry["role"] == role == ROLE and entry["ownerKind"] == kind and entry["mediaType"] == "text/markdown"
     assert role in allowed_roles()
     handler = (REPO_ROOT / "amplify/functions/model-attachment-upload/handler.ts").read_text()

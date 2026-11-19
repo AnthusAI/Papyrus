@@ -34,7 +34,7 @@ def test_recording_writes_the_attempt_the_state_and_the_address_in_one_change():
     deliveries, attempts, row_id = make()
     row = attempts.record_manual(row_id, URL, by="ryan", now=NOW)
     assert (row["state"], row["resultUrl"]) == ("sent", URL)
-    assert attempt_log(row) == [{"number": 1, "at": NOW, "outcome": "sent", "closedAt": NOW, "by": "ryan", "url": URL}]
+    assert attempt_log(row) == [{"number": 1, "at": NOW, "outcome": "sent", "closedAt": NOW, "by": "ryan", "url": URL, "version": 1}]
     assert deliveries.get(row_id)["revision"] == 2
     assert "dueAt" not in deliveries.get(row_id)
 
@@ -75,7 +75,7 @@ def test_a_missing_delivery_is_refused():
 
 def test_a_words_file_that_is_gone_is_refused():
     deliveries, attempts, row_id = make()
-    deliveries.files.texts.pop(row_id)
+    deliveries.files.texts.pop(deliveries.files.file_key(row_id))
     with pytest.raises(RecordError, match="its words file is missing"):
         attempts.record_manual(row_id, URL, by="ryan", now=NOW)
 

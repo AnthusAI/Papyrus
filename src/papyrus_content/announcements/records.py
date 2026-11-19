@@ -207,4 +207,4 @@ def stored(row: Mapping[str, Any], *, clearing: bool = False) -> dict[str, Any]:
     }
 
 
-JSON_FIELDS = ("history", "attempts", "checks", "counts")
+JSON_FIELDS = ("history", "attempts", "checks", "counts", "versions", "candidates")

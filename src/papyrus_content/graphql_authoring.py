@@ -153,8 +153,8 @@ ANNOUNCEMENT_FIELDS = (
 ANNOUNCEMENT_SPEND_FIELDS = "id accountId cycleStart total updatedAt"
 ANNOUNCEMENT_DECISION_FIELDS = "id tenantId dedupeKey kind state releaseAt createdBy trigger history revision createdAt updatedAt"
 DELIVERY_FIELDS = (
-    "id tenantId announcementId channel accountId accountKey audience mode state blockedReason generation version textKey imageKey contentHash draftedBy checks "
-    "approval approvalPolicy approvedVersion approvedBy approvedAt releaseAt lockAt lockedAt lockedVersion nextAttemptAt waitingFor dueAt dueKey "
+    "id tenantId announcementId channel accountId accountKey audience mode state blockedReason generation version textKey imageKey contentHash versions candidates draftedBy checks "
+    "approval approvalPolicy approvedVersion approvedBy approvedAt releaseAt lockAt lockedAt lockedVersion preferredVersion nextAttemptAt waitingFor dueAt dueKey "
     "resultUrl providerId cost counts attempts supersedes supersededBy history revision createdAt updatedAt"
 )
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"

@@ -170,6 +170,20 @@ def _review_handler(name: str) -> Handler:
 
 HANDLERS.update({name: _review_handler(name) for name in REVIEW_OPERATIONS})
 
+# The editing window (PPY-e8ec54): versions, candidates, pinned blocks and unlock of a Delivery, imported by the call for the same reason.
+EDIT_OPERATIONS = ("announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_versions", "announcements_unlock")
+
+
+def _edit_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.announcements.edit_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _edit_handler(name) for name in EDIT_OPERATIONS})
+
 # The Announcements list, a Story's lines and "why was this not announced" (PPY-e4ae3a) read the same records and are imported by the call for the same reason.
 LIST_OPERATIONS = ("announcements_where", "announcements_recent", "announcements_explain")
 
