@@ -126,3 +126,11 @@ def result_review(context, approval, names):
 @then("the command's result says it was a dry run")
 def result_dry_run(context):
     assert context.envelope["result"]["dryRun"] is True, context.envelope
+
+
+@then('generation {generation:d} of "{channel:K}" "{account:K}" has the post "{text:K}" with the Story\'s tagged link in S3')
+def generation_has_post(context, generation, channel, account, text):
+    """An X Delivery's words are the post exactly as it will go: the checked text, a blank line and the Story's link with the announcement's tags."""
+    row = context.deliveries.get(delivery_id_of(context, channel, account, generation))
+    link = f"{ORIGIN}/slow-water?utm_source=x&utm_medium=social&utm_campaign=announcement"
+    assert context.deliveries.text(row) == f"{text}\n\n{link}", context.deliveries.text(row)

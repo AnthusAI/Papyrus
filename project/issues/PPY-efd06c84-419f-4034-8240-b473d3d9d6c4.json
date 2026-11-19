@@ -46,10 +46,17 @@
       "text": "home 2026-11-18: still blocked, not started: PPY-e8ec54 (editing window), PPY-97c0f2 (review_people stamp definition, Ryan), PPY-e3bb2b (durable triggers) are open. Infra chain (8a374e feed, 3ff011 timers, 9b9e64 feeds) is merged; X stays off.",
       "created_at": "2026-11-18T23:56:03.375510Z",
       "comment_type": "default"
+    },
+    {
+      "id": "164ec9e7-dc82-41bc-8120-68098332fc38",
+      "author": "home",
+      "text": "Branch feat/PPY-efd06c-x-on-new-records, PR #1704 (base develop, not merged). X on the Announcement and Delivery records: eligibility, drafting, dry run, budget guard, blocked draft asks once, withdraw handler (agent only when the Story is retired), old X row shape and index deleted, edit windows wired into the announce agent. X stays off; fakes only.",
+      "created_at": "2026-11-19T06:03:28.561985Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:35.555689Z",
-  "updated_at": "2026-11-18T23:56:03.375738Z",
+  "updated_at": "2026-11-19T06:03:28.563672Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

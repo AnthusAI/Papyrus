@@ -24,7 +24,7 @@ from typing import Any, Callable, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 from papyrus_content.agent_rungs import RUNGS
-from papyrus_content.announcements import records
+from papyrus_content.announcements import edit_windows, records
 from papyrus_content.announcements.decisions import Announcements, Outcome
 from papyrus_content.announcements.deliveries import Plan
 from papyrus_content.images.handlers import Caller
@@ -70,11 +70,14 @@ class Result:
     list_ids: tuple[str, ...] = ()
     cancelled: tuple[str, ...] = ()   # the once-only keys of earlier issues that never went and were cancelled so their items carry forward
     code: str | None = None           # why nothing was made, as the run record's reason code; None when something was made
+    added: tuple[str, ...] = ()       # the channels whose Delivery this call added to an Announcement that already existed (a later rating reached the X floor)
+    notes: tuple[str, ...] = ()       # what the other channels did, in words (X: blocked, dry run, held and why)
+    worked: bool = False              # a channel's Delivery was written or changed without a new Announcement (a blocked draft drafted again, a crash finished)
 
     def declaration(self) -> dict[str, str]:
         """What the run's output tells the runner (``run_outcomes.declared_outcome``): nothing when it made or cancelled something (it did its work), and otherwise
         ``nothing`` with the reason code, so Today shows the run as nothing to do and why."""
-        if (self.outcome is not None and self.outcome.created) or self.cancelled:
+        if (self.outcome is not None and self.outcome.created) or self.cancelled or self.added or self.worked:
             return {}
         assert self.code, f"a run that made nothing says why: {self.reason!r}"
         return {OUTCOME_KEY: "nothing", REASON_KEY: self.code}
@@ -93,6 +96,14 @@ class IssueNoteError(ValueError):
 
 
 Drafter = Callable[[Sequence[tuple[str, Mapping[str, Any]]], Sequence[Candidate], Sequence[PersonNote]], str]
+
+
+def settings_of(edit_settings: Mapping[str, Any] | Callable[[], Mapping[str, Any]] | None) -> Mapping[str, Any]:
+    """The announcement settings document the edit windows are read from: given as it is, or as a reader that is called only when a Delivery is about to be made (a run
+    that makes nothing reads nothing)."""
+    if callable(edit_settings):
+        return edit_settings()
+    return edit_settings or {}
 
 
 def qualifies(entry: Mapping[str, Any], candidate: Candidate) -> tuple[bool, str]:
@@ -129,7 +140,8 @@ def email_plan(text: str, rung: str, list_ids: Sequence[str], *, account_id: str
 
 
 def announce_period(announcements: Announcements, list_id: str, entry: Mapping[str, Any], scheduled_time: str, candidates: Sequence[Candidate], *,
-                    history: History, notes: Sequence[PersonNote] = (), draft: Drafter, policy_rung: str, account_id: str, by: str, now: str | None = None) -> Result:
+                    history: History, notes: Sequence[PersonNote] = (), draft: Drafter, policy_rung: str, account_id: str, by: str, now: str | None = None,
+                    edit_settings: Mapping[str, Any] | Callable[[], Mapping[str, Any]] | None = None) -> Result:
     """One tick of a periodic list: the Announcement for the list's local period and its email Delivery, or nothing when the period is empty.
 
     ``candidates`` are the Stories that qualified since the list's last sent issue (``history.last_sent_at``), so what an earlier issue did not send is in them, and
@@ -151,8 +163,11 @@ def announce_period(announcements: Announcements, list_id: str, entry: Mapping[s
         plan = email_plan("", rung, [list_id], account_id=account_id, drafted_by=by, state=records.DRAFTED)
     else:
         plan = email_plan(draft([(list_id, entry)], chosen, notes), rung, [list_id], account_id=account_id, drafted_by=by)
-    outcome = announcements.announce(dedupe_key=key, kind=ROUNDUP, stories=[candidate.story for candidate in chosen], plans=[plan], created_by=by, trigger="schedule",
-                                     release_at=scheduled_time, now=now, stories_optional=not chosen)
+    now = now or records.now_iso()
+    # The issue goes at the list's scheduled time; the edit window gives its lock time (the lead before it), as data from the announcement settings.
+    release, plans = edit_windows.apply(settings_of(edit_settings), ROUNDUP, [plan], now=now, release_at=scheduled_time)
+    outcome = announcements.announce(dedupe_key=key, kind=ROUNDUP, stories=[candidate.story for candidate in chosen], plans=plans, created_by=by, trigger="schedule",
+                                     release_at=release, now=now, stories_optional=not chosen)
     cancelled = carry_forward(announcements, history, key, scheduled_time, by=by, now=now)
     if outcome and outcome.created:
         return Result(outcome, DRAFT_WAITING if empty else "decided", (list_id,), cancelled)
@@ -184,10 +199,14 @@ def add_note(announcements: Announcements, list_id: str, entry: Mapping[str, Any
 
 
 def announce_story(announcements: Announcements, lists: Mapping[str, Mapping[str, Any]], candidate: Candidate, *, draft: Drafter,
-                   policy_rung: Callable[[str], str], account_id: str, by: str, now: str | None = None, trigger: str = "change") -> Result:
-    """A Story's page went live, or its rating changed: the Announcement for the Story and one email Delivery for every every-item list that carries it.
+                   policy_rung: Callable[[str], str], account_id: str, by: str, now: str | None = None, trigger: str = "change",
+                   extra_plans: Sequence[Plan] = (), edit_settings: Mapping[str, Any] | Callable[[], Mapping[str, Any]] | None = None) -> Result:
+    """A Story's page went live, or its rating changed: the Announcement for the Story, one email Delivery for every every-item list that carries it, and the Deliveries other channels
+    qualified for (``extra_plans``: X, ``x_announce``).
 
-    ``policy_rung`` answers the site policy's rung for a list id. A reader on two of the lists gets one message because the audience is one Delivery."""
+    ``policy_rung`` answers the site policy's rung for a list id. A reader on two of the lists gets one message because the audience is one Delivery. Each channel's plan gets its release
+    and lock times from the site's edit windows (``edit_settings`` is the announcement settings document; ``edit_windows.apply``). The same once-only key finds the Announcement a
+    wake made earlier, so a channel that qualifies later (a rating that reached X's floor) adds its Delivery to it."""
     carried: dict[str, tuple[Mapping[str, Any], str]] = {}
     for list_id, entry in sorted(lists.items()):
         if entry["cadence"] != "each" or not qualifies(entry, candidate)[0]:
@@ -195,15 +214,24 @@ def announce_story(announcements: Announcements, lists: Mapping[str, Mapping[str
         rung = effective_rung(entry, policy_rung(list_id))
         if rung in APPROVAL_OF_RUNG:
             carried[list_id] = (entry, rung)
-    if not carried:
+    if not carried and not extra_plans:
         return Result(None, "no every-item list carries this Story at a rung that writes", code=NO_LIST_CODE)
-    approval = max((APPROVAL_OF_RUNG[rung] for _, rung in carried.values()), key=_STRICTNESS.__getitem__)
-    strictest = next(rung for _, rung in carried.values() if APPROVAL_OF_RUNG[rung] == approval)
-    list_ids = tuple(carried)
-    text = draft([(list_id, entry) for list_id, (entry, _) in carried.items()], [candidate], ())
-    outcome = announcements.announce(dedupe_key=records.story_published_key(candidate.story.lineage_id), kind=STORY_PUBLISHED, stories=[candidate.story],
-                                     plans=[email_plan(text, strictest, list_ids, account_id=account_id, drafted_by=by, approval=approval)], created_by=by,
-                                     trigger=trigger, now=now)
+    plans: list[Plan] = list(extra_plans)
+    list_ids: tuple[str, ...] = ()
+    if carried:
+        approval = max((APPROVAL_OF_RUNG[rung] for _, rung in carried.values()), key=_STRICTNESS.__getitem__)
+        strictest = next(rung for _, rung in carried.values() if APPROVAL_OF_RUNG[rung] == approval)
+        list_ids = tuple(carried)
+        text = draft([(list_id, entry) for list_id, (entry, _) in carried.items()], [candidate], ())
+        plans.insert(0, email_plan(text, strictest, list_ids, account_id=account_id, drafted_by=by, approval=approval))
+    now = now or records.now_iso()
+    key = records.story_published_key(candidate.story.lineage_id)
+    before = {row["id"] for row in announcements.deliveries.for_announcement(records.announcement_id(key))}
+    release, plans = edit_windows.apply(settings_of(edit_settings), STORY_PUBLISHED, plans, now=now)
+    outcome = announcements.announce(dedupe_key=key, kind=STORY_PUBLISHED, stories=[candidate.story], plans=plans, created_by=by, trigger=trigger, release_at=release, now=now)
     if outcome and outcome.created:
         return Result(outcome, "decided", list_ids)
+    added = tuple(sorted(row["channel"] for row in (outcome.deliveries if outcome else []) if row["id"] not in before))
+    if added:
+        return Result(outcome, "added " + ", ".join(added) + " to the Announcement that already exists", list_ids, added=added)
     return Result(outcome, "already decided for this Story", list_ids, code=ALREADY_DECIDED_CODE)

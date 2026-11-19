@@ -22,7 +22,7 @@ from . import link_reads
 from .deliveries import Conflict, DeliveryExists, Deliveries, Plan
 from .link_reads import StoryRef
 from .records import (
-    BLOCKED, CANCELLED, DECISION_MODEL, DELIVERY_WITHDRAWN, DRAFTED, FAILED, PLANNED, READY, RELEASED, SENDING, SENT, RecordError, announcement_id, history_with, now_iso, stored,
+    BLOCKED, CANCELLED, DECISION_MODEL, DELIVERY_WITHDRAWN, DRAFTED, FAILED, PLANNED, READY, RELEASED, SENDING, SENT, WITHDRAWN, RecordError, announcement_id, history_with, now_iso, stored,
     stored_dedupe_key, utc,
 )
 
@@ -213,6 +213,21 @@ class Announcements:
             if delivery.get("state") in UNSENT_STATES:
                 self.deliveries.finish(delivery, DELIVERY_WITHDRAWN, by=by, note=reason, now=now)
         return cancelled
+
+    def after_withdrawal(self, announcement_id: str, *, by: str, now: str | None = None) -> dict[str, Any] | None:
+        """A Delivery was withdrawn: when every live Delivery of the Announcement is withdrawn, the Announcement is too. A released Announcement becomes ``withdrawn``; one that had
+        not been released becomes ``cancelled``, because nothing of it ever went. Anything else (another Delivery still stands) leaves the Announcement as it is. Returns the
+        Announcement as it stands, or None when there is none."""
+        row = self.get(announcement_id)
+        if row is None or row.get("state") not in (PLANNED, RELEASED):
+            return row
+        live = self.deliveries.live_for_announcement(announcement_id)
+        if not live or any(delivery.get("state") != DELIVERY_WITHDRAWN for delivery in live):
+            return row
+        now = now or now_iso()
+        if row["state"] == PLANNED:
+            return self._change(row, {"state": CANCELLED}, by=by, note="every Delivery was withdrawn before release", now=now, expect_state=PLANNED)
+        return self._change(row, {"state": WITHDRAWN}, by=by, note="every Delivery was withdrawn", now=now, expect_state=RELEASED)
 
     def story_changed(self, announcement: Mapping[str, Any], story: StoryRef, *, by: str, now: str | None = None) -> list[dict[str, Any]]:
         """A newer version of a Story the Announcement is about: it looks at that version now, and each Delivery that has not gone returns to a draft, so an approval

@@ -1,5 +1,5 @@
-"""In-memory stand-ins for the specs and tests: a backend holding only the rows announcements touch, a document store, and a Caducus x channel that behaves as its
-contract documents. No network, no AWS, and never a real post.
+"""In-memory stand-ins for the specs and tests: Story fixtures over the records backend, a Caducus ``x`` channel that behaves as its contract documents, and the settings document.
+No network, no AWS, and never a real post.
 """
 from __future__ import annotations
 
@@ -7,49 +7,14 @@ import copy
 from typing import Any
 
 from .channel import FAILED, QUEUED, REFUSED, SENT, WITHDRAWN, DeliveryView
-from .store import INDEX
+from .records_fakes import RecordsBackend
 
 
-class FakeBackend:
-    """Items (Story versions), PublishedItems, and the announcement models. Only the calls the announcements make are answered; anything else fails."""
+class StoryFixtures:
+    """Story versions and their published copies, for a backend whose ``items`` and ``published`` are the ``Item`` and ``PublishedItem`` tables."""
 
-    def __init__(self) -> None:
-        self.items: dict[str, dict] = {}
-        self.published: dict[str, dict] = {}
-        self.records: dict[str, dict[str, dict]] = {}
-        self.reads: list[tuple[str, str]] = []
-
-    def list_by_index(self, index: str, key: str, **_: Any) -> list[dict]:
-        self.reads.append((index, key))
-        if index == "itemsByLineageAndVersion":
-            return copy.deepcopy([row for row in self.items.values() if row["lineageId"] == key])
-        if index == "knowledgeCorporaByRoleAndName":
-            return [{"id": "knowledge-corpus-mom", "name": "Machines on Machines", "role": "canonical"}]
-        if index in ("itemBySlug", "modelAttachmentsByOwnerRoleAndSortKey"):
-            return []
-        raise AssertionError(f"unexpected index {index}")
-
-    def get_record(self, model: str, record_id: str) -> dict | None:
-        if model == "PublishedItem":
-            return copy.deepcopy(self.published.get(record_id))
-        return copy.deepcopy(self.records.get(model, {}).get(record_id))
-
-    def create_record(self, model: str, record: dict) -> None:
-        table = self.records.setdefault(model, {})
-        if record["id"] in table:
-            raise RuntimeError("GraphQL request failed: The conditional request failed")
-        table[record["id"]] = copy.deepcopy(record)
-
-    def update_record(self, model: str, record: dict) -> None:
-        self.records[model][record["id"]].update(copy.deepcopy(record))
-
-    def iterate_newest_first(self, index: str, key: str, **_: Any):
-        assert index == INDEX
-        self.reads.append((index, key))
-        rows = [row for row in self.records.get("Announcement", {}).values() if row["accountId"] == key]
-        yield from copy.deepcopy(sorted(rows, key=lambda row: row["createdAt"], reverse=True))
-
-    # --- fixtures ---------------------------------------------------------------------------------------------------------------------------------
+    items: dict[str, dict]
+    published: dict[str, dict]
 
     def add_story(self, lineage: str, *, stars: int | None = None, published: bool = True, story_type: str = "article", section: str | None = None,
                   title: str = "Can a system keep a secret from itself?", deck: str = "A look at non-interference.", body: str = "A system can keep a secret.",
@@ -62,48 +27,67 @@ class FakeBackend:
         if published:
             self.published[f"published-{lineage}"] = {**row, "id": f"published-{lineage}", "sourceItemId": row["id"]}
 
-    def rate(self, lineage: str, stars: int | None) -> None:
+    def rate(self, lineage: str, stars: int | None, by: str | None = None) -> None:
         self.items[f"{lineage}-v1"]["starRating"] = stars
+        if by is not None:
+            self.items[f"{lineage}-v1"]["starRatedBy"] = by
 
     def retire(self, lineage: str) -> None:
         self.items[f"{lineage}-v1"].update(stage="retired", metadata='{"retiredInto": {"toLineageId": "other"}}')
         self.published.pop(f"published-{lineage}", None)
 
 
-class MemoryFiles:
-    """The document store. Refuses what the upload function refuses: a role or media type it does not allow, and an owner row that does not exist yet."""
+class StoryRecordsBackend(StoryFixtures, RecordsBackend):
+    """The Announcement, Delivery and relation tables of ``RecordsBackend``, and Story versions so a Story can be read as the announcement code reads it."""
 
-    def __init__(self, backend: FakeBackend | None = None) -> None:
-        self.documents: dict[str, dict] = {}
-        self.backend = backend
+    tenant_id = "alpha"
 
-    def put(self, row_id: str, document: Any, *, now: str) -> None:
-        from papyrus_content.upload_rules_fake import assert_upload_accepted
+    def __init__(self) -> None:
+        super().__init__()
+        self.items = self.records.setdefault("Item", {})
+        self.published = self.records.setdefault("PublishedItem", {})
 
-        from .store import ROLE
+    def list_by_index(self, index: str, key: str, **options: Any) -> list[dict[str, Any]]:
+        if index == "itemsByLineageAndVersion":
+            self.reads.append((index, key))
+            return copy.deepcopy([row for row in self.items.values() if row["lineageId"] == key])
+        if index == "knowledgeCorporaByRoleAndName":
+            return [{"id": "knowledge-corpus-mom", "name": "Machines on Machines", "role": "canonical"}]
+        if index in ("itemBySlug", "modelAttachmentsByOwnerRoleAndSortKey"):
+            return []
+        return super().list_by_index(index, key, **options)
 
-        assert_upload_accepted({"role": ROLE, "mediaType": "application/json"})
-        if self.backend is not None and row_id not in self.backend.records.get("Announcement", {}):
-            raise RuntimeError(f"GraphQL request failed: Cannot attach payload to missing Announcement {row_id}.")
-        self.documents[row_id] = copy.deepcopy(dict(document))
 
-    def get(self, row_id: str) -> dict | None:
-        return copy.deepcopy(self.documents.get(row_id))
+class _Account:
+    def __init__(self, account_id: str) -> None:
+        self.key = f"CHANNELACCT#x#{account_id}"
+
+
+class _Price:
+    def __init__(self, amount: str) -> None:
+        self.amount = amount
 
 
 class FakeX:
-    """Caducus's x channel as its contract documents it. ``submit`` queues; ``deliver`` is the x queue running: it posts, or refuses, or fails, and charges the price."""
+    """Caducus's x channel as its contract documents it. ``submit`` queues; ``deliver`` is the x queue running: it asks the Guard (``guard.SpendGuard``, when one is set) before the
+    post and tells it what was charged after, then posts, or refuses, or fails, and charges the price. ``withdraw`` deletes the post and charges the deletion. ``log`` is every
+    hand-over and every deletion in the order they happened."""
 
-    def __init__(self, post_price: str = "0.200") -> None:
+    def __init__(self, post_price: str = "0.200", delete_price: str = "0.010") -> None:
         self.events: dict[str, dict] = {}
         self.deliveries: dict[str, dict] = {}
         self.submissions: list[str] = []
+        self.withdrawals: list[str] = []
         self.next_post = 1000
         self.post_price = post_price
+        self.delete_price = delete_price
         self.fail_with: str | None = None
+        self.guard: Any = None
+        self.log: list[tuple[str, str]] = []
 
     def submit(self, *, account_id: str, event_id: str, text: str, url: str) -> None:
         self.submissions.append(event_id)
+        self.log.append(("submit", event_id))
         if event_id in self.events:
             return
         self.events[event_id] = {"account": account_id, "text": text, "url": url}
@@ -112,6 +96,9 @@ class FakeX:
     def deliver(self, event_id: str, *, refusal: str | None = None) -> None:
         delivery = self.deliveries[event_id]
         delivery["attempts"] += 1
+        account = self.events[event_id]["account"]
+        if not refusal and self.guard is not None and not self.fail_with:
+            refusal = self.guard.refusal(_Account(account), _Price(self.post_price))
         if refusal:
             delivery.update(status=REFUSED, reason=refusal)
         elif self.fail_with:
@@ -119,6 +106,8 @@ class FakeX:
         else:
             self.next_post += 1
             delivery.update(status=SENT, providerMessageId=str(self.next_post), cost=self.post_price)
+            if self.guard is not None:
+                self.guard.charged(_Account(account), _Price(self.post_price))
 
     def delivery(self, event_id: str) -> DeliveryView | None:
         d = self.deliveries.get(event_id)
@@ -129,7 +118,10 @@ class FakeX:
 
     def withdraw(self, event_id: str, *, by: str) -> DeliveryView:
         d = self.deliveries[event_id]
-        d.update(status=WITHDRAWN, withdrawnBy=by, withdrawnAt="2026-11-13T12:00:00Z")
+        self.withdrawals.append(event_id)
+        self.log.append(("withdraw", event_id))
+        total = f"{float(d.get('cost') or 0) + float(self.delete_price):.3f}"
+        d.update(status=WITHDRAWN, withdrawnBy=by, withdrawnAt="2026-11-13T12:00:00Z", cost=total)
         return self.delivery(event_id)
 
 
@@ -148,7 +140,7 @@ class MemoryDocument:
 
 class FakeFunctions:
     """What ``handlers.Functions`` is, for the specs: the settings class of the ``announcements`` function over an in-memory document, and a connection status that a
-    spec changes. Same methods, so the pipeline and the commands cannot tell the difference."""
+    spec changes. Same methods, so the announcement code and the commands cannot tell the difference."""
 
     def __init__(self, clock: Any) -> None:
         from .settings import AnnouncementSettings

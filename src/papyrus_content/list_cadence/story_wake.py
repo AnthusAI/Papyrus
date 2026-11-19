@@ -27,12 +27,13 @@ may spend from one account's budget and write to one account's Deliveries.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
 from papyrus_content.announcements.decisions import Announcements
 from papyrus_content.announcements.link_reads import StoryRef
 from papyrus_content.announcements.records import EMAIL, RecordError
+from papyrus_content.announcements.x_announce import XAnnouncer, XServices
 from papyrus_content.run_outcomes import OUTCOME_KEY, REASON_KEY
 
 from .announce import STORY_PUBLISHED, Candidate, Drafter, Result
@@ -79,14 +80,25 @@ def not_live(lineage: str) -> Result:
 
 
 def run_story_wake(request: Mapping[str, Any], state: ListState, announcements: Announcements, *, read_story: Callable[[str], Candidate | None], draft: Drafter,
-                   policy_rung: Callable[[str], str], account_id: str, by: str = AGENT, now: str | None = None) -> Result:
+                   policy_rung: Callable[[str], str], account_id: str, by: str = AGENT, now: str | None = None, x: XAnnouncer | None = None,
+                   edit_settings: Mapping[str, Any] | Callable[[], Mapping[str, Any]] | None = None) -> Result:
     """One wake. ``read_story(lineage)`` reads the Story as it is now: its published copy and its rating, or None when the page is not live. The wake's own words are
-    used only to say which of the two things happened."""
+    used only to say which of the two things happened.
+
+    ``x`` is the X part (``x_announce.XAnnouncer``), None where the site has none wired. It asks whether the Story qualifies on X now (a site with X off is asked nothing it
+    can act on), and the Delivery it builds is written with the Announcement in the same call, or added to the Announcement an earlier wake made. ``edit_settings`` is the
+    announcement settings document, whose edit windows give each Delivery its release and lock times."""
     found = story_wake(request)
     candidate = read_story(found.lineage)
     if candidate is None:
         return not_live(found.lineage)
-    return run_story_change(candidate, state, announcements, draft=draft, policy_rung=policy_rung, account_id=account_id, by=by, now=now, trigger=found.trigger)
+    considered = x.consider(found.lineage) if x is not None else None
+    result = run_story_change(candidate, state, announcements, draft=draft, policy_rung=policy_rung, account_id=account_id, by=by, now=now, trigger=found.trigger,
+                              extra_plans=considered.plans if considered else (), edit_settings=edit_settings)
+    if x is None or considered is None:
+        return result
+    notes, worked = x.finished(considered, result.outcome, now=now)
+    return replace(result, notes=tuple(notes), worked=worked)
 
 
 # --- the procedure's tool: the real services ----------------------------------------------------------------------------------------------------------
@@ -101,6 +113,11 @@ class Services:
     read_story: Callable[[str], Candidate | None]
     draft: Drafter
     account_id: str
+    #: The X part (None: this site's run has none). ``stamps`` reads whether a person reviewed a Story's source.
+    x: XServices | None = None
+    stamps: Any = None
+    #: The announcement settings document, whose edit windows give each Delivery its release and lock times.
+    edit_settings: Callable[[], Mapping[str, Any]] = lambda: {}
 
 
 def read_candidate(client: Any, lineage: str) -> Candidate | None:
@@ -144,8 +161,12 @@ def default_services(environ: Mapping[str, str]) -> Services:
     def draft(*_: Any) -> str:
         raise StoryWakeError("No drafter writes the words of an every-item email yet (the draft is PPY-64378c's), so the announce agent can run at observe until one does.")
 
+    from papyrus_content.announcements.handlers import Functions, x_services
+    from papyrus_content.announcements.intake import ChecklistReviewStamps
+
+    functions = Functions(client)
     return Services(state=lambda: settings.read(tenant), announcements=Announcements(client), read_story=lambda lineage: read_candidate(client, lineage), draft=draft,
-                    account_id=tenant)
+                    account_id=tenant, x=x_services(client, environ, model=True, functions=functions), stamps=ChecklistReviewStamps(client), edit_settings=functions.read)
 
 
 def policy_rung_of(run: Any) -> Callable[[str], str]:
@@ -169,11 +190,12 @@ def announce_story(story: str, version: str, change: str, what: str = "", stage:
         raise StoryWakeError('The announce agent runs only on an agent\'s wake, adopted as the responsibility "announce": it needs the policy the runner read for the run.')
     services = services or default_services(environment)
     request = {"input": {"story": story, "version": version, "change": change, "what": what, "stage": stage or None}}
+    x = XAnnouncer(services.x, services.announcements, run.policy, services.stamps) if services.x is not None else None
     try:
         result = run_story_wake(request, services.state(), services.announcements, read_story=services.read_story, draft=services.draft,
-                                policy_rung=policy_rung_of(run), account_id=services.account_id, now=now)
+                                policy_rung=policy_rung_of(run), account_id=services.account_id, now=now, x=x, edit_settings=services.edit_settings)
     except RecordError as error:
         raise StoryWakeError(str(error)) from error
     declared = result.declaration()
-    return {"story": story, "summary": result.reason, "lists": list(result.list_ids), "announcement": result.outcome.announcement["id"] if result.outcome else None,
+    return {"story": story, "summary": result.reason + (" (" + "; ".join(result.notes) + ")" if result.notes else ""), "lists": list(result.list_ids), "notes": list(result.notes), "announcement": result.outcome.announcement["id"] if result.outcome else None,
             "created": bool(result.outcome and result.outcome.created), "run_outcome": declared.get(OUTCOME_KEY, "acted"), "run_outcome_reason": declared.get(REASON_KEY, "announced")}

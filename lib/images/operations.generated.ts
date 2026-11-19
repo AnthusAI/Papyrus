@@ -33,8 +33,6 @@ export type ImageOperationName =
   | "guidelines_diff"
   | "guidelines_save"
   | "guidelines_history"
-  | "announcements_list"
-  | "announcements_show"
   | "announcements_dry_run"
   | "announcements_pause"
   | "announcements_resume"
@@ -992,96 +990,6 @@ export type GuidelinesHistoryResult = {
   })[];
 };
 
-/** List the account's announcements, newest first, optionally one state. */
-export type AnnouncementsListInput = {
-  /** One state of an announcement. */
-  state?: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
-  /** How many to return; 50 when left out. */
-  limit?: number;
-};
-
-export type AnnouncementsListResult = {
-  announcements: ({
-    id: string;
-    accountId?: string;
-    storyLineageId?: string;
-    storyVersionNumber?: number;
-    /** One state of an announcement. */
-    state: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
-    /** The state in plain words, such as Dry run: not sent. */
-    label: string;
-    blockedReason?: string;
-    mode?: string;
-    link?: string;
-    weight?: number;
-    draftedBy?: string;
-    checks?: {
-      name: string;
-      passed: boolean;
-    }[];
-    postId?: string;
-    postedAt?: string;
-    /** Dollars Caducus charged on this announcement so far, as a decimal string. */
-    cost?: string;
-    attempts?: number;
-    error?: string;
-    history?: {
-      at: string;
-      by: string;
-      state: string;
-      note: string;
-    }[];
-    withdrawnBy?: string;
-    createdAt?: string;
-    updatedAt?: string;
-  })[];
-};
-
-/** Show one Story's announcement: its row, its history, and the post text and checks kept in S3. */
-export type AnnouncementsShowInput = {
-  /** The lineage id of the Story. */
-  story: string;
-};
-
-export type AnnouncementsShowResult = {
-  announcement: {
-    id: string;
-    accountId?: string;
-    storyLineageId?: string;
-    storyVersionNumber?: number;
-    /** One state of an announcement. */
-    state: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
-    /** The state in plain words, such as Dry run: not sent. */
-    label: string;
-    blockedReason?: string;
-    mode?: string;
-    link?: string;
-    weight?: number;
-    draftedBy?: string;
-    checks?: {
-      name: string;
-      passed: boolean;
-    }[];
-    postId?: string;
-    postedAt?: string;
-    /** Dollars Caducus charged on this announcement so far, as a decimal string. */
-    cost?: string;
-    attempts?: number;
-    error?: string;
-    history?: {
-      at: string;
-      by: string;
-      state: string;
-      note: string;
-    }[];
-    withdrawnBy?: string;
-    createdAt?: string;
-    updatedAt?: string;
-  };
-  /** The stored post: text, post, link, weight, model and every check's problems. */
-  document?: Record<string, unknown>;
-};
-
 /** Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything. */
 export type AnnouncementsDryRunInput = {
   /** The lineage id of the Story. */
@@ -1102,7 +1010,7 @@ export type AnnouncementsDryRunResult = {
   sent: boolean;
 };
 
-/** Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused. */
+/** Pause announcements: nothing is posted, and an X Delivery that comes due waits as Blocked: paused. */
 export type AnnouncementsPauseInput = Record<string, unknown>;
 
 export type AnnouncementsPauseResult = {
@@ -1112,7 +1020,7 @@ export type AnnouncementsPauseResult = {
   pauseReason?: string;
 };
 
-/** Resume announcements and announce the Stories that waited. */
+/** Resume announcements and put back the X Deliveries that waited. */
 export type AnnouncementsResumeInput = Record<string, unknown>;
 
 export type AnnouncementsResumeResult = {
@@ -1465,7 +1373,7 @@ export type AnnouncementsRecordManualResult = {
   attempt: Record<string, unknown>;
 };
 
-/** Withdraw a Delivery that went: this deletes a public post. */
+/** Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted). */
 export type AnnouncementsWithdrawInput = {
   /** The Delivery's id. */
   delivery: string;
@@ -1473,6 +1381,14 @@ export type AnnouncementsWithdrawInput = {
 
 export type AnnouncementsWithdrawResult = {
   id: string;
+  /** The Delivery's state afterwards: withdrawn. */
+  state: string;
+  /** Who withdrew it. */
+  withdrawnBy: string;
+  /** What Caducus has charged for the post in all, deletion included, when a post was deleted. */
+  cost?: string | null;
+  /** The Announcement's state afterwards: withdrawn once every Delivery is, cancelled when none had gone. */
+  announcementState: string;
 };
 
 /** Where a Story was announced: each Announcement that announces it, with one line for each live Delivery. */
@@ -1704,8 +1620,6 @@ export interface ImageOperations {
   guidelines_diff: { input: GuidelinesDiffInput; result: GuidelinesDiffResult };
   guidelines_save: { input: GuidelinesSaveInput; result: GuidelinesSaveResult };
   guidelines_history: { input: GuidelinesHistoryInput; result: GuidelinesHistoryResult };
-  announcements_list: { input: AnnouncementsListInput; result: AnnouncementsListResult };
-  announcements_show: { input: AnnouncementsShowInput; result: AnnouncementsShowResult };
   announcements_dry_run: { input: AnnouncementsDryRunInput; result: AnnouncementsDryRunResult };
   announcements_pause: { input: AnnouncementsPauseInput; result: AnnouncementsPauseResult };
   announcements_resume: { input: AnnouncementsResumeInput; result: AnnouncementsResumeResult };
@@ -1762,8 +1676,6 @@ export const IMAGE_OPERATIONS = {
   guidelines_diff: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines diff" },
   guidelines_save: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines save" },
   guidelines_history: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines history" },
-  announcements_list: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements list" },
-  announcements_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements show" },
   announcements_dry_run: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements dry-run" },
   announcements_pause: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements pause" },
   announcements_resume: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements resume" },
@@ -1781,7 +1693,7 @@ export const IMAGE_OPERATIONS = {
   announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
   announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
   announcements_record_manual: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements record-manual" },
-  announcements_withdraw: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },
+  announcements_withdraw: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },
   announcements_where: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements where" },
   announcements_recent: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements recent" },
   announcements_explain: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements explain" },
