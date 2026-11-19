@@ -11,7 +11,8 @@ for a note that has not changed and never touches a note a person has since chan
 
 A note whose front matter says ``stage: published`` is published after it is written, through the site's own publish step (``publish_item`` and the site's
 page-build trigger, the same as ``papyrus content publish``). Every publish rule still applies as the newsroom has it (a closed checklist, a rating where the
-site requires one, a person's approval where the site requires it, ``publishRequiresRating``): when one refuses, the load reports the refusal for that note, the
+site requires one, a person's approval where the site requires it, ``publishRequiresRating``), and a Story (not a Page) loaded from a pod publishes only by a person's hand
+(``publish_by_person.py``): when one refuses, the load reports the refusal for that note, the
 note stays loaded as a draft, and nothing is forced or bypassed. A note that does not say ``published`` is never published, and neither is any note of a private pod (one with no ``web/projection.json``): a private pod's notes are
 private newsroom data. Reloading an unchanged note does nothing.
 

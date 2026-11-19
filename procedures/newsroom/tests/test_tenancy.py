@@ -95,6 +95,8 @@ class InMemoryGraphQLBackend:
             rows = [row for row in self.tables.get("Item", {}).values() if row.get("lineageId") == variables["lineageId"]]
         elif field == "listPublishedItems":
             rows = list(self.tables.get("PublishedItem", {}).values())
+        elif field == "listItemsByParentAndOrder":   # a Story's checklist steps, which publishing reads (publish_by_person.py)
+            rows = [row for row in self.tables.get("Item", {}).values() if row.get("parentLineageId") == variables["parentLineageId"]]
         else:
             raise AssertionError(f"unexpected field {field}")
         self.rows_read += len(rows)

@@ -195,12 +195,21 @@ def automation_publishes(context, path):
         context.publish_error = error
 
 
+@when('a person without the site\'s approval publishes the story for the note "{path}"')
+def person_without_approval_publishes(context, path):
+    context.publish_error = None
+    try:
+        publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", by_person="editor-sub", now=NOW)
+    except PublishError as error:
+        context.publish_error = error
+
+
 @when('an editor publishes the story for the note "{path}"')
 def editor_publishes(context, path):
     context.publish_error = None
     with patch("papyrus_content.editorial_commands.read_item_check_run", lambda _item_id: None):
         try:
-            publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", approved_by="editor-sub", now=NOW)
+            publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", approved_by="editor-sub", by_person="editor-sub", now=NOW)
         except PublishError as error:
             context.publish_error = error
 
