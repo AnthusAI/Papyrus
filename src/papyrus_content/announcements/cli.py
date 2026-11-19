@@ -1,4 +1,4 @@
-"""``papyrus announcements list|show|where|recent|explain|dry-run|pause|resume|settings show|settings set|account status|review ...``: a thin adapter over the operation table, like ``papyrus guidelines``."""
+"""``papyrus announcements where|recent|explain|dry-run|pause|resume|withdraw|settings show|settings set|account status|review ...``: a thin adapter over the operation table, like ``papyrus guidelines``."""
 from __future__ import annotations
 
 from typing import Mapping, TextIO

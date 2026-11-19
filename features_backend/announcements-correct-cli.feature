@@ -24,7 +24,7 @@ Feature: papyrus announcements correct: a correction typed at the command line i
     Then the command succeeds
     And the command's result names generation 2 which supersedes generation 1 of "x" "handle-1"
     And the Delivery "x" "handle-1" generation 1 is superseded by generation 2
-    And generation 2 of "x" "handle-1" has these words in S3 "Slow water shapes stone, corrected"
+    And generation 2 of "x" "handle-1" has the post "Slow water shapes stone, corrected" with the Story's tagged link in S3
     And generation 2 of "x" "handle-1" is linked to generation 1 by a supersedes relation
     And the live Delivery of "x" "handle-1" is generation 2
     And exactly 1 post was made
@@ -89,7 +89,7 @@ Feature: papyrus announcements correct: a correction typed at the command line i
     When the command "announcements correct" is run on generation 1 of "x" "handle-1" with the text "Slow water shapes stone, second correction"
     Then the command is refused as "constraint_conflict" saying "different words"
     And the catalog holds 2 Deliveries
-    And generation 2 of "x" "handle-1" has these words in S3 "Slow water shapes stone, first correction"
+    And generation 2 of "x" "handle-1" has the post "Slow water shapes stone, first correction" with the Story's tagged link in S3
     And the live Delivery of "x" "handle-1" is generation 2
 
   Scenario: The same correction again finishes the correction and makes no second Delivery

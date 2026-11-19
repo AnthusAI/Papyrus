@@ -313,9 +313,6 @@ _ENTRIES = dict([
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
      "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
-  _e("announcements list", "List the account's announcements, newest first, with plain labels (Dry run: not sent, Posted, Blocked: budget reached, ...).",
-     "[--state posting|posted|failed|blocked|dry_run|withdrawn] [--limit N] [--input-file PATH]", "editor", "reads", "announcements"),
-  _e("announcements show", "Show one Story's announcement: row, history, cost and the stored post text and checks.", "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements where", "Where a Story was announced: each Announcement that announces it, one line for each live Delivery, with its review, what it waits for and what needs a person (Overdue, Outcome unknown).",
      "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements recent", "The Announcements list: Announcements newest first, one line for each live Delivery, and every Delivery that is overdue. A page is a size; --before takes the last page's next value.",
@@ -348,7 +345,7 @@ _ENTRIES = dict([
      "DELIVERY_ID --text TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements record-manual", "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names the signed-in person. A person only.",
      "DELIVERY_ID --url URL [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
-  _e("announcements withdraw", "Withdraw a Delivery that went: this deletes a public post.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements withdraw", "Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted).", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
   _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
      "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),

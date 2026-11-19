@@ -81,6 +81,13 @@ Feature: A Story's page going live and its rating changing reach the announce ag
     Then the announce agent's last run made nothing and gave the reason code "story_not_published"
     And the catalog holds no Announcement
 
+  Scenario: The edit window of the channel gives the alert its release and lock times
+    Given the Story "story-1" is live and rated 4 stars
+    And the announcement settings give the email channel a window of 60 minutes with a lock lead of 10 minutes for a Story that went live
+    When a person publishes the Story "story-1"
+    And the runner takes every wake on the queue and the announce agent runs each one
+    Then the email Delivery is released at "2026-11-16T15:00:00Z" and locks at "2026-11-16T14:50:00Z", and so is the Announcement
+
   Scenario: At the observe rung the agent makes nothing and says why
     Given the Story "story-1" is live and rated 4 stars
     And the site's agent policy has the lists at the rung "observe"

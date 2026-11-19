@@ -343,7 +343,8 @@ def handle(context, message):
         state = context.lists.read(context.site_id)
         return run_list(request, state, context.announcements, candidates_for=lambda _list, _entry, scheduled, since: stories_since(context, scheduled, since),
                         notes_for=lambda _list, _entry, scheduled, since: [note for written, note in context.notes if (since is None or written > since) and written <= scheduled], draft=draft,
-                        policy_rung=lambda _: context.policy_rung, account_id=ACCOUNT, by=BY, now=context.late_at or scheduled_time(request))
+                        policy_rung=lambda _: context.policy_rung, account_id=ACCOUNT, by=BY, now=context.late_at or scheduled_time(request),
+                        edit_settings=getattr(context, "edit_settings", None))
 
     context.result = attempt(context, run)
     context.queue.delete(message)
@@ -382,6 +383,17 @@ def story_live(context, lineage, stars=None, section=None):
 
 
 # --- what the records hold ------------------------------------------------------------------------------------------------------------------------
+
+
+@given("the announcement settings give a roundup issue on the email channel a window of {window:d} minutes with a lock lead of {lead:d} minutes")
+def roundup_window(context, window, lead):
+    context.edit_settings = {"editWindows": [{"kind": "roundup", "channel": "email", "windowMinutes": window, "lockLeadMinutes": lead}]}
+
+
+@then('that Announcement\'s email Delivery goes at "{release}" and locks at "{lock}"')
+def roundup_delivery_times(context, release, lock):
+    (row,) = [delivery for delivery in rows(context, "Delivery") if delivery["channel"] == "email"]
+    assert (row["releaseAt"], row["lockAt"]) == (release, lock), (row["releaseAt"], row["lockAt"])
 
 
 @then("the catalog holds no Announcement")

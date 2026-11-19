@@ -24,7 +24,7 @@ from papyrus_content.announcements import blocked_drafts, list_handlers  # noqa:
 from papyrus_content.announcements import cli as announcements_cli  # noqa: E402
 from papyrus_content.announcements.decisions import Announcements  # noqa: E402
 from papyrus_content.announcements.deliveries import Deliveries  # noqa: E402
-from papyrus_content.announcements.fakes import FakeBackend  # noqa: E402
+from papyrus_content.announcements.fakes import StoryFixtures  # noqa: E402
 from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles, RecordsBackend  # noqa: E402
 from papyrus_content.images.handlers import Caller, execute  # noqa: E402
 
@@ -58,7 +58,7 @@ class StoryBackend(RecordsBackend):
             return [{"id": "knowledge-corpus-mom", "name": "Machines on Machines", "role": "canonical"}]
         return super().list_by_index(index, key, **options)
 
-    add_story = FakeBackend.add_story
+    add_story = StoryFixtures.add_story
 
 
 class Settings:

@@ -39,6 +39,17 @@ Feature: A list carries its cadence, time, time zone and rule as data
     And that Announcement is about the Stories "slow-water" and "quiet-engine"
     And that Announcement has one email Delivery for the list "weekly"
 
+  Scenario: The issue's edit window gives it its lock time and keeps its scheduled release
+    Given the weekly list "weekly" is sent on "monday" at "04:00" in "America/New_York"
+    And the announcement settings give a roundup issue on the email channel a window of 7200 minutes with a lock lead of 120 minutes
+    And these Stories are in the period
+      | story      | stars | section | reviewed |
+      | slow-water | 4     | science | yes      |
+    When the scheduler fires the entry for the list "weekly" for the time "2026-11-16T09:00:00Z"
+    And the runner handles the next scheduled message
+    Then the Announcement "roundup:weekly:2026-W47" is planned for "2026-11-16T09:00:00Z"
+    And that Announcement's email Delivery goes at "2026-11-16T09:00:00Z" and locks at "2026-11-16T07:00:00Z"
+
   Scenario: A daily list wakes every day and a tick that is delivered twice is one decision
     Given the daily list "daily" is sent at "06:00" in "America/New_York"
     And these Stories are in the period
