@@ -235,6 +235,12 @@ With the site's quality floor on (plugin setting `floorStars`, equal to `quality
 
 A roundup issue is an ordinary Story of the list's `issueType`, which a site must set (there is no default: it is the Story type the site uses for its periodic email, usually `post`), so editors write it in the ordinary newsroom editor (it is a card on the Stories board; open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
 
+### The living issue (rules built, not yet wired)
+
+Status: the pure rules are Built (`newsletter/living_issue.py`, `features_backend/newsletter-living-issue.feature`, PPY-4108ef); persistence, the Story body, the panel, the scheduler and the move of sending to Caducus are not. Today's issues still use the lifecycle below.
+
+The issue is one document with blocks that have one owner each. **Machine:** the entries in each section slot (a Story id with who added it, when and why). **Human:** subject, preheader, intro, outro, section headings, an entry's copy override and its order pin. Every write is a new version with its actor and the blocks it touched, made conditional on the version it started from: writers of different blocks both land; a second writer of the same block is told and sees the newer text (`Conflict`). A person editing a machine entry pins it. An agent may not write a field a person has touched (`NeedsSuggestion`: it posts in the Story's conversation). A person removes an entry with a required reason, which writes an exclusion the inserter honours until a person restores it (a new record; nothing is deleted). The floor outranks pins: an entry under the floor is removed even if pinned, recorded as `below floor`, and comes back with the person's copy if it is rated up again. An admin approves one version by its fingerprint; the inserter is paused while approved; any later edit or below-floor removal returns the issue to draft with the note "edited after approval; approve again"; an issue with no entries cannot be approved; at fire time `ready_to_send` re-checks the fingerprint.
+
 ### Issue lifecycle
 
 ```mermaid
