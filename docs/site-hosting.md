@@ -1398,6 +1398,35 @@ With `ga_measurement_id` set, every page also gets two small inline scripts. Not
   A link inside an element with `data-promotion-id` never reports `cta_click`: a sponsor unit is a promotion, not a call to
   action. Never report a conversion on submit; report it from the success answer. Contact calls to action should point at
   `https://anth.us/engage/?solution=<Product>&cta=<location>`.
+
+### Subscription and notification events
+
+A site that enables the `notifications` plugin and sets `ga_measurement_id` also loads `/_plugins/papyrus-notifications-analytics-v1.js`
+on the notifications pages (`/notifications/`, `confirm`, `confirmed`, `preferences`, `unsubscribe`, `unsubscribed`, `expired`), before
+the pages script. A site without an id, and a guarded (staging) build, loads no event script. It is a first-party external file, so the
+strict CSP still holds, and it sends through the page's own `gtag`: Consent Mode is the only gate. A reader who accepted analytics is
+measured; a reader who declined sends only the cookieless pings Consent Mode allows. The script stores nothing (no cookie, no
+localStorage, no sessionStorage) and never sets a client id or user id. Events come from the page, never from the server (which has
+neither a client id nor the reader's choice). When analytics is blocked the pages work the same and send nothing.
+
+| Event | When |
+| --- | --- |
+| `subscribe_start` | the subscribe form is focused or submitted, once per form |
+| `subscribe_submitted` | the service accepted a subscribe request (it answered that the reader should check their email) |
+| `subscribe_confirmed` | the confirmed page is opened with its token |
+| `preferences_changed` | the manage page opens after a save |
+| `unsubscribe` | the unsubscribed page is opened with its token, or the manage page after "Unsubscribe from everything" |
+| `subscribe_error` | a subscribe request fails or is refused, or a page cannot reach the service |
+
+Parameters (only these): `kind`, the id of the list the event is about (several joined by commas, `all` for every list; the offered
+state carries no kind, so the list id is the signal); `form`, the signup placement (the component's `form-id`, default
+`notifications`, omitted where a page does not know it); `page_type`, one of `subscribe`, `confirm`, `confirmed`, `preferences`,
+`unsubscribe`, `unsubscribed`, `expired`, `other`. Every event also sets `page_location` to the page's origin and path, so a confirm or
+manage link's token never reaches Google. A value that looks like an address, a token or a subject is dropped, and nothing else can be
+set. An event for arriving on a page (`subscribe_confirmed`, `preferences_changed`, `unsubscribe`) is not sent when the page is
+reloaded or reached with the back button, so a reload does not count twice. `issue_open` is never sent: an open needs a tracking
+pixel, which the email renderer forbids, and Apple Mail privacy makes it meaningless; clicks to the archive are measured by the archive
+page's own page view with the UTM on the link. Specs: `features_backend/notifications-analytics.feature`.
 - **Documentation sites.** `DocsSiteConfig.ga_measurement_id` (CLI `--ga-measurement-id`) turns all of this on for the docs
   builder with the shipped consent defaults, a "Cookie settings" footer link, and a banner privacy link to
   `privacy_policy_url` (CLI `--privacy-url`, default `https://anth.us/privacy/`).  Point `contact_url` at `https://anth.us/engage/?solution=<Product>&cta=<location>` and the footer's Contact us link reports `cta_click`. Empty keeps analytics off.

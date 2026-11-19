@@ -14,6 +14,7 @@ from pathlib import Path
 
 from papyrus_content.projection.plugins import PLUGIN_ASSET_DIRECTORY
 
+ANALYTICS_SCRIPT = PLUGIN_ASSET_DIRECTORY / "papyrus-notifications-analytics.js"
 PAGES_SCRIPT = PLUGIN_ASSET_DIRECTORY / "papyrus-notifications-pages.js"
 COMPONENT_SCRIPT = PLUGIN_ASSET_DIRECTORY / "papyrus-notifications.js"
 HAS_NODE = shutil.which("node") is not None
@@ -103,8 +104,9 @@ const html = %(html)s;
 const tree = parse(html);
 let replaced = null;
 globalThis.document = { readyState: "complete", querySelector: (selector) => tree.querySelector(selector), createElement: (tag) => new El(tag), createTextNode: (text) => { const n = new El("#text"); n._text = text; return n; }, addEventListener() {} };
-globalThis.window = { location: { search: %(search)s, replace: (href) => { replaced = href; } }, sessionStorage: { getItem: () => null, setItem() {} }, papyrusAnalytics: { track: (...args) => tracked.push(args) } };
+globalThis.window = { location: { search: %(search)s, origin: "https://news.example.com", pathname: %(pathname)s, replace: (href) => { replaced = href; } }, sessionStorage: { getItem: () => null, setItem() {} }, papyrusAnalytics: { track: (...args) => tracked.push(args) } };
 installNetwork(%(replies)s);
+%(preamble)s
 const $ = (selector) => tree.querySelector(selector);
 const visible = (selector) => { const node = $(selector); return node !== null && !node.hidden; };
 const text = (selector) => ($(selector) || { textContent: null }).textContent;
@@ -117,9 +119,10 @@ require(%(script)s);
 
 COMPONENT_HARNESS = DOM + r"""
 globalThis.HTMLElement = El;
-globalThis.document = { createElement: (tag) => new El(tag) };
+globalThis.document = { createElement: (tag) => new El(tag), querySelector: () => null };
 globalThis.window = { location: { origin: "https://news.example.com", pathname: "/notifications/" } };
 installNetwork(%(replies)s);
+%(preamble)s
 require(%(script)s);
 const byClass = (node, name) => node.queryAll("." + name);
 function mount(attributes) { const node = new defined(); node.attrs = Object.assign({}, attributes); node.connectedCallback(); return node; }
@@ -142,11 +145,34 @@ def _run(code: str):
     return json.loads(done.stdout.strip().splitlines()[-1])
 
 
-def run_page(page_html: str, search: str, replies: dict, body: str):
+def analytics_preamble(*, navigation: str | None = "navigate", gtag: bool = True, page_type: str | None = None) -> str:
+    """JavaScript that loads the GA4 event script the way a page with a measurement id does: a fake ``gtag`` that records its calls in
+    ``gtagCalls``, a navigation entry of the given type, and storage that fails the test if anything writes to it.
+
+    ``navigation=None`` means the browser has no navigation timing; ``gtag=False`` is a page where analytics is blocked and never defined ``gtag``;
+    ``page_type`` makes ``document.querySelector`` answer for the component, which lives on a page whose root names its type.
+    """
+    return f"""
+const gtagCalls = [];
+const writes = [];
+const refuse = (what) => () => {{ writes.push(what); throw new Error("analytics must not write " + what); }};
+Object.defineProperty(globalThis.document, "cookie", {{ set: refuse("cookie") }});
+globalThis.window.localStorage = {{ setItem: refuse("localStorage"), getItem: refuse("localStorage") }};
+globalThis.window.sessionStorage = {{ setItem: refuse("sessionStorage"), getItem: refuse("sessionStorage") }};
+globalThis.window.performance = {{ getEntriesByType: () => {json.dumps([] if navigation is None else [{"type": navigation}])} }};
+{"globalThis.window.gtag = (...args) => gtagCalls.push(args);" if gtag else ""}
+{"const pageRoot = { getAttribute: (name) => (name === 'data-notifications-page' ? " + json.dumps(page_type) + " : null) }; document.querySelector = (selector) => (selector === '[data-notifications-page]' ? pageRoot : null);" if page_type else ""}
+require({json.dumps(str(ANALYTICS_SCRIPT))});
+"""
+
+
+def run_page(page_html: str, search: str, replies: dict, body: str, *, preamble: str = "", pathname: str = "/notifications/"):
     """Run the pages script on one projected page. ``body`` is JavaScript with ``$``, ``visible``, ``text``, ``replaced``, ``requests`` and ``tracked`` in scope and prints one JSON line."""
     code = PAGE_HARNESS % {
         "html": json.dumps(main_html(page_html)),
         "search": json.dumps(search),
+        "pathname": json.dumps(pathname),
+        "preamble": preamble,
         "replies": json.dumps(replies),
         "script": json.dumps(str(PAGES_SCRIPT)),
         "body": body,
@@ -154,9 +180,9 @@ def run_page(page_html: str, search: str, replies: dict, body: str):
     return _run(code)
 
 
-def run_component(replies: dict, body: str):
+def run_component(replies: dict, body: str, *, preamble: str = ""):
     """Run the web component. ``body`` has ``mount``, ``byClass``, ``requests`` and ``settle`` in scope and prints one JSON line."""
-    code = COMPONENT_HARNESS % {"replies": json.dumps(replies), "script": json.dumps(str(COMPONENT_SCRIPT)), "body": body}
+    code = COMPONENT_HARNESS % {"replies": json.dumps(replies), "script": json.dumps(str(COMPONENT_SCRIPT)), "body": body, "preamble": preamble}
     return _run(code)
 
 
