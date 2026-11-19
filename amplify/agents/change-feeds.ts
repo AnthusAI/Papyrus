@@ -7,6 +7,7 @@ import { connectToSiteApi } from "../site-api-access";
 import { assertLiteralResourceName, sanitizeAwsName } from "../site-backend-names";
 import { LISTENER_INDEX_KIND } from "./item-change-feed";
 import { FEED_STREAM_VIEW, FEED_TABLES, tableStream, type FeedPlacement, type FeedTable, type StreamReaderId } from "./stream-readers";
+import { setModelKeyParameter } from "./model-key";
 import { allowWakeSending } from "./wake-queue";
 import type { AgentPiece } from "./stack";
 
@@ -65,6 +66,8 @@ export type ChangeFeedsSource = {
   tenantId: string;
   bucketName: string;
   bucketArn: string;
+  /** The NAME of the SSM parameter the runs this feed wakes read their model key from (`agents.openAiKeyParameter`; see `model-key.ts`). Unset: the wakes carry none. */
+  openAiKeyParameter?: string;
 };
 
 /** The streams of every feed table the schema has. The Reference, Message and LocalizationRequest streams are the readers' own where they exist; ReviewRequest and Delivery had none. */
@@ -128,6 +131,7 @@ export function changeFeedsPiece(brandId: string, source: ChangeFeedsSource): Ag
       feed.addEnvironment("PAPYRUS_AGENT_PUBLICATION_ID", brandId);
       feed.addEnvironment("PAPYRUS_TENANT_ID", source.tenantId);
       feed.addEnvironment("PAPYRUS_SITE_BUCKET", source.bucketName);
+      setModelKeyParameter(feed, source.openAiKeyParameter);
       feed.addEnvironment(CHANGE_FEED_STREAMS_ENV, stack.toJsonString(tables.map((table) => ({ stream: source.streams[table], table }))));
       feed.addToRolePolicy(
         new PolicyStatement({

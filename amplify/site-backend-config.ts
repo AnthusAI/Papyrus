@@ -66,6 +66,38 @@ export type PapyrusMonitoringConfig = {
   emailMonitorId?: string;
 };
 
+/**
+ * The always-on agents of this site (docs/design/always-on-agents-architecture.md).
+ */
+export type PapyrusAgentsConfig = {
+  /**
+   * The NAME of the SSM SecureString parameter that holds the model (OpenAI) key for runs the site's change feeds start, for example
+   * `/papyrus/shipped/openai-api-key`. A name is not a secret: the key's value is never read, printed or stored by the deploy. The feeds put this name on each wake; the
+   * procedure runner reads the parameter with its own role, which names each parameter it may read in `infra/procedures/papyrus-procedure-runner.yaml`. Unset: a feed's runs
+   * carry no key and fail closed with "The run has no model key" (there is no fallback key).
+   */
+  openAiKeyParameter?: string;
+};
+
+/** The same pattern the runner holds a request's parameter name to (`procedure_runner.SSM_PARAMETER`), and no trailing slash: a name, not a path. */
+const AGENT_KEY_PARAMETER_PATTERN = /^\/[A-Za-z0-9_.\/-]{0,998}[A-Za-z0-9_.-]$/;
+
+export function validateAgentsConfig(agents: unknown): string[] {
+  if (agents === undefined) return [];
+  if (typeof agents !== "object" || agents === null || Array.isArray(agents)) return ["agents must be an object"];
+  const config = agents as { openAiKeyParameter?: unknown };
+  if (config.openAiKeyParameter !== undefined
+    && (typeof config.openAiKeyParameter !== "string" || !AGENT_KEY_PARAMETER_PATTERN.test(config.openAiKeyParameter))) {
+    return ["agents.openAiKeyParameter must be an SSM parameter name that starts with '/' (for example /papyrus/shipped/openai-api-key), not a key"];
+  }
+  return [];
+}
+
+export function assertValidAgentsConfig(agents: unknown): void {
+  const problems = validateAgentsConfig(agents);
+  if (problems.length > 0) throw new Error(`Invalid backend.agents: ${problems.join("; ")}`);
+}
+
 const MONITOR_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 export function validateMonitoringConfig(monitoring: unknown): string[] {
@@ -282,6 +314,8 @@ export type PapyrusSiteBackendConfig = {
   auth?: PapyrusAuthConfig;
   /** Shared Monitoring partition used by private email intake for this publication. */
   monitoring?: PapyrusMonitoringConfig;
+  /** The site's always-on agents: today the name of the SSM parameter holding the model key their runs use. */
+  agents?: PapyrusAgentsConfig;
   /**
    * Maximum number of data model nested stacks CloudFormation creates at once.
    * Stacks are chained in waves of this size so a new AWS account is not hit

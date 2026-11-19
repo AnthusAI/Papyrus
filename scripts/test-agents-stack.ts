@@ -12,6 +12,7 @@ import { Construct } from "constructs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Template } from "aws-cdk-lib/assertions";
+import { MODEL_KEY_PARAMETER_ENV } from "../amplify/agents/model-key";
 import { agentPieces } from "../amplify/agents/pieces";
 import { ITEM_FEED_API_FIELDS, ITEM_STREAM_VIEW, type ItemChangeFeedSource } from "../amplify/agents/item-change-feed";
 import {
@@ -385,6 +386,41 @@ assert.deepEqual(passRole!.Condition, { StringEquals: { "iam:PassedToService": "
 assert.ok(!followUpStatements.some((statement) => JSON.stringify(statement).includes("scheduler:Get") || JSON.stringify(statement).includes("scheduler:List")), "the function reads no entry");
 console.log("follow-up timers permission: 2 statements, 0 resources");
 
+
+// The model key's parameter name (PPY-8a374e, note on PPY-6af46b): a site setting that names the SSM parameter, put on each feed function as PAPYRUS_OPENAI_KEY_PARAMETER.
+// A name is not a secret. The feeds hold no right to the key: the runner that starts the run reads it. Nothing is added to the resource count.
+const KEY_PARAMETER = "/papyrus/shipped/openai-api-key";
+const feedVariables = (template: Template): Record<string, unknown> => Object.values(template.findResources("AWS::Lambda::Function"))[0].Properties.Environment.Variables;
+assert.equal(MODEL_KEY_PARAMETER_ENV, "PAPYRUS_OPENAI_KEY_PARAMETER");
+assert.ok(!(MODEL_KEY_PARAMETER_ENV in feedVariables(feedTemplate)), "with no name set, the Item change feed's wakes carry no key parameter");
+assert.ok(!(MODEL_KEY_PARAMETER_ENV in feedVariables(feedsTemplate)), "with no name set, the change feed's wakes carry no key parameter");
+const keyedPieces = agentPieces(SAMPLE_BRAND, {
+  itemChangeFeed: { ...feedSource, openAiKeyParameter: KEY_PARAMETER },
+  changeFeeds: { ...changeFeedsSource, openAiKeyParameter: KEY_PARAMETER },
+});
+for (const id of ["item-change-feed", "change-feeds"]) {
+  const keyedScratch = new Stack(new App(), `keyed-${id}`, { env: { account: "123456789012", region: "us-east-1" } });
+  const keyedConstruct = new Construct(keyedScratch, id);
+  keyedPieces.find((piece) => piece.id === id)!.add(keyedConstruct);
+  const unkeyed = pieces.find((piece) => piece.id === id)!;
+  const unkeyedScratch = new Stack(new App(), `unkeyed-${id}`, { env: { account: "123456789012", region: "us-east-1" } });
+  const unkeyedConstruct = new Construct(unkeyedScratch, id);
+  unkeyed.add(unkeyedConstruct);
+  assert.equal(countPieceResources(keyedConstruct), countPieceResources(unkeyedConstruct), `${id}: naming the key's parameter adds no resource`);
+  const keyedTemplate = Template.fromStack(keyedScratch);
+  assert.equal(feedVariables(keyedTemplate)[MODEL_KEY_PARAMETER_ENV], KEY_PARAMETER, `${id}: the feed's wakes name the key's parameter`);
+  const keyedPolicy = JSON.stringify(Object.values(keyedTemplate.findResources("AWS::IAM::Policy")));
+  assert.ok(!keyedPolicy.includes("ssm:") && !keyedPolicy.includes("kms:"), `${id}: the feed holds no right to the key: it only names the parameter`);
+}
+// The Python feed reads the name from the same variable, and the runner reads the parameter named on the wake.
+assert.ok(feedSourceText.includes(`"${MODEL_KEY_PARAMETER_ENV}"`), "the feed reads the variable the pieces set");
+// The runner's role may read the parameter, and no other under /papyrus/, with GetParameter alone.
+const runnerYaml = readFileSync(path.join(root, "infra/procedures/papyrus-procedure-runner.yaml"), "utf8");
+const keyStatement = /- Sid: AgentModelKeyParameters\n([\s\S]*?)(?=\n {14}- Sid: )/.exec(runnerYaml)?.[1] ?? "";
+assert.ok(keyStatement.length > 0, "the runner has a statement for the agents' model key parameters");
+assert.deepEqual([...keyStatement.matchAll(/^ {16}Action: (.+)$/gm)].map((match) => match[1]), ["ssm:GetParameter"], "the runner may only get the parameter: no decrypt, no list, no put");
+assert.deepEqual([...keyStatement.matchAll(/parameter(\/[^"]+)"/g)].map((match) => match[1]), [KEY_PARAMETER], "the runner may read the one named parameter and nothing else");
+console.log(`model key parameter: named on ${keyedPieces.length - 2} feed pieces, no resource added, no right on the feeds, one GetParameter on the runner`);
 
 // The first stage is measured with a tenant id set (the feed's source), so it proves the feed and the Item stream are left out when they could be there.
 const { resources: firstStage, templates } = measureBootstrapStage(true, { PAPYRUS_TENANT_ID: "sample-tenant" });

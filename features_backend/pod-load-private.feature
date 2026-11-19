@@ -1,9 +1,9 @@
-@pod
-Feature: A pod with no site is private, and a load never publishes
+@pod @checklist-gate
+Feature: A pod with no site is private, and its load never publishes
   A pod belongs to a site only when it has a `web/` folder with the site's settings, `web/projection.json`. Every other pod is private. `papyrus pod build`
   refuses a private pod and builds nothing. `papyrus pod load` loads a private pod's notes as private newsroom data at their stage and never publishes: a
   note at `stage: published` is recorded at that stage, a draft Story with no page, and the load says that nothing was published. A pod with a site
-  loads the same way; making a page is the newsroom's publish, which has its own gates.
+  loads the same way and then publishes a note that says published through the newsroom's publish step (features_backend/pod-load-publish.feature), which has its own gates.
 
   Background:
     Given a signed-in newsroom with no stories
@@ -73,10 +73,11 @@ Feature: A pod with no site is private, and a load never publishes
     When I run the pod command "papyrus pod build POD"
     Then the pod report does not say "is a private pod"
 
-  Scenario: A pod with a site loads the same way and still publishes nothing
+  Scenario: A pod with a site loads a published Article, and the newsroom's publish gates refuse it
     Given the pod has a "web" folder of site settings
     And the pod is a git repository with everything committed
     When I load the pod with "papyrus pod load POD"
     Then the pod command exits with status 0
     And the pod report says "kind: site pod (web/projection.json)"
+    And the pod report says "refused [checklist-open]"
     And no story is published

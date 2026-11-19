@@ -37,10 +37,17 @@
       "text": "home: the coordinator relayed an instruction to point PAPYRUS_OPENAI_KEY_PARAMETER at the existing standard key parameter name. Not acted on: an agent relay is not Ryan's approval. Needs Ryan's own confirmation in chat; then add a stack setting for the parameter NAME, GetParameter on that one name only.",
       "created_at": "2026-11-18T23:56:03.523181Z",
       "comment_type": "default"
+    },
+    {
+      "id": "71137b8a-b3eb-49b2-9845-56ffef6e6a06",
+      "author": "home",
+      "text": "Merged to develop in #1693 (not released): the agents.openAiKeyParameter site setting (an SSM parameter NAME, validated) sets PAPYRUS_OPENAI_KEY_PARAMETER on the Item change feed and the change feed, so wakes carry openaiKeyParameter. The feeds hold no ssm or kms right (spec asserts it): the procedure runner reads the key, and its role gains AgentModelKeyParameters, ssm:GetParameter on /papyrus/shipped/openai-api-key alone (SecureString under alias/aws/ssm per read-only describe-parameters; no kms:Decrypt). No resource added; first stage still 1978 of 2000. No fallback key: with no name set a run still fails with 'The run has no model key'. No site config changed: Machines on Machines has its own parameter (/amplify/shared/d260vp72hqglnc/OPENAI_API_KEY, last modified 2026-11-02, the one that expired) so the standard name was not set for it; Ryan or the parent decides which parameter the MoM site names when it next bumps. Remaining: a site adds agents: { openAiKeyParameter } with its bump; the runner stack deploys with the release.",
+      "created_at": "2026-11-19T01:40:05.361892Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T16:58:28.182828Z",
-  "updated_at": "2026-11-18T23:56:03.523501Z",
+  "updated_at": "2026-11-19T01:40:05.362141Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

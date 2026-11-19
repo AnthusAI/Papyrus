@@ -6,6 +6,7 @@ import type { Construct } from "constructs";
 import { pythonLambdaCode } from "../functions/shared/python-bundle";
 import { connectToSiteApi } from "../site-api-access";
 import { tableStream } from "./stream-readers";
+import { setModelKeyParameter } from "./model-key";
 import { allowWakeSending } from "./wake-queue";
 import type { AgentPiece } from "./stack";
 
@@ -37,6 +38,8 @@ export type ItemChangeFeedSource = {
   tenantId: string;
   bucketName: string;
   bucketArn: string;
+  /** The NAME of the SSM parameter the runs this feed wakes read their model key from (`agents.openAiKeyParameter`; see `model-key.ts`). Unset: the wakes carry none. */
+  openAiKeyParameter?: string;
 };
 
 /**
@@ -77,6 +80,7 @@ export function itemChangeFeedPiece(brandId: string, source: ItemChangeFeedSourc
       feed.addEnvironment("PAPYRUS_AGENT_PUBLICATION_ID", brandId);
       feed.addEnvironment("PAPYRUS_TENANT_ID", source.tenantId);
       feed.addEnvironment("PAPYRUS_SITE_BUCKET", source.bucketName);
+      setModelKeyParameter(feed, source.openAiKeyParameter);
       feed.addToRolePolicy(
         new PolicyStatement({
           effect: Effect.ALLOW,

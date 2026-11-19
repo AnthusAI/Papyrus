@@ -324,7 +324,7 @@ In the order suggested.
 
 **Second: lifecycle in a pod.** Decided above. Same field names; stamps are claims; Kanbus stays the board.
 
-**Third: private by default for pods with no site.** A pod is private unless a site folder (`web/` with its settings) names it. For a private pod, `pod build` refuses, and `pod load` loads every note as private newsroom data at its `stage`; a load never publishes. This replaces the pod standard's "a non-draft Story loads published", which stays true only for a site pod. *Default: yes.*
+**Third: private by default for pods with no site.** A pod is private unless a site folder (`web/` with its settings) names it. For a private pod, `pod build` refuses, and `pod load` loads every note as private newsroom data at its `stage`; a load of a private pod never publishes. In a site pod, a note whose front matter says `stage: published` is published after it loads, through the site's normal publish step (PPY-50a7f5, 2026-11-18): every publish rule still applies (checklist, `publishRequiresRating`, a person's approval where the site requires it), a refusal is reported for that note and never forced, and a note that does not say published stays unpublished. This replaces the pod standard's "a non-draft Story loads published": only `stage: published` publishes. *Default: yes.*
 
 **Then Anth.us and the rest.**
 

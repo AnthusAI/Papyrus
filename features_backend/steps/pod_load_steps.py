@@ -66,10 +66,16 @@ def _run_load(context, line: str) -> None:
     assert words[:3] == ["papyrus", "pod", "load"], line
     client = _newsroom(context)
     context.sign_ins = 0
+    context.page_builds = getattr(context, "page_builds", 0)
 
     def sign_in(*args, **kwargs):
         context.sign_ins += 1
         return client, {}
+
+    def page_build(client, options, result, **kwargs):
+        # The site's page build, faked: it is asked for once for each publish that changed something, and nothing leaves the process.
+        context.page_builds += 1 if result.changed else 0
+        return {}
 
     def closed(label):
         def fake(*args, **kwargs):
@@ -79,6 +85,7 @@ def _run_load(context, line: str) -> None:
     out, err = io.StringIO(), io.StringIO()
     with ExitStack() as stack:
         stack.enter_context(patch.object(graphql_authoring, "create_authoring_client", sign_in))
+        stack.enter_context(patch("papyrus_content.publish_commands.run_site_triggers", page_build))
         stack.enter_context(patch.object(urllib.request, "urlopen", closed("urlopen")))
         stack.enter_context(patch.object(socket, "create_connection", closed("network")))
         stack.enter_context(redirect_stdout(out))
@@ -102,6 +109,11 @@ def site_settings(context, path):
     target = context.pod / path / "projection.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps({"site": "Example"}), encoding="utf-8")
+
+
+@given("the pod has no site settings")
+def no_site_settings(context):
+    (context.pod / "web" / "projection.json").unlink(missing_ok=True)
 
 
 @given("the pod's changes are committed")
@@ -165,6 +177,7 @@ def load_pod(context, line):
 @when('I load the pod again with "{line}"')
 def load_pod_again(context, line):
     _newsroom(context).calls.clear()
+    context.page_builds = 0
     _run_load(context, line)
 
 
@@ -280,6 +293,27 @@ def is_draft(context, path):
     client = _newsroom(context)
     assert row["status"] == "draft", row["status"]
     assert not client.tables.get("PublishedItem"), client.tables.get("PublishedItem")
+
+
+@then('the story for the note "{path}" is published')
+def is_published(context, path):
+    row = _current(context, path)
+    assert row["status"] == "published" and row["stage"] == "published", (row["status"], row["stage"])
+    assert _newsroom(context).tables.get("PublishedItem"), "no published row"
+
+
+@then('the story for the note "{path}" is still a draft with no live page')
+def still_a_draft(context, path):
+    from papyrus_content.publishing import published_item_id_for
+
+    assert _current(context, path)["status"] == "draft", _current(context, path)["status"]
+    assert _newsroom(context).get_record("PublishedItem", published_item_id_for(_lineage(context, path))) is None
+
+
+@then("the site's page build was asked for {count:d} time")
+@then("the site's page build was asked for {count:d} times")
+def page_builds_asked(context, count):
+    assert getattr(context, "page_builds", 0) == count, getattr(context, "page_builds", 0)
 
 
 @then("no story is published")
