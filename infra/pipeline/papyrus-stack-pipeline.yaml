@@ -44,6 +44,7 @@ Resources:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner-repository/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-dmarc-*/*
               - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
                 Effect: Allow
                 Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate]
@@ -94,6 +95,7 @@ Resources:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner-repository/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-dmarc-*/*
               - Sid: CreateChangeSetsOnlyThroughTheServiceRole
                 Effect: Allow
                 Action: cloudformation:CreateChangeSet
@@ -102,6 +104,7 @@ Resources:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-procedure-runner-repository/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-dmarc-*/*
                 Condition:
                   StringEquals:
                     "cloudformation:RoleArn": !GetAtt CloudFormationRole.Arn

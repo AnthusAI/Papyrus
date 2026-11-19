@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus DMARC record (PPY-6bcae9): the _dmarc TXT record of one sending domain, with the address that receives the
+  aggregate (rua) reports read from an SSM parameter at deploy time. One stack per sending domain. The address is never in
+  Git: the stack holds only the NAME of the parameter. A person creates the parameter once; nothing else is made by hand.
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: The sending domain the record is published for (for example mail.example.org). The record is _dmarc.<DomainName>.
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Route 53 hosted zone that serves DomainName. The release looks it up by name.
+  DmarcPolicy:
+    Type: String
+    Default: none
+    AllowedValues: [none, quarantine, reject]
+    Description: >-
+      Start with none (monitor only). A stricter policy is its own reviewed change, made only when the reports show SPF and
+      DKIM aligned for every legitimate sender.
+  ReportAddress:
+    Type: AWS::SSM::Parameter::Value<String>
+    NoEcho: true
+    Default: /papyrus/dmarc/report-address
+    Description: >-
+      The NAME of an SSM String parameter that holds the mailbox the aggregate reports go to. CloudFormation resolves it at
+      deploy time, so the address is never in Git or in a workflow log. The mailbox is on the same organisational domain as the
+      sending domain, so the receiving side needs no external-destination authorization record
+      (RFC 7489 section 7.1). A mailbox on another domain needs a TXT record
+      <DomainName>._report._dmarc.<that domain> in that domain's zone, and is a change to this template.
+
+Resources:
+  DmarcRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub _dmarc.${DomainName}
+      Type: TXT
+      TTL: "1800"
+      ResourceRecords:
+        - !Sub '"v=DMARC1; p=${DmarcPolicy}; adkim=r; aspf=r; rua=mailto:${ReportAddress}"'
+
+Outputs:
+  DmarcRecordName:
+    Description: The name the record is published at.
+    Value: !Sub _dmarc.${DomainName}
