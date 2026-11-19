@@ -52,6 +52,7 @@ export type ImageOperationName =
   | "announcements_release"
   | "announcements_unlock"
   | "announcements_example"
+  | "announcements_preferred"
   | "announcements_correct"
   | "announcements_record_manual"
   | "announcements_withdraw"
@@ -1402,6 +1403,36 @@ export type AnnouncementsExampleResult = {
   reason?: string | null;
 };
 
+/** Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text. */
+export type AnnouncementsPreferredInput = {
+  /** The Delivery's id: one that went out, or has an attempt open. */
+  delivery: string;
+  /** The version of the Delivery you read. */
+  replaces: number;
+  /** How it should have read. */
+  text: string;
+  /** Also record how far it reaches, in the same step. Leave it out to keep it as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsPreferredResult = {
+  id: string;
+  /** saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft. */
+  status: "saved" | "preferred" | "unchanged" | "dropped" | "candidate";
+  version?: number;
+  replaces?: number | null;
+  reason?: string;
+  /** The candidate's id, when one was kept. */
+  candidate?: string;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  preferredVersion?: number | null;
+  /** Each block's owner (human or machine) and whether it is pinned. */
+  blocks?: Record<string, unknown>[];
+};
+
 /** Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. */
 export type AnnouncementsCorrectInput = {
   /** The id of the Delivery that went and is to be corrected. */
@@ -1730,6 +1761,7 @@ export interface ImageOperations {
   announcements_release: { input: AnnouncementsReleaseInput; result: AnnouncementsReleaseResult };
   announcements_unlock: { input: AnnouncementsUnlockInput; result: AnnouncementsUnlockResult };
   announcements_example: { input: AnnouncementsExampleInput; result: AnnouncementsExampleResult };
+  announcements_preferred: { input: AnnouncementsPreferredInput; result: AnnouncementsPreferredResult };
   announcements_correct: { input: AnnouncementsCorrectInput; result: AnnouncementsCorrectResult };
   announcements_record_manual: { input: AnnouncementsRecordManualInput; result: AnnouncementsRecordManualResult };
   announcements_withdraw: { input: AnnouncementsWithdrawInput; result: AnnouncementsWithdrawResult };
@@ -1791,6 +1823,7 @@ export const IMAGE_OPERATIONS = {
   announcements_release: { effect: "write", agentAllowed: true, agentRung: "publish_auto", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements release" },
   announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
   announcements_example: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements example" },
+  announcements_preferred: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements preferred" },
   announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
   announcements_record_manual: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements record-manual" },
   announcements_withdraw: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },

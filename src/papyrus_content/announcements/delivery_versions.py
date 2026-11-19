@@ -10,8 +10,8 @@ so two writers never write one file), and the words second. A crash between them
 **Pinned blocks.** A block a person changed is ``owner: human, pinned`` (``delivery_text.person_flags``). A machine redraft is laid over the current version
 (``delivery_text.merge_redraft``) so every pinned block comes out word for word. Only a person changes or unpins one (``change_pinned``).
 
-**An edit while an attempt is open does not change that attempt.** The attempt sends the locked version; the person's edit is saved as the next version, flagged ``preferred`` and
-named in ``preferredVersion`` (PPY-75a314 teaches from it; nothing here sends it). **A late edit after the lock is refused** until a person unlocks the Delivery
+**An edit while an attempt is open does not change that attempt, and a person's words after the send are a preferred version too.** The attempt sends the locked version; the
+person's edit is saved as the next version, flagged ``preferred`` and named in ``preferredVersion`` (``delivery_examples`` teaches from it; nothing here sends it). **A late edit after the lock is refused** until a person unlocks the Delivery
 (``delivery_lock.unlock``).
 
 **Candidates** are texts or pictures kept beside the draft. Adding one changes nothing that goes out, so it is allowed after the lock; choosing one is a save (a new version) and
@@ -142,7 +142,7 @@ class Versions:
 
     # --- saving -------------------------------------------------------------------------------------------------------------------------------
 
-    def _mode(self, row: Mapping[str, Any], replaces: int, owner: str) -> str:
+    def _mode(self, row: Mapping[str, Any], replaces: int, owner: str, preferred_only: bool = False) -> str:
         """Whether an edit may be made now, and as what: a new version (``saved``) or, while an attempt is open, a preferred version. Otherwise the refusal in plain words."""
         state = row.get("state")
         if state in (SUPERSEDED, DELIVERY_WITHDRAWN, DRY_RUN) or row.get("supersededBy"):
@@ -153,13 +153,17 @@ class Versions:
                 raise NotEditable(f"{row['id']} is going out (attempt {attempt['number']} is open); a machine's redraft is not saved against it.")
             mode = PREFERRED
         elif state == SENT:
-            raise NotEditable(f"{row['id']} was sent. How it should have read is a preferred version; a change to what went out is a correction (a new Delivery).")
+            if owner == dt.MACHINE:
+                raise NotEditable(f"{row['id']} was sent; a machine's redraft is not saved against it. A person saves how it should have read as a preferred version.")
+            mode = PREFERRED   # a person saves how it should have read: never sent, no public text changes (a change to what went out is a correction, a new Delivery)
         elif state not in EDITABLE_STATES:
             raise NotEditable(f"{row['id']} is {state}; only a draft, a ready or a blocked Delivery's words are edited.")
         elif row.get("lockedAt"):
             raise Locked(f"{row['id']} was locked at {row['lockedAt']} with version {row['lockedVersion']} for sending; a late edit needs an explicit unlock by a person first.")
         else:
             mode = SAVED
+        if preferred_only and mode != PREFERRED:
+            raise NotEditable(f"{row['id']} has not gone out and has no attempt open, so there is no preferred version to save: edit its words with an ordinary save.")
         head = int(row["version"])
         if int(replaces) != head:
             if int(replaces) > head:
@@ -168,12 +172,12 @@ class Versions:
         return mode
 
     def _write(self, delivery_id: str, *, replaces: int, by: str, owner: str, compose: Compose, note: str, checks: Sequence[Mapping[str, Any]] = (),
-               retry_of: str | None = None, now: str | None = None) -> Saved:
+               retry_of: str | None = None, now: str | None = None, preferred_only: bool = False) -> Saved:
         now = now or now_iso()
         while True:
             row = self.row(delivery_id)
             try:
-                mode = self._mode(row, replaces, owner)
+                mode = self._mode(row, replaces, owner, preferred_only)
             except StaleVersion as stale:
                 finished = self._finish_earlier(row, stale, by=by, owner=owner, text=retry_of, now=now)
                 if finished is not None:
@@ -220,7 +224,7 @@ class Versions:
         return Saved(dict(row), dict(entry), UNCHANGED, f"This save was already made as version {entry['number']}.")
 
     def save(self, delivery_id: str, *, replaces: int, text: str | None = None, image_key: Any = dt.KEEP, by: str, owner: str = dt.HUMAN,
-             checks: Sequence[Mapping[str, Any]] = (), now: str | None = None) -> Saved:
+             checks: Sequence[Mapping[str, Any]] = (), now: str | None = None, preferred_only: bool = False) -> Saved:
         """Save the words (and the picture) as the next version, naming the version read. ``text`` None keeps the words (a change of picture only).
 
         A person's save marks the blocks it changed as theirs and pinned; a block that is in the version it replaces word for word keeps its flags wherever it moved. A machine's
@@ -238,7 +242,7 @@ class Versions:
             return Composed(merged, flags, image)
 
         return self._write(delivery_id, replaces=replaces, by=by, owner=owner, compose=compose, note="saved" if owner == dt.HUMAN else "redrafted", checks=checks,
-                           retry_of=text if owner == dt.HUMAN else None, now=now)
+                           retry_of=text if owner == dt.HUMAN else None, now=now, preferred_only=preferred_only)
 
     def redraft(self, delivery_id: str, *, replaces: int, text: str, by: str, checks: Sequence[Mapping[str, Any]] = (), now: str | None = None) -> Saved:
         """A machine redraft. When the Delivery has moved on (a person saved a version, it locked, it is going out) the redraft is dropped, never saved over theirs: the person's

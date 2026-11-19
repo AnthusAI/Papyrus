@@ -346,6 +346,8 @@ _ENTRIES = dict([
      "DELIVERY_ID [--lock-at TEXT] [--release-at TEXT] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements example", "Say how far what a person changed in an announcement should reach, so later drafts can follow it. With no scope the edit stays a candidate that changes nothing. A person only.",
      "DELIVERY_ID [--scope this_one|channel|kind|publication] [--reason TEXT] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements preferred", "Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches and changes no public text. A person only.",
+     "DELIVERY_ID --replaces N --text TEXT [--scope this_one|channel|kind|publication] [--reason TEXT] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements correct", "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. The text is checked like a new Delivery's.",
      "DELIVERY_ID --text TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements record-manual", "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names the signed-in person. A person only.",

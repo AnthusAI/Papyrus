@@ -23,3 +23,15 @@ Three layers, each needing a person:
 Rules: only a person records (an agent is told `human_required`); a Delivery that has not gone out and has no preferred version has nothing to record; an unedited send records nothing (no block of the final version is a person's); recording the same answer twice changes nothing; a candidate or a declined edit is given a scope by recording again; an active example is not recorded again with another scope until it is turned off.
 
 Operation: `announcements_example` (`papyrus announcements example DELIVERY [--scope S] [--reason TEXT]`). Specs: `delivery-edit-capture.feature`, `delivery_examples_test.py`.
+
+## A preferred version: teach without sending again (slice O2, PPY-75a314)
+
+After a Delivery went out (or while an attempt is open) a person saves how it should have read as the next version, flagged `preferred` and named in `preferredVersion`. It is never sent and
+changes no public text (the version that went out stays `sendable`, the state stays `sent`, no attempt is added). `announcements_preferred` (`papyrus announcements preferred DELIVERY --replaces N --text T [--scope S] [--reason R]`)
+saves it and, when a scope is given, records the example in the same step; with none it is a candidate. A person only: an agent is told `human_required`, and a machine's redraft of a sent Delivery is refused. A save names the version it replaces
+like every save (`stale_version`), and a Delivery that has not gone out has no preferred version (`constraint_conflict`: edit it).
+
+**Teaching and correcting are separate choices.** Saving a preferred version corrects nothing. To also correct the public post a person runs `papyrus announcements correct` with the words, which makes the superseding Delivery
+where the channel can delete the old post ([correction](announcement-records.md)); the example on the old Delivery stays.
+
+Specs: `delivery-preferred-version.feature`.
