@@ -1,23 +1,29 @@
 """The announcement operations on the signed-in lane: each call opens the person's own authoring client, so the backend applies their rights. The settings and the X
 connection are read and changed through the site's ``announcements`` function (``Functions``), which applies every rule and checks the role (editors read, admins
-change); announcement rows are read through the account index. The same handlers serve the CLI, the MCP tools and the console door.
+change). The same handlers serve the CLI, the MCP tools and the console door.
 
-What the signed-in lane cannot do is read Caducus's delivery log or hand it an event: those need the site's own stack, so ``broadcaster`` is None here. ``show``
-therefore shows a ``posting`` row as the site's function last recorded it.
+What the signed-in lane cannot do is read Caducus's delivery log or hand it an event: those need the site's own stack. It writes Deliveries' own records (a pause lifted puts the
+Deliveries it held back to ready) and leaves the sending to the deliver side (``x_runner.XRunner``). The Announcements themselves are read by ``where``, ``recent`` and ``explain``
+(``list_handlers.py``).
 """
 from __future__ import annotations
 
 import json
 import os
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Mapping
 
 from papyrus_content.editorial_context import hosted_publication
 from papyrus_content.images.handlers import Caller, Handler, ImageOperationError, Outcome
 
 from . import operations
-from .engine import Services
-from .store import AnnouncementStore
+from .deliveries import Deliveries
+from .operations import Services
+from .spend import SpendLedger
 from .x_account import AnnouncementError
+from .x_runner import SpendControl
+
+if TYPE_CHECKING:   # the X part imports the review policy, which imports the operation table that imports this module
+    from .x_announce import XServices
 
 ORIGIN_ENV, STYLE_ENV = "SITE_ORIGIN", "ITEM_URL_STYLE"
 
@@ -25,7 +31,7 @@ ORIGIN_ENV, STYLE_ENV = "SITE_ORIGIN", "ITEM_URL_STYLE"
 class Functions:
     """The settings document and the X connection as the site's ``announcements`` function serves them (PPY-2deb63, PPY-ae9d06): the signed-in person's own client calls its
     GraphQL operations, so the function applies every rule and the person's role is checked there (editors read, admins change). It has the reader and writer methods of
-    ``settings.AnnouncementSettings`` and the status of ``x_account.XAccounts``, so the pipeline reads either in the same way."""
+    ``settings.AnnouncementSettings`` and the status of ``x_account.XAccounts``, so the announcement code reads either in the same way."""
 
     def __init__(self, client: Any):
         self.client = client
@@ -51,14 +57,50 @@ class Functions:
         return self._call("announcementsXStatus", {})["status"]
 
 
-def build_services(client: Any, environ: Mapping[str, str] | None = None, *, model: bool = False, llm: Any = None, judge: Any = None, guidelines_text: str | None = None, files: Any = None, functions: Any = None) -> Services:
+def _lazy_model() -> tuple[Callable[..., dict], Callable[..., dict]]:
+    """The model and its judge, made when a draft first needs them: a site with X off, or a Story X does not carry, never builds either."""
+    made: dict[str, Any] = {}
+
+    def build() -> None:
+        if made:
+            return
+        from papyrus_content import fact_check
+        from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
+        from papyrus_content.multi_search_research import openai_llm
+
+        made["llm"] = openai_llm(model=DEFAULT_LLM_MODEL)
+        made["judge"] = fact_check.llm_judge(made["llm"], model=DEFAULT_LLM_MODEL)
+
+    def llm(*arguments: Any, **keywords: Any) -> dict:
+        build()
+        return made["llm"](*arguments, **keywords)
+
+    def judge(*arguments: Any, **keywords: Any) -> dict:
+        build()
+        return made["judge"](*arguments, **keywords)
+
+    return llm, judge
+
+
+def x_services(client: Any, environ: Mapping[str, str] | None = None, *, model: bool = False, llm: Any = None, judge: Any = None, guidelines_text: str | None = None,
+               functions: Any = None) -> "XServices":
+    """What the X part of the announcement code reaches outside itself for, over one signed-in client. ``model`` says the model may be called (its client is made when a draft first
+    needs it); a spec passes ``llm`` and ``judge``."""
     environment = os.environ if environ is None else environ
-    origin = (environment.get(ORIGIN_ENV) or "").strip()
-    if not origin:
-        raise ImageOperationError("service_unavailable", f"Set {ORIGIN_ENV} to the site's public address (for example https://news.example) so announcements can build the Story's link.")
+
+    def origin() -> str:
+        value = (environment.get(ORIGIN_ENV) or "").strip()
+        if not value:
+            raise ImageOperationError("service_unavailable", f"Set {ORIGIN_ENV} to the site's public address (for example https://news.example) so announcements can build the Story's link.")
+        return value
+
     from papyrus_content.guidelines import GuidelineStore, resolve_guidelines
     from papyrus_content.guidelines.agent_text import writing_text
     from papyrus_content.guidelines.announcement import announcement_rules, announcement_text
+    from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
+
+    from .eligibility import load_story
+    from .x_announce import XServices
 
     guidelines = GuidelineStore(client)
 
@@ -70,17 +112,19 @@ def build_services(client: Any, environ: Mapping[str, str] | None = None, *, mod
         parts.append(announcement_text(announcement_rules(client, guidelines)["document"]))
         return "\n\n".join(part for part in parts if part)
 
-    from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
-
     if model and llm is None:
-        from papyrus_content import fact_check
-        from papyrus_content.multi_search_research import openai_llm
-
-        llm = openai_llm(model=DEFAULT_LLM_MODEL)
-        judge = fact_check.llm_judge(llm, model=DEFAULT_LLM_MODEL)
+        llm, judge = _lazy_model()
     functions = functions or Functions(client)
-    return Services(client=client, store=AnnouncementStore(client, files), settings=functions, connection=functions.status, site_origin=origin, item_url_style=environment.get(STYLE_ENV, "html"), guidelines_for=guidelines_for,
-                    llm=llm, judge=judge, model=DEFAULT_LLM_MODEL)
+    style = environment.get(STYLE_ENV, "html")
+    return XServices(settings=functions.read, connection=functions.status, story=lambda lineage: load_story(client, lineage, item_url_style=style), site_origin=origin,
+                     guidelines_for=guidelines_for, llm=llm, judge=judge, model=DEFAULT_LLM_MODEL)
+
+
+def build_services(client: Any, environ: Mapping[str, str] | None = None, *, model: bool = False, llm: Any = None, judge: Any = None, guidelines_text: str | None = None,
+                   files: Any = None, functions: Any = None) -> Services:
+    functions = functions or Functions(client)
+    x = x_services(client, environ, model=model, llm=llm, judge=judge, guidelines_text=guidelines_text, functions=functions)
+    return Services(client=client, x=x, control=SpendControl(settings=functions, connection=functions.status, ledger=SpendLedger(client)), deliveries=Deliveries(client, files))
 
 
 def _publication(client: Any) -> str:
@@ -92,20 +136,6 @@ def _publication(client: Any) -> str:
 
 def _caller_name(caller: Caller) -> str:
     return caller.subject or "papyrus-cli"
-
-
-def list_announcements(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
-    rows = operations.listing(services, state=arguments.get("state"), limit=int(arguments.get("limit") or 50))
-    return Outcome({"announcements": rows}, _publication(client))
-
-
-def show_announcement(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
-    account = operations.current(services)["accountId"]
-    found = operations.show(services, f"{account}#{arguments['story']}") if account else None
-    if found is None:
-        raise ImageOperationError("not_found", f"No announcement for the Story {arguments['story']!r} on this site's account.")
-    document = found.pop("document")
-    return Outcome({"announcement": found, **({"document": document} if document else {})}, _publication(client))
 
 
 def dry_run(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
@@ -127,7 +157,7 @@ def resume(client, arguments: dict, caller: Caller, services: Services) -> Outco
 
 
 def settings_show(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
-    return Outcome({"settings": services.settings.read(), "connection": services.connection()}, _publication(client))
+    return Outcome({"settings": services.control.settings.read(), "connection": services.control.connection()}, _publication(client))
 
 
 def settings_set(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
@@ -148,13 +178,13 @@ def account_status(client, arguments: dict, caller: Caller, services: Services) 
 
 #: operation name -> (function, whether it drafts with a model)
 ANNOUNCEMENT_HANDLERS: dict[str, tuple[Callable[..., Outcome], bool]] = {
-    "announcements_list": (list_announcements, False), "announcements_show": (show_announcement, False), "announcements_dry_run": (dry_run, True),
-    "announcements_pause": (pause, False), "announcements_resume": (resume, True), "announcements_settings_show": (settings_show, False),
-    "announcements_settings_set": (settings_set, True), "announcements_account_status": (account_status, False),
+    "announcements_dry_run": (dry_run, True), "announcements_pause": (pause, False), "announcements_resume": (resume, False),
+    "announcements_settings_show": (settings_show, False), "announcements_settings_set": (settings_set, False), "announcements_account_status": (account_status, False),
 }
 
 
-def signed_in_handlers(client_factory: Callable[[], Any] | None = None, environ: Mapping[str, str] | None = None, *, llm: Any = None, judge: Any = None, guidelines_text: str | None = None, files: Any = None, functions: Any = None) -> dict[str, Handler]:
+def signed_in_handlers(client_factory: Callable[[], Any] | None = None, environ: Mapping[str, str] | None = None, *, llm: Any = None, judge: Any = None, guidelines_text: str | None = None,
+                       files: Any = None, functions: Any = None) -> dict[str, Handler]:
     def factory():
         if client_factory is not None:
             return client_factory()

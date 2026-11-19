@@ -27,7 +27,7 @@ def audience_settings(settings: Settings, unsuppress: Any = None) -> AudienceSet
     switch between cadences of a family take effect at the next period start of the family's periodic list (``list_cadence/family.py``)."""
     return AudienceSettings(
         lists=tuple(
-            AudienceList(id=entry["id"], kind=KIND, name=entry["name"], description=entry.get("description", ""), family=entry.get("family"))
+            AudienceList(id=entry["id"], kind=entry.get("kind", KIND), name=entry["name"], description=entry.get("description", ""), family=entry.get("family"))
             for entry in settings.lists
         ),
         move_effective_at=mover(settings.lists),

@@ -23,6 +23,8 @@ class Settings:
     consent: str = ""
     #: How long a stranger's address is held unconfirmed and the confirmation link works.
     confirm_window_seconds: int = 72 * 3600
+    #: The SSM parameter holding the site's old newsletter key, set only while old newsletter links are honoured (``legacy_links.py``).
+    legacy_newsletter_key_parameter: str = ""
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str] = os.environ) -> "Settings":
@@ -38,4 +40,5 @@ class Settings:
             lists=tuple(json.loads(environment.get("LISTS_JSON", "[]"))),
             consent=environment.get("CONSENT", ""),
             confirm_window_seconds=int(environment.get("CONFIRM_WINDOW_SECONDS", str(72 * 3600))),
+            legacy_newsletter_key_parameter=environment.get("LEGACY_NEWSLETTER_KEY_PARAMETER", ""),
         )

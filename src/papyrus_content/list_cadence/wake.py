@@ -30,10 +30,10 @@ def scheduled_time(request: Mapping) -> str:
 
 def run_list(request: Mapping, state: ListState, announcements: Announcements, *, candidates_for: Callable[[str, Mapping, str, str | None], Sequence[Candidate]],
              notes_for: Callable[[str, Mapping, str, str | None], Sequence[PersonNote]], draft: Drafter,
-             policy_rung: Callable[[str], str], account_id: str, by: str, now: str | None = None) -> Result:
+             policy_rung: Callable[[str], str], account_id: str, by: str, now: str | None = None, edit_settings: Mapping | Callable[[], Mapping] | None = None) -> Result:
     """One tick. ``candidates_for(list id, settings, scheduled time, since)`` is the Stories that qualified since ``since`` (when the list's last issue was sent, or None
     when it never sent one) that the run read; ``notes_for`` the same for the words a person wrote for the period (a period with none of either is empty);
-    ``policy_rung(list id)`` the site policy's rung."""
+    ``policy_rung(list id)`` the site policy's rung; ``edit_settings`` is the announcement settings document, whose ``editWindows`` give the issue its lock time."""
     list_id = (request.get("input") or {}).get("listId")
     entry = state.get(list_id) if list_id else None
     if entry is None:
@@ -44,14 +44,16 @@ def run_list(request: Mapping, state: ListState, announcements: Announcements, *
     history = read_history(announcements.deliveries, account_id, list_id)
     return announce_period(announcements, list_id, entry, time, candidates_for(list_id, entry, time, history.last_sent_at),
                            history=history, notes=notes_for(list_id, entry, time, history.last_sent_at), draft=draft, policy_rung=policy_rung(list_id),
-                           account_id=account_id, by=by, now=now)
+                           account_id=account_id, by=by, now=now, edit_settings=edit_settings)
 
 
 def run_story_change(candidate: Candidate, state: ListState, announcements: Announcements, *, draft: Drafter, policy_rung: Callable[[str], str], account_id: str, by: str,
-                     now: str | None = None, trigger: str = "change") -> Result:
+                     now: str | None = None, trigger: str = "change", extra_plans: Sequence = (),
+                     edit_settings: Mapping | Callable[[], Mapping] | None = None) -> Result:
     """A Story's page went live, or its rating changed (the change feed wakes the agent): the settings are read as they are now, and every every-item list that
-    carries the Story shares one Announcement and one email Delivery."""
-    return announce_story(announcements, state.document["lists"], candidate, draft=draft, policy_rung=policy_rung, account_id=account_id, by=by, now=now, trigger=trigger)
+    carries the Story shares one Announcement and one email Delivery, with the Deliveries other channels qualified for (``extra_plans``) beside it."""
+    return announce_story(announcements, state.document["lists"], candidate, draft=draft, policy_rung=policy_rung, account_id=account_id, by=by, now=now, trigger=trigger,
+                          extra_plans=extra_plans, edit_settings=edit_settings)
 
 
 def write_note(list_id: str, scheduled_time_of_period: str, caller: Caller, text: str, state: ListState, announcements: Announcements, *, draft: Drafter,

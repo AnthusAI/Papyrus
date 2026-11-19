@@ -31,7 +31,7 @@ from typing import Any, Iterator, Mapping, Protocol, Sequence
 from . import delivery_text
 from .delivery_text import content_hash  # noqa: F401  (re-exported: the one hash of the words and the picture that go out together)
 from .records import (
-    APPROVALS, ATTEMPT_SENT, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MANUAL, MODES, NONE, READY, SENT, SOFT, STARTED, UNKNOWN, SUPERSEDED, SYSTEM,
+    APPROVALS, ATTEMPT_SENT, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, DRY_RUN, FAILED, LIVE_STATES, MANUAL, MODES, NONE, READY, SENT, SOFT, STARTED, UNKNOWN, SUPERSEDED, SYSTEM,
     BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, attempt_log, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
@@ -346,8 +346,10 @@ class Deliveries:
         """Give a draft that has no words its first words: an edit of the same Delivery, not a correction. The Delivery becomes ready at the approval the plan names.
 
         The words file is written first (the Delivery row exists, so the upload is accepted) and the row second, so a crash between them leaves a draft with no words
-        and the same call is made again."""
-        if row.get("textKey") or row.get("state") != DRAFTED:
+        and the same call is made again. A draft blocked because its checks failed before it had any words (the site had no guidelines to draft in) is written into the same way
+        once its inputs changed: the words that now pass take it back to ready."""
+        waiting = row.get("state") == DRAFTED or (row.get("state") == BLOCKED and row.get("blockedReason") == CHECK_FAILED_CODE)
+        if row.get("textKey") or not waiting:
             raise RecordError(f"{row['id']} is {row.get('state')} and already has its words or is past the draft; only a draft with no words is written into.")
         self.check(plan)
         now = now or now_iso()
@@ -357,11 +359,18 @@ class Deliveries:
         first = self.first_version(int(row["version"]), name, file, plan, by=by, at=now)
         approved = plan.approval == NONE
         changes: dict[str, Any] = {
-            "state": READY, "textKey": file["key"], "contentHash": first["contentHash"], "imageKey": plan.image_key, "draftedBy": plan.drafted_by, "versions": [first],
+            "state": READY, "blockedReason": None, "textKey": file["key"], "contentHash": first["contentHash"], "imageKey": plan.image_key, "draftedBy": plan.drafted_by,
+            "versions": [first], "checks": list(plan.checks) or None,
             "approval": plan.approval, "approvalPolicy": plan.approval_policy,
             "approvedVersion": int(row["version"]) if approved else None, "approvedBy": SYSTEM if approved else None, "approvedAt": now if approved else None,
         }
         return self._change(row, changes, by=by, note="words written", now=now)
+
+    def mark_dry_run(self, row: Mapping[str, Any], *, by: str, now: str | None = None) -> dict[str, Any]:
+        """A dry run: the Delivery was built and checked, and nothing is sent. It is final, it costs nothing (cost 0), and it waits for no time, so it is never due."""
+        if row.get("state") not in (DRAFTED, READY):
+            raise RecordError(f"{row['id']} is {row.get('state')}; only a Delivery that was built and not sent is a dry run.")
+        return self._change(row, {"state": DRY_RUN, "cost": "0", "blockedReason": None}, by=by, note="dry run: built and checked, not sent", now=now)
 
     def approve(self, row: Mapping[str, Any], *, version: int, by: str, now: str | None = None) -> dict[str, Any]:
         """Approve one version of the Delivery. Approving a version that is not the current one is refused: an approval names the version a person saw."""

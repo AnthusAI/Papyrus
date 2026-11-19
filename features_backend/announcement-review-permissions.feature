@@ -3,7 +3,8 @@ Feature: What an agent may do with an announcement is one table, answered by one
   reads the announce rung for the channel and kind the agent is working on, so what an agent may do with a Delivery follows that Delivery's review: it may release under none,
   and it is told a person must under soft or hard. Drafting is allowed from draft; correcting needs prepare, and the corrected Delivery goes only as its own review says. An agent
   can never change or unpin a block a person pinned, and can never change the review policy, the budget or what a person alone sets. A person's own action is never limited by an
-  agent's rung.
+  agent's rung. Withdrawing a Delivery, which can delete a public post, is reachable from prepare; the operation itself then allows an agent only when every Story the
+  Announcement is about was retired (announcements-withdraw.feature), and tells it a person must otherwise.
 
   Background:
     Given an empty announcement catalog
@@ -56,7 +57,7 @@ Feature: What an agent may do with an announcement is one table, answered by one
       | prepare      | announcements_correct | allowed        |
       | publish_soft | announcements_correct | allowed        |
 
-  Scenario Outline: An agent is told a person must unlock or withdraw, at every rung
+  Scenario Outline: An agent is told a person must unlock, at every rung
     Given a publication whose announce agent is at the rung "<rung>"
     And an announce agent working on the channel "x" for the kind "story_published"
     When the announce agent asks to "<operation>"
@@ -67,8 +68,18 @@ Feature: What an agent may do with an announcement is one table, answered by one
       | rung         | operation              |
       | prepare      | announcements_unlock   |
       | publish_auto | announcements_unlock   |
-      | prepare      | announcements_withdraw |
-      | publish_auto | announcements_withdraw |
+
+  Scenario Outline: An agent reaches withdraw from prepare, and the operation itself allows it only for a retired Story
+    Given a publication whose announce agent is at the rung "<rung>"
+    And an announce agent working on the channel "x" for the kind "story_published"
+    When the announce agent asks to "announcements_withdraw"
+    Then the announcement gate answers "<answer>"
+
+    Examples:
+      | rung         | answer         |
+      | draft        | human_required |
+      | prepare      | allowed        |
+      | publish_auto | allowed        |
 
   Scenario Outline: An agent can never change a pinned block, the review policy or the budget
     Given a publication whose announce agent is at the rung "<rung>"
@@ -108,7 +119,7 @@ Feature: What an agent may do with an announcement is one table, answered by one
       | announcements_correct              | prepare      |
       | announcements_release              | publish_auto |
       | announcements_unlock               | person       |
-      | announcements_withdraw             | person       |
+      | announcements_withdraw             | prepare      |
       | announcements_pinned_change        | person       |
       | announcements_review_set           | person       |
       | announcements_delivery_review_set  | person       |

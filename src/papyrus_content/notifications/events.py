@@ -22,7 +22,8 @@ def matching_lists(settings: Settings, summary: PublishedItemSummary) -> list[Ma
     return [
         entry
         for entry in settings.lists
-        if rule_matches(entry.get("rule"), section=summary.section, tags=summary.tags, item_type=summary.item_type)
+        if entry.get("kind", KIND) == KIND  # a list of another kind (the roundup) is never sent each story
+        and rule_matches(entry.get("rule"), section=summary.section, tags=summary.tags, item_type=summary.item_type)
     ]
 
 

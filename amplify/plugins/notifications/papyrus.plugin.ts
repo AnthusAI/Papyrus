@@ -66,6 +66,8 @@ export const notificationsTableName = (siteId: string) => `papyrus-notifications
 export const notificationsOperatorsParameterName = (siteId: string) => `/papyrus/${siteId}/notifications/operators`;
 /** Generated once by the stack; the addresses' recipient keys are derived from it. */
 export const notificationsKeyParameterName = (siteId: string) => `/papyrus/${siteId}/notifications/recipient-key`;
+/** Where the newsletter plugin generated its key (it is retained when that plugin is removed): read only while old newsletter links are honoured. */
+export const legacyNewsletterKeyParameterName = (siteId: string) => `/papyrus/${siteId}/newsletter-key`;
 export const notificationsAlarmNames = (siteId: string) => ({
   emailDeadLetters: `papyrus-notifications-${siteId}-email-dlq`,
   routerDeadLetters: `papyrus-notifications-${siteId}-router-dlq`,
@@ -98,11 +100,12 @@ export function notificationsEnvironment(config: NotificationsConfig, names: { t
     FROM_NAME: config.fromName,
     CONFIGURATION_SET: config.configurationSet,
     ITEM_URL_STYLE: config.itemUrlStyle,
-    LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval, family: list.family, cadence: list.cadence, sendAt: list.sendAt, timeZone: list.timeZone }))),
+    LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval, kind: list.kind, family: list.family, cadence: list.cadence, sendAt: list.sendAt, timeZone: list.timeZone }))),
     THEME_JSON: JSON.stringify(config.theme),
     CONSENT: config.consent,
     CONFIRM_WINDOW_SECONDS: String(config.confirmWindowHours * 3600),
     METRIC_NAMESPACE: `Caducus/papyrus-${config.siteId}`,
+    ...(config.legacyNewsletterLinks ? { LEGACY_NEWSLETTER_KEY_PARAMETER: legacyNewsletterKeyParameterName(config.siteId) } : {}),
   };
 }
 
@@ -268,6 +271,10 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       `arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${operatorsParameter}`,
       keyParameter.parameterArn,
     ];
+    // Old newsletter links (dated; legacy_links.py): every function builds the same runtime, so each may read the old key.
+    if (config.legacyNewsletterLinks) {
+      parameterArns.push(`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${legacyNewsletterKeyParameterName(config.siteId)}`);
+    }
     // Every function builds the same runtime (the audience needs the recipient key), and the SES events suppress readers.
     for (const fn of [router, email, flush, sesEvents]) {
       table.grantReadWriteData(fn); // includes the table key's encrypt and decrypt

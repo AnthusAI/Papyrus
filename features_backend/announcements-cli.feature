@@ -1,6 +1,7 @@
 Feature: People and agents at a terminal manage announcements
   Agents work through the CLI and MCP, so every console action has the same operation
-  behind it. Connecting the X account stays in the browser, and no secret is ever a flag.
+  behind it. Connecting the X account stays in the browser, and no secret is ever a flag. The Announcements themselves are read with
+  where, recent and explain (announcement-list-lines.feature, announcement-explain.feature); the list and show commands of the old X row shape are gone.
 
   Background:
     Given a site whose quality floor is 3 stars
@@ -31,26 +32,13 @@ Feature: People and agents at a terminal manage announcements
     When a person types "papyrus announcements dry-run story-1"
     Then the announcement command succeeds
     And the announcement answer has the exact post with the tagged link and sent false
-    And no announcement row is recorded
+    And no Announcement or Delivery is recorded
 
   Scenario: A site with no writing guidelines says so in the preview
     Given the announcement settings are saved for the account "mom" in Dry run at 5 stars
     And a published 5-star Article "story-1"
     When a person types "papyrus announcements dry-run story-1" with no writing guidelines
     Then the announcement answer is not passed and says "This publication has no writing guidelines"
-
-  Scenario: Listing and showing an announcement
-    Given the announcement settings are saved for the account "mom" in Dry run at 5 stars
-    And a published 5-star Article "story-1" that was announced
-    When a person types "papyrus announcements list"
-    Then the announcement list has one announcement labelled "Dry run: not sent"
-    When a person types "papyrus announcements show story-1"
-    Then the announcement answer has the announcement and its stored post text
-
-  Scenario: Showing a Story that was never announced
-    Given the announcement settings are saved for the account "mom" in Dry run at 5 stars
-    When a person types "papyrus announcements show nothing-here"
-    Then the announcement command fails with "not_found"
 
   Scenario: Pausing from the command line
     Given the announcement settings are saved for the account "mom" in Dry run at 5 stars

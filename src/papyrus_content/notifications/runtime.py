@@ -27,6 +27,7 @@ from caducus.notify.triage import TriageSettings
 
 from papyrus_content.newsletter.postal import PostalAddress
 
+from .legacy_links import LegacyLinks
 from .public import audience_settings
 from .renderer import ThemedRenderer
 from .sending import SiteEmailChannel, SiteMailer
@@ -47,6 +48,10 @@ class Runtime:
     read_item: Callable[[str], Mapping[str, Any] | None]
     audience: PublicAudience
     keys: AudienceKeys
+    #: Old newsletter links, only while the migration's alias period runs (``legacy_links.py``; deleted after).
+    legacy: LegacyLinks | None = None
+    #: An address's recipient key in this site's table (the migration tool names its rows by it).
+    recipient_key: Callable[[str], str] = lambda address: address
 
 
 def utcnow() -> datetime:
@@ -68,6 +73,7 @@ def assemble(
     key_secret: str,
     domains: DomainChecker,
     unsuppress: Callable[[str], None] | None = None,
+    legacy_token_key: bytes | None = None,
 ) -> Runtime:
     """``key_secret`` is the site's recipient-key secret (the SSM SecureString the directory also reads)."""
     kinds = load_registry(CONFIG_DIRECTORY)
@@ -75,11 +81,11 @@ def assemble(
     log = DeliveryLog(store, clock, retention_days)
     readers = AudienceDirectory(directory)
     # The audience raises its confirmation through the router, and the router fans public kinds out over the audience.
-    keys = AudienceKeys.from_secret(key_secret)
+    audience_keys = AudienceKeys.from_secret(key_secret)
     audience = PublicAudience(
         store,
         audience_settings(settings, unsuppress),
-        keys,
+        audience_keys,
         domains,
         clock,
         lambda detail: router.handle_detail(detail),
@@ -109,7 +115,9 @@ def assemble(
         audience=audience,
     )
     return Runtime(
-        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item, audience=audience, keys=keys
+        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item, audience=audience, keys=audience_keys,
+        recipient_key=audience_keys.recipient,
+        legacy=LegacyLinks(legacy_token_key, audience, lambda: clock().timestamp()) if legacy_token_key else None,
     )
 
 
@@ -131,6 +139,13 @@ def build_runtime(environment: Mapping[str, str] = os.environ) -> Runtime:
     mailer = SesMailer(sesv2, formataddr((settings.from_name, settings.from_address)), settings.configuration_set)
     key_secret = ssm.get_parameter(Name=environment["RECIPIENT_KEY_PARAMETER"], WithDecryption=True)["Parameter"]["Value"]
 
+    legacy_token_key = None
+    if settings.legacy_newsletter_key_parameter:
+        from papyrus_content.newsletter.keys import derive_keys
+
+        legacy_secret = ssm.get_parameter(Name=settings.legacy_newsletter_key_parameter, WithDecryption=True)["Parameter"]["Value"]
+        legacy_token_key = derive_keys(legacy_secret).token
+
     def unsuppress(address: str) -> None:
         """A reader lifted a bounce or complaint by opting in again: clear the SES account suppression list too."""
         try:
@@ -150,6 +165,7 @@ def build_runtime(environment: Mapping[str, str] = os.environ) -> Runtime:
         key_secret=key_secret,
         domains=DnsDomainChecker(),
         unsuppress=unsuppress,
+        legacy_token_key=legacy_token_key,
     )
 
 
