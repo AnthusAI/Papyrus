@@ -327,6 +327,9 @@ _ENTRIES = dict([
      "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--require-reviewed-source | --no-require-reviewed-source] [--budget TEXT] "
      "[--billing-cycle-day N] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements account connect", "Print the newsroom page where the X account is connected. Connecting is a browser step; nothing is connected from here.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements blocked", "List the Stories that qualified for X and are waiting, each with its reason.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements retry", "Try a failed Delivery again: back to ready, and the next try is the next attempt. A person only.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements review show", "Show the publication's announcement review and each override, and what a channel and kind would get.", "[--channel TEXT] [--kind TEXT] [--list TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements review set", "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "--approval none|soft|hard|inherit [--channel TEXT] [--kind TEXT] [--list TEXT] --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements delivery review", "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "DELIVERY_ID --approval none|soft|hard [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),

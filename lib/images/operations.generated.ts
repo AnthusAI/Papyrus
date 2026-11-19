@@ -39,6 +39,9 @@ export type ImageOperationName =
   | "announcements_settings_show"
   | "announcements_settings_set"
   | "announcements_account_status"
+  | "announcements_account_connect"
+  | "announcements_blocked"
+  | "announcements_retry"
   | "announcements_review_show"
   | "announcements_review_set"
   | "announcements_delivery_review_set"
@@ -1136,8 +1139,54 @@ export type AnnouncementsAccountStatusResult = {
   accountHandle?: string;
   /** For example $0.60 spent of $10.00 this cycle. */
   standing?: string;
+  /** Our count of the posts this account sent in the current billing cycle, a post later deleted included (X charged for it). X's own count is read beside it on the page. */
+  postCount?: number;
+  suggestion?: {
+    eligibleCount?: number;
+    windowDays?: number;
+    postsPerMonth?: number;
+    dollarsPerMonth?: number;
+    sentence: string;
+  };
   pauseReason?: string;
   pricesAsOf?: string;
+};
+
+/** Print the newsroom page where the X account is connected. Connecting is a browser step (OAuth): nothing is connected from here. */
+export type AnnouncementsAccountConnectInput = Record<string, unknown>;
+
+export type AnnouncementsAccountConnectResult = {
+  /** The address of Administration > Announcements in the newsroom. */
+  url: string;
+  words: string;
+};
+
+/** List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check). */
+export type AnnouncementsBlockedInput = Record<string, unknown>;
+
+export type AnnouncementsBlockedResult = {
+  blocked: {
+    delivery: string;
+    announcementId: string;
+    stories: {
+      lineageId: string;
+    }[];
+    reason: string;
+    words: string;
+    since?: string;
+  }[];
+};
+
+/** Try a failed Delivery again: it goes back to ready, and the next try is the next attempt. The attempts so far stay in its log. */
+export type AnnouncementsRetryInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsRetryResult = {
+  id: string;
+  /** The Delivery's state afterwards: ready. */
+  state: string;
 };
 
 /** Show the publication's announcement review and each override, and what a channel and kind would get. */
@@ -1647,6 +1696,9 @@ export interface ImageOperations {
   announcements_settings_show: { input: AnnouncementsSettingsShowInput; result: AnnouncementsSettingsShowResult };
   announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
+  announcements_account_connect: { input: AnnouncementsAccountConnectInput; result: AnnouncementsAccountConnectResult };
+  announcements_blocked: { input: AnnouncementsBlockedInput; result: AnnouncementsBlockedResult };
+  announcements_retry: { input: AnnouncementsRetryInput; result: AnnouncementsRetryResult };
   announcements_review_show: { input: AnnouncementsReviewShowInput; result: AnnouncementsReviewShowResult };
   announcements_review_set: { input: AnnouncementsReviewSetInput; result: AnnouncementsReviewSetResult };
   announcements_delivery_review_set: { input: AnnouncementsDeliveryReviewSetInput; result: AnnouncementsDeliveryReviewSetResult };
@@ -1704,6 +1756,9 @@ export const IMAGE_OPERATIONS = {
   announcements_settings_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements settings show" },
   announcements_settings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements settings set" },
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
+  announcements_account_connect: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account connect" },
+  announcements_blocked: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements blocked" },
+  announcements_retry: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements retry" },
   announcements_review_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements review show" },
   announcements_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements review set" },
   announcements_delivery_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements delivery review" },

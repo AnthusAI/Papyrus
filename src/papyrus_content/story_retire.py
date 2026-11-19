@@ -239,6 +239,18 @@ def print_plan(plan: RetirePlan, *, dry_run: bool) -> None:
         print(f"stories\tretire\tnote\t{plan.note}")
 
 
+def withdraw_announcements(client, lineage_id: str, actor: str) -> None:
+    """After a Story is retired, take back what was announced about it (PPY-bf9d26): one line for each Delivery, saying what happened. A post that already went on X is deleted by the
+    site's own X channel, which this command line does not hold: its line says NOT withdrawn and names the Delivery."""
+    import os
+
+    from .announcements.retirement import WITHDRAWN, withdraw_for_story
+
+    for result in withdraw_for_story(client, lineage_id, by=actor, item_url_style=os.environ.get("ITEM_URL_STYLE", "html")):
+        label = "withdrew" if result["outcome"] == WITHDRAWN else "NOT withdrawn"
+        print(f"stories\tretire\t{label}\t{result['delivery']}\t{result['words']}")
+
+
 def stories_retire(flags: list[str]) -> None:
     """papyrus stories retire --story LINEAGE|ID --redirect-to LINEAGE|ID [--static-dir DIR] [--no-trigger] [--dry-run] | --story LINEAGE|ID --undo [--no-trigger] [--dry-run]"""
     from .graphql_authoring import create_authoring_client
@@ -286,6 +298,8 @@ def stories_retire(flags: list[str]) -> None:
         print(f"stories\tretire\tunscheduled\t{plan.lineage_id}\t{', '.join(removed.get('itemIds') or [])}")
     apply_retire(client, plan, actor=actor)
     print(f"stories\tretire\tsaved\t{plan.lineage_id}")
+    if not undo:
+        withdraw_announcements(client, plan.lineage_id, actor)
     if not projection_requested():
         return
     if options.get("no-trigger"):

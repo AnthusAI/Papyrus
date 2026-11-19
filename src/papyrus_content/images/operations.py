@@ -692,9 +692,38 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "announcements_account_status", ("account", "status"), "Show mode, pause, the cycle's spend against the budget, and the connected account.", "read",
         obj({}), record({"mode": text(), "paused": flag(), "accountId": text(), "accountHandle": text(), "standing": text("For example $0.60 spent of $10.00 this cycle."),
+                         "postCount": whole("Our count of the posts this account sent in the current billing cycle, a post later deleted included (X charged for it). X's own count is read beside it on the page.", minimum=0),
+                         "suggestion": record({"eligibleCount": whole(minimum=0), "windowDays": whole(), "postsPerMonth": {"type": "number"}, "dollarsPerMonth": {"type": "number"}, "sentence": text()},
+                                              ("sentence",)),
                          "pauseReason": text(), "pricesAsOf": text()}, ("mode", "paused")), (),
         (Example({}, {"mode": "dry_run", "paused": False, "accountId": "mom", "standing": "$0.00 spent of $10.00 this cycle"}),), group="announcements",
-        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page. The CLI never accepts a secret.",
+        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page (`announcements account connect` prints the link). The CLI never accepts a secret. "
+              "`suggestion` is the site's own pace over the last 60 days at the link price, shown as a pace and never applied as a limit; it is left out until the prices are entered.",
+    ),
+    Operation(
+        "announcements_account_connect", ("account", "connect"), "Print the newsroom page where the X account is connected. Connecting is a browser step (OAuth): nothing is connected from here.", "read",
+        obj({}), record({"url": text("The address of Administration > Announcements in the newsroom."), "words": text()}, ("url", "words")), ("service_unavailable",),
+        (Example({}, {"url": "https://news.example.test/newsroom/administration/announcements", "words": "Open this page in the newsroom and choose Connect X account. Connecting needs the browser; no secret is ever typed here."}),),
+        group="announcements",
+        notes="The address is built from the console's own address (PAPYRUS_CONSOLE_URL, or the one the signed-in site publishes), never guessed: without one it says so and prints nothing. It reads nothing "
+              "from the site and writes nothing, and no secret is ever accepted by the command line.",
+    ),
+    Operation(
+        "announcements_blocked", ("blocked",), "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).", "read",
+        obj({}), record({"blocked": many(record({"delivery": text(), "announcementId": text(), "stories": many(record({"lineageId": text()}, ("lineageId",))), "reason": text(), "words": text(),
+                                                  "since": text()}, ("delivery", "announcementId", "stories", "reason", "words")))}, ("blocked",)), (),
+        (Example({}, {"blocked": [{"delivery": "announcement-1#x#handle-1#g1", "announcementId": "announcement-1", "stories": [{"lineageId": "slow-water"}], "reason": "paused",
+                                   "words": "Blocked: paused", "since": "2026-11-17T09:00:00Z"}]}),), group="announcements",
+        notes="One entry for each blocked X Delivery of the connected account, newest first, read from the account's Deliveries index. A Story that never qualified is not listed: `explain` says why it did not. "
+              "Resuming (a bigger budget, `resume`, a reconnected account) puts the Deliveries back to ready.",
+    ),
+    Operation(
+        "announcements_retry", ("retry",), "Try a failed Delivery again: it goes back to ready, and the next try is the next attempt. The attempts so far stay in its log.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)),
+        record({"id": text(), "state": text("The Delivery's state afterwards: ready.")}, ("id", "state")), ("not_found", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle-1#g1"}, {"id": "announcement-1#x#handle-1#g1", "state": "ready"}),), positional=("delivery",), group="announcements", agent_rung=PERSON_ONLY,
+        notes="A person only: an agent is told human_required, because a failed post may be failing for a reason a person should read first. Only a failed Delivery is retried; any other state is refused as "
+              "constraint_conflict with the state named. A Delivery whose draft was blocked by a failed check is not retried: change its words or answer its review request.",
     ),
 )
 
