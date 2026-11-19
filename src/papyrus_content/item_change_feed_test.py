@@ -103,6 +103,9 @@ def test_the_site_is_read_from_the_environment():
     assert (site.publication_id, site.tenant_id, site.site_bucket, site.openai_key_parameter) == ("sample", "alpha", "b", None)
 
 
+NO_GATE = type("Open", (), {"person_acted": staticmethod(lambda **found: False), "release": staticmethod(lambda request, send: (send(request), {"status": "sent"})[1])})()
+
+
 def test_the_handler_sends_through_the_wake_queue_and_reports_a_failed_record():
     import importlib.util
     from pathlib import Path
@@ -119,13 +122,13 @@ def test_the_handler_sends_through_the_wake_queue_and_reports_a_failed_record():
     environment = {"PAPYRUS_AGENT_PUBLICATION_ID": "sample", "PAPYRUS_GRAPHQL_ENDPOINT": SITE.appsync_endpoint, "PAPYRUS_TENANT_ID": "alpha", "PAPYRUS_SITE_BUCKET": "bucket"}
     index = type("Index", (), {"document": staticmethod(lambda: {"changes": {"Item/version_created": [listener("fact-check")]}})})()
     sent = []
-    assert module.handler(event, index=index, send=sent.append, environment=environment) == {"batchItemFailures": []}
+    assert module.handler(event, index=index, send=sent.append, environment=environment, gate=NO_GATE) == {"batchItemFailures": []}
     assert [agent_wakes.wake_of(request)["key"] for request in sent] == ["fact-check|s|s-v4|version_created"]
 
     def refuse(request):
         raise OSError("queue unavailable")
 
-    assert module.handler(event, index=index, send=refuse, environment=environment) == {"batchItemFailures": [{"itemIdentifier": "7"}]}
+    assert module.handler(event, index=index, send=refuse, environment=environment, gate=NO_GATE) == {"batchItemFailures": [{"itemIdentifier": "7"}]}
     assert module.handler({"Records": []}, index=index, send=refuse, environment=environment) == {"batchItemFailures": []}
 
 

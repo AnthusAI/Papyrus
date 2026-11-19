@@ -421,12 +421,28 @@ from Git leaves the index at the next deploy. It holds no rung, pause or budget:
   changed or cleared in place, PPY-e3bb2b; its key is `rated.<stars or cleared>.<time>`): `type`, `stage`, `section`, `language`, `stars`, `previousStars`, `actorKind`. A filter is a flat set of these
   fields; every one must equal the change's field as text.
 * **The wake.** Key `<agent>|<Story lineage>|<version id>|<what>` (`what` is the change; a stage entry names its stage, `stage_entered.<stage>`); the message group is the agent plus
-  the Story. The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the quiet window for paid steps (PPY-67e3cd) and the
-  loop guard (PPY-4e7e8b) need; those two sit between the feed and the queue and are not built yet. An agent's own change (`automation:<agent>`) never wakes that agent.
+  the Story. The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the wake gate needs (next section). An agent's own change (`automation:<agent>`) never wakes that agent, free or paid.
 * **Who is the writer.** A version's `versionCreatedBy` and a step's recorded actor name an agent as `automation:<id>`. An agent's stage move is recorded on the version
   (`move_story_stage`); a change of the stage field with no new record of the move is a person's, made in the console board.
 * **Limits of a stream.** A new version created at a different stage from its predecessor is not a stage entry (the stream holds no previous version), and a stage entered
   again at the same version has the same key, so it starts nothing again.
+
+## The wake gate: the quiet window and the loop guard
+
+Between the Item feed and the queue stands `src/papyrus_content/wake_gate.py` (PPY-67e3cd, PPY-4e7e8b). It reads two things the owner holds in the agent policy document.
+
+* **Paid steps wait for quiet.** A free step goes on the queue at once, on every change. A paid step does not: the change sets or replaces one follow-up timer
+  (`follow_up_timers`, entry `follow-up-<digest of "quiet:<agent>" and the Story>`), due `site.coalescing.windowSeconds` after an agent's change or
+  `site.coalescing.afterPersonSeconds` after a person's. The ruling is 30 minutes to 24 hours and about 5 minutes after a person; a site that has set none starts
+  with 30 and 5 minutes, and the policy refuses a window outside 1800 to 86400 seconds (`AgentPolicyStore.set_value` takes the `coalescing` field; no command-line verb sets it yet). The timer's wake key
+  is `<agent>|<Story>|<due time>|due` and the request carries no version, so the run takes the version current when it fires. A changed window changes only
+  the waits set after it.
+* **The loop guard.** `Item.metadata.botChain.hops` (the Stage Bots' counter, now general) counts the wakes caused by an agent's change since a person last acted on the Story; a
+  person's change clears it and starts the next `round`. At `agents.<responsibility>.loopLimit` (starts at 5) nothing more starts and ONE hard-gate review request, `rr-agent-loop-<story>-<limit>-<round>`, says so.
+* **What the feed's role may do for it:** read the policy's objects, set and clear `follow-up-*` entries in the site's schedule group, read a Story's versions, write the count on its
+  current version and raise the review request (amplify/agents/item-change-feed.ts). Only the Item feed is gated; the other tables' feeds (`change_feeds.py`) send at once.
+* **Limits.** A replaced timer still counts as a wake toward the loop limit, because it is one more agent change on the Story. The count lives on the Story's current version, so a
+  person's save that races the current mark clears the version it made as well.
 
 ## The change feeds of the other tables
 

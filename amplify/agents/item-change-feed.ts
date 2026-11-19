@@ -7,6 +7,7 @@ import { pythonLambdaCode } from "../functions/shared/python-bundle";
 import { connectToSiteApi } from "../site-api-access";
 import { tableStream } from "./stream-readers";
 import { setModelKeyParameter } from "./model-key";
+import { allowFollowUpTimers } from "./schedule-group";
 import { allowWakeSending } from "./wake-queue";
 import type { AgentPiece } from "./stack";
 
@@ -20,13 +21,24 @@ import type { AgentPiece } from "./stack";
  * `enableItemStream` (the Item table had no stream and no reader before this; it holds one reader now, the feed).
  *
  * What the function may do, and nothing else: read the Item stream; read the site's `SiteDocument` rows through its own site's API (`getSiteDocument`: the live
- * version of the listener index) and that one document's objects in the site's bucket (`tenants/<tenant>/site/listeners/`); look up and send to its own
- * site's wake queue. It reads no table, receives and deletes no wake, and calls no model.
+ * version of the listener index and of the agent policy) and those two documents' objects in the site's bucket (`tenants/<tenant>/site/listeners/` and
+ * `.../agents/`); look up and send to its own site's wake queue; set and clear follow-up timers for paid steps that wait for quiet (`follow-up-*` entries in its
+ * site's schedule group, slice B5); and, for the loop guard (slice B7), read a Story's versions, write the loop count on its current version and raise the one hard-gate
+ * review request, all through its own site's API. It reads no table, receives and deletes no wake, and calls no model.
  */
 
 export const ITEM_STREAM_VIEW = dynamodb.StreamViewType.NEW_AND_OLD_IMAGES;
-export const ITEM_FEED_API_FIELDS = ["Query/fields/getSiteDocument"];
+/** `getSiteDocument`: the listener index and the agent policy. The gate (PPY-67e3cd, PPY-4e7e8b) reads a Story's versions and keeps its loop count on the current one, and raises the hard gate once. */
+export const ITEM_FEED_API_FIELDS = [
+  "Query/fields/getSiteDocument",
+  "Query/fields/listItemsByLineageAndVersion",
+  "Query/fields/getItem",
+  "Mutation/fields/updateItem",
+  "Query/fields/getReviewRequest",
+  "Mutation/fields/createReviewRequest",
+];
 export const LISTENER_INDEX_KIND = "listeners";
+export const AGENT_POLICY_KIND = "agents";
 const STREAM_READ_ACTIONS = ["dynamodb:DescribeStream", "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams"];
 
 /** What the feed needs from the rest of the site's backend. Absent for a backend that cannot run it (a shared stack, which acts for no one tenant). */
@@ -92,10 +104,13 @@ export function itemChangeFeedPiece(brandId: string, source: ItemChangeFeedSourc
         new PolicyStatement({
           effect: Effect.ALLOW,
           actions: ["s3:GetObject"],
-          resources: [`${source.bucketArn}/tenants/${source.tenantId}/site/${LISTENER_INDEX_KIND}/*`],
+          resources: [LISTENER_INDEX_KIND, AGENT_POLICY_KIND].map((kind) => `${source.bucketArn}/tenants/${source.tenantId}/site/${kind}/*`),
         }),
       );
       allowWakeSending(feed, brandId);
+      allowFollowUpTimers(feed, brandId);
+      feed.addEnvironment("PAPYRUS_AWS_ACCOUNT_ID", stack.account);
+      feed.addEnvironment("PAPYRUS_AWS_PARTITION", stack.partition);
       feed.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: STREAM_READ_ACTIONS, resources: [source.streamArn] }));
       new CfnEventSourceMapping(scope, "ItemStreamMapping", {
         eventSourceArn: source.streamArn,

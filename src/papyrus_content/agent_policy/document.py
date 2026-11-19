@@ -100,6 +100,21 @@ def _quiet_window(value: Any) -> None:
         raise _invalid("site.quietWindow.timeZone must be a time zone name such as America/New_York.") from error
 
 
+COALESCING_MIN_SECONDS, COALESCING_MAX_SECONDS = 30 * 60, 24 * 60 * 60   # Ryan 2026-11-06: the window of a paid step is 30 minutes to 24 hours
+
+
+def _coalescing(value: Any) -> None:
+    """``{"windowSeconds": 1800..86400, "afterPersonSeconds": 1..windowSeconds}``: how long a paid step waits for quiet (docs/design/always-on-agents-architecture.md B5)."""
+    coalescing = _only(value, {"windowSeconds", "afterPersonSeconds"}, "site.coalescing")
+    for field, low, high in (("windowSeconds", COALESCING_MIN_SECONDS, COALESCING_MAX_SECONDS), ("afterPersonSeconds", 1, COALESCING_MAX_SECONDS)):
+        if field in coalescing:
+            seconds = coalescing[field]
+            if isinstance(seconds, bool) or not isinstance(seconds, int) or not low <= seconds <= high:
+                raise _invalid(f"site.coalescing.{field} must be a whole number of seconds from {low} to {high}.")
+    if coalescing.get("afterPersonSeconds", 1) > coalescing.get("windowSeconds", COALESCING_MAX_SECONDS):
+        raise _invalid("site.coalescing.afterPersonSeconds must not be longer than windowSeconds.")
+
+
 def _budget(value: Any) -> None:
     budget = _only(value, {"amountUsd", "period"}, "site.budget")
     amount = budget.get("amountUsd")
@@ -110,10 +125,12 @@ def _budget(value: Any) -> None:
 
 
 def validate_site(site: Any) -> None:
-    site = _only(site, {"paused", "pausedReason", "quietWindow", "budget", "tiers"}, "site")
+    site = _only(site, {"paused", "pausedReason", "quietWindow", "coalescing", "budget", "tiers"}, "site")
     _flag(site, "site")
     if "quietWindow" in site:
         _quiet_window(site["quietWindow"])
+    if "coalescing" in site:
+        _coalescing(site["coalescing"])
     if "budget" in site:
         _budget(site["budget"])
     if "tiers" in site:

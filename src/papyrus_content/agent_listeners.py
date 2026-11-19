@@ -5,7 +5,7 @@ Automation table. The registered definitions are the source, so the deploy that 
 the listener index, to the site store (kind ``listeners``; its body is an S3 object at ``tenants/<tenant>/site/listeners/<version>.json``, text never goes in
 DynamoDB). It is keyed by what changed, so a feed reads the one entry for a change and nothing else::
 
-    {"schemaVersion": 1, "changes": {"Item/stage_entered": [{"agent": "copy-edit", "procedure": "story.copy_edit", "paid": true, "serialBy": "subject",
+    {"schemaVersion": 1, "changes": {"Item/stage_entered": [{"agent": "copy-edit", "responsibility": "improve", "procedure": "story.copy_edit", "paid": true, "serialBy": "subject",
                                                            "filter": {"stage": "copywriting"}}], ...}}
 
 * It holds the agents in Git, none retired (``release.load`` returns the definitions that are in Git, so an agent removed from Git leaves the index at the next apply).
@@ -33,7 +33,7 @@ def build(definitions: Iterable[Definition]) -> dict[str, Any]:
     for item in sorted(definitions, key=lambda definition: definition.id):
         for listened in item.data["wakes"].get("changes") or []:
             changes.setdefault(change_name(listened["kind"], listened["change"]), []).append({
-                "agent": item.id, "procedure": item.data["procedure"], "paid": bool(item.data["paid"]), "serialBy": item.data["serialBy"],
+                "agent": item.id, "responsibility": item.responsibility, "procedure": item.data["procedure"], "paid": bool(item.data["paid"]), "serialBy": item.data["serialBy"],
                 "filter": dict(listened.get("filter") or {}),
             })
     return {"schemaVersion": SCHEMA_VERSION, "changes": changes}

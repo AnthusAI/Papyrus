@@ -24,7 +24,7 @@ def _definition(row: dict):
     filter_ = dict(pair.split("=", 1) for pair in row["filter"].split(",")) if row.get("filter") else {}
     if filter_:
         change["filter"] = filter_
-    return SimpleNamespace(id=row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
+    return SimpleNamespace(id=row["agent"], responsibility="r-" + row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
 
 
 _open_index, _deploy = open_index, _deploy_index
