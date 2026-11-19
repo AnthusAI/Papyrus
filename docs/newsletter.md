@@ -376,27 +376,7 @@ newsletter: {
 
 ### How a publish reaches the newsletter
 
-```mermaid
-flowchart LR
-    N[newsroom publishItem] --> C
-    L[papyrus content publish] -->|projection task, marked published| C[content-actions]
-    C -->|after a real publish, page live| H[announce_published]
-    H -->|async Event| F["newsletter: item-published"]
-    F --> D{ALERT# dedupe row}
-    D -->|new| I[alert issue]
-    D -->|exists| X[nothing]
-    I -->|approval none and instantAlerts| S[start-send]
-    I -->|otherwise| W[awaiting_approval]
-```
-
-`src/papyrus_content/publish_alerts.py` (`announce_published`) is the only code that invokes the newsletter function, from `content-actions`. It fires only for a real publish (`PublishResult.changed`), never for unpublish, edits that keep the same published content, or reprojection (`all`, `item-pages`, `deploy-render`):
-
-- Newsroom: `publish_item_action` passes the published item id to `project_item_action` when `changed`. The announcement goes out once the page is live. If the projection failed, the scheduled retry carries the same marker and announces when it succeeds.
-- CLI: `papyrus content publish` marks its projection task with the published item id when `changed`; `run_projection_task` announces after the projection succeeds. A task without the marker (a plain reprojection, `--no-trigger`, an unchanged republish) announces nothing.
-- `announce_published` also invokes the `notifications` plugin's router when `PAPYRUS_NOTIFICATIONS_FUNCTION` is set ([notifications.md](notifications.md)); each plugin is told independently.
-- No `PAPYRUS_NEWSLETTER_FUNCTION` (the plugin is off): a no-op. Any error is logged and swallowed, with 2 and 3 second timeouts, so an alert problem never fails or slows a publish.
-
-The plugin sets `PAPYRUS_NEWSLETTER_FUNCTION` on `content-actions` and grants it `lambda:InvokeFunction` on `papyrus-newsletter-<siteId>` only.
+It does not (PPY-e3bb2b). A publish writes only its own records and invokes no other function: the best-effort call (`publish_alerts.announce_published`, with its 2 and 3 second timeouts and its swallowed error), the `PAPYRUS_NEWSLETTER_FUNCTION` variable on `content-actions` and the plugin's invoke grant to it are deleted. The two facts that start an Announcement, a Story's page going live and its rating changing, are changes to the Story's own record, and the Item change feed delivers them to the announce agent through the site's wake queue ([announcement-records.md](announcement-records.md), "Durable triggers"). The `item-published` task and the `ALERT#<list>` rows below are the old alert path: nothing triggers the task now, and PPY-58d962 converts the kept rows and replaces the alerts with the email Delivery of an Announcement for an every-item list.
 
 ### What the function does
 

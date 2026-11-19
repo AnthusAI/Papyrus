@@ -131,6 +131,10 @@ The release that carries slice B3 is an ordinary update too; a new site's first 
 
 What a deploy cannot show, and a person checks once on a real site after the release: accepting a Reference puts one wake per listening agent on the queue; answering a review request puts one wake for the agent that asked; a comment on a Story wakes that Story's listeners; a Delivery state change wakes its listeners; a repeat of the same record puts none; and the dead-letter queue stays empty. The Message stream already has three readers on a site that turns on the console responder, Slack and the home page together; the feed adds none there, but that site's stream is over the guidance until one of those readers moves behind another (not done here).
 
+## The announce agent's definition (PPY-e3bb2b)
+
+`core/announce.yaml` (procedure `announce_story`, registered with the engine's procedures in the same release) is the second core definition. The build of every site that takes this release creates the automation `announce`, **disabled**, with its registered copy, and the next listener-index write lists it under `Item/stage_entered` (`stage=published`) and `Item/rated` (`stage=published`). The site's agent policy starts it at `off`, so the runner refuses its wakes until a person adopts it (`papyrus automations adopt --id announce --responsibility announce`) and sets a rung. A site that already has its own automation named `announce` that the deploy did not create is stopped by `papyrus agents apply` before anything is written (the plan names it). This release also removes the publish path's call to the newsletter and notifications functions: the plugins no longer give `content-actions` their names or an invoke grant, so a site's newsletter alerts and `story.published` notices stop being raised from a publish until PPY-58d962 replaces them with the Delivery of an Announcement.
+
 ## The first agent: rating on Machines on Machines (PPY-d85860)
 
 The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/rating-agent.feature`) is the first

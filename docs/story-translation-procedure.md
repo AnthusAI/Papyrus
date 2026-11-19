@@ -137,7 +137,7 @@ Automation that runs it (`papyrus automations create --id SITE.story-localize --
 The mechanism, once per change and without a table read per change:
 
 1. **The publish writes the desired state.** When a Story written in the primary language is published (the one funnel every publish path ends in:
-   `announce_published_story` in the content-actions function, after the page is live), `localize.auto.request_translations` writes one
+   `story_is_live` in the content-actions function, after the page is live), `localize.auto.request_translations` writes one
    `LocalizationRequest` per enabled language other than the primary: the newest published source version, `automationId`, `publish`, state `wanted`.
    A record already naming the same text asks for nothing again (unless its run `failed` or `stopped`); a newer publish overwrites the record (coalescing). A
    translation, a Story in another language and a Story marked do not localize request nothing. A failure to write is logged
