@@ -65,7 +65,14 @@ refuses({ ...base, fromAddress: "x@other.example" }, /notifications plugin fromA
 refuses({ ...base, lists: [] }, /lists must be a list of 1 to 20 lists/);
 refuses({ ...base, lists: [base.lists[0], base.lists[0]] }, /duplicate ids: stories/);
 refuses({ ...base, lists: [{ ...base.lists[0], approval: "sometimes" }] }, /approval must be "admin" or "none"/);
-refuses({ ...base, lists: [{ ...base.lists[0], kind: "alert" }] }, /unknown settings: kind/);
+refuses({ ...base, lists: [{ ...base.lists[0], kind: "alert" }] }, /kind must be "story.published" or "roundup"/);
+// A roundup list (the newsletter's weekly issue, moved by PPY-6b2d35) is never sent each story, so it names no rule.
+const roundup = { id: "weekly", name: "Weekly roundup", description: "", kind: "roundup" };
+assert.equal(resolveNotificationsConfig({ ...base, lists: [base.lists[0], roundup] } as never).lists[1].kind, "roundup");
+refuses({ ...base, lists: [{ ...roundup, rule: { sections: ["News"] } }] }, /roundup list, which is never sent each story/);
+// Old newsletter links are off unless asked for, and the old key is read only then.
+assert.equal(config.legacyNewsletterLinks, false);
+refuses({ ...base, legacyNewsletterLinks: "yes" }, /legacyNewsletterLinks must be true or false/);
 const family = resolveNotificationsConfig({ ...base, lists: [{ ...base.lists[0], family: "new-stories", cadence: "daily", sendAt: { time: "06:00" }, timeZone: "America/New_York" }] } as never);
 assert.deepEqual(family.lists[0].sendAt, { time: "06:00" }, "a periodic list keeps its local send time, so a switch can wait for the next period start");
 assert.equal(family.lists[0].family, "new-stories");
@@ -98,6 +105,13 @@ assert.equal(environment.SITE_ID, "example");
 assert.equal(environment.OPERATORS_PARAMETER, "/papyrus/example/notifications/operators");
 assert.deepEqual(JSON.parse(environment.THEME_JSON), base.theme);
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), config.lists);
+assert.equal(environment.LEGACY_NEWSLETTER_KEY_PARAMETER, undefined, "no old-link key unless asked for");
+const legacyConfig = resolveNotificationsConfig({ ...base, legacyNewsletterLinks: true } as never);
+assert.equal(
+  notificationsEnvironment(legacyConfig, { table: "t", operators: "/o", key: "/k" }).LEGACY_NEWSLETTER_KEY_PARAMETER,
+  "/papyrus/example/newsletter-key",
+  "the key the newsletter plugin generated and retained",
+);
 assert.equal(environment.CONSENT, base.consent);
 assert.equal(environment.CONFIRM_WINDOW_SECONDS, "259200");
 assert.equal((notificationsPlugin.publicSettings(config) as { consent: string }).consent, base.consent, "the subscribe form shows the stored wording");
@@ -288,5 +302,11 @@ assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } 
 const other = synthesize(resolveNotificationsConfig({ ...base, siteId: "other", sendingDomain: "other.example", fromAddress: "notifications@other.example", siteOrigin: "https://other.example" }));
 assert.match(JSON.stringify(other.template.toJSON()), /papyrus-notifications-other/);
 assert.ok(!JSON.stringify(other.template.toJSON()).includes("papyrus-notifications-example"));
+
+// Old newsletter links: the functions read the retained newsletter key only while the setting is on.
+assert.ok(!JSON.stringify(template.toJSON()).includes("newsletter-key"), "no grant on the newsletter key by default");
+const legacy = JSON.stringify(synthesize(legacyConfig).template.toJSON());
+assert.match(legacy, /LEGACY_NEWSLETTER_KEY_PARAMETER/);
+assert.match(legacy, /newsletter-key/, "and may read the retained key");
 
 console.log("notifications plugin ok");
