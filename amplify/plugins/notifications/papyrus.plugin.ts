@@ -7,6 +7,7 @@ import { ArnPrincipal, Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Key } from "aws-cdk-lib/aws-kms";
 import { Architecture, type Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import type { ITable } from "aws-cdk-lib/aws-dynamodb";
 import { Queue, QueueEncryption } from "aws-cdk-lib/aws-sqs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -18,6 +19,8 @@ import { postalAddressParameterArns } from "../newsletter/sending";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveNotificationsConfig, type NotificationsConfig } from "./config";
 import { siteApiEnvironment } from "../../site-api-access";
+import { X_ENDPOINTS, announcementsParameterPrefix } from "../../functions/announcements/wire";
+import { ANNOUNCEMENTS_TIMEOUT_SECONDS } from "../../functions/announcements/resource";
 
 export { resolveNotificationsConfig };
 export type { NotificationsConfig };
@@ -26,6 +29,7 @@ export const NOTIFICATIONS_OUTPUT_KEY = "notifications";
 export const HANDLERS = {
   router: "papyrus_content.notifications.handler.router",
   email: "papyrus_content.notifications.handler.email",
+  x: "papyrus_content.notifications.handler.x",
   flush: "papyrus_content.notifications.handler.flush",
   sesEvents: "papyrus_content.notifications.handler.ses_events",
   pause: "papyrus_content.notifications.handler.pause",
@@ -37,6 +41,9 @@ export const NOTIFICATIONS_REQUIREMENTS = [CADUCUS_REQUIREMENT, "PyYAML>=6.0.2,<
 const FUNCTION_DIRECTORY = "../plugins/notifications/function";
 export const EMAIL_TIMEOUT_SECONDS = 120;
 export const EMAIL_MAX_RECEIVE_COUNT = 3;
+/** One post can wait out X's rate limit inside the consumer (Caducus sleeps until `x-rate-limit-reset`), and X's windows are fifteen minutes: the Lambda maximum. */
+export const X_TIMEOUT_SECONDS = 900;
+export const X_MAX_RECEIVE_COUNT = 3;
 
 export const notificationsManifest: PluginManifest = {
   name: "notifications",
@@ -58,6 +65,7 @@ export function overrideNotificationsCodeForTests(code?: Code): void {
 
 export const notificationsFunctionName = (siteId: string) => `papyrus-notifications-${siteId}`;
 export const notificationsEmailName = (siteId: string) => `papyrus-notifications-email-${siteId}`;
+export const notificationsXName = (siteId: string) => `papyrus-notifications-x-${siteId}`;
 export const notificationsFlushName = (siteId: string) => `papyrus-notifications-flush-${siteId}`;
 export const notificationsSesEventsName = (siteId: string) => `papyrus-notifications-ses-${siteId}`;
 export const notificationsPauseName = (siteId: string) => `papyrus-notifications-pause-${siteId}`;
@@ -70,6 +78,7 @@ export const notificationsKeyParameterName = (siteId: string) => `/papyrus/${sit
 export const legacyNewsletterKeyParameterName = (siteId: string) => `/papyrus/${siteId}/newsletter-key`;
 export const notificationsAlarmNames = (siteId: string) => ({
   emailDeadLetters: `papyrus-notifications-${siteId}-email-dlq`,
+  xDeadLetters: `papyrus-notifications-${siteId}-x-dlq`,
   routerDeadLetters: `papyrus-notifications-${siteId}-router-dlq`,
 });
 
@@ -201,6 +210,22 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       enforceSSL: true,
       deadLetterQueue: { queue: emailDeadLetters, maxReceiveCount: EMAIL_MAX_RECEIVE_COUNT },
     });
+    // X: its own queue, so one consumer at a time posts for the site's one account (the budget is charged one post after another), and its dead letter queue.
+    const xDeadLetters = new Queue(stack, "XDeadLetterQueue", {
+      queueName: `papyrus-notifications-${config.siteId}-x-dlq`,
+      retentionPeriod: Duration.days(14),
+      encryption: QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+    });
+    const xQueue = new Queue(stack, "XQueue", {
+      queueName: `papyrus-notifications-${config.siteId}-x`,
+      visibilityTimeout: Duration.seconds(X_TIMEOUT_SECONDS * 6),
+      encryption: QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+      deadLetterQueue: { queue: xDeadLetters, maxReceiveCount: X_MAX_RECEIVE_COUNT },
+    });
+    // The announcements function's model tables: the settings (pause, budget, prices), the account connection and the spend counter. The consumer has no signed-in person, so it reads and writes them with its own role.
+    const announcementTables = backend.data.resources.tables as Record<string, ITable>;
     const routerDeadLetters = new Queue(stack, "RouterDeadLetterQueue", {
       queueName: `papyrus-notifications-${config.siteId}-router-dlq`,
       retentionPeriod: Duration.days(14),
@@ -211,6 +236,12 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     const environment = {
       ...notificationsEnvironment(config, { table: table.tableName, operators: operatorsParameter, key: keyParameter.parameterName }),
       EMAIL_QUEUE_URL: emailQueue.queueUrl,
+      X_QUEUE_URL: xQueue.queueUrl,
+      ...X_ENDPOINTS,
+      ANNOUNCEMENT_SETTINGS_TABLE: announcementTables.AnnouncementSettings.tableName,
+      X_CONNECTION_TABLE: announcementTables.XConnection.tableName,
+      ANNOUNCEMENT_SPEND_TABLE: announcementTables.AnnouncementSpend.tableName,
+      X_REFRESH_LEASE_SECONDS: String(ANNOUNCEMENTS_TIMEOUT_SECONDS),
       ...siteApiEnvironment(context.graphqlEndpoint),
     };
     const common = { runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, code, environment };
@@ -235,6 +266,17 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       description: `Mails queued notifications for ${config.siteId}, paced under the SES send rate`,
     });
     email.addEventSource(new SqsEventSource(emailQueue, { batchSize: 10, reportBatchItemFailures: true }));
+    const x = new LambdaFunction(stack, "XFunction", {
+      ...common,
+      functionName: notificationsXName(config.siteId),
+      handler: HANDLERS.x,
+      timeout: Duration.seconds(X_TIMEOUT_SECONDS),
+      memorySize: 512,
+      // One post at a time: the budget is charged one post after another, and a post whose outcome is unknown is checked before it is repeated.
+      reservedConcurrentExecutions: 1,
+      description: `Posts queued announcements for ${config.siteId} to its connected X account`,
+    });
+    x.addEventSource(new SqsEventSource(xQueue, { batchSize: 1, reportBatchItemFailures: true }));
     const flush = new LambdaFunction(stack, "FlushFunction", {
       ...common,
       functionName: notificationsFlushName(config.siteId),
@@ -276,13 +318,26 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       parameterArns.push(`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${legacyNewsletterKeyParameterName(config.siteId)}`);
     }
     // Every function builds the same runtime (the audience needs the recipient key), and the SES events suppress readers.
-    for (const fn of [router, email, flush, sesEvents]) {
+    for (const fn of [router, email, x, flush, sesEvents]) {
       table.grantReadWriteData(fn); // includes the table key's encrypt and decrypt
       fn.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ssm:GetParameter"], resources: parameterArns }));
     }
     // A reader who lifts a bounce or complaint by opting in again is cleared from the SES account suppression list too.
     // The action has no resource-level form (as for the newsletter function).
     router.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:DeleteSuppressedDestination"], resources: ["*"] }));
+    // The X consumer reads the account's connection, its token parameters (a refresh saves the next one), the settings and the spend counter, and nothing else of the site's.
+    announcementTables.AnnouncementSettings.grantReadData(x);
+    announcementTables.XConnection.grantReadWriteData(x); // a refresh takes the connection's lease and records its result
+    announcementTables.AnnouncementSettings.grantReadWriteData(x); // a refresh X refuses pauses announcements
+    announcementTables.AnnouncementSpend.grantReadWriteData(x);
+    x.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["ssm:GetParameter", "ssm:PutParameter"],
+        resources: [`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${announcementsParameterPrefix(config.siteId)}/*`],
+      }),
+    );
+    xQueue.grantSendMessages(router);
     emailQueue.grantSendMessages(router);
     emailQueue.grantSendMessages(flush);
     emailQueue.grantSendMessages(email); // a fan-out page queues its deliveries and the next page
@@ -369,6 +424,7 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     const alarmNames = notificationsAlarmNames(config.siteId);
     for (const [id, alarmName, queue] of [
       ["EmailDeadLetterAlarm", alarmNames.emailDeadLetters, emailDeadLetters],
+      ["XDeadLetterAlarm", alarmNames.xDeadLetters, xDeadLetters],
       ["RouterDeadLetterAlarm", alarmNames.routerDeadLetters, routerDeadLetters],
     ] as const) {
       new Alarm(stack, id, {
@@ -391,7 +447,7 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     // The CMS routes are the only caller: a publish tells this function nothing (the announce agent is woken by the Item change feed).
     router.addPermission("InvokeFromCmsCompute", { principal: new ArnPrincipal(config.computeRoleArn), action: "lambda:InvokeFunction" });
 
-    backend.addOutput({ custom: { [NOTIFICATIONS_OUTPUT_KEY]: { actionsFunction: router.functionName } } });
+    backend.addOutput({ custom: { [NOTIFICATIONS_OUTPUT_KEY]: { actionsFunction: router.functionName, xQueueUrl: xQueue.queueUrl } } });
   },
 };
 
