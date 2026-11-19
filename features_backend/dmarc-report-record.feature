@@ -5,7 +5,7 @@ Feature: Every sending domain publishes DMARC, and the aggregate reports go to a
   parameter: the stack holds only the NAME of an SSM parameter, CloudFormation reads the value at deploy time, and the address is never in the repository, a spec,
   a fixture, a document or the board (these specs use the placeholder dmarc-reports@example.test). The policy starts at none, which only reports. Moving to quarantine
   and then reject is its own reviewed change, made when the reports show SPF and DKIM aligned for every legitimate sender. Nothing here has been deployed: the
-  parameter is created once by a person, and the release publishes the records once the pipeline roles allow the DMARC stacks (the stacks come in a follow-up change, after a person approves the roles).
+  parameter is created once by a person, and the release publishes the records 
 
   Scenario: The record is a DMARC TXT record at the sending domain with the report address in it
     Given the DMARC template
@@ -28,6 +28,13 @@ Feature: Every sending domain publishes DMARC, and the aggregate reports go to a
     Then the template says a mailbox on another domain needs an authorization record in that domain's zone
     And the template creates no authorization record
 
+  Scenario: Both sending domains get the record from the same template through the release
+    Given the release stack list
+    Then there is a DMARC stack for the domain "anth.us" and one for the domain "mail.machines-on-machines.anth.us"
+    And both use the DMARC template and look up the zone "anth.us"
+    And both start at the policy "none"
+    And both name the report address by its SSM parameter, never by an address
+
   Scenario: The release's roles may drive the DMARC stacks and nothing else new
     Given the release roles template
     Then the plan role may read the DMARC stacks
@@ -35,5 +42,5 @@ Feature: Every sending domain publishes DMARC, and the aggregate reports go to a
     And the deploy role may resolve the report address parameter under /papyrus/
 
   Scenario: No real address is in the repository's DMARC files
-    Given the DMARC template and its specs
+    Given the DMARC template, its stacks and its specs
     Then none contains an email address other than the example.test placeholder

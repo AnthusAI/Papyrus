@@ -19,6 +19,7 @@ on:
     branches: [develop, main]
     paths:
       - ".github/workflows/stack-deploy.yml"
+      - "infra/email/papyrus-dmarc.yaml"
       - "infra/monitoring/**"
       - "infra/newsletter/**"
       - "infra/pipeline/**"
