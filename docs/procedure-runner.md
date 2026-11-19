@@ -99,7 +99,7 @@ For each request, the runner does these steps:
    as the run exists (status `running`, `runId`) and records the outcome (status, outcome, reason, error) there when it ends.
 
 The runner signs its AppSync calls with its own role. The procedure tools in the child process do the
-same (`PAPYRUS_GRAPHQL_AUTH=iam`). The OpenAI key comes from the publication's Amplify secret in SSM.
+same (`PAPYRUS_GRAPHQL_AUTH=iam`). The OpenAI key comes from the publication's Amplify secret in SSM. For a run a change feed starts (the Item change feed, `change-feeds`), the wake names the parameter: the site's `agents.openAiKeyParameter`, put on the feeds as `PAPYRUS_OPENAI_KEY_PARAMETER` ([releasing](releasing.md#the-agents-model-key-the-parameter-a-site-names-ppy-8a374e-ppy-6af46b)). The runner's role may read only the parameters its template names (`AgentModelKeyParameters`); with none named the run has no key and fails closed.
 The runner keeps no state of its own. A failure never starts a second run: the wake key's run record is created once,
 and a second delivery of the same wake only finds it (`duplicate`).
 

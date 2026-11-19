@@ -436,13 +436,15 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     assert pr.SECONDS_KEPT_FOR_RECORDING < function["Timeout"]
     statements = resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {statement["Sid"] for statement in statements} == {
-        "Logs", "FailedInvocations", "PublicationOpenAiKeys", "TriggerOutcomes", "StageTriggerRows",
+        "Logs", "FailedInvocations", "PublicationOpenAiKeys", "AgentModelKeyParameters", "TriggerOutcomes", "StageTriggerRows",
         "ReadWakeQueues", "PutWakes", "PublicationNewsrooms", "SiteAgentPolicyBody"}
     assert all("*" != statement["Resource"] for statement in statements)
     by_sid = {statement["Sid"]: statement for statement in statements}
     rows = by_sid["StageTriggerRows"]
     assert set(rows["Action"]) == {"dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"}
     assert rows["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["MONITOR#*"]
+    model_key = by_sid["AgentModelKeyParameters"]   # PPY-8a374e: one named parameter, GetParameter alone (no decrypt, no wildcard under /papyrus/)
+    assert model_key["Action"] == "ssm:GetParameter" and len(model_key["Resource"]) == 1 and model_key["Resource"][0][1].endswith(":parameter/papyrus/shipped/openai-api-key")
     policy_body = by_sid["SiteAgentPolicyBody"]   # PPY-c8175e: read one document's objects, nothing else of S3
     assert policy_body["Action"] == "s3:GetObject" and policy_body["Resource"][1].endswith(":::*/tenants/*/site/agents/*")
     queues = ":papyrus-*-agent-wakes.fifo"   # the wake queues by name pattern (PPY-567bf9); the dead-letter queues do not match
