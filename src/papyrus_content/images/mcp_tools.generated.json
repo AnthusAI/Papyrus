@@ -3983,6 +3983,37 @@
             "minLength": 1,
             "description": "For example $0.60 spent of $10.00 this cycle."
           },
+          "postCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Our count of the posts this account sent in the current billing cycle, a post later deleted included (X charged for it). X's own count is read beside it on the page."
+          },
+          "suggestion": {
+            "type": "object",
+            "properties": {
+              "eligibleCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "windowDays": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "postsPerMonth": {
+                "type": "number"
+              },
+              "dollarsPerMonth": {
+                "type": "number"
+              },
+              "sentence": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "sentence"
+            ]
+          },
           "pauseReason": {
             "type": "string",
             "minLength": 1
@@ -3995,6 +4026,153 @@
         "required": [
           "mode",
           "paused"
+        ]
+      }
+    },
+    {
+      "name": "announcements_account_connect",
+      "audience": "staff",
+      "description": "Print the newsroom page where the X account is connected. Connecting is a browser step (OAuth): nothing is connected from here.",
+      "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The address of Administration > Announcements in the newsroom."
+          },
+          "words": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "url",
+          "words"
+        ]
+      }
+    },
+    {
+      "name": "announcements_blocked",
+      "audience": "staff",
+      "description": "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).",
+      "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "blocked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "delivery": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "announcementId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "stories": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "lineageId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "lineageId"
+                    ]
+                  }
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "words": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "since": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "delivery",
+                "announcementId",
+                "stories",
+                "reason",
+                "words"
+              ]
+            }
+          }
+        },
+        "required": [
+          "blocked"
+        ]
+      }
+    },
+    {
+      "name": "announcements_retry",
+      "audience": "staff",
+      "description": "Try a failed Delivery again: it goes back to ready, and the next try is the next attempt. The attempts so far stay in its log.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's state afterwards: ready."
+          }
+        },
+        "required": [
+          "id",
+          "state"
         ]
       }
     },
