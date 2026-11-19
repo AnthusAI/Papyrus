@@ -4901,6 +4901,90 @@
       }
     },
     {
+      "name": "announcements_example",
+      "audience": "staff",
+      "description": "Say how far what a person changed in an announcement should reach, so later drafts can follow it.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id: one that went out, or one with a preferred version."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "this_one",
+              "channel",
+              "kind",
+              "publication"
+            ],
+            "description": "How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One line on why, kept with the words in S3 and never in the catalog. It goes with a scope."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recorded": {
+            "type": "boolean"
+          },
+          "exampleState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exampleScope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "machineVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "finalVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "recorded"
+        ]
+      }
+    },
+    {
       "name": "announcements_correct",
       "audience": "staff",
       "description": "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.",
