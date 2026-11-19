@@ -13,17 +13,23 @@ approved.
 **Every wait is a named time on the row.** ``releaseAt``, ``lockAt`` and ``nextAttemptAt`` (with ``waitingFor``); ``dueAt`` is the earliest still pending and, with
 ``dueKey``, is present only while one is. A lock is a fact (``lockedAt``, ``lockedVersion``), not something held.
 
+**Every edit is a new version** (PPY-e8ec54). ``version`` is the newest; the words of each are one file in S3 and ``versions`` (the log) holds each file's key and hash, who saved it and
+which version it replaced (``delivery_text.py``). ``textKey`` and ``contentHash`` are the newest version's. The version that goes out is the locked one (``lockedVersion``), so an edit
+made while an attempt is open is a later, preferred version and the attempt is not changed. ``delivery_versions.py`` makes the saves, candidates and pinned blocks; ``delivery_lock.py``
+raises and lifts the lock.
+
 Writes that change an existing row are conditional on the row's ``revision`` (it goes up by one with every change), so two writers never silently overwrite each other:
 the second raises ``Conflict``.
 There are no transactions across AppSync tables; ``supersede`` is ordered conditional writes that finish on a retry (see its docstring).
 """
 from __future__ import annotations
 
-import hashlib
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Any, Iterator, Mapping, Protocol, Sequence
 
+from . import delivery_text
+from .delivery_text import content_hash  # noqa: F401  (re-exported: the one hash of the words and the picture that go out together)
 from .records import (
     APPROVALS, ATTEMPT_SENT, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MANUAL, MODES, NONE, READY, SENT, SOFT, STARTED, UNKNOWN, SUPERSEDED, SYSTEM,
     BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, attempt_log, open_attempt_of, require_catalog_only, stored, utc, with_due,
@@ -87,41 +93,43 @@ class CorrectedDifferently(Conflict):
 
 
 class DeliveryFiles(Protocol):
-    def describe(self, delivery: str, text: str) -> dict[str, str]: ...
+    """A Delivery's files in S3. Each is named: ``v<number>`` for a version's words and ``c<number>`` for a candidate's, and a file is written once."""
 
-    def put(self, delivery: str, text: str, *, now: str) -> None: ...
+    def describe(self, delivery: str, text: str, name: str = "v1") -> dict[str, str]: ...
 
-    def get(self, delivery: str) -> str | None: ...
+    def put(self, delivery: str, text: str, *, now: str, name: str = "v1") -> None: ...
+
+    def get(self, delivery: str, name: str = "v1") -> str | None: ...
 
 
 class AttachmentFiles:
-    """A Delivery's words as a ModelAttachment of the row (``newsroom/payloads/delivery/<id>/delivery-text/delivery.md``)."""
+    """A Delivery's words as ModelAttachments of the row, one for each file (``newsroom/payloads/delivery/<id>/delivery-text/delivery-v3.md``)."""
 
     def __init__(self, client: Any):
         self.client = client
 
-    def _entry(self, delivery: str, text: str, now: str | None) -> dict[str, Any]:
+    def _entry(self, delivery: str, text: str, now: str | None, name: str) -> dict[str, Any]:
         from ..model_attachments import build_text_model_payload_attachment
 
         return build_text_model_payload_attachment(
-            {"ownerKind": OWNER_KIND, "ownerId": delivery, "role": ROLE, "sortKey": "text", "filename": "delivery.md", "mediaType": "text/markdown", "content": text, "now": now}
+            {"ownerKind": OWNER_KIND, "ownerId": delivery, "role": ROLE, "sortKey": name, "filename": f"delivery-{name}.md", "mediaType": "text/markdown", "content": text, "now": now}
         )
 
-    def describe(self, delivery: str, text: str) -> dict[str, str]:
-        attachment = self._entry(delivery, text, None)["attachment"]
+    def describe(self, delivery: str, text: str, name: str = "v1") -> dict[str, str]:
+        attachment = self._entry(delivery, text, None, name)["attachment"]
         return {"key": attachment["storagePath"], "sha256": attachment["sha256"]}
 
-    def put(self, delivery: str, text: str, *, now: str) -> None:
+    def put(self, delivery: str, text: str, *, now: str, name: str = "v1") -> None:
         from ..model_attachments import upload_attachment_body
 
-        entry = self._entry(delivery, text, now)
+        entry = self._entry(delivery, text, now, name)
         upload_attachment_body(self.client, entry["attachment"], entry["body"])
 
-    def get(self, delivery: str) -> str | None:
+    def get(self, delivery: str, name: str = "v1") -> str | None:
         from ..model_attachments import download_attachment_buffer
 
         found = [a for a in self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", delivery, limit=100)
-                 if a.get("role") == ROLE and str(a.get("status") or "active").lower() not in {"deleted", "aborted"}]
+                 if a.get("role") == ROLE and a.get("sortKey") == name and str(a.get("status") or "active").lower() not in {"deleted", "aborted"}]
         if not found:
             return None
         body = download_attachment_buffer(self.client, found[0])
@@ -144,17 +152,20 @@ class Plan:
     checks: Sequence[Mapping[str, Any]] = ()
     state: str = READY
     lock_at: str | None = None
+    release_at: str | None = None   # this channel's own release time (its edit window), else the Announcement's
 
 
-def content_hash(text_sha256: str, image_key: str | None) -> str:
-    """One hash for the words and the picture that go out together."""
-    return hashlib.sha256(f"{text_sha256}\n{image_key or ''}".encode("utf-8")).hexdigest()
+class DueTimers(Protocol):
+    """What ``Deliveries`` calls wherever a Delivery's due time is written, so a time that comes raises one wake (``delivery_timers.DeliveryTimers``)."""
+
+    def sync(self, row: Mapping[str, Any]) -> None: ...
 
 
 class Deliveries:
-    def __init__(self, client: Any, files: DeliveryFiles | None = None):
+    def __init__(self, client: Any, files: DeliveryFiles | None = None, timers: DueTimers | None = None):
         self.client = client
         self.files = files or AttachmentFiles(client)
+        self.timers = timers
 
     # --- reads: every one is an index or a get ----------------------------------------------------------------------------------------------------
 
@@ -206,8 +217,20 @@ class Deliveries:
         return [dict(row) for row in self.client.list_by_index(INDEX_BY_DUE, due_key(), sort_condition={"le": utc(now)})]
 
     def text(self, row: Mapping[str, Any]) -> str | None:
-        """The Delivery's words, read from S3."""
-        return self.files.get(row["id"]) if row.get("textKey") else None
+        """The words of the Delivery's newest version, read from S3."""
+        return self.text_of(row, delivery_text.head_entry(row))
+
+    def text_of(self, row: Mapping[str, Any], entry: Mapping[str, Any] | None) -> str | None:
+        """The words one line of the version log names, read from S3."""
+        return self.files.get(row["id"], entry["file"]) if entry else None
+
+    def sendable(self, row: Mapping[str, Any]) -> dict[str, Any] | None:
+        """The log line of the version that goes out: the locked one once the Delivery is locked, otherwise the newest."""
+        return delivery_text.sendable_entry(row)
+
+    def sent_text(self, row: Mapping[str, Any]) -> str | None:
+        """The words that go out, read from S3. An edit after the lock never changes them."""
+        return self.text_of(row, self.sendable(row))
 
     # --- create -----------------------------------------------------------------------------------------------------------------------------------
 
@@ -218,17 +241,19 @@ class Deliveries:
         already have one, use ``add``."""
         now = now or now_iso()
         self.check(plan)
-        release = utc(release_at)
+        release = utc(plan.release_at or release_at)
         row_id = delivery_id(announcement, plan.channel, plan.account_id, generation)
         existing = self.get(row_id)
         if existing:
             raise DeliveryExists(existing)
-        file = self.files.describe(row_id, plan.text) if plan.text else None   # a draft a person has yet to write has no words and no file
+        name = delivery_text.version_file(1)
+        file = self.files.describe(row_id, plan.text, name) if plan.text else None   # a draft a person has yet to write has no words and no file
+        first = self.first_version(1, name, file, plan, by=by, at=now) if file else None
         approved = plan.approval == NONE
         row: dict[str, Any] = {
             "id": row_id, "announcementId": announcement, "channel": plan.channel, "accountId": plan.account_id, "accountKey": account_key(plan.channel, plan.account_id),
             "audience": list(plan.audience) or None, "mode": plan.mode, "state": plan.state, "generation": generation, "version": 1,
-            "textKey": file["key"] if file else None, "imageKey": plan.image_key, "contentHash": content_hash(file["sha256"], plan.image_key) if file else None,
+            "textKey": file["key"] if file else None, "imageKey": plan.image_key, "contentHash": first["contentHash"] if first else None, "versions": [first] if first else None,
             "draftedBy": plan.drafted_by, "checks": list(plan.checks) or None,
             "approval": plan.approval, "approvalPolicy": plan.approval_policy,
             "approvedVersion": 1 if approved else None, "approvedBy": SYSTEM if approved else None, "approvedAt": now if approved else None,
@@ -245,8 +270,17 @@ class Deliveries:
                 raise DeliveryExists(self.get(row_id) or row) from error
             raise
         if plan.text:
-            self.files.put(row_id, plan.text, now=now)
+            self.files.put(row_id, plan.text, now=now, name=name)
+        self._sync(row)
         return row
+
+    @staticmethod
+    def first_version(number: int, name: str, described: Mapping[str, str], plan: Plan, *, by: str, at: str) -> dict[str, Any]:
+        """The log line of a Delivery's first words: a machine draft is the machine's, unpinned; a person's own words are the person's and pinned."""
+        owner = delivery_text.MACHINE if plan.drafted_by == "machine" else delivery_text.HUMAN
+        texts = delivery_text.split_blocks(plan.text)
+        flags = [delivery_text.MACHINE_FLAGS if owner == delivery_text.MACHINE else delivery_text.HUMAN_FLAGS] * len(texts)
+        return delivery_text.version_entry(number, name, described, image_key=plan.image_key, by=by, owner=owner, at=at, replaces=None, texts=texts, flags=flags)
 
     def add(self, announcement: str, plan: Plan, *, release_at: str, by: str, now: str | None = None) -> dict[str, Any]:
         """Add a Delivery to an existing Announcement (a channel that qualified later). Refused with ``NeedsSupersedes`` when the Announcement already has a Delivery
@@ -255,9 +289,11 @@ class Deliveries:
         return self.create(announcement, plan, release_at=release_at, by=by, now=now)
 
     def ensure_text(self, row: Mapping[str, Any], text: str, *, now: str | None = None) -> None:
-        """Finish a crashed create: write the words when the row exists and the file does not. The words are the same text the row's hash names."""
-        if text and row.get("textKey") and self.files.get(row["id"]) is None:
-            self.files.put(row["id"], text, now=now or now_iso())
+        """Finish a crashed create: write the words of the first version when the row exists and the file does not. The words are the same text the row's hash names;
+        a later version is finished by the save that wrote it, never from the plan."""
+        entry = delivery_text.entry_of(row, 1)
+        if text and entry and self.files.get(row["id"], entry["file"]) is None:
+            self.files.put(row["id"], text, now=now or now_iso(), name=entry["file"])
 
     def check(self, plan: Plan) -> None:
         """Refuse a plan that breaks a rule, before anything is written."""
@@ -292,7 +328,13 @@ class Deliveries:
         won = self.client.update_record_if(DELIVERY_MODEL, {"id": row["id"], **stored(payload, clearing=True)}, {"revision": {"eq": int(row.get("revision") or 1)}})
         if not won:
             raise Conflict(f"{row['id']} was changed by someone else since it was read.")
+        self._sync(updated)
         return updated
+
+    def _sync(self, row: Mapping[str, Any]) -> None:
+        """A due time was written: the Delivery's follow-up timer follows it (moved when the time moved, deleted when nothing is pending)."""
+        if self.timers is not None:
+            self.timers.sync(row)
 
     def mark_ready(self, row: Mapping[str, Any], *, by: str, now: str | None = None) -> dict[str, Any]:
         """The words are drafted and checked."""
@@ -309,11 +351,13 @@ class Deliveries:
             raise RecordError(f"{row['id']} is {row.get('state')} and already has its words or is past the draft; only a draft with no words is written into.")
         self.check(plan)
         now = now or now_iso()
-        file = self.files.describe(row["id"], plan.text)
-        self.files.put(row["id"], plan.text, now=now)
+        name = delivery_text.version_file(int(row["version"]))
+        file = self.files.describe(row["id"], plan.text, name)
+        self.files.put(row["id"], plan.text, now=now, name=name)
+        first = self.first_version(int(row["version"]), name, file, plan, by=by, at=now)
         approved = plan.approval == NONE
         changes: dict[str, Any] = {
-            "state": READY, "textKey": file["key"], "contentHash": content_hash(file["sha256"], plan.image_key), "imageKey": plan.image_key, "draftedBy": plan.drafted_by,
+            "state": READY, "textKey": file["key"], "contentHash": first["contentHash"], "imageKey": plan.image_key, "draftedBy": plan.drafted_by, "versions": [first],
             "approval": plan.approval, "approvalPolicy": plan.approval_policy,
             "approvedVersion": int(row["version"]) if approved else None, "approvedBy": SYSTEM if approved else None, "approvedAt": now if approved else None,
         }
@@ -348,8 +392,8 @@ class Deliveries:
         return self._change(row, changes, by=by, note=f"review changed from {row.get('approval')} to {approval}", now=now)
 
     def is_approved(self, row: Mapping[str, Any]) -> bool:
-        """Whether the current version is approved. A later version than ``approvedVersion`` is not."""
-        return row.get("approvedVersion") is not None and int(row["approvedVersion"]) == int(row["version"])
+        """Whether the version that goes out is approved: the locked one once the Delivery is locked, otherwise the newest. A later version than ``approvedVersion`` is not."""
+        return row.get("approvedVersion") is not None and int(row["approvedVersion"]) == delivery_text.sendable_number(row)
 
     def next_version(self, row: Mapping[str, Any], *, by: str, note: str, now: str | None = None) -> dict[str, Any]:
         """The Story changed after the words were made: the Delivery moves to its next version and back to a draft, so it waits again. Under approval ``none`` the
@@ -359,6 +403,11 @@ class Deliveries:
             return dict(row)
         version = int(row["version"]) + 1
         changes: dict[str, Any] = {"version": version, "state": DRAFTED}
+        carried = delivery_text.head_entry(row)
+        if carried:   # the Story changed and the words did not: the new version shares its predecessor's file until it is drafted again
+            changes["versions"] = [*delivery_text.versions_of(row), {**carried, "number": version, "replaces": int(row["version"]), "by": by, "at": now or now_iso(), "carried": True}]
+        if row.get("lockedAt"):   # a lock on words the Story has outgrown is lifted: nothing locked goes out unapproved against a Story that changed
+            changes.update(lockedAt=None, lockedVersion=None)
         if row.get("approval") == NONE:
             changes.update(approvedVersion=version, approvedBy=SYSTEM, approvedAt=now or now_iso())
         return self._change(row, changes, by=by, note=note, now=now)

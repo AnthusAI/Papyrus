@@ -104,6 +104,8 @@ def cli_command(item: Operation) -> dict:
             flags.append({"field": field, "flag": "--reference", "kind": "target", "targetKind": "reference"})
             continue
         kind = schema.get("type")
+        if kind == "array" and schema["items"].get("type") == "object":
+            continue   # a list of records is given with --input-file, like the other objects
         if kind == "array":
             flags.append({"field": field, "flag": "--" + renamed.get(field, kebab(field)), "kind": "array", "item": schema["items"]["type"]})
         elif kind in ("string", "integer", "boolean"):

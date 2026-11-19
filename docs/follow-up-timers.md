@@ -23,7 +23,7 @@ One implementation holds it: `src/papyrus_content/follow_up_timers.py`. Python i
 
 ## Permission
 
-`allowFollowUpTimers(lambda, brandId)` in `amplify/agents/schedule-group.ts` gives a site function the right to create, update and delete entries named `follow-up-*` in that site's group, and to hand the scheduler role to the scheduler service. It reads nothing, cannot touch the reconciler's `agent-*` entries, another site's group or the default group, and adds no resource (two statements on the function's own role). `scripts/test-agents-stack.ts` asserts all of that and prints the count. The first consumer calls it for the function that writes a due time; none does yet.
+`allowFollowUpTimers(lambda, brandId)` in `amplify/agents/schedule-group.ts` gives a site function the right to create, update and delete entries named `follow-up-*` in that site's group, and to hand the scheduler role to the scheduler service. It reads nothing, cannot touch the reconciler's `agent-*` entries, another site's group or the default group, and adds no resource (two statements on the function's own role). `scripts/test-agents-stack.ts` asserts all of that and prints the count. The first consumer, a Delivery's lock and release times (`announcements/delivery_timers.py`, PPY-e8ec54), calls `FollowUpTimers.sync` from `Deliveries` wherever it writes `dueAt`; the function that does so in a deployed site needs this permission, and none has it yet.
 
 ## Scheduled publishing
 

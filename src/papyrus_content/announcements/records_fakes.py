@@ -138,24 +138,32 @@ def _holds(row: dict[str, Any], condition: dict[str, Any]) -> bool:
 
 
 class MemoryDeliveryFiles:
-    """The Deliveries' words. Refuses what the upload function refuses (a role or media type it does not allow, an owner row that does not exist yet), and names
-    each file's key and hash exactly as the real attachment code does."""
+    """The Deliveries' files (a version's words ``v<n>``, a candidate's ``c<n>``). Refuses what the upload function refuses (a role or media type it does not allow, an owner
+    row that does not exist yet) and a second write of a file that holds other words (a version is never overwritten), and names each file's key and hash exactly as the real
+    attachment code does. ``texts`` is keyed by ``MemoryDeliveryFiles.file_key(delivery, name)``."""
 
     def __init__(self, backend: RecordsBackend | None = None) -> None:
         self.texts: dict[str, str] = {}
         self.backend = backend
         self._real = AttachmentFiles(None)
 
-    def describe(self, delivery: str, text: str) -> dict[str, str]:
-        return self._real.describe(delivery, text)
+    @staticmethod
+    def file_key(delivery: str, name: str = "v1") -> str:
+        return f"{delivery}@{name}"
 
-    def put(self, delivery: str, text: str, *, now: str) -> None:
+    def describe(self, delivery: str, text: str, name: str = "v1") -> dict[str, str]:
+        return self._real.describe(delivery, text, name)
+
+    def put(self, delivery: str, text: str, *, now: str, name: str = "v1") -> None:
         from ..upload_rules_fake import assert_upload_accepted
 
         assert_upload_accepted({"role": ROLE, "mediaType": "text/markdown"})
         if self.backend is not None and delivery not in self.backend.records.get("Delivery", {}):
             raise RuntimeError(f"GraphQL request failed: Cannot attach payload to missing Delivery {delivery}.")
-        self.texts[delivery] = text
+        key = self.file_key(delivery, name)
+        if key in self.texts and self.texts[key] != text:
+            raise AssertionError(f"{key} holds other words already: a version is written once and never overwritten")
+        self.texts[key] = text
 
-    def get(self, delivery: str) -> str | None:
-        return self.texts.get(delivery)
+    def get(self, delivery: str, name: str = "v1") -> str | None:
+        return self.texts.get(self.file_key(delivery, name))

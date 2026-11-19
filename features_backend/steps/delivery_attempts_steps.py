@@ -169,12 +169,12 @@ def remembered_unchanged(context, channel, account):
 
 @step('the words file of the Delivery "{channel:Q}" "{account:Q}" is lost')
 def words_lost(context, channel, account):
-    context.files.texts.pop(row_of(context, channel, account)["id"])
+    context.files.texts.pop(context.files.file_key(row_of(context, channel, account)["id"]))
 
 
 @step('the words file of the Delivery "{channel:Q}" "{account:Q}" is replaced by "{words:Q}"')
 def words_replaced(context, channel, account, words):
-    context.files.texts[row_of(context, channel, account)["id"]] = words
+    context.files.texts[context.files.file_key(row_of(context, channel, account)["id"])] = words
 
 
 @step('the Delivery "{channel:Q}" "{account:Q}" is marked superseded by a correction made elsewhere')

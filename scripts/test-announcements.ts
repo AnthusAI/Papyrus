@@ -46,7 +46,7 @@ for (const model of ["AnnouncementDecision", "Delivery"]) {
   for (const text of ["text:", "body:", "bodyMarkus:", "html:", "markus:", "post:", "content:"]) assert.equal(block.includes(`\n  ${text}`), false, `${model} holds no ${text} field`);
 }
 assert.equal(base.includes("type AnnouncementDecision") && !/type AnnouncementDecision[^{]*\{[^}]*approval/.test(base), true, "the Announcement holds no approval field");
-for (const field of ["approval", "approvalPolicy", "approvedVersion", "approvedBy", "approvedAt", "lockAt", "lockedAt", "lockedVersion", "nextAttemptAt", "waitingFor", "dueAt", "dueKey", "textKey", "contentHash", "supersedes", "supersededBy"]) {
+for (const field of ["approval", "approvalPolicy", "approvedVersion", "approvedBy", "approvedAt", "lockAt", "lockedAt", "lockedVersion", "nextAttemptAt", "waitingFor", "dueAt", "dueKey", "textKey", "contentHash", "versions", "candidates", "preferredVersion", "supersedes", "supersededBy"]) {
   assert.match(modelBlock("Delivery"), new RegExp(`\\n  ${field}: `), `a Delivery has ${field}`);
 }
 for (const index of [

@@ -18,6 +18,8 @@ from .head import PageHead
 NOTIFICATIONS_PLUGIN = "notifications"
 PAGES_SCRIPT_PATH = "_plugins/papyrus-notifications-pages@1.js"
 COMPONENT_SCRIPT_PATH = "_plugins/papyrus-notifications@1.js"
+#: The GA4 event script (PPY-5a1607). A page loads it only on a site that sets a measurement id, and before the other scripts.
+ANALYTICS_SCRIPT_PATH = "_plugins/papyrus-notifications-analytics-v1.js"
 #: ``index`` is the subscribe page at ``/notifications/``; the others are ``/notifications/<name>/``.
 PAGE_NAMES = ("index", "confirm", "confirmed", "preferences", "unsubscribe", "unsubscribed", "expired")
 REFERRER_META = '<meta name="referrer" content="same-origin">'

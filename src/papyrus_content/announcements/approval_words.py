@@ -18,7 +18,8 @@ def approval_label(row: Mapping[str, Any]) -> dict[str, str]:
     ``Sent automatically by publication policy`` and ``Released by a person`` are the two the ticket names; a Delivery that has not been released says what it waits for."""
     approval, policy, by = row.get("approval"), str(row.get("approvalPolicy") or ""), row.get("approvedBy")
     source = policy.rsplit(" (agent policy version", 1)[0] if policy else "policy"
-    approved = row.get("approvedVersion") is not None and int(row["approvedVersion"]) == int(row.get("version") or 0)
+    going = row.get("lockedVersion") if row.get("lockedVersion") is not None else row.get("version")   # the version that goes out: the locked one once it is locked
+    approved = row.get("approvedVersion") is not None and int(row["approvedVersion"]) == int(going or 0)
     if approved and by == SYSTEM:
         return {"words": f"Released automatically by {source}", "mark": "bot", "approval": str(approval)}
     if approved:
