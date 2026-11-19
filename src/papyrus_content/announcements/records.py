@@ -40,8 +40,8 @@ NONE, SOFT, HARD = "none", "soft", "hard"
 APPROVALS = (NONE, SOFT, HARD)
 AUTOMATIC, MANUAL = "automatic", "manual"
 MODES = (AUTOMATIC, MANUAL)
-RATE_LIMIT, BUDGET_CYCLE, RELEASE = "rate limit", "budget cycle", "release"
-WAITING_FOR = (RATE_LIMIT, BUDGET_CYCLE, RELEASE)
+RATE_LIMIT, BUDGET_CYCLE, RELEASE, POST_SPACING = "rate limit", "budget cycle", "release", "post spacing"
+WAITING_FOR = (RATE_LIMIT, BUDGET_CYCLE, RELEASE, POST_SPACING)
 # An attempt's outcome (the always-on standard's words, PPY-f58445). An attempt opens ``started`` and closes ``sent``, ``refused`` or ``unknown``; ``started`` and
 # ``unknown`` are both open, and only settling (reading what the provider recorded) closes them.
 STARTED, ATTEMPT_SENT, ATTEMPT_REFUSED, UNKNOWN = "started", "sent", "refused", "unknown"
@@ -141,12 +141,13 @@ def pending_times(row: Mapping[str, Any]) -> list[str]:
     """The times a Delivery is still waiting for.
 
     A draft or a ready Delivery waits for its release time and, until it is locked, for its lock time, until its first attempt opens: after that those times are
-    used up, and only a named wait (a rate limit, a budget cycle) is pending. A Delivery that is live in any state waits for its next attempt time while one is set. A final Delivery, and a Delivery superseded or withdrawn, waits for nothing."""
+    used up, and only a named wait (a rate limit, a budget cycle, post spacing) is pending. A Delivery that is live in any state waits for its next attempt time while one is set. A final Delivery, and a Delivery superseded or withdrawn, waits for nothing."""
     state = row.get("state")
     if state not in LIVE_STATES:
         return []
     times: list[str] = []
-    if state in BEFORE_SEND_STATES and not attempt_log(row):
+    # Post spacing holds a Delivery whose release time has already come, so while it is held only the end of the spacing is pending.
+    if state in BEFORE_SEND_STATES and not attempt_log(row) and row.get("waitingFor") != POST_SPACING:
         times.append(row.get("releaseAt"))
         if not row.get("lockedAt"):
             times.append(row.get("lockAt"))

@@ -1134,6 +1134,8 @@ export type AnnouncementsSettingsShowResult = {
     /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
     prices?: Record<string, unknown>;
     labelConfirmed?: boolean;
+    /** Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing. */
+    spacing?: Record<string, unknown>;
     /** paused, reason (budget, disconnected or manual), detail, by and at. */
     pause?: Record<string, unknown>;
     editWindows?: {
@@ -1161,7 +1163,7 @@ export type AnnouncementsSettingsSetInput = {
   storyTypes?: string[];
   /** Limit to these sections. */
   sections?: string[];
-  /** On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. */
+  /** On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed. */
   requireReviewedSource?: boolean;
   /** Dollars for each X billing cycle, such as 10.00. No default. */
   budget?: string;
@@ -1171,6 +1173,8 @@ export type AnnouncementsSettingsSetInput = {
   prices?: Record<string, unknown>;
   /** The account shows X's Automated label, managed by a person's account. */
   labelConfirmed?: boolean;
+  /** Minutes between one post and the next on a channel account, by account (<channel>#<account>, such as x#handle). A number sets it, null takes it away; an account that is not named keeps what it has. Empty by default: no spacing. */
+  spacing?: Record<string, unknown>;
   /** How long a Delivery stays a draft that people edit, and how long before its release it locks, for each kind of Announcement and channel. The narrowest entry that fits wins. This replaces the whole list; an empty list means no window. */
   editWindows?: {
     /** The kind of Announcement, such as story_published or roundup. Absent: every kind. */
@@ -1195,6 +1199,8 @@ export type AnnouncementsSettingsSetResult = {
     /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
     prices?: Record<string, unknown>;
     labelConfirmed?: boolean;
+    /** Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing. */
+    spacing?: Record<string, unknown>;
     /** paused, reason (budget, disconnected or manual), detail, by and at. */
     pause?: Record<string, unknown>;
     editWindows?: {
