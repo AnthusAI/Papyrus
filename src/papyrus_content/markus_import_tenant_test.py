@@ -1,3 +1,5 @@
+import pytest
+
 from papyrus_content.markus_import import DirMediaStore, ImportOptions, plan_import, run_import
 from papyrus_content.markus_import_commands import import_options_from_flags
 from procedures.newsroom.tests.test_tenancy import InMemoryGraphQLBackend, tenant_client
@@ -12,6 +14,12 @@ class ImportBackend(InMemoryGraphQLBackend):
         if field == "listItems":
             return {"items": [dict(row) for row in self.tables.get("Item", {}).values()], "nextToken": None}
         return super()._read(field, variables)
+
+
+@pytest.fixture(autouse=True)
+def no_checklist(monkeypatch):
+    """These tests are about whose ids an import writes, not about checklists: the fake backend has no checklist index, so the import's quiet checklist step is left out."""
+    monkeypatch.setattr("papyrus_content.story_checklist.mark_imported_quietly", lambda *_args, **_kwargs: None)
 
 
 def content_directory(tmp_path, name, hello_title):

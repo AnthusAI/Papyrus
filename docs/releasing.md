@@ -37,6 +37,20 @@ Re-measure after any release that created indexes, once its CloudFormation updat
 
 A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary and the reviewer approves in GitHub, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" has an approval waiting. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
 
+## Only a person publishes pod-loaded, imported and translated Stories (PPY-473f8f)
+
+Stories reached publishing without going through the whole checklist: a Story loaded from a pod (`papyrus pod load`, #1691) and an imported Story get a checklist
+with every step but publishing marked not applicable, and a translation skips the English checklist and has no steps of its own. Until each language has its own
+checklist that publishing checks, one rule blocks all three (`src/papyrus_content/publish_by_person.py`, called once by `publishing.publish_item`; spec
+`features_backend/publish-person-only.feature`):
+
+- `publish_item` refuses a publish of a pod-loaded Story, an imported Story or a translation unless it is a person's own act, with the code `person-publish-required` (`details.storyKind`: `pod-loaded`, `imported` or `translation`) and words that say how to proceed. Nothing is forced and nothing falls back.
+- A person publishing by hand passes: the console's Publish (or Save on a live article) and the CLI in the signed-in lane (`papyrus login`, not `--auth iam`). The checklist, the rating and the site's approval gate still apply to them.
+- Everything else is refused: `papyrus pod load` (the Story stays a draft and the load reports the refusal), `papyrus ops content import-markus` (saved as a draft, one line on stderr), `languages.auto` with `publish: true`, `papyrus stories localize --publish-clean`, a scheduled publish (a schedule of such a Story is refused when it is made), the restore and un-retire commands, and any agent. An automatic translation leaves a ready draft.
+- Pages and wiki pages are not Stories and are not held by the pod and import kinds; a translation of any item is.
+
+The block is temporary. The per-language checklist gate (PPY-473f8f, follow-up) gives each `{story}--{language}` lineage a checklist that publishing checks, and then lifts this rule: delete `publish_by_person.py`, its one call in `publish_item` and the `by_person` argument.
+
 ## Enforcing the agent policy on a site
 
 From the release that carries PPY-c8175e, the shared procedure runner reads each site's agent policy before it starts a run

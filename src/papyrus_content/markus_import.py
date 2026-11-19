@@ -13,6 +13,7 @@ import json
 import mimetypes
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -20,6 +21,7 @@ from typing import Any, Protocol
 from .markus_renderer.build import slugify
 from .markus_renderer.content_markup import split_front_matter
 from .markus_renderer.derive import derive_body
+from .publish_by_person import PERSON_PUBLISH_REQUIRED
 from .publishing import (
     ItemFields,
     PublishError,
@@ -600,14 +602,16 @@ def run_import(plan: ImportPlan, client, store: MediaStore, *, apply: bool) -> I
             report.created += 1
         else:
             report.updated += 1
+        if apply:
+            if not _apply_item(planned, client):
+                continue   # the Story stays a draft: an import never publishes by itself (publish_by_person.py)
         if planned.needs_publish:
             report.published += 1
-        if apply:
-            _apply_item(planned, client)
     return report
 
 
-def _apply_item(planned: PlannedItem, client) -> None:
+def _apply_item(planned: PlannedItem, client) -> bool:
+    """Writes one planned item. False when the item was saved but its publish was refused because only a person may publish an imported Story."""
     item_id = planned.source.item_id
     if planned.media_changed:
         wanted_ids = set()
@@ -625,7 +629,7 @@ def _apply_item(planned: PlannedItem, client) -> None:
     from .content_item_lifecycle import is_story_item_type
 
     if is_story_item_type(planned.fields.type):
-        # An imported Story was not written in the newsroom: its checklist is made, every step not applicable ("imported from <source>"), and publishing is not blocked.
+        # An imported Story was not written in the newsroom: its checklist is made, every step not applicable ("imported from <source>"), and only a person publishes it (publish_by_person.py).
         from .story_checklist import mark_imported_quietly
 
         mark_imported_quietly(client, (planned.existing or {}).get("lineageId") or item_id, planned.source.relative_path)
@@ -633,4 +637,8 @@ def _apply_item(planned: PlannedItem, client) -> None:
         try:
             publish_item(client, item_id, actor=IMPORT_ACTOR, now=None)
         except PublishError as error:
+            if error.code == PERSON_PUBLISH_REQUIRED:
+                print(f"{planned.source.relative_path}\tsaved as a draft\t[{error.code}] {error.message}", file=sys.stderr)
+                return False
             raise RuntimeError(f"{planned.source.relative_path}: publish failed [{error.code}] {error.message}") from error
+    return True
