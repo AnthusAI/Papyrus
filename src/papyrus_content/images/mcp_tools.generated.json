@@ -4985,6 +4985,124 @@
       }
     },
     {
+      "name": "announcements_preferred",
+      "audience": "staff",
+      "description": "Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id: one that went out, or has an attempt open."
+          },
+          "replaces": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The version of the Delivery you read."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "How it should have read."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "this_one",
+              "channel",
+              "kind",
+              "publication"
+            ],
+            "description": "Also record how far it reaches, in the same step. Leave it out to keep it as a candidate."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One line on why. It goes with a scope."
+          }
+        },
+        "required": [
+          "delivery",
+          "replaces",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "saved",
+              "preferred",
+              "unchanged",
+              "dropped",
+              "candidate"
+            ],
+            "description": "saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "replaces": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The candidate's id, when one was kept."
+          },
+          "approvedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lockedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "preferredVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Each block's owner (human or machine) and whether it is pinned."
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      }
+    },
+    {
       "name": "announcements_correct",
       "audience": "staff",
       "description": "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.",

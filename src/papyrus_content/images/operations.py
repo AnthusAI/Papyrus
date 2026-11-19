@@ -850,6 +850,18 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
               "Nothing is recorded for a Delivery whose final version has no words a person changed.",
     ),
     Operation(
+        "announcements_preferred", ("preferred",), "Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text.", "write",
+        obj({"delivery": text("The Delivery's id: one that went out, or has an attempt open."), "replaces": whole("The version of the Delivery you read."), "text": text("How it should have read."),
+             "scope": choice("this_one", "channel", "kind", "publication", description="Also record how far it reaches, in the same step. Leave it out to keep it as a candidate."),
+             "reason": text("One line on why. It goes with a scope.")}, ("delivery", "replaces", "text")),
+        _DRAFT_RESULT, ("not_found", "stale_version", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "replaces": 1, "text": "Slow water has landed.", "scope": "channel"},
+                 {"id": "announcement-1#x#handle#g1", "status": "preferred", "version": 2, "replaces": 1, "approvedVersion": None, "lockedVersion": 1, "preferredVersion": 2}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only. It sends nothing and changes no public text: an email cannot be recalled and a new post costs money and attention. Whether to also correct the public post is a separate choice "
+              "(announcements correct, a superseding Delivery where the channel can delete); teaching and correcting are decided one at a time.",
+    ),
+    Operation(
         "announcements_correct", ("correct",), "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.", "write",
         obj({"delivery": text("The id of the Delivery that went and is to be corrected."), "text": text("The corrected public text. It is checked like the text of a new Delivery.")}, ("delivery", "text")),
         record({"id": text("The new Delivery's id."), "generation": {"type": "integer", "description": "The new Delivery's generation."}, "supersedes": text("The id of the Delivery it replaces."),

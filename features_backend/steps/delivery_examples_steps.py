@@ -112,3 +112,34 @@ def row_holds_none(context, channel, account, words):
 def history_shows_recorder(context, channel, account, who):
     lines = context.deliveries.history(row_of(context, channel, account))
     assert any(line["by"] == who and "example recorded" in line["note"] for line in lines), lines
+
+
+# --- a preferred version ------------------------------------------------------------------------------------------------------------------------------
+
+
+def _preferred(context, caller, channel, account, number, words, scope):
+    arguments = {"delivery": row_of(context, channel, account)["id"], "replaces": number, "text": words}
+    if scope:
+        arguments["scope"] = scope
+    context.envelope = execute("announcements_preferred", arguments, caller, _handlers(context))
+
+
+@step('the person "{who:Q}" saves a preferred version over version {number:d} of the Delivery "{channel:Q}" "{account:Q}" with the words "{words:Q}"')
+def person_saves_preferred(context, who, number, channel, account, words):
+    _preferred(context, Caller(kind="person", subject=who, is_admin=False), channel, account, number, words, None)
+
+
+@step('the person "{who:Q}" saves a preferred version over version {number:d} of the Delivery "{channel:Q}" "{account:Q}" with the words "{words:Q}" and the scope "{scope:Q}"')
+def person_saves_preferred_with_scope(context, who, number, channel, account, words, scope):
+    _preferred(context, Caller(kind="person", subject=who, is_admin=False), channel, account, number, words, scope)
+
+
+@step('the announce agent asks the door to save a preferred version over version {number:d} of the Delivery "{channel:Q}" "{account:Q}" with the words "{words:Q}"')
+def agent_saves_preferred(context, number, channel, account, words):
+    _preferred(context, context.agent, channel, account, number, words, None)
+
+
+@then('generation {generation:d} of "{channel:Q}" "{account:Q}" is still {article} "{state:Q}" example with the scope "{scope:Q}"')
+def generation_still_example(context, generation, channel, account, article, state, scope):
+    rows = [row for row in context.backend.rows("Delivery") if row["channel"] == channel and row["accountId"] == account and int(row["generation"]) == generation]
+    assert rows and rows[0].get("exampleState") == state and rows[0].get("exampleScope") == scope, rows
