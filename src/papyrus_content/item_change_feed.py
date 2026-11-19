@@ -17,7 +17,7 @@ a person's save) the record is the same, so the feed starts procedures for all o
 2. **finds the agents that listen** in the site's listener index (``agent_listeners.py``), by the change's name and each listener's filter. The index is
    one small document read by its live version, never a list of the Automation table or of any table. A change nobody listens for sends nothing.
 3. **puts one wake on the site's queue for each**, through ``agent_wakes.send_wake``: the key is ``<agent>|<lineage>|<version>|<what>``, so the run record made
-   from it is the claim and the queue's deduplication id is its digest. The message group is the agent plus the Story's lineage, so one Story's wakes for an agent
+   from it is the claim and the queue's deduplication id is its digest. The message group is the agent plus its serial scope (the Story's lineage unless the definition says `serialBy: agent`), so one Story's wakes for an agent
    run one after the other. A stream record delivered twice makes the same keys, so it starts nothing twice. An agent's own change never wakes that agent.
 
 The wake carries what the later slices need and nothing they must look up: ``trigger.paid`` and ``trigger.serialBy`` (the quiet window for paid steps,

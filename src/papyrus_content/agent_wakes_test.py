@@ -52,6 +52,26 @@ def test_the_ids_are_the_digests_of_the_key_and_of_the_agent_with_its_subject():
     assert len(agent_wakes.deduplication_id(agent_wakes.wake_of({**REQUEST, "wakeKey": long_key}))) == 64   # SQS allows 128 characters
 
 
+def _serial(serial_by, **extra):
+    return agent_wakes.wake_of({**REQUEST, "trigger": {**REQUEST["trigger"], "serialBy": serial_by, **extra}})
+
+
+def test_the_group_follows_the_definitions_serial_scope():
+    other = {**REQUEST, "wakeKey": "distinctive.ttab|reference-2|unversioned|monitor.new_reference"}
+    by_subject = [agent_wakes.group_id(agent_wakes.wake_of({**r, "trigger": {**r["trigger"], "serialBy": "subject"}})) for r in (REQUEST, other)]
+    assert by_subject[0] != by_subject[1] and by_subject[0] == agent_wakes.group_id(agent_wakes.wake_of(REQUEST))   # no serialBy is subject
+    by_agent = [agent_wakes.group_id(agent_wakes.wake_of({**r, "trigger": {**r["trigger"], "serialBy": "agent"}})) for r in (REQUEST, other)]
+    assert by_agent[0] == by_agent[1] != by_subject[0]
+    assert agent_wakes.group_id(_serial("key:account", serialKey="acct-1")) != agent_wakes.group_id(_serial("key:account", serialKey="acct-2"))
+    assert agent_wakes.group_id(_serial("key:account", serialKey="acct-1")) == agent_wakes.group_id(_serial("key:account", serialKey="acct-1"))
+
+
+@pytest.mark.parametrize("serial_by, extra", [("key:account", {}), ("everything", {}), ("key:", {"serialKey": "x"})])
+def test_a_wake_with_an_unusable_serial_scope_is_not_a_wake(serial_by, extra):
+    with pytest.raises(agent_wakes.WakeError, match="serial"):
+        _serial(serial_by, **extra)
+
+
 def test_the_message_round_trips_into_the_runner_request():
     body = agent_wakes.message_body(REQUEST)
     assert "wakeKey" not in json.loads(body)["request"]
@@ -61,7 +81,7 @@ def test_the_message_round_trips_into_the_runner_request():
 @pytest.mark.parametrize("bad", [
     {}, {"Records": []}, {"Records": [{"eventSource": "aws:sqs", "body": "{}"}, {"eventSource": "aws:sqs", "body": "{}"}]},
     {"Records": [{"eventSource": "aws:sns", "body": "{}"}]}, event("not json"), event("[]"), event('{"wake": {}, "request": {}}'),
-    event(json.dumps({"wake": {"key": REQUEST["wakeKey"], "agent": "other", "subject": "reference-1", "why": "x"}, "request": {}})),
+    event(json.dumps({"wake": {"key": REQUEST["wakeKey"], "agent": "other", "subject": "reference-1", "why": "x", "scope": "reference-1"}, "request": {}})),
 ])
 def test_the_runner_accepts_only_one_well_formed_wake(bad):
     with pytest.raises(agent_wakes.WakeError):

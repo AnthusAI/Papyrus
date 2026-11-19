@@ -114,8 +114,11 @@ leaves out and its second deploy adds. The procedure runner is the queue's consu
 
 * `key` is the wake key. `agent` is its owner (the automation, or `procedure:<procedure key>`). `subject` is what it is about: the record, `schedule`, or the
   request id of a person's request. `why` is the trigger's own one-line summary.
-* The **message group** is the agent plus the subject. Wakes of one group run one after the other, in order; wakes of different groups run at the same time.
-  (The definition's own scope, `serialBy`, and the total concurrency from the model provider's limit are slice B4; nothing is capped here.)
+* The **message group** is the agent plus its serial scope, which the wake's trigger carries from the agent definition's `serialBy`: `subject` (also the scope of a
+  wake no definition governs) makes the subject the scope; `agent` makes one scope for the whole agent; `key:<name>` makes the scope the value in the trigger's
+  `serialKey` (a channel account). Wakes of one group run one after the other, in order; wakes of different groups run at the same time. A `key:` wake with no
+  `serialKey`, or a `serialBy` that is none of the three, is not a wake and is not sent. The wake records its `scope`. (The total concurrency from the model
+  provider's limit, and the removal of `maxConcurrent` and the deferred sweep, are the rest of slice B4, PPY-a200ec; nothing is capped here.)
 * The **deduplication id** is the wake key. SQS limits an id to 128 characters from a fixed set and a key may be 1000, so both ids are the SHA-256 of their text.
   SQS drops a repeat of the same id for five minutes. After that the run record's own condition drops it: the runner answers `duplicate` and runs nothing.
 

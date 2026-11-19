@@ -421,7 +421,7 @@ from Git leaves the index at the next deploy. It holds no rung, pause or budget:
   changed or cleared in place, PPY-e3bb2b; its key is `rated.<stars or cleared>.<time>`): `type`, `stage`, `section`, `language`, `stars`, `previousStars`, `actorKind`. A filter is a flat set of these
   fields; every one must equal the change's field as text.
 * **The wake.** Key `<agent>|<Story lineage>|<version id>|<what>` (`what` is the change; a stage entry names its stage, `stage_entered.<stage>`); the message group is the agent plus
-  the Story. The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the wake gate needs (next section). An agent's own change (`automation:<agent>`) never wakes that agent, free or paid.
+  the Story, or the agent alone when its definition says `serialBy: agent` (as the announce agent does). The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the wake gate needs (next section). An agent's own change (`automation:<agent>`) never wakes that agent, free or paid.
 * **Who is the writer.** A version's `versionCreatedBy` and a step's recorded actor name an agent as `automation:<id>`. An agent's stage move is recorded on the version
   (`move_story_stage`); a change of the stage field with no new record of the move is a person's, made in the console board.
 * **Limits of a stream.** A new version created at a different stage from its predecessor is not a stage entry (the stream holds no previous version), and a stage entered
