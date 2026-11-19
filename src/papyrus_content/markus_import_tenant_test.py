@@ -1,4 +1,4 @@
-import pytest
+from unittest import mock
 
 from papyrus_content.markus_import import DirMediaStore, ImportOptions, plan_import, run_import
 from papyrus_content.markus_import_commands import import_options_from_flags
@@ -13,13 +13,10 @@ class ImportBackend(InMemoryGraphQLBackend):
     def _read(self, field, variables):
         if field == "listItems":
             return {"items": [dict(row) for row in self.tables.get("Item", {}).values()], "nextToken": None}
+        if field == "listItemsByParentAndOrder":
+            # These tests are about whose ids an import writes, not about checklists: this backend keeps no checklist index, so the import's quiet checklist step leaves nothing.
+            raise AssertionError(f"unexpected field {field}")
         return super()._read(field, variables)
-
-
-@pytest.fixture(autouse=True)
-def no_checklist(monkeypatch):
-    """These tests are about whose ids an import writes, not about checklists: the fake backend has no checklist index, so the import's quiet checklist step is left out."""
-    monkeypatch.setattr("papyrus_content.story_checklist.mark_imported_quietly", lambda *_args, **_kwargs: None)
 
 
 def content_directory(tmp_path, name, hello_title):
@@ -96,7 +93,9 @@ def test_importing_the_same_content_again_for_a_tenant_changes_nothing(tmp_path)
 
 
 def legacy_import(backend, tmp_path, name="legacy"):
-    return import_for(None, content_directory(tmp_path, name, "Legacy"), tenant_client(backend, None), tmp_path / "bucket")
+    """An import as it was before imported Stories were left as drafts: the items are published, which is the state a tenant import adopts."""
+    with mock.patch("papyrus_content.markus_import.is_story_item_type", return_value=False), mock.patch("papyrus_content.publish_by_person.story_kind", return_value=None):
+        return import_for(None, content_directory(tmp_path, name, "Legacy"), tenant_client(backend, None), tmp_path / "bucket")
 
 
 def test_a_tenant_import_reuses_the_legacy_item_id_instead_of_creating_a_duplicate(tmp_path):

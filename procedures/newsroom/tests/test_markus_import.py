@@ -47,7 +47,7 @@ class ImportTests(ImportTestCase):
         report = self.run_import()
         self.assertTrue(report.ok, report.errors)
         self.assertEqual((report.created, report.updated, report.unchanged), (5, 0, 0))
-        self.assertEqual(report.published, 1)   # the page: an imported Story is saved as a draft, and only a person publishes it (publish_by_person.py)
+        self.assertEqual((report.published, report.stories_for_a_person), (1, 3))   # the page: an imported Story is saved as a draft, and only a person publishes it (publish_by_person.py)
         self.assertEqual(self.client.get_record("Item", "item-index")["status"], "published")
         self.assertEqual((report.media_uploaded, report.reader_owned_assets), (1, 1))
         item = self.client.get_record("Item", "item-articles-hello")
@@ -101,7 +101,7 @@ class ImportTests(ImportTestCase):
         self.run_import()
         self.client.calls.clear()
         report = self.run_import()
-        self.assertEqual((report.created, report.updated, report.unchanged), (0, 3, 2))   # the three Stories are still drafts a person has to publish: each run says so again
+        self.assertEqual((report.created, report.updated, report.unchanged), (0, 0, 5))
         self.assertEqual(report.media_uploaded, 0)
         self.assertEqual(report.media_unchanged, 1)
         self.assertEqual(self.client.write_calls(), [])
@@ -112,7 +112,7 @@ class ImportTests(ImportTestCase):
         path = self.content / "articles" / "hello.md"
         path.write_text(path.read_text().replace("A first paragraph", "An edited paragraph"))
         report = self.run_import()
-        self.assertEqual((report.created, report.updated, report.unchanged), (0, 3, 2))
+        self.assertEqual((report.created, report.updated, report.unchanged), (0, 1, 4))
         publish_item(self.client, "item-articles-hello", actor="editor", by_person="editor")
         self.assertEqual(self.client.get_record("PublishedItem", "published-item-articles-hello")["versionNumber"], 2)
         item = self.client.get_record("Item", "item-articles-hello")
@@ -145,7 +145,7 @@ class ImportTests(ImportTestCase):
         self.assertEqual(self.client.get_record("Item", "item-articles-hello")["bodyMarkus"], "Edited in the CMS.\n")
         forced = self.run_import(options={"force": True})
         self.assertEqual(forced.skipped_edited_in_cms, [])
-        self.assertEqual(forced.updated, 3)   # hello, and the two other Stories still waiting for a person to publish them
+        self.assertEqual(forced.updated, 1)
         self.assertIn("A source change", self.client.get_record("Item", "item-articles-hello")["bodyMarkus"])
 
 
