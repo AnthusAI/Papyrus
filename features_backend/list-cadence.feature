@@ -78,6 +78,14 @@ Feature: A list carries its cadence, time, time zone and rule as data
     Then the catalog holds no Announcement
     And the run says "no every-item list carries this Story at a rung that writes"
 
+  # A weekly list that writes its issue as a Story names the Story's type (issueType); a Story of that type is the list's message, so no list announces it.
+  Scenario: A weekly list's own issue Story is never announced as a Story
+    Given the weekly list "weekly" is sent on "monday" at "04:00" in "America/New_York"
+    And the every-item list "new-stories" with a minimum of 3 stars
+    When the issue Story "week-47" of the weekly list goes live at 4 stars in the section "science"
+    Then the catalog holds no Announcement
+    And the run says "no every-item list carries this Story at a rung that writes"
+
   Scenario: One Story that two every-item lists carry is one message
     Given the every-item list "new-stories" with a minimum of 3 stars
     And the every-item list "science-only" with a minimum of 3 stars for the section "science"

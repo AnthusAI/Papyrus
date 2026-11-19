@@ -19,6 +19,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, Path(__file__).resolve().parent):
 from papyrus_content.announcements import alert_conversion, records  # noqa: E402
 from papyrus_content.announcements.attempts import AccountWorker  # noqa: E402
 from papyrus_content.announcements.email_channel import CaducusEmail  # noqa: E402
+from papyrus_content.announcements.email_delivery import send_due_email  # noqa: E402
 from papyrus_content.announcements.link_reads import StoryRef  # noqa: E402
 from papyrus_content.list_cadence import announce  # noqa: E402
 from papyrus_content.list_cadence.alert_text import alert_drafter, alert_facts  # noqa: E402
@@ -77,6 +78,26 @@ def send(context, key):
     worker.send(delivery["id"], by="worker", now=context.now)
     context.site.play_queue()
     worker.settle(delivery["id"], by="worker", now=context.now)
+
+
+@when('the deliver step runs for a site without an email channel')
+def deliver_without_channel(context):
+    context.delivered = send_due_email(context.deliveries, None, context.now)
+    assert context.delivered == []
+
+
+@when('the Announcement "{key}" is released')
+def released(context, key):
+    context.announcements.release(context.announcements.by_dedupe_key(key), context.now)
+
+
+@when("the deliver step runs with Caducus's email channel and Caducus works through its queue")
+def deliver_with_channel(context):
+    worker = _alert_worker(context)
+    context.delivered = send_due_email(context.deliveries, worker.transport, context.now)
+    assert len(context.delivered) == 1, context.delivered
+    context.site.play_queue()
+    worker.settle(context.delivered[0]["id"], by="worker", now=context.now)
 
 
 @then('the email Delivery of "{key}" is for the lists "{names}"')

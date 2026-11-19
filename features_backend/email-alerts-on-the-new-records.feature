@@ -48,6 +48,16 @@ Feature: An email alert is the email Delivery of a Story's Announcement
     And "reader2@example.test" received 1 message
     And each message says "Slow water rises" and links to "https://alpha.example.test/security/slow-water.html"
 
+  Scenario: The deliver step hands every due email Delivery to Caducus, and a site without an email channel hands over nothing
+    Given "reader1@example.test" confirmed "stories"
+    When the announce agent decides for the Story "slow-water" in the "security" section rated 4 stars
+    And the deliver step runs for a site without an email channel
+    Then the Delivery of "story-published:slow-water" is "ready"
+    When the Announcement "story-published:slow-water" is released
+    And the deliver step runs with Caducus's email channel and Caducus works through its queue
+    Then the first attempt of the email Delivery of "story-published:slow-water" is the Caducus event "story.published" for the Delivery
+    And "reader1@example.test" received 1 message
+
   Scenario: Kept alert rows still prevent a second alert after conversion
     Given the newsletter table kept these alert rows
       | list     | story      | issue | issue status |
