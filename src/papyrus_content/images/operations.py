@@ -836,6 +836,20 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
               "an edit makes a new, unapproved version. Refused while an attempt is open (an edit then is saved as a preferred version) and after the Delivery went.",
     ),
     Operation(
+        "announcements_example", ("example",), "Say how far what a person changed in an announcement should reach, so later drafts can follow it.", "write",
+        obj({"delivery": text("The Delivery's id: one that went out, or one with a preferred version."),
+             "scope": choice("this_one", "channel", "kind", "publication", description="How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate."),
+             "reason": text("One line on why, kept with the words in S3 and never in the catalog. It goes with a scope.")}, ("delivery",)),
+        record({"id": text(), "recorded": {"type": "boolean"}, "exampleState": {"type": ["string", "null"]}, "exampleScope": {"type": ["string", "null"]}, "machineVersion": {"type": ["integer", "null"]},
+                "finalVersion": {"type": ["integer", "null"]}, "reason": {"type": ["string", "null"]}}, ("id", "recorded")),
+        ("not_found", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "scope": "channel", "reason": "Lead with the place, not the title."},
+                 {"id": "announcement-1#x#handle#g1", "recorded": True, "exampleState": "active", "exampleScope": "channel", "machineVersion": 1, "finalVersion": 2, "reason": None}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only: an edit becomes an example only when a person says so. With no scope the edit is a candidate and changes nothing about any later draft; a scope of this_one also changes nothing. "
+              "Nothing is recorded for a Delivery whose final version has no words a person changed.",
+    ),
+    Operation(
         "announcements_correct", ("correct",), "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.", "write",
         obj({"delivery": text("The id of the Delivery that went and is to be corrected."), "text": text("The corrected public text. It is checked like the text of a new Delivery.")}, ("delivery", "text")),
         record({"id": text("The new Delivery's id."), "generation": {"type": "integer", "description": "The new Delivery's generation."}, "supersedes": text("The id of the Delivery it replaces."),
