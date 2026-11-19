@@ -93,7 +93,8 @@ export const announcementsSchemaDefinitions = {
   /**
    * A Delivery: one channel's version of an Announcement (docs/announcement-records.md). The words and any picture are files in S3 (textKey, imageKey, contentHash);
    * the row never holds text. id is `<announcement>#<channel>#<account>#g<generation>`, created with a condition: one live Delivery for each Announcement, channel and
-   * account, and a correction is the next generation, written with `supersedes`. Approval lives here, per Delivery. Every wait is a named time (releaseAt, lockAt,
+   * account, and a correction is the next generation, written with `supersedes`. Every edit is a new version: `versions` is the log (each version's file, key, hash, who saved it and which
+   * version it replaced; the words themselves are files in S3) and `candidates` the texts and pictures kept beside the draft. Approval lives here, per Delivery. Every wait is a named time (releaseAt, lockAt,
    * nextAttemptAt with waitingFor); dueAt is the earliest of them and, with dueKey, is present only while one is pending, so the due index is sparse.
    */
   Delivery: a
@@ -115,6 +116,8 @@ export const announcementsSchemaDefinitions = {
       contentHash: a.string(),
       draftedBy: a.string(),
       checks: a.json(),
+      versions: a.json(),
+      candidates: a.json(),
       approval: a.string().required(),
       approvalPolicy: a.string().required(),
       approvedVersion: a.integer(),
@@ -124,6 +127,7 @@ export const announcementsSchemaDefinitions = {
       lockAt: a.datetime().required(),
       lockedAt: a.datetime(),
       lockedVersion: a.integer(),
+      preferredVersion: a.integer(),
       nextAttemptAt: a.datetime(),
       waitingFor: a.string(),
       dueAt: a.datetime(),

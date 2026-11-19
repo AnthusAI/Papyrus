@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from typing import Any
 
 from papyrus_content import request_meter
@@ -39,6 +40,7 @@ from papyrus_content.rebuild_trigger import (
     trigger_rebuild,
     trigger_staging_build,
 )
+from papyrus_content.publication_cadence import cadence_from_environment
 from papyrus_content.story_reporting import save_story_version
 from papyrus_content.story_schedule import TASK_NAME as PUBLISH_SCHEDULED_TASK, Caller, ScheduleError, ScheduleService, run_operation as run_schedule_operation, scheduler_from_environment, ZONE_ENV as PUBLICATION_ZONE_ENV
 from papyrus_content.live_schema import wait_for_live_schema
@@ -47,7 +49,7 @@ from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_defau
 from papyrus_content.item_deck_backfill import ensure_item_decks
 from papyrus_content.item_language_backfill import ensure_item_languages
 from papyrus_content.reference_intake import IntakeError, intake_email_submission_references, intake_references
-from papyrus_content.publish_alerts import PUBLISHED_TASK_KEY, announce_published
+from papyrus_content.publishing import PUBLISHED_TASK_KEY
 from papyrus_content.localize.dispatch import PUBLISH_TASK as PUBLISH_LOCALIZATION_TASK
 from papyrus_content.publishing import (
     ItemFields,
@@ -133,7 +135,28 @@ INVOKED_FUNCTION_ARN: str | None = None   # this function's own ARN, from the in
 
 def schedule_service(client) -> ScheduleService:
     """The site's scheduled-publishing service: the publication's time zone and its Scheduler come from the environment the deploy set."""
-    return ScheduleService(client, zone_name=os.environ.get(PUBLICATION_ZONE_ENV), scheduler=scheduler_from_environment(invoked_function_arn=INVOKED_FUNCTION_ARN))
+    zone_name = os.environ.get(PUBLICATION_ZONE_ENV)
+    return ScheduleService(client, zone_name=zone_name, scheduler=scheduler_from_environment(invoked_function_arn=INVOKED_FUNCTION_ARN), cadence=cadence_from_environment(zone_name))
+
+
+def count_first_publication(client, item: dict, item_id: str) -> dict:
+    """A Story went live for the first time: add it to the publication's rhythm (the hours of the week it publishes in), which "Suggest a time" learns from. The publish
+    has already happened, so a failure is reported in the answer and never undoes it; a site with no time zone or no lock table keeps no rhythm. A new version of a Story
+    that is already out, a translation and anything that is not a Story are not first publications."""
+    from papyrus_content.content_item_lifecycle import is_story_item_type
+    from papyrus_content.localization_publish import original_of
+
+    if item.get("publishedAt") or not is_story_item_type(item.get("type")) or original_of(None, item) is not None:
+        return {}
+    try:
+        store = cadence_from_environment(os.environ.get(PUBLICATION_ZONE_ENV))
+        if store is None:
+            return {}
+        published = client.get_record("Item", item_id) or {}   # the first publication time the publish just wrote
+        store.record_first_publication(datetime.fromisoformat(str(published["publishedAt"]).replace("Z", "+00:00")))
+    except Exception as error:  # noqa: BLE001 - reported to the caller in the answer
+        return {"cadence": {"error": f"{type(error).__name__}: {error}"}}
+    return {}
 
 
 class ProjectionTaskFailed(Exception):
@@ -202,7 +225,7 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     is live, here when the projection succeeds, or by the scheduled retry (which carries the same marker) when it did not."""
     if not projection_configured():
         if published_item_id:
-            announce_published_story(client, item_id, published_item_id)
+            story_is_live(client, item_id, published_item_id)
         return {}
     liveness = {} if unpublished else {"live": False}
     task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
@@ -239,7 +262,7 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if report.follow_up_item_pages:
         schedule_item_pages(item_id)
     if report.ok and published_item_id:
-        announce_published_story(client, item_id, published_item_id)
+        story_is_live(client, item_id, published_item_id)
     return response
 
 
@@ -478,7 +501,7 @@ def build_item_job(client, context, jobs, item_id: str, job_id: str | None, *, u
         jobs.finish(item_id, job_id, ok=report.ok, outcome=outcome)
     if report.ok and not unpublished and isinstance(published, dict):
         # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
-        announce_published_story(client, item_id, published.get("publishedItemId"))
+        story_is_live(client, item_id, published.get("publishedItemId"))
     return report
 
 
@@ -874,6 +897,7 @@ def publish_item_action(arguments: dict, actor: str, approved_by: str | None = N
         "publishedId": result.published_item_id,
         "versionNumber": result.version_number,
         **remove_schedules(client, candidate, int(candidate["versionNumber"]) if candidate.get("versionNumber") else None),   # publishing now ends the schedule
+        **(count_first_publication(client, candidate, arguments["id"]) if result.changed else {}),
     }
     if result.changed and live is not None and live.get("type") and live.get("type") != candidate.get("type"):
         # The type decides the address (urls.types), so the live page moves; the projection leaves a redirect from the old address.
@@ -938,11 +962,11 @@ def schedule_item_action(arguments: dict, event: dict) -> dict:
     return run_schedule_operation(str(arguments.get("operation") or ""), arguments.get("arguments") or {}, service, caller_from_event(event))
 
 
-def announce_published_story(client, item_id: str, published_item_id: str | None) -> None:
-    """A Story is live: tell the newsletter and the notifications function, and ask for its translations when the site translates on publish
-    (``languages.auto``; docs/story-translation-procedure.md). Neither can fail the publish, which is already done. A translation request that could
-    not be written is logged and left for ``papyrus stories localize --all``, which finds every Story with no up-to-date translation."""
-    announce_published(item_id, published_item_id)
+def story_is_live(client, item_id: str, published_item_id: str | None) -> None:
+    """A Story's page is live: ask for its translations when the site translates on publish (``languages.auto``; docs/story-translation-procedure.md). It cannot fail
+    the publish, which is already done. A translation request that could not be written is logged and left for ``papyrus stories localize --all``, which finds every
+    Story with no up-to-date translation. Nothing here tells the newsletter, the notifications function or any announcement: the Story's own record entering the
+    published stage reaches the announce agent through the Item change feed (docs/announcement-records.md), so a publish writes only its own records."""
     try:
         from papyrus_content.localize.auto import request_translations
 

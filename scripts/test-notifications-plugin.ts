@@ -244,11 +244,11 @@ template.hasResourceProperties("AWS::Lambda::Permission", {
 });
 assert.ok(!/"Principal":"\*"/.test(JSON.stringify(template.findResources("AWS::Lambda::Permission"))));
 
-// The publish path: the content-actions function learns the router's name and may invoke that one function.
+// A publish does not call the router (PPY-e3bb2b): the content-actions function is told nothing about it and holds no grant to invoke it.
 const contentActionsFunctions = Object.values(dataTemplate.findResources("AWS::Lambda::Function")) as Array<{ Properties: { Environment?: { Variables?: Record<string, string> } } }>;
-assert.ok(contentActionsFunctions.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_NOTIFICATIONS_FUNCTION === "papyrus-notifications-example"));
+assert.ok(!contentActionsFunctions.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_NOTIFICATIONS_FUNCTION !== undefined));
 assert.ok(contentActionsFunctions.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_PLUGINS === "notifications"));
-assert.match(JSON.stringify(dataTemplate.findResources("AWS::IAM::Policy")), /function:papyrus-notifications-example/);
+assert.doesNotMatch(JSON.stringify(dataTemplate.findResources("AWS::IAM::Policy")), /function:papyrus-notifications-example/);
 
 // Outputs: public settings (no secrets) and the function the routes invoke.
 assert.equal(outputs.length, 2);

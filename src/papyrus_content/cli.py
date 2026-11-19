@@ -404,6 +404,7 @@ PORTED_COMMANDS = frozenset(
         "stories:retire",
         "stories:schedule",
         "stories:schedule-list",
+        "stories:schedule-suggest",
         "stories:set-type",
         "stories:set-stars",
         "assignments:backfill-content-items",
@@ -960,10 +961,11 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_retire import stories_retire
 
         stories_retire(flags)
-    elif route in ("stories:schedule", "stories:schedule-list"):
+    elif route in ("stories:schedule", "stories:schedule-list", "stories:schedule-suggest"):
         from . import story_schedule_commands
 
-        {"stories:schedule": story_schedule_commands.stories_schedule, "stories:schedule-list": story_schedule_commands.stories_schedule_list}[route](flags)
+        {"stories:schedule": story_schedule_commands.stories_schedule, "stories:schedule-list": story_schedule_commands.stories_schedule_list,
+         "stories:schedule-suggest": story_schedule_commands.stories_schedule_suggest}[route](flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 

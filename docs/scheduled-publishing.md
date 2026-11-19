@@ -1,6 +1,6 @@
 # Scheduled publishing
 
-An editor pins one version of a Story to a moment. At that moment the site publishes exactly that version, once, by the normal publish path. This is the backend (PPY-085d0b, epic PPY-09ee86; design: `docs/plans/scheduled-publishing-and-announcements.md`). The newsroom field and badge (PPY-92164e) and the calendar (PPY-38f016) build on it; nothing here draws a screen.
+An editor pins one version of a Story to a moment. At that moment the site publishes exactly that version, once, by the normal publish path. This is the backend (PPY-085d0b, epic PPY-09ee86; design: `docs/plans/scheduled-publishing-and-announcements.md`). The newsroom field and badge (PPY-92164e) and the calendar (PPY-38f016) build on it; nothing here draws a screen. Suggesting a time (PPY-92164e) is the one backend piece the field story added, described under "Suggesting a time".
 
 ## Turning it on
 
@@ -70,14 +70,26 @@ If the publish is refused (an open checklist, a page the site cannot render), th
 
 ## One operation table
 
-`story_schedule.OPERATIONS` has two operations. The `scheduleItem` mutation (content-actions, authorised like `publishItem`: editors and admins), `papyrus stories schedule` / `stories schedule-list` and the MCP tools `stories_schedule` / `stories_schedule_list` all run them, so they refuse in the same words.
+`story_schedule.OPERATIONS` has four operations. The `scheduleItem` mutation (content-actions, authorised like `publishItem`: editors and admins), `papyrus stories schedule` / `stories schedule-list` and the MCP tools `stories_schedule` / `stories_schedule_list` all run them, so they refuse in the same words.
 
 | Operation | Input | Answer |
 | --- | --- | --- |
 | `schedule` | `storyLineageId` or `itemId`; `at` or `clear`; `dryRun` | `{ok, scheduled, itemId, versionNumber, scheduledPublishAt, local, label, zone, scheduledBy, replaced, notes}` or `{ok, cleared, itemIds}` |
+| `schedule_suggest` | `storyLineageId` (optional: leaves that Story's own schedule out) | `{ok, suggestion: {at, local, label, zone, publications, meanGapHours, latestScheduledAt} or null, reason, timeZone}` |
 | `schedule_list` | `storyLineageId`, or `from` / `to`; `states` (`scheduled`, `publishing`, `blocked`, `overdue`) | `{ok, timeZone, now, schedules: [{itemId, lineageId, versionNumber, title, state, storedState, scheduledPublishAt, local, label, scheduledBy, scheduledAt, message}]}` |
 
 A refusal is `{ok: false, errors: [{code, message, ...}]}`. Codes: `not-allowed`, `scheduling-off`, `scheduling-misconfigured`, `nonexistent-time`, `ambiguous-time`, `time-passed`, `bad-time`, `not-newest`, `not-a-story`, `type-required`, `not-scheduled`, `publishing`, `approval-required`, `bad-input`. `not-allowed` ("You can't publish on this site, so you can't schedule.") is checked on the caller's groups, the same as `publishItem`'s. An unrated Story schedules with the note "Unrated: it will publish but will not be listed or announced until it is rated."
+
+## Suggesting a time
+
+"Suggest a time" (the drawer button, `papyrus stories schedule-suggest`, the MCP tool `stories_schedule_suggest`, the `schedule_suggest` operation) learns from the publication's own rhythm. Code: `src/papyrus_content/publication_cadence.py`; specs: `features_backend/scheduled-publishing-suggestion.feature`, `publication_cadence_test.py`.
+
+* **Two small facts, each raised once per first publication.** When a Story is published for the first time (its Item row has no `publishedAt` yet: a new version of a Story that is already out, a translation and anything that is not a Story are not first publications) the `publishItem` action adds one to the counter of the hour of the week the publish fell in, in the publication's time zone (168 counters, Monday 00:00 is hour 0), and to the total, and sets the time of the first one once. It is one atomic `UpdateItem` on one item of the projection lock table (`publication-cadence#<store>#<zone>`), the small-state table the content-actions function already reads and updates, so it needs no new model, index or permission, and no Story is read. The key names the zone, so a zone change starts a new history in the new zone's hours. A site with no time zone or no lock table keeps none. If the write fails the publish still stands and the answer carries `cadence.error`.
+* **The suggestion.** The earliest whole hour after both now and the latest scheduled time plus the mean gap between first publications (the span from the first one to now, divided by the count), then the hour of the week with the most past publications among the 24 hours from there; the earliest of equals wins. A window with no past publication in any hour moves on a day at a time, so weekday-only publications skip a weekend. No fixed spacing and no fixed window: a publication that publishes hourly gets hourly slots, one that publishes twice a week gets that. The latest scheduled time is read from the schedule index (`scheduled` and `publishing` from now on); the Story named by `storyLineageId` is left out, because its own schedule is what the editor is about to move.
+* **No history.** A publication with no first publications gets `suggestion: null` and `reason` "No suggestion yet: this publication has no publishing history." Asking writes nothing.
+* **What the drawer does with it.** The picker opens on the suggested time with a note saying where it comes from; the editor may pick any other time, and the note goes when they do.
+
+A one-Story `schedule_list` also carries `notes` (what scheduling will and will not do for the Story's rating: `Unrated: it will publish but will not be listed or announced until it is rated.`, or the rating-required sentence) and `newerVersionExists` on each entry, which the drawer shows as "A newer version exists than the one scheduled" the moment a newer version is saved, long before the scheduled time marks the schedule blocked.
 
 ## What the interface stories read
 
@@ -87,6 +99,6 @@ A refusal is `{ok: false, errors: [{code, message, ...}]}`. Codes: `not-allowed`
 
 ## Not built here
 
-The editors' notice uses a flag review request. The plan's Caducus operator-class kind waits for the notifications convergence (PPY-824c14). Slot suggestion ("Next suggested time") belongs to the field story. Announcements are separate stories.
+The editors' notice uses a flag review request. The plan's Caducus operator-class kind waits for the notifications convergence (PPY-824c14). Announcements are separate stories.
 
 The Scheduler calls (create or move, delete, one-off in UTC, removed after it runs) are made by the same helper the follow-up timers use ([follow-up timers](follow-up-timers.md)); nothing about the entries changed.

@@ -9,7 +9,7 @@ import re
 from typing import Any
 
 from .operator_errors import GraphQLTimeoutError
-from .publish_alerts import PUBLISHED_TASK_KEY
+from .publishing import PUBLISHED_TASK_KEY
 from .projection.runtime import PUBLICATION_KIND_ENV, S3_PROJECTION_KIND, projection_configured
 
 CONTENT_ACTIONS_FUNCTION_ENV = "PAPYRUS_CONTENT_ACTIONS_FUNCTION"
