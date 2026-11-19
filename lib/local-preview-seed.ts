@@ -9,7 +9,8 @@ import { contentItemHeadStageKey, contentItemStageKeys, type ContentItemVersionR
 import { getContentItemStageDefinitions } from "./site-brand";
 import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
-import type { ScheduleFields } from "./story-schedule";
+import { resolveWallTime, wallTimeOf, type ScheduleFields } from "./story-schedule";
+import type { PublishedStoryRow } from "./story-schedule-query";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
 const ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
@@ -205,9 +206,48 @@ export function setLocalPreviewSchedule(lineageId: string, scheduledPublishAt: s
   return fields ?? {};
 }
 
+/**
+ * What the preview says when an editor asks for a suggested time. The preview has no history to learn from, so it stands in for a publication that publishes on weekday
+ * mornings: 9:00 in the publication's zone on the first weekday after now and after the latest scheduled sample Story plus a day. (The real backend learns the hours
+ * and the gap from the publication's own first publications: src/papyrus_content/publication_cadence.py.)
+ */
+export function localPreviewSuggestedTime(zone: string, ownLineageId: string | undefined, now: Date = new Date()): string {
+  const latest = createLocalPreviewContentItemVersions()
+    .filter(version => version.lineageId !== ownLineageId && version.scheduledPublishAt && (version.scheduleState === "scheduled" || version.scheduleState === "publishing"))
+    .map(version => Date.parse(version.scheduledPublishAt!))
+    .reduce((most, at) => Math.max(most, at), 0);
+  const after = Math.max(now.getTime(), latest ? latest + DAY : 0);
+  for (let offset = 0; offset < 14; offset += 1) {
+    const day = wallTimeOf(new Date(now.getTime() + offset * DAY).toISOString(), zone).date;
+    const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
+    if (weekday === 0 || weekday === 6) continue;
+    const resolved = resolveWallTime(day, "09:00", zone);
+    if (resolved.kind === "ok" && Date.parse(resolved.utc) > after) return resolved.utc;
+  }
+  throw new Error("The preview found no weekday morning in the next two weeks.");
+}
+
 export function resetLocalPreviewSchedules(): void {
   previewScheduleChanges.clear();
   previewScheduleTouchedAt.clear();
+}
+
+/**
+ * Fake first-publication times for the sample published Stories, placed relative to the start of today (UTC) like the schedules: two went out three days ago,
+ * so the Schedule page shows what went out beside what is coming.
+ */
+function seededPublishedAt(now: Date = new Date()): Record<string, string> {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const at = (days: number, hours: number) => new Date(today + days * DAY + hours * HOUR).toISOString();
+  return { "preview-item-lineage-published-0": at(-3, 14), "preview-item-lineage-published-1": at(-3, 18) };
+}
+
+/** Every sample published Story first published in [from, to), for the Schedule page. */
+export function createLocalPreviewPublishedStories(from: string, to: string): PublishedStoryRow[] {
+  const publishedAt = seededPublishedAt();
+  return createLocalPreviewContentItemVersions()
+    .filter(version => version.lineageId && publishedAt[version.lineageId] && publishedAt[version.lineageId] >= from && publishedAt[version.lineageId] < to)
+    .map(version => ({ id: version.id, lineageId: version.lineageId!, title: version.headline || version.title || version.slug, section: version.section ?? null, publishedAt: publishedAt[version.lineageId!] }));
 }
 
 /** Every sample Story that has a schedule, for the Schedule page: the rows whose scheduled time falls in [from, to) and whose state is one of `states`. */

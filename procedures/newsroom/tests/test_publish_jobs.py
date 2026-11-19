@@ -162,7 +162,7 @@ class AsynchronousPublishTest(LockTableCase):
             mock.patch.object(handler, "projection_context", side_effect=lambda client: fake_context(client, self.lease)),
             mock.patch.object(handler, "schedule_projection_task", side_effect=lambda task, reason: self.scheduled.append(task) or True),
             mock.patch.object(handler, "project", side_effect=self.project),
-            mock.patch.object(handler, "announce_published"),
+            mock.patch.object(handler, "story_is_live"),
         ]
         for patcher in self.patches:
             patcher.start()
@@ -245,7 +245,7 @@ class AsynchronousPublishTest(LockTableCase):
         self.assertEqual(self.jobs_status("story-2")["state"], DONE)
 
     def test_the_status_follows_the_build_to_its_end(self) -> None:
-        published_story(self.client, "story-3", publish=False)   # a first publish: the newsletter hears of it once the page is live
+        published_story(self.client, "story-3", publish=False)   # a first publish: its follow-up work is asked for once the page is live
         answer = self.publish("story-3")
         self.assertEqual(self.status("story-3")["projection"]["state"], QUEUED)
         result = handler.handler({"projectionTask": self.scheduled[0]}, None)
@@ -254,7 +254,7 @@ class AsynchronousPublishTest(LockTableCase):
         self.assertEqual(status["state"], DONE)
         self.assertEqual(status["jobId"], answer["projection"]["jobId"])
         self.assertEqual(status["itemPaths"], ["story-3/index.html"])
-        handler.announce_published.assert_called_once()
+        handler.story_is_live.assert_called_once()
 
     def test_a_build_that_finds_the_site_busy_leaves_the_story_queued_and_fails_for_a_retry(self) -> None:
         self.publish()

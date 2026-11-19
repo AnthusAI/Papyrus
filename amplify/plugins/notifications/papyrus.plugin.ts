@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { pythonLambdaCode } from "../../functions/shared/python-bundle";
 import { SecureStringParameter } from "../newsletter/secure-string-parameter";
 import { ALARM_MINIMUM_SENDS, BOUNCE_RATE_THRESHOLD, COMPLAINT_RATE_THRESHOLD } from "../newsletter/papyrus.plugin";
-import { functionArn, postalAddressParameterArns } from "../newsletter/sending";
+import { postalAddressParameterArns } from "../newsletter/sending";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveNotificationsConfig, type NotificationsConfig } from "./config";
 import { siteApiEnvironment } from "../../site-api-access";
@@ -23,8 +23,6 @@ export { resolveNotificationsConfig };
 export type { NotificationsConfig };
 
 export const NOTIFICATIONS_OUTPUT_KEY = "notifications";
-/** Set on the site's content-actions function: it invokes the router function (`story-published`) after a real publish. Unset: no notices. */
-export const NOTIFICATIONS_FUNCTION_ENV = "PAPYRUS_NOTIFICATIONS_FUNCTION";
 export const HANDLERS = {
   router: "papyrus_content.notifications.handler.router",
   email: "papyrus_content.notifications.handler.email",
@@ -383,18 +381,7 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       });
     }
 
-    // The publish path tells the router about a real publish. The ARN is spelled out (not referenced) so the content-actions
-    // stack does not depend on this one, and the grant is for this one function only.
-    const contentActions = context.contentActionsLambda;
-    contentActions.addEnvironment(NOTIFICATIONS_FUNCTION_ENV, notificationsFunctionName(config.siteId));
-    contentActions.addToRolePolicy(
-      new PolicyStatement({
-        effect: Effect.ALLOW,
-        actions: ["lambda:InvokeFunction"],
-        resources: [functionArn(Stack.of(contentActions), notificationsFunctionName(config.siteId))],
-      }),
-    );
-    // The CMS routes are the only other caller.
+    // The CMS routes are the only caller: a publish tells this function nothing (the announce agent is woken by the Item change feed).
     router.addPermission("InvokeFromCmsCompute", { principal: new ArnPrincipal(config.computeRoleArn), action: "lambda:InvokeFunction" });
 
     backend.addOutput({ custom: { [NOTIFICATIONS_OUTPUT_KEY]: { actionsFunction: router.functionName } } });

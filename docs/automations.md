@@ -406,7 +406,7 @@ An agent that listens for a change to a Story or its checklist (`wakes.changes` 
 stream consumer on the Item table in the site's `agents` stack. It must find the agents that listen without listing the Automation table on every change, so
 the deploy writes **the listener index**: `papyrus agents listeners` (the site's build runs it right after `agents schedules`; a person may run it again, with
 `--dry-run` or `--check`). The index is one small site document of kind `listeners` (versioned, its body an S3 object at `tenants/<tenant>/site/listeners/<version>.json`,
-as the agent policy is), derived from the definitions in Git, keyed by the change (`Item/stage_entered`, `Item/version_created`, `Item/step_changed`), each entry naming the
+as the agent policy is), derived from the definitions in Git, keyed by the change (`Item/stage_entered`, `Item/version_created`, `Item/step_changed`, `Item/rated`), each entry naming the
 agent, its procedure, whether it is paid, its serial scope and its filter. The same definitions write nothing; a changed set writes the next version; a definition removed
 from Git leaves the index at the next deploy. It holds no rung, pause or budget: the runner checks the policy for every wake, so a deploy still cannot change them.
 
@@ -417,7 +417,8 @@ from Git leaves the index at the next deploy. It holds no rung, pause or budget:
   own tenant; look up and send to its own site's wake queue. It reads no table, receives and deletes no wake, and calls no model.
 * **The feed's changes and what a filter may name.** `version_created` (a new version of an Item that is not a checklist step): `type`, `stage`, `section`, `language`,
   `versionNumber`, `actorKind`. `stage_entered` (a first version created at a stage, or the stage field changed in place, as a board move does): `type`, `stage`, `from`,
-  `section`, `language`, `actorKind`. `step_changed` (a checklist step got a new state; a note is no change): `step`, `state`, `actorKind`. A filter is a flat set of these
+  `section`, `language`, `actorKind`. `step_changed` (a checklist step got a new state; a note is no change): `step`, `state`, `actorKind`. `rated` (a Story's star rating set,
+  changed or cleared in place, PPY-e3bb2b; its key is `rated.<stars or cleared>.<time>`): `type`, `stage`, `section`, `language`, `stars`, `previousStars`, `actorKind`. A filter is a flat set of these
   fields; every one must equal the change's field as text.
 * **The wake.** Key `<agent>|<Story lineage>|<version id>|<what>` (`what` is the change; a stage entry names its stage, `stage_entered.<stage>`); the message group is the agent plus
   the Story. The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the quiet window for paid steps (PPY-67e3cd) and the

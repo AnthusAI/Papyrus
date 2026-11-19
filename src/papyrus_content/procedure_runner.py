@@ -332,6 +332,10 @@ def child_environment(request: dict, openai_api_key: str | None) -> dict:
         environment[request_meter.ENV_CALLER] = f"stage:{request['procedureKey']}"   # the stage's own requests are attributed to it
     if openai_api_key:
         environment["OPENAI_API_KEY"] = openai_api_key
+    # Where the site's own store is, for a procedure that reads a site document (the announce agent reads the lists' settings). Never inherited from the runner's own process.
+    environment.pop("PAPYRUS_TENANT_ID", None), environment.pop("PAPYRUS_SITE_BUCKET", None)
+    if request.get("tenantId") and request.get("siteBucket"):
+        environment.update(PAPYRUS_TENANT_ID=request["tenantId"], PAPYRUS_SITE_BUCKET=request["siteBucket"])
     return environment
 
 

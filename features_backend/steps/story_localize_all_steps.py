@@ -968,39 +968,37 @@ def _handler(context):
     return context.handler
 
 
-@when('the content-actions function announces that "{story}" is live')
+@when('the content-actions function finds that "{story}" is live')
 def step_announce(context, story):
     handler = _handler(context)
-    context.announced = []
     context.logged = []
-    with mock.patch.object(handler, "announce_published", lambda item, published: context.announced.append((item, published))), \
-            mock.patch("papyrus_content.localize.auto.settings_from", lambda store: context.settings), \
+    with mock.patch("papyrus_content.localize.auto.settings_from", lambda store: context.settings), \
             mock.patch("builtins.print", lambda *args, **kwargs: context.logged.append(args[0] if args else "")):
-        handler.announce_published_story(context.client, context.stories[story]["id"], f"published-{story}")
+        handler.story_is_live(context.client, context.stories[story]["id"], f"published-{story}")
 
 
-@when('the translation requests cannot be written and the function announces that "{story}" is live')
+@when('the translation requests cannot be written and the function finds that "{story}" is live')
 def step_announce_failing(context, story):
     handler = _handler(context)
-    context.announced, context.logged = [], []
+    context.logged = []
 
     def broken(*args, **kwargs):
         raise RuntimeError("the table is unavailable")
 
-    with mock.patch.object(handler, "announce_published", lambda item, published: context.announced.append((item, published))), \
-            mock.patch("papyrus_content.localize.auto.request_translations", broken), \
+    with mock.patch("papyrus_content.localize.auto.request_translations", broken), \
             mock.patch("builtins.print", lambda *args, **kwargs: context.logged.append(args[0] if args else "")):
-        handler.announce_published_story(context.client, context.stories[story]["id"], f"published-{story}")
+        handler.story_is_live(context.client, context.stories[story]["id"], f"published-{story}")
 
 
-@then("the newsletter and notifications announcement is made")
-def step_announced(context):
-    assert context.announced == [("story-a-v1", "published-story-a")], context.announced
+@then("no other function is told")
+def step_told_nothing(context):
+    assert not hasattr(_handler(context), "announce_published"), "a publish tells no other function"
+    assert not [line for line in context.logged if "announce_failed" in str(line)], context.logged
 
 
-@then("the announcement is still made and the failure is logged with its cause")
+@then("the failure is logged with its cause and the publish stands")
 def step_announced_logged(context):
-    assert context.announced and any("papyrus_translation_request_failed" in line and "the table is unavailable" in line for line in context.logged), context.logged
+    assert any("papyrus_translation_request_failed" in line and "the table is unavailable" in line for line in context.logged), context.logged
 
 
 @given("the site requires a person's approval to publish")

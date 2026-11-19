@@ -399,6 +399,7 @@ papyrus stories schedule --story LINEAGE --at '2026-11-13 09:00'
 papyrus stories schedule --story LINEAGE --clear
 papyrus stories schedule-list --from '2026-11-09 00:00' --to '2026-11-15 23:59'
 papyrus stories schedule-list --story LINEAGE --state overdue
+papyrus stories schedule-suggest --story LINEAGE
 ```
 
 A time without an offset is read in the publication's time zone and stored as a UTC instant; `2026-11-13T14:00:00Z` or `2026-11-13T09:00:00-05:00` is exact. A wall-clock time that does not exist there (the spring-forward gap) is refused (`nonexistent-time`); one that happens twice (fall back) is refused with both choices (`ambiguous-time`): type it again with the offset. A time that has passed is refused. A Story has one schedule; scheduling again moves it, and `--clear` removes it. Only the newest version can be scheduled. If a newer version is saved first, nothing is published: the schedule becomes `blocked` ("A newer version was saved after this was scheduled. Schedule it again.") and the site's editors get a flag in the Notification Center. Publishing the Story now, taking it down or retiring it removes its schedule. `schedule-list` shows each schedule's state: `scheduled`, `publishing`, `blocked`, or `overdue` (the time passed and it has not published: publish it now or schedule it again). `stories show` adds a `schedule` line (UTC time). The MCP tools are `stories_schedule` and `stories_schedule_list`, the same operations. Design and states: `docs/scheduled-publishing.md`.
