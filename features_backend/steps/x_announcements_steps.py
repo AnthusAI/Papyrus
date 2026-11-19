@@ -438,3 +438,31 @@ def resume(context):
 @step('the pause names "{who}"')
 def pause_names(context, who):
     assert context.settings.read()["pause"]["by"] == who
+
+
+@step('ryan saves post spacing of {minutes:d} minutes for "{account}"')
+def save_spacing(context, minutes, account):
+    propose(context, "ryan", spacing={account: minutes})
+
+
+@step('ellie tries to save post spacing of {minutes:d} minutes for "{account}"')
+def try_save_spacing(context, minutes, account):
+    propose(context, "ellie", spacing={account: minutes})
+
+
+@step("no account has post spacing")
+def no_spacing(context):
+    settings = context.answer.get("settings") or context.settings.read()
+    assert settings["spacing"] == {}, settings
+
+
+@step('the post spacing of "{account}" is {minutes:d} minutes')
+def spacing_is(context, account, minutes):
+    assert context.settings.read()["spacing"][account] == minutes
+
+
+@step('the announcement settings the pipeline reads show the post spacing of "{account}" as {minutes:d} minutes')
+def pipeline_spacing(context, account, minutes):
+    from papyrus_content.announcements import rules as pipeline_rules
+
+    assert pipeline_rules.view(context.settings.read(), {})["spacing"][account] == minutes

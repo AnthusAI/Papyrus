@@ -46,6 +46,15 @@ def update_settings(services: Services, changes: Mapping[str, Any], *, by: str) 
     for name in ("mode", "billingCycleDay", "labelConfirmed", "prices"):
         if name in changes:
             proposed[name] = changes[name]
+    if "spacing" in changes:
+        # Each account named is set; a null takes its spacing away. Accounts not named keep theirs.
+        merged = dict(document.get("spacing") or {})
+        for account, minutes in (changes["spacing"] or {}).items():
+            if minutes is None:
+                merged.pop(account, None)
+            else:
+                merged[account] = minutes
+        proposed["spacing"] = merged
     if "budget" in changes:
         amount = money(changes["budget"])
         if amount is None:

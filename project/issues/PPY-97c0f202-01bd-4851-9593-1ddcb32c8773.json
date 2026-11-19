@@ -37,10 +37,17 @@
       "text": "Merged to develop in #1673 (not released), ticket left open. Unmet: (1) post spacing per account (no channel settings home yet); (2) Announcements list display of policy waits for PPY-e4ae3a; (3) withdraw-by-agent-on-retire waits for PPY-3e0a8a; (4) none-rung via set-rung blocked by the ladder floor until PPY-36e7c9; (5) requireReviewedSource is publication-wide until channel/list rule objects exist. QUESTION for Ryan: no human review stamp existed as data; defined as the Story checklist step review_people done by a person against the Story's current version. Confirm or change.",
       "created_at": "2026-11-18T13:54:16.949963Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f9a90b4d-6e84-4233-b6c6-c26007618189",
+      "author": "home",
+      "text": "Branch feat/PPY-97c0f2-review-policy-remaining, PR #1696 (develop). MET now: (1) post spacing per account (owner setting in the announcement settings, empty by default, a set spacing holds the next post, Gherkin announcement-post-spacing.feature); (2) Announcements list shows the policy in words and marks (delivered by PPY-e4ae3a, verified). Human review stamp: PROVISIONAL, Ryan has NOT confirmed this definition: a Story has it when its checklist step review_people is marked done by a PERSON (actor kind person, not an agent) against the Story's CURRENT version; a later edit loses it and returns a waiting Announcement to waiting. Already built in #1673, now exercised for real in Gherkin (announcement-human-review-stamp.feature) and flagged PROVISIONAL in docs, held reasons, explain, settings help and feature headers. STILL UNMET (ticket stays open): (3) agent withdraw only on retire: announcements_withdraw has a table row but no handler (PPY-efd06c), so nothing real can exercise the rule; (4) none via set-rung: hard floors at every rung (PPY-36e7c9) not built; (5) requireReviewedSource publication-wide: no channel/list rule objects. Spacing limit: measured from the account's newest-created Delivery with a post attempt; a Delivery made earlier but posted later is not seen (needs a durable last-post time, a model field).",
+      "created_at": "2026-11-19T02:44:08.828173Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:49:19.342619Z",
-  "updated_at": "2026-11-18T13:54:16.950274Z",
+  "updated_at": "2026-11-19T02:44:08.828851Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

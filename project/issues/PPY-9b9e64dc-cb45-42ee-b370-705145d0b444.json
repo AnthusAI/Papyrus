@@ -3,7 +3,7 @@
   "title": "Change feeds for Reference, ReviewRequest, Message, LocalizationRequest and Delivery",
   "description": "The Item change feed (PPY-8a374e) turns Item changes into wakes. Do the same for the other tables agents react to, one small function per table with a filter in the event source mapping: a Reference created, accepted, rated or re-captured; a review request answered; a Message posted by a person on a subject; a LocalizationRequest wanted; a Delivery state change. Each feed emits the same normalized change (`table, kind, id, lineage, version, change, actorKind, at`) and looks up which agents listen in the site's cached agent definitions (read by the tenant index, never a table list). A table already at two stream readers gets its feed by moving an existing reader behind the feed, not by adding a third.\n\n**Acceptance criteria**\n- Each listed change produces a wake for every agent whose definition listens for it, and for no other.\n- No feed reads a whole table.\n- No table has more than two stream readers.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- change-feeds.feature: accepting a Reference wakes the agents that listen for it; answering a review request wakes the agent that asked; a person's Message on a Story wakes the Story's agents; an agent's own write does not wake itself for the same version; a change nobody listens for sends nothing.\n\n**Infrastructure as code touched:** Site backend: stream enabled on ReviewRequest and Delivery tables; event source mappings with filters; one feed function. Staged where a table gains a stream.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -31,11 +31,18 @@
       "text": "Built on feat/PPY-9b9e64-change-feeds (fakes and local specs; nothing deployed). Decisions: (1) ONE feed function for the five tables, papyrus-<site>-change-feed, not one per table: the code is shared, the stream ARN in each record names the table, and one function costs function+role+policy (3) plus one mapping per stream it reads itself (8 resources for a site with every table; first stage 1,978 before and after). The design's B3 purpose text says one function per table, its infrastructure line says one feed function; the infrastructure line was followed. (2) Reader placement is a rule in amplify/agents/stream-readers.ts: fewer than two readers means a mapping of its own; two or more means the feed sits behind a reader that stays on the stream and relays its batch (Reference: word index; Message: Slack delivery, else the home page thread reader). test:agents-stack places every combination of the six readers and asserts no table is given a third reader. (3) Message stream already has THREE readers when console responder, Slack and home page are all on: the feed adds none, but that site stays over the guidance until an existing reader moves; not done here. (4) A comment's subject comes from its thread anchor via one getMessageThread point read, made only when some agent listens for a posted Message. (5) The change vocabulary (src/papyrus_content/change_vocabulary.py) is now enforced in agent definitions; earlier test fixtures used Item/ready, which no feed produces, and were changed to step_changed. Remaining live proof (needs a deploy, not done): on a real site, accept a Reference, answer a review request, comment on a Story and change a Delivery state and see one wake per listening agent on the queue, a repeat sends none, the dead-letter queue stays empty; confirm the ReviewRequest and Delivery streams exist and that the relay from the word index and Slack delivery reaches the function. Leftovers: the third Message reader; a Delivery's actor comes from the last history line (an agent writer must use the automation: prefix).",
       "created_at": "2026-11-18T23:19:39.159647Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7a656aa7-f395-498d-a5f5-ebeaa6b80607",
+      "author": "home",
+      "text": "Audit 2026-11-18: merged to develop in PR #1689 (one feed function for the five tables). Closing so dependents unblock. Live proof needs a deploy and is recorded in the earlier comment.",
+      "created_at": "2026-11-19T02:16:21.482986Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:02.320223Z",
-  "updated_at": "2026-11-18T23:19:39.160395Z",
-  "closed_at": null,
+  "updated_at": "2026-11-19T02:16:21.648770Z",
+  "closed_at": "2026-11-19T02:16:21.648725Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

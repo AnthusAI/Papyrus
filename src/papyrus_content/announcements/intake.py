@@ -14,8 +14,10 @@ A Story edited after a review loses the stamp: ``story_changed`` returns every D
 while the rule is off or the new version has been reviewed again. Until then it waits, whatever its approval says (a ``none`` Delivery must not go out unreviewed on a site that
 requires review).
 
-The human review stamp is one fact: the Story's checklist step ``review_people`` ("Reviewed for readers") is done by a person against the Story's current version number
-(``ChecklistReviewStamps``). A later version carries no stamp until a person marks the step again.
+**PROVISIONAL: the definition of a human review stamp is not confirmed.** No stamp existed as data, so it is defined here as one fact: the Story's checklist step
+``review_people`` ("Reviewed for readers") is marked done by a person (an actor of kind person, never an agent or the system) against the Story's CURRENT version number
+(``ChecklistReviewStamps``). A later version carries no stamp until a person marks the step again, and a waiting Announcement returns to waiting. Ryan has not confirmed
+this definition (PPY-97c0f2 asks him); every place that shows or documents it says so, using ``PROVISIONAL_NOTE``.
 """
 from __future__ import annotations
 
@@ -33,6 +35,8 @@ from .review_policy import ReviewChoice, choose
 
 #: The checklist step a person marks done when they have reviewed the Story for readers.
 REVIEW_STEP = "review_people"
+#: Said wherever the human review stamp is shown or documented, until Ryan confirms or changes the definition.
+PROVISIONAL_NOTE = "PROVISIONAL: what counts as a human review is not confirmed (here: a person marked the Story's review step done on its current version)."
 QUALITY_FLOOR_STARS = 3
 MAX_STARS = 5
 
@@ -46,7 +50,8 @@ class ReviewStamps(Protocol):
 
 
 class ChecklistReviewStamps:
-    """The stamp read from the Story's checklist (``story_checklist.read_steps``): one index read by parent."""
+    """The stamp read from the Story's checklist (``story_checklist.read_steps``): one index read by parent. PROVISIONAL: Ryan has not confirmed this definition.
+    A person's mark counts only on the version it was made against; an agent's or the system's mark never counts, and neither does a step that is open again."""
 
     def __init__(self, client: Any):
         self.client = client
@@ -124,7 +129,7 @@ def announce_story(
         unreviewed = [story for story in stories if not stamps.reviewed(story.lineage_id, story.version_number)]
         if unreviewed:
             names = ", ".join(f"{story.lineage_id} version {story.version_number}" for story in unreviewed)
-            result.held.append(Held(NOT_REVIEWED, f"{names} has not been reviewed by a person, and this publication announces only reviewed Stories."))
+            result.held.append(Held(NOT_REVIEWED, f"{names} has not been reviewed by a person, and this publication announces only reviewed Stories. {PROVISIONAL_NOTE}"))
             return result
     plans: list[Plan] = []
     for target in targets:
@@ -156,7 +161,7 @@ def make_ready(announcements: Announcements, stamps: ReviewStamps, announcement:
         if row.get("state") != DRAFTED:
             continue
         if waiting:
-            held.append(Held(NOT_REVIEWED, f"{row['channel']} waits: {', '.join(story.lineage_id for story in waiting)} was changed after its review and has not been reviewed again.", row["channel"]))
+            held.append(Held(NOT_REVIEWED, f"{row['channel']} waits: {', '.join(story.lineage_id for story in waiting)} was changed after its review and has not been reviewed again. {PROVISIONAL_NOTE}", row["channel"]))
             continue
         ready.append(announcements.deliveries.mark_ready(row, by=by, now=now))
     return ready, held

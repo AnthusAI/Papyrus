@@ -4058,6 +4058,10 @@
               "labelConfirmed": {
                 "type": "boolean"
               },
+              "spacing": {
+                "type": "object",
+                "description": "Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing."
+              },
               "pause": {
                 "type": "object",
                 "description": "paused, reason (budget, disconnected or manual), detail, by and at."
@@ -4121,7 +4125,7 @@
           },
           "requireReviewedSource": {
             "type": "boolean",
-            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default."
+            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed."
           },
           "budget": {
             "type": "string",
@@ -4140,6 +4144,10 @@
           "labelConfirmed": {
             "type": "boolean",
             "description": "The account shows X's Automated label, managed by a person's account."
+          },
+          "spacing": {
+            "type": "object",
+            "description": "Minutes between one post and the next on a channel account, by account (<channel>#<account>, such as x#handle). A number sets it, null takes it away; an account that is not named keeps what it has. Empty by default: no spacing."
           }
         },
         "required": [],
@@ -4182,6 +4190,10 @@
               },
               "labelConfirmed": {
                 "type": "boolean"
+              },
+              "spacing": {
+                "type": "object",
+                "description": "Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing."
               },
               "pause": {
                 "type": "object",

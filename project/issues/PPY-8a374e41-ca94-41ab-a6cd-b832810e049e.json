@@ -3,7 +3,7 @@
   "title": "Step runner: Item stream, per-site FIFO queue, dispatcher, coalescing window",
   "description": "Fire steps when a checklist step becomes ready, including console board moves. Stream on the Item table, one FIFO group per Story, idempotent run claims per Story version, window shorter after a person acts. No whole-table reads (today every delivery reads the Automation table).\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nThis story is slice B2 of the standard: **the Item change feed and dispatcher**. It serves every agent that listens to Item changes, not only Story steps.\n\n- The feed turns each Item change (a Story version created, a stage changed, a checklist sub-task changed), from any writer including the console board, into wakes on the site's wake queue (PPY-567bf9), one per listening agent, read from the site's cached agent definitions (PPY-68abaa) by index.\n- The wake key is `<agent>|<lineage>|<version>|<what>`; the run record made from it is the claim (PPY-70c6e8). No claim rows in the monitoring table and no router publication are needed.\n- One Story at a time comes from the queue's message group (PPY-a200ec); the quiet window for paid steps is PPY-67e3cd; the loop guard is PPY-4e7e8b.\n- An agent's own version does not wake that agent for the same step.\n\n**Acceptance criteria (added)**\n- A console board move, a CLI write and an agent's own write each wake the listening agents once.\n- No code lists the `Automation` table per change.\n- Gherkin: item-change-feed.feature (a console move wakes the stage's agent; a new version wakes each listening step once; a redelivered stream record starts nothing twice; an agent's own version does not re-wake it; a change nobody listens for sends nothing).\n- Infrastructure: stream on the Item table and the feed function live in the deferred `agents` stack (PPY-e06835).",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -44,11 +44,18 @@
       "text": "Merged to develop in #1693 (not released): the agents.openAiKeyParameter site setting (an SSM parameter NAME, validated) sets PAPYRUS_OPENAI_KEY_PARAMETER on the Item change feed and the change feed, so wakes carry openaiKeyParameter. The feeds hold no ssm or kms right (spec asserts it): the procedure runner reads the key, and its role gains AgentModelKeyParameters, ssm:GetParameter on /papyrus/shipped/openai-api-key alone (SecureString under alias/aws/ssm per read-only describe-parameters; no kms:Decrypt). No resource added; first stage still 1978 of 2000. No fallback key: with no name set a run still fails with 'The run has no model key'. No site config changed: Machines on Machines has its own parameter (/amplify/shared/d260vp72hqglnc/OPENAI_API_KEY, last modified 2026-11-02, the one that expired) so the standard name was not set for it; Ryan or the parent decides which parameter the MoM site names when it next bumps. Remaining: a site adds agents: { openAiKeyParameter } with its bump; the runner stack deploys with the release.",
       "created_at": "2026-11-19T01:40:05.361892Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5571ae68-6ae6-4e77-8281-d5e944fba9c4",
+      "author": "home",
+      "text": "Audit 2026-11-18: merged to develop in PR #1686 (feed) and #1693 (model key parameter). Closing so dependents unblock. Live proof that needs a deploy (listener index, one wake per listening agent, dead-letter queue empty) is not done; it is recorded in the comment above and gates enabling the feed on a site, not the code.",
+      "created_at": "2026-11-19T02:16:20.712571Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T16:58:28.182828Z",
-  "updated_at": "2026-11-19T01:40:05.362141Z",
-  "closed_at": null,
+  "updated_at": "2026-11-19T02:16:20.880350Z",
+  "closed_at": "2026-11-19T02:16:20.880309Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
