@@ -12,8 +12,9 @@ for (const given of [
   "the Stories board with a scheduled Story",
   "the Stories board with an unscheduled Story open in its drawer",
   "the Stories board with a scheduled Story open in its drawer",
-  "the Schedule page with three Stories this week and one the week after",
-  "the Schedule page with three Stories this week",
+  "the Schedule page with three Stories scheduled this week, one the week after and two published on Monday",
+  "the Schedule page with a Story scheduled for Friday at 9:00 AM",
+  "the Schedule page with three Stories scheduled this week and two published",
   "the Schedule page on a screen 375 pixels wide",
   "the Schedule page, the board and an open drawer in light and dark",
 ]) Given(given, function () {});
@@ -27,6 +28,8 @@ for (const when of [
   "the editor picks 02:30 on the night clocks go forward, and then 01:30 on the night they go back",
   "the editor opens it",
   "the editor tabs through the page",
+  "the editor drags it to Saturday at 10:00 AM",
+  "the editor drags it to yesterday, and then to a time the backend refuses",
 ]) When(when, function () {});
 
 // Each outcome runs the named scenario of scripts/test-story-schedule-ui.ts (a real browser, local preview data, a fixed clock).
@@ -49,10 +52,17 @@ const outcomes = {
   'the second lists "01:30 EDT" and "01:30 EST", sends nothing until one is chosen, and then schedules the one chosen': "dst",
   "the current week is shown in New York time with each Story's time, state in words, icon and title": "calendar",
   "a plain list of the same Stories follows the calendar": "calendar",
-  'choosing Month shows all four and choosing Day shows an empty day with "Nothing is scheduled today."': "calendar",
-  'only one week of the schedule index is read at a time, and an empty week says "Nothing is scheduled this week." and offers "Schedule a Story"': "calendar",
+  'the two published Stories show "Published" with their own icon beside the three that are coming': "calendar",
+  'choosing Month shows all six and choosing Day shows an empty day with "Nothing is scheduled today."': "calendar",
+  'only one week of the schedule index and of the published index is read at a time, and an empty week says "Nothing is scheduled this week." and offers "Schedule a Story"': "calendar",
+  "the backend is asked to schedule that version for Saturday 10:00 AM New York time, as the UTC instant": "drag",
+  'the calendar and the list show it on Saturday and a notice says "Rescheduled" with an "Undo" button': "drag",
+  'choosing "Undo" schedules it for Friday at 9:00 AM again and the notice says it is back': "drag",
+  'the first returns it to Friday with "That time has passed." and nothing is sent': "drag",
+  "the second returns it to Friday with the backend's words": "drag",
+  "a Story that is already published and one that is overdue cannot be dragged": "drag",
   "every event is a focusable button, the list has a link for each Story, and Enter on an event opens its Story": "keyboard",
-  "the week is shown as a list by day with the same three Stories and nothing scrolls sideways": "phone",
+  "the week is shown as a list by day with the same five Stories and nothing scrolls sideways": "phone",
   "the badge and the drawer's schedule row fit the phone, with targets at least 36 pixels tall": "phone",
   "no element of the badge, the schedule row or the calendar draws a visible outline": "no_borders",
 };

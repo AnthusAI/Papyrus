@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ORGANIZER_NAV_GROUPS } from "../lib/newsroom-organizer-nav";
 import { ownZoneTime, resolveWallTime, scheduleFromEntries, scheduleFromFields, scheduleKind, scheduleFromResult, scheduleSentence, scheduleWording, wallTimeOf } from "../lib/story-schedule";
-import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
+import { readPublishedRange, readScheduledRange, SCHEDULE_PAGE_STATES, type PublishedQueryFetch, type ScheduleQueryFetch } from "../lib/story-schedule-query";
 
 const NY = "America/New_York";
 const NOW = new Date("2026-11-12T15:00:00Z");
@@ -84,6 +84,25 @@ test("the page reads one query per state on the schedule index, limited to the r
   assert.deepEqual(rows.map((entry) => entry.id), ["a", "b", "c"], "earliest first across states and pages");
   assert.deepEqual([...new Set(seen.map((variables) => variables.scheduleState))].sort(), [...SCHEDULE_PAGE_STATES].sort(), "one query per state");
   assert.equal(seen.length, SCHEDULE_PAGE_STATES.length + 1, "and the second page of one state");
+});
+
+test("the page reads the published Stories of the range from the typeStatus and publishedAt index, one query per Story type, and follows every page", async () => {
+  const seen: Record<string, unknown>[] = [];
+  const row = (sourceItemId: string, publishedAt: string, title: string) => ({ sourceItemId, itemLineageId: `lineage-${sourceItemId}`, title, headline: null, slug: sourceItemId, section: "news", publishedAt });
+  const fetch: PublishedQueryFetch = async ({ field, variables, query }) => {
+    seen.push(variables);
+    assert.equal(field, "listPublishedItemsByTypeStatusAndPublishedAt");
+    assert.match(query, /typeStatus: \$typeStatus, publishedAt: \$publishedAt/);
+    assert.deepEqual(variables.publishedAt, { between: ["2026-11-08T05:00:00.000Z", "2026-11-15T05:00:00.000Z"] });
+    if (variables.typeStatus === "article#published" && !variables.nextToken) return { items: [row("b", "2026-11-10T14:00:00.000Z", "Second")], nextToken: "more" };
+    if (variables.typeStatus === "article#published") return { items: [row("a", "2026-11-09T14:00:00.000Z", "First")], nextToken: null };
+    if (variables.typeStatus === "post#published") return { items: [row("c", "2026-11-11T14:00:00.000Z", "Third"), { sourceItemId: "no-time", publishedAt: null }], nextToken: null };
+    return { items: [], nextToken: null };
+  };
+  const rows = await readPublishedRange(fetch, ["article", "post", "article", "page", "doctrine"], "2026-11-08T05:00:00.000Z", "2026-11-15T05:00:00.000Z");
+  assert.deepEqual(rows.map((entry) => [entry.id, entry.title]), [["a", "First"], ["b", "Second"], ["c", "Third"]], "earliest first across types and pages, and a row with no publication time is left out");
+  assert.deepEqual([...new Set(seen.map((variables) => variables.typeStatus))].sort(), ["article#published", "post#published"], "one query per distinct Story type; pages and system types are not asked for");
+  assert.equal(seen.length, 3, "and the second page of one type");
 });
 
 test("the drawer's schedule is what schedule_list says of the Story: the newest scheduled version, with its stored state", async () => {
