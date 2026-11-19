@@ -91,7 +91,7 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
                                    limit=args.get("limit", 50))
         return {"stories": rows, "total": total}
     if name == "stories_show":
-        from .home_page.ordering import utc_today
+        from .quality_ranking import utc_today
         from .projection.standard.config import DEFAULT_STORY_BUCKET
         from .story_reporting import current_story_version
 

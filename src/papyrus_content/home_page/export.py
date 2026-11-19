@@ -29,7 +29,8 @@ from ..reference_thumbnails import EDITOR_IMAGE, public_image as thumbnail_image
 from ..reference_feed_keys import accept_probability as decision_probability
 from ..reference_titles import first_usable_title, needs_title, readable_name
 from ..tenancy import STORED_RECORD_ID_FIELD
-from .ordering import RANK_FIELD, rank_records, valid_stars
+from ..quality_ranking import valid_stars
+from .ordering import RANK_FIELD, rank_records
 
 if TYPE_CHECKING:
     from .settings import HomePageSettings

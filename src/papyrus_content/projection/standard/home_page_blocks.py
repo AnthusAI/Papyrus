@@ -2,7 +2,7 @@
 
 ``select`` names one of three orderings of the snapshot's References (``recent`` and ``confident`` take accepted ones, ``recommended``
 takes the ones not yet accepted). ``confident`` and ``recommended`` use the shared order, an editor's rating and then the Cyclotron's confidence
-(``home_page/ordering.py``); ``recent`` is newest accepted first. ``bucket="day"`` or ``bucket="week"`` puts the newest bucket first and the shared
+(``quality_ranking.py``); ``recent`` is newest accepted first. ``bucket="day"`` or ``bucket="week"`` puts the newest bucket first and the shared
 order inside each bucket, on any selection. A bucket is a ROLLING window counted back from the UTC day of the render (``as_of``), as for Stories. Several includes on one page share a :class:`~.page_ledger.PageLedger`: the first component to
 place a Reference keeps it, and a later one refills up to its ``count`` from its own ordering. ``count`` defaults to
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
@@ -24,7 +24,8 @@ from datetime import date
 from typing import Any
 
 from ...home_page.export import clip_summary
-from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records, utc_today, valid_stars
+from ...home_page.ordering import order_in_buckets, order_public_records
+from ...quality_ranking import BUCKETS, utc_today, valid_stars
 from ...home_page.settings import HomePageSettings
 from ...reference_medium import MEDIUMS
 from . import home_page_components as parts
@@ -120,7 +121,7 @@ _ordered_cache: "OrderedDict[tuple, tuple[list, list[Mapping]]]" = OrderedDict()
 
 def ordered(records: list[Mapping], selection: str, bucket: str | None = None, as_of: date | None = None) -> list[Mapping]:
     """The records of one selection in its order. ``recent`` is newest accepted first (then newest arrival, then key); ``confident`` and ``recommended``
-    are the shared order of ``home_page/ordering.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each.
+    are the shared order of ``quality_ranking.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each.
 
     One render of a site asks for the same order hundreds of times (every page, Markdown twin, digest and paged list that shows References), and each
     sort of a large snapshot is costly (7,000 References: about 40 ms). The order of one snapshot document is therefore worked out once per selection,
