@@ -235,6 +235,10 @@ With the site's quality floor on (plugin setting `floorStars`, equal to `quality
 
 A roundup issue is an ordinary Story of the list's `issueType`, which a site must set (there is no default: it is the Story type the site uses for its periodic email, usually `post`), so editors write it in the ordinary newsroom editor (it is a card on the Stories board; open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
 
+### Links in a slot's blurb
+
+Built (`newsletter/slot_links.py`, PPY-cb3cc9; not yet called by a save path): any link in a slot's blurb must be the slot's own Story page or appear in that Story (its text or its listed links), compared without scheme, `www.` or a trailing slash. `link_problems` returns one plain sentence per link that is neither, so a save can be refused naming it. Spec: `features_backend/newsletter-slot-links.feature`.
+
 ### The living issue (rules built, not yet wired)
 
 Status: the pure rules are Built (`newsletter/living_issue.py`, `features_backend/newsletter-living-issue.feature`, PPY-4108ef); persistence, the Story body, the panel, the scheduler and the move of sending to Caducus are not. Today's issues still use the lifecycle below.
