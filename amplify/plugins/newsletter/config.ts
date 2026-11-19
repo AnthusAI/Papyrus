@@ -85,7 +85,6 @@ export type NewsletterConfig = {
   fromAddress: string;
   fromName: string;
   /** A site must set this to true before any list may send without approval. */
-  instantAlerts: boolean;
   theme: NewsletterTheme;
   lists: NewsletterList[];
   /** How the site addresses its item pages (`urls.style` in projection.json): roundup drafts link to published items with it. */
@@ -97,7 +96,7 @@ export type NewsletterConfig = {
 };
 
 const KNOWN_KEYS = new Set([
-  "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "instantAlerts", "theme", "lists",
+  "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "theme", "lists",
   "configurationSet", "eventTopicName", "itemUrlStyle",
 ]);
 const LIST_KEYS = {
@@ -235,7 +234,7 @@ export function resolveRule(raw: unknown, label: string): NewsletterRule {
   };
 }
 
-function resolveList(raw: unknown, index: number, instantAlerts: boolean): NewsletterList {
+function resolveList(raw: unknown, index: number): NewsletterList {
   const label = `lists[${index}]`;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail(`${label} must be an object`);
   const kind = (raw as Record<string, unknown>).kind;
@@ -261,9 +260,6 @@ function resolveList(raw: unknown, index: number, instantAlerts: boolean): Newsl
   }
   const approval = list.approval === undefined ? "admin" : list.approval;
   if (approval !== "admin" && approval !== "none") fail(`${label}.approval must be "admin" or "none"`);
-  if (approval === "none" && !instantAlerts) {
-    fail(`${label}.approval "none" sends alerts without an admin approving them: set instantAlerts: true on the plugin first`);
-  }
   return { ...base, kind, rule: resolveRule(list.rule, `${label}.rule`), approval };
 }
 
@@ -280,10 +276,8 @@ export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfi
   if (extra.length > 0 || !local || local.length > 64 || !LOCAL_PART.test(local) || domain !== sendingDomain) {
     fail(`fromAddress must be an address on ${sendingDomain} (lowercase, such as newsletter@${sendingDomain})`);
   }
-  if (raw.instantAlerts !== undefined && typeof raw.instantAlerts !== "boolean") fail("instantAlerts must be a boolean");
-  const instantAlerts = raw.instantAlerts === true;
   if (!Array.isArray(raw.lists) || raw.lists.length === 0 || raw.lists.length > 20) fail("lists must be a list of 1 to 20 lists");
-  const lists = raw.lists.map((entry, index) => resolveList(entry, index, instantAlerts));
+  const lists = raw.lists.map((entry, index) => resolveList(entry, index));
   const duplicates = lists.map((list) => list.id).filter((id, index, ids) => ids.indexOf(id) !== index);
   if (duplicates.length > 0) fail(`lists has duplicate ids: ${[...new Set(duplicates)].join(", ")}`);
   const roundups = lists.filter((list) => list.kind === "roundup");
@@ -296,7 +290,6 @@ export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfi
     sendingDomain,
     fromAddress,
     fromName: text(raw.fromName, "fromName", 80),
-    instantAlerts,
     theme: resolveTheme(raw.theme),
     lists,
     itemUrlStyle: itemUrlStyle(raw.itemUrlStyle),

@@ -83,7 +83,7 @@ def adds_daily(context) -> None:
     lists = (*site.settings.lists, DAILY)
     site.settings = dataclasses.replace(site.settings, lists=lists)
     site.runtime = assemble(
-        site.settings, store=site.store, queues=site.queues, directory=StaticDirectory([], "recipient-key-alpha"), mailer=site.mailer, read_item=site.rows.get, clock=site.clock,
+        site.settings, store=site.store, queues=site.queues, directory=StaticDirectory([], "recipient-key-alpha"), mailer=site.mailer, clock=site.clock,
         postal_address=lambda: "1 Example Way\nExample City, EX 00000", key_secret="recipient-key-alpha", domains=site.domains, unsuppress=site.unsuppressed.append,
     )
     _channel(context, lists)

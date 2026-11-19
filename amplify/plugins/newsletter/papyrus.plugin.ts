@@ -84,7 +84,6 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
     FROM_NAME: config.fromName,
     CONFIGURATION_SET: config.configurationSet,
     ITEM_URL_STYLE: config.itemUrlStyle,
-    INSTANT_ALERTS: config.instantAlerts ? "true" : "false",
     LISTS_JSON: JSON.stringify(
       config.lists.map((list) => ({
         id: list.id,

@@ -112,3 +112,8 @@ def test_the_deliver_step_for_x_runs_after_the_decision_and_its_refusal_stands()
     given.send_x = not_wired
     with pytest.raises(ChannelNotAvailable):
         worker.announce_story("s", "s-v3", "rated", "rated.4.t", environ=environment("observe"), services=given)
+
+
+def test_the_issue_types_are_the_story_types_the_lists_write_their_issues_as():
+    document = {"lists": {"weekly": {"issueType": "issue"}, "daily": {}, "each": {}}}
+    assert worker.issue_types_of(document) == {"issue"}

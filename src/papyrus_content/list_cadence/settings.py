@@ -11,6 +11,8 @@
 * ``rule.minStars`` is three, four or five. Nothing under three stars goes out on any list (the site's quality floor), so a lower number is refused, and so is
   a list that names none: the floor is written down, not assumed.
 * ``workingDocument`` is ``story`` (an issue Story that is published to the archive; a weekly list only) or ``delivery`` (no archive page).
+* ``issueType`` is the Story type of the issue Story, required for a list whose working document is ``story`` and refused otherwise. An issue Story is the list's own message,
+  so no list ever announces one as a Story (``announce.qualifies``).
 * ``emptyPeriod`` is for a periodic list: ``nothing`` (the default: a period with no qualifying item and nothing a person wrote sends nothing and says so) or ``draft_only``
   (the period's draft is made for a person to fill, and goes only if a person adds words and the rung allows). An every-item list has no period, so it names none.
   No placeholder issue is ever sent.
@@ -43,7 +45,7 @@ LIST_ID = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 AGENT_ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 CLOCK = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 TEMPLATE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-LIST_FIELDS = {"name", "cadence", "sendAt", "timeZone", "rule", "requireReviewedSource", "workingDocument", "template", "agent", "rung", "emptyPeriod", "family"}
+LIST_FIELDS = {"name", "cadence", "sendAt", "timeZone", "rule", "requireReviewedSource", "workingDocument", "template", "agent", "rung", "emptyPeriod", "family", "issueType"}
 RULE_FIELDS = {"sections", "types", "tags", "minStars"}
 
 EMPTY_DOCUMENT: dict[str, Any] = {"schemaVersion": SCHEMA_VERSION, "lists": {}}
@@ -145,6 +147,13 @@ def validate_list(list_id: str, entry: Any) -> dict[str, Any]:
     if working == "story" and cadence != "weekly":
         raise _invalid(f"{where}.workingDocument is story only for a weekly list: an issue Story is published to the archive, and only a weekly issue has an archive page.")
     stored["workingDocument"] = working
+    issue_type = entry.get("issueType")
+    if working == "story":
+        if not isinstance(issue_type, str) or not TEMPLATE.match(issue_type):
+            raise _invalid(f"{where}.issueType names the Story type of the issue Story (lowercase letters, digits, hyphens and underscores), because the working document is story.")
+        stored["issueType"] = issue_type
+    elif issue_type is not None:
+        raise _invalid(f"{where}.issueType is for a list whose working document is story; a delivery list has no issue Story.")
     template = entry.get("template")
     if not isinstance(template, str) or not TEMPLATE.match(template):
         raise _invalid(f"{where}.template names the template the Delivery is drafted from (lowercase letters, digits, hyphens and underscores).")

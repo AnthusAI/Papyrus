@@ -96,3 +96,14 @@ def test_a_delivery_with_no_words_is_a_draft_and_never_ready_or_sent():
         Attempts(deliveries).open(row["id"], by="sender", now="2026-11-16T10:00:00Z")
     with pytest.raises(RecordError, match="at least one Story"):
         announcements.announce(dedupe_key="roundup:weekly:2026-W48", kind="roundup", stories=[], plans=[draft], created_by="bot", trigger="schedule")
+
+
+def test_a_story_working_document_names_the_type_of_the_issue_story():
+    from papyrus_content.list_cadence.settings import ListSettingsError, validate_list
+    entry = {"name": "W", "cadence": "weekly", "sendAt": {"day": "monday", "time": "04:00"}, "timeZone": "America/New_York", "rule": {"minStars": 3}, "workingDocument": "story",
+             "template": "roundup", "agent": "announce"}
+    with pytest.raises(ListSettingsError, match="issueType"):
+        validate_list("weekly", entry)
+    assert validate_list("weekly", {**entry, "issueType": "issue"})["issueType"] == "issue"
+    with pytest.raises(ListSettingsError, match="issueType"):
+        validate_list("weekly", {**entry, "workingDocument": "delivery", "issueType": "issue"})

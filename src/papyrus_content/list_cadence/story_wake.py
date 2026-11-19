@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, replace
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Collection, Mapping
 
 from papyrus_content.announcements.decisions import Announcements
 from papyrus_content.announcements.link_reads import StoryRef
@@ -36,6 +36,7 @@ from papyrus_content.announcements.records import EMAIL, RecordError
 from papyrus_content.announcements.x_announce import XAnnouncer, XServices
 from papyrus_content.run_outcomes import OUTCOME_KEY, REASON_KEY
 
+from .alert_text import alert_drafter, alert_facts
 from .announce import STORY_PUBLISHED, Candidate, Drafter, Result
 from .store import ListState
 from .wake import run_story_change
@@ -44,7 +45,7 @@ AGENT = RESPONSIBILITY = "announce"
 #: The Announcement's ``trigger`` words: what started the decision that made it.
 PAGE_LIVE, RATING_CHANGED = "page_live", "rating_changed"
 #: Why a run made nothing, as the run record's reason code.
-NOT_LIVE_CODE = "story_not_published"
+NOT_LIVE_CODE, TRANSLATION_CODE = "story_not_published", "story_is_translation"
 PUBLISHED = "published"
 CHANGE_STAGE_ENTERED, CHANGE_RATED = "stage_entered", "rated"
 TENANT_ENVIRONMENT, BUCKET_ENVIRONMENT = "PAPYRUS_TENANT_ID", "PAPYRUS_SITE_BUCKET"
@@ -92,6 +93,8 @@ def run_story_wake(request: Mapping[str, Any], state: ListState, announcements: 
     candidate = read_story(found.lineage)
     if candidate is None:
         return not_live(found.lineage)
+    if candidate.translation:
+        return Result(None, f"Story {found.lineage} is a translation, not a new Story: its readers were told when the original published", code=TRANSLATION_CODE)
     considered = x.consider(found.lineage) if x is not None else None
     result = run_story_change(candidate, state, announcements, draft=draft, policy_rung=policy_rung, account_id=account_id, by=by, now=now, trigger=found.trigger,
                               extra_plans=considered.plans if considered else (), edit_settings=edit_settings)
@@ -121,15 +124,18 @@ class Services:
     #: The deliver step for X: ``now -> the Deliveries sent`` (``announcements.x_delivery.send_due`` over the site's Broadcaster). None where the site has no X part. It raises
     #: ``ChannelNotAvailable`` when the site is set to On and has no Caducus ``x`` channel wired.
     send_x: Callable[[str | None], list[dict[str, Any]]] | None = None
+    #: The deliver step for email: ``now -> the Deliveries handed to Caducus`` (``announcements.email_delivery.send_due_email``). None where the site has no email queue.
+    send_email: Callable[[str | None], list[dict[str, Any]]] | None = None
 
 
-def read_candidate(client: Any, lineage: str) -> Candidate | None:
+def read_candidate(client: Any, lineage: str, issue_types: Collection[str] = ()) -> Candidate | None:
     """The Story as a list's rule sees it, read now: the published copy (the pages are made from it) and the rating on the lineage's current record. None when the
-    Story is not published."""
+    Story is not published. ``issue_types`` are the Story types of the site's issue Stories, which no list announces."""
     from papyrus_content.announcements.intake import ChecklistReviewStamps
     from papyrus_content.item_front_matter import front_matter
+    from papyrus_content.item_language import localization_original
     from papyrus_content.item_stars import effective_rating
-    from papyrus_content.newsletter.alerts import tags_of
+    from .alert_text import tags_of
     from papyrus_content.publishing import published_item_id_for
 
     published = client.get_record("PublishedItem", published_item_id_for(lineage))
@@ -139,9 +145,14 @@ def read_candidate(client: Any, lineage: str) -> Candidate | None:
     if head is None:
         return None
     version = int(published.get("versionNumber") or 1)
-    return Candidate(story=StoryRef(lineage, head["id"], version), section=published.get("section") or None, story_type=published.get("type"),
+    return Candidate(story=StoryRef(lineage, head["id"], version), section=published.get("section") or None, story_type=published.get("type"), issue=published.get("type") in issue_types,
                      tags=tags_of(front_matter(published)), stars=int(effective_rating(head)["stars"]),
-                     reviewed_source=ChecklistReviewStamps(client).reviewed(lineage, version))
+                     reviewed_source=ChecklistReviewStamps(client).reviewed(lineage, version), translation=localization_original(published) is not None)
+
+
+def issue_types_of(document: Mapping[str, Any]) -> set[str]:
+    """The Story types the site's lists write their issue Stories as."""
+    return {entry["issueType"] for entry in document["lists"].values() if entry.get("issueType")}
 
 
 def default_services(environ: Mapping[str, str]) -> Services:
@@ -161,25 +172,36 @@ def default_services(environ: Mapping[str, str]) -> Services:
     client, _ = create_authoring_client()
     settings = ListSettingsStore(SiteStore(boto3.client("s3"), bucket, SiteCatalogue(client)))
 
-    def draft(*_: Any) -> str:
-        raise StoryWakeError("No drafter writes the words of an every-item email yet (the draft is PPY-64378c's), so the announce agent can run at observe until one does.")
-
     from papyrus_content.announcements.deliveries import Deliveries
-    from papyrus_content.announcements.handlers import Functions, x_services
+    from papyrus_content.announcements.eligibility import load_story
+    from papyrus_content.announcements.handlers import ORIGIN_ENV, STYLE_ENV, Functions, x_services
     from papyrus_content.announcements.intake import ChecklistReviewStamps
     from papyrus_content.announcements.spend import SpendLedger
     from papyrus_content.announcements.x_delivery import send_due
     from papyrus_content.announcements.x_runner import SpendControl
-    from papyrus_content.notifications.runtime import x_broadcaster
+    from papyrus_content.announcements.email_channel import CaducusEmail
+    from papyrus_content.announcements.email_delivery import send_due_email
+    from papyrus_content.notifications.runtime import build_runtime
 
+    def origin() -> str:
+        value = (environ.get(ORIGIN_ENV) or "").strip()
+        if not value:
+            raise StoryWakeError(f"Set {ORIGIN_ENV} to the site's public address so the alert can link to the Story.")
+        return value
+
+    draft = alert_drafter(lambda lineage: load_story(client, lineage, item_url_style=environ.get(STYLE_ENV, "html")), origin)
     functions = Functions(client)
     announcements = Announcements(client)
     control = SpendControl(settings=functions, connection=functions.status, ledger=SpendLedger(client))
     # The site's Broadcaster is the one its config provides (the notifications function's X queue); a site without one has None, and a site set to On without it refuses to run.
-    broadcaster = x_broadcaster(environ)
-    return Services(state=lambda: settings.read(tenant), announcements=announcements, read_story=lambda lineage: read_candidate(client, lineage), draft=draft,
+    wired = build_runtime(environ) if environ.get("EMAIL_QUEUE_URL") else None
+    broadcaster = wired.broadcaster if wired is not None else None
+    # Email goes to Caducus through the router and delivery log of the site's own notifications function; a site without its email queue has no email channel.
+    email = CaducusEmail(wired.router, wired.log, wired.settings.site_id, alert_facts, lists=settings.read(tenant).document["lists"]) if wired is not None else None
+    return Services(state=lambda: settings.read(tenant), announcements=announcements, read_story=lambda lineage: read_candidate(client, lineage, issue_types_of(settings.read(tenant).document)), draft=draft,
                     account_id=tenant, x=x_services(client, environ, model=True, functions=functions), stamps=ChecklistReviewStamps(client), edit_settings=functions.read,
-                    send_x=lambda now: send_due(Deliveries(client), announcements, control, broadcaster, now))
+                    send_x=lambda now: send_due(Deliveries(client), announcements, control, broadcaster, now),
+                    send_email=lambda now: send_due_email(Deliveries(client), email, now))
 
 
 def policy_rung_of(run: Any) -> Callable[[str], str]:
@@ -211,5 +233,6 @@ def announce_story(story: str, version: str, change: str, what: str = "", stage:
         raise StoryWakeError(str(error)) from error
     declared = result.declaration()
     sent = services.send_x(now) if services.send_x is not None else []
-    return {"story": story, "x_sent": [row["id"] for row in sent], "summary": result.reason + (" (" + "; ".join(result.notes) + ")" if result.notes else ""), "lists": list(result.list_ids), "notes": list(result.notes), "announcement": result.outcome.announcement["id"] if result.outcome else None,
+    emailed = services.send_email(now) if services.send_email is not None else []
+    return {"story": story, "x_sent": [row["id"] for row in sent], "email_sent": [row["id"] for row in emailed], "summary": result.reason + (" (" + "; ".join(result.notes) + ")" if result.notes else ""), "lists": list(result.list_ids), "notes": list(result.notes), "announcement": result.outcome.announcement["id"] if result.outcome else None,
             "created": bool(result.outcome and result.outcome.created), "run_outcome": declared.get(OUTCOME_KEY, "acted"), "run_outcome_reason": declared.get(REASON_KEY, "announced")}

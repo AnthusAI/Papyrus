@@ -10,7 +10,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import formataddr
-from typing import Any, Callable, Mapping
+from typing import Callable, Mapping
 
 from caducus.notify.audience import AudienceDirectory, AudienceKeys, DnsDomainChecker, DomainChecker, PublicAudience
 from caducus.notify.catalog import Catalog, load_host_catalog
@@ -63,7 +63,6 @@ class Runtime:
     catalog: Catalog
     email: EmailChannel
     log: DeliveryLog
-    read_item: Callable[[str], Mapping[str, Any] | None]
     audience: PublicAudience
     keys: AudienceKeys
     #: Old newsletter links, only while the migration's alias period runs (``legacy_links.py``; deleted after).
@@ -86,7 +85,6 @@ def assemble(
     queues: Queues,
     directory: Directory,
     mailer: Mailer,
-    read_item: Callable[[str], Mapping[str, Any] | None],
     clock: Callable[[], datetime] = utcnow,
     retention_days: int = 90,
     pacer: Pacer | None = None,
@@ -142,19 +140,10 @@ def assemble(
         broadcaster = CaducusBroadcaster(router, log, x_channel, settings.site_id, clock)
     return Runtime(
         x=x_channel, broadcaster=broadcaster,
-        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item, audience=audience, keys=audience_keys,
+        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, audience=audience, keys=audience_keys,
         recipient_key=audience_keys.recipient,
         legacy=LegacyLinks(legacy_token_key, audience, lambda: clock().timestamp()) if legacy_token_key else None,
     )
-
-
-def published_item_reader() -> Callable[[str], Mapping[str, Any] | None]:
-    def read(published_item_id: str) -> Mapping[str, Any] | None:
-        from papyrus_content.graphql_authoring import create_authoring_client
-
-        return create_authoring_client()[0].get_record("PublishedItem", published_item_id)
-
-    return read
 
 
 def build_runtime(environment: Mapping[str, str] = os.environ) -> Runtime:
@@ -185,7 +174,6 @@ def build_runtime(environment: Mapping[str, str] = os.environ) -> Runtime:
         queues=SqsQueues(boto3.client("sqs"), {"email": environment["EMAIL_QUEUE_URL"], **({"x": environment["X_QUEUE_URL"]} if environment.get("X_QUEUE_URL") else {})}),
         directory=SsmDirectory(ssm, environment["OPERATORS_PARAMETER"], environment["RECIPIENT_KEY_PARAMETER"]),
         mailer=mailer,
-        read_item=published_item_reader(),
         retention_days=int(environment.get("RETENTION_DAYS", "90")),
         pacer=Pacer(mailer.max_send_rate),
         postal_address=PostalAddress(settings.site_id, ssm).resolve,

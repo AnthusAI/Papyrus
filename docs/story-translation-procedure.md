@@ -309,7 +309,7 @@ is only the link, in the words of `translation.original`:
   (the original), as for every page of a group.
 - Every page of the group lists the others, so publishing or unpublishing a translation (or the original) renders the other languages of the group again,
   in the same projection (`docs/multilingual-serving.md`).
-- A new Story announcement is not made for a translation: the new-story alert (`item-published`), the `story.published` notification and the weekly roundup
+- A new Story announcement is not made for a translation: the announce agent's every-item alert (`story_wake.read_candidate` marks a translation and the run makes nothing, reason `story_is_translation`) and the weekly roundup
   leave translations out, because the English Story announced the Story. The `translation.published` notification (admin class, for correctors) is not
   built (below).
 

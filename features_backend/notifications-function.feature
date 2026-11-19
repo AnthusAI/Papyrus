@@ -35,16 +35,6 @@ Feature: The site's notifications function mails the site's own readers
     Then the delivery log of "alpha" has 1 delivery
     And the delivery log of "beta" is empty
 
-  Scenario: An unpublished item is ignored
-    When an announcement arrives for a story that is no longer published
-    Then no email is queued
-    And the function answers "ignored"
-
-  Scenario: A malformed announcement is refused without touching the log
-    When an announcement arrives with an event id that is not a story event id
-    Then the function answers "ignored"
-    And the delivery log of "alpha" is empty
-
   Scenario Outline: Every reader action is answered by the site's public audience
     When a reader's "<action>" request reaches the function
     Then the function does not answer 503

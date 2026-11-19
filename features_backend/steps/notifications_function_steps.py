@@ -53,17 +53,6 @@ def play(context) -> None:
     context.site.play_queue()
 
 
-@when("an announcement arrives for a story that is no longer published")
-def unpublished(context) -> None:
-    context.answer = context.site.announce(context.site.add_story("Gone", "news", status="unpublished"))
-
-
-@when("an announcement arrives with an event id that is not a story event id")
-def bad_event_id(context) -> None:
-    lineage = context.site.add_story("Rates held steady", "news")
-    context.answer = notifications_handler.route(context.site.runtime, {**Site.announcement(lineage), "eventId": "alarm.fired:1"})
-
-
 @when('a reader\'s "{action}" request reaches the function')
 def reader_request(context, action: str) -> None:
     context.answer = notifications_handler.route(

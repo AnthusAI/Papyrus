@@ -100,7 +100,6 @@ backend: {
       sendingDomain: "shipped.anth.us",
       fromAddress: "newsletter@<sendingDomain>",              // a mailbox name at sendingDomain
       fromName: "Shipped",
-      instantAlerts: false,                                // must be true before any alert list may use approval: "none"
       theme: { accent: "#...", text: "#...", background: "#...", fontFamily: "...", logoUrl: "https://..." }, // branding keys: see "Email theme fields"
       lists: [
         { id: "weekly", name: "...", description: "...", kind: "roundup",
@@ -113,7 +112,7 @@ backend: {
 },
 ```
 
-Invalid settings stop the synth with a readable message: unknown keys, a `fromAddress` off `sendingDomain`, duplicate or malformed list ids, a bad cron or time zone, a roundup without `archivePath`, and `approval: "none"` without `instantAlerts: true`. `schedule`, `issueType`, `archivePath`, `rule` and `approval` are validated now and used by the roundup and alert stories. An alert list with no `rule` matches every published item (an admin still approves each one).
+Invalid settings stop the synth with a readable message: unknown keys, a `fromAddress` off `sendingDomain`, duplicate or malformed list ids, a bad cron or time zone, a roundup without `archivePath`. `schedule`, `issueType`, `archivePath`, `rule` and `approval` are validated now and used by the roundup and alert stories. An alert list with no `rule` matches every published item (the announce rung of the site's agent policy decides whether a person approves each one).
 
 Enabling it is a backend deploy that adds one stack, `newsletter`: a DynamoDB table (retained), a customer-managed KMS key (rotation on, retained), the SSM SecureString `/papyrus/<siteId>/newsletter-key` (generated once, never overwritten, retained) and the `newsletter` Lambda (Python 3.12, arm64, 512 MB, 30 s). It adds no GraphQL model or operation. It publishes `custom.papyrusPlugins.newsletter` (`contract`, `fromName`, `basePath`, list ids, names, descriptions and kinds, `theme`) and `custom.newsletter.actionsFunction` to `amplify_outputs.json`; the CMS routes read both. The IAM role of the function may use the table and its key, read its one parameter, and send mail from `fromAddress` through the site's identity and configuration set only. Only the CMS compute role may invoke it (a resource policy). The CMS app can also take the function name from `PAPYRUS_NEWSLETTER_FUNCTION`.
 
@@ -249,7 +248,7 @@ stateDiagram-v2
     sent --> [*]: roundup Item published to the archive
 ```
 
-`awaiting_approval` and `cancelled` belong to alerts (below). A `blocked` issue is fixed at its cause (configure the address, resume the site) and approved again.
+A `blocked` issue is fixed at its cause (configure the address, resume the site) and approved again.
 
 ### Archive: what a site puts in projection.json
 
@@ -352,14 +351,13 @@ Read at send time from SSM String parameters: `/papyrus/<siteId>/email/postal-ad
 
 ## Alerts: publish-triggered (PPY-d415c0)
 
-Status: Built. An alert list sends one short email when a matching item is published. Alerts hang off the Papyrus publish event and nothing else: not procedure runs, not monitor triggers.
+Status: Built. An alert list sends one short email when a matching item is published. An alert is the email Delivery of the Story's Announcement, decided by the announce agent when the page goes live or the Story's rating changes (below).
 
 ### Configuration
 
 ```ts
 newsletter: {
   // ...as above
-  instantAlerts: false,            // true lets a list with approval: "none" send without an admin
   lists: [
     // Every published item, approved by an admin.
     { id: "all-alerts", name: "All alerts", description: "...", kind: "alert", approval: "admin" },
@@ -376,20 +374,13 @@ newsletter: {
 
 ### How a publish reaches the newsletter
 
-It does not (PPY-e3bb2b). A publish writes only its own records and invokes no other function: the best-effort call (`publish_alerts.announce_published`, with its 2 and 3 second timeouts and its swallowed error), the `PAPYRUS_NEWSLETTER_FUNCTION` variable on `content-actions` and the plugin's invoke grant to it are deleted. The two facts that start an Announcement, a Story's page going live and its rating changing, are changes to the Story's own record, and the Item change feed delivers them to the announce agent through the site's wake queue ([announcement-records.md](announcement-records.md), "Durable triggers"). The `item-published` task and the `ALERT#<list>` rows below are the old alert path: nothing triggers the task now, and PPY-58d962 converts the kept rows and replaces the alerts with the email Delivery of an Announcement for an every-item list.
+It does not (PPY-e3bb2b). A publish writes only its own records and invokes no other function. The two facts that start an Announcement, a Story's page going live and its rating changing, are changes to the Story's own record, and the Item change feed delivers them to the announce agent through the site's wake queue ([announcement-records.md](announcement-records.md), "Durable triggers").
 
-### What the function does
+### Alerts are Announcements (PPY-58d962)
 
-For each alert list whose rule matches, `alerts.py` takes a conditional-put dedupe row `ALERT#<listId>` / `ITEM#<lineageId>` (kept, never expired) and, if it was new, writes an issue of kind `alert` with `sourceItemId` and `lineageId`. A repeated event, a republish or an edit therefore never alerts again; a crash between the dedupe row and the issue is finished by the retry. No Item is created and there is no archive. The subject is the item title; the Markus body, stored on the issue row, is the title as a link, the dek (`deck`, or a `description`/`summary` style front matter field), the item's first paragraph of plain prose if it has one, and a "Read it on <site>" link. Links use `ITEM_URL_STYLE` as roundup drafts do. The footer says "You get this because you subscribed to <list name> on <site>."
+An alert list is a list with cadence `each` in the list settings (`list_cadence/`). The newsletter function raises no alert: the `item-published` task, `alerts.py`, the alert issue (`kind: "alert"`), `instantAlerts` and the `ALERT#<listId>` / `ITEM#<lineageId>` rows are gone. The announce agent decides once for the Story: one Announcement, once-only key `story-published:<lineage>`, and one email Delivery whose `audience` is every every-item list that carries the Story at the list's bar (never under three stars). The alert's Markus body (the title as a link, the dek, the first paragraph of prose, a "Read it on <host>" link; `list_cadence/alert_text.py`) is the Delivery's words, a file in S3. Its first attempt is the Caducus `story.published` event ([notifications.md](notifications.md)). A reader on two lists gets one message. A translation is never announced.
 
-An alert starts `awaiting_approval`; the admin approves it (`newsletterApproveIssue`), which schedules it like a roundup. Cancelling an alert (waiting or scheduled) ends it as `cancelled`; it does not return to draft. If the list has `approval: "none"` and the site has `instantAlerts: true`, the function approves it as `system:instant-alert` and calls `start-send` at once, so the content-hash, postal address and paused-site guards still run (a failure leaves it `blocked` for an admin). When an alert finishes `sent`, nothing is published.
-
-### Known gaps
-
-- Only `publishItem` (the newsroom action and the CLI) alerts. `saveItemDraft` on an already-live item, `papyrus story` commands and imports publish without an alert, on purpose: a bulk import must not alert.
-- A CLI publish with `--no-trigger`, or on a site with no projection and no `content-actions` function configured, does not alert.
-- A site that publishes an item before the matching alert list exists gets no alert for it (the event has passed).
-- The alert shows no admin notification; the panel shows pending alerts.
+The alert rows kept from before are converted, keys only, by `python -m papyrus_content.announcements.alert_conversion plan|run --newsletter-table <table> --list <alert list id> ...` (run with `PAPYRUS_TENANT_ID`, the sending account): each Story's rows become one Announcement and one email Delivery (`sent`, with the old issue's Markus body as its words; `withdrawn` when the alert never went), so the announce agent finds it and nothing alerts twice. `plan` and `run --dry-run` only read. Running it again changes nothing. The old alert issues stay in the newsletter table as history. Alarms to the operators are not Announcements: they stay plain Caducus events.
 
 ## The newsroom Newsletter panel
 
