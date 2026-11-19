@@ -10,9 +10,17 @@
   "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "828dad86-22a4-445a-b64f-0d5cdeb59340",
+      "author": "home",
+      "text": "Shipped first, PR 1730 (merged to develop): one named rule, src/papyrus_content/publish_by_person.py, called once by publish_item before every other gate. A pod-loaded Story, an imported Story or a translation publishes only when a person publishes by hand (console, or CLI signed in as a person); everything else is refused with person-publish-required (details.storyKind) and words that say how to proceed. Pod load leaves a draft and reports it, import-markus saves Stories as drafts (reported as storiesForAPerson), automatic translation (languages.auto publish:true, --publish-clean), schedules (refused when made), restore/un-retire and agents leave a ready draft. Recorded in docs/releasing.md and docs/story-translation-procedure.md. This block is lifted by the per-language checklist gate (the follow-up of this ticket): delete publish_by_person.py, its one call in publish_item and the by_person argument. Ticket stays open for that gate.",
+      "created_at": "2026-11-19T15:12:23.715493Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-19T11:38:50.837652Z",
-  "updated_at": "2026-11-19T11:38:50.837744Z",
+  "updated_at": "2026-11-19T15:12:23.716427Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
