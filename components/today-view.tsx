@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckIcon, ChevronDownIcon, CircleHelpIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { AlarmClockIcon, CheckIcon, ChevronDownIcon, CircleHelpIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
 import {
   OTHER_ORDER,
   OUTCOME_ORDER,
@@ -16,6 +16,7 @@ import {
   sendItemsText,
   type TodayCountKey,
   type TodayDidNotRun,
+  type TodayOverdue,
   type TodayOverview,
   type TodayResult,
   type TodayRow,
@@ -149,6 +150,19 @@ function SendLine({ send }: { send: TodaySend }) {
   );
 }
 
+function OverdueLine({ entry }: { entry: TodayOverdue }) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm" data-today-overdue={entry.id} data-today-overdue-kind={entry.kind}>
+      <span className="inline-flex items-center gap-1.5 font-medium">
+        <AlarmClockIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        Overdue
+      </span>
+      <span>{entry.kind} {entry.id}</span>
+      <span className="text-xs text-muted-foreground">was due {entry.dueAt}{entry.waitingFor ? ` (${entry.waitingFor})` : ""} and nothing ran</span>
+    </li>
+  );
+}
+
 function DidNotRunLine({ entry, demo }: { entry: TodayDidNotRun; demo: boolean }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm" data-today-did-not-run={entry.automationId} data-today-why={entry.whyCode}>
@@ -169,6 +183,14 @@ function Ready({ overview, demo }: { overview: TodayOverview; demo: boolean }) {
       <p className="text-sm text-muted-foreground" data-today-summary role="status">
         {runsText(overview.totals.runs)} · {costText(overview.totals)}
       </p>
+      {overview.overdue.length ? (
+        <>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Needs attention</h3>
+          <ul className="space-y-2" data-today-overdue-list>
+            {overview.overdue.map((entry) => <OverdueLine entry={entry} key={`${entry.kind}:${entry.id}`} />)}
+          </ul>
+        </>
+      ) : null}
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What ran</h3>
       {overview.rows.length ? (
         <ul className="space-y-2" data-today-rows>

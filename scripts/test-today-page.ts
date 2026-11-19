@@ -41,6 +41,10 @@ async function main() {
   assert.match(status, /<svg[^>]*aria-hidden="true"/, "a send's state has a mark");
   assert.ok(text(status).includes("Sent"), "and its words");
   assert.ok(!render({ ...FIXTURE_TODAY, sends: [] }).includes("data-today-sends"), "a day with no sends has no Sends section");
+  const overdue = render(FIXTURE_TODAY);
+  assert.ok(overdue.includes("data-today-overdue-list") && overdue.includes("Overdue") && overdue.includes("Needs attention"), "an overdue record is listed, in words");
+  assert.ok(overdue.indexOf("data-today-overdue-list") < overdue.indexOf("data-today-rows"), "what needs a person comes first");
+  assert.ok(!render({ ...FIXTURE_TODAY, overdue: [] }).includes("data-today-overdue-list"), "a day with nothing overdue has no Needs attention section");
 
   // Cost is the sum of the runs; a run with no recorded cost is counted as unknown, not free.
   assert.ok(page.includes("3 runs · $0.00"), "the announce line costs nothing, and says so");

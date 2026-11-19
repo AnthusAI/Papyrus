@@ -19,6 +19,7 @@ export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
   "Query/fields/listAutomations",
   "Query/fields/listAutomationsByTenant",
   "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
+  "Query/fields/listDeliveriesByDueKeyAndDueAt",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
   "Query/fields/listProcedureRunsByStatusAndRequestedAt",
   "Query/fields/listSemanticRelationsBySubjectState",

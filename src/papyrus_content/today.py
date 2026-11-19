@@ -24,7 +24,7 @@ from datetime import datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import run_outcomes
+from . import overdue, run_outcomes
 from .responsibilities import BY_KEY as RESPONSIBILITIES
 from .automations import ENABLED_NOTE, NOT_SUPPORTED, read_record
 from .run_outcomes import OUTCOME_SHOWN
@@ -184,7 +184,7 @@ def today_overview(client, *, day: str | None = None, time_zone: str | None = No
         for key in COUNT_KEYS:
             totals[key] += group["counts"][key]
     return {
-        "state": "ready", "asOf": _instant(moment), **bounds, "rows": rows, "didNotRun": did_not_run(records, runs), "sends": sends_of_day(client, bounds),
+        "state": "ready", "asOf": _instant(moment), **bounds, "overdue": overdue.read(client, moment), "rows": rows, "didNotRun": did_not_run(records, runs), "sends": sends_of_day(client, bounds),
         "totals": {"runs": len(runs), "counts": totals, "costUsd": round(sum(group["costUsd"] for group in rows), 6),
                    "costKnownRuns": sum(group["costKnownRuns"] for group in rows), "costUnknownRuns": sum(group["costUnknownRuns"] for group in rows)},
     }
@@ -240,6 +240,9 @@ def render(overview: dict[str, Any]) -> list[str]:
     """The plain text of Today: one line per responsibility, nothing-to-do reasons under it, then the agents that did not run."""
     lines = [f"TODAY · {day_title(overview)} · as of {overview['asOf']}"]
     totals = overview["totals"]
+    if overview["overdue"]:   # what only a person can move comes first (slice C4)
+        lines.append(f"NEEDS ATTENTION · {len(overview['overdue'])} overdue")
+        lines.extend(f"  {entry['shown']}" for entry in overview["overdue"])
     lines.append(f"WHAT RAN · {totals['runs']} run{'' if totals['runs'] == 1 else 's'} · {cost_text(totals)}")
     if not overview["rows"]:
         lines.append("  Nothing ran in this day.")
