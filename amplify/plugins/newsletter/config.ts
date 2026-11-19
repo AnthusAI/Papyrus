@@ -61,6 +61,8 @@ export type RoundupList = ListBase & {
   schedule: { draft: string; timezone: string };
   /** The CMS item type of an issue. */
   issueType: string;
+  /** The Story types the roundup carries, such as `["article"]`. There is no default of every type: wiki pages and other kinds never qualify unless named. */
+  types: string[];
   /** Where the sent issue is archived, such as `/roundup/`: one path segment, also the section the issue Items are filed under. */
   archivePath: string;
 };
@@ -85,11 +87,12 @@ export type NewsletterConfig = {
   fromAddress: string;
   fromName: string;
   /** A site must set this to true before any list may send without approval. */
-  instantAlerts: boolean;
   theme: NewsletterTheme;
   lists: NewsletterList[];
   /** How the site addresses its item pages (`urls.style` in projection.json): roundup drafts link to published items with it. */
   itemUrlStyle: ItemUrlStyle;
+  /** The site's quality floor (`quality.floorStars` in projection.json, 1 to 5): a roundup draft takes only Stories rated at least this. Absent: no floor. Keep it equal to the site's. */
+  floorStars?: number;
   /** `papyrus-<siteId>` unless overridden. */
   configurationSet: string;
   /** `papyrus-newsletter-events-<siteId>` unless overridden. */
@@ -97,11 +100,11 @@ export type NewsletterConfig = {
 };
 
 const KNOWN_KEYS = new Set([
-  "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "instantAlerts", "theme", "lists",
-  "configurationSet", "eventTopicName", "itemUrlStyle",
+  "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "theme", "lists",
+  "configurationSet", "eventTopicName", "itemUrlStyle", "floorStars",
 ]);
 const LIST_KEYS = {
-  roundup: ["id", "name", "description", "kind", "schedule", "issueType", "archivePath"],
+  roundup: ["id", "name", "description", "kind", "schedule", "issueType", "types", "archivePath"],
   alert: ["id", "name", "description", "kind", "rule", "approval"],
 };
 
@@ -171,6 +174,12 @@ function stringList(raw: unknown, label: string): string[] | undefined {
   return [...new Set(raw.map((entry, index) => text(entry, `${label}[${index}]`, 80)))];
 }
 
+export function floorStars(raw: unknown): number | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1 || raw > 5) fail("floorStars must be a whole number from 1 to 5");
+  return raw;
+}
+
 export function itemUrlStyle(raw: unknown): ItemUrlStyle {
   if (raw === undefined) return "html";
   if (typeof raw !== "string" || !(ITEM_URL_STYLES as readonly string[]).includes(raw)) fail(`itemUrlStyle must be one of ${ITEM_URL_STYLES.join(", ")}`);
@@ -235,7 +244,7 @@ export function resolveRule(raw: unknown, label: string): NewsletterRule {
   };
 }
 
-function resolveList(raw: unknown, index: number, instantAlerts: boolean): NewsletterList {
+function resolveList(raw: unknown, index: number): NewsletterList {
   const label = `lists[${index}]`;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail(`${label} must be an object`);
   const kind = (raw as Record<string, unknown>).kind;
@@ -256,14 +265,12 @@ function resolveList(raw: unknown, index: number, instantAlerts: boolean): Newsl
         timezone: timeZone(schedule.timezone, `${label}.schedule.timezone`),
       },
       issueType: matching(list.issueType, `${label}.issueType`, ISSUE_TYPE, "the lowercase Item type the site gives its issues, such as post (a site-defined Story type, never a default of the engine)"),
+      types: stringList(list.types, `${label}.types`) ?? fail(`${label}.types is required: the Story types the roundup carries, such as ["article"]`),
       archivePath: matching(list.archivePath, `${label}.archivePath`, ARCHIVE_PATH, 'a path that starts and ends with "/", such as /roundup/'),
     };
   }
   const approval = list.approval === undefined ? "admin" : list.approval;
   if (approval !== "admin" && approval !== "none") fail(`${label}.approval must be "admin" or "none"`);
-  if (approval === "none" && !instantAlerts) {
-    fail(`${label}.approval "none" sends alerts without an admin approving them: set instantAlerts: true on the plugin first`);
-  }
   return { ...base, kind, rule: resolveRule(list.rule, `${label}.rule`), approval };
 }
 
@@ -280,10 +287,8 @@ export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfi
   if (extra.length > 0 || !local || local.length > 64 || !LOCAL_PART.test(local) || domain !== sendingDomain) {
     fail(`fromAddress must be an address on ${sendingDomain} (lowercase, such as newsletter@${sendingDomain})`);
   }
-  if (raw.instantAlerts !== undefined && typeof raw.instantAlerts !== "boolean") fail("instantAlerts must be a boolean");
-  const instantAlerts = raw.instantAlerts === true;
   if (!Array.isArray(raw.lists) || raw.lists.length === 0 || raw.lists.length > 20) fail("lists must be a list of 1 to 20 lists");
-  const lists = raw.lists.map((entry, index) => resolveList(entry, index, instantAlerts));
+  const lists = raw.lists.map((entry, index) => resolveList(entry, index));
   const duplicates = lists.map((list) => list.id).filter((id, index, ids) => ids.indexOf(id) !== index);
   if (duplicates.length > 0) fail(`lists has duplicate ids: ${[...new Set(duplicates)].join(", ")}`);
   const roundups = lists.filter((list) => list.kind === "roundup");
@@ -296,10 +301,10 @@ export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfi
     sendingDomain,
     fromAddress,
     fromName: text(raw.fromName, "fromName", 80),
-    instantAlerts,
     theme: resolveTheme(raw.theme),
     lists,
     itemUrlStyle: itemUrlStyle(raw.itemUrlStyle),
+    ...(raw.floorStars === undefined ? {} : { floorStars: floorStars(raw.floorStars) }),
     configurationSet: matching(raw.configurationSet, "configurationSet", SES_NAME, "an SES configuration set name", `papyrus-${siteId}`),
     eventTopicName: matching(raw.eventTopicName, "eventTopicName", SES_NAME, "an SNS topic name", `papyrus-newsletter-events-${siteId}`),
   };

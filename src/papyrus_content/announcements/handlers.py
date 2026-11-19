@@ -12,6 +12,7 @@ import json
 import os
 from typing import TYPE_CHECKING, Any, Callable, Mapping
 
+from papyrus_content import console_links
 from papyrus_content.editorial_context import hosted_publication
 from papyrus_content.images.handlers import Caller, Handler, ImageOperationError, Outcome
 
@@ -107,17 +108,30 @@ def x_services(client: Any, environ: Mapping[str, str] | None = None, *, model: 
     def guidelines_for(story) -> str:
         if guidelines_text is not None:
             return guidelines_text
-        writing = resolve_guidelines(guidelines, "writing", story.section)
+        writing = resolve_guidelines(guidelines, "writing", story.section, channel="x")
         parts = [writing_text(writing["document"])] if writing["found"] else []
         parts.append(announcement_text(announcement_rules(client, guidelines)["document"]))
         return "\n\n".join(part for part in parts if part)
+
+    def guideline_layers(story) -> list[dict]:
+        if guidelines_text is not None:
+            return []
+        writing = resolve_guidelines(guidelines, "writing", story.section)
+        return [{key: layer.get(key) for key in ("scope", "itemId", "versionNumber", "contentHash")} for layer in writing["layers"]]
+
+    def learned():
+        from . import learned_examples
+        from .deliveries import Deliveries
+        from .post import LINK
+
+        return learned_examples.load(Deliveries(client), channel="x", kind="story_published", words_of=lambda text: LINK.sub("", text).strip())
 
     if model and llm is None:
         llm, judge = _lazy_model()
     functions = functions or Functions(client)
     style = environment.get(STYLE_ENV, "html")
     return XServices(settings=functions.read, connection=functions.status, story=lambda lineage: load_story(client, lineage, item_url_style=style), site_origin=origin,
-                     guidelines_for=guidelines_for, llm=llm, judge=judge, model=DEFAULT_LLM_MODEL)
+                     guidelines_for=guidelines_for, llm=llm, judge=judge, model=DEFAULT_LLM_MODEL, learned=learned, guideline_layers=guideline_layers)
 
 
 def build_services(client: Any, environ: Mapping[str, str] | None = None, *, model: bool = False, llm: Any = None, judge: Any = None, guidelines_text: str | None = None,
@@ -176,10 +190,35 @@ def account_status(client, arguments: dict, caller: Caller, services: Services) 
     return Outcome(operations.account_status(services), _publication(client))
 
 
+def account_connect(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
+    try:
+        base = console_links.resolve_console_url()
+    except console_links.ConsoleLinkError as unknown:
+        raise ImageOperationError("service_unavailable", str(unknown)) from unknown
+    return Outcome(operations.account_connect_link(base), _publication(client))
+
+
+def blocked(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
+    return Outcome({"blocked": operations.blocked_stories(services)}, _publication(client))
+
+
+def retry(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
+    from .records import RecordError
+
+    try:
+        row = operations.retry_delivery(services, arguments["delivery"], by=_caller_name(caller))
+    except RecordError as refused:
+        raise ImageOperationError("constraint_conflict", str(refused)) from refused
+    except ValueError as missing:
+        raise ImageOperationError("not_found", str(missing)) from missing
+    return Outcome({"id": row["id"], "state": row["state"]}, _publication(client))
+
+
 #: operation name -> (function, whether it drafts with a model)
 ANNOUNCEMENT_HANDLERS: dict[str, tuple[Callable[..., Outcome], bool]] = {
     "announcements_dry_run": (dry_run, True), "announcements_pause": (pause, False), "announcements_resume": (resume, False),
     "announcements_settings_show": (settings_show, False), "announcements_settings_set": (settings_set, False), "announcements_account_status": (account_status, False),
+    "announcements_account_connect": (account_connect, False), "announcements_blocked": (blocked, False), "announcements_retry": (retry, False),
 }
 
 

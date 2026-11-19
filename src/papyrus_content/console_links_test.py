@@ -57,3 +57,7 @@ def test_unknown_console_is_an_error_not_a_guess(monkeypatch):
 def test_story_links_without_a_version_only_has_the_drawer():
     kinds = [link.kind for link in links.story_links(BASE, "item")]
     assert kinds == ["story-board", "checklist"]
+
+
+def test_the_announcements_page_is_under_administration():
+    assert links.announcements_url(BASE) == f"{BASE}/administration/announcements"

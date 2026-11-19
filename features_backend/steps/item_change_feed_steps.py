@@ -24,7 +24,7 @@ def _definition(row: dict):
     filter_ = dict(pair.split("=", 1) for pair in row["filter"].split(",")) if row.get("filter") else {}
     if filter_:
         change["filter"] = filter_
-    return SimpleNamespace(id=row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
+    return SimpleNamespace(id=row["agent"], responsibility="r-" + row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
 
 
 _open_index, _deploy = open_index, _deploy_index
@@ -287,7 +287,7 @@ def says_entered(context, stage):
 
 @then('the wake is in the message group of "{agent}" and "{story}"')
 def in_group(context, agent, story):
-    assert context.queue.messages[0].group == agent_wakes.group_id({"agent": agent, "subject": story})
+    assert context.queue.messages[0].group == agent_wakes.group_id({"agent": agent, "scope": story})
 
 
 def _wake_of(context, agent):

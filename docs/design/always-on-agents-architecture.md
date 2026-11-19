@@ -820,7 +820,7 @@ Changes to records become wakes without anyone calling anything: a change feed p
 
 **B2 (PPY-8a374e, existing, re-used): the Item change feed and dispatcher.** The step runner already planned for the Story checklist is the standard's feed for the Item table. Re-parented here and extended in its own text. Blocked by B1 (PPY-567bf9), D1 (PPY-68abaa). Unblocks: B3 (PPY-9b9e64), B5 (PPY-67e3cd), B6 (PPY-4af216), B7 (PPY-4e7e8b), F2 (PPY-5cf1a8), K2 (PPY-f1c774), K4 (PPY-ce0dd2), L3 (PPY-924693), M6 (PPY-18b582), M7 (PPY-396483), PPY-e3bb2b.
 
-*Built (the feed).* `src/papyrus_content/item_change_feed.py`, `amplify/agents/item-change-feed.ts` and `amplify/functions/item-change-feed/`: the Item stream, a feed function in the `agents` stack, and a listener index (`agent_listeners.py`, written by `papyrus agents listeners` at deploy) that replaces any list of the Automation table per change. Not built here: the coalescing window (PPY-67e3cd) and the loop guard (PPY-4e7e8b), which read the fields the wake carries (`docs/automations.md`); moving the Stage Bots, which still list the Automation table per stage delivery, is B6 (PPY-4af216).
+*Built (the feed).* `src/papyrus_content/item_change_feed.py`, `amplify/agents/item-change-feed.ts` and `amplify/functions/item-change-feed/`: the Item stream, a feed function in the `agents` stack, and a listener index (`agent_listeners.py`, written by `papyrus agents listeners` at deploy) that replaces any list of the Automation table per change. The coalescing window (PPY-67e3cd) and the loop guard (PPY-4e7e8b) are built in `src/papyrus_content/wake_gate.py` between the Item feed and the queue (`docs/automations.md`); the other tables' feeds are not gated yet; moving the Stage Bots, which still list the Automation table per stage delivery, is B6 (PPY-4af216).
 
 **B3 built (PPY-9b9e64).** `src/papyrus_content/change_feeds.py` (over the Item feed's change, wake and loop), `change_vocabulary.py` (the changes a definition may listen for), `amplify/functions/change-feed/` and `amplify/agents/change-feeds.ts`: one feed function for the five tables, not one per table (the code is shared and the stream ARN names the table; one function costs 3 resources once and 1 per mapping). Streams are switched on for ReviewRequest and Delivery; `amplify/agents/stream-readers.ts` places each feed (its own mapping where the table has fewer than two readers, behind a reader that stays on the stream where it has two) and `scripts/test-agents-stack.ts` proves no table is given a third. Not built here: moving the Message stream's third reader, the live proof, and the F1/F3/F4 agents that use these changes.
 
@@ -1029,6 +1029,8 @@ Agents talk through durable records, never chat: a checklist step, an Assignment
 - *Infrastructure as code.* None.
 - *Blocked by.* B3 (PPY-9b9e64), D1 (PPY-68abaa)
 - *Unblocks.* K4 (PPY-ce0dd2), M3 (PPY-1e703e)
+
+**F1 built (PPY-51f96f).** `src/papyrus_content/agent_assignments.py` (the operation `handoffs_request`, `begin` and `finish`), `handoff_records.py`, the `Assignment` feed in `change_feeds.py` (`created`, `reopened`, `completed`), and the runner's claim and close in `procedure_runner.py`. See `docs/agent-handoffs.md`. Not built: a newsroom button for a person's request (the same operation is `papyrus handoffs request`), a subject other than a Story, and the agent definitions that listen (K4 and M3).
 
 **F2 (PPY-5cf1a8): Hand a step back with a reason; a person takes a step over**
 

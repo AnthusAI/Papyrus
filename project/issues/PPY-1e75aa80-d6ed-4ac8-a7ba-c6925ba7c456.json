@@ -19,14 +19,6 @@
       "type": "blocked-by"
     },
     {
-      "target": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
-      "type": "blocked-by"
-    },
-    {
-      "target": "PPY-97c0f202-01bd-4851-9593-1ddcb32c8773",
-      "type": "blocked-by"
-    },
-    {
       "target": "PPY-2a53cd96-5316-4b1c-9bd7-bf9317c1f73e",
       "type": "blocked-by"
     },
@@ -37,11 +29,15 @@
     {
       "target": "PPY-b7115376-4205-4b04-a557-f30f46dcc8c0",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+      "type": "relates-to"
     }
   ],
   "comments": [],
   "created_at": "2026-11-16T21:48:37.431360Z",
-  "updated_at": "2026-11-16T22:46:05.303079Z",
+  "updated_at": "2026-11-19T08:00:02.274213Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

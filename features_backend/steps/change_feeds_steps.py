@@ -27,7 +27,7 @@ def _definition(row: dict):
     selector = dict(pair.split("=", 1) for pair in row["filter"].split(",")) if row.get("filter") else {}
     if selector:
         change["filter"] = selector
-    return SimpleNamespace(id=row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
+    return SimpleNamespace(id=row["agent"], responsibility="r-" + row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
 
 
 # --- rows ------------------------------------------------------------------------------------------------------------------------------------------
@@ -331,7 +331,7 @@ def says_table(context, agent, table, change):
 @then('the wake for "{agent}" is in the message group of "{name}" and "{subject}"')
 def group_of(context, agent, name, subject):
     message = next(message for message in context.queue.messages if json.loads(message.body)["wake"]["agent"] == agent)
-    assert message.group == agent_wakes.group_id({"agent": name, "subject": subject})
+    assert message.group == agent_wakes.group_id({"agent": name, "scope": subject})
 
 
 @then('the wake for "{agent}" says the subject is the Story "{story}"')

@@ -298,7 +298,7 @@ _ENTRIES = dict([
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, and for one language (its overlays laid on top), with where every field came from.",
-     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
+     "--kind KIND [--section KEY] [--language TAG] [--channel NAME] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
      "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines save", "Save a document, or for writing guidelines the guideline files of a folder, as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
@@ -311,13 +311,13 @@ _ENTRIES = dict([
   _e("guidelines convert", "One-time: convert this site's writing guidelines from one JSON document each to guideline files. A dry run that reports every lineage unless --apply; an admin who is a person applies it.",
      "[--apply] [--section KEY]... [--language TAG]...", "editor", "apply", "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
-     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
+     "--kind KIND [--section KEY] [--language TAG] [--channel NAME] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
   _e("announcements where", "Where a Story was announced: each Announcement that announces it, one line for each live Delivery, with its review, what it waits for and what needs a person (Overdue, Outcome unknown).",
      "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements recent", "The Announcements list: Announcements newest first, one line for each live Delivery, and every Delivery that is overdue. A page is a size; --before takes the last page's next value.",
      "[--limit N] [--before TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
-  _e("announcements explain", "Why a Story was or was not announced, for each channel, naming the rule. Reads the rules and writes nothing.", "--story STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements explain", "Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read (--delivery). Reads the rules and writes nothing.", "(--story STORY_LINEAGE | --delivery DELIVERY_ID) [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements dry-run", "Build the exact post a Story would get (text, UTM link, weight, every check) without sending or recording anything. One model call.",
      "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements pause", "Pause announcements: nothing posts, eligible Stories wait as Blocked: paused.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
@@ -327,6 +327,9 @@ _ENTRIES = dict([
      "[--mode off|dry_run|on] [--min-stars N] [--story-types TEXT ...] [--sections TEXT ...] [--require-reviewed-source | --no-require-reviewed-source] [--budget TEXT] "
      "[--billing-cycle-day N] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements account connect", "Print the newsroom page where the X account is connected. Connecting is a browser step; nothing is connected from here.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements blocked", "List the Stories that qualified for X and are waiting, each with its reason.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements retry", "Try a failed Delivery again: back to ready, and the next try is the next attempt. A person only.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements review show", "Show the publication's announcement review and each override, and what a channel and kind would get.", "[--channel TEXT] [--kind TEXT] [--list TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements review set", "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "--approval none|soft|hard|inherit [--channel TEXT] [--kind TEXT] [--list TEXT] --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements delivery review", "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "DELIVERY_ID --approval none|soft|hard [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
@@ -341,6 +344,10 @@ _ENTRIES = dict([
   _e("announcements release", "Release a Delivery: hand it to its channel now.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements unlock", "Unlock a Delivery after its lock time, so it can be edited again.",
      "DELIVERY_ID [--lock-at TEXT] [--release-at TEXT] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements example", "Say how far what a person changed in an announcement should reach, so later drafts can follow it. With no scope the edit stays a candidate that changes nothing. A person only.",
+     "DELIVERY_ID [--scope this_one|channel|kind|publication] [--reason TEXT] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements preferred", "Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches and changes no public text. A person only.",
+     "DELIVERY_ID --replaces N --text TEXT [--scope this_one|channel|kind|publication] [--reason TEXT] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements correct", "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. The text is checked like a new Delivery's.",
      "DELIVERY_ID --text TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements record-manual", "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names the signed-in person. A person only.",
@@ -349,6 +356,9 @@ _ENTRIES = dict([
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
   _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
      "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  # ---- handoffs (the operation table is the source of the flags; a test keeps these in step) ----------------------------------------------
+  _e("handoffs request", "Ask another responsibility for one piece of work on a Story: an Assignment that says who asked and why, and wakes the responsible agent once.",
+     "STORY_LINEAGE --responsibility TEXT --why TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
   # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
   _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
      "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
@@ -475,6 +485,7 @@ GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the sit
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
 GROUP_SUMMARIES["ratings"] = "Rate a Story: a person gives 1 to 5 stars; an agent gives only 3 or 4 to a Story nobody has rated, and only at a rung the site's policy allows."
+GROUP_SUMMARIES["handoffs"] = "Ask another responsibility for work on a Story: an Assignment that names who asked and why, and wakes the responsible agent once."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 

@@ -13,15 +13,7 @@
   ],
   "dependencies": [
     {
-      "target": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
-      "type": "blocked-by"
-    },
-    {
       "target": "PPY-a200ec3b-0f84-4a43-98d6-40c252435eb5",
-      "type": "blocked-by"
-    },
-    {
-      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
       "type": "blocked-by"
     },
     {
@@ -29,9 +21,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d719d690-17ca-460f-92eb-f6366d623807",
+      "author": "home",
+      "text": "Audit 2026-11-19: removed stale blocked-by PPY-8a374e (closed; Item change feed merged in PR #1686/#1693) and PPY-51ea61 (closed; policy document merged in PR #1623). Still blocked by PPY-a200ec: its maxConcurrent / in-flight / deferred-sweep deletion needs the live deploy path.",
+      "created_at": "2026-11-19T11:07:25.538094Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:02.945337Z",
-  "updated_at": "2026-11-16T22:46:11.563416Z",
+  "updated_at": "2026-11-19T11:07:25.538311Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

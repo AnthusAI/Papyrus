@@ -89,6 +89,11 @@ export const announcementsSchemaDefinitions = {
       lockedAt: a.datetime(),
       lockedVersion: a.integer(),
       preferredVersion: a.integer(),
+      machineVersion: a.integer(),
+      exampleScope: a.string(),
+      exampleState: a.string(),
+      exampleAt: a.datetime(),
+      exampleKey: a.string(),
       nextAttemptAt: a.datetime(),
       waitingFor: a.string(),
       dueAt: a.datetime(),
@@ -110,6 +115,8 @@ export const announcementsSchemaDefinitions = {
       index("announcementId").sortKeys(["createdAt"]).queryField("listDeliveriesByAnnouncementAndCreatedAt"),
       index("accountKey").sortKeys(["createdAt"]).queryField("listDeliveriesByAccountKeyAndCreatedAt"),
       index("dueKey").sortKeys(["dueAt"]).queryField("listDeliveriesByDueKeyAndDueAt"),
+      // Sparse: only a Delivery that is an active example carries exampleKey, so the drafter reads a scope's examples newest first and never scans.
+      index("exampleKey").sortKeys(["exampleAt"]).queryField("listDeliveriesByExampleKeyAndExampleAt"),
     ])
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.groups(editors).to(["read"])]),

@@ -388,6 +388,8 @@ The dry run lists each redirect as the public address a reader uses, from the si
 
 It removes any schedule the Story has first (a scheduled publish would bring it back), unpublishes the Story, moves it to the `retired` stage (every version stays) and has the site redirect every address the Story was served at (current address, aliases, earlier slugs and type folders, the `.md` twin) permanently to the target's address; if the target changes address later the redirects follow. The Story leaves listings, the sitemap, feeds, public data and the cross-story boilerplate check. The command prints the pages written and the exact paths purged; it never purges more than the site's cap. It refuses a target that is missing, unpublished, the Story itself or retired. `--undo` publishes the retired version again and removes the redirects. A site that requires approval to publish restores from the console. The page work runs as a background job the command follows (the same job status as a publish), so it ends with the pages written, or with `still-running` and the command to check again, never with a timeout for work that went on; it reports a failure only when the job fails. Against a backend that predates this it fails at once and says to deploy one that includes PPY-f171b4.
 
+Retiring also takes back what was announced about the Story (`withdrew` lines): every Announcement that is now only about retired Stories is withdrawn, Delivery by Delivery, as `papyrus announcements withdraw` does. A Delivery that has not gone is stopped. A post that already went on X is deleted by the site's own X channel, which this command line does not hold, so its line says `NOT withdrawn` and names the Delivery; it stays sent until the site's own stack withdraws it. `--undo` withdraws nothing.
+
 ### Schedule a Story to publish later
 **Lane:** editor. **Writes:** yes; `--dry-run` checks and writes nothing. Needs the site's `publication.timeZone` (a site without it answers `scheduling-off`). Not released yet: it ships with the next Papyrus release.
 
@@ -667,6 +669,7 @@ papyrus guidelines show --kind writing
 papyrus guidelines show --kind writing --section security
 papyrus guidelines resolve --kind writing --section security
 papyrus guidelines resolve --kind writing --section security --language zh-Hans
+papyrus guidelines resolve --kind writing --channel x      # also the rule files scoped to channel/x; the other channels are left out
 papyrus guidelines history --kind writing
 papyrus guidelines diff --kind writing --file ./writing.yml
 papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1 --dry-run
@@ -698,13 +701,17 @@ papyrus guidelines save --kind agent-instructions --file ./agents.yml --reason "
 A site announces a Story on its own X account once, automatically, when the Story's page goes live or its rating reaches the owner's bar (never below the quality floor, 3 stars by default; a five counts only when a person gave it). Only Stories are announced, never References. X is one channel of the Story's Announcement: its Delivery is made with the Announcement, or added to it when a later rating reaches the bar. The text is drafted from the Story's title, dek and summary under the site's writing guidelines and `announcement` rules, and goes through the automatic checks (length as X counts it, no invented mention or link, the editorial rule lane, and a fact check against the Story). A draft that fails is not sent: its Delivery is `Blocked: check failed` with the reason, one review request is raised for the Announcement, and the machine drafts it again only when the Story or the guidelines change. How much human review a Delivery gets is the announce rung of the agent policy (`papyrus announcements review`). Mode is Off (default), Dry run (builds and checks the exact post as `Dry run: not sent`, sends nothing, cost 0) or On. The owner sets a budget for each X billing cycle (no default) and X's price list with its date; announcements pause by themselves before passing the budget.
 
 ```sh
-papyrus announcements account status
+papyrus announcements account status                                             # mode, pause, spend against the budget, our post count this cycle, the budget suggestion
+papyrus announcements account connect                                            # prints the newsroom page where the X account is connected (a browser step)
+papyrus announcements blocked                                                    # the Stories that qualified and wait, each with its reason
+papyrus announcements retry 'announcement-1#x#handle#g1'                         # a failed Delivery back to ready (a person only)
 papyrus announcements settings show
 papyrus announcements settings set --mode dry_run --min-stars 5 --story-types article --budget 10.00 --billing-cycle-day 1 --label-confirmed --input-file ./prices.json
 papyrus announcements dry-run story-containment-note
 papyrus announcements where story-containment-note
 papyrus announcements recent
 papyrus announcements explain --story story-containment-note
+papyrus announcements explain --delivery 'announcement-1#x#handle#g1'   # the guideline layers and examples its draft read
 papyrus announcements pause
 papyrus announcements resume
 papyrus announcements record-manual 'announcement-1#x#handle#g1' --url https://example.org/status/1
@@ -716,6 +723,8 @@ papyrus announcements draft 'announcement-1#x#handle#g1' --candidate --text 'Ano
 papyrus announcements candidate choose 'announcement-1#x#handle#g1' c1 --replaces 2
 papyrus announcements pinned 'announcement-1#x#handle#g1' --replaces 2 --block 2 --unpin
 papyrus announcements unlock 'announcement-1#x#handle#g1' --lock-at 2026-11-17T08:55:00Z   # after the lock time, so it can be edited again
+papyrus announcements example 'announcement-1#x#handle#g1' --scope channel --reason 'Open with the verb.'   # a person says how far an edit reaches; no scope keeps it as a candidate
+papyrus announcements preferred 'announcement-1#x#handle#g1' --replaces 1 --text 'Slow water has landed.' --scope channel   # how it should have read, after the send: teaches, sends nothing, changes no public text
 ```
 
 - `prices.json` holds `{"prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}}` copied from X's price list (docs.x.com/x-api/getting-started/pricing); `--input-file` is how an object is given. The site's `announcements` function checks every rule and refuses with the plain sentence (`settings_refused`); nothing is saved when one fails. `--billing-cycle-day` is the day of the month your X billing cycle starts: the budget is per cycle.

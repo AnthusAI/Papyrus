@@ -37,16 +37,7 @@ def one_line(value: str) -> str:
 
 
 def load_source(content: Any, issue: Mapping[str, Any]) -> IssueSource:
-    """The Item's current title, body and deck. Raises ``ItemMissing``.
-
-    An alert issue has no Item: its subject, body and preheader were written onto the issue when the alert was raised.
-    """
-    if issue.get("kind") == "alert":
-        return IssueSource(
-            subject=one_line(str(issue.get("subject") or "")),
-            markus=str(issue.get("bodyMarkus") or ""),
-            preheader=one_line(str(issue.get("preheader") or "")),
-        )
+    """The Item's current title, body and deck. Raises ``ItemMissing``."""
     item_id = issue.get("itemId")
     item = content.get_record("Item", item_id) if item_id else None
     if item is None:

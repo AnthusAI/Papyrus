@@ -26,10 +26,17 @@
       "text": "Audit: announcements pause/resume/settings/status/preview and stories schedule set/clear/list are done. Unmet: schedule suggest, announcements retry, account connect link, one shared table. Left open.",
       "created_at": "2026-11-18T16:59:13.959258Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d00ce49d-b636-4150-9ae2-5e5df3f09da7",
+      "author": "home",
+      "text": "Built (PR #1714): papyrus announcements retry DELIVERY (person only; failed Delivery back to ready) and papyrus announcements account connect (prints Administration > Announcements from the console address, never guesses; connects nothing and sends nothing; no secret accepted). Also announcements blocked and the status fields. Still unmet: schedule suggest and the one shared operation table for scheduling (it is still stories schedule set/clear/list outside the announcements table).",
+      "created_at": "2026-11-19T10:21:54.692919Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T18:41:39.547109Z",
-  "updated_at": "2026-11-18T16:59:13.959544Z",
+  "updated_at": "2026-11-19T10:21:54.693226Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

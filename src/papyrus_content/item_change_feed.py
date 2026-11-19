@@ -17,7 +17,7 @@ a person's save) the record is the same, so the feed starts procedures for all o
 2. **finds the agents that listen** in the site's listener index (``agent_listeners.py``), by the change's name and each listener's filter. The index is
    one small document read by its live version, never a list of the Automation table or of any table. A change nobody listens for sends nothing.
 3. **puts one wake on the site's queue for each**, through ``agent_wakes.send_wake``: the key is ``<agent>|<lineage>|<version>|<what>``, so the run record made
-   from it is the claim and the queue's deduplication id is its digest. The message group is the agent plus the Story's lineage, so one Story's wakes for an agent
+   from it is the claim and the queue's deduplication id is its digest. The message group is the agent plus its serial scope (the Story's lineage unless the definition says `serialBy: agent`), so one Story's wakes for an agent
    run one after the other. A stream record delivered twice makes the same keys, so it starts nothing twice. An agent's own change never wakes that agent.
 
 The wake carries what the later slices need and nothing they must look up: ``trigger.paid`` and ``trigger.serialBy`` (the quiet window for paid steps,
@@ -201,7 +201,7 @@ def wake_request(change: Change, listener: Mapping[str, Any], site: Site) -> dic
         "trigger": {"kind": "event", "event": f"{change.kind.lower()}.{change.change}", "automationId": agent,
                     **({"story": change.lineage} if change.subject is None else {"subject": dict(change.subject)}), "version": change.version,
                     "title": f"{procedure}: {change.change.replace('_', ' ')}"[:200], "summary": _reason(change, agent),
-                    "paid": bool(listener.get("paid")), "serialBy": listener.get("serialBy"), "actorKind": change.actor_kind,
+                    "paid": bool(listener.get("paid")), "serialBy": listener.get("serialBy"), "responsibility": listener.get("responsibility"), "actorKind": change.actor_kind,
                     "actorLabel": change.actor_label, "at": change.at},
     }
     for name, value in (("tenantId", site.tenant_id), ("siteBucket", site.site_bucket), ("openaiKeyParameter", site.openai_key_parameter)):
@@ -219,10 +219,13 @@ def wakes_for(change: Change, index: Mapping[str, Any] | None, site: Site) -> li
 
 def handle(records: list[Mapping[str, Any]], *, decode: Callable[[Any], Any], listeners: Callable[[], Mapping[str, Any]], send: Callable[[dict], Any],
            site: Site, normalize: Callable[[Mapping[str, Any], Mapping[str, Any] | None, Mapping[str, Any] | None], list[Change]] | None = None,
-           wakes: Callable[[Change, Mapping[str, Any] | None, Site], list[dict[str, Any]]] | None = None, feed: str = "item") -> dict[str, Any]:
+           wakes: Callable[[Change, Mapping[str, Any] | None, Site], list[dict[str, Any]]] | None = None, feed: str = "item", gate: Any = None) -> dict[str, Any]:
     """Process one stream batch in order. The index is read once, and only if some record is a change. A record whose wakes cannot all be sent reports itself
     (and Lambda retries from it: every key is the same on the retry, so what was already sent starts nothing again). The other tables' feeds (``change_feeds.py``)
-    pass their own ``normalize`` (a record and its decoded images to the changes it makes) and ``wakes``; the loop, the tenant guard and the retry are this one."""
+    pass their own ``normalize`` (a record and its decoded images to the changes it makes) and ``wakes``; the loop, the tenant guard and the retry are this one.
+
+    ``gate`` (``wake_gate.WakeGate``) stands between the changes and the queue: a person's change to a Story clears the loop count, and each wake is sent, made to wait
+    for quiet (a paid step) or stopped (the loop limit). With no gate every wake is sent at once, as before."""
     index: Mapping[str, Any] | None = None
     sent = 0
     for record in records:
@@ -236,9 +239,16 @@ def handle(records: list[Mapping[str, Any]], *, decode: Callable[[Any], Any], li
         try:
             if index is None:
                 index = listeners()
+            if gate is not None:
+                for change in found:
+                    if change.kind == KIND and change.actor_kind == ACTOR_PERSON:
+                        gate.person_acted(subject=change.lineage, version=change.version)
             requests = [request for change in found for request in (wakes or wakes_for)(change, index, site)]
             for request in requests:
-                send(request)
+                if gate is None:
+                    send(request)
+                elif gate.release(request, send)["status"] != "sent":
+                    continue
                 sent += 1
         except Exception as error:   # noqa: BLE001 - nothing is guessed: the record is retried whole
             print(json.dumps({"event": f"papyrus_{feed}_change_feed_failed", "error": f"{type(error).__name__}: {error}"[:500], "sequence": stream.get("SequenceNumber")}))

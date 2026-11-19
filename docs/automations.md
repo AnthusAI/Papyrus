@@ -421,16 +421,32 @@ from Git leaves the index at the next deploy. It holds no rung, pause or budget:
   changed or cleared in place, PPY-e3bb2b; its key is `rated.<stars or cleared>.<time>`): `type`, `stage`, `section`, `language`, `stars`, `previousStars`, `actorKind`. A filter is a flat set of these
   fields; every one must equal the change's field as text.
 * **The wake.** Key `<agent>|<Story lineage>|<version id>|<what>` (`what` is the change; a stage entry names its stage, `stage_entered.<stage>`); the message group is the agent plus
-  the Story. The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the quiet window for paid steps (PPY-67e3cd) and the
-  loop guard (PPY-4e7e8b) need; those two sit between the feed and the queue and are not built yet. An agent's own change (`automation:<agent>`) never wakes that agent.
+  the Story, or the agent alone when its definition says `serialBy: agent` (as the announce agent does). The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the wake gate needs (next section). An agent's own change (`automation:<agent>`) never wakes that agent, free or paid.
 * **Who is the writer.** A version's `versionCreatedBy` and a step's recorded actor name an agent as `automation:<id>`. An agent's stage move is recorded on the version
   (`move_story_stage`); a change of the stage field with no new record of the move is a person's, made in the console board.
 * **Limits of a stream.** A new version created at a different stage from its predecessor is not a stage entry (the stream holds no previous version), and a stage entered
   again at the same version has the same key, so it starts nothing again.
 
+## The wake gate: the quiet window and the loop guard
+
+Between the Item feed and the queue stands `src/papyrus_content/wake_gate.py` (PPY-67e3cd, PPY-4e7e8b). It reads two things the owner holds in the agent policy document.
+
+* **Paid steps wait for quiet.** A free step goes on the queue at once, on every change. A paid step does not: the change sets or replaces one follow-up timer
+  (`follow_up_timers`, entry `follow-up-<digest of "quiet:<agent>" and the Story>`), due `site.coalescing.windowSeconds` after an agent's change or
+  `site.coalescing.afterPersonSeconds` after a person's. The ruling is 30 minutes to 24 hours and about 5 minutes after a person; a site that has set none starts
+  with 30 and 5 minutes, and the policy refuses a window outside 1800 to 86400 seconds (`AgentPolicyStore.set_value` takes the `coalescing` field; no command-line verb sets it yet). The timer's wake key
+  is `<agent>|<Story>|<due time>|due` and the request carries no version, so the run takes the version current when it fires. A changed window changes only
+  the waits set after it.
+* **The loop guard.** `Item.metadata.botChain.hops` (the Stage Bots' counter, now general) counts the wakes caused by an agent's change since a person last acted on the Story; a
+  person's change clears it and starts the next `round`. At `agents.<responsibility>.loopLimit` (starts at 5) nothing more starts and ONE hard-gate review request, `rr-agent-loop-<story>-<limit>-<round>`, says so.
+* **What the feed's role may do for it:** read the policy's objects, set and clear `follow-up-*` entries in the site's schedule group, read a Story's versions, write the count on its
+  current version and raise the review request (amplify/agents/item-change-feed.ts). Only the Item feed is gated; the other tables' feeds (`change_feeds.py`) send at once.
+* **Limits.** A replaced timer still counts as a wake toward the loop limit, because it is one more agent change on the Story. The count lives on the Story's current version, so a
+  person's save that races the current mark clears the version it made as well.
+
 ## The change feeds of the other tables
 
-An agent may also listen for a change to a Reference, a review request, a Message, a translation request or a Delivery (slice B3, PPY-9b9e64). One function in the site's
+An agent may also listen for a change to a Reference, a review request, a Message, a translation request, a Delivery or an Assignment that asks a responsibility for work (slices B3 and F1, PPY-9b9e64 and PPY-51f96f). One function in the site's
 `agents` stack, `papyrus-<site>-change-feed`, does for those tables what the Item feed does for Items, with the same normalized change (`table, kind, id, lineage,
 version, change, actorKind, at`), the same listener index, the same wake and the same loop (`src/papyrus_content/change_feeds.py` over `item_change_feed.py`). The
 changes an agent definition may name are one list, `src/papyrus_content/change_vocabulary.py`; a definition that names another is refused when it is read.
@@ -445,7 +461,13 @@ changes an agent definition may name are one list, `src/papyrus_content/change_v
 | `Message` | `posted` | a comment was posted | `subjectKind` (`Story`, `Reference`, `Delivery`, or `thread`), `subjectId`, `threadKind`, `actorKind` | `<agent>\|<subject id>\|<message id>\|posted` |
 | `LocalizationRequest` | `wanted` | a translation was asked for (a request inserted or put back `wanted`) | `language`, `sourceVersionNumber`, `automationId`, `publish`, `actorKind` | `<agent>\|<Story>\|<source version id>\|wanted.<language>.<asked at>` |
 | `Delivery` | `state_changed` | a Delivery was drafted or changed state | `state`, `from`, `channel`, `accountId`, `announcementId`, `mode`, `approval`, `actorKind` | `<agent>\|<Delivery id>\|<revision>\|state_changed.<state>` |
+| `Assignment` | `created` | a request for a responsibility's work was filed on a Story (`handoffs request`; type `responsibility.<agent>`) | `responsibility`, `story`, `askedBy`, `why`, `actorKind` | `<agent>\|<Assignment id>\|unversioned\|created` |
+| `Assignment` | `reopened` | a closed (completed, canceled or failed) request was put back to `open` | the same | `...\|reopened.<time>` |
+| `Assignment` | `completed` | the responsible agent finished the work | the same | `...\|completed.<time>` |
 
+* **A request between agents is an Assignment** (`src/papyrus_content/agent_assignments.py`, `docs/agent-handoffs.md`). The responsible agent's definition listens for `Assignment/created` and
+  `Assignment/reopened` with `filter: {responsibility: <its own>}`. The wake key is the claim: the agent runs once for one request. `completed` is addressed to the agent that asked
+  (`createdBy`), and to no other; a request a person filed wakes nobody on completion. Other Assignment kinds (research, reindexing) are not changes.
 * **An answer wakes the agent that asked, and no other.** The request's `raisedBy` (`agent:<id>`, `automation:<id>` or the bare id) names it; the answer is a wake for that
   agent only if its definition listens for `ReviewRequest/answered`. A request a person raised, or one raised by an agent that does not listen, sends nothing.
 * **A Message is placed on its subject.** A comment's thread is anchored on a Story, Reference or Delivery; the feed reads the thread (one point read by id, through
@@ -453,7 +475,7 @@ changes an agent definition may name are one list, `src/papyrus_content/change_v
   id, never its text (the agent reads it, as a person's steering). A thread with no anchor is its own subject (`subjectKind` `thread`).
 * **What makes a wake new.** `what` carries what made the change different from the last one at that version (the stars, the state a Delivery entered, the time a
   translation was asked for), so asking again is a new wake and a record delivered twice is the same one. An agent's own change (`automation:<agent>` or `agent:<agent>`) never wakes it.
-* **Streams and readers.** A DynamoDB stream should have at most two readers, so the feed is not added as a third. `ReviewRequest` and `Delivery` had no stream: the feed is
+* **Streams and readers.** A DynamoDB stream should have at most two readers, so the feed is not added as a third. `ReviewRequest`, `Delivery` and `Assignment` had no stream: the feed is
   their one reader and switches the stream on, with both images. `Reference` and `LocalizationRequest` have their readers already; with fewer than two the feed reads the
   stream itself, through a mapping with a filter. A table that has two (the Reference stream with the word index and the home page; the Message stream with the console
   responder, Slack delivery and the home page) gets the feed behind a reader that stays on the stream: that reader invokes the feed function with its batch and reports what the

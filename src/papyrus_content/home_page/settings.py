@@ -75,6 +75,7 @@ class HomePageSettings:
     threads: ThreadsSettings = field(default_factory=ThreadsSettings)
     freshness: FreshnessSettings = field(default_factory=FreshnessSettings)
     forum: ForumSettings | None = None
+    floor_stars: int | None = None   # the site's ``quality.floorStars`` (quality_floor.py), set when the standard settings are read; None: no floor, the snapshot is what it was
 
 
 def _only(mapping: Mapping, allowed: tuple[str, ...], where: str) -> None:

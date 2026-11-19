@@ -106,6 +106,11 @@ def review_url(base: str, item_id: str) -> str:
     return f"{base}/needs-me/{_segment(item_id, 'review item')}"
 
 
+def announcements_url(base: str) -> str:
+    """Administration > Announcements, where the X account is connected (a browser step: OAuth)."""
+    return f"{base}/administration/announcements"
+
+
 def story_links(base: str, lineage_id: str, version_id: str | None = None, version_note: str = "") -> list[ConsoleLink]:
     """Every address a Story has. Without a version id only the board drawer can be built (the drawer needs just the lineage id)."""
     drawer = story_board_url(base, lineage_id)

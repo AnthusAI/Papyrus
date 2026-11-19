@@ -66,6 +66,8 @@ def attempt(context, action):
 def list_entry(cadence, *, agent="announce-lists", day=None, time=None, zone=None, stars=3, sections=(), reviewed=False, rung=None, empty=None):
     entry = {"name": "A list", "cadence": cadence, "rule": {"sections": list(sections), "types": [], "tags": [], "minStars": stars},
              "requireReviewedSource": reviewed, "workingDocument": "story" if cadence == "weekly" else "delivery", "template": "roundup", "agent": agent}
+    if cadence == "weekly":
+        entry["issueType"] = "issue"
     if cadence != "each":
         entry["sendAt"] = {"time": time, **({"day": day} if day else {})}
         entry["timeZone"] = zone
@@ -80,8 +82,8 @@ def save(context, who, list_id, entry, reason="Because"):
     context.state = attempt(context, lambda: context.lists.set_list(context.site_id, PEOPLE[who], list_id, entry, reason=reason))
 
 
-def candidate(lineage, stars, section="science", reviewed=False):
-    return Candidate(StoryRef(lineage, f"{lineage}-v1", 1), section, "article", [], int(stars), reviewed)
+def candidate(lineage, stars, section="science", reviewed=False, issue=False):
+    return Candidate(StoryRef(lineage, f"{lineage}-v1", 1), section, "issue" if issue else "article", [], int(stars), reviewed, issue=issue)
 
 
 def draft(lists, candidates, notes=()):
@@ -367,16 +369,21 @@ def handles_all(context):
         assert context.error is None, context.error
 
 
+@when('the issue Story "{lineage}" of the weekly list goes live at {stars:d} stars in the section "{section}"')
+def issue_story_live(context, lineage, stars, section):
+    story_live(context, lineage, stars, section, issue=True)
+
+
 @when('the Story "{lineage}" goes live at {stars:d} stars in the section "{section}"')
 @when('the Story "{lineage}" is republished')
-def story_live(context, lineage, stars=None, section=None):
+def story_live(context, lineage, stars=None, section=None, issue=False):
     if stars is None:
         stars, section = context.last_story[1:]
     context.last_story = (lineage, stars, section)
 
     def run():
         state = context.lists.read(context.site_id)
-        return run_story_change(candidate(lineage, stars, section, True), state, context.announcements, draft=draft, policy_rung=lambda _: context.policy_rung,
+        return run_story_change(candidate(lineage, stars, section, True, issue), state, context.announcements, draft=draft, policy_rung=lambda _: context.policy_rung,
                                 account_id=ACCOUNT, by=BY, now=context.now)
 
     context.result = attempt(context, run)

@@ -29,9 +29,9 @@ from papyrus_content.announcements.decisions import Announcements, Outcome
 from papyrus_content.announcements.deliveries import Plan
 from papyrus_content.images.handlers import Caller
 from papyrus_content.announcements.links import StoryRef
-from papyrus_content.newsletter.alerts import rule_matches
 from papyrus_content.run_outcomes import OUTCOME_KEY, REASON_KEY
 
+from .alert_text import rule_matches
 from .periods import History, carry_forward
 from .settings import QUALITY_FLOOR_STARS
 
@@ -59,6 +59,8 @@ class Candidate:
     tags: Sequence[str]
     stars: int
     reviewed_source: bool = False
+    issue: bool = False         # an issue Story (the Story type of a list's working document) is a list's own message, never announced as a Story
+    translation: bool = False   # a translation is no new Story: the readers were told when the original published, so it is never announced
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,8 @@ def settings_of(edit_settings: Mapping[str, Any] | Callable[[], Mapping[str, Any
 def qualifies(entry: Mapping[str, Any], candidate: Candidate) -> tuple[bool, str]:
     """Whether the list carries the Story, and the word for why not. The floor is the code's own: a document that somehow names less is still held to three."""
     rule = entry["rule"]
+    if candidate.issue:
+        return False, "an issue Story is a list's own message, not a Story to announce"
     if candidate.stars < max(rule["minStars"], QUALITY_FLOOR_STARS):
         return False, f"{candidate.stars} stars is under the list's bar of {max(rule['minStars'], QUALITY_FLOOR_STARS)}"
     if not rule_matches(rule, section=candidate.section, tags=candidate.tags, item_type=candidate.story_type):

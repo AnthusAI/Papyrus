@@ -39,6 +39,9 @@ export type ImageOperationName =
   | "announcements_settings_show"
   | "announcements_settings_set"
   | "announcements_account_status"
+  | "announcements_account_connect"
+  | "announcements_blocked"
+  | "announcements_retry"
   | "announcements_review_show"
   | "announcements_review_set"
   | "announcements_delivery_review_set"
@@ -48,6 +51,8 @@ export type ImageOperationName =
   | "announcements_pinned_change"
   | "announcements_release"
   | "announcements_unlock"
+  | "announcements_example"
+  | "announcements_preferred"
   | "announcements_correct"
   | "announcements_record_manual"
   | "announcements_withdraw"
@@ -55,6 +60,7 @@ export type ImageOperationName =
   | "announcements_recent"
   | "announcements_explain"
   | "ratings_set"
+  | "handoffs_request"
 ;
 
 export type ImageErrorCode =
@@ -876,12 +882,15 @@ export type GuidelinesResolveInput = {
   section?: string;
   /** The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. Leave it out for the guidelines every language shares. */
   language?: string;
+  /** The channel the text is for (x, linkedin, email): a rule file scoped to channel/<name> is in the answer only for that channel. */
+  channel?: string;
 };
 
 export type GuidelinesResolveResult = {
   kind: string;
   section?: string;
   language?: string;
+  channel?: string;
   /** False when the publication has no guidelines of this kind yet. */
   found: boolean;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
@@ -1135,8 +1144,54 @@ export type AnnouncementsAccountStatusResult = {
   accountHandle?: string;
   /** For example $0.60 spent of $10.00 this cycle. */
   standing?: string;
+  /** Our count of the posts this account sent in the current billing cycle, a post later deleted included (X charged for it). X's own count is read beside it on the page. */
+  postCount?: number;
+  suggestion?: {
+    eligibleCount?: number;
+    windowDays?: number;
+    postsPerMonth?: number;
+    dollarsPerMonth?: number;
+    sentence: string;
+  };
   pauseReason?: string;
   pricesAsOf?: string;
+};
+
+/** Print the newsroom page where the X account is connected. Connecting is a browser step (OAuth): nothing is connected from here. */
+export type AnnouncementsAccountConnectInput = Record<string, unknown>;
+
+export type AnnouncementsAccountConnectResult = {
+  /** The address of Administration > Announcements in the newsroom. */
+  url: string;
+  words: string;
+};
+
+/** List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check). */
+export type AnnouncementsBlockedInput = Record<string, unknown>;
+
+export type AnnouncementsBlockedResult = {
+  blocked: {
+    delivery: string;
+    announcementId: string;
+    stories: {
+      lineageId: string;
+    }[];
+    reason: string;
+    words: string;
+    since?: string;
+  }[];
+};
+
+/** Try a failed Delivery again: it goes back to ready, and the next try is the next attempt. The attempts so far stay in its log. */
+export type AnnouncementsRetryInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsRetryResult = {
+  id: string;
+  /** The Delivery's state afterwards: ready. */
+  state: string;
 };
 
 /** Show the publication's announcement review and each override, and what a channel and kind would get. */
@@ -1329,6 +1384,56 @@ export type AnnouncementsUnlockResult = {
   lockAt: string;
   releaseAt: string;
   lockedVersion?: number | null;
+};
+
+/** Say how far what a person changed in an announcement should reach, so later drafts can follow it. */
+export type AnnouncementsExampleInput = {
+  /** The Delivery's id: one that went out, or one with a preferred version. */
+  delivery: string;
+  /** How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why, kept with the words in S3 and never in the catalog. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsExampleResult = {
+  id: string;
+  recorded: boolean;
+  exampleState?: string | null;
+  exampleScope?: string | null;
+  machineVersion?: number | null;
+  finalVersion?: number | null;
+  reason?: string | null;
+};
+
+/** Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text. */
+export type AnnouncementsPreferredInput = {
+  /** The Delivery's id: one that went out, or has an attempt open. */
+  delivery: string;
+  /** The version of the Delivery you read. */
+  replaces: number;
+  /** How it should have read. */
+  text: string;
+  /** Also record how far it reaches, in the same step. Leave it out to keep it as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsPreferredResult = {
+  id: string;
+  /** saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft. */
+  status: "saved" | "preferred" | "unchanged" | "dropped" | "candidate";
+  version?: number;
+  replaces?: number | null;
+  reason?: string;
+  /** The candidate's id, when one was kept. */
+  candidate?: string;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  preferredVersion?: number | null;
+  /** Each block's owner (human or machine) and whether it is pinned. */
+  blocks?: Record<string, unknown>[];
 };
 
 /** Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. */
@@ -1553,17 +1658,19 @@ export type AnnouncementsRecentResult = {
   next: string | null;
 };
 
-/** Why a Story was or was not announced, for each channel, naming the rule. Reads the rules; writes nothing. */
+/** Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read. Reads the rules; writes nothing. */
 export type AnnouncementsExplainInput = {
   /** The lineage id of the Story. */
-  story: string;
+  story?: string;
+  /** Ask instead about a Delivery: the guideline layers (scope, item, version, hash) and the examples its draft read. */
+  delivery?: string;
 };
 
 export type AnnouncementsExplainResult = {
-  story: string;
+  story?: string;
   title?: string;
   stars?: number;
-  channels: {
+  channels?: {
     channel: string;
     announced: boolean;
     /** The rule: announced, off, not_published, type_not_announced, section_not_announced, below_bar, below_floor, machine_five, story_not_reviewed, no_delivery or would_announce. */
@@ -1571,6 +1678,20 @@ export type AnnouncementsExplainResult = {
     words: string;
     delivery?: string;
   }[];
+  /** The Delivery asked about. */
+  delivery?: string;
+  recorded?: boolean;
+  words?: string;
+  storyVersion?: number | null;
+  model?: string | null;
+  /** Each guideline layer the draft read: scope, itemId, versionNumber, contentHash. */
+  guidelineLayers?: Record<string, unknown>[];
+  /** The examples the draft read, and whether each is still on. */
+  examples?: ({
+    delivery: string;
+    state: string;
+    scope?: string | null;
+  })[];
 };
 
 /** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
@@ -1587,6 +1708,26 @@ export type RatingsSetResult = {
   previous?: number;
   stars: number;
   ratedBy?: string;
+};
+
+/** Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once. */
+export type HandoffsRequestInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** The responsibility asked, as the agent catalogue names it, such as research. */
+  responsibility: string;
+  /** What is needed and why, in plain words. It is the Assignment's brief and what the responsible agent reads. */
+  why: string;
+};
+
+export type HandoffsRequestResult = {
+  assignmentId: string;
+  responsibility: string;
+  story: string;
+  status: string;
+  askedBy: string;
+  /** False when the same ask was already made: nothing new was written and nobody is woken again. */
+  created: boolean;
 };
 
 export interface ImageOperations {
@@ -1626,6 +1767,9 @@ export interface ImageOperations {
   announcements_settings_show: { input: AnnouncementsSettingsShowInput; result: AnnouncementsSettingsShowResult };
   announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
+  announcements_account_connect: { input: AnnouncementsAccountConnectInput; result: AnnouncementsAccountConnectResult };
+  announcements_blocked: { input: AnnouncementsBlockedInput; result: AnnouncementsBlockedResult };
+  announcements_retry: { input: AnnouncementsRetryInput; result: AnnouncementsRetryResult };
   announcements_review_show: { input: AnnouncementsReviewShowInput; result: AnnouncementsReviewShowResult };
   announcements_review_set: { input: AnnouncementsReviewSetInput; result: AnnouncementsReviewSetResult };
   announcements_delivery_review_set: { input: AnnouncementsDeliveryReviewSetInput; result: AnnouncementsDeliveryReviewSetResult };
@@ -1635,6 +1779,8 @@ export interface ImageOperations {
   announcements_pinned_change: { input: AnnouncementsPinnedChangeInput; result: AnnouncementsPinnedChangeResult };
   announcements_release: { input: AnnouncementsReleaseInput; result: AnnouncementsReleaseResult };
   announcements_unlock: { input: AnnouncementsUnlockInput; result: AnnouncementsUnlockResult };
+  announcements_example: { input: AnnouncementsExampleInput; result: AnnouncementsExampleResult };
+  announcements_preferred: { input: AnnouncementsPreferredInput; result: AnnouncementsPreferredResult };
   announcements_correct: { input: AnnouncementsCorrectInput; result: AnnouncementsCorrectResult };
   announcements_record_manual: { input: AnnouncementsRecordManualInput; result: AnnouncementsRecordManualResult };
   announcements_withdraw: { input: AnnouncementsWithdrawInput; result: AnnouncementsWithdrawResult };
@@ -1642,6 +1788,7 @@ export interface ImageOperations {
   announcements_recent: { input: AnnouncementsRecentInput; result: AnnouncementsRecentResult };
   announcements_explain: { input: AnnouncementsExplainInput; result: AnnouncementsExplainResult };
   ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
+  handoffs_request: { input: HandoffsRequestInput; result: HandoffsRequestResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
@@ -1682,6 +1829,9 @@ export const IMAGE_OPERATIONS = {
   announcements_settings_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements settings show" },
   announcements_settings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements settings set" },
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
+  announcements_account_connect: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account connect" },
+  announcements_blocked: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements blocked" },
+  announcements_retry: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements retry" },
   announcements_review_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements review show" },
   announcements_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements review set" },
   announcements_delivery_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements delivery review" },
@@ -1691,6 +1841,8 @@ export const IMAGE_OPERATIONS = {
   announcements_pinned_change: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements pinned" },
   announcements_release: { effect: "write", agentAllowed: true, agentRung: "publish_auto", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements release" },
   announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
+  announcements_example: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements example" },
+  announcements_preferred: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements preferred" },
   announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
   announcements_record_manual: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements record-manual" },
   announcements_withdraw: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },
@@ -1698,14 +1850,15 @@ export const IMAGE_OPERATIONS = {
   announcements_recent: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements recent" },
   announcements_explain: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements explain" },
   ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
+  handoffs_request: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "handoffs", command: "papyrus handoffs request" },
 } as const;
 
-/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements and ratings have no door yet (the console reads and writes their models directly). */
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements, ratings and handoffs have no door yet (the console reads and writes their models directly). */
 export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;
   effect: "read" | "write" | "spend";
-  group: "images" | "guidelines" | "announcements" | "ratings";
+  group: "images" | "guidelines" | "announcements" | "ratings" | "handoffs";
 }) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(

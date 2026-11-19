@@ -40,7 +40,7 @@ const base = {
   lists: [
     {
       id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", archivePath: "/roundup/",
+      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", types: ["article"], archivePath: "/roundup/",
     },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert", rule: { sections: ["Security"], tags: ["breaking"] } },
   ],
@@ -119,13 +119,16 @@ assert.deepEqual(withoutPlugins.includes("newsletter"), false);
 const config = resolvePlugins([base])[0].config as NewsletterConfig;
 assert.equal(config.configurationSet, "papyrus-example");
 assert.equal(config.eventTopicName, "papyrus-newsletter-events-example");
-assert.equal(config.instantAlerts, false);
 assert.equal(config.itemUrlStyle, "html");
 assert.equal(config.basePath, "", "a site at the root has no base path");
 assert.equal(resolveNewsletterConfig(with_({ basePath: "/posts" })).basePath, "posts");
 assert.equal(resolveNewsletterConfig(with_({ basePath: "posts/" })).basePath, "posts");
 assert.equal(resolveNewsletterConfig(with_({ basePath: "/" })).basePath, "");
 assert.equal(resolveNewsletterConfig(with_({ itemUrlStyle: "directory" })).itemUrlStyle, "directory");
+assert.equal(config.floorStars, undefined, "no floor unless the site sets one");
+assert.equal(resolveNewsletterConfig(with_({ floorStars: 3 })).floorStars, 3);
+assert.throws(() => resolveNewsletterConfig(with_({ floorStars: 0 })), /floorStars/, "a floor under one star would let unrated items in");
+assert.throws(() => resolveNewsletterConfig(with_({ floorStars: 6 })), /floorStars/);
 assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "post", "the issue type is whatever the site configures");
 assert.deepEqual(config.lists[1].kind === "alert" && config.lists[1].approval, "admin");
 assert.equal(resolveNewsletterConfig(with_({ configurationSet: "custom-set", eventTopicName: "custom-topic" })).configurationSet, "custom-set");
@@ -147,7 +150,6 @@ refuses(with_({ fromAddress: "News <newsletter@example.com>" }), /fromAddress/);
 refuses(with_({ fromAddress: "a@b@example.com" }), /fromAddress/);
 refuses(with_({ fromName: "" }), /fromName/);
 refuses(with_({ fromName: "Two\nLines" }), /fromName/);
-refuses(with_({ instantAlerts: "yes" }), /instantAlerts must be a boolean/);
 refuses(with_({ theme: undefined }), /theme must be an object/);
 refuses(with_({ theme: { accent: "#fff", text: "#000" } }), /theme.background/);
 refuses(with_({ theme: { ...base.theme, accent: "red; background:url(x)" } }), /theme.accent/);
@@ -200,6 +202,7 @@ refuses(with_({ basePath: 7 }), /basePath/);
 refuses(with_({ itemUrlStyle: "flat" }), /itemUrlStyle must be one of html, directory, clean/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: undefined }] }), /archivePath/);
 refuses(with_({ lists: [{ ...base.lists[0], issueType: "Not Valid" }] }), /issueType/);
+refuses(with_({ lists: [{ ...base.lists[0], types: undefined }] }), /types is required/, "a roundup declares the Story types it carries");
 refuses(with_({ lists: [{ ...base.lists[0], issueType: undefined }] }), /issueType must be the lowercase Item type the site gives its issues/);
 refuses(with_({ lists: [{ ...base.lists[0], rule: {} }] }), /unknown settings: rule/);
 refuses(with_({ lists: [{ ...base.lists[1], schedule: {} }] }), /unknown settings: schedule/);
@@ -208,13 +211,6 @@ refuses(with_({ lists: [{ ...base.lists[1], rule: { sections: [] } }] }), /rule.
 refuses(with_({ lists: [{ ...base.lists[1], rule: { colours: ["red"] } }] }), /unknown settings: colours/);
 refuses(with_({ lists: [{ ...base.lists[1], approval: "sometimes" }] }), /approval must be "admin" or "none"/);
 
-// Approval "none" is refused unless the site opted in to instant alerts.
-const instant = { ...base.lists[1], approval: "none" };
-refuses(with_({ lists: [instant] }), /instantAlerts: true/);
-refuses(with_({ lists: [instant], instantAlerts: false }), /instantAlerts: true/);
-const allowed = resolveNewsletterConfig(with_({ lists: [instant], instantAlerts: true }));
-assert.equal(allowed.instantAlerts, true);
-assert.equal(allowed.lists[0].kind === "alert" && allowed.lists[0].approval, "none");
 
 // What is published to amplify_outputs.json: names and the theme, never the key, the role or the table.
 const published = newsletterPlugin.publicSettings(config);
@@ -236,7 +232,7 @@ assert.equal(pluginSettings({ custom: { papyrusPlugins: { newsletter: published 
 // The function environment.
 const environment = newsletterEnvironment(config, "table-name", "/papyrus/example/newsletter-key");
 assert.deepEqual(Object.keys(environment).sort(), [
-  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "INSTANT_ALERTS", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_BASE_PATH", "SITE_ID",
+  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_BASE_PATH", "SITE_ID",
   "SITE_ORIGIN", "TABLE_NAME", "THEME_JSON",
 ]);
 assert.equal(environment.SITE_ORIGIN, "https://news.example.com");
@@ -246,7 +242,7 @@ assert.equal(environment.ITEM_URL_STYLE, "html");
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), [
   {
     id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-    issueType: "post", archivePath: "/roundup/", timezone: "America/New_York",
+    issueType: "post", types: ["article"], archivePath: "/roundup/", timezone: "America/New_York",
   },
   {
     id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert",
@@ -499,8 +495,7 @@ const operationsEnvironment = Object.values(operationsTemplate.findResources("AW
 );
 assert.ok(operationsEnvironment.some((value) => value.NEWSLETTER_FUNCTION_NAME === "papyrus-newsletter-example"));
 
-// Alerts: the function knows each alert list's rule and approval, and whether instant alerts are allowed.
-assert.equal(variables.INSTANT_ALERTS, "false");
+// Alerts: the function knows each alert list's rule and approval.
 const listsInEnvironment = JSON.parse(String(variables.LISTS_JSON)) as Array<Record<string, unknown>>;
 const alertList = listsInEnvironment.find((entry) => entry.kind === "alert");
 assert.ok(alertList && "rule" in alertList && alertList.approval === "admin", "alert lists carry rule and approval");

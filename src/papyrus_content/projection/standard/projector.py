@@ -59,7 +59,7 @@ import inspect
 
 from . import alexa_pages, blocks, card_images, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, notifications_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
-from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
+from .entries import SUMMARY_FIELDS, StandardEntry, apply_floor, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .story_order import rank_entries
@@ -959,7 +959,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ model
 
     def _entries(self, site: SiteIndex) -> list[StandardEntry]:
-        return newest_first(build_entries(site.items, self.standard, self.policy, self.hooks.derive, self.hooks.item_filter))
+        floored = (apply_floor(entry, self.standard, site.story_stars) for entry in build_entries(site.items, self.standard, self.policy, self.hooks.derive, self.hooks.item_filter))
+        return newest_first([entry for entry in floored if entry is not None])
 
     def _entry(self, summary: ItemSummary) -> StandardEntry | None:
         return entry_for_summary(summary, self.standard, self.policy, self.hooks.derive, self.hooks.item_filter)
@@ -1455,7 +1456,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             ]
         else:
             groups = [("Articles", visible[:limit])]
-        pages = [entry for entry in entries if not entry.listed and entry.key and not entry.noindex]
+        pages = [entry for entry in entries if not entry.listed and not entry.below_floor and entry.key and not entry.noindex]
         pages += [
             SimpleNamespace(title=custom.title, key=self.policy.listing_key(custom.path), link=None, summary_text=custom.description or "", date="")
             for custom in self._authored_pages()
@@ -1572,7 +1573,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return found
 
     def _llms_full_entries(self, entries: list[StandardEntry]) -> list[StandardEntry]:
-        return [entry for entry in entries if entry.key and not entry.noindex]
+        return [entry for entry in entries if entry.key and not entry.noindex and not entry.below_floor]
 
     def _add_llms_files(self, plan, site: SiteIndex, entries, listed) -> None:
         agents = self.standard.agents

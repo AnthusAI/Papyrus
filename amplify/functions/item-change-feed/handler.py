@@ -2,7 +2,7 @@
 
 All the logic is ``papyrus_content.item_change_feed``. This file decodes nothing itself: it builds the collaborators with the function's own role: the
 site's listener index (``agent_listeners.ListenerIndex`` over the site store: one point read of the live version, the body from S3 only when the version
-moved) and the site's wake queue (``agent_wakes.wake_sender``). Nothing here lists a table.
+moved) and the site's wake queue (``agent_wakes.wake_sender``). Nothing here lists a table. Between the changes and the queue stands the wake gate (``wake_gate.py``): a paid step waits for quiet on a follow-up timer, a person's change clears the loop count, and an agent that reaches the limit raises one hard gate.
 
 A batch is processed in order. A record whose wakes cannot all be put on the queue is reported as failed, and Lambda retries from it; every wake key is the same on
 the retry, so what was already sent starts nothing twice. Records that are no change (a version marked superseded, a card's counts refreshed) cost nothing.
@@ -34,13 +34,46 @@ def listener_index(site) -> Any:
     return _INDEX
 
 
-def handler(event: dict[str, Any], context: Any = None, *, index=None, send=None, environment=None) -> dict[str, Any]:
+_CLIENT: Any = None
+
+
+def site_client(site) -> Any:
+    global _CLIENT
+    if _CLIENT is None:
+        from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+
+        os.environ.setdefault("PAPYRUS_GRAPHQL_AUTH", "iam")   # the function's own role signs the calls
+        _CLIENT = PapyrusGraphQLAuthoringClient(endpoint=site.appsync_endpoint)
+    return _CLIENT
+
+
+def wake_gate(site, environment) -> Any:
+    """The gate between the feed and the queue (PPY-67e3cd, PPY-4e7e8b): the agent policy's window and loop limit, the site's follow-up timers, the Story's counter and the hard gate."""
+    import boto3
+
+    from papyrus_content import wake_gate as gate
+    from papyrus_content.agent_policy import AgentPolicyStore
+    from papyrus_content.agent_policy.run_gate import SiteCatalogue
+    from papyrus_content.follow_up_timers import FollowUpTimers
+    from papyrus_content.site_store import SiteStore
+
+    client = site_client(site)
+    store = AgentPolicyStore(SiteStore(boto3.client("s3"), site.site_bucket, SiteCatalogue(client)))
+    timers = FollowUpTimers.for_site(site.publication_id, account=environment["PAPYRUS_AWS_ACCOUNT_ID"], region=environment["AWS_REGION"],
+                                     partition=environment.get("PAPYRUS_AWS_PARTITION") or "aws")
+    return gate.WakeGate(policy=lambda: store.read(site.tenant_id).document, timers=timers, chain=gate.StoryChain(client),
+                         review=lambda **found: gate.raise_loop_review(client, **found))
+
+
+def handler(event: dict[str, Any], context: Any = None, *, index=None, send=None, environment=None, gate=None) -> dict[str, Any]:
     from papyrus_content import item_change_feed
     from papyrus_content.agent_wakes import wake_sender
     from papyrus_content.localize.dispatch import decode_image
 
-    site = item_change_feed.Site.from_environment(environment if environment is not None else os.environ)
+    environment = os.environ if environment is None else environment
+    site = item_change_feed.Site.from_environment(environment)
     result = item_change_feed.handle(event.get("Records", []), decode=decode_image, listeners=lambda: (index or listener_index(site)).document(),
-                                     send=send or wake_sender(), site=site)
+                                     send=send or wake_sender(), site=site,
+                                     gate=gate or (wake_gate(site, environment) if event.get("Records") else None))
     print(json.dumps({"event": "papyrus_item_change_feed", "records": len(event.get("Records", [])), "wakesSent": result["wakesSent"], "failed": len(result["batchItemFailures"])}))
     return {"batchItemFailures": result["batchItemFailures"]}

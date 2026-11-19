@@ -34,10 +34,17 @@
       "text": "Rewritten 2026-11-12: now the inserter's standing rules (type, three-star floor, recency learned from the cadence, non-duplication by dedupe groups, quality order, exclusions, run on change). Blocked by the three-star floor PPY-0e8d66. The living Story, blocks and contribution rules live in PPY-4108ef, not duplicated here.",
       "created_at": "2026-11-12T13:04:33.073195Z",
       "comment_type": "default"
+    },
+    {
+      "id": "137122b0-e34a-4aad-a6ac-b846f1ad3f2f",
+      "author": "home",
+      "text": "Built in PR 1716: newsletter/selection.py (pure: declared types, floor, eligibility = later of publish and reached-floor via starRatedAt, window from last sent issue else start of the ISO week, no day count, sent/excluded memory via issue entryIds, per-group first-eligible-wins, placement via quality_ranking.rank plus pins, Left out with reasons), wired into roundup.assemble. TS plugin config now requires roundup `types`: sites must add it (e.g. [\"article\"]) before their next bump. Spec: features_backend/newsletter-roundup-inserter.feature. NOT done, left open: (1) group lookup is a seam; no item is in a group until the Reference dedupe groups exist (epic PPY-24fdf4); (2) run-on-change with coalescing (PPY-67e3cd open) and writing into the living Story's machine slots (needs PPY-4108ef persistence); (3) telling admins at period end when nothing is eligible; (4) eligibility uses starRatedAt of the current rating only. Questions for Ryan (already on the ticket): posts in roundups or articles only (built: only the types a list declares); same-story duplicate: first in wins (built) or higher rated?",
+      "created_at": "2026-11-19T12:32:01.057262Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T12:46:03.122275Z",
-  "updated_at": "2026-11-12T13:04:33.073441Z",
+  "updated_at": "2026-11-19T12:32:01.058382Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

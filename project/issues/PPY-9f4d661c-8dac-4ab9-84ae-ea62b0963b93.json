@@ -22,10 +22,17 @@
       "text": "Audit 2026-11-18: Caducus 0.3.0 (x channel) is released, so no Caducus wait. Unmet: nothing calls engine.process_story from publish or rating changes; no Broadcaster/x queue/story.announce kind/Directory.account/SpendGuard registration. Depends on PPY-efd06c (old row vs new records). Also infra/monitoring/caducus-requirement.txt still pins a git commit rather than 0.3.0.",
       "created_at": "2026-11-18T16:59:13.322301Z",
       "comment_type": "default"
+    },
+    {
+      "id": "32b85342-de1f-4640-9847-16eed8afe010",
+      "author": "home",
+      "text": "lead5: Caducus x binding merged in #1706 (CaducusBroadcaster, kind, x queue/consumer IaC, runner wiring). Open: agents-stack IaC needs X_QUEUE_URL and table access for the announce runner; owner questions: (1) agent calls CaducusBroadcaster directly vs invokes notifications router; (2) DLQ after 3 unknown-outcome tries vs retry forever. Ticket left open until live deploy.",
+      "created_at": "2026-11-19T08:57:47.624617Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T18:41:38.613612Z",
-  "updated_at": "2026-11-18T16:59:13.322526Z",
+  "updated_at": "2026-11-19T08:57:47.627164Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

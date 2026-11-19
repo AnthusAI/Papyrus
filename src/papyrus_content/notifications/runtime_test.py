@@ -82,7 +82,6 @@ def test_the_real_runtime_subscribes_a_reader_and_fans_a_story_out_to_them(aws: 
     ssm.put_parameter(Name=KEY, Type="SecureString", Value="secret-for-the-test")
     donor = Site(readers=0)
     lineage = donor.add_story("Rates held steady", "news")
-    monkeypatch.setattr(runtime_module, "published_item_reader", lambda: donor.rows.get)
     monkeypatch.setattr(runtime_module, "DnsDomainChecker", StaticDomains)  # no DNS from tests
     monkeypatch.setenv("TABLE_NAME", "unused")  # the explicit environment below wins; the real one is never read
     rt = runtime_module.build_runtime(environment(queue_url))
@@ -97,13 +96,13 @@ def test_the_real_runtime_subscribes_a_reader_and_fans_a_story_out_to_them(aws: 
     token = content["items"][0]["facts"]["url"].split("token=", 1)[1]
     assert notifications_handler.route(rt, {"action": "confirm", "token": token})["body"]["status"] == "confirmed"
 
-    assert notifications_handler.route(rt, Site.announcement(lineage))["status"] == "accepted"
+    assert rt.router.handle_detail(donor.detail(lineage)).outcome == "accepted"
     (page,) = receive(queue_url)
     assert page == {"fanout": "story.published:" + lineage, "list": "stories", "cursor": None}
     assert notifications_handler.email_with(rt, {"Records": [{"messageId": "1", "body": json.dumps(page)}]}) == {"batchItemFailures": []}
     (delivery,) = receive(queue_url)
     assert delivery["eventId"] == "story.published:" + lineage
-    assert notifications_handler.route(rt, Site.announcement(lineage))["status"] == "duplicate"
+    assert rt.router.handle_detail(donor.detail(lineage)).outcome == "duplicate"
     # The delivery is in the site's table, found through the byRecipient index.
     (row,) = rt.store.query("EVENT#" + delivery["eventId"], "DELIVERY#")
     assert row["status"] == "queued" and row["kind"] == "story.published" and row["class"] == "public"

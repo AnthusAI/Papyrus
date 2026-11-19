@@ -15,6 +15,9 @@ ReviewRequest               answered    an open request was answered. The change
 Message                     posted      a comment was posted. The wake is for the listeners of the subject the comment is on (the anchor of its thread)
 LocalizationRequest         wanted      a translation was asked for (a request inserted ``wanted``, or put back to ``wanted``)
 Delivery                    state_changed  a Delivery was drafted or its state changed (the state is in the wake key)
+Assignment                  created     a request for a responsibility's work was filed (``agent_assignments.py``); only ``responsibility.*`` Assignments are changes
+                            reopened    a closed (completed, canceled or failed) request was put back to ``open``; the key names the reopening
+                            completed   the responsible agent finished the work. The change is addressed to the agent that asked, and to no other
 ==========================  ==========  ===========================================================================================================
 
 A feed never reads a table. The listener index is read first (one point read of its live version) and a change nobody listens for sends nothing, so the one
@@ -38,9 +41,10 @@ from . import agent_listeners as listener_index
 from . import item_change_feed
 from .change_vocabulary import FEED_TABLES
 from .item_change_feed import ACTOR_AGENT, ACTOR_PERSON, AGENT_LABEL_PREFIX, Change, Site
+from .wake_keys import UNVERSIONED
 
 STREAMS_ENVIRONMENT = "PAPYRUS_CHANGE_FEED_STREAMS"
-REFERENCE, REVIEW_REQUEST, MESSAGE, LOCALIZATION_REQUEST, DELIVERY = "Reference", "ReviewRequest", "Message", "LocalizationRequest", "Delivery"
+REFERENCE, REVIEW_REQUEST, MESSAGE, LOCALIZATION_REQUEST, DELIVERY, ASSIGNMENT = "Reference", "ReviewRequest", "Message", "LocalizationRequest", "Delivery", "Assignment"
 ACCEPTED_STATUS = "accepted"
 ANSWERED, WANTED = "answered", "wanted"
 COMMENT = "comment"
@@ -210,6 +214,38 @@ def _delivery_changes(old: Mapping[str, Any] | None, new: Mapping[str, Any], ins
                    DELIVERY, DELIVERY, {"kind": DELIVERY, "id": row_id})]
 
 
+# --- Assignment ----------------------------------------------------------------------------------------------------------------------------------
+
+
+def _assignment_changes(old: Mapping[str, Any] | None, new: Mapping[str, Any], inserted: bool) -> list[Change]:
+    from .handoff_records import CLAIMED, COMPLETED, FINAL, OPEN, responsibility_of
+
+    responsibility, row_id, status = responsibility_of(new), new.get("id"), _text(new.get("status"))
+    if not responsibility or not row_id:
+        return []   # any other kind of Assignment is run by its own executor, not woken for
+    before = _text((old or {}).get("status"))
+    asker = _text(new.get("createdBy"))
+    shared = {"responsibility": responsibility, "story": new.get("itemLineageId"), "askedBy": asker, "why": new.get("summary"), "assignmentStatus": status}
+    subject = {"kind": ASSIGNMENT, "id": row_id}
+
+    def change(name: str, what: str, label: Any, at: Any, only_for: str | None = None) -> Change:
+        who, text = _actor(label)
+        return Change(name, row_id, row_id, UNVERSIONED, what, who, text, _text(at), {**shared, "actorKind": who}, ASSIGNMENT, ASSIGNMENT, subject, only_for)
+
+    if inserted:
+        return [change("created", "created", asker, new.get("createdAt"))] if status == OPEN else []
+    if status == OPEN and before in FINAL:
+        at = _text(new.get("updatedAt"))
+        return [change("reopened", f"reopened.{at}", asker, at)] if at else []
+    if status == COMPLETED and before == CLAIMED:
+        agent = _asker(asker)
+        if not agent or not (asker or "").startswith(AGENT_PREFIXES):
+            return []   # a person asked: nobody is waiting to be woken, the Story shows the result
+        at = _text(new.get("completedAt")) or _text(new.get("updatedAt"))
+        return [change("completed", f"completed.{at}" if at else "completed", new.get("assigneeKey"), at, only_for=agent)]
+    return []
+
+
 # --- Message -------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -249,6 +285,8 @@ def changes_of(table: str, old: Mapping[str, Any] | None, new: Mapping[str, Any]
         return _localization_changes(old, new)
     if table == DELIVERY:
         return _delivery_changes(old, new, inserted)
+    if table == ASSIGNMENT:
+        return _assignment_changes(old, new, inserted)
     if table == MESSAGE:
         return _message_changes(new) if inserted else []
     raise ValueError(f"no change feed for the table {table!r}")

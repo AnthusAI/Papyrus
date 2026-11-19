@@ -687,7 +687,7 @@ def stories_show(flags: list[str]) -> None:
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
     metadata = latest.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
-    from .home_page.ordering import utc_today
+    from .quality_ranking import utc_today
     from .projection.standard.config import DEFAULT_STORY_BUCKET
     from .story_signals import signals
 
@@ -980,7 +980,9 @@ def stories_set_slug(flags: list[str]) -> None:
     print(f"stories\tset-slug\tsaved\t{item_id}\t{slug}")
     if not published:
         return
-    publish_item(client, item_id, actor=actor)
+    from .publish_commands import signed_in_person
+
+    publish_item(client, item_id, actor=actor, by_person=signed_in_person(actor))
     if not projection_requested():
         return
     if options.get("no-trigger"):
