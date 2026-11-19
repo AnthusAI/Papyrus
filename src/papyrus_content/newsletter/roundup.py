@@ -101,7 +101,7 @@ def candidates(service: IssueService, group_of: Callable[[Mapping[str, Any]], st
     found = []
     for row in service.content.list_published_item_summaries():
         published = _epoch(row.get("publishedAt"))
-        if published is None or row.get("type") in excluded or localization_original(row) is not None:
+        if published is None or row.get("type") in excluded or localization_original(row, getattr(service.content, "tenant_id", None)) is not None:
             continue   # a translation is not a Story of its own: the roundup names the original
         head = head_version(service.content, row) if floor is not None else None
         stars = int(effective_rating(head)["stars"])
