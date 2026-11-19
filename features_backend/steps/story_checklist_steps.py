@@ -493,7 +493,7 @@ COVER = "assets/board/cover.png"
 COVER_DARK = "assets/board/cover.dark.png"
 
 
-def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False, stored: bool = True, remote: bool = False, approved: bool = True, credit_line: bool = False, alt: str = "The board room", brief: str = "") -> None:
+def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False, stored: bool = True, remote: bool = False, approved: bool = True, credit_line: bool = False, alt: str = "The board room", brief: str = "", credited: bool = True) -> None:
     """Gives the current version of the Story a cover the way the newsroom and the figures workflow do: front matter ``image``, the picture first in the body,
     and a ``MediaAsset`` row per stored picture. ``kind`` is ``stock`` (a picked stock picture: the ``coverImage`` record, with its third-party credit) or
     ``figure`` (a generated picture: the ``coverImage`` record names who approved it, the image line has no credit; an optional dark picture).
@@ -509,7 +509,7 @@ def add_cover(context, kind: str, *, picked_by: str = "Ryan", dark: bool = False
     if kind == "stock" and approved:
         front["coverImage"] = {"source": "wikimedia-commons", "creator": "A. Photographer", "licence": "CC BY 4.0", "srcPath": COVER,
                                "pickedAt": AT, "pickedBy": picked_by}
-        attributes += ' credit="Image: A. Photographer, CC BY 4.0, via Wikimedia Commons"'
+        attributes += ' credit="Image: A. Photographer, CC BY 4.0, via Wikimedia Commons"' if credited else ""
     if kind == "figure":
         if approved:
             front["coverImage"] = {"srcPath": COVER, "approvedAt": AT, "approvedBy": picked_by}
@@ -537,6 +537,11 @@ def remove_cover(context) -> None:
 @given('the Story has a stock cover picked by "{name}"')
 def stock_cover(context, name):
     add_cover(context, "stock", picked_by=name)
+
+
+@given('the Story has a stock cover picked by "{name}" whose image line has no credit')
+def stock_cover_uncredited(context, name):
+    add_cover(context, "stock", picked_by=name, credited=False)
 
 
 @given('the Story has a figure cover approved by "{name}"')
