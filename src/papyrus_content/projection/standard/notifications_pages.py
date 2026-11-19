@@ -142,7 +142,10 @@ def fragment(name: str, *, site: str, home: str, paths: dict[str, str]) -> str:
             + _form(
                 "/api/notifications/preferences",
                 "",
-                '<div class="markus-notifications-lists" data-notifications-lists></div><p class="markus-actions">'
+                '<div class="markus-notifications-lists" data-notifications-lists></div>'
+                # Shown only while the reader has chosen something in a family they do not hold: the site's consent wording, posted back as the evidence.
+                f'<p class="markus-notifications-status" role="status" data-notifications-consent hidden>{ICONS["mail"]}<span data-notifications-consent-words></span></p>'
+                '<input type="hidden" name="consent" value="" disabled><p class="markus-actions">'
                 + _button("Save", "save", name="action", value="save")
                 + _button("Unsubscribe from everything", "bell-off", name="action", value="unsubscribe_all", secondary=True)
                 + _button("Delete my data", "trash-2", name="action", value="delete", secondary=True)

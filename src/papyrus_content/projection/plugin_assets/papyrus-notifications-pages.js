@@ -7,7 +7,10 @@
  *   - it asks GET /api/notifications/state (JSON) for the names of lists and, for the preferences page, the subscriber's state;
  *   - when a link is no good it replaces the page with the site's expired page; when the service cannot be reached it says so in words.
  *     People are never sent to an /api URL.
- * Each list on the preferences page is a button that is On or Off, said in words and shown with a Lucide bell or bell-off (never colour alone).
+ * The preferences page shows each family of lists (the same items at different cadences: every new item, the daily summary) as one choice among its lists and Off,
+ * and every other list as a button that is On or Off. A state is said in words and shown with a Lucide mark (a bell or bell-off, a circle-check or circle), never colour alone.
+ * Choosing something in a family the reader does not hold shows the site's consent wording and posts it back as the evidence; the function then mails a confirmation and
+ * the list begins only when the reader presses its link. A cadence chosen inside a family the reader holds needs nothing more.
  * On a site with a GA4 measurement id the analytics script (`papyrus-notifications-analytics-v1.js`) is loaded first and this script reports
  * subscribe_confirmed, preferences_changed, unsubscribe and subscribe_error through it (docs/site-hosting.md, "Subscription and notification
  * events"); the events carry list ids and the page type, never a token, address or query string. Without it nothing is reported.
@@ -19,10 +22,17 @@
   var TOKEN = /^[A-Za-z0-9._-]{1,2048}$/;
   var LIST_ID = /^[a-z][a-z0-9-]{0,39}$/;
   var STATE = "/api/notifications/state";
-  var NOTICES = { saved: "Your choices are saved.", unsubscribed: "You are unsubscribed from everything." };
+  var NOTICES = {
+    saved: "Your choices are saved.",
+    unsubscribed: "You are unsubscribed from everything.",
+    check_email: "Check your email to finish."
+  };
   var SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-icon="';
   var BELL = SVG + 'bell"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>';
   var BELL_OFF = SVG + 'bell-off"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742"/><path d="m2 2 20 20"/><path d="M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05"/></svg>';
+
+  var CHECK = SVG + 'circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
+  var CIRCLE = SVG + 'circle"><circle cx="12" cy="12" r="10"/></svg>';
 
   function one(root, selector) { return root.querySelector(selector); }
   function show(node, visible) { if (node) node.hidden = !visible; }
@@ -89,39 +99,125 @@
     show(holder, true);
   }
 
-  // One button per list. Pressed means On. The state is a word and an icon, and the hidden field is sent only while the list is On.
+  function field(name, value) {
+    var input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    return input;
+  }
+
+  function button(className, id) {
+    var node = make("button");
+    node.type = "button";
+    node.className = className;
+    node.id = id;
+    var mark = make("span");
+    mark.className = "markus-notifications-mark";
+    var word = make("span");
+    word.className = "markus-notifications-state";
+    return { node: node, mark: mark, word: word };
+  }
+
+  // A list that is its own family: one button, pressed means On. The state is a word and an icon, and the hidden field is sent only while the list is On.
+  // `joining()` says whether the reader has turned on something they did not hold, which needs their consent.
   function listRow(entry, index) {
     var row = make("div");
     row.className = "markus-notifications-list";
-    var field = document.createElement("input");
-    field.type = "hidden";
-    field.name = "l";
-    field.value = entry.id;
-    var button = make("button");
-    button.type = "button";
-    button.className = "markus-notifications-toggle";
-    button.id = "notifications-list-" + index;
-    var mark = make("span");
-    mark.className = "markus-notifications-mark";
+    var hidden = field("l", entry.id);
+    var control = button("markus-notifications-toggle", "notifications-list-" + index);
     var name = make("span", entry.name);
     name.className = "markus-notifications-name";
-    var word = make("span");
-    word.className = "markus-notifications-state";
-    button.appendChild(mark);
-    button.appendChild(name);
-    button.appendChild(word);
-    function paint(on) {
-      button.setAttribute("aria-pressed", on ? "true" : "false");
-      mark.innerHTML = on ? BELL : BELL_OFF;
-      word.textContent = on ? "On" : "Off";
-      field.disabled = !on;
+    control.node.appendChild(control.mark);
+    control.node.appendChild(name);
+    control.node.appendChild(control.word);
+    var on = entry.subscribed === true;
+    function paint() {
+      control.node.setAttribute("aria-pressed", on ? "true" : "false");
+      control.mark.innerHTML = on ? BELL : BELL_OFF;
+      control.word.textContent = on ? "On" : "Off";
+      hidden.disabled = !on;
     }
-    button.addEventListener("click", function () { paint(button.getAttribute("aria-pressed") !== "true"); });
-    paint(entry.subscribed === true);
-    row.appendChild(field);
-    row.appendChild(button);
+    control.node.addEventListener("click", function () { on = !on; paint(); row.changed(); });
+    paint();
+    row.appendChild(hidden);
+    row.appendChild(control.node);
     if (entry.description) row.appendChild(make("p", entry.description));
+    row.joining = function () { return on && entry.subscribed !== true; };
     return row;
+  }
+
+  // A family: the same items at different cadences. The reader holds one list of it or none, so it is one choice among its lists and Off.
+  // The chosen one is pressed and says "Chosen"; the others say "Choose". Only the chosen list's hidden field is sent.
+  function familyRow(entries, index) {
+    var row = make("div");
+    row.className = "markus-notifications-list markus-notifications-family";
+    row.setAttribute("role", "group");
+    var held = entries.filter(function (entry) { return entry.subscribed === true; })[0];
+    var chosen = held ? held.id : "";
+    var label = make("p", "Choose one: " + entries.map(function (entry) { return entry.name; }).join(", ") + ", or Off.");
+    label.className = "markus-notifications-family-label";
+    row.appendChild(label);
+    var options = entries.map(function (entry) { return { id: entry.id, name: entry.name, description: entry.description }; });
+    options.push({ id: "", name: "Off", description: "" });
+    var painters = [];
+    options.forEach(function (option, position) {
+      var hidden = option.id ? field("l", option.id) : null;
+      var control = button("markus-notifications-toggle markus-notifications-choice", "notifications-family-" + index + "-" + position);
+      var name = make("span", option.name);
+      name.className = "markus-notifications-name";
+      control.node.appendChild(control.mark);
+      control.node.appendChild(name);
+      control.node.appendChild(control.word);
+      function paint() {
+        var on = chosen === option.id;
+        control.node.setAttribute("aria-pressed", on ? "true" : "false");
+        control.mark.innerHTML = on ? CHECK : CIRCLE;
+        control.word.textContent = on ? "Chosen" : "Choose";
+        if (hidden) hidden.disabled = !on;
+      }
+      control.node.addEventListener("click", function () {
+        chosen = option.id;
+        painters.forEach(function (repaint) { repaint(); });
+        row.changed();
+      });
+      painters.push(paint);
+      paint();
+      if (hidden) row.appendChild(hidden);
+      row.appendChild(control.node);
+      if (option.description) row.appendChild(make("p", option.description));
+    });
+    row.joining = function () { return chosen !== "" && !held; };
+    return row;
+  }
+
+  // Lists that name the same family are one choice; a list with no family is its own. The order is the site's.
+  function arrange(lists) {
+    var order = [];
+    var members = {};
+    lists.forEach(function (entry) {
+      var family = entry.family || entry.id;
+      if (!members[family]) { members[family] = []; order.push(family); }
+      members[family].push(entry);
+    });
+    return order.map(function (family) { return members[family]; });
+  }
+
+  // Shows the site's consent wording and sends it with the save only while something the reader does not hold is chosen.
+  function consentFor(root, form, wording, rows) {
+    var block = one(root, "[data-notifications-consent]");
+    var input = form.elements.consent;
+    var action = one(form, "button[value=save] span");
+    function update() {
+      var needed = wording !== "" && rows.some(function (row) { return row.joining(); });
+      input.value = needed ? wording : "";
+      input.disabled = !needed;
+      show(block, needed);
+      if (needed) one(block, "[data-notifications-consent-words]").textContent = "Choosing this needs your confirmation. We will email you a link; it does not start until you press it. By saving you agree: " + wording;
+      if (action) action.textContent = needed ? "Save and send a confirmation" : "Save";
+    }
+    rows.forEach(function (row) { row.changed = update; });
+    update();
   }
 
   function summary(lists) {
@@ -197,8 +293,13 @@
         var form = one(manage, "form");
         var holder = one(form, "[data-notifications-lists]");
         var lists = answer.body.lists || [];
-        one(manage, "[data-notifications-email]").textContent = "Notifications for " + (answer.body.email || "your address") + ". Press a button to turn it on or off, then save.";
-        lists.forEach(function (entry, index) { holder.appendChild(listRow(entry, index)); });
+        one(manage, "[data-notifications-email]").textContent = "Notifications for " + (answer.body.email || "your address") + ". Choose what you get, then save.";
+        var rows = arrange(lists).map(function (entries, index) {
+          var row = entries.length > 1 ? familyRow(entries, index) : listRow(entries[0], index);
+          holder.appendChild(row);
+          return row;
+        });
+        consentFor(root, form, typeof answer.body.consent === "string" ? answer.body.consent : "", rows);
         var confirm = one(root, "[data-notifications-section=delete]");
         fillToken(form, token);
         one(confirm, "form").elements.t.value = token;
@@ -211,8 +312,15 @@
         }
         if (NOTICES[message] && step !== "delete") {
           var notice = one(root, "[data-notifications-notice]");
-          one(notice, "span").textContent = NOTICES[message] + (message === "saved" ? summary(lists) : "");
+          var words = NOTICES[message] + (message === "saved" || message === "check_email" ? summary(lists) : "");
+          one(notice, "span").textContent = words;
           show(notice, true);
+          // A new family waits for the reader's confirmation: say which, in words.
+          if (message === "check_email") {
+            nameLists(listIds(query.get("confirming"))).then(function (names) {
+              if (names.length > 0) one(notice, "span").textContent = "Your other choices are saved. We emailed a link to confirm: " + names.join(", ") + ". It is not on until you press the link." + summary(lists);
+            });
+          }
         }
       }).catch(function () { unavailable(root); });
     }

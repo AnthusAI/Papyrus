@@ -47,6 +47,7 @@ class Runtime:
     log: DeliveryLog
     read_item: Callable[[str], Mapping[str, Any] | None]
     audience: PublicAudience
+    keys: AudienceKeys
     #: Old newsletter links, only while the migration's alias period runs (``legacy_links.py``; deleted after).
     legacy: LegacyLinks | None = None
     #: An address's recipient key in this site's table (the migration tool names its rows by it).
@@ -114,7 +115,7 @@ def assemble(
         audience=audience,
     )
     return Runtime(
-        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item, audience=audience,
+        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item, audience=audience, keys=audience_keys,
         recipient_key=audience_keys.recipient,
         legacy=LegacyLinks(legacy_token_key, audience, lambda: clock().timestamp()) if legacy_token_key else None,
     )

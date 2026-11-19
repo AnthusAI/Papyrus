@@ -83,7 +83,7 @@ Feature: A reader picks one cadence of the same items and every item reaches the
 
   Scenario: A reader who joins the daily summary after a period started does not get that period's summary
     Given the reader has confirmed "weekly" on "2026-11-03T15:00:00Z"
-    When the reader saves the preferences "daily" and "weekly" on "2026-11-04T17:00:00Z"
+    When the reader confirms "daily" on "2026-11-04T17:00:00Z"
     And the daily summary scheduled for "2026-11-05T06:00" local time is sent
     Then the reader has no daily summary
 
@@ -107,8 +107,8 @@ Feature: A reader picks one cadence of the same items and every item reaches the
 
   Scenario: A reader on the weekly newsletter and the daily summary gets both
     Given the reader has confirmed "weekly" on "2026-11-02T15:00:00Z"
-    When the reader saves the preferences "daily" and "weekly" on "2026-11-03T15:00:00Z"
-    And the daily summary scheduled for "2026-11-06T06:00" local time is sent
+    And the reader has confirmed "daily" on "2026-11-03T15:00:00Z"
+    When the daily summary scheduled for "2026-11-06T06:00" local time is sent
     And the weekly issue scheduled for "2026-11-16T04:00" local time is sent
     Then the reader has the daily summary scheduled for "2026-11-06T06:00" local time
     And the reader has the weekly issue scheduled for "2026-11-16T04:00" local time
@@ -128,11 +128,11 @@ Feature: A reader picks one cadence of the same items and every item reaches the
     When the mail provider posts the one-click unsubscribe from the message for "Morning story"
     Then the reader is still on "weekly" and nothing else
 
-  Scenario: Joining the daily summary again after leaving begins a new membership at once, because there is no other list of the family to move from
+  Scenario: Joining the daily summary again after leaving begins when the reader confirms it, at once because there is no other list of the family to move from
     Given the reader has confirmed "daily" on "2026-11-03T15:00:00Z"
     And the reader has confirmed "weekly" on "2026-11-03T15:00:00Z"
     And the reader turns off "daily" on "2026-11-04T10:00:00Z"
-    When the reader saves the preferences "daily" and "weekly" on "2026-11-04T17:00:00Z"
+    When the reader confirms "daily" on "2026-11-04T17:00:00Z"
     Then the reader's membership of "daily" begins at "2026-11-04T17:00:00Z"
     And the reader's membership of "weekly" began at "2026-11-03T15:00:00Z" and has no end
 
