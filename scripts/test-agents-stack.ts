@@ -14,6 +14,27 @@ import path from "node:path";
 import { Template } from "aws-cdk-lib/assertions";
 import { agentPieces } from "../amplify/agents/pieces";
 import { ITEM_FEED_API_FIELDS, ITEM_STREAM_VIEW, type ItemChangeFeedSource } from "../amplify/agents/item-change-feed";
+import {
+  CHANGE_FEED_API_FIELDS,
+  CHANGE_FEED_FILTERS,
+  CHANGE_FEED_FUNCTION_ENV,
+  CHANGE_FEED_RELAY_STREAMS_ENV,
+  CHANGE_FEED_STREAMS_ENV,
+  allowChangeFeedRelay,
+  changeFeedFunctionName,
+  type ChangeFeedsSource,
+} from "../amplify/agents/change-feeds";
+import {
+  FEED_TABLES,
+  MAX_STREAM_READERS,
+  RELAY_CARRIERS,
+  STREAM_READER_TABLES,
+  planFeed,
+  planFeeds,
+  readerCounts,
+  type FeedTable,
+  type StreamReaderId,
+} from "../amplify/agents/stream-readers";
 import { AGENTS_STACK_NAME, addAgentsStack, countPieceResources, type AgentPiece } from "../amplify/agents/stack";
 import { FOLLOW_UP_ENTRY_PREFIX, SCHEDULE_GROUP_NAME_SUFFIX, SCHEDULER_ROLE_NAME_SUFFIX, allowFollowUpTimers, scheduleNames } from "../amplify/agents/schedule-group";
 import {
@@ -91,7 +112,17 @@ const feedSource: ItemChangeFeedSource = {
   bucketName: "sample-bucket",
   bucketArn: "arn:aws:s3:::sample-bucket",
 };
-const pieces = agentPieces(SAMPLE_BRAND, { itemChangeFeed: feedSource });
+const feedStreamArns = Object.fromEntries(FEED_TABLES.map((table) => [table, `arn:aws:dynamodb:us-east-1:123456789012:table/${table}-sample/stream/2026-01-01T00:00:00.000`])) as Record<FeedTable, string>;
+const changeFeedsSource: ChangeFeedsSource = {
+  streams: feedStreamArns,
+  placements: planFeeds(["reference-word-index", "localization-dispatch"]),
+  graphqlUrl: feedSource.graphqlUrl,
+  apiId: feedSource.apiId,
+  tenantId: feedSource.tenantId,
+  bucketName: feedSource.bucketName,
+  bucketArn: feedSource.bucketArn,
+};
+const pieces = agentPieces(SAMPLE_BRAND, { itemChangeFeed: feedSource, changeFeeds: changeFeedsSource });
 assert.deepEqual(agentPieces(SAMPLE_BRAND).map((piece) => piece.id), ["wake-queue", "schedule-group"], "a backend that gives no Item stream (shared, or the bootstrap stage) has no feed piece");
 const prices = pieces.map((piece) => {
   const scratch = new Stack(new App(), "scratch");
@@ -229,6 +260,106 @@ for (const forbidden of ["dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem", 
 const feedSourceText = readFileSync(path.join(root, "src/papyrus_content/item_change_feed.py"), "utf8");
 for (const variable of ["PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_TENANT_ID", "PAPYRUS_SITE_BUCKET", "PAPYRUS_GRAPHQL_ENDPOINT"]) assert.ok(feedSourceText.includes(`"${variable}"`), `the feed reads ${variable}`);
 assert.ok(readFileSync(path.join(root, "src/papyrus_content/agent_listeners.py"), "utf8").includes('KIND = "listeners"'), "the index kind the policy reads (tenants/<tenant>/site/listeners/) is the kind the deploy writes");
+
+// The change feeds piece (slice B3, PPY-9b9e64): one function with its role and policy, and one mapping for each stream the feed reads itself.
+const feedsScratch = new Stack(new App(), "feeds-scratch", { env: { account: "123456789012", region: "us-east-1" } });
+const feedsPiece = pieces.find((piece) => piece.id === "change-feeds");
+assert.ok(feedsPiece, "the change feeds are an agent piece");
+const feedsConstruct = new Construct(feedsScratch, feedsPiece.id);
+feedsPiece.add(feedsConstruct);
+const ownTables = FEED_TABLES.filter((table) => changeFeedsSource.placements[table].mode === "own");
+assert.deepEqual(ownTables, [...FEED_TABLES], "with one reader on Reference and one on LocalizationRequest, every feed reads its own stream");
+assert.equal(countPieceResources(feedsConstruct), 3 + ownTables.length, "the feeds are one function, its role and policy, and one mapping for each stream the feed reads itself");
+console.log(`change feeds piece: ${countPieceResources(feedsConstruct)} resources (function, role, policy, ${ownTables.length} stream mappings)`);
+const feedsTemplate = Template.fromStack(feedsScratch);
+feedsTemplate.resourceCountIs("AWS::Lambda::Function", 1);
+feedsTemplate.resourceCountIs("AWS::Lambda::EventSourceMapping", ownTables.length);
+feedsTemplate.resourceCountIs("AWS::SQS::Queue", 0);
+feedsTemplate.resourceCountIs("AWS::CloudWatch::Alarm", 0);
+feedsTemplate.resourceCountIs("AWS::DynamoDB::Table", 0);
+assert.equal(changeFeedFunctionName(SAMPLE_BRAND), "papyrus-sample-site-change-feed");
+assert.ok(changeFeedFunctionName("x".repeat(80)).length <= 64, "the longest feed function name fits the 64-character limit");
+assert.throws(() => changeFeedFunctionName("---"), /brand id/);
+feedsTemplate.hasResourceProperties("AWS::Lambda::Function", {
+  FunctionName: changeFeedFunctionName(SAMPLE_BRAND),
+  Environment: { Variables: { PAPYRUS_AGENT_PUBLICATION_ID: SAMPLE_BRAND, PAPYRUS_TENANT_ID: "sample-tenant", PAPYRUS_SITE_BUCKET: "sample-bucket", PAPYRUS_GRAPHQL_ENDPOINT: feedSource.graphqlUrl } },
+});
+for (const table of FEED_TABLES) {
+  feedsTemplate.hasResourceProperties("AWS::Lambda::EventSourceMapping", {
+    EventSourceArn: feedStreamArns[table],
+    StartingPosition: "LATEST",
+    FunctionResponseTypes: ["ReportBatchItemFailures"],
+    FilterCriteria: { Filters: [{ Pattern: JSON.stringify(CHANGE_FEED_FILTERS[table]) }] },
+  });
+}
+// The feed reads which stream is which table from its setting, as a list of stream and table: the same list the Python feed reads.
+const feedFunction = Object.values(feedsTemplate.findResources("AWS::Lambda::Function"))[0];
+assert.ok(JSON.stringify(feedFunction.Properties.Environment.Variables[CHANGE_FEED_STREAMS_ENV]).includes("Reference"), "the feed's streams are named in its settings");
+const feedsPolicy = JSON.stringify(Object.values(feedsTemplate.findResources("AWS::IAM::Policy")));
+for (const field of CHANGE_FEED_API_FIELDS) assert.ok(feedsPolicy.includes(`types/${field}`), `the change feed may call ${field}`);
+assert.ok(feedsPolicy.includes("sample-bucket/tenants/sample-tenant/site/listeners/*"), "it reads the listener index's objects of its own tenant and nothing else in the bucket");
+assert.ok(feedsPolicy.includes(names.queue) && feedsPolicy.includes("sqs:SendMessage") && feedsPolicy.includes("sqs:GetQueueUrl"), "it puts wakes on its own site's queue");
+for (const table of FEED_TABLES) assert.ok(feedsPolicy.includes(feedStreamArns[table]), `it reads the ${table} stream it owns`);
+for (const forbidden of ["dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "sqs:ReceiveMessage", "sqs:DeleteMessage", "lambda:Invoke", "Mutation/fields", "Query/fields/list", "Query/fields/*", "s3:PutObject", "s3:ListBucket"]) {
+  assert.ok(!feedsPolicy.includes(forbidden), `the change feed must not hold ${forbidden}`);
+}
+const feedsPython = readFileSync(path.join(root, "src/papyrus_content/change_feeds.py"), "utf8");
+assert.ok(feedsPython.includes(`STREAMS_ENVIRONMENT = "${CHANGE_FEED_STREAMS_ENV}"`), "the Python feed reads the streams setting the piece sets");
+const relayPython = readFileSync(path.join(root, "src/papyrus_content/change_feed_relay.py"), "utf8");
+assert.ok(relayPython.includes(`FUNCTION_ENVIRONMENT = "${CHANGE_FEED_FUNCTION_ENV}"`) && relayPython.includes(`STREAMS_ENVIRONMENT = "${CHANGE_FEED_RELAY_STREAMS_ENV}"`), "the relay reads the settings the stack sets");
+// The filters never hide a change the Python feed acts on: a table's filter names fields and values the normalizer's own changes carry.
+assert.deepEqual(CHANGE_FEED_FILTERS.ReviewRequest, { eventName: ["MODIFY"], dynamodb: { NewImage: { state: { S: ["answered"] } } } }, "only an answered request starts the feed");
+assert.deepEqual(CHANGE_FEED_FILTERS.Message, { eventName: ["INSERT"], dynamodb: { NewImage: { messageKind: { S: ["comment"] } } } }, "only a posted comment starts the feed");
+
+// A reader that carries a feed: it may invoke the one function and nothing more, and gains settings and no resource.
+const carrierStack = new Stack(new App(), "carrier-scratch", { env: { account: "123456789012", region: "us-east-1" } });
+const carrier = new LambdaFunction(carrierStack, "Carrier", { runtime: Runtime.PYTHON_3_12, handler: "handler.handler", code: Code.fromInline("def handler(event, context): return {}") });
+carrier.addToRolePolicy(new PolicyStatement({ actions: ["logs:PutLogEvents"], resources: ["*"] }));
+const carrierBefore = resourceCount(carrierStack);
+allowChangeFeedRelay(carrier, SAMPLE_BRAND, [feedStreamArns.Message]);
+assert.equal(resourceCount(carrierStack), carrierBefore, "passing a batch to the feed adds no resource");
+const carrierTemplate = Template.fromStack(carrierStack);
+carrierTemplate.hasResourceProperties("AWS::Lambda::Function", {
+  Environment: { Variables: { [CHANGE_FEED_FUNCTION_ENV]: changeFeedFunctionName(SAMPLE_BRAND), [CHANGE_FEED_RELAY_STREAMS_ENV]: JSON.stringify([feedStreamArns.Message]) } },
+});
+const carrierStatements = Object.values(carrierTemplate.findResources("AWS::IAM::Policy"))[0].Properties.PolicyDocument.Statement as { Action: string | string[]; Resource: unknown }[];
+const invoke = carrierStatements.find((statement) => [statement.Action].flat().includes("lambda:InvokeFunction"));
+assert.deepEqual(invoke!.Resource, { "Fn::Join": ["", ["arn:", { Ref: "AWS::Partition" }, `:lambda:us-east-1:123456789012:function:${changeFeedFunctionName(SAMPLE_BRAND)}`]] });
+
+// No table has more than two stream readers. Every combination of the readers that can be switched on is placed by the rule, and a table that has two readers
+// already is never given a third: its feed sits behind one of them, which can carry it.
+const everyReader = Object.keys(STREAM_READER_TABLES) as StreamReaderId[];
+let combinations = 0;
+const alreadyOverTwo = new Set<string>();
+for (let mask = 0; mask < 1 << everyReader.length; mask += 1) {
+  const active = everyReader.filter((_, position) => (mask >> position) & 1);
+  const placements = planFeeds(active);
+  const counts = readerCounts(active, placements);
+  combinations += 1;
+  for (const table of FEED_TABLES) {
+    const existing = active.filter((reader) => STREAM_READER_TABLES[reader] === table);
+    const placement = placements[table];
+    if (existing.length >= MAX_STREAM_READERS) {
+      assert.equal(placement.mode, "behind", `${table} has ${existing.length} readers: the feed is put behind one, never added`);
+      assert.ok(placement.mode === "behind" && existing.includes(placement.reader) && (RELAY_CARRIERS[table] ?? []).includes(placement.reader), `${table}'s feed sits behind a reader that is on the stream and can carry it`);
+      assert.equal(counts[table], existing.length, `${table} gains no reader`);
+      if (existing.length > MAX_STREAM_READERS) alreadyOverTwo.add(`${table}: ${existing.join(" + ")}`);
+    } else {
+      assert.equal(placement.mode, "own");
+      assert.ok(counts[table] <= MAX_STREAM_READERS, `${table} has ${counts[table]} readers in ${active.join(", ")}`);
+    }
+  }
+  for (const [table, count] of Object.entries(counts)) {
+    assert.ok(count <= MAX_STREAM_READERS || alreadyOverTwo.has([...alreadyOverTwo].find((entry) => entry.startsWith(`${table}:`)) ?? ""), `${table} has ${count} stream readers in ${active.join(", ")}`);
+  }
+}
+assert.equal(planFeed("ReviewRequest", everyReader).mode, "own", "ReviewRequest and Delivery have no other reader: the feed is their one");
+assert.deepEqual(planFeed("Reference", ["reference-word-index", "home-page-references"]), { mode: "behind", reader: "reference-word-index" });
+assert.deepEqual(planFeed("Message", ["console-responder", "home-page-threads"]), { mode: "behind", reader: "home-page-threads" });
+assert.deepEqual(planFeed("Message", ["console-responder", "slack-delivery", "home-page-threads"]), { mode: "behind", reader: "slack-delivery" });
+assert.deepEqual(planFeed("Message", ["console-responder"]), { mode: "own" });
+assert.throws(() => planFeed("Message", ["console-responder", "console-responder"]), /none of them can carry/);
+console.log(`stream readers: ${combinations} combinations of the readers placed; no table is given a third reader. Already over two before any feed: ${[...alreadyOverTwo].join("; ") || "none"}`);
 
 // The follow-up timers' permission (slice C2): a function that sets due times may create, update and delete `follow-up-*` entries in this site's group, and pass the
 // scheduler role to the scheduler service. It adds no resource (two statements on the function's own role) and never reaches the reconciler's `agent-*` entries,

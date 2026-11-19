@@ -14,71 +14,9 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
-from boto3.dynamodb.types import TypeSerializer  # noqa: E402
-
 from papyrus_content import agent_listeners, agent_wakes, item_change_feed  # noqa: E402
+from papyrus_content.change_feed_fakes import BUCKET, ENDPOINT, TENANT, CountingS3, CountingTable, FakeQueue, FakeSqs, deploy as _deploy_index, open_index, stream_record  # noqa: E402,F401
 from papyrus_content.localize.dispatch import decode_image  # noqa: E402
-from papyrus_content.site_store import SiteStore  # noqa: E402
-from papyrus_content.site_store_test import FakeS3, FakeTable  # noqa: E402
-
-TENANT, BUCKET = "alpha", "bucket"
-ENDPOINT = "https://example123456789012345678.appsync-api.us-east-1.amazonaws.com/graphql"
-SERIALIZER = TypeSerializer()
-
-
-class CountingS3(FakeS3):
-    def __init__(self):
-        super().__init__()
-        self.gets = 0
-
-    def get_object(self, Bucket, Key):
-        self.gets += 1
-        return super().get_object(Bucket, Key)
-
-
-class CountingTable(FakeTable):
-    """The site's catalogue as the feed may use it: point reads of SiteDocument. Anything else is recorded, so a list or a scan would show."""
-
-    def __init__(self):
-        super().__init__()
-        self.reads = []
-
-    def get(self, model, row_id):
-        self.reads.append(model)
-        return super().get(model, row_id)
-
-
-class Message:
-    def __init__(self, body, group, dedupe):
-        self.body, self.group, self.dedupe = body, group, dedupe
-
-
-class FakeQueue:
-    """What Papyrus relies on of an SQS FIFO queue: a repeated deduplication id inside the window is dropped."""
-
-    def __init__(self):
-        self.messages, self.window, self.refuse_from = [], set(), None
-        self.attempts = 0
-
-    def send(self, body, group, dedupe):
-        self.attempts += 1
-        if self.refuse_from is not None and self.attempts >= self.refuse_from:
-            raise OSError("the queue is unavailable")
-        if dedupe in self.window:
-            return
-        self.window.add(dedupe)
-        self.messages.append(Message(body, group, dedupe))
-
-
-class FakeSqs:
-    def __init__(self, queues):
-        self.queues = queues
-
-    def get_queue_url(self, QueueName):
-        return {"QueueUrl": f"https://sqs.example.test/000000000000/{QueueName}"}
-
-    def send_message(self, QueueUrl, MessageBody, MessageGroupId, MessageDeduplicationId):
-        self.queues[QueueUrl.rsplit("/", 1)[1]].send(MessageBody, MessageGroupId, MessageDeduplicationId)
 
 
 def _definition(row: dict):
@@ -89,29 +27,11 @@ def _definition(row: dict):
     return SimpleNamespace(id=row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
 
 
-def _open_index(context):
-    context.s3, context.catalogue = CountingS3(), CountingTable()
-    context.deploy_gets = 0
-    context.store = SiteStore(context.s3, BUCKET, context.catalogue, now=lambda: "2026-11-18T00:00:00Z")
-    context.index = agent_listeners.ListenerIndex(context.store, TENANT)
-
-
-def _deploy(context, definitions):
-    """The deploy's write of the index. Its own reads of the object are not the feed's, so they are counted apart."""
-    before = context.s3.gets
-    result = agent_listeners.publish(context.store, TENANT, definitions, actor="release", apply=True)
-    context.deploy_gets += context.s3.gets - before
-    return result
+_open_index, _deploy = open_index, _deploy_index
 
 
 def _record(name, old, new, sequence):
-    image = lambda row: {key: SERIALIZER.serialize(value) for key, value in row.items()} if row else None   # noqa: E731
-    stream = {"SequenceNumber": f"{sequence:08d}", "Keys": {"id": SERIALIZER.serialize((new or old)["id"])}}
-    if old:
-        stream["OldImage"] = image(old)
-    if new:
-        stream["NewImage"] = image(new)
-    return {"eventName": name, "dynamodb": stream}
+    return stream_record(name, old, new, sequence)
 
 
 def _story(version, stage="idea", **fields):

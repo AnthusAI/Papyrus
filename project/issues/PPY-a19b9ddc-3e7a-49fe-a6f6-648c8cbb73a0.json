@@ -3,7 +3,7 @@
   "title": "Cadence families: a reader picks one cadence, so nobody gets an item twice",
   "description": "Lists that carry the same items at different cadences (every item, daily summary) form a family. A reader holds at most one list of a family at a time; choosing another moves them. A membership records `since`. A periodic Delivery goes to readers who were members at the period's start; an every-item Delivery goes to members at the moment it is sent. So a reader who moves from every-item to daily at noon gets today's earlier items once (as they happened) and their first summary for the next period. A curated weekly newsletter is its own family and may repeat items by design. Enforced in Caducus's preference write.\n\n**Acceptance criteria**\n- A reader cannot hold two lists of one family.\n- After switching cadence a reader gets no item twice.\n- The weekly newsletter is unaffected by a reader's daily or every-item choice.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- cadence-family.feature: choosing daily removes every-item; a noon switch gets no duplicate; a reader on weekly and daily gets both; the rule holds through the one-click unsubscribe path.\n\n**Infrastructure as code touched:** Caducus: public-audience preference rule (released through the Caducus release path).\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -40,11 +40,25 @@
         "model": "Sonnet 5.5",
         "name": "Claude Code"
       }
+    },
+    {
+      "id": "0db22d72-62ca-4aaf-a63c-f96d6c7ca82e",
+      "author": "home",
+      "text": "Merged: PR 1683 on Caducus 0.4.0 (tag v0.4.0, PyPI 0.4.0). Subclass deleted.",
+      "created_at": "2026-11-18T23:55:49.349528Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "54b207cf-be43-4a32-a1eb-e81326ba29d0",
+      "author": "home",
+      "text": "home: merged, PR 1683 on Caducus 0.4.0 (tag v0.4.0, PyPI 0.4.0); subclass deleted.",
+      "created_at": "2026-11-18T23:56:02.658581Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:16.750449Z",
-  "updated_at": "2026-11-18T19:13:11.876922Z",
-  "closed_at": null,
+  "updated_at": "2026-11-18T23:56:02.659622Z",
+  "closed_at": "2026-11-18T23:55:48.425749Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
