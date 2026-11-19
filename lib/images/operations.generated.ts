@@ -51,6 +51,8 @@ export type ImageOperationName =
   | "announcements_pinned_change"
   | "announcements_release"
   | "announcements_unlock"
+  | "announcements_example"
+  | "announcements_preferred"
   | "announcements_correct"
   | "announcements_record_manual"
   | "announcements_withdraw"
@@ -880,12 +882,15 @@ export type GuidelinesResolveInput = {
   section?: string;
   /** The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. Leave it out for the guidelines every language shares. */
   language?: string;
+  /** The channel the text is for (x, linkedin, email): a rule file scoped to channel/<name> is in the answer only for that channel. */
+  channel?: string;
 };
 
 export type GuidelinesResolveResult = {
   kind: string;
   section?: string;
   language?: string;
+  channel?: string;
   /** False when the publication has no guidelines of this kind yet. */
   found: boolean;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
@@ -1381,6 +1386,56 @@ export type AnnouncementsUnlockResult = {
   lockedVersion?: number | null;
 };
 
+/** Say how far what a person changed in an announcement should reach, so later drafts can follow it. */
+export type AnnouncementsExampleInput = {
+  /** The Delivery's id: one that went out, or one with a preferred version. */
+  delivery: string;
+  /** How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why, kept with the words in S3 and never in the catalog. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsExampleResult = {
+  id: string;
+  recorded: boolean;
+  exampleState?: string | null;
+  exampleScope?: string | null;
+  machineVersion?: number | null;
+  finalVersion?: number | null;
+  reason?: string | null;
+};
+
+/** Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text. */
+export type AnnouncementsPreferredInput = {
+  /** The Delivery's id: one that went out, or has an attempt open. */
+  delivery: string;
+  /** The version of the Delivery you read. */
+  replaces: number;
+  /** How it should have read. */
+  text: string;
+  /** Also record how far it reaches, in the same step. Leave it out to keep it as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsPreferredResult = {
+  id: string;
+  /** saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft. */
+  status: "saved" | "preferred" | "unchanged" | "dropped" | "candidate";
+  version?: number;
+  replaces?: number | null;
+  reason?: string;
+  /** The candidate's id, when one was kept. */
+  candidate?: string;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  preferredVersion?: number | null;
+  /** Each block's owner (human or machine) and whether it is pinned. */
+  blocks?: Record<string, unknown>[];
+};
+
 /** Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. */
 export type AnnouncementsCorrectInput = {
   /** The id of the Delivery that went and is to be corrected. */
@@ -1603,17 +1658,19 @@ export type AnnouncementsRecentResult = {
   next: string | null;
 };
 
-/** Why a Story was or was not announced, for each channel, naming the rule. Reads the rules; writes nothing. */
+/** Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read. Reads the rules; writes nothing. */
 export type AnnouncementsExplainInput = {
   /** The lineage id of the Story. */
-  story: string;
+  story?: string;
+  /** Ask instead about a Delivery: the guideline layers (scope, item, version, hash) and the examples its draft read. */
+  delivery?: string;
 };
 
 export type AnnouncementsExplainResult = {
-  story: string;
+  story?: string;
   title?: string;
   stars?: number;
-  channels: {
+  channels?: {
     channel: string;
     announced: boolean;
     /** The rule: announced, off, not_published, type_not_announced, section_not_announced, below_bar, below_floor, machine_five, story_not_reviewed, no_delivery or would_announce. */
@@ -1621,6 +1678,20 @@ export type AnnouncementsExplainResult = {
     words: string;
     delivery?: string;
   }[];
+  /** The Delivery asked about. */
+  delivery?: string;
+  recorded?: boolean;
+  words?: string;
+  storyVersion?: number | null;
+  model?: string | null;
+  /** Each guideline layer the draft read: scope, itemId, versionNumber, contentHash. */
+  guidelineLayers?: Record<string, unknown>[];
+  /** The examples the draft read, and whether each is still on. */
+  examples?: ({
+    delivery: string;
+    state: string;
+    scope?: string | null;
+  })[];
 };
 
 /** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
@@ -1708,6 +1779,8 @@ export interface ImageOperations {
   announcements_pinned_change: { input: AnnouncementsPinnedChangeInput; result: AnnouncementsPinnedChangeResult };
   announcements_release: { input: AnnouncementsReleaseInput; result: AnnouncementsReleaseResult };
   announcements_unlock: { input: AnnouncementsUnlockInput; result: AnnouncementsUnlockResult };
+  announcements_example: { input: AnnouncementsExampleInput; result: AnnouncementsExampleResult };
+  announcements_preferred: { input: AnnouncementsPreferredInput; result: AnnouncementsPreferredResult };
   announcements_correct: { input: AnnouncementsCorrectInput; result: AnnouncementsCorrectResult };
   announcements_record_manual: { input: AnnouncementsRecordManualInput; result: AnnouncementsRecordManualResult };
   announcements_withdraw: { input: AnnouncementsWithdrawInput; result: AnnouncementsWithdrawResult };
@@ -1768,6 +1841,8 @@ export const IMAGE_OPERATIONS = {
   announcements_pinned_change: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements pinned" },
   announcements_release: { effect: "write", agentAllowed: true, agentRung: "publish_auto", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements release" },
   announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
+  announcements_example: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements example" },
+  announcements_preferred: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements preferred" },
   announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
   announcements_record_manual: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements record-manual" },
   announcements_withdraw: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },

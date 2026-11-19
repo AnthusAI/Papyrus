@@ -11,11 +11,16 @@ for a note that has not changed and never touches a note a person has since chan
 
 A note whose front matter says ``stage: published`` is published after it is written, through the site's own publish step (``publish_item`` and the site's
 page-build trigger, the same as ``papyrus content publish``). Every publish rule still applies as the newsroom has it (a closed checklist, a rating where the
-site requires one, a person's approval where the site requires it, ``publishRequiresRating``): when one refuses, the load reports the refusal for that note, the
+site requires one, a person's approval where the site requires it, ``publishRequiresRating``), and a Story (not a Page) loaded from a pod publishes only by a person's hand
+(``publish_by_person.py``): when one refuses, the load reports the refusal for that note, the
 note stays loaded as a draft, and nothing is forced or bypassed. A note that does not say ``published`` is never published, and neither is any note of a private pod (one with no ``web/projection.json``): a private pod's notes are
 private newsroom data. Reloading an unchanged note does nothing.
 
-Only notes of a class that is an Item (Article, Post, Page) are loaded by this version. Notes of the other classes are counted and named in the report.
+**Announcement and Delivery notes load as history.** After the Stories are written, each Announcement note and its Delivery notes become the same two records the newsroom writes
+(``papyrus_content.announcements.pod_history``), in manual mode and in the final state the note says. A load sends nothing: it has no channel, the loaded Delivery waits for nothing and
+a pod's approval is a claim. They are loaded once (a note loaded again finds the first load) and a record the newsroom edited since is the newsroom's. Neither is ever a page.
+
+Only notes of a class that is an Item (Article, Post, Page), or an Announcement or a Delivery, are loaded by this version. Notes of the other classes are counted and named in the report.
 """
 from __future__ import annotations
 
@@ -32,7 +37,7 @@ from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.operator_errors import OperatorError
 from papyrus_content.pod_claims import CLAIM_KEYS, FIVE_STAR_CANDIDATE, POD_METADATA_KEY, pod_record
 from papyrus_content.publishing import ItemFields, PublishError, publish_item, save_item
-from papyrus_content.story_reporting import save_story_version, story_versions
+from papyrus_content.story_reporting import current_story_version, save_story_version, story_versions
 from papyrus_content.tenancy import tenant_scoped_item_id
 
 from . import profile
@@ -45,6 +50,8 @@ DEFAULT_STAGE = "copywriting"
 PUBLISHED_STAGE = "published"
 PUBLISHED, REFUSED = "published", "refused"
 ITEM_CLASSES = {"Article": "article", "Post": "post", "Page": "page"}
+#: Notes that become the newsroom's history records, not Items (``papyrus_content.announcements.pod_history``).
+HISTORY_CLASSES = ("Announcement", "Delivery")
 GIT_TIMEOUT_SECONDS = 30
 
 CREATED, UPDATED, UNCHANGED, NEWSROOM_OWNED = "created", "updated", "unchanged", "now owned by the newsroom"
@@ -88,6 +95,10 @@ class Plan:
     private: bool
     notes: list[PlannedNote] = field(default_factory=list)
     skipped_classes: dict[str, int] = field(default_factory=dict)
+    #: How many Announcement and Delivery notes the pod has: they load as history after the Stories are written.
+    history_notes: dict[str, int] = field(default_factory=dict)
+    #: What the load of the history records did, once applied: ``(created, found)`` Announcement counts.
+    history_loaded: tuple[int, int] | None = None
     problems: list[str] = field(default_factory=list)
     client: Any = None      # opened only for a pod that passed the check: a pod with problems never signs in
 
@@ -157,6 +168,9 @@ def plan_load(pod: Path, commit: str, tenant_id: str | None, open_client) -> Pla
     for note in notes:
         front = note.front or {}
         class_name = _class_of(note)
+        if class_name in HISTORY_CLASSES:
+            plan.history_notes[class_name] = plan.history_notes.get(class_name, 0) + 1
+            continue
         if class_name not in ITEM_CLASSES:
             plan.skipped_classes[class_name or "untyped"] = plan.skipped_classes.get(class_name or "untyped", 0) + 1
             continue
@@ -209,9 +223,10 @@ def _classify(planned: PlannedNote, client, loaded: str) -> None:
         planned.action = UPDATED
 
 
-def apply_plan(plan: Plan, client) -> None:
+def apply_plan(plan: Plan, client, delivery_files=None) -> None:
     """Write every created and updated note, one version for each; an unchanged or newsroom-owned note is not touched. Then publish each written note whose
-    front matter says it is published, through the site's publish step. A refusal is recorded on the note and the next note goes on."""
+    front matter says it is published, through the site's publish step. A refusal is recorded on the note and the next note goes on. Last, the Announcement and Delivery
+    notes load as history, against the Stories as they now are in the newsroom. ``delivery_files`` is where the Deliveries' words go (their own attachments when None)."""
     reason = f"Loaded from a pod at commit {plan.commit}"
     for planned in plan.notes:
         assert planned.fields is not None
@@ -227,6 +242,24 @@ def apply_plan(plan: Plan, client) -> None:
             continue
         if planned.says_published:
             planned.publish = _publish(client, record["id"])
+    if plan.history_notes:
+        _load_history(plan, client, delivery_files)
+
+
+def _load_history(plan: Plan, client, delivery_files) -> None:
+    """The Announcement and Delivery notes as records, as history: nothing is sent. A Story note that is not in the newsroom has no version to be about, and the read says so."""
+    from papyrus_content.announcements.link_reads import StoryRef
+    from papyrus_content.announcements.pod_history import PodHistory
+
+    from . import announcement_notes
+
+    stories = {}
+    for planned in plan.notes:
+        current = current_story_version(client, planned.lineage)
+        stories[planned.note_id] = StoryRef(lineage_id=planned.lineage, item_id=current["id"], version_number=int(current.get("versionNumber") or 1))
+    history = PodHistory(client, delivery_files)
+    loaded = [history.load(historic, by=LOAD_ACTOR) for historic in announcement_notes.read(plan.pod, stories)]
+    plan.history_loaded = (sum(1 for found in loaded if found.created), sum(1 for found in loaded if not found.created))
 
 
 def _publish(client, item_id: str) -> str:
@@ -269,6 +302,11 @@ def render(plan: Plan, out: TextIO, *, dry_run: bool) -> None:
             print(f"  {planned.path}: review recorded as a claim, not verified; a person confirms it in the newsroom", file=out)
     for class_name, count in sorted(plan.skipped_classes.items()):
         print(f"  not loaded by this version: {count} {class_name} note(s)", file=out)
+    if plan.history_notes:
+        said = ", ".join(f"{plan.history_notes[name]} {name}" for name in HISTORY_CLASSES if name in plan.history_notes)
+        done = "would be loaded" if dry_run else "loaded"
+        detail = f" ({plan.history_loaded[0]} announcement(s) written, {plan.history_loaded[1]} already there)" if plan.history_loaded and not dry_run else ""
+        print(f"  history: {said} note(s) {done} as the newsroom's own records, in manual mode and in the final state each note says{detail}; nothing is sent", file=out)
     counts = {action: sum(1 for planned in plan.notes if planned.action == action) for action in (CREATED, UPDATED, UNCHANGED, NEWSROOM_OWNED)}
     summary = ", ".join(f"{count} {action}" for action, count in counts.items())
     published = sum(1 for planned in plan.notes if planned.publish == PUBLISHED)

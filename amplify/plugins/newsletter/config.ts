@@ -61,6 +61,8 @@ export type RoundupList = ListBase & {
   schedule: { draft: string; timezone: string };
   /** The CMS item type of an issue. */
   issueType: string;
+  /** The Story types the roundup carries, such as `["article"]`. There is no default of every type: wiki pages and other kinds never qualify unless named. */
+  types: string[];
   /** Where the sent issue is archived, such as `/roundup/`: one path segment, also the section the issue Items are filed under. */
   archivePath: string;
 };
@@ -102,7 +104,7 @@ const KNOWN_KEYS = new Set([
   "configurationSet", "eventTopicName", "itemUrlStyle", "floorStars",
 ]);
 const LIST_KEYS = {
-  roundup: ["id", "name", "description", "kind", "schedule", "issueType", "archivePath"],
+  roundup: ["id", "name", "description", "kind", "schedule", "issueType", "types", "archivePath"],
   alert: ["id", "name", "description", "kind", "rule", "approval"],
 };
 
@@ -263,6 +265,7 @@ function resolveList(raw: unknown, index: number): NewsletterList {
         timezone: timeZone(schedule.timezone, `${label}.schedule.timezone`),
       },
       issueType: matching(list.issueType, `${label}.issueType`, ISSUE_TYPE, "the lowercase Item type the site gives its issues, such as post (a site-defined Story type, never a default of the engine)"),
+      types: stringList(list.types, `${label}.types`) ?? fail(`${label}.types is required: the Story types the roundup carries, such as ["article"]`),
       archivePath: matching(list.archivePath, `${label}.archivePath`, ARCHIVE_PATH, 'a path that starts and ends with "/", such as /roundup/'),
     };
   }

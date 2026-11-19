@@ -40,7 +40,7 @@ const base = {
   lists: [
     {
       id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", archivePath: "/roundup/",
+      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", types: ["article"], archivePath: "/roundup/",
     },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert", rule: { sections: ["Security"], tags: ["breaking"] } },
   ],
@@ -202,6 +202,7 @@ refuses(with_({ basePath: 7 }), /basePath/);
 refuses(with_({ itemUrlStyle: "flat" }), /itemUrlStyle must be one of html, directory, clean/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: undefined }] }), /archivePath/);
 refuses(with_({ lists: [{ ...base.lists[0], issueType: "Not Valid" }] }), /issueType/);
+refuses(with_({ lists: [{ ...base.lists[0], types: undefined }] }), /types is required/, "a roundup declares the Story types it carries");
 refuses(with_({ lists: [{ ...base.lists[0], issueType: undefined }] }), /issueType must be the lowercase Item type the site gives its issues/);
 refuses(with_({ lists: [{ ...base.lists[0], rule: {} }] }), /unknown settings: rule/);
 refuses(with_({ lists: [{ ...base.lists[1], schedule: {} }] }), /unknown settings: schedule/);
@@ -241,7 +242,7 @@ assert.equal(environment.ITEM_URL_STYLE, "html");
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), [
   {
     id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-    issueType: "post", archivePath: "/roundup/", timezone: "America/New_York",
+    issueType: "post", types: ["article"], archivePath: "/roundup/", timezone: "America/New_York",
   },
   {
     id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert",

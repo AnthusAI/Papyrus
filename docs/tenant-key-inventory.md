@@ -36,7 +36,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `CategoryKeyword` | 5 | yes | `listCategoryKeywordsByTenant` |
 | `CategorySet` | 4 | yes | `listCategorySetsByCorpusAndClassifier`, `listCategorySetsByStatusAndName` |
 | `CurationDelegationRecord` | 2 | yes | `listCurationDelegationRecordsByTenant` |
-| `Delivery` | 4 | yes | `listDeliveriesByTenant` |
+| `Delivery` | 5 | yes | `listDeliveriesByTenant` |
 | `Edition` | 5 | yes | `listEditionsByStatusAndEditionDate` |
 | `EditionItem` | 3 | yes | `listEditionItemsByTenant` |
 | `EditorialCheckRun` | 2 | yes | `listEditorialCheckRunsByTenant` |
@@ -144,6 +144,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `enabledStatus` | global | closed | `NewsroomSection`, `ProcedureDefinition` |
 | `entityKey` | record-id | open | `EntityLabel` |
 | `eventType` | global | closed | `AssignmentEvent` |
+| `exampleKey` | global | closed | `Delivery` |
 | `feedStateKey` | corpus-prefixed | open | `Reference` |
 | `form` | global | open | `SignupEntry` |
 | `grantorSub` | global | open | `CurationDelegationRecord` |
@@ -264,6 +265,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `Delivery` | `listDeliveriesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Delivery` | `listDeliveriesByAnnouncementAndCreatedAt` | `announcementId` | `createdAt` | record-id | open | yes | no |
 | `Delivery` | `listDeliveriesByAccountKeyAndCreatedAt` | `accountKey` | `createdAt` | record-id | open | yes | no |
+| `Delivery` | `listDeliveriesByExampleKeyAndExampleAt` | `exampleKey` | `exampleAt` | global | closed | no | no |
 | `Delivery` | `listDeliveriesByDueKeyAndDueAt` | `dueKey` | `dueAt` | global | one | no | no |
 | `Edition` | `listEditionsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Edition` | `listEditionsByVersionStateAndPublishedAt` | `versionState` | `publishedAt` | global | closed | no | no |

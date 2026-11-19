@@ -22,7 +22,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 from features_backend.steps.language_serving_steps import NOW, LanguageSite  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.newsletter.issues_test import rig_context  # noqa: E402
-from papyrus_content.newsletter.roundup import items_in_window  # noqa: E402
+from papyrus_content.newsletter.roundup import candidates  # noqa: E402
 from papyrus_content.publishing import PublishError, project_item_to_published, publish_item, published_item_id_for, unpublish_item  # noqa: E402
 
 STORY = "story-waymo"
@@ -98,11 +98,27 @@ def step_publish(context):
     version = _translation(context)
     context.publish_error = None
     try:
-        publish_item(context.client, version["id"], actor=PERSON)
+        publish_item(context.client, version["id"], actor=PERSON, by_person=PERSON)
     except PublishError as error:
         context.publish_error = error
         return
     _site(context).project(version["id"])
+
+
+@when("an automation publishes the translation")
+def step_automation_publish(context):
+    context.publish_error = None
+    try:
+        publish_item(context.client, _translation(context)["id"], actor="AI (translation on publish)")
+    except PublishError as error:
+        context.publish_error = error
+
+
+@then("the translation is still a ready draft")
+def step_ready_draft(context):
+    version = _translation(context)
+    assert version["status"] != "published", version
+    assert context.client.get_record("PublishedItem", published_item_id_for(LINEAGE)) is None
 
 
 @given("a person unpublishes the translation")
@@ -286,5 +302,5 @@ def step_roundup(context):
     with rig_context() as rig:
         rig.content.publish(slug="waymo", title="Waymo", section="articles", at=rig.now)
         rig.content.published.append({**rig.content.published[0], "id": "published-" + LINEAGE, "slug": "bajan", **_translated_row(STORY)})
-        found = [row["slug"] for row in items_in_window(rig.service, rig.now - 3600, rig.now + 1)]
+        found = [entry.row["slug"] for entry in candidates(rig.service)]
     assert found == ["waymo"], found

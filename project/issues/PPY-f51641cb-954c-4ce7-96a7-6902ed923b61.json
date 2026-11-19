@@ -12,9 +12,17 @@
     "always-on-agents"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "97fd5e88-3116-4894-9b15-2da61bb4983a",
+      "author": "home",
+      "text": "lead8: O1 (#1717), O2 (#1722), O3 (#1728) merged. O4 to O6 held on the question in PPY-a7174b. Epic stays open.",
+      "created_at": "2026-11-19T13:38:38.423468Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:42:26.061654Z",
-  "updated_at": "2026-11-16T22:42:26.061694Z",
+  "updated_at": "2026-11-19T13:38:38.423721Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

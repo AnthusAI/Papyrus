@@ -269,6 +269,13 @@ Feature: The editorial checklist of a Story
     When the Story is published by an editor
     Then publishing succeeded
 
+  Scenario: An imported Story is not published by an automation, only by a person
+    Given a Story at the "copywriting" stage
+    When the Story is imported from "articles/hello.md"
+    And the Story is published by an automation
+    Then publishing was refused with the code "person-publish-required" saying "publish it by hand"
+    And no page was published
+
   Scenario: A note can be added to a step in any state and changes nothing else
     Given a Story at the "reporting" stage
     And the Story's checklist exists

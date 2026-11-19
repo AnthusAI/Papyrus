@@ -3065,6 +3065,11 @@
             "type": "string",
             "minLength": 1,
             "description": "The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. Leave it out for the guidelines every language shares."
+          },
+          "channel": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The channel the text is for (x, linkedin, email): a rule file scoped to channel/<name> is in the answer only for that channel."
           }
         },
         "required": [
@@ -3084,6 +3089,10 @@
             "minLength": 1
           },
           "language": {
+            "type": "string",
+            "minLength": 1
+          },
+          "channel": {
             "type": "string",
             "minLength": 1
           },
@@ -4901,6 +4910,208 @@
       }
     },
     {
+      "name": "announcements_example",
+      "audience": "staff",
+      "description": "Say how far what a person changed in an announcement should reach, so later drafts can follow it.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id: one that went out, or one with a preferred version."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "this_one",
+              "channel",
+              "kind",
+              "publication"
+            ],
+            "description": "How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One line on why, kept with the words in S3 and never in the catalog. It goes with a scope."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recorded": {
+            "type": "boolean"
+          },
+          "exampleState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exampleScope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "machineVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "finalVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "recorded"
+        ]
+      }
+    },
+    {
+      "name": "announcements_preferred",
+      "audience": "staff",
+      "description": "Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id: one that went out, or has an attempt open."
+          },
+          "replaces": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The version of the Delivery you read."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "How it should have read."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "this_one",
+              "channel",
+              "kind",
+              "publication"
+            ],
+            "description": "Also record how far it reaches, in the same step. Leave it out to keep it as a candidate."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One line on why. It goes with a scope."
+          }
+        },
+        "required": [
+          "delivery",
+          "replaces",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "saved",
+              "preferred",
+              "unchanged",
+              "dropped",
+              "candidate"
+            ],
+            "description": "saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "replaces": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The candidate's id, when one was kept."
+          },
+          "approvedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lockedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "preferredVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Each block's owner (human or machine) and whether it is pinned."
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      }
+    },
+    {
       "name": "announcements_correct",
       "audience": "staff",
       "description": "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.",
@@ -5772,7 +5983,7 @@
     {
       "name": "announcements_explain",
       "audience": "staff",
-      "description": "Why a Story was or was not announced, for each channel, naming the rule. Reads the rules; writes nothing.",
+      "description": "Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read. Reads the rules; writes nothing.",
       "agentAllowed": true,
       "agentRung": "observe",
       "agentRefusal": "human_required",
@@ -5784,11 +5995,14 @@
             "type": "string",
             "minLength": 1,
             "description": "The lineage id of the Story."
+          },
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Ask instead about a Delivery: the guideline layers (scope, item, version, hash) and the examples its draft read."
           }
         },
-        "required": [
-          "story"
-        ],
+        "required": [],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -5839,12 +6053,67 @@
                 "words"
               ]
             }
+          },
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery asked about."
+          },
+          "recorded": {
+            "type": "boolean"
+          },
+          "words": {
+            "type": "string",
+            "minLength": 1
+          },
+          "storyVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelineLayers": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Each guideline layer the draft read: scope, itemId, versionNumber, contentHash."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "delivery": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "state": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "scope": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "delivery",
+                "state"
+              ]
+            },
+            "description": "The examples the draft read, and whether each is still on."
           }
         },
-        "required": [
-          "story",
-          "channels"
-        ]
+        "required": []
       }
     },
     {

@@ -3,7 +3,7 @@
   "title": "Announcement and Delivery notes in a pod",
   "description": "Announcement and Delivery are notes with the same field names (type papyrus:Delivery etc.); the words are the body, outside the graph and never built into a page. attempts is a list of one-line entries and pod check fails if an earlier line changed since the last commit. supersedes is a typed link. A pod delivers in manual mode only. On load the notes become the same records as history; a load sends nothing. Neither type is ever a page. Widen cites and authored_by to Stories and add the announces and supersedes types.\n\n**Acceptance criteria**\n- Gherkin: Announcement and Delivery notes (load as history and send nothing; a changed earlier attempt line fails the check; never a page).\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -44,11 +44,18 @@
       "text": "Update: pod load exists after #1680; wire Announcement/Delivery notes into it (needs each Story note's newsroom reference from the Story load). Left open.",
       "created_at": "2026-11-18T17:19:15.789022Z",
       "comment_type": "default"
+    },
+    {
+      "id": "32ce5f28-e8d3-4921-a189-54e7880217c5",
+      "author": "home",
+      "text": "lead8: Merged in #1723 (develop, not released). papyrus pod load now writes Announcement and Delivery notes as history after the Stories, sends nothing, dry run writes nothing, loading again finds the first load. Spec pod-load-announcements.feature. All acceptance met.",
+      "created_at": "2026-11-19T13:38:37.022286Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:38.792114Z",
-  "updated_at": "2026-11-18T17:19:15.789263Z",
-  "closed_at": null,
+  "updated_at": "2026-11-19T13:38:37.514278Z",
+  "closed_at": "2026-11-19T13:38:37.490700Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

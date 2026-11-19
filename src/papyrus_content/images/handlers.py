@@ -171,7 +171,7 @@ def _review_handler(name: str) -> Handler:
 HANDLERS.update({name: _review_handler(name) for name in REVIEW_OPERATIONS})
 
 # The editing window (PPY-e8ec54): versions, candidates, pinned blocks and unlock of a Delivery, imported by the call for the same reason.
-EDIT_OPERATIONS = ("announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_versions", "announcements_unlock")
+EDIT_OPERATIONS = ("announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_versions", "announcements_unlock", "announcements_example", "announcements_preferred")
 
 
 def _edit_handler(name: str) -> Handler:
