@@ -10,6 +10,7 @@ import { getContentItemStageDefinitions } from "./site-brand";
 import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
 import type { ScheduleFields } from "./story-schedule";
+import type { PublishedStoryRow } from "./story-schedule-query";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
 const ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
@@ -208,6 +209,24 @@ export function setLocalPreviewSchedule(lineageId: string, scheduledPublishAt: s
 export function resetLocalPreviewSchedules(): void {
   previewScheduleChanges.clear();
   previewScheduleTouchedAt.clear();
+}
+
+/**
+ * Fake first-publication times for the sample published Stories, placed relative to the start of today (UTC) like the schedules: two went out three days ago,
+ * so the Schedule page shows what went out beside what is coming.
+ */
+function seededPublishedAt(now: Date = new Date()): Record<string, string> {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const at = (days: number, hours: number) => new Date(today + days * DAY + hours * HOUR).toISOString();
+  return { "preview-item-lineage-published-0": at(-3, 14), "preview-item-lineage-published-1": at(-3, 18) };
+}
+
+/** Every sample published Story first published in [from, to), for the Schedule page. */
+export function createLocalPreviewPublishedStories(from: string, to: string): PublishedStoryRow[] {
+  const publishedAt = seededPublishedAt();
+  return createLocalPreviewContentItemVersions()
+    .filter(version => version.lineageId && publishedAt[version.lineageId] && publishedAt[version.lineageId] >= from && publishedAt[version.lineageId] < to)
+    .map(version => ({ id: version.id, lineageId: version.lineageId!, title: version.headline || version.title || version.slug, section: version.section ?? null, publishedAt: publishedAt[version.lineageId!] }));
 }
 
 /** Every sample Story that has a schedule, for the Schedule page: the rows whose scheduled time falls in [from, to) and whose state is one of `states`. */

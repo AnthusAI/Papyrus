@@ -253,8 +253,16 @@ instant on the version's Item row (`scheduledPublishAt`, `scheduledBy`, `schedul
   twice asks which. The console sends the UTC instant through the `schedule` operation of the `scheduleItem` mutation (`lib/content-actions-client.ts`, [scheduled publishing](scheduled-publishing.md)); the stored states are `scheduled`, `publishing` and `blocked` (shown as Superseded), and Overdue is derived from the time.
 - **Schedule page** (`/newsroom/schedule`, `components/newsroom-schedule-page.tsx`). FullCalendar 7 (`@fullcalendar/react`, MIT), loaded only on that route: week by
   default, Day and Month, the publication's named zone, focusable events (`eventInteractive`), lists instead of the week grid on a phone, and a plain list of the same
-  items under the calendar. It reads one range of the `scheduleState` + `scheduledPublishAt` index per state (`lib/story-schedule-query.ts`), never the whole table.
-  Drag to reschedule is not built: dropping on a nonexistent local time needs its own refusal and undo.
+  items under the calendar. It reads one range of the `scheduleState` + `scheduledPublishAt` index per state, and the Stories published in the same range from the
+  existing PublishedItem `typeStatus` + `publishedAt` index, one key-conditioned query per Story type (`lib/story-schedule-query.ts`), never the whole table.
+  Every item is an icon, a word (Scheduled, Overdue, Superseded, Published) and the title. `@fullcalendar/react` is pinned to an exact version (7.1.4) that is at
+  least two weeks old.
+  Drag to reschedule: a Story that is Scheduled can be dragged in the Day, Week and Month grids (the phone's list view has no dragging; the drawer is the way there).
+  The drop calls the same `schedule` operation as the drawer with the UTC instant of the new time, so the backend revalidates it. A time that has passed is refused
+  in the console first with "That time has passed." and nothing is sent; a refusal from the backend shows its own words; either way the Story goes back to its time
+  and a notice says so. A success shows a notice with "Undo", which schedules the old time again. Overdue, Superseded and Published Stories are not draggable: an
+  overdue time cannot be restored once it has passed, and the others are not waiting for a time. The calendar resolves a drop in the publication's zone, so the
+  instant it reports is always a real one; the drawer's picker is where a spring-forward gap is refused in words.
 - **Tests.** `npm run test:story-schedule` (unit tests, browser scenarios on fake preview data with a fixed clock, and the Gherkin in
   `features/newsroom-story-schedule.feature`).
 

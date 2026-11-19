@@ -35,3 +35,7 @@
 .story-schedule-button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:2px 12px;border:0;border-radius:8px;background:var(--card,var(--org-paper));color:var(--org-ink);font:600 12px var(--kb-theme-ui-font);cursor:pointer}
 .story-schedule-button:disabled{opacity:.6;cursor:default}
 .newsroom-organizer .story-schedule-button,.newsroom-organizer .story-schedule-fields input,.newsroom-organizer .story-schedule-badge{border-radius:8px !important}
+.schedule-page .schedule-notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;padding:10px 14px;border-radius:12px;background:color-mix(in oklab,var(--org-accent) 18%,var(--org-paper));font-size:14px}
+.schedule-page .schedule-notice[data-schedule-notice-tone=problem]{background:color-mix(in oklab,var(--org-ink) 12%,var(--org-paper))}
+.schedule-page .schedule-notice svg{flex:none}
+.schedule-page .schedule-notice button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border:0;border-radius:8px;background:var(--org-ink);color:var(--org-paper);font:600 14px/1 var(--kb-theme-ui-font);cursor:pointer}

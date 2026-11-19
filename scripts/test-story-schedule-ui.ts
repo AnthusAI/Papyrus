@@ -63,12 +63,13 @@ export default function dynamic(loader, options = {}) {
 }
 `;
 const BOARD_CLIENT = `
-import { createLocalPreviewContentItemVersions, createLocalPreviewScheduledVersions } from ${JSON.stringify(root + "lib/local-preview-seed")};
+import { createLocalPreviewContentItemVersions, createLocalPreviewPublishedStories, createLocalPreviewScheduledVersions } from ${JSON.stringify(root + "lib/local-preview-seed")};
 import { SCHEDULE_PAGE_STATES } from ${JSON.stringify(root + "lib/story-schedule-query")};
 export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
 export const loadNewsroomContentItemStagePage = async (stage) => ({ versions: createLocalPreviewContentItemVersions().filter((version) => version.stage === stage), nextToken: null });
 export const loadNewsroomContentItemsChangedSince = async (stage, since) => createLocalPreviewContentItemVersions().filter((version) => version.stage === stage && String(version.updatedAt ?? '') >= since);
 export const loadNewsroomScheduledStories = async (from, to) => { window.fixtureRanges.push({ from, to }); return createLocalPreviewScheduledVersions(from, to, SCHEDULE_PAGE_STATES); };
+export const loadNewsroomPublishedStories = async (from, to) => { window.fixturePublishedRanges.push({ from, to }); return createLocalPreviewPublishedStories(from, to); };
 export const loadNewsroomAssignmentPage = async () => ({ items: [], nextToken: null });
 export const loadEditorNewsroomSections = async () => [];
 export const saveNewsroomAssignmentDesk = async () => undefined;
@@ -102,6 +103,7 @@ import { resolveArticlesBackend } from "./lib/newsroom-articles";
 // What the backend was asked to do, and a switch that makes a schedule change fail.
 window.fixtureCalls = [];
 window.fixtureRanges = [];
+window.fixturePublishedRanges = [];
 window.fixtureFailSchedule = false;
 const actions = resolveArticlesBackend(true).actions;
 const scheduleStory = actions.scheduleStory;
@@ -297,17 +299,19 @@ const scenarios: Record<string, () => Promise<void>> = {
         const events = page.locator("[data-schedule-calendar] .schedule-event");
         const text = (await events.allInnerTexts()).map((entry) => entry.replace(/\s+/g, " ").trim());
         assert.deepEqual(text.map((entry) => entry.replace(/ (News|Features)$/i, "")), [
+          "9:00 AM Published Three sources confirm the zoning reversal",
+          "1:00 PM Published Reporting packet: school board redistricting",
           "1:00 PM Overdue Layout pass: front page lead and rail",
           "9:00 AM Scheduled Illustration brief: flooded streets, aerial view",
           "1:00 PM Scheduled Illustration brief: the market at dawn",
         ].map((entry) => entry), "the week, in New York time (9:00 AM is 14:00 UTC), each with its state in words and its title");
         assert.equal(await events.evaluateAll((nodes) => nodes.every((node) => node.querySelector("svg"))), true, "every event has an icon");
-        assert.equal(await page.locator("[data-schedule-list] [data-schedule-item]").count(), 3, "the same three in the list");
+        assert.equal(await page.locator("[data-schedule-list] [data-schedule-item]").count(), 5, "the same five in the list: three coming, two already out");
         assert.equal(await page.locator("[data-schedule-empty]").count(), 0);
         await shot(page, `calendar-week-${mode}-1440`);
         // Day, then Month.
         await page.getByRole("tab", { name: "Month view" }).click();
-        await page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 4);
+        await page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 6);
         await shot(page, `calendar-month-${mode}-1440`);
         await page.getByRole("tab", { name: "Day view" }).click();
         await page.locator("[data-schedule-empty]").waitFor();
@@ -323,11 +327,68 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.waitForFunction(() => (window as unknown as { fixtureRanges: unknown[] }).fixtureRanges.length >= 2);
       const ranges = await page.evaluate(() => (window as unknown as { fixtureRanges: { from: string; to: string }[] }).fixtureRanges);
       assert.deepEqual(ranges.map((range) => (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000), [7, 7], "one week at a time");
+      const publishedRanges = await page.evaluate(() => (window as unknown as { fixturePublishedRanges: { from: string; to: string }[] }).fixturePublishedRanges);
+      assert.deepEqual(publishedRanges.slice(0, 2), ranges.slice(0, 2), "the published index is read for the same range as the schedule index");
       assert.equal(ranges[0].from, "2026-11-08T05:00:00.000Z", "from the publication's midnight (05:00 UTC)");
       await page.getByRole("button", { name: "Next Week" }).click();
       await page.locator("[data-schedule-empty]").waitFor();
       assert.match(await page.locator("[data-schedule-empty]").innerText(), /Nothing is scheduled this week\.[\s\S]*Schedule a Story/);
       assert.equal(await page.locator("[data-schedule-empty] a").getAttribute("href"), "/newsroom/stories", "Schedule a Story opens the Stories board");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** Dragging a scheduled Story to a new time reschedules it with the UTC instant and offers Undo; a time that has passed, a refusal and a Story that is not waiting never move. */
+  async drag() {
+    const FLOODED = "Illustration brief: flooded streets, aerial view";
+    const event = (page: Page, title: string) => page.locator('[data-schedule-calendar] [role="button"]', { hasText: title });
+    const dragTo = async (page: Page, title: string, date: string, time: string) => {
+      const from = (await event(page, title).boundingBox())!;
+      const column = (await page.locator(`[data-schedule-calendar] [data-date="${date}"]`).first().boundingBox())!;
+      const slot = (await page.locator(`[data-schedule-calendar] [data-time="${time}"]`).last().boundingBox())!;
+      await page.mouse.move(from.x + from.width / 2, from.y + 6);
+      await page.mouse.down();
+      await page.mouse.move(column.x + column.width / 2, slot.y + slot.height / 2, { steps: 12 });
+      await page.mouse.up();
+    };
+    const notice = (page: Page) => page.locator("[data-schedule-notice]");
+    const { browser, page, errors } = await setup(schedulePage, { height: 2400 });   // tall enough that the whole day grid is on screen
+    try {
+      await page.locator("[data-schedule-item]").first().waitFor();
+      // Friday 09:00 to Saturday 10:00 New York time.
+      await dragTo(page, FLOODED, "2026-11-14", "10:00:00");
+      await notice(page).filter({ hasText: "Rescheduled" }).waitFor();
+      assert.equal((await notice(page).innerText()).replace(/\s+/g, " ").trim(), `Rescheduled “${FLOODED}” for Sat 14 Nov, 10:00 AM ET. Undo`);
+      assert.deepEqual(await scheduleCalls(page), [{ action: "scheduleStory", itemId: "preview-item-version-copywriting-0", lineageId: SCHEDULED, scheduledPublishAt: "2026-11-14T15:00:00.000Z" }], "the UTC instant of Saturday 10:00 in New York, for the dragged version");
+      assert.match(await page.locator(`[data-schedule-list] [data-schedule-item="preview-item-version-copywriting-0"] small`).innerText(), /Scheduled: Sat 14 Nov 2026, 10:00 AM ET/, "the list follows the drop");
+      await shot(page, "calendar-dragged-1440");
+      // Undo puts it back.
+      await page.locator("[data-schedule-undo]").click();
+      await notice(page).filter({ hasText: "is back at" }).waitFor();
+      assert.match(await notice(page).innerText(), /is back at Fri 13 Nov, 9:00 AM ET\./);
+      assert.equal((await scheduleCalls(page)).length, 2);
+      assert.equal(((await scheduleCalls(page))[1] as { scheduledPublishAt?: string }).scheduledPublishAt, "2026-11-13T14:00:00.000Z");
+      assert.equal(await page.locator("[data-schedule-undo]").count(), 0, "nothing more to undo");
+      // Into the past: refused before anything is sent, and the Story goes back.
+      await dragTo(page, FLOODED, "2026-11-11", "08:00:00");
+      await notice(page).filter({ hasText: "That time has passed." }).waitFor();
+      assert.match(await notice(page).innerText(), /^That time has passed\. “Illustration brief: flooded streets, aerial view” stays at Fri 13 Nov, 9:00 AM ET\./);
+      assert.equal(await notice(page).getAttribute("role"), "alert");
+      assert.equal((await scheduleCalls(page)).length, 2, "nothing was sent");
+      await page.waitForFunction((title) => [...document.querySelectorAll('[data-schedule-calendar] [role="button"]')].some((node) => node.textContent?.includes(title) && node.closest('[data-date="2026-11-13"], .fc-timegrid-col') !== null), FLOODED);
+      assert.match(await page.locator(`[data-schedule-list] [data-schedule-item="preview-item-version-copywriting-0"] small`).innerText(), /Fri 13 Nov 2026, 9:00 AM ET/);
+      // The backend refuses: the same.
+      await page.evaluate(() => { (window as unknown as { fixtureFailSchedule: boolean }).fixtureFailSchedule = true; });
+      await dragTo(page, FLOODED, "2026-11-14", "12:00:00");
+      await notice(page).filter({ hasText: "could not be saved" }).waitFor();
+      assert.match(await page.locator(`[data-schedule-list] [data-schedule-item="preview-item-version-copywriting-0"] small`).innerText(), /Fri 13 Nov 2026, 9:00 AM ET/, "the saved time shows again");
+      await page.evaluate(() => { (window as unknown as { fixtureFailSchedule: boolean }).fixtureFailSchedule = false; });
+      // A Story that already went out, and one that is overdue, do not move.
+      const before = (await scheduleCalls(page)).length;
+      await dragTo(page, "Three sources confirm the zoning reversal", "2026-11-12", "16:00:00");
+      await dragTo(page, "Layout pass: front page lead and rail", "2026-11-14", "16:00:00");
+      await page.waitForTimeout(300);
+      assert.equal((await scheduleCalls(page)).length, before, "published and overdue Stories are not dragged");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -338,9 +399,9 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await page.locator("[data-schedule-item]").first().waitFor();
       const focusable = page.locator('[data-schedule-calendar] [role="button"][tabindex="0"]');
-      assert.equal(await focusable.count(), 3, "every event is a focusable button");
+      assert.equal(await focusable.count(), 5, "every event is a focusable button");
       const links = page.locator("[data-schedule-list] a");
-      assert.equal(await links.count(), 3);
+      assert.equal(await links.count(), 5);
       const first = (await links.first().getAttribute("href")) ?? "";
       assert.match(first, /^\/newsroom\/articles\//);
       await focusable.first().focus();
@@ -357,7 +418,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       try {
         await page.locator("[data-schedule-item]").first().waitFor();
         assert.equal(await page.locator("[data-schedule-calendar]").getAttribute("data-schedule-layout"), "list");
-        assert.equal(await page.locator("[data-schedule-calendar] .schedule-event").count(), 3);
+        assert.equal(await page.locator("[data-schedule-calendar] .schedule-event").count(), 5);
         assert.equal(await noSideScroll(page), true, "calendar: nothing scrolls sideways");
         await shot(page, `calendar-${mode}-375`);
         assert.deepEqual(errors, []);
@@ -399,7 +460,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         await onPage.page.locator("[data-schedule-item]").first().waitFor();
         assert.deepEqual(await onPage.page.evaluate(sample), [], `calendar page (${mode}): every border is the page colour or the element's own fill`);
         await onPage.page.getByRole("tab", { name: "Month view" }).click();
-        await onPage.page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 4);
+        await onPage.page.waitForFunction(() => document.querySelectorAll("[data-schedule-item]").length === 6);
         assert.deepEqual(await onPage.page.evaluate(sample), [], `month view (${mode})`);
       } finally { await onPage.browser.close(); }
       const onBoard = await setup(board, { mode });

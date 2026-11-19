@@ -10,7 +10,7 @@ import { hasEditorRights } from "../lib/staff-groups";
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
-import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences, createLocalPreviewScheduledVersions } from "../lib/local-preview-seed";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewPublishedStories, createLocalPreviewReferences, createLocalPreviewScheduledVersions } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -69,7 +69,8 @@ import {
 } from "../lib/conversation";
 import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
 import { isStoryItemType, legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
-import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
+import { readPublishedRange, readScheduledRange, SCHEDULE_PAGE_STATES, type PublishedQueryFetch, type PublishedStoryRow, type ScheduleQueryFetch } from "../lib/story-schedule-query";
+import { ALWAYS_PROJECTED, siteStoryTypes } from "../lib/site-story-types";
 import { readStoryStageChangesSince, readStoryStagePage, STORY_STAGE_PAGE_LIMIT, type StageQueryFetch } from "../lib/story-stage-query";
 import { readWithStoryStageIndex } from "../lib/story-stage-mode";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
@@ -2558,6 +2559,12 @@ export async function loadNewsroomContentItemsChangedSince(stage: string, since:
 export async function loadNewsroomScheduledStories(from: string, to: string): Promise<ContentItemVersionRecord[]> {
   if (isLocalPreviewEnabled()) return createLocalPreviewScheduledVersions(from, to, SCHEDULE_PAGE_STATES);
   return readScheduledRange(contentItemStageFetch() as ScheduleQueryFetch, from, to);
+}
+
+/** Every Story first published between two UTC instants, read from the PublishedItem `typeStatus` + `publishedAt` index (lib/story-schedule-query.ts). */
+export async function loadNewsroomPublishedStories(from: string, to: string): Promise<PublishedStoryRow[]> {
+  if (isLocalPreviewEnabled()) return createLocalPreviewPublishedStories(from, to);
+  return readPublishedRange(contentItemStageFetch() as unknown as PublishedQueryFetch, [...siteStoryTypes().types, ...ALWAYS_PROJECTED], from, to);
 }
 
 export async function loadModelPayloadsForOwner(
