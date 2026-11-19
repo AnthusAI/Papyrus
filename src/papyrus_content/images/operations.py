@@ -557,8 +557,9 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "guidelines_resolve", ("resolve",), "Show the effective guidelines for the publication or a section laid over it, and for one language, with where every field came from.", "read",
-        obj({"kind": KIND, "section": SECTION, "language": RESOLVE_LANGUAGE}, ("kind",)),
-        record({"kind": text(), "section": text(), "language": text(), "found": flag("False when the publication has no guidelines of this kind yet."), "document": GUIDELINE_DOCUMENT,
+        obj({"kind": KIND, "section": SECTION, "language": RESOLVE_LANGUAGE,
+             "channel": text("The channel the text is for (x, linkedin, email): a rule file scoped to channel/<name> is in the answer only for that channel.")}, ("kind",)),
+        record({"kind": text(), "section": text(), "language": text(), "channel": text(), "found": flag("False when the publication has no guidelines of this kind yet."), "document": GUIDELINE_DOCUMENT,
                 "fieldSources": {"type": "object", "description": "For every field, the layers it came from: publication, section, language or section-language (with the language)."},
                 "layers": many(record({"scope": choice("publication", "section", "language", "section-language"), "language": text(), "itemId": text(), "slug": text(),
                                        "versionNumber": whole(), "contentHash": text()},

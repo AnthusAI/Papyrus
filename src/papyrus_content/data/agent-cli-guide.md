@@ -669,6 +669,7 @@ papyrus guidelines show --kind writing
 papyrus guidelines show --kind writing --section security
 papyrus guidelines resolve --kind writing --section security
 papyrus guidelines resolve --kind writing --section security --language zh-Hans
+papyrus guidelines resolve --kind writing --channel x      # also the rule files scoped to channel/x; the other channels are left out
 papyrus guidelines history --kind writing
 papyrus guidelines diff --kind writing --file ./writing.yml
 papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1 --dry-run

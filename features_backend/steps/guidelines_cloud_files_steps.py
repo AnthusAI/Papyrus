@@ -576,3 +576,59 @@ def step_read_old(context):
 @then("it is refused as saved before guidelines became files")
 def step_old_refused(context):
     assert not context.old["ok"] and "before guidelines became files" in context.old["error"]["message"], context.old
+
+
+# --- a rule scoped to a channel (features_backend/guidelines-channel-layering.feature, PPY-9c6b89) -----------------------------------------------------
+
+@given('the site\'s writing guidelines also hold the rule "{name}" scoped to the channel "{channel}" at severity {severity} limited to {limit:d} characters')
+def step_site_channel_rule(context, name, channel, severity, limit):
+    context.files_in = {**context.files_in, f"{name}/GUIDELINE.md": rule_text(name, scope=f"channel/{channel}", severity=severity, max_length=limit)}
+    assert save_folder(context, write_folder(context, context.files_in), guard=context.store.read("writing")["row"]["id"])["ok"], context.answer
+
+
+@given('the section "{section}" saves a folder with the channel rule "{name}" for "{channel}" at severity {severity} limited to {limit:d} characters')
+def step_section_channel_rule(context, section, name, channel, severity, limit):
+    files = section_files(section, {})
+    files[f"{name}/GUIDELINE.md"] = rule_text(name, scope=f"channel/{channel}", severity=severity, max_length=limit)
+    assert save_folder(context, write_folder(context, files), section=section, guard="none")["ok"], context.answer
+
+
+@when('the rule files and fields are resolved for the channel "{channel}"')
+def step_resolve_channel(context, channel):
+    context.resolved = resolve_guidelines(GuidelineStore(context.backend, context.files), "writing", None, None, channel)
+
+
+@when("the rule files and fields are resolved for no channel")
+def step_resolve_no_channel(context):
+    context.resolved = resolve_guidelines(GuidelineStore(context.backend, context.files), "writing", None, None, None)
+
+
+@when('the rule files and fields are resolved on the channel "{channel}" for the section "{section}"')
+def step_resolve_section_channel(context, channel, section):
+    context.resolved = resolve_guidelines(GuidelineStore(context.backend, context.files), "writing", section, None, channel)
+
+
+@then('the resolved answer is for the channel "{channel}"')
+def step_answer_channel(context, channel):
+    assert context.resolved["channel"] == channel
+
+
+@when('an admin saves a set whose tone file is scoped to the channel "{channel}"')
+def step_tone_in_channel(context, channel):
+    files = tone_files("Warm.")
+    key = next(path for path in files if path.startswith("tone/"))
+    files[key] = files[key].replace('scope: "publication"', f'scope: "channel/{channel}"')
+    context.answer = save_folder(context, write_folder(context, files), guard=context.store.read("writing")["row"]["id"])
+
+
+@then('the guideline save is refused saying "{text}"')
+def step_save_refused_saying(context, text):
+    assert context.answer["ok"] is False and text in json.dumps(context.answer), context.answer
+
+
+@then('the writing text for the drafter names the rule "{named}" and not the rule "{other}"')
+def step_drafter_text(context, named, other):
+    from papyrus_content.guidelines.agent_text import writing_text
+
+    text = writing_text(context.resolved["document"])
+    assert f"- {named} (" in text and f"- {other} (" not in text, text

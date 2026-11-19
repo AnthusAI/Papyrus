@@ -108,7 +108,7 @@ def x_services(client: Any, environ: Mapping[str, str] | None = None, *, model: 
     def guidelines_for(story) -> str:
         if guidelines_text is not None:
             return guidelines_text
-        writing = resolve_guidelines(guidelines, "writing", story.section)
+        writing = resolve_guidelines(guidelines, "writing", story.section, channel="x")
         parts = [writing_text(writing["document"])] if writing["found"] else []
         parts.append(announcement_text(announcement_rules(client, guidelines)["document"]))
         return "\n\n".join(part for part in parts if part)

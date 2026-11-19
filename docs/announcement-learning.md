@@ -24,6 +24,13 @@ Rules: only a person records (an agent is told `human_required`); a Delivery tha
 
 Operation: `announcements_example` (`papyrus announcements example DELIVERY [--scope S] [--reason TEXT]`). Specs: `delivery-edit-capture.feature`, `delivery_examples_test.py`.
 
+## Channel guidelines (PPY-9c6b89)
+
+A rule file may be scoped to a channel: `scope: channel/x` (or `channel/linkedin`, `channel/email`) in the publication's or a section's set of writing guidelines, for the craft of that network (hook, length, links, tags,
+tone, image shape). `resolve_guidelines(..., channel="x")` (`papyrus guidelines resolve --kind writing --channel x`) lays in the rules scoped to that channel and leaves out every other channel's; with no channel it
+reads none of them. A field file stays in its own set's scope. The X drafter resolves for `x`, so it reads `channel/x` and the publication's and section's rules; the offline checker reads the same files
+(`papyrus guidelines check --scope channel/x`). A channel rule is laid like any rule file: it adds, and a rule whose name an earlier layer already has is left out with the warning `rule_file_shadowed`, so nothing is
+loosened. Specs: `guidelines-channel-layering.feature`.
 ## A preferred version: teach without sending again (slice O2, PPY-75a314)
 
 After a Delivery went out (or while an attempt is open) a person saves how it should have read as the next version, flagged `preferred` and named in `preferredVersion`. It is never sent and

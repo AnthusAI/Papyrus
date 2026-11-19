@@ -882,12 +882,15 @@ export type GuidelinesResolveInput = {
   section?: string;
   /** The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. Leave it out for the guidelines every language shares. */
   language?: string;
+  /** The channel the text is for (x, linkedin, email): a rule file scoped to channel/<name> is in the answer only for that channel. */
+  channel?: string;
 };
 
 export type GuidelinesResolveResult = {
   kind: string;
   section?: string;
   language?: string;
+  channel?: string;
   /** False when the publication has no guidelines of this kind yet. */
   found: boolean;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */

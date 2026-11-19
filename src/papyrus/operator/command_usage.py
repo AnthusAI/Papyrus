@@ -298,7 +298,7 @@ _ENTRIES = dict([
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines resolve", "Print the effective guidelines for the site, or a section laid over it, and for one language (its overlays laid on top), with where every field came from.",
-     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
+     "--kind KIND [--section KEY] [--language TAG] [--channel NAME] [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines diff", "Show what saving a document would change, field by field and for binding rules; saves nothing.",
      "--kind KIND [--section KEY] [--language TAG] (--file PATH | --dir DIR) [--input-file PATH]", "editor", "reads", "guidelines"),
   _e("guidelines save", "Save a document, or for writing guidelines the guideline files of a folder, as the next version of its kind and scope. Admins only; a binding-rule change needs a person.",
@@ -311,7 +311,7 @@ _ENTRIES = dict([
   _e("guidelines convert", "One-time: convert this site's writing guidelines from one JSON document each to guideline files. A dry run that reports every lineage unless --apply; an admin who is a person applies it.",
      "[--apply] [--section KEY]... [--language TAG]...", "editor", "apply", "guidelines"),
   _e("guidelines history", "List the versions of a kind of guidelines, newest first, with who changed it and why.",
-     "--kind KIND [--section KEY] [--language TAG] [--input-file PATH]", "editor", "reads", "guidelines"),
+     "--kind KIND [--section KEY] [--language TAG] [--channel NAME] [--input-file PATH]", "editor", "reads", "guidelines"),
   # ---- announcements (the operation table is the source of the flags; a test keeps these in step) ------------------------------------------
   _e("announcements where", "Where a Story was announced: each Announcement that announces it, one line for each live Delivery, with its review, what it waits for and what needs a person (Overdue, Outcome unknown).",
      "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
