@@ -8,7 +8,7 @@ from behave import given, then, when
 TESTS = Path(__file__).resolve().parents[2] / "procedures" / "newsroom" / "tests"
 sys.path.insert(0, str(TESTS))
 import priming_export_fixture as fx  # noqa: E402
-from papyrus_content import priming_export as pe, run_attention, run_outcomes  # noqa: E402
+from papyrus_content import priming_export as pe, tenancy, run_attention, run_outcomes  # noqa: E402
 from papyrus_content.cloud_procedures import update_cloud_procedure_run_record  # noqa: E402
 import run_outcomes_steps  # noqa: E402,F401  (the runner steps this feature shares)
 
@@ -179,7 +179,7 @@ def by_index(context):
 
 @given('a shared stack for the tenant "{tenant}"')
 def shared(context, tenant):
-    for name, value in (("PAPYRUS_TENANCY_MODE", "shared"), ("PAPYRUS_TENANT_ID", tenant)):
+    for name, value in ((tenancy.TENANCY_MODE_ENVIRONMENT_VARIABLE, "shared"), (tenancy.TENANT_ID_ENVIRONMENT_VARIABLE, tenant)):
         previous = os.environ.get(name)
         os.environ[name] = value
         context.add_cleanup(lambda name=name, previous=previous: os.environ.pop(name, None) if previous is None else os.environ.__setitem__(name, previous))
