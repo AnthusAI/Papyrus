@@ -7,7 +7,7 @@ an admin, and changing nothing about any later draft. Nothing is learned silentl
 The record is a few short fields on the Delivery, written once and read again later:
 
 * ``machineVersion``: the machine's version the person worked from (the newest machine version at or before the final one);
-* ``exampleScope`` and ``exampleState`` (``candidate``, ``active``, ``declined``; later ``off`` and ``absorbed``), with ``exampleAt``;
+* ``exampleScope`` and ``exampleState`` (``candidate``, ``active``, ``declined``, ``off``, ``absorbed``), with ``exampleAt``;
 * ``exampleKey``, present only while the example is active, so the drafter reads the active examples of a scope through one sparse index (slice O3) and never scans.
 
 The final version is the one that went out, or the preferred version when one was saved after it. **The difference between the machine's version and the final one is computed
@@ -25,11 +25,14 @@ from .decisions import Announcements
 from .records import ATTEMPT_SENT, SENT, RecordError, attempt_log, now_iso
 
 THIS_ONE, CHANNEL, KIND, PUBLICATION = "this_one", "channel", "kind", "publication"
+INDEX_BY_EXAMPLE = "deliveriesByExample"
 SCOPES = (THIS_ONE, CHANNEL, KIND, PUBLICATION)
 #: The scopes that reach a later draft, narrowest first.
 WIDE_SCOPES = (CHANNEL, KIND, PUBLICATION)
 #: ``candidate``: kept, no scope chosen, changes nothing. ``active``: loaded by the drafter for its scope. ``declined``: a person chose "just this one", so nothing later changes.
 CANDIDATE, ACTIVE, DECLINED = "candidate", "active", "declined"
+#: ``off``: a person turned it off (slice O5). ``absorbed``: an accepted guideline was made from it, so it is no longer loaded by itself (slice O4).
+OFF, ABSORBED = "off", "absorbed"
 REASON_FILE = "reason"
 
 
@@ -142,6 +145,25 @@ class Examples:
             if reason and existing is None:
                 self.deliveries.files.put(delivery_id, reason, now=now, name=REASON_FILE)
             return Recorded(written, True, written["exampleState"])
+
+    def stop(self, delivery_id: str, state: str, *, by: str, why: str, now: str | None = None) -> dict[str, Any]:
+        """Take an active example out of every later draft: ``off`` (a person's decision) or ``absorbed`` (an accepted guideline was made from it). ``exampleKey`` is cleared, so the
+        sparse index no longer holds it and the next draft does not load it. Nothing else about the Delivery changes; the record of who and why is its history line."""
+        if state not in (OFF, ABSORBED):
+            raise RecordError(f"An example is stopped as {OFF} or {ABSORBED}, not {state!r}.")
+        if not why.strip():
+            raise RecordError("Say why: a stopped example records who and why.")
+        now = now or now_iso()
+        while True:
+            row = self.deliveries.get(delivery_id)
+            if row is None:
+                raise RecordError(f"There is no Delivery {delivery_id}.")
+            if row.get("exampleState") != ACTIVE:
+                raise NothingToLearn(f"{delivery_id} is not an active example (it is {row.get('exampleState') or 'not an example'}), so there is nothing to stop.")
+            try:
+                return self.deliveries._change(row, {"exampleState": state, "exampleKey": None, "exampleAt": row.get("exampleAt")}, by=by, note=f"example {state}: {why.strip()}", now=now)
+            except Conflict:
+                continue
 
     def _kind_of(self, row: Mapping[str, Any]) -> str:
         decision = self.announcements.get(row["announcementId"])

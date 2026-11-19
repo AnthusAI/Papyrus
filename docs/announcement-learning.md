@@ -31,3 +31,29 @@ tone, image shape). `resolve_guidelines(..., channel="x")` (`papyrus guidelines 
 reads none of them. A field file stays in its own set's scope. The X drafter resolves for `x`, so it reads `channel/x` and the publication's and section's rules; the offline checker reads the same files
 (`papyrus guidelines check --scope channel/x`). A channel rule is laid like any rule file: it adds, and a rule whose name an earlier layer already has is left out with the warning `rule_file_shadowed`, so nothing is
 loosened. Specs: `guidelines-channel-layering.feature`.
+## A preferred version: teach without sending again (slice O2, PPY-75a314)
+
+After a Delivery went out (or while an attempt is open) a person saves how it should have read as the next version, flagged `preferred` and named in `preferredVersion`. It is never sent and
+changes no public text (the version that went out stays `sendable`, the state stays `sent`, no attempt is added). `announcements_preferred` (`papyrus announcements preferred DELIVERY --replaces N --text T [--scope S] [--reason R]`)
+saves it and, when a scope is given, records the example in the same step; with none it is a candidate. A person only: an agent is told `human_required`, and a machine's redraft of a sent Delivery is refused. A save names the version it replaces
+like every save (`stale_version`), and a Delivery that has not gone out has no preferred version (`constraint_conflict`: edit it).
+
+**Teaching and correcting are separate choices.** Saving a preferred version corrects nothing. To also correct the public post a person runs `papyrus announcements correct` with the words, which makes the superseding Delivery
+where the channel can delete the old post ([correction](announcement-records.md)); the example on the old Delivery stays.
+
+Specs: `delivery-preferred-version.feature`.
+
+## Examples reach the drafter, and every draft names what it read (slice O3, PPY-d99bd0)
+
+`learned_examples.load(deliveries, channel=, kind=, budget=)` reads the **active** examples for the draft: the partitions `publication`, `channel:<channel>` and `kind:<channel>:<kind>` of the sparse
+index `listDeliveriesByExampleKeyAndExampleAt` (`deliveriesByExample`), merged newest first, until the character budget (the context pack's default, `DEFAULT_MAX_CHARACTERS`) is spent; older
+ones are left out and counted (`dropped`). Each is the machine's version beside the person's and, when given, the reason (S3 file `reason`). It goes into the drafter's prompt after the guidelines, so a
+guideline still outranks an example. Nothing is scanned: `exampleKey` is cleared by `Examples.stop(..., OFF | ABSORBED, by=, why=)`, so an example a person turned off, or one an accepted guideline was
+made from (absorbed, slice O4), is no longer in the index and is not loaded. A candidate and a "just this one" never had a key.
+
+Each draft records what it read in the `inputs` line of its checks (`x_announce.inputs_of`): the guideline layers (scope, item id, version, content hash) and the example Deliveries. A blocked draft is
+drafted again when the Story, the guidelines or the examples change. `papyrus announcements explain --delivery DELIVERY` prints it (`explain.explain_delivery`), with whether each example is still on.
+
+The index is its own schema change: it ships in a release of its own.
+
+Specs: `drafter-examples.feature`, `learned_examples_test.py`.

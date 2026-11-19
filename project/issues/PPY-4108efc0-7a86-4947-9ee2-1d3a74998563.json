@@ -30,10 +30,17 @@
       "text": "Rewritten 2026-11-12 after Ryan: the issue is a living Story open all week, with machine-owned slots, human-owned copy, pins, an exclusion record, below-floor removal, and admin approval with hash recheck and exactly-once send. Depends on the three-star floor PPY-0e8d66. Five open questions for Ryan at the end of the description.",
       "created_at": "2026-11-12T13:04:32.969397Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b80f4fac-af95-4ee5-863a-a3323012ed46",
+      "author": "home",
+      "text": "Built in PR 1718: pure model newsletter/living_issue.py (owned blocks, versioned conditional writes with Conflict and NeedsSuggestion, pins, exclusions with required reason and restore, below-floor removal incl. pinned and add-back with copy, approval by fingerprint, admin-only, empty issue cannot be approved, inserter pause, edit after approval returns to draft). Spec: features_backend/newsletter-living-issue.feature. NOT done, left open: persistence of the document as Story body/S3, the scheduler creating the issue per period, panel UI, moving approval/schedule/exactly-once send/ledger to Caducus and DELETING the plugin's issue/approval/scheduler/send-ledger code, archive publish on send (live deploy; also blocked by PPY-6b2d3579). The five open questions for Ryan on the ticket still stand; the model assumes any editor may remove or edit copy, reason required, below-floor after approval returns to draft, late-rated counts as new, any admin approves.",
+      "created_at": "2026-11-19T12:32:01.710842Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T12:46:02.872481Z",
-  "updated_at": "2026-11-12T13:04:33.447961Z",
+  "updated_at": "2026-11-19T12:32:01.711074Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

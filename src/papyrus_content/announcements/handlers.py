@@ -113,12 +113,25 @@ def x_services(client: Any, environ: Mapping[str, str] | None = None, *, model: 
         parts.append(announcement_text(announcement_rules(client, guidelines)["document"]))
         return "\n\n".join(part for part in parts if part)
 
+    def guideline_layers(story) -> list[dict]:
+        if guidelines_text is not None:
+            return []
+        writing = resolve_guidelines(guidelines, "writing", story.section)
+        return [{key: layer.get(key) for key in ("scope", "itemId", "versionNumber", "contentHash")} for layer in writing["layers"]]
+
+    def learned():
+        from . import learned_examples
+        from .deliveries import Deliveries
+        from .post import LINK
+
+        return learned_examples.load(Deliveries(client), channel="x", kind="story_published", words_of=lambda text: LINK.sub("", text).strip())
+
     if model and llm is None:
         llm, judge = _lazy_model()
     functions = functions or Functions(client)
     style = environment.get(STYLE_ENV, "html")
     return XServices(settings=functions.read, connection=functions.status, story=lambda lineage: load_story(client, lineage, item_url_style=style), site_origin=origin,
-                     guidelines_for=guidelines_for, llm=llm, judge=judge, model=DEFAULT_LLM_MODEL)
+                     guidelines_for=guidelines_for, llm=llm, judge=judge, model=DEFAULT_LLM_MODEL, learned=learned, guideline_layers=guideline_layers)
 
 
 def build_services(client: Any, environ: Mapping[str, str] | None = None, *, model: bool = False, llm: Any = None, judge: Any = None, guidelines_text: str | None = None,
