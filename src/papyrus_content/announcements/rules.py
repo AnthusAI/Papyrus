@@ -40,6 +40,7 @@ def view(document: Mapping[str, Any], connection: Mapping[str, Any]) -> dict[str
         "accountId": connection.get("accountId"), "accountHandle": connection.get("handle"), "connected": connection.get("connection") == CONNECTED,
         "connectionStatus": connection.get("connection"), "budget": document.get("budget"), "billingCycleDay": document.get("billingCycleDay"),
         "prices": document.get("prices") or {}, "labelConfirmed": bool(document.get("labelConfirmed")),
+        "spacing": dict(document.get("spacing") or {}),
         "paused": bool(pause.get("paused")), "pausedBy": pause.get("by"), "pausedAt": pause.get("at"), "pauseReason": pause.get("detail"), "pauseKind": pause.get("reason"),
     }
 

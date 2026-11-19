@@ -20,12 +20,13 @@ There are no transactions across AppSync tables; ``supersede`` is ordered condit
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Any, Iterator, Mapping, Protocol, Sequence
 
 from .records import (
-    APPROVALS, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MANUAL, MODES, NONE, READY, SENT, SOFT, SUPERSEDED, SYSTEM,
-    BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, open_attempt_of, require_catalog_only, stored, utc, with_due,
+    APPROVALS, ATTEMPT_SENT, AUTOMATIC, BEFORE_SEND_STATES, BLOCKED, CHECK_FAILED_CODE, DELIVERY_MODEL, DELIVERY_STATES, DRAFTED, FAILED, LIVE_STATES, MANUAL, MODES, NONE, READY, SENT, SOFT, STARTED, UNKNOWN, SUPERSEDED, SYSTEM,
+    BUDGET_CYCLE, WAITING_FOR, RecordError, account_key, delivery_id, history_with, json_list, now_iso, attempt_log, open_attempt_of, require_catalog_only, stored, utc, with_due,
 )
 
 OWNER_KIND = "delivery"
@@ -177,6 +178,26 @@ class Deliveries:
     def for_account(self, channel: str, account_id: str) -> Iterator[dict[str, Any]]:
         """The account's Deliveries, newest first, one page at a time. Stop reading and no further page is fetched."""
         yield from (dict(row) for row in self.client.iterate_newest_first(INDEX_BY_ACCOUNT, account_key(channel, account_id)))
+
+    def last_post_at(self, channel: str, account_id: str, *, besides: str | None = None) -> str | None:
+        """When the account last posted, or may have: the time of the latest attempt that was sent or has no answer yet (an unanswered attempt may have posted).
+
+        The account's Deliveries are read newest first (by when each was made), one page at a time, and reading stops at the first that has such an attempt;
+        ``besides`` leaves one Delivery out: the one being asked about. Nothing else is read."""
+        for row in self.for_account(channel, account_id):
+            if row["id"] == besides:
+                continue
+            times = [str(entry.get("closedAt") or entry["at"]) for entry in attempt_log(row) if entry.get("outcome") in (ATTEMPT_SENT, STARTED, UNKNOWN)]
+            if times:
+                return max(times)
+        return None
+
+    def spacing_until(self, row: Mapping[str, Any], minutes: int) -> str | None:
+        """The time the account's post spacing ends for this Delivery: the account's last post plus ``minutes``. None when the account has not posted."""
+        last = self.last_post_at(row["channel"], row["accountId"], besides=row["id"])
+        if last is None:
+            return None
+        return utc(datetime.fromisoformat(str(utc(last))[:-1] + "+00:00") + timedelta(minutes=int(minutes)))
 
     def due(self, now: str) -> list[dict[str, Any]]:
         """The Deliveries whose earliest pending time is at or before ``now``, from the sparse due index. A Delivery with nothing pending is not in it."""
