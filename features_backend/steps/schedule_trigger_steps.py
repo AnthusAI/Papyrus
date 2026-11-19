@@ -216,7 +216,7 @@ def only_target(context, site):
 
 @then('the entry\'s message group is the group the wake queue gives wakes of "{agent}" about its schedule')
 def message_group(context, agent):
-    expected = agent_wakes.group_id({"agent": agent, "subject": "schedule"})
+    expected = agent_wakes.group_id({"agent": agent, "scope": "schedule"})
     assert entry_of(context, agent)["Target"]["SqsParameters"] == {"MessageGroupId": expected}
 
 
