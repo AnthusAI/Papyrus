@@ -21,7 +21,7 @@ from .document import PolicyError, check_rung, check_scope, fresh, scope_of, val
 from .resolve import PolicyState
 
 KIND = "agents"
-SITE_FIELDS = ("quietWindow", "budget", "tiers")
+SITE_FIELDS = ("quietWindow", "coalescing", "budget", "tiers")
 AGENT_FIELDS = ("loopLimit",)
 
 

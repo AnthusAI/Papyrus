@@ -7,8 +7,8 @@ Feature: Every change to a Story or its checklist wakes the agents that listen f
   one small document, written by the deploy from the registered definitions, read by its live version. The feed never lists the Automation table or any other
   table. The wake key is the agent, the Story's lineage, the version and what changed; the run record made from it is the claim, and the queue's message group is
   the agent plus the Story, so one Story's wakes for an agent run one after the other. An agent's own change never wakes that agent. The wake carries whether the
-  step is paid, who made the change and when, which is what the quiet window for paid steps (PPY-67e3cd) and the loop guard (PPY-4e7e8b) will read; neither is
-  built here.
+  step is paid, who made the change and when, which is what the wake gate reads: the quiet window for paid steps (coalescing-window.feature) and the loop guard
+  (agent-loop-guard.feature). The scenarios below run the feed with no gate, so every wake goes on the queue at once.
 
   Background:
     Given the site "sample" with its wake queue and its listener index

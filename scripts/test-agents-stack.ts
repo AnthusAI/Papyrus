@@ -254,9 +254,13 @@ const feedPolicy = JSON.stringify(Object.values(feedTemplate.findResources("AWS:
 for (const field of ITEM_FEED_API_FIELDS) assert.ok(feedPolicy.includes(`types/${field}`), `it may call ${field}`);
 assert.ok(feedPolicy.includes("sample-bucket/tenants/sample-tenant/site/listeners/*"), "it reads the listener index's objects of its own tenant and nothing else in the bucket");
 assert.ok(feedPolicy.includes(names.queue) && feedPolicy.includes("sqs:SendMessage") && feedPolicy.includes("sqs:GetQueueUrl"), "it puts wakes on its own site's queue");
-for (const forbidden of ["dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "sqs:ReceiveMessage", "sqs:DeleteMessage", "lambda:Invoke", "Mutation/fields", "Query/fields/list", "Query/fields/*", "s3:PutObject", "s3:ListBucket"]) {
+for (const forbidden of ["dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "sqs:ReceiveMessage", "sqs:DeleteMessage", "lambda:Invoke", "Mutation/fields/*", "Mutation/fields/deleteItem", "Mutation/fields/createItem", "Query/fields/listReferences", "Query/fields/*", "s3:PutObject", "s3:ListBucket", "scheduler:GetSchedule", "scheduler:ListSchedules"]) {
   assert.ok(!feedPolicy.includes(forbidden), `the feed must not hold ${forbidden}`);
 }
+// The wake gate (PPY-67e3cd, PPY-4e7e8b): the agent policy's objects, and follow-up timers in the site's own schedule group (`follow-up-*` entries) with the scheduler's role and nothing else.
+assert.ok(feedPolicy.includes("sample-bucket/tenants/sample-tenant/site/agents/*"), "it reads the agent policy's objects of its own tenant");
+for (const action of ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule"]) assert.ok(feedPolicy.includes(action), `it may ${action} for follow-up timers`);
+assert.ok(feedPolicy.includes(`schedule/${scheduleNames(SAMPLE_BRAND).group}/follow-up-*`), "its timers are `follow-up-*` entries in its own site's schedule group");
 // The names the Python feed reads are the ones the piece sets.
 const feedSourceText = readFileSync(path.join(root, "src/papyrus_content/item_change_feed.py"), "utf8");
 for (const variable of ["PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_TENANT_ID", "PAPYRUS_SITE_BUCKET", "PAPYRUS_GRAPHQL_ENDPOINT"]) assert.ok(feedSourceText.includes(`"${variable}"`), `the feed reads ${variable}`);
