@@ -15,7 +15,7 @@ from unittest import mock
 
 from papyrus_content.markus_import import DirMediaStore, ImportOptions, plan_import, run_import
 from papyrus_content.markus_import_commands import content_import_markus, parse_draft_dirs
-from papyrus_content.publishing import ItemFields, save_item
+from papyrus_content.publishing import ItemFields, publish_item, save_item
 from papyrus_content.content_item_lifecycle import without_sub_tasks
 from fake_client import FakeAuthoringClient  # noqa: E402
 
@@ -47,8 +47,13 @@ class ImportTests(ImportTestCase):
         report = self.run_import()
         self.assertTrue(report.ok, report.errors)
         self.assertEqual((report.created, report.updated, report.unchanged), (5, 0, 0))
-        self.assertEqual(report.published, 4)
+        self.assertEqual(report.published, 1)   # the page: an imported Story is saved as a draft, and only a person publishes it (publish_by_person.py)
+        self.assertEqual(self.client.get_record("Item", "item-index")["status"], "published")
         self.assertEqual((report.media_uploaded, report.reader_owned_assets), (1, 1))
+        item = self.client.get_record("Item", "item-articles-hello")
+        self.assertEqual(item["status"], "draft")
+        self.assertIsNone(self.client.get_record("PublishedItem", "published-item-articles-hello"))
+        publish_item(self.client, "item-articles-hello", actor="editor", by_person="editor")
         item = self.client.get_record("Item", "item-articles-hello")
         self.assertEqual(item["status"], "published")
         self.assertEqual(item["aliases"], ["/blog/hello-old"])
@@ -96,17 +101,19 @@ class ImportTests(ImportTestCase):
         self.run_import()
         self.client.calls.clear()
         report = self.run_import()
-        self.assertEqual((report.created, report.updated, report.unchanged), (0, 0, 5))
+        self.assertEqual((report.created, report.updated, report.unchanged), (0, 3, 2))   # the three Stories are still drafts a person has to publish: each run says so again
         self.assertEqual(report.media_uploaded, 0)
         self.assertEqual(report.media_unchanged, 1)
         self.assertEqual(self.client.write_calls(), [])
 
-    def test_changed_source_updates_and_republishes(self) -> None:
+    def test_changed_source_updates_and_a_person_republishes(self) -> None:
         self.run_import()
+        publish_item(self.client, "item-articles-hello", actor="editor", by_person="editor")
         path = self.content / "articles" / "hello.md"
         path.write_text(path.read_text().replace("A first paragraph", "An edited paragraph"))
         report = self.run_import()
-        self.assertEqual((report.created, report.updated, report.unchanged), (0, 1, 4))
+        self.assertEqual((report.created, report.updated, report.unchanged), (0, 3, 2))
+        publish_item(self.client, "item-articles-hello", actor="editor", by_person="editor")
         self.assertEqual(self.client.get_record("PublishedItem", "published-item-articles-hello")["versionNumber"], 2)
         item = self.client.get_record("Item", "item-articles-hello")
         self.assertEqual(json.loads(item["metadata"])["source"]["importedContentHash"], item["contentHash"])
@@ -137,7 +144,8 @@ class ImportTests(ImportTestCase):
         self.assertEqual(report.skipped_edited_in_cms, ["item-articles-hello"])
         self.assertEqual(self.client.get_record("Item", "item-articles-hello")["bodyMarkus"], "Edited in the CMS.\n")
         forced = self.run_import(options={"force": True})
-        self.assertEqual(forced.updated, 1)
+        self.assertEqual(forced.skipped_edited_in_cms, [])
+        self.assertEqual(forced.updated, 3)   # hello, and the two other Stories still waiting for a person to publish them
         self.assertIn("A source change", self.client.get_record("Item", "item-articles-hello")["bodyMarkus"])
 
 
