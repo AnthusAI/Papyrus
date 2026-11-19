@@ -103,7 +103,7 @@ backend: {
       theme: { accent: "#...", text: "#...", background: "#...", fontFamily: "...", logoUrl: "https://..." }, // branding keys: see "Email theme fields"
       lists: [
         { id: "weekly", name: "...", description: "...", kind: "roundup",
-          schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", archivePath: "/roundup/" },
+          schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", types: ["article"], archivePath: "/roundup/" },
         { id: "alerts-x", name: "...", description: "...", kind: "alert", rule: { sections: ["..."], tags: ["..."], types: ["..."] }, approval: "admin" },
       ],
       // configurationSet and eventTopicName default to papyrus-<siteId> and papyrus-newsletter-events-<siteId>.
@@ -112,7 +112,7 @@ backend: {
 },
 ```
 
-Invalid settings stop the synth with a readable message: unknown keys, a `fromAddress` off `sendingDomain`, duplicate or malformed list ids, a bad cron or time zone, a roundup without `archivePath`. `schedule`, `issueType`, `archivePath`, `rule` and `approval` are validated now and used by the roundup and alert stories. An alert list with no `rule` matches every published item (the announce rung of the site's agent policy decides whether a person approves each one).
+Invalid settings stop the synth with a readable message: unknown keys, a `fromAddress` off `sendingDomain`, duplicate or malformed list ids, a bad cron or time zone, a roundup without `archivePath` or without `types`. `schedule`, `issueType`, `types`, `archivePath`, `rule` and `approval` are validated now and used by the roundup and alert stories. An alert list with no `rule` matches every published item (the announce rung of the site's agent policy decides whether a person approves each one).
 
 Enabling it is a backend deploy that adds one stack, `newsletter`: a DynamoDB table (retained), a customer-managed KMS key (rotation on, retained), the SSM SecureString `/papyrus/<siteId>/newsletter-key` (generated once, never overwritten, retained) and the `newsletter` Lambda (Python 3.12, arm64, 512 MB, 30 s). It adds no GraphQL model or operation. It publishes `custom.papyrusPlugins.newsletter` (`contract`, `fromName`, `basePath`, list ids, names, descriptions and kinds, `theme`) and `custom.newsletter.actionsFunction` to `amplify_outputs.json`; the CMS routes read both. The IAM role of the function may use the table and its key, read its one parameter, and send mail from `fromAddress` through the site's identity and configuration set only. Only the CMS compute role may invoke it (a resource policy). The CMS app can also take the function name from `PAPYRUS_NEWSLETTER_FUNCTION`.
 
@@ -229,13 +229,21 @@ The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasur
 
 Status: Built (PPY-3ae3b9). The newsroom Newsletter panel (below) drives these operations.
 
-With the site's quality floor on (plugin setting `floorStars`, equal to `quality.floorStars`; [the quality floor](quality-floor.md)) a roundup draft names only the Stories rated at or above it and lists the rest under a `## Left out` section that the editor deletes before sending; a scheduled week with none at the floor makes no draft. Without `floorStars` every published item of the window is drafted, as before.
+With the site's quality floor on (plugin setting `floorStars`, equal to `quality.floorStars`; [the quality floor](quality-floor.md)) a roundup draft names only the Stories rated at or above it. Without `floorStars` every published item of a declared type is drafted.
+
+**What the inserter chooses** (`newsletter/selection.py`, one pure function; specified in `features_backend/newsletter-roundup-inserter.feature`). A roundup list declares the Story types it carries (`types`, required, no default of everything), so wiki pages and other kinds never qualify. An item belongs to the window by when it became eligible, the later of its publication and the moment it reached the floor, so a late-rated older article counts as new once. The window runs from the end of the list's last sent issue to now; with no sent issue it opens at the start of the current ISO week in the list's time zone. No number of days and no cap on items is configured. An item an earlier sent issue carried (`entryIds` on the issue row) is never offered again. One entry per story group (same document, same story) in an issue and across issues, first eligible wins; the group lookup is a seam that is not wired yet (the Reference dedupe groups are PPY-24fdf4), so today no item is in a group. Inside a section slot the order is the shared quality order (`quality_ranking.rank`), except where a person pinned a position; people's exclusions and pins are inputs of the function, supplied once the living issue Story exists (PPY-4108ef). Everything refused (wrong type, retired, below the floor, already sent, removed by a person, duplicate) is listed under a `## Left out` section, each line with its reason, that the editor deletes before sending. A scheduled period with nothing selected makes no draft.
 
 A roundup issue is an ordinary Story of the list's `issueType`, which a site must set (there is no default: it is the Story type the site uses for its periodic email, usually `post`), so editors write it in the ordinary newsroom editor (it is a card on the Stories board; open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
 
 ### Links in a slot's blurb
 
 Built (`newsletter/slot_links.py`, PPY-cb3cc9; not yet called by a save path): any link in a slot's blurb must be the slot's own Story page or appear in that Story (its text or its listed links), compared without scheme, `www.` or a trailing slash. `link_problems` returns one plain sentence per link that is neither, so a save can be refused naming it. Spec: `features_backend/newsletter-slot-links.feature`.
+
+### The living issue (rules built, not yet wired)
+
+Status: the pure rules are Built (`newsletter/living_issue.py`, `features_backend/newsletter-living-issue.feature`, PPY-4108ef); persistence, the Story body, the panel, the scheduler and the move of sending to Caducus are not. Today's issues still use the lifecycle below.
+
+The issue is one document with blocks that have one owner each. **Machine:** the entries in each section slot (a Story id with who added it, when and why). **Human:** subject, preheader, intro, outro, section headings, an entry's copy override and its order pin. Every write is a new version with its actor and the blocks it touched, made conditional on the version it started from: writers of different blocks both land; a second writer of the same block is told and sees the newer text (`Conflict`). A person editing a machine entry pins it. An agent may not write a field a person has touched (`NeedsSuggestion`: it posts in the Story's conversation). A person removes an entry with a required reason, which writes an exclusion the inserter honours until a person restores it (a new record; nothing is deleted). The floor outranks pins: an entry under the floor is removed even if pinned, recorded as `below floor`, and comes back with the person's copy if it is rated up again. An admin approves one version by its fingerprint; the inserter is paused while approved; any later edit or below-floor removal returns the issue to draft with the note "edited after approval; approve again"; an issue with no entries cannot be approved; at fire time `ready_to_send` re-checks the fingerprint.
 
 ### Issue lifecycle
 
@@ -280,8 +288,8 @@ The issue type is a Story type like any other: the site lists it in `urls.types`
 
 Each roundup list gets an EventBridge Scheduler schedule (`CfnSchedule`) from `schedule.draft` in `schedule.timezone`, which invokes `newsletter` with `{"task":"assemble-roundup","listId":...}`. The task:
 
-- takes the published, non-issue Items published after the last sent issue of that list (else the last seven days);
-- writes a draft Item titled `<list name>: <date range in the schedule's time zone>` in section `<archive segment>`, slug the local date, whose Markus body is an intro placeholder line followed by the items grouped by section (linked title, then the front matter description, summary, dek or standfirst);
+- takes the published, non-issue, non-translation Items of the list's declared `types` that became eligible after the last sent issue of that list (else the start of the current ISO week), through the inserter's rules above;
+- writes a draft Item titled `<list name>: <date range in the schedule's time zone>` in section `<archive segment>`, slug the local date, whose Markus body is an intro placeholder line followed by the items grouped by section slot in quality order (linked title, then the front matter description, summary, dek or standfirst);
 - writes the `ISSUE#<issueId>` row (`draft`, kind `roundup`, `itemId`, subject = title);
 - is idempotent per list and ISO week through `ROUNDUP#<listId>` / `PERIOD#<yyyy-ww>` (a conditional put; a claim whose issue row was never written is finished on retry);
 - writes nothing when the window has no items (it logs `roundup_empty`).

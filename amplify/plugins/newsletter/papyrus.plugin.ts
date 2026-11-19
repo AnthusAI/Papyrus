@@ -92,7 +92,7 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
         description: list.description,
         kind: list.kind,
         // A roundup's issue type, archive section and time zone are what drafting needs; its schedule stays in the stack.
-        ...(list.kind === "roundup" ? { issueType: list.issueType, archivePath: list.archivePath, timezone: list.schedule.timezone } : {}),
+        ...(list.kind === "roundup" ? { issueType: list.issueType, types: list.types, archivePath: list.archivePath, timezone: list.schedule.timezone } : {}),
         // An alert's rule and approval decide which published items raise an alert and whether an admin approves it.
         ...(list.kind === "alert" ? { rule: list.rule, approval: list.approval } : {}),
       })),

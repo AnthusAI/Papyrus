@@ -31,7 +31,7 @@ DAY = 24 * 60 * 60
 LISTS = (
     {
         "id": "weekly", "name": "Weekly roundup", "description": "", "kind": "roundup",
-        "issueType": "newsletter_issue", "archivePath": "/roundup/", "timezone": "America/New_York",
+        "issueType": "newsletter_issue", "types": ["article"], "archivePath": "/roundup/", "timezone": "America/New_York",
     },
     {"id": "alerts-a", "name": "Alerts A", "description": "", "kind": "alert"},
 )
@@ -251,7 +251,7 @@ def test_assembly_groups_items_by_section_with_links_and_deks(rig: Rig) -> None:
     assert created["status"] == "created" and created["items"] == 3
     item = rig.content.items[created["itemId"]]
     assert item["type"] == "newsletter_issue" and item["section"] == "roundup" and item["status"] == "draft"
-    assert item["title"] == "Weekly roundup: Jan 8 to Jan 15, 2027"
+    assert item["title"] == "Weekly roundup: Jan 11 to Jan 15, 2027"
     body = item["bodyMarkus"]
     assert body.startswith("Write a short introduction")
     assert body.index("## Security") < body.index("## Tools") < body.index("## More")

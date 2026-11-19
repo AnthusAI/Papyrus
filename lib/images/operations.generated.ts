@@ -51,6 +51,7 @@ export type ImageOperationName =
   | "announcements_pinned_change"
   | "announcements_release"
   | "announcements_unlock"
+  | "announcements_example"
   | "announcements_correct"
   | "announcements_record_manual"
   | "announcements_withdraw"
@@ -1381,6 +1382,26 @@ export type AnnouncementsUnlockResult = {
   lockedVersion?: number | null;
 };
 
+/** Say how far what a person changed in an announcement should reach, so later drafts can follow it. */
+export type AnnouncementsExampleInput = {
+  /** The Delivery's id: one that went out, or one with a preferred version. */
+  delivery: string;
+  /** How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why, kept with the words in S3 and never in the catalog. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsExampleResult = {
+  id: string;
+  recorded: boolean;
+  exampleState?: string | null;
+  exampleScope?: string | null;
+  machineVersion?: number | null;
+  finalVersion?: number | null;
+  reason?: string | null;
+};
+
 /** Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. */
 export type AnnouncementsCorrectInput = {
   /** The id of the Delivery that went and is to be corrected. */
@@ -1708,6 +1729,7 @@ export interface ImageOperations {
   announcements_pinned_change: { input: AnnouncementsPinnedChangeInput; result: AnnouncementsPinnedChangeResult };
   announcements_release: { input: AnnouncementsReleaseInput; result: AnnouncementsReleaseResult };
   announcements_unlock: { input: AnnouncementsUnlockInput; result: AnnouncementsUnlockResult };
+  announcements_example: { input: AnnouncementsExampleInput; result: AnnouncementsExampleResult };
   announcements_correct: { input: AnnouncementsCorrectInput; result: AnnouncementsCorrectResult };
   announcements_record_manual: { input: AnnouncementsRecordManualInput; result: AnnouncementsRecordManualResult };
   announcements_withdraw: { input: AnnouncementsWithdrawInput; result: AnnouncementsWithdrawResult };
@@ -1768,6 +1790,7 @@ export const IMAGE_OPERATIONS = {
   announcements_pinned_change: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements pinned" },
   announcements_release: { effect: "write", agentAllowed: true, agentRung: "publish_auto", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements release" },
   announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
+  announcements_example: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements example" },
   announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
   announcements_record_manual: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements record-manual" },
   announcements_withdraw: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },
