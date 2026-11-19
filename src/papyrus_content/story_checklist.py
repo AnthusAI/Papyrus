@@ -20,10 +20,13 @@ and ``sub-task`` is a system type (``content_item_lifecycle.SYSTEM_ITEM_TYPES``)
   ``newsroom_process.assess``; ``sync_checklist`` runs once after a write, never on a schedule.
 * A template with a new step gives an unpublished Story that step as ``open`` the next time the Story changes.
 * Publishing refuses while a required step is open (``require_checklist_closed``, called by ``publishing.publish_item``).
+* A translation (``{story}--{language}``) has a checklist of its own with the translation template (``TRANSLATION_STEPS``), and publishing it checks that
+  one (docs/story-translation-procedure.md, "The language checklist"). Rating and the cover are the original's and are not rows of the translation.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from typing import Any
@@ -35,6 +38,7 @@ from .newsroom_process import (
     DEFAULT_PROCEDURE,
     Procedure,
     STEP_BY_KEY,
+    Step,
     TEMPLATE_VERSION,
     ADDED_AFTER_PUBLISH_KEYS,
     assess,
@@ -82,6 +86,55 @@ class ChecklistError(ValueError):
     def __init__(self, message: str = "", open_steps: list[dict[str, str]] | None = None) -> None:
         super().__init__(message)
         self.open_steps = list(open_steps or [])
+
+
+TRANSLATE_KEY = "translate"
+FAITHFULNESS_KEY = "faithfulness"
+COPY_EDIT_KEY = "copy_edit"
+HUMAN_REVIEW_KEY = "human_review"
+#: The steps the translation run's own records prove for the version it saved (``provenance.checklist``); a person cannot tell them apart from the run's work.
+TRANSLATION_PROOF_KEYS = (TRANSLATE_KEY, FAITHFULNESS_KEY, COPY_EDIT_KEY)
+#: The site step a translation's ``human_review`` follows: it is required where the site's procedure requires its readers' review.
+SITE_REVIEW_KEY = "review_people"
+TRANSLATION_RUN_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the translation's records"}
+
+#: The template of a translation's checklist. ``human_review`` is optional here and made required by :func:`translation_procedure` where the site requires it.
+TRANSLATION_STEPS: tuple[Step, ...] = (
+    Step(TRANSLATE_KEY, "copywriting", "Translation run", "Translated", "papyrus stories localize --story <original story> --language <language>", LIVE, False,
+         "Proved by the run (or the finished copy a person imported) that saved the version: its provenance names the source version."),
+    Step(FAITHFULNESS_KEY, "copywriting", "Translation run", "Checked against the original", "papyrus stories localize --story <original story> --language <language>", LIVE, False,
+         "Proved by the run's parity rules and bilingual judge. A finding that changes the meaning holds the translation: a person answers the review request the run raised."),
+    Step(COPY_EDIT_KEY, "copywriting", "Translation run", "Copy-edited in its language", "papyrus stories localize --story <original story> --language <language>", LIVE, False,
+         "Proved by the run's final copy-edit check of every block."),
+    Step(HUMAN_REVIEW_KEY, "copywriting", "A person", "Reviewed by a person",
+         "papyrus stories step --story {story} --step human_review --state done --note <findings>", LIVE, True,
+         "A person reads the translation and records the findings. Done against one version: an edit afterwards drops it. Required where the site's procedure requires "
+         "its readers' review (the review_people step).", True, versioned=True),
+    Step(PUBLISH_KEY, "published", "A person", "Publish the translation", "papyrus ops content publish --id <item id>", LIVE, False, "The only hard gate."),
+)
+
+
+def translation_procedure(site: Procedure) -> Procedure:
+    """The steps of a translation's checklist for a site: the template, with ``human_review`` required exactly when the site's procedure has its readers' review live and required."""
+    review = site.by_key.get(SITE_REVIEW_KEY)
+    required = review is not None and review.status == LIVE and not review.optional
+    steps = tuple(dataclasses.replace(step, optional=False) if step.key == HUMAN_REVIEW_KEY and required else step for step in TRANSLATION_STEPS)
+    return Procedure(steps, "translation", site.version)
+
+
+def procedure_for_lineage(client, lineage: str) -> tuple[Procedure, bool]:
+    """The procedure whose steps ``lineage``'s checklist has, and whether the lineage is a translation (its newest version names the original it translates)."""
+    from .item_language import localization_original
+    from .story_reporting import latest_story_version
+
+    site = procedure_of(client)
+    try:
+        current = latest_story_version(client, lineage)
+    except ValueError:   # no such Story: the caller's own error says so
+        return site, False
+    if localization_original(current, getattr(client, "tenant_id", None)) is None:
+        return site, False
+    return translation_procedure(site), True
 
 
 def template_steps(procedure: Procedure = DEFAULT_PROCEDURE) -> list:
@@ -294,6 +347,10 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     ``story`` is the Story's row when the caller has just created it: the lineage index is eventually consistent and may not hold it yet, so the row is used as it is."""
     now = now or utc_now()
     facts = facts or story_facts(client, lineage, versions=[story] if story else None)
+    if facts.get("localizationOf"):
+        # A translation's rows are written by the run, the import or the correction that saved its version (``record_translation_steps``), or by a person; the
+        # Story template (research, draft, review lenses, cover, rating) does not describe it, and the records it reads are the original's.
+        return {"created": [], "completed": [], "summary": summary_of(read_steps(client, lineage), translation_procedure(procedure_of(client)))}
     procedure = Procedure.from_spec(facts.get("procedureSpec"))
     assessment = assessment or assess(facts)
     states = {row["key"]: row.get("evidence", row["state"]) for row in assessment["steps"]}   # what the records prove, never the stored answer
@@ -424,7 +481,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
 
     ``actor`` is ``{"kind": "person" | "agent", "label": ..., "sub": ...}``. A skip or a not-applicable answer needs a reason; a manual step
     (a review lens) needs a findings note to be done; only a person reopens a step."""
-    procedure = procedure_of(client)
+    procedure, translation = procedure_for_lineage(client, lineage)
     step = procedure.by_key.get(key)
     if step is None:
         raise ChecklistError(f"Unknown step {key!r}. The steps are: {', '.join(item.key for item in template_steps(procedure))}.")
@@ -444,7 +501,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     evidence = _rated_rules(client, lineage, key, state, evidence)
     now = now or utc_now()
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
-    if not rows:
+    if not rows and not translation:
         sync_checklist(client, lineage, now=now)
         rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     existing = rows.get(key)
@@ -453,7 +510,8 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     row = _apply(existing or _new_row(lineage, key, procedure), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=_current_version_number(client, lineage))
     _write(client, row)
     rows[key] = row
-    refresh_summary(client, lineage, sorted(rows.values(), key=lambda item: (int(item.get("stepOrder") or 0), item["stepKey"])), now=now)
+    if not translation:   # a translation has no board card to show progress on
+        refresh_summary(client, lineage, sorted(rows.values(), key=lambda item: (int(item.get("stepOrder") or 0), item["stepKey"])), now=now)
     return row
 
 
@@ -461,7 +519,7 @@ def add_note(client, lineage: str, key: str, text: str, *, actor: dict[str, Any]
     """Adds a note to a step, whatever its state, for context later. Notes only accumulate: each is who (a person or an agent, by name), when and its
     text, newest last; there is no way to edit or delete one, and a correction is a new note. The step's state, reason and findings do not change.
     A note is one more version of the step's sub-task Item (created, never updated), so versions still record who and when."""
-    procedure = procedure_of(client)
+    procedure, translation = procedure_for_lineage(client, lineage)
     if procedure.by_key.get(key) is None:
         raise ChecklistError(f"Unknown step {key!r}. The steps are: {', '.join(item.key for item in template_steps(procedure))}.")
     if actor.get("kind") not in (ACTOR_PERSON, ACTOR_AGENT) or not str(actor.get("label") or actor.get("sub") or "").strip():
@@ -471,7 +529,7 @@ def add_note(client, lineage: str, key: str, text: str, *, actor: dict[str, Any]
         raise ChecklistError("A note needs some text.")
     now = now or utc_now()
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
-    if not rows:
+    if not rows and not translation:
         sync_checklist(client, lineage, now=now)
         rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     existing = rows.get(key)
@@ -498,8 +556,9 @@ def notes_text(rows: list[dict[str, Any]]) -> str:
 
 
 def mark_imported(client, lineage: str, source: str, *, now: str | None = None) -> bool:
-    """A Story that was imported (not written in the newsroom) gets a checklist with every step but publishing marked not applicable, reason
-    ``imported from <source>``. Nothing is touched when the Story already has a checklist. Returns whether it made one."""
+    """A Story that was imported (not written in the newsroom) gets a checklist with every step marked not applicable, reason ``imported from <source>``,
+    except publishing and the review of readers (``review_people``): those stay open, so a person reads the Story and ticks the review before it publishes
+    (required wherever the site's procedure requires it). Nothing is touched when the Story already has a checklist. Returns whether it made one."""
     now = now or utc_now()
     if read_steps(client, lineage):
         return False
@@ -508,8 +567,9 @@ def mark_imported(client, lineage: str, source: str, *, now: str | None = None) 
     procedure = procedure_of(client)
     for step in template_steps(procedure):
         row = _new_row(lineage, step.key, procedure)
-        row = _apply(row, OPEN if step.key == PUBLISH_KEY else NOT_APPLICABLE, actor if step.key != PUBLISH_KEY else TEMPLATE_ACTOR, now,
-                     reason=None if step.key == PUBLISH_KEY else f"imported from {source}", story_version=_current_version_number(client, lineage))
+        stays_open = step.key in (PUBLISH_KEY, SITE_REVIEW_KEY)
+        row = _apply(row, OPEN if stays_open else NOT_APPLICABLE, TEMPLATE_ACTOR if stays_open else actor, now,
+                     reason=None if stays_open else f"imported from {source}", story_version=_current_version_number(client, lineage))
         _write(client, row)
         rows.append(row)
     refresh_summary(client, lineage, rows, now=now)
@@ -535,11 +595,14 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
     A Story that has no checklist yet (made before this existed) gets one first, marked done where evidence exists, so nothing slips through
     for want of a record. Raises ``ChecklistError`` naming each open step and the command that closes it."""
     from .content_item_lifecycle import is_story_item_type
+    from .item_language import localization_original
 
     if not is_story_item_type(item.get("type")):
         return
     lineage = item.get("lineageId") or item["id"]
     procedure = procedure_of(client)   # a procedure that cannot be read stops the publish: nothing guesses which one the site has
+    if localization_original(item, getattr(client, "tenant_id", None)) is not None:
+        return _require_language_checklist_closed(client, item, lineage, translation_procedure(procedure))
     rows = read_steps(client, lineage)
     if not rows or any(step.key not in {row["stepKey"] for row in rows} for step in template_steps(procedure) if step.key != PUBLISH_KEY):
         sync_checklist(client, lineage)
@@ -564,6 +627,62 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
             + (f" For Rated: {rated_resolution(lineage)}" if unrated else ""),
             open_steps,
         )
+
+
+def _require_language_checklist_closed(client, item: dict[str, Any], lineage: str, procedure: Procedure) -> None:
+    """The publish rule for a translation: the checklist of its own lineage, read at the version being published. A required step that is open, or has no row
+    (a translation saved before language checklists), blocks; so does a ``human_review`` done for an earlier version, because an edit drops the review.
+    A faithfulness finding the run left (a held translation) is cleared by the person's answer to the hold, which ``localization_publish.require_publishable``
+    has already required, so it does not block twice. Rating and the cover are the original's and are not asked here."""
+    rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
+    version = int(item.get("versionNumber") or 0)
+    held = (_metadata_of(item).get("localization") or {}).get("outcome") == "held"
+    blocking: list[tuple[str, str]] = []
+    for key in required_keys(procedure):
+        row = rows.get(key)
+        if key == FAITHFULNESS_KEY and held:
+            continue
+        if row is None or row.get("state") == OPEN:
+            blocking.append((key, ""))
+        elif procedure.by_key[key].versioned and row.get("state") == STEP_DONE and int(row.get("storyVersion") or 0) != version:
+            blocking.append((key, f" (done for version {row.get('storyVersion')}, this is version {version})"))
+    if not blocking:
+        return
+    language = item.get("language") or "language"
+    raise ChecklistError(
+        f"Publishing is blocked: these required steps of the {language} translation are open: "
+        + "; ".join(f"{procedure.by_key[key].title} ({key}){why}" for key, why in blocking)
+        + f". Mark each done, skipped with a reason or not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>"
+        + " (a review needs --note with the findings instead).",
+        [{"key": key, "label": procedure.by_key[key].title} for key, _ in blocking],
+    )
+
+
+def record_translation_steps(client, record: dict[str, Any], checklist: dict[str, Any], *, now: str | None = None) -> None:
+    """Writes a translation's rows when a version of it is saved: ``record`` is the saved ``Item`` version and ``checklist`` its provenance's ``checklist``
+    (what the run, the import or the correction proved). Translate, faithfulness and copy edit are recorded for this version, done where the provenance
+    says so and open where it does not; human review and publishing are created open and never touched here, so a review a person recorded earlier is
+    judged against the new version by the gate and a published row stays published."""
+    now = now or utc_now()
+    lineage = record["lineageId"]
+    version = int(record["versionNumber"])
+    procedure = translation_procedure(procedure_of(client))
+    rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
+    for step in procedure.steps:
+        existing = rows.get(step.key)
+        if step.key in TRANSLATION_PROOF_KEYS:
+            proof = checklist.get(step.key) or {}
+            done = bool(proof.get("done"))
+            if existing and existing.get("state") == (STEP_DONE if done else OPEN) and existing.get("storyVersion") == version:
+                continue
+            row = _apply(existing or _new_row(lineage, step.key, procedure), STEP_DONE if done else OPEN, TRANSLATION_RUN_ACTOR if done else TEMPLATE_ACTOR, now,
+                         evidence=proof.get("proof") if done else None,
+                         note=None if done else "The run left a finding at error severity; a person clears the translation's hold.", story_version=version)
+        elif existing is None:
+            row = _apply(_new_row(lineage, step.key, procedure), OPEN, TEMPLATE_ACTOR, now, story_version=version)
+        else:
+            continue
+        _write(client, row)
 
 
 def illustration_problem(client, item: dict[str, Any], rows: list[dict[str, Any]]) -> str | None:

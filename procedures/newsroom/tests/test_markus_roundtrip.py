@@ -125,11 +125,11 @@ class RoundTripTests(unittest.TestCase):
         def importer(content_dir, client, store):
             options = ImportOptions(content_dir=content_dir, draft_dirs={"drafts": "articles"})
             run_import(plan_import(options, client, store), client, store, apply=True)
-            # An import saves Stories as drafts (publish_by_person.py): a person publishes the ones the source says are published.
+            # An import saves Stories as drafts: a person publishes the ones the source says are published.
             for row in list(client.tables["Item"].values()):
                 source = json.loads(row.get("metadata") or "{}").get("source", {}).get("path", "")
                 if row["status"] == "draft" and row.get("type") == "article" and not source.startswith("drafts/"):
-                    publish_item(client, row["id"], actor="test", now=NOW, by_person="test")
+                    publish_item(client, row["id"], actor="test", now=NOW)
 
         self.check(importer)
 

@@ -251,6 +251,7 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
     ``versions`` are the Story's rows when the caller has just written them: the lineage index is eventually consistent and may not hold them yet."""
     from .assignments import assignment_metadata
     from .assignments_workflow import load_assignment_research_packet_entries
+    from .item_language import localization_original
     from .story_reporting import _current_of, story_versions
 
     versions = versions if versions is not None else story_versions(client, lineage)
@@ -293,6 +294,7 @@ def story_facts(client, lineage: str, read_check_run: Callable[[str], dict[str, 
     return {
         "procedureSpec": procedure_of(client).spec(),
         "lineage": lineage,
+        "localizationOf": localization_original(current, getattr(client, "tenant_id", None)),   # the original's lineage when this lineage is a translation, else None
         "stage": current.get("stage") or "idea",
         "versionId": current["id"],
         "versionNumber": int(current.get("versionNumber") or 1),

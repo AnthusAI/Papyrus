@@ -127,13 +127,6 @@ def _stage_lines(stages: dict[str, dict[str, Any]]) -> list[str]:
     return lines
 
 
-def signed_in_person(actor: str) -> str | None:
-    """The person behind a CLI publish: the actor in the signed-in lane (``papyrus login``), nobody in the operator lane (``--auth iam``), which is a job's."""
-    from .user_auth_mode import user_auth_requested
-
-    return actor if user_auth_requested() else None
-
-
 def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublished: bool = False) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, label)
@@ -148,7 +141,7 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
                 from .projection.runtime import render_preflight
 
                 render_preflight(client, item_id)   # only where this process projects (the operator's lane); the signed-in lane's function does it
-        result = action(target, item_id, actor=actor, **({} if unpublished else {"by_person": signed_in_person(actor)}))
+        result = action(target, item_id, actor=actor)
     except PublishError as error:
         payload = {
             "ok": False,
@@ -269,7 +262,7 @@ def _publish_batch(flags: list[str], ids: list[str]) -> None:
     saved: list[Any] = []
     for item_id in ids:
         refuse_placeholder_slug(client, item_id)
-        saved.append(publish_item(target, item_id, actor=actor, by_person=signed_in_person(actor)))
+        saved.append(publish_item(target, item_id, actor=actor))
     if not apply:
         for result in saved:
             print(f"content publish (batch, dry run): {result.item_id} {'changed' if result.changed else 'unchanged'}")

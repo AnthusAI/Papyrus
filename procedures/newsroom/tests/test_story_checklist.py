@@ -271,16 +271,20 @@ def test_a_role_that_may_create_items_but_not_update_them_still_records_the_step
     assert {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["research"]["state"] == "done"   # the newest version is the step
 
 
-def test_an_imported_story_has_every_step_not_applicable_and_is_not_blocked():
+def test_an_imported_story_has_every_step_not_applicable_but_the_readers_review_and_is_blocked_until_a_person_ticks_it():
     client = FakeAuthoringClient()
     item = create_story(client, title="Imported", section_key=None, actor="AI")
     lineage = item["lineageId"]
     drop_sub_tasks(client)
     assert checklist.mark_imported(client, lineage, "articles/imported.md") is True
     rows = {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}
-    assert all(r["state"] == "not_applicable" and r["reason"] == "imported from articles/imported.md" for key, r in rows.items() if key != "publish")
-    assert rows["publish"]["state"] == "open" and rows["review_people"]["actorLabel"] == "Automatically, from the import"
-    checklist.require_checklist_closed(client, item)   # publishing is not blocked
+    assert all(r["state"] == "not_applicable" and r["reason"] == "imported from articles/imported.md" for key, r in rows.items() if key not in ("publish", "review_people"))
+    assert rows["publish"]["state"] == "open" and rows["review_people"]["state"] == "open" and rows["concepts"]["actorLabel"] == "Automatically, from the import"
+    with pytest.raises(checklist.ChecklistError) as blocked:
+        checklist.require_checklist_closed(client, item)   # the readers' review stays open: a person ticks it
+    assert [step["key"] for step in blocked.value.open_steps] == ["review_people"]
+    checklist.set_step(client, lineage, "review_people", "done", actor={"kind": "person", "label": "An Editor"}, note="Read it through.")
+    checklist.require_checklist_closed(client, item)   # now publishing is not blocked
     assert checklist.mark_imported(client, lineage, "articles/imported.md") is False   # a checklist that exists is left alone
 
 

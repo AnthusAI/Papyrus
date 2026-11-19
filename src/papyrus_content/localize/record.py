@@ -357,6 +357,9 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
     for row in versions:
         if row.get("versionState") != "superseded":
             client.update_record("Item", superseding_update(row))
+    from ..story_checklist import record_translation_steps
+
+    record_translation_steps(client, record, provenance.get("checklist") or {}, now=now)   # the language's own checklist rows: translate, faithfulness, copy edit
     return record
 
 
