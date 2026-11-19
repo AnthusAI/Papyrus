@@ -39,6 +39,11 @@ def movers(context):
     assert all(stage.mover == lifecycles.ENGINE or stage.mover in BY_KEY for stage in context.lifecycle.stages)
 
 
+@then('the "{title}" stage asks no person')
+def stage_asks_no_person(context, title):
+    assert stage_titled(context, title).person == "never", title
+
+
 @then('the stages "{titles}" ask no person')
 def no_person(context, titles):
     for title in titles.split(", "):
@@ -78,6 +83,18 @@ def final_failure_words(context):
 def keeps_and_counts(context, title):
     stage = stage_titled(context, title)
     assert (stage.nobody_acts, stage.counted) == ("stays", True), stage
+
+
+@then('the "{title}" stage\'s words say "{words}"')
+def stage_words(context, title, words):
+    stage = stage_titled(context, title)
+    spoken = f"{stage.text or ''} {stage.nobody_text}"
+    assert words in spoken, (words, spoken)
+
+
+@then('when nobody acts the "{title}" stage flags once and waits')
+def flags(context, title):
+    assert stage_titled(context, title).nobody_acts == "flags"
 
 
 @then("no stage removes a record for its age")
