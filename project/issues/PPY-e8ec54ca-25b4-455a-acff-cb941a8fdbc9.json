@@ -23,9 +23,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3d94c02f-d4ac-4758-8c85-60b78d7202a0",
+      "author": "home",
+      "text": "Branch feat/PPY-e8ec54-delivery-editing, PR https://github.com/AnthusAI/Papyrus/pull/1698 (not merged). Built: Delivery text versions in S3 (row holds key, hash, author, replaced version), stale save refused naming the replacing version, machine redraft dropped, pinned human blocks that a redraft keeps, candidates (choose one, keep the rest), lockedAt/lockedVersion raised at lockAt by a follow-up timer wake, soft silence approved by the policy and locked in one write, hard with no approval flagged once, late edit needs a person's unlock, an edit during an open attempt saved as a preferred version, attempt log records the version sent, window lengths as data per kind and channel in the announcement settings, operations (versions, draft, candidate choose, pinned, unlock) from the one operation table. Left: a person's CLI unlock cannot move the follow-up timer (no scheduler rights on that lane; needs the deliver runtime deploy), console editing UI, channel checks of edited words. Specs: delivery-edit-window, delivery-pinned-human-edits, delivery-candidate-versions, delivery-lock-and-unlock, delivery-nothing-unseen-is-sent, delivery-edit-operations.",
+      "created_at": "2026-11-19T03:39:10.073214Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:36.065966Z",
-  "updated_at": "2026-11-16T22:46:04.506694Z",
+  "updated_at": "2026-11-19T03:39:10.077635Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
