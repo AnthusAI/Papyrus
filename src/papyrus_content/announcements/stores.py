@@ -111,3 +111,32 @@ class DynamoSettings:
             ExpressionAttributeNames={"#typename": "__typename"},
             ExpressionAttributeValues={":settings": json.dumps(settings), ":stamp": stamp, ":typename": "AnnouncementSettings"},
         )
+
+
+class DynamoSpendLedger:
+    """``spend.SpendLedger`` over the ``AnnouncementSpend`` table written directly with the function's role (the x queue's consumer has no signed-in person). One consumer runs at a time
+    (reserved concurrency 1), so the read and the write of a cycle's total do not race."""
+
+    def __init__(self, table: Any, clock: Any) -> None:
+        self.table = table
+        self.clock = clock
+
+    def spent(self, account_id: str, start: Any) -> Any:
+        from . import budget as budget_module
+
+        item = self.table.get_item(Key={"id": budget_module.spend_id(account_id, start)}, ConsistentRead=True).get("Item")
+        return item.get("total") if item else None
+
+    def add_spend(self, account_id: str, start: Any, amount: Any, *, now: str | None = None) -> str:
+        from . import budget as budget_module
+
+        row_id = budget_module.spend_id(account_id, start)
+        total = str(budget_module.money_sum(self.spent(account_id, start), amount))
+        stamp = now or utc_iso(self.clock())
+        self.table.update_item(
+            Key={"id": row_id},
+            UpdateExpression="SET accountId = :account, cycleStart = :cycle, #total = :total, updatedAt = :stamp, #typename = :typename, createdAt = if_not_exists(createdAt, :stamp)",
+            ExpressionAttributeNames={"#total": "total", "#typename": "__typename"},
+            ExpressionAttributeValues={":account": account_id, ":cycle": start.isoformat(), ":total": total, ":stamp": stamp, ":typename": "AnnouncementSpend"},
+        )
+        return total

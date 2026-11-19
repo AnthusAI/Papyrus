@@ -2,6 +2,7 @@
 
 * ``router``     direct (asynchronous) invocations: ``story-published`` from a publish, reader actions from the CMS routes (Caducus's public audience)
 * ``email``      the site's email queue: one queued delivery, or one fan-out page of a public kind, per message
+* ``x``         the site's x queue: one queued announcement post per message (``x_sender.py``); only where the site is wired for X
 * ``flush``      every minute: groups whose window ended
 * ``ses_events`` EventBridge, SES events of the site's configuration set for mail this site sent
 * ``pause``      EventBridge, the bounce and complaint alarms: turns sending off (only on a site without the newsletter)
@@ -75,6 +76,20 @@ def email(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
     from .runtime import runtime
 
     return email_with(runtime(), event)
+
+
+def x_with(rt: Runtime, event: Mapping[str, Any]) -> dict[str, Any]:
+    from .x_sender import handle_batch
+
+    if rt.x is None:
+        raise RuntimeError("This function is not wired for X (X_QUEUE_URL is not set), so it cannot post.")
+    return handle_batch(rt.store, rt.x, event)
+
+
+def x(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
+    from .runtime import runtime
+
+    return x_with(runtime(), event)
 
 
 def flush(event: Any = None, context: Any = None) -> dict[str, int]:
