@@ -13,17 +13,13 @@
   ],
   "dependencies": [
     {
-      "target": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
-      "type": "blocked-by"
-    },
-    {
       "target": "PPY-51f96f39-499f-4b37-a4be-325e85221d02",
       "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-16T22:43:12.654995Z",
-  "updated_at": "2026-11-16T22:43:41.464939Z",
+  "updated_at": "2026-11-19T11:07:36.510540Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
