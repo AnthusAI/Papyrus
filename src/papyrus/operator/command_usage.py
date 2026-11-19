@@ -141,6 +141,8 @@ _ENTRIES = dict([
      "a time that does not exist there is refused and one that happens twice asks for the offset; needs publication.timeZone in the site's backend settings)", "editor", _DRY, "publish"),
   _e("stories schedule-list", "List the scheduled, overdue and blocked versions soonest first, of one Story or of the site between two times.",
      "[--story LINEAGE] [--from TIME] [--to TIME] [--state scheduled|publishing|blocked|overdue ...] [--json]", "editor", "reads", "publish"),
+  _e("stories schedule-suggest", "Read only. The next time to schedule a Story, learned from the publication's own first-publication history (or why there is none yet).",
+     "[--story LINEAGE] [--json]  (--story leaves that Story's own schedule out of the latest scheduled time)", "editor", "reads", "publish"),
   _e("stories set-stars", "Rate a Story as the signed-in person.", "--story LINEAGE --stars 0-5 [--agent YOUR_NAME] [--dry-run]  (0 clears the rating)", "editor", _DRY, "tag-and-link"),
   _e("stories link-concept", "Tag a Story with existing accepted concepts (edge tagged_with); never creates a concept.",
      "--story LINEAGE|SLUG --concept NAME|#HASHTAG|NODEKEY [--concept ...] [--note TEXT] [--author-label NAME] [--dry-run] [--json]", "both", _DRY, "tag-and-link"),
@@ -433,7 +435,7 @@ def _drafted(path: str) -> Usage | None:
 
 GROUP_ORDER = {
   "references": ["search", "list", "show", "text", "make-catalog", "create-from-catalog", "link-concept", "link", "set-stars", "check-links", "approve", "reject", "suggest-links"],
-  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
+  "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "schedule-suggest", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "pod": ["init", "id", "check", "build", "load"],
   "agents": ["validate", "apply", "schedules", "listeners", "set-rung"],

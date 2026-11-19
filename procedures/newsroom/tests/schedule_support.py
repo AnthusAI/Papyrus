@@ -69,8 +69,29 @@ def new_story(client: FakeAuthoringClient, *, first_published: str | None = None
     return newest
 
 
-def service_for(client: FakeAuthoringClient, scheduler: FakeScheduler, clock: Clock, zone: str | None = ZONE) -> ScheduleService:
-    return ScheduleService(client, zone_name=zone, scheduler=scheduler, now=clock)  # type: ignore[arg-type]
+class FakeLockTable:
+    """The lock table's two calls the publication cadence uses: ``get_item`` and the one ``update_item`` it writes (set the first time once, add one to the counters)."""
+
+    def __init__(self) -> None:
+        self.items: dict[str, dict[str, Any]] = {}
+        self.updates = 0
+
+    def get_item(self, Key: dict[str, str], ConsistentRead: bool = False) -> dict[str, Any]:  # noqa: N803 - the boto3 names
+        found = self.items.get(Key["publication"])
+        return {"Item": dict(found)} if found else {}
+
+    def update_item(self, Key: dict[str, str], UpdateExpression: str, ExpressionAttributeNames: dict[str, str], ExpressionAttributeValues: dict[str, Any]) -> None:  # noqa: N803
+        assert UpdateExpression == "SET #first = if_not_exists(#first, :at) ADD #total :one, #hour :one", UpdateExpression
+        names, values = ExpressionAttributeNames, ExpressionAttributeValues
+        row = self.items.setdefault(Key["publication"], {"publication": Key["publication"]})
+        row.setdefault(names["#first"], values[":at"])
+        for name in ("#total", "#hour"):
+            row[names[name]] = row.get(names[name], 0) + values[":one"]
+        self.updates += 1
+
+
+def service_for(client: FakeAuthoringClient, scheduler: FakeScheduler, clock: Clock, zone: str | None = ZONE, cadence: Any = None) -> ScheduleService:
+    return ScheduleService(client, zone_name=zone, scheduler=scheduler, now=clock, cadence=cadence)  # type: ignore[arg-type]
 
 
 def item(client: FakeAuthoringClient, item_id: str) -> dict[str, Any]:

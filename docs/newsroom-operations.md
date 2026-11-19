@@ -247,10 +247,16 @@ refusals agree with how the backend reads a time. A site whose backend has sched
 instant on the version's Item row (`scheduledPublishAt`, `scheduledBy`, `scheduledAt`, `scheduleState`).
 
 - **Card and drawer.** A scheduled Story's board card shows an icon and words (`Scheduled: Mon 16 Nov, 4:00 AM ET`, `Overdue`, `Superseded: a newer version was saved`).
-  The Story drawer has a Schedule row (`components/story-schedule-panel.tsx`) with a date and time picker in the publication's zone, Change time, Unschedule, and the
+  The Story drawer has a Schedule row (`components/story-schedule-panel.tsx`) with a date and time picker in the publication's zone, Schedule… or Change time, Suggest a time, Unschedule, and the
   editor's own zone in small type when it differs. The Publish button and the Published state are unchanged. A change shows at once and goes back to what was saved if
   the backend refuses it, and the form keeps what was typed. A wall-clock time that does not exist (the spring-forward gap) is refused in plain words; one that happens
   twice asks which. The console sends the UTC instant through the `schedule` operation of the `scheduleItem` mutation (`lib/content-actions-client.ts`, [scheduled publishing](scheduled-publishing.md)); the stored states are `scheduled`, `publishing` and `blocked` (shown as Superseded), and Overdue is derived from the time.
+- **Suggest a time, a newer version, an unrated Story.** Suggest a time asks the backend's `schedule_suggest` operation and opens the picker on the answer, with a
+  note saying where it comes from; a publication with no publishing history is told "No suggestion yet: this publication has no publishing history." and may pick any
+  time. The backend learns the suggestion from the hours of the week the publication first published in (`publication_cadence.py`, kept in the lock table, raised once
+  per first publication). The drawer reads `newerVersionExists` and `notes` from the one-Story `schedule_list`: it says "A newer version exists than the one scheduled"
+  as soon as a newer version is saved (the drawer reads the schedule again when its version changes), and an unrated Story is told "Unrated: it will publish but will not
+  be listed or announced until it is rated." in the backend's words.
 - **Schedule page** (`/newsroom/schedule`, `components/newsroom-schedule-page.tsx`). FullCalendar 7 (`@fullcalendar/react`, MIT), loaded only on that route: week by
   default, Day and Month, the publication's named zone, focusable events (`eventInteractive`), lists instead of the week grid on a phone, and a plain list of the same
   items under the calendar. It reads one range of the `scheduleState` + `scheduledPublishAt` index per state (`lib/story-schedule-query.ts`), never the whole table.

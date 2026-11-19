@@ -23,6 +23,7 @@
 .story-schedule-sentence{margin:0;font-size:13px}
 .story-schedule-own{margin:0;font-size:11px;color:var(--org-muted)}
 .story-schedule-note{margin:0;font-size:12px;color:var(--org-muted)}
+.story-schedule-note svg{display:inline-block;vertical-align:-2px;margin-right:6px}
 .story-schedule-problem{margin:0;padding:8px 10px;border-radius:8px;background:color-mix(in oklab,var(--org-ink) 14%,var(--org-paper));font-size:12px;font-weight:600}
 .story-schedule-form{display:grid;gap:8px}
 .story-schedule-fields{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center}
