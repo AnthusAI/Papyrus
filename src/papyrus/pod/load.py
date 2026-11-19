@@ -7,8 +7,13 @@ What a note becomes is the newsroom's content item. The note's ``type`` is the I
 ``stage`` (a note with none is at ``copywriting``, where every file-made Item starts), its ``section`` link the Item's ``section``. The other lifecycle keys land
 on ``metadata.pod`` under the names the note uses, with the note's id and the commit it came from. They are claims (``papyrus_content/pod_claims.py``):
 the newsroom's gates read its own records and never these. A load writes one version of a changed note, never a replay of its Git history, writes nothing
-for a note that has not changed, never touches a note a person has since changed in the newsroom, and never publishes: a note at ``stage: published`` is
-recorded at that stage and no page is made.
+for a note that has not changed and never touches a note a person has since changed in the newsroom.
+
+A note whose front matter says ``stage: published`` is published after it is written, through the site's own publish step (``publish_item`` and the site's
+page-build trigger, the same as ``papyrus content publish``). Every publish rule still applies as the newsroom has it (a closed checklist, a rating where the
+site requires one, a person's approval where the site requires it, ``publishRequiresRating``): when one refuses, the load reports the refusal for that note, the
+note stays loaded as a draft, and nothing is forced or bypassed. A note that does not say ``published`` is never published, and neither is any note of a private pod (one with no ``web/projection.json``): a private pod's notes are
+private newsroom data. Reloading an unchanged note does nothing.
 
 Only notes of a class that is an Item (Article, Post, Page) are loaded by this version. Notes of the other classes are counted and named in the report.
 """
@@ -26,7 +31,7 @@ from papyrus_content.markus_renderer.content_markup import split_front_matter
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.operator_errors import OperatorError
 from papyrus_content.pod_claims import CLAIM_KEYS, FIVE_STAR_CANDIDATE, POD_METADATA_KEY, pod_record
-from papyrus_content.publishing import ItemFields, save_item
+from papyrus_content.publishing import ItemFields, PublishError, publish_item, save_item
 from papyrus_content.story_reporting import save_story_version, story_versions
 from papyrus_content.tenancy import tenant_scoped_item_id
 
@@ -37,6 +42,8 @@ from .notes import Note, walk
 LOAD_ACTOR = "pod-load"
 SITE_SETTINGS = Path("web") / "projection.json"
 DEFAULT_STAGE = "copywriting"
+PUBLISHED_STAGE = "published"
+PUBLISHED, REFUSED = "published", "refused"
 ITEM_CLASSES = {"Article": "article", "Post": "post", "Page": "page"}
 GIT_TIMEOUT_SECONDS = 30
 
@@ -70,6 +77,8 @@ class PlannedNote:
     claims: dict[str, Any] = field(default_factory=dict)
     version: int = 1
     five_star_candidate: bool = False
+    says_published: bool = False
+    publish: str = ""      # what the publish step answered for this note: "published" or "refused [code]: message"; empty when it was not asked
 
 
 @dataclass
@@ -167,8 +176,12 @@ def plan_load(pod: Path, commit: str, tenant_id: str | None, open_client) -> Pla
         candidate = front.get("rating") == 5
         record = {"id": note_id, "path": note.path, "class": class_name, "stage": stage, "commit": commit, "loadedHash": loaded, **claims,
                   **({FIVE_STAR_CANDIDATE: True} if candidate else {})}
+        says_published = stage == PUBLISHED_STAGE and not plan.private
         planned = PlannedNote(
-            note.path, note_id, lineage, stage=stage, section=section, claims=record, five_star_candidate=candidate,
+            # A note that says published is written at the stage a draft has and reaches ``published`` only through the publish step: a Story born at ``published`` would
+            # read as having done every step before it, and the checklist would not stop it. The pod's own word stays on the claims record.
+            note.path, note_id, lineage, stage=DEFAULT_STAGE if says_published else stage, section=section, claims=record, five_star_candidate=candidate,
+            says_published=says_published,
             fields=ItemFields(type=ITEM_CLASSES[class_name], slug=slugify(note.stem), section=section, front_matter_yaml=front_matter_yaml, body_markus=body, aliases=[],
                               id=lineage, source_path=note.path, metadata={POD_METADATA_KEY: record}),
         )
@@ -186,7 +199,9 @@ def _classify(planned: PlannedNote, client, loaded: str) -> None:
     recorded = pod_record(current)
     planned.version = int(current.get("versionNumber") or 1) + 1
     # The newsroom owns a note once a person has changed its record: a version they saved, or a stage they moved. There is no force.
-    if current.get("versionCreatedBy") != LOAD_ACTOR or not recorded.get("loadedHash") or current.get("stage") != recorded.get("stage"):
+    # A note that said published is written at the draft stage and moves to published only by the publish step, so either stage is still the load's own.
+    ours = {recorded.get("stage")} | ({DEFAULT_STAGE} if recorded.get("stage") == PUBLISHED_STAGE else set())
+    if current.get("versionCreatedBy") != LOAD_ACTOR or not recorded.get("loadedHash") or current.get("stage") not in ours:
         planned.action = NEWSROOM_OWNED
     elif recorded.get("loadedHash") == loaded:
         planned.action = UNCHANGED
@@ -195,35 +210,59 @@ def _classify(planned: PlannedNote, client, loaded: str) -> None:
 
 
 def apply_plan(plan: Plan, client) -> None:
-    """Write every created and updated note. One version for each; an unchanged or newsroom-owned note is not touched."""
+    """Write every created and updated note, one version for each; an unchanged or newsroom-owned note is not touched. Then publish each written note whose
+    front matter says it is published, through the site's publish step. A refusal is recorded on the note and the next note goes on."""
     reason = f"Loaded from a pod at commit {plan.commit}"
     for planned in plan.notes:
         assert planned.fields is not None
         if planned.action == CREATED:
-            _create(client, planned, reason)
+            record = _create(client, planned, reason)
         elif planned.action == UPDATED:
             fields = planned.fields
-            save_story_version(
+            record = save_story_version(
                 client, planned.lineage, front_matter_yaml=fields.front_matter_yaml, body_markus=fields.body_markus, actor=LOAD_ACTOR, change_reason=reason,
                 stage=planned.stage, item_type=fields.type, overrides={"section": planned.section}, metadata_updates={POD_METADATA_KEY: planned.claims},
             )
+        else:
+            continue
+        if planned.says_published:
+            planned.publish = _publish(client, record["id"])
 
 
-def _create(client, planned: PlannedNote, reason: str) -> None:
+def _publish(client, item_id: str) -> str:
+    """The site's normal publish step for one saved version: the placeholder-address refusal, the render preflight, ``publish_item`` with every gate it holds, and the
+    site's page-build trigger. Never forced: the answer is ``published`` or the refusal's code and words."""
+    from papyrus_content.projection.runtime import render_preflight
+    from papyrus_content.publish_commands import refuse_placeholder_slug, run_site_triggers
+
+    try:
+        refuse_placeholder_slug(client, item_id)
+        render_preflight(client, item_id)
+        result = publish_item(client, item_id, actor=LOAD_ACTOR)
+    except PublishError as error:
+        return f"{REFUSED} [{error.code}]: {error.message}"
+    run_site_triggers(client, {}, result)
+    return PUBLISHED
+
+
+def _create(client, planned: PlannedNote, reason: str) -> dict:
     fields = planned.fields
     assert fields is not None
     fields.overrides = {"stage": planned.stage, "changeReason": reason, "versionCreatedBy": LOAD_ACTOR}
-    save_item(client, fields, actor=LOAD_ACTOR)
+    return save_item(client, fields, actor=LOAD_ACTOR)
 
 
 def render(plan: Plan, out: TextIO, *, dry_run: bool) -> None:
     kind = "private pod" if plan.private else f"site pod ({SITE_SETTINGS.as_posix()})"
     print(f"pod: {plan.pod}", file=out)
     print(f"commit: {plan.commit}", file=out)
-    print(f"kind: {kind}; every note loads as private newsroom data and a load never publishes", file=out)
+    print(f"kind: {kind}; notes load as private newsroom data; only a note that says stage: published is published, through the site's publish step", file=out)
     for planned in plan.notes:
         verb = planned.action if not dry_run or planned.action in (UNCHANGED, NEWSROOM_OWNED) else f"would be {planned.action}"
         print(f"  {planned.path}: {verb} (stage {planned.stage})", file=out)
+        if planned.says_published and planned.action in (CREATED, UPDATED):
+            outcome = "would be published through the site's publish step, if every publish rule allows it" if dry_run else planned.publish
+            print(f"  {planned.path}: {outcome}", file=out)
         if planned.five_star_candidate:
             print(f"  {planned.path}: rating 5 refused, a pod never grants five stars; listed as a five-star candidate for a person to confirm in the newsroom", file=out)
         if planned.claims.get("reviewedBy") or planned.claims.get("reviewedOn"):
@@ -232,7 +271,10 @@ def render(plan: Plan, out: TextIO, *, dry_run: bool) -> None:
         print(f"  not loaded by this version: {count} {class_name} note(s)", file=out)
     counts = {action: sum(1 for planned in plan.notes if planned.action == action) for action in (CREATED, UPDATED, UNCHANGED, NEWSROOM_OWNED)}
     summary = ", ".join(f"{count} {action}" for action, count in counts.items())
-    print(f"{'dry run, nothing written' if dry_run else 'loaded'}: {summary}; nothing was published", file=out)
+    published = sum(1 for planned in plan.notes if planned.publish == PUBLISHED)
+    refused = sum(1 for planned in plan.notes if planned.publish.startswith(REFUSED))
+    ending = "nothing was published" if dry_run or not (published or refused) else f"{published} published, {refused} refused (a refused note stays loaded as a draft)"
+    print(f"{'dry run, nothing written' if dry_run else 'loaded'}: {summary}; {ending}", file=out)
     candidates = [planned.path for planned in plan.notes if planned.five_star_candidate]
     if candidates:
         print(f"five-star candidates: {', '.join(candidates)}", file=out)

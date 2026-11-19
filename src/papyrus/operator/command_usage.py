@@ -279,7 +279,7 @@ _ENTRIES = dict([
   _e("pod id", "Print new permanent ids for notes, each the pod's id base and a random identifier (never made from a file name). Writes nothing.", "POD [N]", "files", "reads"),
   _e("pod check", "Report a pod's level and every problem: ids, types, keys, links, the context files. Reads only; exits 1 when there is any problem.", "POD", "files", "reads"),
   _e("pod build", "Refuses a pod that names a site (building a site from a pod is not part of papyrus pod yet); nothing is built.", "POD", "files", "reads"),
-  _e("pod load", "Load a pod's notes into a site as private newsroom data under the pod's commit. --dry-run prints the plan and writes nothing; a pod with any problem is refused whole.",
+  _e("pod load", "Load a pod's notes into a site as private newsroom data under the pod's commit. In a pod with a site, a note whose front matter says stage: published is then published through the site's publish step (every publish rule still applies; a refusal is reported for that note, never forced); a private pod never publishes. --dry-run prints the plan and writes nothing; a pod with any problem is refused whole.",
      "POD [--dry-run] [--tenant ID]", "both", "dry-run"),
   # ---- agents (definition files; src/papyrus_content/agent_definitions/) -----------------------------------------------------------------
   _e("agents validate", "Check a folder of agent definition files (one <id>.yaml each) with no network and no model: every line of the 11-point template filled, known operations and responsibilities, and a site that only adds to a core definition. Exits 2 when any is refused, naming each by definition and line.",
