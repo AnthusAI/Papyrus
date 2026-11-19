@@ -115,6 +115,8 @@ export const announcementsSchemaDefinitions = {
       index("announcementId").sortKeys(["createdAt"]).queryField("listDeliveriesByAnnouncementAndCreatedAt"),
       index("accountKey").sortKeys(["createdAt"]).queryField("listDeliveriesByAccountKeyAndCreatedAt"),
       index("dueKey").sortKeys(["dueAt"]).queryField("listDeliveriesByDueKeyAndDueAt"),
+      // Sparse: only a Delivery that is an active example carries exampleKey, so the drafter reads a scope's examples newest first and never scans.
+      index("exampleKey").sortKeys(["exampleAt"]).queryField("listDeliveriesByExampleKeyAndExampleAt"),
     ])
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.groups(editors).to(["read"])]),

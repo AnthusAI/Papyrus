@@ -1655,17 +1655,19 @@ export type AnnouncementsRecentResult = {
   next: string | null;
 };
 
-/** Why a Story was or was not announced, for each channel, naming the rule. Reads the rules; writes nothing. */
+/** Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read. Reads the rules; writes nothing. */
 export type AnnouncementsExplainInput = {
   /** The lineage id of the Story. */
-  story: string;
+  story?: string;
+  /** Ask instead about a Delivery: the guideline layers (scope, item, version, hash) and the examples its draft read. */
+  delivery?: string;
 };
 
 export type AnnouncementsExplainResult = {
-  story: string;
+  story?: string;
   title?: string;
   stars?: number;
-  channels: {
+  channels?: {
     channel: string;
     announced: boolean;
     /** The rule: announced, off, not_published, type_not_announced, section_not_announced, below_bar, below_floor, machine_five, story_not_reviewed, no_delivery or would_announce. */
@@ -1673,6 +1675,20 @@ export type AnnouncementsExplainResult = {
     words: string;
     delivery?: string;
   }[];
+  /** The Delivery asked about. */
+  delivery?: string;
+  recorded?: boolean;
+  words?: string;
+  storyVersion?: number | null;
+  model?: string | null;
+  /** Each guideline layer the draft read: scope, itemId, versionNumber, contentHash. */
+  guidelineLayers?: Record<string, unknown>[];
+  /** The examples the draft read, and whether each is still on. */
+  examples?: ({
+    delivery: string;
+    state: string;
+    scope?: string | null;
+  })[];
 };
 
 /** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */

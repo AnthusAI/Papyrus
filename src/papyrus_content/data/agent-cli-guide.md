@@ -710,6 +710,7 @@ papyrus announcements dry-run story-containment-note
 papyrus announcements where story-containment-note
 papyrus announcements recent
 papyrus announcements explain --story story-containment-note
+papyrus announcements explain --delivery 'announcement-1#x#handle#g1'   # the guideline layers and examples its draft read
 papyrus announcements pause
 papyrus announcements resume
 papyrus announcements record-manual 'announcement-1#x#handle#g1' --url https://example.org/status/1

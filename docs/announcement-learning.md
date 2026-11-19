@@ -35,3 +35,18 @@ like every save (`stale_version`), and a Delivery that has not gone out has no p
 where the channel can delete the old post ([correction](announcement-records.md)); the example on the old Delivery stays.
 
 Specs: `delivery-preferred-version.feature`.
+
+## Examples reach the drafter, and every draft names what it read (slice O3, PPY-d99bd0)
+
+`learned_examples.load(deliveries, channel=, kind=, budget=)` reads the **active** examples for the draft: the partitions `publication`, `channel:<channel>` and `kind:<channel>:<kind>` of the sparse
+index `listDeliveriesByExampleKeyAndExampleAt` (`deliveriesByExample`), merged newest first, until the character budget (the context pack's default, `DEFAULT_MAX_CHARACTERS`) is spent; older
+ones are left out and counted (`dropped`). Each is the machine's version beside the person's and, when given, the reason (S3 file `reason`). It goes into the drafter's prompt after the guidelines, so a
+guideline still outranks an example. Nothing is scanned: `exampleKey` is cleared by `Examples.stop(..., OFF | ABSORBED, by=, why=)`, so an example a person turned off, or one an accepted guideline was
+made from (absorbed, slice O4), is no longer in the index and is not loaded. A candidate and a "just this one" never had a key.
+
+Each draft records what it read in the `inputs` line of its checks (`x_announce.inputs_of`): the guideline layers (scope, item id, version, content hash) and the example Deliveries. A blocked draft is
+drafted again when the Story, the guidelines or the examples change. `papyrus announcements explain --delivery DELIVERY` prints it (`explain.explain_delivery`), with whether each example is still on.
+
+The index is its own schema change: it ships in a release of its own.
+
+Specs: `drafter-examples.feature`, `learned_examples_test.py`.

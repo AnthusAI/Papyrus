@@ -68,3 +68,19 @@ def _answer(channel: str, story: StoryFacts, settings: Mapping[str, Any], policy
     if not choice.prepares:
         return {"announced": False, "rule": "no_delivery", "words": str(choice.reason)}
     return {"announced": False, "rule": WOULD_ANNOUNCE, "words": f"Nothing stops it: it is announced on {channel} when the announce agent next runs ({choice.approval} review)."}
+
+
+def explain_delivery(row: Mapping[str, Any], examples: list[Mapping[str, Any]]) -> dict[str, Any]:
+    """Why a draft reads the way it does: what it was written under, as the Delivery recorded it. The Story's version, the model, every guideline layer it read (scope, item, version and
+    hash) and every example it read (the Delivery of each, with whether it is still on). A Delivery drafted before this was recorded says so instead of guessing. Reads nothing else."""
+    from .x_announce import recorded_inputs
+
+    inputs = recorded_inputs(row)
+    if inputs is None:
+        return {"delivery": row["id"], "recorded": False, "words": f"{row['id']} was written before drafts recorded what they read, so there is nothing to list.",
+                "guidelineLayers": [], "examples": []}
+    by_id = {example["id"]: example for example in examples}
+    read = [{"delivery": found, "state": by_id.get(found, {}).get("exampleState") or "gone", "scope": by_id.get(found, {}).get("exampleScope")} for found in inputs.get("examples") or []]
+    layers = list(inputs.get("guidelineLayers") or [])
+    return {"delivery": row["id"], "recorded": True, "storyVersion": inputs.get("storyVersion"), "model": inputs.get("model"), "guidelineLayers": layers, "examples": read,
+            "words": f"{row['id']} was drafted from version {inputs.get('storyVersion')} of the Story under {len(layers)} guideline layer{'s' if len(layers) != 1 else ''} and {len(read)} example{'s' if len(read) != 1 else ''}."}

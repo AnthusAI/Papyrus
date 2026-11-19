@@ -317,7 +317,7 @@ _ENTRIES = dict([
      "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements recent", "The Announcements list: Announcements newest first, one line for each live Delivery, and every Delivery that is overdue. A page is a size; --before takes the last page's next value.",
      "[--limit N] [--before TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
-  _e("announcements explain", "Why a Story was or was not announced, for each channel, naming the rule. Reads the rules and writes nothing.", "--story STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements explain", "Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read (--delivery). Reads the rules and writes nothing.", "(--story STORY_LINEAGE | --delivery DELIVERY_ID) [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements dry-run", "Build the exact post a Story would get (text, UTM link, weight, every check) without sending or recording anything. One model call.",
      "STORY_LINEAGE [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements pause", "Pause announcements: nothing posts, eligible Stories wait as Blocked: paused.", "[--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
