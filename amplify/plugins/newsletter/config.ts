@@ -89,6 +89,8 @@ export type NewsletterConfig = {
   lists: NewsletterList[];
   /** How the site addresses its item pages (`urls.style` in projection.json): roundup drafts link to published items with it. */
   itemUrlStyle: ItemUrlStyle;
+  /** The site's quality floor (`quality.floorStars` in projection.json, 1 to 5): a roundup draft takes only Stories rated at least this. Absent: no floor. Keep it equal to the site's. */
+  floorStars?: number;
   /** `papyrus-<siteId>` unless overridden. */
   configurationSet: string;
   /** `papyrus-newsletter-events-<siteId>` unless overridden. */
@@ -97,7 +99,7 @@ export type NewsletterConfig = {
 
 const KNOWN_KEYS = new Set([
   "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "theme", "lists",
-  "configurationSet", "eventTopicName", "itemUrlStyle",
+  "configurationSet", "eventTopicName", "itemUrlStyle", "floorStars",
 ]);
 const LIST_KEYS = {
   roundup: ["id", "name", "description", "kind", "schedule", "issueType", "archivePath"],
@@ -168,6 +170,12 @@ function stringList(raw: unknown, label: string): string[] | undefined {
   if (raw === undefined) return undefined;
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > 50) fail(`${label} must be a list of 1 to 50 names`);
   return [...new Set(raw.map((entry, index) => text(entry, `${label}[${index}]`, 80)))];
+}
+
+export function floorStars(raw: unknown): number | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1 || raw > 5) fail("floorStars must be a whole number from 1 to 5");
+  return raw;
 }
 
 export function itemUrlStyle(raw: unknown): ItemUrlStyle {
@@ -293,6 +301,7 @@ export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfi
     theme: resolveTheme(raw.theme),
     lists,
     itemUrlStyle: itemUrlStyle(raw.itemUrlStyle),
+    ...(raw.floorStars === undefined ? {} : { floorStars: floorStars(raw.floorStars) }),
     configurationSet: matching(raw.configurationSet, "configurationSet", SES_NAME, "an SES configuration set name", `papyrus-${siteId}`),
     eventTopicName: matching(raw.eventTopicName, "eventTopicName", SES_NAME, "an SNS topic name", `papyrus-newsletter-events-${siteId}`),
   };

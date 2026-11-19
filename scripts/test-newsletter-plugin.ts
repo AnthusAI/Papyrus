@@ -125,6 +125,10 @@ assert.equal(resolveNewsletterConfig(with_({ basePath: "/posts" })).basePath, "p
 assert.equal(resolveNewsletterConfig(with_({ basePath: "posts/" })).basePath, "posts");
 assert.equal(resolveNewsletterConfig(with_({ basePath: "/" })).basePath, "");
 assert.equal(resolveNewsletterConfig(with_({ itemUrlStyle: "directory" })).itemUrlStyle, "directory");
+assert.equal(config.floorStars, undefined, "no floor unless the site sets one");
+assert.equal(resolveNewsletterConfig(with_({ floorStars: 3 })).floorStars, 3);
+assert.throws(() => resolveNewsletterConfig(with_({ floorStars: 0 })), /floorStars/, "a floor under one star would let unrated items in");
+assert.throws(() => resolveNewsletterConfig(with_({ floorStars: 6 })), /floorStars/);
 assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "post", "the issue type is whatever the site configures");
 assert.deepEqual(config.lists[1].kind === "alert" && config.lists[1].approval, "admin");
 assert.equal(resolveNewsletterConfig(with_({ configurationSet: "custom-set", eventTopicName: "custom-topic" })).configurationSet, "custom-set");

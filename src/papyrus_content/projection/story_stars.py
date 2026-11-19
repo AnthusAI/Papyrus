@@ -25,7 +25,7 @@ import os
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
-from ..item_stars import item_stars
+from ..item_stars import effective_rating
 from ..story_reporting import _current_of, story_versions
 from .lease import lock_table_from_environment
 
@@ -120,7 +120,7 @@ def star_store_from_environment(environ: Mapping[str, str] | None = None, *, sco
 def stars_of_lineage(client: Any, lineage_id: str) -> int:
     """The rating on the Story's current Item version (``UNRATED`` when there is none): one request."""
     versions = story_versions(client, lineage_id)
-    return (item_stars(_current_of(versions)) or UNRATED) if versions else UNRATED
+    return (effective_rating(_current_of(versions))["stars"] or UNRATED) if versions else UNRATED
 
 
 def known_stars(store: Any, lineages: Iterable[str], read: Callable[[str], int]) -> dict[str, int]:

@@ -14,7 +14,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ...home_page.ordering import BUCKETS
 from ...markus_renderer.video import PROVIDERS as EMBED_PROVIDERS, VideoRendering
@@ -22,12 +22,13 @@ from ...home_page.settings import HomePageSettings, home_page_settings_from_mapp
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
 from .select import Selection, selection_from_mapping
+from ...quality_floor import QualitySettings, quality_settings_from_mapping
 from ...story_types import story_types_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds", "brandPack", "layout",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds", "brandPack", "layout", "quality",
 )
 NO_BUCKET = "none"
 #: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
@@ -481,6 +482,7 @@ class StandardSettings:
     embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: the providers whose ``::video`` plays (default none: ``::video`` is not core's)
     wiki: WikiSettings = field(default_factory=WikiSettings)
     home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
+    quality: QualitySettings = field(default_factory=QualitySettings)   # the ``quality`` key: the lowest star rating an item may have to be public (quality_floor.py); no key, no floor
     brand_pack: str = ""   # the ``brandPack`` key: a JSON brand pack in the static directory; the projection links the shared publication theme and writes the pack's small stylesheet (brand.py)
 
     @property
@@ -1030,6 +1032,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if wiki.suggest_form is not None and wiki.suggest_form not in known_forms:
         raise ValueError(f"wiki.suggestForm names an unknown form {wiki.suggest_form!r}")
     home_page = home_page_settings_from_mapping(raw["homePage"]) if raw.get("homePage") is not None else None
+    quality = quality_settings_from_mapping(raw["quality"]) if raw.get("quality") is not None else QualitySettings()
+    if home_page is not None:
+        home_page = replace(home_page, floor_stars=quality.floor_stars)   # the snapshot task reads the floor from its own settings
     _check_section_fronts(sections, home_page)
     return StandardSettings(
         identity=identity,
@@ -1084,5 +1089,6 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         embeds=embeds_from_mapping(raw.get("embeds")),
         wiki=wiki,
         home_page=home_page,
+        quality=quality,
         brand_pack=_text(raw, "brandPack"),
     )

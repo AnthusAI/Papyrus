@@ -229,6 +229,8 @@ The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasur
 
 Status: Built (PPY-3ae3b9). The newsroom Newsletter panel (below) drives these operations.
 
+With the site's quality floor on (plugin setting `floorStars`, equal to `quality.floorStars`; [the quality floor](quality-floor.md)) a roundup draft names only the Stories rated at or above it and lists the rest under a `## Left out` section that the editor deletes before sending; a scheduled week with none at the floor makes no draft. Without `floorStars` every published item of the window is drafted, as before.
+
 A roundup issue is an ordinary Story of the list's `issueType`, which a site must set (there is no default: it is the Story type the site uses for its periodic email, usually `post`), so editors write it in the ordinary newsroom editor (it is a card on the Stories board; open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
 
 ### Issue lifecycle

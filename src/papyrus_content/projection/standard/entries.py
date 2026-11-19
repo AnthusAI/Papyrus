@@ -7,11 +7,14 @@ fields it shows.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 from ...authors import Author, normalize_authors
+from ...quality_floor import meets_floor
 from ..model import ItemSummary
 from ..public_data import SUMMARY_FIELD_NAMES, clipped, tags_of
 from .config import SectionConfig, StandardSettings
@@ -89,6 +92,7 @@ class StandardEntry:
     draft: bool = False      # served and noindexed, but never selected by a listing, a tag page or a feed
     image_dark: str | None = None   # the Night version of ``image`` when the item has one; cards only, never og:image, feeds or public data
     author_details: tuple[Author, ...] = ()   # the same authors with their optional urls; renderers read this
+    below_floor: bool = False   # rated under the site's floor (quality_floor.py), or not rated at all: served by its address, never listed, fed, in the sitemap or searched
 
     @property
     def slug(self) -> str:
@@ -114,7 +118,7 @@ class StandardEntry:
 
     @property
     def in_sitemap(self) -> bool:
-        return self.key is not None and not self.noindex and (self.section is None or self.section.sitemap)
+        return self.key is not None and not self.noindex and not self.below_floor and (self.section is None or self.section.sitemap)
 
     @property
     def sort_key(self) -> tuple:
@@ -128,7 +132,7 @@ class StandardEntry:
         if not full:
             return card
         return card + [
-            self.item_id, self.updated, self.type, self.canonical, self.feed_eligible, self.noindex, self.listed,
+            self.item_id, self.updated, self.type, self.canonical, self.feed_eligible, self.noindex, self.listed, self.below_floor,
             list(self.tags), self.topic, self.summary.front_matter, self.derived, self.draft,
         ]
 
@@ -234,3 +238,14 @@ def sorted_by(entries, sort: str = "date", ties: str = "slug-desc") -> list[Stan
     if ties == "slug-asc":  # the date alone decides; a stable sort keeps the slug order among equal dates, also when reversed
         return sorted(sorted(entries, key=lambda entry: entry.slug), key=lambda entry: entry.date, reverse=True)
     return newest_first(entries)
+
+
+def apply_floor(entry: StandardEntry | None, settings: StandardSettings, stars: Mapping[str, int]) -> StandardEntry | None:
+    """``entry`` as the site's quality floor leaves it: a Story (an entry of a listed type) whose rating is under the floor, or absent, stays served by its
+    address and is no longer listed, fed or in the sitemap. Other types are not rated and are never touched; with no floor nothing changes."""
+    floor_stars = settings.quality.floor_stars
+    if entry is None or floor_stars is None or entry.summary.type not in settings.listings.types or entry.draft:
+        return entry
+    if meets_floor(stars.get(entry.summary.lineage_id or ""), floor_stars):
+        return entry
+    return dataclasses.replace(entry, listed=False, feed_eligible=False, below_floor=True)
