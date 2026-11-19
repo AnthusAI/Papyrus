@@ -218,6 +218,12 @@ def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
         return (extra or None), None
     estimate = estimate_cost(calls)
     summary = {key: estimate[key] for key in ("complete", "unpricedModels", "calls", "promptTokens", "completionTokens", "models")}
+    tiers: dict[str, int] = {}
+    for call in calls:
+        if call.get("tier"):
+            tiers[str(call["tier"])] = tiers.get(str(call["tier"]), 0) + 1
+    if tiers:
+        summary["tiers"] = tiers   # the tier each model call was made for; the model is in `models` and on every call in `perCall`
     return {**summary, "perCall": calls[:MAX_RECORDED_CALLS], **extra}, estimate["costUsd"]
 
 
