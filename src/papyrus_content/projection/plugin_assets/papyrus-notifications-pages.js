@@ -8,6 +8,9 @@
  *   - when a link is no good it replaces the page with the site's expired page; when the service cannot be reached it says so in words.
  *     People are never sent to an /api URL.
  * Each list on the preferences page is a button that is On or Off, said in words and shown with a Lucide bell or bell-off (never colour alone).
+ * On a site with a GA4 measurement id the analytics script (`papyrus-notifications-analytics-v1.js`) is loaded first and this script reports
+ * subscribe_confirmed, preferences_changed, unsubscribe and subscribe_error through it (docs/site-hosting.md, "Subscription and notification
+ * events"); the events carry list ids and the page type, never a token, address or query string. Without it nothing is reported.
  * No inline script or style: it works under a strict CSP. Without JavaScript the pages show a short note and no form.
  */
 (function () {
@@ -29,9 +32,22 @@
     return (value || "").split(",").map(function (id) { return id.trim(); }).filter(function (id) { return LIST_ID.test(id); });
   }
 
+  // Analytics is optional: the analytics script exists only on a site with a measurement id, and the page works without it.
+  function report(name, params, onLoad) {
+    var analytics = window.papyrusNotificationsAnalytics;
+    if (!analytics) return;
+    try { if (onLoad) analytics.trackLoad(name, params); else analytics.track(name, params); } catch (e) {}
+  }
+
+  function pageType(root) {
+    var name = root.getAttribute("data-notifications-page");
+    return name === "index" ? "subscribe" : name || "other";
+  }
+
   function expired(root) { window.location.replace(root.getAttribute("data-expired-href") || "/"); }
 
   function unavailable(root) {
+    report("subscribe_error", { page_type: pageType(root) });
     Array.prototype.forEach.call(root.querySelectorAll("form"), function (form) { show(form, false); });
     show(one(root, "[data-notifications-unavailable]"), true);
   }
@@ -139,6 +155,7 @@
     confirmed: function (root, query) {
       manageLink(root, query.get("token") || "");
       reportSignUpOnce(query.get("token") || "");
+      if (TOKEN.test(query.get("token") || "")) report("subscribe_confirmed", { kind: listIds(query.get("lists")).join(","), page_type: "confirmed" }, true);
       return nameLists(listIds(query.get("lists"))).then(function (names) { fillList(root, names); });
     },
 
@@ -161,6 +178,7 @@
 
     unsubscribed: function (root, query) {
       manageLink(root, query.get("token") || "");
+      if (TOKEN.test(query.get("token") || "")) report("unsubscribe", { kind: listIds(query.get("lists")).join(",") || "all", page_type: "unsubscribed" }, true);
       return nameLists(listIds(query.get("lists"))).then(function (names) { fillList(root, names); });
     },
 
@@ -172,6 +190,7 @@
         if (message === "deleted") return show(one(root, "[data-notifications-section=deleted]"), true);
         return expired(root);
       }
+      if (message === "unsubscribed") report("unsubscribe", { kind: "all", page_type: "preferences" }, true);
       getState("kind=preferences&t=" + encodeURIComponent(token)).then(function (answer) {
         if (!answer.ok || answer.body.status !== "ready") return failed(root, answer);
         var manage = one(root, "[data-notifications-section=manage]");
@@ -186,6 +205,10 @@
         show(one(confirm, "form"), true);
         one(confirm, "[data-notifications-back]").href = root.getAttribute("data-preferences-href") + "?token=" + encodeURIComponent(token);
         show(step === "delete" ? confirm : manage, true);
+        if (message === "saved" && step !== "delete") {
+          var on = lists.filter(function (entry) { return entry.subscribed === true; }).map(function (entry) { return entry.id; });
+          report("preferences_changed", { kind: on.join(","), page_type: "preferences" }, true);
+        }
         if (NOTICES[message] && step !== "delete") {
           var notice = one(root, "[data-notifications-notice]");
           one(notice, "span").textContent = NOTICES[message] + (message === "saved" ? summary(lists) : "");
