@@ -135,7 +135,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
-    group: Literal["images", "guidelines", "announcements", "ratings"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+    group: Literal["images", "guidelines", "announcements", "ratings", "handoffs"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     def __post_init__(self) -> None:
         # A read names no rung and is allowed from `observe`. Every operation that writes or spends must say its rung: there is no default to forget.
@@ -932,6 +932,25 @@ RATING_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + RATING_OPERATIONS
+
+HANDOFF_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "handoffs_request", ("request",), "Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once.", "write",
+        obj({"story": STORY_LINEAGE, "responsibility": text("The responsibility asked, as the agent catalogue names it, such as research."),
+             "why": text("What is needed and why, in plain words. It is the Assignment's brief and what the responsible agent reads.")}, ("story", "responsibility", "why")),
+        record({"assignmentId": text(), "responsibility": text(), "story": text(), "status": text(), "askedBy": text(), "created": flag("False when the same ask was already made: nothing new was written and nobody is woken again.")},
+               ("assignmentId", "responsibility", "story", "status", "askedBy", "created")),
+        ("not_found", "constraint_conflict"),
+        (Example({"story": "story-1", "responsibility": "research", "why": "Claim 3 cites no source. Find one."},
+                 {"assignmentId": "handoff-3f9a1c5e7b2d4a60", "responsibility": "research", "story": "story-1", "status": "open", "askedBy": "agent:fact_check", "created": True}),),
+        positional=("story",), group="handoffs",
+        notes="An Assignment is the request between responsibilities: never a Message, and never a chat. An agent asking again with the same words gets the Assignment it already made. The responsible agent's own rung "
+              "decides what it may do about it. A person files the same request with the same command; their request is always new. The Assignment closes when the responsible agent's run ends: completed, or failed with one flag for a person.",
+        agent_rung="propose",
+    ),
+)
+
+OPERATIONS = OPERATIONS + HANDOFF_OPERATIONS
 
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}

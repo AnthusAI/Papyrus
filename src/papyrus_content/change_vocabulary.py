@@ -10,6 +10,8 @@ not found missing when it never wakes. The list is the feeds' own: a feed names 
 * Message        posted                  (a comment on a subject; the wake is for that subject's listeners)
 * LocalizationRequest  wanted
 * Delivery       state_changed
+* Assignment     created, reopened, completed   (a request between responsibilities: ``agent_assignments.py``. created and reopened wake the
+                                                responsible agent; completed wakes the agent that asked, and only that one)
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ CHANGES: dict[str, tuple[str, ...]] = {
     "Message": ("posted",),
     "LocalizationRequest": ("wanted",),
     "Delivery": ("state_changed",),
+    "Assignment": ("created", "reopened", "completed"),
 }
 
 #: The tables whose feed is ``change_feeds.py`` (the Item table has its own function, ``item_change_feed.py``).

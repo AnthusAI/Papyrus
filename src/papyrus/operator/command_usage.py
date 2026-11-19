@@ -349,6 +349,9 @@ _ENTRIES = dict([
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
   _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
      "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  # ---- handoffs (the operation table is the source of the flags; a test keeps these in step) ----------------------------------------------
+  _e("handoffs request", "Ask another responsibility for one piece of work on a Story: an Assignment that says who asked and why, and wakes the responsible agent once.",
+     "STORY_LINEAGE --responsibility TEXT --why TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
   # ---- figures (render reads the site's design system and writes local files only) -------------------------------------
   _e("figures render", "Check a figure and render its light and dark pictures (always both) with the site's design system. Needs Playwright and Chromium or Chrome.",
      "FOLDER... [--design-system DIR | --neutral-default] [--out DIR] [--check-only] [--json]  "
@@ -475,6 +478,7 @@ GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the sit
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
 GROUP_SUMMARIES["ratings"] = "Rate a Story: a person gives 1 to 5 stars; an agent gives only 3 or 4 to a Story nobody has rated, and only at a rung the site's policy allows."
+GROUP_SUMMARIES["handoffs"] = "Ask another responsibility for work on a Story: an Assignment that names who asked and why, and wakes the responsible agent once."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 
 

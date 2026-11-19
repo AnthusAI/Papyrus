@@ -446,7 +446,7 @@ Between the Item feed and the queue stands `src/papyrus_content/wake_gate.py` (P
 
 ## The change feeds of the other tables
 
-An agent may also listen for a change to a Reference, a review request, a Message, a translation request or a Delivery (slice B3, PPY-9b9e64). One function in the site's
+An agent may also listen for a change to a Reference, a review request, a Message, a translation request, a Delivery or an Assignment that asks a responsibility for work (slices B3 and F1, PPY-9b9e64 and PPY-51f96f). One function in the site's
 `agents` stack, `papyrus-<site>-change-feed`, does for those tables what the Item feed does for Items, with the same normalized change (`table, kind, id, lineage,
 version, change, actorKind, at`), the same listener index, the same wake and the same loop (`src/papyrus_content/change_feeds.py` over `item_change_feed.py`). The
 changes an agent definition may name are one list, `src/papyrus_content/change_vocabulary.py`; a definition that names another is refused when it is read.
@@ -461,7 +461,13 @@ changes an agent definition may name are one list, `src/papyrus_content/change_v
 | `Message` | `posted` | a comment was posted | `subjectKind` (`Story`, `Reference`, `Delivery`, or `thread`), `subjectId`, `threadKind`, `actorKind` | `<agent>\|<subject id>\|<message id>\|posted` |
 | `LocalizationRequest` | `wanted` | a translation was asked for (a request inserted or put back `wanted`) | `language`, `sourceVersionNumber`, `automationId`, `publish`, `actorKind` | `<agent>\|<Story>\|<source version id>\|wanted.<language>.<asked at>` |
 | `Delivery` | `state_changed` | a Delivery was drafted or changed state | `state`, `from`, `channel`, `accountId`, `announcementId`, `mode`, `approval`, `actorKind` | `<agent>\|<Delivery id>\|<revision>\|state_changed.<state>` |
+| `Assignment` | `created` | a request for a responsibility's work was filed on a Story (`handoffs request`; type `responsibility.<agent>`) | `responsibility`, `story`, `askedBy`, `why`, `actorKind` | `<agent>\|<Assignment id>\|unversioned\|created` |
+| `Assignment` | `reopened` | a closed (completed, canceled or failed) request was put back to `open` | the same | `...\|reopened.<time>` |
+| `Assignment` | `completed` | the responsible agent finished the work | the same | `...\|completed.<time>` |
 
+* **A request between agents is an Assignment** (`src/papyrus_content/agent_assignments.py`, `docs/agent-handoffs.md`). The responsible agent's definition listens for `Assignment/created` and
+  `Assignment/reopened` with `filter: {responsibility: <its own>}`. The wake key is the claim: the agent runs once for one request. `completed` is addressed to the agent that asked
+  (`createdBy`), and to no other; a request a person filed wakes nobody on completion. Other Assignment kinds (research, reindexing) are not changes.
 * **An answer wakes the agent that asked, and no other.** The request's `raisedBy` (`agent:<id>`, `automation:<id>` or the bare id) names it; the answer is a wake for that
   agent only if its definition listens for `ReviewRequest/answered`. A request a person raised, or one raised by an agent that does not listen, sends nothing.
 * **A Message is placed on its subject.** A comment's thread is anchored on a Story, Reference or Delivery; the feed reads the thread (one point read by id, through
@@ -469,7 +475,7 @@ changes an agent definition may name are one list, `src/papyrus_content/change_v
   id, never its text (the agent reads it, as a person's steering). A thread with no anchor is its own subject (`subjectKind` `thread`).
 * **What makes a wake new.** `what` carries what made the change different from the last one at that version (the stars, the state a Delivery entered, the time a
   translation was asked for), so asking again is a new wake and a record delivered twice is the same one. An agent's own change (`automation:<agent>` or `agent:<agent>`) never wakes it.
-* **Streams and readers.** A DynamoDB stream should have at most two readers, so the feed is not added as a third. `ReviewRequest` and `Delivery` had no stream: the feed is
+* **Streams and readers.** A DynamoDB stream should have at most two readers, so the feed is not added as a third. `ReviewRequest`, `Delivery` and `Assignment` had no stream: the feed is
   their one reader and switches the stream on, with both images. `Reference` and `LocalizationRequest` have their readers already; with fewer than two the feed reads the
   stream itself, through a mapping with a filter. A table that has two (the Reference stream with the word index and the home page; the Message stream with the console
   responder, Slack delivery and the home page) gets the feed behind a reader that stays on the stream: that reader invokes the feed function with its batch and reports what the

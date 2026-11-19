@@ -39,6 +39,7 @@ def route_tree() -> Tree:
     from papyrus_content.announcements.cli import route_tree as announcements_route_tree
     from papyrus_content.agent_definitions.cli import route_tree as agents_route_tree
     from papyrus_content.rating_cli import route_tree as ratings_route_tree
+    from papyrus_content.handoff_cli import route_tree as handoffs_route_tree
     from papyrus_content.figures.design_system_cli import route_tree as design_system_route_tree
     from papyrus_content.images.cli import route_tree as images_route_tree
     from papyrus.pod.cli import route_tree as pod_route_tree
@@ -77,6 +78,7 @@ def route_tree() -> Tree:
         "agents": agents_route_tree(),
         "announcements": announcements_route_tree(),
         "ratings": ratings_route_tree(),
+        "handoffs": handoffs_route_tree(),
         "figures": figures_route_tree(),
         "design-system": design_system_route_tree(),
         "pod": pod_route_tree(),

@@ -1030,6 +1030,8 @@ Agents talk through durable records, never chat: a checklist step, an Assignment
 - *Blocked by.* B3 (PPY-9b9e64), D1 (PPY-68abaa)
 - *Unblocks.* K4 (PPY-ce0dd2), M3 (PPY-1e703e)
 
+**F1 built (PPY-51f96f).** `src/papyrus_content/agent_assignments.py` (the operation `handoffs_request`, `begin` and `finish`), `handoff_records.py`, the `Assignment` feed in `change_feeds.py` (`created`, `reopened`, `completed`), and the runner's claim and close in `procedure_runner.py`. See `docs/agent-handoffs.md`. Not built: a newsroom button for a person's request (the same operation is `papyrus handoffs request`), a subject other than a Story, and the agent definitions that listen (K4 and M3).
+
 **F2 (PPY-5cf1a8): Hand a step back with a reason; a person takes a step over**
 
 - *Purpose.* Two record changes cover hand-back and take-over. An agent that finds a problem in an earlier step reopens that checklist step with a reason; the change wakes the step's agent. A person takes a step over by assigning it to themselves; agents then stand down on that step until it is released or closed. Both use the existing checklist sub-task Items, and both are recorded with actor and reason.
