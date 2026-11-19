@@ -121,6 +121,9 @@ class Services:
     stamps: Any = None
     #: The announcement settings document, whose edit windows give each Delivery its release and lock times.
     edit_settings: Callable[[], Mapping[str, Any]] = lambda: {}
+    #: The deliver step for X: ``now -> the Deliveries sent`` (``announcements.x_delivery.send_due`` over the site's Broadcaster). None where the site has no X part. It raises
+    #: ``ChannelNotAvailable`` when the site is set to On and has no Caducus ``x`` channel wired.
+    send_x: Callable[[str | None], list[dict[str, Any]]] | None = None
 
 
 def read_candidate(client: Any, lineage: str) -> Candidate | None:
@@ -162,9 +165,14 @@ def default_services(environ: Mapping[str, str]) -> Services:
     client, _ = create_authoring_client()
     settings = ListSettingsStore(SiteStore(boto3.client("s3"), bucket, SiteCatalogue(client)))
 
+    from papyrus_content.announcements.deliveries import Deliveries
     from papyrus_content.announcements.eligibility import load_story
     from papyrus_content.announcements.handlers import ORIGIN_ENV, STYLE_ENV, Functions, x_services
     from papyrus_content.announcements.intake import ChecklistReviewStamps
+    from papyrus_content.announcements.spend import SpendLedger
+    from papyrus_content.announcements.x_delivery import send_due
+    from papyrus_content.announcements.x_runner import SpendControl
+    from papyrus_content.notifications.runtime import x_broadcaster
 
     def origin() -> str:
         value = (environ.get(ORIGIN_ENV) or "").strip()
@@ -174,8 +182,13 @@ def default_services(environ: Mapping[str, str]) -> Services:
 
     draft = alert_drafter(lambda lineage: load_story(client, lineage, item_url_style=environ.get(STYLE_ENV, "html")), origin)
     functions = Functions(client)
-    return Services(state=lambda: settings.read(tenant), announcements=Announcements(client), read_story=lambda lineage: read_candidate(client, lineage), draft=draft,
-                    account_id=tenant, x=x_services(client, environ, model=True, functions=functions), stamps=ChecklistReviewStamps(client), edit_settings=functions.read)
+    announcements = Announcements(client)
+    control = SpendControl(settings=functions, connection=functions.status, ledger=SpendLedger(client))
+    # The site's Broadcaster is the one its config provides (the notifications function's X queue); a site without one has None, and a site set to On without it refuses to run.
+    broadcaster = x_broadcaster(environ)
+    return Services(state=lambda: settings.read(tenant), announcements=announcements, read_story=lambda lineage: read_candidate(client, lineage), draft=draft,
+                    account_id=tenant, x=x_services(client, environ, model=True, functions=functions), stamps=ChecklistReviewStamps(client), edit_settings=functions.read,
+                    send_x=lambda now: send_due(Deliveries(client), announcements, control, broadcaster, now))
 
 
 def policy_rung_of(run: Any) -> Callable[[str], str]:
@@ -206,5 +219,6 @@ def announce_story(story: str, version: str, change: str, what: str = "", stage:
     except RecordError as error:
         raise StoryWakeError(str(error)) from error
     declared = result.declaration()
-    return {"story": story, "summary": result.reason + (" (" + "; ".join(result.notes) + ")" if result.notes else ""), "lists": list(result.list_ids), "notes": list(result.notes), "announcement": result.outcome.announcement["id"] if result.outcome else None,
+    sent = services.send_x(now) if services.send_x is not None else []
+    return {"story": story, "x_sent": [row["id"] for row in sent], "summary": result.reason + (" (" + "; ".join(result.notes) + ")" if result.notes else ""), "lists": list(result.list_ids), "notes": list(result.notes), "announcement": result.outcome.announcement["id"] if result.outcome else None,
             "created": bool(result.outcome and result.outcome.created), "run_outcome": declared.get(OUTCOME_KEY, "acted"), "run_outcome_reason": declared.get(REASON_KEY, "announced")}
