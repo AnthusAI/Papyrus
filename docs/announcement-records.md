@@ -113,6 +113,7 @@ A Delivery is a draft with an edit window, not a one-shot: the machine drafts, p
 | An Announcement's Deliveries | `listDeliveriesByAnnouncementAndCreatedAt` |
 | An account's Deliveries, newest first | `listDeliveriesByAccountKeyAndCreatedAt` (`<channel>#<account>`) |
 | Deliveries that are due (sparse) | `listDeliveriesByDueKeyAndDueAt` |
+| Active examples of a scope, newest first (sparse) | `listDeliveriesByExampleKeyAndExampleAt` |
 | A Story's Announcements | the `announces` relation, `listSemanticRelationsByObjectState` (`item#<lineage>#current`, predicate `announces`) |
 | The day's email sends (Today) | `listAnnouncementDecisionsByStateAndReleaseAt` for `released` and `withdrawn`, then each Announcement's Deliveries and `announces` links |
 | Rows of one tenant | `listAnnouncementDecisionsByTenant`, `listDeliveriesByTenant` |

@@ -34,6 +34,7 @@ from .deliveries import Deliveries, Plan
 from .delivery_versions import Versions
 from .drafting import Draft, DraftRefused, Llm, RuleLane, draft_announcement
 from .eligibility import StoryFacts, refusal
+from .learned_examples import Read
 from .intake import NOT_REVIEWED, NO_DELIVERY, PROVISIONAL_NOTE, Held, ReviewStamps, floor_refusal
 from .post import tagged_link
 from .records import BLOCKED, DRAFTED, READY, json_list
@@ -64,6 +65,10 @@ class XServices:
     judge: fact_check.Judge | None = None
     rule_lane: RuleLane | None = None
     model: str = ""
+    #: ``() -> what people's edits taught for X`` (``learned_examples.load``): the active examples, newest first within the budget. None for a site that has none to read.
+    learned: Callable[[], Read] | None = None
+    #: ``story -> the guideline layers the draft was written under`` (``{scope, itemId, versionNumber, contentHash}``), recorded so the draft is explainable. None when unknown.
+    guideline_layers: Callable[[StoryFacts], list[dict[str, Any]]] | None = None
 
 
 @dataclass
@@ -84,9 +89,19 @@ def settings_view(services: XServices) -> dict[str, Any]:
     return view(services.settings(), services.connection())
 
 
-def inputs_of(story: StoryFacts, guidelines: str, model: str) -> dict[str, Any]:
-    """What a draft is written under: the Story's version and a fingerprint of the guidelines. When either changes, a blocked draft is drafted again; otherwise it never is."""
-    return {"name": INPUTS, "passed": True, "storyVersion": story.version_number, "guidelines": hashlib.sha256(guidelines.encode("utf-8")).hexdigest()[:16], "model": model}
+def inputs_of(story: StoryFacts, guidelines: str, model: str, *, layers: list[dict[str, Any]] | None = None, learned: Read | None = None) -> dict[str, Any]:
+    """What a draft is written under: the Story's version, a fingerprint of the guidelines, the guideline layers it read (id, version and hash of each) and the examples it read (the
+    Delivery of each). When the Story, the guidelines or the examples change, a blocked draft is drafted again; otherwise it never is. ``papyrus announcements explain --delivery`` prints this."""
+    return {"name": INPUTS, "passed": True, "storyVersion": story.version_number, "guidelines": hashlib.sha256(guidelines.encode("utf-8")).hexdigest()[:16], "model": model,
+            "guidelineLayers": list(layers or []), "examples": learned.ids if learned else []}
+
+
+def _read(services: XServices) -> Read:
+    return services.learned() if services.learned is not None else Read()
+
+
+def _layers(services: XServices, story: StoryFacts) -> list[dict[str, Any]]:
+    return services.guideline_layers(story) if services.guideline_layers is not None else []
 
 
 def recorded_inputs(row: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -102,12 +117,12 @@ def _checks(draft: Draft | None, inputs: Mapping[str, Any]) -> list[dict[str, An
     return [*([{"name": check["name"], "passed": check["passed"], "problems": list(check.get("problems") or [])} for check in draft.checks] if draft else []), dict(inputs)]
 
 
-def _draft(services: XServices, story: StoryFacts, link: str, guidelines: str) -> tuple[Draft | None, list[str]]:
+def _draft(services: XServices, story: StoryFacts, link: str, guidelines: str, learned: Read) -> tuple[Draft | None, list[str]]:
     """One model call and every check. A site that cannot even try (no writing guidelines) has no draft and says why."""
     if services.llm is None or services.judge is None:
         raise RuntimeError("Drafting needs a model: the X part of the announce agent was built without one.")
     try:
-        draft = draft_announcement(story, link, guidelines=guidelines, llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model)
+        draft = draft_announcement(story, link, guidelines=guidelines, llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model, learned=learned.prompt)
     except DraftRefused as refused:
         return None, [str(refused)]
     return draft, ([] if draft.passed else draft.failures)
@@ -133,8 +148,9 @@ def prepare(services: XServices, story: StoryFacts, policy: PolicyState, stamps:
         return Prepared(held=Held(NO_DELIVERY, str(choice.reason), CHANNEL))
     link = tagged_link(services.site_origin().rstrip("/") + story.path)
     guidelines = services.guidelines_for(story)
-    draft, problems = _draft(services, story, link, guidelines)
-    checks = _checks(draft, inputs_of(story, guidelines, services.model))
+    learned = _read(services)
+    draft, problems = _draft(services, story, link, guidelines, learned)
+    checks = _checks(draft, inputs_of(story, guidelines, services.model, layers=_layers(services, story), learned=learned))
     text = draft.post if draft is not None and draft.text else ""
     plan = Plan(channel=CHANNEL, account_id=str(settings["accountId"]), approval=str(choice.approval), approval_policy=choice.policy, text=text, drafted_by="machine", checks=checks,
                 state=READY if not problems else DRAFTED)
@@ -175,11 +191,12 @@ def revisit(services: XServices, deliveries: Deliveries, row: Mapping[str, Any],
         return dict(row), "not blocked"
     link = tagged_link(services.site_origin().rstrip("/") + story.path)
     guidelines = services.guidelines_for(story)
-    inputs = inputs_of(story, guidelines, services.model)
+    learned = _read(services)
+    inputs = inputs_of(story, guidelines, services.model, layers=_layers(services, story), learned=learned)
     earlier = recorded_inputs(row) or {}
-    if (earlier.get("storyVersion"), earlier.get("guidelines")) == (inputs["storyVersion"], inputs["guidelines"]):
+    if (earlier.get("storyVersion"), earlier.get("guidelines"), earlier.get("examples") or []) == (inputs["storyVersion"], inputs["guidelines"], inputs["examples"]):
         return dict(row), "unchanged"
-    draft, problems = _draft(services, story, link, guidelines)
+    draft, problems = _draft(services, story, link, guidelines, learned)
     checks = _checks(draft, inputs)
     if problems:
         # Drafted again, and still failing: the new problems and the inputs are recorded so this is not tried again until they change. The Announcement's one flag stands.

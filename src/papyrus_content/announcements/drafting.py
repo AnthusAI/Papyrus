@@ -75,8 +75,9 @@ def story_source(story: StoryFacts) -> str:
     return "\n\n".join(part for part in (story.title, story.dek, story.summary, story.body) if part)
 
 
-def prompt(story: StoryFacts, guidelines: str) -> tuple[str, str]:
-    system = SYSTEM.format(limit=DRAFT_WEIGHT, guidelines=guidelines)
+def prompt(story: StoryFacts, guidelines: str, learned: str = "") -> tuple[str, str]:
+    """``learned`` is what people's edits taught (``learned_examples.Read.prompt``): it goes after the guidelines, so a rule in them still outranks an example."""
+    system = SYSTEM.format(limit=DRAFT_WEIGHT, guidelines=guidelines) + (f"\n\n{learned}" if learned else "")
     user = json.dumps({"title": story.title, "dek": story.dek, "summary": story.summary}, ensure_ascii=False)
     return system, user
 
@@ -109,11 +110,11 @@ def check_draft(text: str, link: str, story: StoryFacts, *, judge: fact_check.Ju
 
 
 def draft_announcement(story: StoryFacts, link: str, *, guidelines: str, llm: Llm, judge: fact_check.Judge, rule_lane: RuleLane | None = None,
-                       model: str = DEFAULT_LLM_MODEL) -> Draft:
+                       model: str = DEFAULT_LLM_MODEL, learned: str = "") -> Draft:
     """One model call, then every check. Returns the draft with its checks; it is posted only when ``passed``."""
     if not guidelines.strip():
         raise DraftRefused("This publication has no writing guidelines, so there is no voice to draft in. Save them with papyrus guidelines save --kind writing.")
-    system, user = prompt(story, guidelines)
+    system, user = prompt(story, guidelines, learned)
     answer = llm(system, user, SCHEMA)
     text = str((answer or {}).get("text") or "").strip()
     return Draft(text=text, link=link, model=model, checks=check_draft(text, link, story, judge=judge, rule_lane=rule_lane))

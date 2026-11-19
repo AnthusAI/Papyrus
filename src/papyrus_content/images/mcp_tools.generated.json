@@ -5974,7 +5974,7 @@
     {
       "name": "announcements_explain",
       "audience": "staff",
-      "description": "Why a Story was or was not announced, for each channel, naming the rule. Reads the rules; writes nothing.",
+      "description": "Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read. Reads the rules; writes nothing.",
       "agentAllowed": true,
       "agentRung": "observe",
       "agentRefusal": "human_required",
@@ -5986,11 +5986,14 @@
             "type": "string",
             "minLength": 1,
             "description": "The lineage id of the Story."
+          },
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Ask instead about a Delivery: the guideline layers (scope, item, version, hash) and the examples its draft read."
           }
         },
-        "required": [
-          "story"
-        ],
+        "required": [],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -6041,12 +6044,67 @@
                 "words"
               ]
             }
+          },
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery asked about."
+          },
+          "recorded": {
+            "type": "boolean"
+          },
+          "words": {
+            "type": "string",
+            "minLength": 1
+          },
+          "storyVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelineLayers": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Each guideline layer the draft read: scope, itemId, versionNumber, contentHash."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "delivery": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "state": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "scope": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "delivery",
+                "state"
+              ]
+            },
+            "description": "The examples the draft read, and whether each is still on."
           }
         },
-        "required": [
-          "story",
-          "channels"
-        ]
+        "required": []
       }
     },
     {

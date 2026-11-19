@@ -4,7 +4,7 @@
     "models": 73,
     "globalModels": 3,
     "modelCases": 505,
-    "indexCases": 228,
+    "indexCases": 229,
     "subscriptionCases": 9,
     "operationCases": 136,
     "functionCases": 72,
@@ -4348,6 +4348,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listDeliveriesByExampleKeyAndExampleAt",
+      "kind": "index",
+      "subject": "listDeliveriesByExampleKeyAndExampleAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listDeliveriesByExampleKeyAndExampleAt on Delivery with exampleKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listDeliveriesByDueKeyAndDueAt",
       "kind": "index",
       "subject": "listDeliveriesByDueKeyAndDueAt",
@@ -7859,6 +7867,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listDeliveriesByDueKeyAndDueAt",
       "note": "partition key dueKey on Delivery is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listDeliveriesByExampleKeyAndExampleAt",
+      "note": "partition key exampleKey on Delivery is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",

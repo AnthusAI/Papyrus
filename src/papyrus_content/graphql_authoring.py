@@ -657,6 +657,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "sortKey": "dueAt",
         "fields": DELIVERY_FIELDS,
     },
+    "deliveriesByExample": {
+        "field": "listDeliveriesByExampleKeyAndExampleAt",
+        "partitionKey": "exampleKey",
+        "sortKey": "exampleAt",
+        "fields": DELIVERY_FIELDS,
+    },
     "itemsByParent": {
         "field": "listItemsByParentAndOrder",
         "partitionKey": "parentLineageId",

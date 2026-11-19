@@ -87,9 +87,10 @@ def preview(services: Services, lineage_id: str) -> dict[str, Any]:
     stopped = refusal(story, {**settings, "mode": settings["mode"] if settings["mode"] != OFF else "dry_run"})
     eligible, reason = (True, "eligible") if stopped is None else (False, stopped[0])
     link = tagged_link(services.x.site_origin().rstrip("/") + story.path)
+    learned = services.x.learned() if services.x.learned is not None else None
     try:
         draft = draft_announcement(story, link, guidelines=services.x.guidelines_for(story), llm=services.x.llm, judge=services.x.judge, rule_lane=services.x.rule_lane,
-                                   model=services.x.model)
+                                   model=services.x.model, learned=learned.prompt if learned else "")
     except DraftRefused as refused:
         return {"lineageId": lineage_id, "eligible": eligible, "reason": reason, "text": "", "post": "", "link": link, "weight": 0, "checks": [], "passed": False,
                 "failures": [str(refused)], "sent": False}

@@ -23,7 +23,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from papyrus_content.agent_policy import AgentPolicyStore  # noqa: E402
-from papyrus_content.announcements import blocked_drafts, budget, lines, operations, post, records, review_handlers  # noqa: E402
+from papyrus_content.announcements import blocked_drafts, budget, learned_examples, lines, operations, post, records, review_handlers  # noqa: E402
 from papyrus_content.announcements import cli as announcements_cli  # noqa: E402
 from papyrus_content.announcements.attempts import Attempts, NotReleasable  # noqa: E402
 from papyrus_content.announcements.decisions import Announcements  # noqa: E402
@@ -139,6 +139,7 @@ def xservices(context):
     def llm(system, user, schema):
         context.model_calls.append(user)
         context.model_input = user
+        context.model_system = system
         return {"text": context.draft_text}
 
     def judge(claim, cited, info=None):
@@ -149,7 +150,9 @@ def xservices(context):
 
     return XServices(settings=context.functions.read, connection=context.functions.status, story=lambda lineage: load_story(context.backend, lineage, item_url_style="clean"),
                      site_origin=lambda: ORIGIN, guidelines_for=lambda story: context.guidelines, llm=llm, judge=judge,
-                     rule_lane=(lambda text: context.rule_problems) if context.rule_problems else None, model="gpt-6-luna")
+                     rule_lane=(lambda text: context.rule_problems) if context.rule_problems else None, model="gpt-6-luna",
+                     learned=lambda: learned_examples.load(context.deliveries, channel="x", kind="story_published", words_of=lambda text: post.LINK.sub("", text).strip()),
+                     guideline_layers=lambda story: list(getattr(context, "guideline_layers", [])))
 
 
 def services(context):
