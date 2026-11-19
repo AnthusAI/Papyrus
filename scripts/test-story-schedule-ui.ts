@@ -105,12 +105,26 @@ window.fixtureCalls = [];
 window.fixtureRanges = [];
 window.fixturePublishedRanges = [];
 window.fixtureFailSchedule = false;
+// What the backend would say about the publication's history and about a newer version, for the scenarios that need it.
+window.fixtureNoHistory = false;
+window.fixtureNewerVersion = false;
 const actions = resolveArticlesBackend(true).actions;
 const scheduleStory = actions.scheduleStory;
 actions.scheduleStory = async (input) => {
   window.fixtureCalls.push({ action: "scheduleStory", ...input });
   if (window.fixtureFailSchedule) throw new Error("The schedule could not be saved. Try again.");
   return scheduleStory(input);
+};
+const scheduleSuggest = actions.scheduleSuggest;
+actions.scheduleSuggest = async (input) => {
+  window.fixtureCalls.push({ action: "scheduleSuggest", ...input });
+  if (window.fixtureNoHistory) return { ok: true, suggestion: null, reason: "No suggestion yet: this publication has no publishing history.", timeZone: "America/New_York" };
+  return scheduleSuggest(input);
+};
+const scheduleList = actions.scheduleList;
+actions.scheduleList = async (input) => {
+  const listed = await scheduleList(input);
+  return window.fixtureNewerVersion ? { ...listed, schedules: listed.schedules.map((entry) => ({ ...entry, newerVersionExists: true })) } : listed;
 };
 for (const name of ["saveItemDraft", "publishItem", "unpublishItem", "moveStoryStage"]) {
   const original = actions[name];
@@ -236,6 +250,79 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.deepEqual((await scheduleCalls(page)).map((call) => (call as unknown as { scheduledPublishAt: string | null }).scheduledPublishAt), ["2026-11-20T12:30:00.000Z", "2026-11-21T19:00:00.000Z", null]);
       assert.deepEqual((await calls(page) as { action: string }[]).filter((call) => call.action !== "scheduleStory"), [], "no draft save, publish or stage move");
       assert.equal(await page.locator("[data-newsroom-article-status]").innerText(), "Draft");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** "Suggest a time" opens the picker on the time the publication's rhythm suggests; the editor may pick any other time; and it never changes the schedule by itself. */
+  async suggest() {
+    for (const mode of ["light", "dark"] as const) {
+      const { browser, page, errors } = await setup(board, { mode });
+      try {
+        await openStory(page, UNSCHEDULED);
+        await panel(page).locator("[data-story-schedule-suggest]").click();
+        await panel(page).locator("[data-story-schedule-form]").waitFor();
+        // The sample publication publishes on weekday mornings: after the latest scheduled sample Story (Sat 14 Nov) and a day, the next weekday morning is Mon 16 Nov, 9:00.
+        assert.equal(await panel(page).locator("[data-story-schedule-date]").inputValue(), "2026-11-16");
+        assert.equal(await panel(page).locator("[data-story-schedule-time]").inputValue(), "09:00");
+        assert.match(await panel(page).locator("[data-story-schedule-suggestion]").innerText(), /^Suggested from this publication's usual publishing times\./);
+        assert.match(await iconOf(panel(page).locator("[data-story-schedule-suggestion]")) ?? "", /lucide-calendar-search/, "the note has an icon as well as words");
+        assert.deepEqual((await calls(page) as { action: string }[]).map((call) => call.action), ["scheduleSuggest"], "asking only asks: nothing is scheduled by it");
+        await shot(page, `suggest-${mode}-1440`);
+        // Any other time may be picked instead; the note about the suggestion goes with the time it was about.
+        await panel(page).locator("[data-story-schedule-time]").fill("10:30");
+        assert.equal(await panel(page).locator("[data-story-schedule-suggestion]").count(), 0);
+        await panel(page).locator("[data-story-schedule-save]").click();
+        await panel(page).locator("[data-story-schedule-sentence]").waitFor();
+        assert.deepEqual(await scheduleCalls(page), [{ action: "scheduleStory", itemId: "preview-item-version-idea-0", lineageId: UNSCHEDULED, scheduledPublishAt: "2026-11-16T15:30:00.000Z" }]);
+        // Suggest from a scheduled Story as well: it moves nothing until saved.
+        await panel(page).locator("[data-story-schedule-suggest]").click();
+        await panel(page).locator("[data-story-schedule-form]").waitFor();
+        assert.equal((await scheduleCalls(page)).length, 1);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+
+  /** A publication with no history is told why there is no suggestion, and may still pick a time. */
+  async no_history() {
+    const { browser, page, errors } = await setup(board);
+    try {
+      await openStory(page, UNSCHEDULED);
+      await page.evaluate(() => { (window as unknown as { fixtureNoHistory: boolean }).fixtureNoHistory = true; });
+      await panel(page).locator("[data-story-schedule-suggest]").click();
+      await panel(page).locator("[data-story-schedule-form]").waitFor();
+      assert.equal(await panel(page).locator("[data-story-schedule-suggestion]").innerText(), "No suggestion yet: this publication has no publishing history.");
+      await shot(page, "no-history-light-1440");
+      await fillAndSave(page, "2026-11-20", "07:30");
+      await panel(page).locator("[data-story-schedule-sentence]").waitFor();
+      assert.equal((await scheduleCalls(page)).length, 1, "the editor could still pick a time");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** A newer version is flagged straight away, in words and with the Story still shown as scheduled. */
+  async newer_version() {
+    const { browser, page, errors } = await setup(board);
+    try {
+      await page.evaluate(() => { (window as unknown as { fixtureNewerVersion: boolean }).fixtureNewerVersion = true; });
+      await openStory(page, SCHEDULED);
+      assert.equal(await panel(page).locator("[data-story-schedule-newer-version]").innerText(), "A newer version exists than the one scheduled");
+      assert.match(await panel(page).locator("[data-story-schedule-sentence]").innerText(), /^Scheduled for Fri 13 Nov 2026/, "it is still scheduled until its time");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** An unrated Story is told what scheduling will and will not do, in the backend's words. */
+  async unrated() {
+    const { browser, page, errors } = await setup(board);
+    try {
+      await openStory(page, UNSCHEDULED);
+      assert.equal(await panel(page).locator("[data-story-schedule-rating-note]").count(), 0, "nothing is said before it is scheduled");
+      await panel(page).locator("[data-story-schedule-open]").click();
+      await fillAndSave(page, "2026-11-20", "07:30");
+      await panel(page).locator("[data-story-schedule-sentence]").waitFor();
+      assert.equal(await panel(page).locator("[data-story-schedule-rating-note]").innerText(), "Unrated: it will publish but will not be listed or announced until it is rated.");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },

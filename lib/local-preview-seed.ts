@@ -9,7 +9,7 @@ import { contentItemHeadStageKey, contentItemStageKeys, type ContentItemVersionR
 import { getContentItemStageDefinitions } from "./site-brand";
 import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
-import type { ScheduleFields } from "./story-schedule";
+import { resolveWallTime, wallTimeOf, type ScheduleFields } from "./story-schedule";
 import type { PublishedStoryRow } from "./story-schedule-query";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
@@ -204,6 +204,27 @@ export function setLocalPreviewSchedule(lineageId: string, scheduledPublishAt: s
   previewScheduleChanges.set(lineageId, fields);
   previewScheduleTouchedAt.set(lineageId, new Date().toISOString());
   return fields ?? {};
+}
+
+/**
+ * What the preview says when an editor asks for a suggested time. The preview has no history to learn from, so it stands in for a publication that publishes on weekday
+ * mornings: 9:00 in the publication's zone on the first weekday after now and after the latest scheduled sample Story plus a day. (The real backend learns the hours
+ * and the gap from the publication's own first publications: src/papyrus_content/publication_cadence.py.)
+ */
+export function localPreviewSuggestedTime(zone: string, ownLineageId: string | undefined, now: Date = new Date()): string {
+  const latest = createLocalPreviewContentItemVersions()
+    .filter(version => version.lineageId !== ownLineageId && version.scheduledPublishAt && (version.scheduleState === "scheduled" || version.scheduleState === "publishing"))
+    .map(version => Date.parse(version.scheduledPublishAt!))
+    .reduce((most, at) => Math.max(most, at), 0);
+  const after = Math.max(now.getTime(), latest ? latest + DAY : 0);
+  for (let offset = 0; offset < 14; offset += 1) {
+    const day = wallTimeOf(new Date(now.getTime() + offset * DAY).toISOString(), zone).date;
+    const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
+    if (weekday === 0 || weekday === 6) continue;
+    const resolved = resolveWallTime(day, "09:00", zone);
+    if (resolved.kind === "ok" && Date.parse(resolved.utc) > after) return resolved.utc;
+  }
+  throw new Error("The preview found no weekday morning in the next two weeks.");
 }
 
 export function resetLocalPreviewSchedules(): void {

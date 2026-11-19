@@ -218,6 +218,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     };
   }, [activeArticleId, backend, blocked, isNew, reloadToken]);
 
+  const loadedVersionNumber = editor?.versionNumber ?? null;   // a version saved from this drawer changes what "newer than the scheduled one" means, so the schedule is read again
   useEffect(() => {
     setScheduleKnown(false);
     if (!scheduleZone || !lineageId) { setSchedule(undefined); return; }
@@ -227,7 +228,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       .then((result) => { if (!cancelled) { setSchedule(scheduleFromEntries(result.schedules)); setScheduleKnown(true); } })
       .catch((error: unknown) => { if (!cancelled) setNotice({ tone: "error", text: `The schedule could not be read. ${failureMessage(error)}` }); });
     return () => { cancelled = true; };
-  }, [backend, lineageId, scheduleZone, reloadToken]);
+  }, [backend, lineageId, scheduleZone, reloadToken, loadedVersionNumber]);
 
   const savedItemId = editor?.id ?? null;
   useEffect(() => {
@@ -768,6 +769,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               zone={scheduleZone}
               schedule={schedule}
               blockedReason={editor.dirty ? "Save your changes first: a schedule publishes the saved version." : isOlderVersion ? "This is an older version of the Story." : null}
+              suggest={() => backend.actions.scheduleSuggest({ storyLineageId: lineageId })}
               save={async (scheduledPublishAt) => {
                 const saved = scheduleFromResult(await backend.actions.scheduleStory({ itemId: editor.id!, lineageId, scheduledPublishAt }));
                 setSchedule(saved);
