@@ -43,10 +43,17 @@
       "text": "home: 2026-11-18: CLI handler built on branch feat/PPY-3e0a8a-correct-cli, PR #1687 (base develop, not merged). papyrus announcements correct DELIVERY --text TEXT: checks the text like a new Delivery (X: check_draft), then Deliveries.supersede; writes unless --dry-run; refusals are constraint_conflict sentences. Spec features_backend/announcements-correct-cli.feature (12 scenarios). Still open: deleting the old X post (PPY-efd06c).",
       "created_at": "2026-11-18T22:10:05.453421Z",
       "comment_type": "default"
+    },
+    {
+      "id": "bed0263f-5980-47d5-9db0-6cb2da2a5ae5",
+      "author": "home",
+      "text": "Delete-the-old-X-post done on branch feat/PPY-efd06c-x-on-new-records, PR #1704 (base develop, not merged): the old post is deleted as part of the correction and its cost written on the old Delivery, by the site's own X channel when the correction is made, otherwise by the deliver side just before it sends the corrected Delivery. A corrected X Delivery's words now carry the Story's tagged link. Specs: features_backend/announcements-correction-deletes-old-post.feature.",
+      "created_at": "2026-11-19T06:03:29.171090Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:35.778869Z",
-  "updated_at": "2026-11-18T22:10:05.454682Z",
+  "updated_at": "2026-11-19T06:03:29.171388Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
