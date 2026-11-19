@@ -40,10 +40,17 @@
       "text": "PR #1680 merged to develop (lifecycle on load; pod build/load help fixed in the same PR).",
       "created_at": "2026-11-18T17:26:08.560355Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e2a3c0ce-4330-40de-9610-f72c8a432658",
+      "author": "home",
+      "text": "Follow-up merged to develop in #1691 (not released). Answer to the open question: a site pod's load now publishes a Story whose front matter says stage: published, through the site's normal publish step (placeholder-slug check, render preflight, publish_item, page-build trigger). Every publish rule still applies (open checklist, publishRequiresRating, approval); a refusal is reported for that note, the note stays a draft, nothing is forced. A note that does not say published stays unpublished; a private pod never publishes; an unchanged reload does nothing. The note is written at copywriting and only the publish step moves it to published, so a pod cannot skip the checklist. A refused publish is not retried by a reload of an unchanged file: change the file or publish in the newsroom. Specs: features_backend/pod-load-publish.feature (fakes only).",
+      "created_at": "2026-11-19T01:40:05.129740Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:38.552032Z",
-  "updated_at": "2026-11-18T17:26:08.561146Z",
+  "updated_at": "2026-11-19T01:40:05.130508Z",
   "closed_at": "2026-11-18T17:19:15.490760Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
