@@ -268,8 +268,9 @@ class Deliveries:
         return self.create(announcement, plan, release_at=release_at, by=by, now=now)
 
     def ensure_text(self, row: Mapping[str, Any], text: str, *, now: str | None = None) -> None:
-        """Finish a crashed create: write the words when the row exists and the file does not. The words are the same text the row's hash names."""
-        entry = delivery_text.head_entry(row)
+        """Finish a crashed create: write the words of the first version when the row exists and the file does not. The words are the same text the row's hash names;
+        a later version is finished by the save that wrote it, never from the plan."""
+        entry = delivery_text.entry_of(row, 1)
         if text and entry and self.files.get(row["id"], entry["file"]) is None:
             self.files.put(row["id"], text, now=now or now_iso(), name=entry["file"])
 
