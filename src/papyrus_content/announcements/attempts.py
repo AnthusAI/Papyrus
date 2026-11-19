@@ -30,7 +30,7 @@ from .counts import DeliveryCounts
 from .deliveries import Conflict, Deliveries, OpenAttempt, content_hash
 from .records import (
     EMAIL, ATTEMPT_REFUSED, ATTEMPT_SENT, BLOCKED, BUDGET_CYCLE, BUDGET_REACHED_CODE, FAILED, MANUAL, PAUSED_CODE, RATE_LIMIT, RATE_LIMIT_CODE, READY, SENDING, SENT, STARTED, SUPERSEDED,
-    UNKNOWN, RecordError, account_key, attempt_log, now_iso, open_attempt_of, utc,
+    UNKNOWN, POST_SPACING, RecordError, account_key, attempt_log, now_iso, open_attempt_of, utc,
 )
 
 FLAG_RAISER = "announce"
@@ -184,11 +184,14 @@ class Attempts:
 
     # --- open -------------------------------------------------------------------------------------------------------------------------------------
 
-    def open(self, delivery: str, *, by: str, now: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    def open(self, delivery: str, *, by: str, now: str | None = None, spacing_minutes: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         """Open the next attempt, or say why not. Returns the Delivery as written and the new entry.
 
         The entry is written, and the Delivery moves to ``sending``, in one conditional write on the row's revision: if the row changed since it was read (a correction
-        marked it superseded, someone else opened an attempt) nothing is written and ``Conflict`` is raised. Only after this returns may the provider be called."""
+        marked it superseded, someone else opened an attempt) nothing is written and ``Conflict`` is raised. Only after this returns may the provider be called.
+
+        ``spacing_minutes`` is the owner's post spacing for this account (None: none). While the account's last post is closer than that, the Delivery waits: it keeps its
+        place, ``waitingFor`` says ``post spacing``, ``nextAttemptAt`` names when the spacing ends, and no attempt is opened. It goes like any wait, once the time has come."""
         now = now or now_iso()
         row = self.deliveries.get(delivery)
         if row is None:
@@ -207,6 +210,12 @@ class Attempts:
         refused = self.words_refusal(row)
         if refused:
             raise AttemptRefused(delivery, refused, self._flag(row, refused, now))
+        if spacing_minutes:
+            until = self.deliveries.spacing_until(row, spacing_minutes)
+            if until and utc(now) < until:
+                if row.get("nextAttemptAt") != until or row.get("waitingFor") != POST_SPACING:
+                    self.deliveries._change(row, {"waitingFor": POST_SPACING, "nextAttemptAt": until}, by=by, note=f"held by post spacing until {until}", now=now)
+                raise NotReleasable(delivery, f"waiting for {POST_SPACING} until {until}")
         log = attempt_log(row)
         number = len(log) + 1
         entry = {"number": number, "at": now, "eventId": attempt_event_id(delivery, number), "outcome": STARTED, "by": by}
@@ -369,7 +378,8 @@ class AccountWorker:
     """The one consumer for one channel account. Every attempt for the account passes through it, one at a time, so two attempts for one account never race. A
     Delivery of another account is refused. (The queue that gives the worker its single consumer belongs to the channel's infrastructure; this is the rule it keeps.)"""
 
-    def __init__(self, deliveries: Deliveries, transport: Transport, channel: str, account_id: str):
+    def __init__(self, deliveries: Deliveries, transport: Transport, channel: str, account_id: str, *, spacing_minutes: int | None = None):
+        self.spacing_minutes = spacing_minutes   # the owner's post spacing for this account (``settings.spacing_minutes``); None means none
         self.attempts = Attempts(deliveries)
         self.deliveries = deliveries
         self.transport = transport
@@ -390,7 +400,7 @@ class AccountWorker:
         now = now or now_iso()
         self._mine(delivery)
         self.handled.append(delivery)
-        row, entry = self.attempts.open(delivery, by=by, now=now)
+        row, entry = self.attempts.open(delivery, by=by, now=now, spacing_minutes=self.spacing_minutes)
         self.attempts.hand_over(row, entry, self.transport, by=by, now=now)
         return self._counted(self.attempts.read(delivery, entry, self.transport, by=by, now=now), by=by, now=now)
 
