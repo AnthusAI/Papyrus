@@ -1,0 +1,56 @@
+schemaVersion: 1
+record: Translation
+title: Translation
+summary: >-
+  A published Story in a site with other languages has one translation for each language, and each is in exactly one state: wanted, translating, held, ready, published or
+  stale. A source edit marks only the changed blocks stale; a block a person corrected is pinned and never overwritten; a hold flags once and blocks only that translation.
+stages:
+  - id: wanted
+    title: Wanted
+    mover: translate
+    person: never
+    text: A publish wants one translation for each language the site publishes. A translation whose last run failed or stopped is wanted again and is retried by the dispatcher.
+    nobodyActs:
+      kind: moves_on
+      text: The dispatcher starts the run for the wanted translation; one run for each Story and language, never a table walk.
+  - id: translating
+    title: Translating
+    mover: translate
+    person: never
+    nobodyActs:
+      kind: moves_on
+      text: The run translates the changed blocks only and ends in held or ready; a run that dies is wanted again.
+  - id: held
+    title: Held
+    mover: translate
+    person: always
+    why: A quotation, a faithfulness error or a predicted cost above the ceiling needs a person; the hold raises one flag and blocks only this translation.
+    text: Every other language and every other Story goes on.
+    nobodyActs:
+      kind: flags
+      text: The hold raises one flag for the translation and waits for a person's answer. It never blocks the queue and a held translation is never run again by a machine.
+  - id: ready
+    title: Ready
+    mover: translate
+    person: by_policy
+    rung: publish_soft
+    text: The translation is saved and passed its checks. Below the rung publish_soft a person publishes it; at that rung it is published unless it is held.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: A ready translation nobody publishes stays ready and is counted; it never publishes by itself below the rung.
+  - id: published
+    title: Published
+    mover: translate
+    person: never
+    nobodyActs:
+      kind: moves_on
+      text: The translation is live. A new source version makes it stale.
+  - id: stale
+    title: Stale
+    mover: translate
+    person: never
+    text: The source changed after the translation was made. Only the blocks that changed are marked stale and translated again; a block a person corrected is pinned and a changed source block under it is a conflict a person settles, never an overwrite.
+    nobodyActs:
+      kind: moves_on
+      text: A new source version raises one wake for the translator, which makes the translation wanted for the changed blocks only.
