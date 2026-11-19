@@ -19,9 +19,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b88f3f78-a313-422f-a215-56a64405e7d8",
+      "author": "home",
+      "text": "Not touched: p.apyr.us is a private repo. When its page is written it can describe: account status shows our post count and the budget suggestion; announcements blocked lists waiting Stories with reasons; announcements retry and account connect (PR #1714).",
+      "created_at": "2026-11-19T10:21:54.925273Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:39.705946Z",
-  "updated_at": "2026-11-12T18:41:42.271130Z",
+  "updated_at": "2026-11-19T10:21:54.926002Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

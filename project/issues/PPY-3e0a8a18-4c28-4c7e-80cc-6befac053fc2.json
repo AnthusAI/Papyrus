@@ -3,7 +3,7 @@
   "title": "Corrections: a new Delivery with supersedes; delete the old X post",
   "description": "A corrected re-send is a new Delivery that names the one it replaces. Its text is new and is checked again. In one transaction the old Delivery becomes superseded. Where the channel can remove the old one (X) the old post is deleted as part of the correction and the deletion cost is recorded on the old Delivery. Where it cannot (email) the new text says it is a correction.\n\n**Acceptance criteria**\n- Gherkin: A correction is a new Delivery (names the old one; old becomes superseded; on X the old post is deleted; a second live Delivery without supersedes is refused).\n- Correction announcement kind uses dedupeKey correction:<lineageId>:<versionNumber>.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nHardening from the review of the correction code in PR #1618 (`Deliveries.supersede`: three ordered conditional writes, finished by a retry; the live Delivery is the highest generation):\n- **Refuse to supersede a Delivery that was not sent, or that has an open attempt.** An unsent Delivery is edited (a new text version), not corrected. Today the old state is not checked, so a crash after the successor is created can leave two generations that are both due.\n- **A different correction is a conflict, not a retry.** When the successor already exists and names the old Delivery, compare content hashes; if the text differs, answer that someone else already corrected it. Today the second caller's text is silently dropped, and `ensure_text` could write it under the first caller's row.\n- **A retry finishes the relation.** When the old row already points at the expected successor, write the `supersedes` relation and return; do not raise `AlreadySuperseded`. Today a retry with a fresh copy of the old row raises before reaching the relation write.\n- Half-finished corrections are completed whenever the announce agent wakes for the Announcement and are shown on Today if they cannot be (PPY-9922b2).\n**Acceptance criteria (added)**\n- Gherkin: a crash after each of the three writes is finished by a retry with a fresh read; two different corrections at once leave one winner and one conflict; correcting an unsent Delivery is refused; correcting a Delivery with an open attempt is refused.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -50,11 +50,18 @@
       "text": "Delete-the-old-X-post done on branch feat/PPY-efd06c-x-on-new-records, PR #1704 (base develop, not merged): the old post is deleted as part of the correction and its cost written on the old Delivery, by the site's own X channel when the correction is made, otherwise by the deliver side just before it sends the corrected Delivery. A corrected X Delivery's words now carry the Story's tagged link. Specs: features_backend/announcements-correction-deletes-old-post.feature.",
       "created_at": "2026-11-19T06:03:29.171090Z",
       "comment_type": "default"
+    },
+    {
+      "id": "0451b9ca-3e73-4ff9-9c07-589e1174dbcb",
+      "author": "home",
+      "text": "Verified on develop: PR #1704 (merged 2026-11-19) provides the delete path. Withdrawals.delete_superseded (src/papyrus_content/announcements/withdrawals.py) deletes the old X post and writes its cost on the superseded Delivery; it is called by the site's X channel when the correction is made (review_handlers.py) and by the deliver side before the corrected Delivery is sent (x_runner.py). Spec: features_backend/announcements-correction-deletes-old-post.feature. All acceptance criteria and the hardening items are shipped (#1618, #1684, #1687, #1704); closing.",
+      "created_at": "2026-11-19T10:21:28.894524Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:35.778869Z",
-  "updated_at": "2026-11-19T06:03:29.171388Z",
-  "closed_at": null,
+  "updated_at": "2026-11-19T10:21:29.066833Z",
+  "closed_at": "2026-11-19T10:21:29.066402Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

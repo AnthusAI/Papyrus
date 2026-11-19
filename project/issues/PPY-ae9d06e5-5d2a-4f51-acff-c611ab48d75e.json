@@ -26,10 +26,17 @@
       "text": "Audit: settings page and operations met; eligible-but-blocked list needs efd06c rewire and engine wiring.",
       "created_at": "2026-11-18T16:59:13.464853Z",
       "comment_type": "default"
+    },
+    {
+      "id": "678d45d3-b510-4311-8998-b4d895494eb2",
+      "author": "home",
+      "text": "Built (PR #1714): papyrus announcements blocked lists the Stories that qualified and are waiting, one entry per blocked X Delivery of the connected account, with the reason in words (Blocked: paused / budget reached / account needs reconnecting / check failed). Spec: announcement-operations.feature. Not built: the console list of the same (the announcements read door, amplify/functions/image-service/schema.ts, has to carry the operation and the page to draw it; that needs the TypeScript toolchain and a deploy).",
+      "created_at": "2026-11-19T10:21:54.273454Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T18:41:38.875285Z",
-  "updated_at": "2026-11-18T16:59:13.465062Z",
+  "updated_at": "2026-11-19T10:21:54.273684Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
