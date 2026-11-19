@@ -215,7 +215,7 @@ def render_ts() -> str:
     out += ["} as const;", "",
             "/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements, ratings and handoffs have no door yet (the console reads and writes their models directly). */",
             "export type ImageTransport = (request: {", "  op: ImageOperationName;", "  input: unknown;", "  effect: \"read\" | \"write\" | \"spend\";",
-            "  group: \"images\" | \"guidelines\" | \"announcements\" | \"ratings\";", "}) => Promise<unknown>;", "",
+            "  group: \"images\" | \"guidelines\" | \"announcements\" | \"ratings\" | \"handoffs\";", "}) => Promise<unknown>;", "",
             "export async function callImageOperation<Name extends ImageOperationName>(",
             "  name: Name,", "  input: ImageOperations[Name][\"input\"],", "  send: ImageTransport,",
             "): Promise<ImageEnvelope<ImageOperations[Name][\"result\"]>> {",

@@ -1728,7 +1728,7 @@ export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;
   effect: "read" | "write" | "spend";
-  group: "images" | "guidelines" | "announcements" | "ratings";
+  group: "images" | "guidelines" | "announcements" | "ratings" | "handoffs";
 }) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(
