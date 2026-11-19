@@ -3,7 +3,7 @@
   "title": "Per-site wake queue; the procedure runner consumes it",
   "description": "Add one FIFO queue per site, `papyrus-<site>-agent-wakes.fifo`, with a dead-letter queue and an alarm. A wake is a small message: the wake key, the agent, the subject and why. The message group id is the agent plus its serial scope (see the one-worker task), and the deduplication id is the wake key. The procedure runner Lambda is the queue's consumer (batch size 1), so it holds the message for the whole run and the queue redelivers it if the run dies. Run now and `papyrus automations run` put a message on the queue instead of invoking the runner; the direct asynchronous invocation is deleted from every caller in the migration task. The runner's role reads queues by the name pattern, one statement for all sites.\n\n**Acceptance criteria**\n- A wake put on the queue starts exactly one run.\n- A runner crash redelivers the message; nothing is lost.\n- The dead-letter queue has an alarm and is empty in normal operation.\n- Run now goes through the queue.\n- The once-only create is proven against the real backend on Machines on Machines: the same wake key started twice leaves one run record and the second answer says duplicate (task PPY-a5513c, which also matches the error type). B1's release is blocked on it.\n- The runner reads the policy at the start of a run (task PPY-c8175e) before the queue starts runs.\n- The pull request prints both bootstrap counts (first-deploy resources, function stack) and refuses to merge without them; the release order is stated.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- wake-queue.feature: a wake starts one run; two wakes for the same group run one after the other; two wakes for different groups run at the same time; a duplicate wake inside the deduplication window is dropped; a duplicate wake runs once, proven against the real queue; a message the runner cannot parse reaches the dead-letter queue.\n\n**Infrastructure as code touched:** Site backend (Amplify): FIFO queue, dead-letter queue, alarm, event source mapping to the runner. Runner template: role statement for the queue name pattern.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -55,11 +55,18 @@
       "text": "Built and merged to develop: PR #1642 (merge aeca5a523), not released. One FIFO wake queue per site (papyrus-<site>-agent-wakes.fifo; message group = agent + subject; dedupe id = SHA-256 of the wake key) with a dead-letter queue, an alarm and the runner mapping (batch 1), in the deferred agents stack: 6 resources. Counts: first stage 1,974 of 2,000 (headroom 26; unchanged by this PR, develop already read 1,974, the 1,972 here was stale); function stack 330 of 500 (budget 450). Visibility timeout 960 s = Lambda 900 s + 60 s recording margin; at most 2 receives, then the dead-letter queue. The runner returns (deletes) only once the wake's run record exists. Router, Run now, story-stage triggers and translate-on-publish put wakes on the queue; the direct invoke is deleted from each. Gherkin: features_backend/wake-queue.feature (14 scenarios). NOT done: the role changes are templates only and need Ryan's approval before the release (list in the PR); nothing deployed; the real-queue behaviour (dedupe drop, redelivery, alarm) is shown on a real site after approval, and the live once-only proof (PPY-817340) gates enabling it (PPY-e713eb). Release order is in the PR and docs/releasing.md.",
       "created_at": "2026-11-17T03:48:50.718788Z",
       "comment_type": "default"
+    },
+    {
+      "id": "cbf121ab-66c6-4346-8579-f26fb5598172",
+      "author": "home",
+      "text": "Audit 2026-11-18: built and merged to develop (PR #1642) and released in v5.134.0 line; closing so dependents unblock. Live proof of the wake queue on a real site stays with PPY-817340 and PPY-e713eb.",
+      "created_at": "2026-11-19T02:16:19.808503Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:02.081219Z",
-  "updated_at": "2026-11-17T03:48:50.719515Z",
-  "closed_at": null,
+  "updated_at": "2026-11-19T02:16:20.500861Z",
+  "closed_at": "2026-11-19T02:16:20.500652Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
