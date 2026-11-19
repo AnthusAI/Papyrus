@@ -3490,371 +3490,6 @@
       }
     },
     {
-      "name": "announcements_list",
-      "audience": "staff",
-      "description": "List the account's announcements, newest first, optionally one state.",
-      "agentAllowed": true,
-      "agentRung": "observe",
-      "agentRefusal": "human_required",
-      "effect": "read",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "state": {
-            "type": "string",
-            "enum": [
-              "posting",
-              "posted",
-              "failed",
-              "blocked",
-              "dry_run",
-              "withdrawn"
-            ],
-            "description": "One state of an announcement."
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "How many to return; 50 when left out."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "outputSchema": {
-        "type": "object",
-        "properties": {
-          "announcements": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "accountId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "storyLineageId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "storyVersionNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "posting",
-                    "posted",
-                    "failed",
-                    "blocked",
-                    "dry_run",
-                    "withdrawn"
-                  ],
-                  "description": "One state of an announcement."
-                },
-                "label": {
-                  "type": "string",
-                  "minLength": 1,
-                  "description": "The state in plain words, such as Dry run: not sent."
-                },
-                "blockedReason": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "mode": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "link": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "weight": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "draftedBy": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "checks": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "passed": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "passed"
-                    ]
-                  }
-                },
-                "postId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "postedAt": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "cost": {
-                  "type": "string",
-                  "description": "Dollars Caducus charged on this announcement so far, as a decimal string."
-                },
-                "attempts": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "error": {
-                  "type": "string"
-                },
-                "history": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "at": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "by": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "state": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "note": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "at",
-                      "by",
-                      "state",
-                      "note"
-                    ]
-                  }
-                },
-                "withdrawnBy": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "createdAt": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "id",
-                "state",
-                "label"
-              ]
-            }
-          }
-        },
-        "required": [
-          "announcements"
-        ]
-      }
-    },
-    {
-      "name": "announcements_show",
-      "audience": "staff",
-      "description": "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.",
-      "agentAllowed": true,
-      "agentRung": "observe",
-      "agentRefusal": "human_required",
-      "effect": "read",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "story": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The lineage id of the Story."
-          }
-        },
-        "required": [
-          "story"
-        ],
-        "additionalProperties": false
-      },
-      "outputSchema": {
-        "type": "object",
-        "properties": {
-          "announcement": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "accountId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "storyLineageId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "storyVersionNumber": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "state": {
-                "type": "string",
-                "enum": [
-                  "posting",
-                  "posted",
-                  "failed",
-                  "blocked",
-                  "dry_run",
-                  "withdrawn"
-                ],
-                "description": "One state of an announcement."
-              },
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "description": "The state in plain words, such as Dry run: not sent."
-              },
-              "blockedReason": {
-                "type": "string",
-                "minLength": 1
-              },
-              "mode": {
-                "type": "string",
-                "minLength": 1
-              },
-              "link": {
-                "type": "string",
-                "minLength": 1
-              },
-              "weight": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "draftedBy": {
-                "type": "string",
-                "minLength": 1
-              },
-              "checks": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "passed": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "passed"
-                  ]
-                }
-              },
-              "postId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "postedAt": {
-                "type": "string",
-                "minLength": 1
-              },
-              "cost": {
-                "type": "string",
-                "description": "Dollars Caducus charged on this announcement so far, as a decimal string."
-              },
-              "attempts": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "error": {
-                "type": "string"
-              },
-              "history": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "at": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "by": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "state": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "note": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "at",
-                    "by",
-                    "state",
-                    "note"
-                  ]
-                }
-              },
-              "withdrawnBy": {
-                "type": "string",
-                "minLength": 1
-              },
-              "createdAt": {
-                "type": "string",
-                "minLength": 1
-              },
-              "updatedAt": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "id",
-              "state",
-              "label"
-            ]
-          },
-          "document": {
-            "type": "object",
-            "description": "The stored post: text, post, link, weight, model and every check's problems."
-          }
-        },
-        "required": [
-          "announcement"
-        ]
-      }
-    },
-    {
       "name": "announcements_dry_run",
       "audience": "staff",
       "description": "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.",
@@ -3938,7 +3573,7 @@
     {
       "name": "announcements_pause",
       "audience": "staff",
-      "description": "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.",
+      "description": "Pause announcements: nothing is posted, and an X Delivery that comes due waits as Blocked: paused.",
       "agentAllowed": true,
       "agentRung": "propose",
       "agentRefusal": "human_required",
@@ -3976,7 +3611,7 @@
     {
       "name": "announcements_resume",
       "audience": "staff",
-      "description": "Resume announcements and announce the Stories that waited.",
+      "description": "Resume announcements and put back the X Deliveries that waited.",
       "agentAllowed": false,
       "agentRung": "person",
       "agentRefusal": "human_required",
@@ -5233,9 +4868,9 @@
     {
       "name": "announcements_withdraw",
       "audience": "staff",
-      "description": "Withdraw a Delivery that went: this deletes a public post.",
-      "agentAllowed": false,
-      "agentRung": "person",
+      "description": "Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted).",
+      "agentAllowed": true,
+      "agentRung": "prepare",
       "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
@@ -5258,10 +4893,35 @@
           "id": {
             "type": "string",
             "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's state afterwards: withdrawn."
+          },
+          "withdrawnBy": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Who withdrew it."
+          },
+          "cost": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What Caducus has charged for the post in all, deletion included, when a post was deleted."
+          },
+          "announcementState": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Announcement's state afterwards: withdrawn once every Delivery is, cancelled when none had gone."
           }
         },
         "required": [
-          "id"
+          "id",
+          "state",
+          "withdrawnBy",
+          "announcementState"
         ]
       }
     },

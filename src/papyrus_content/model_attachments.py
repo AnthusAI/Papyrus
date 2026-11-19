@@ -17,7 +17,6 @@ import re
 from .ids import hash_short, safe_id
 
 MODEL_ATTACHMENT_OWNER_MODELS = {
-    "announcement": "Announcement",
     "assignment": "Assignment",
     "assignmentEvent": "AssignmentEvent",
     "delivery": "Delivery",

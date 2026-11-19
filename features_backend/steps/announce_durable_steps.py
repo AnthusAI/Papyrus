@@ -115,6 +115,18 @@ def unpublished(context, lineage):
     _world(context, lineage, live=False)
 
 
+@given("the announcement settings give the email channel a window of {window:d} minutes with a lock lead of {lead:d} minutes for a Story that went live")
+def email_window(context, window, lead):
+    context.edit_settings = {"editWindows": [{"kind": "story_published", "channel": "email", "windowMinutes": window, "lockLeadMinutes": lead}]}
+
+
+@then('the email Delivery is released at "{release}" and locks at "{lock}", and so is the Announcement')
+def email_released(context, release, lock):
+    (row,) = [delivery for delivery in context.backend.rows("Delivery") if delivery["channel"] == "email"]
+    (announcement,) = context.backend.rows("AnnouncementDecision")
+    assert (row["releaseAt"], row["lockAt"], announcement["releaseAt"]) == (release, lock, release), (row["releaseAt"], row["lockAt"], announcement["releaseAt"])
+
+
 @given("the queue refuses the first wake it is given")
 def refuses(context):
     context.feed_queue.refuse_from = 1
@@ -152,7 +164,7 @@ def runner(context):
         context.claims.add(request["wakeKey"])
         state = context.lists.read(context.site_id)
         result = story_wake.run_story_wake(request, state, context.announcements, read_story=_read_story(context), draft=draft, policy_rung=lambda _: context.policy_rung,
-                                           account_id=ACCOUNT, by=BY, now=context.now)
+                                           account_id=ACCOUNT, by=BY, now=context.now, edit_settings=getattr(context, "edit_settings", None))
         context.runs.append((request["wakeKey"], result))
     context.taken = len(context.feed_queue.messages)
 

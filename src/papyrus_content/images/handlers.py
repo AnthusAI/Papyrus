@@ -157,7 +157,7 @@ HANDLERS.update(_announcement_handlers())
 
 # Announcement review (PPY-97c0f2): the announce rung and its overrides, and one Delivery's review. They read the site's agent policy and the Delivery records, which the
 # monitoring router and the image service never do, so the module is imported by the call and not by this file (infra/monitoring/build.py leaves it out of the router zip).
-REVIEW_OPERATIONS = ("announcements_review_show", "announcements_review_set", "announcements_delivery_review_set", "announcements_record_manual", "announcements_correct")
+REVIEW_OPERATIONS = ("announcements_review_show", "announcements_review_set", "announcements_delivery_review_set", "announcements_record_manual", "announcements_correct", "announcements_withdraw")
 
 
 def _review_handler(name: str) -> Handler:

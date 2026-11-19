@@ -146,10 +146,6 @@ STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
 )
-ANNOUNCEMENT_FIELDS = (
-    "id accountId accountHandle storyLineageId storyItemId storyVersionNumber channel state blockedReason mode trigger link weight draftedBy checks postId postedAt cost "
-    "attempts round error history withdrawnBy withdrawnAt createdAt updatedAt"
-)
 ANNOUNCEMENT_SPEND_FIELDS = "id accountId cycleStart total updatedAt"
 ANNOUNCEMENT_DECISION_FIELDS = "id tenantId dedupeKey kind state releaseAt createdBy trigger history revision createdAt updatedAt"
 DELIVERY_FIELDS = (
@@ -247,7 +243,6 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "LocalizationRequest": {"field": "listLocalizationRequests", "fields": LOCALIZATION_REQUEST_FIELDS},
     "EntityLabel": {"field": "listEntityLabels", "fields": ENTITY_LABEL_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
-    "Announcement": {"field": "listAnnouncements", "fields": ANNOUNCEMENT_FIELDS},
     "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
     "AnnouncementDecision": {"field": "listAnnouncementDecisions", "fields": ANNOUNCEMENT_DECISION_FIELDS},
     "Delivery": {"field": "listDeliveries", "fields": DELIVERY_FIELDS},
@@ -630,11 +625,6 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "storyLineageId",
         "partitionType": "ID",
         "fields": STORY_VARIATION_FIELDS,
-    },
-    "announcementsByAccountAndCreatedAt": {
-        "field": "listAnnouncementsByAccountAndCreatedAt",
-        "partitionKey": "accountId",
-        "fields": ANNOUNCEMENT_FIELDS,
     },
     # The Announcement and Delivery records (docs/announcement-records.md). Every read of them is one of these indexes.
     "announcementDecisionsByDedupeKey": {

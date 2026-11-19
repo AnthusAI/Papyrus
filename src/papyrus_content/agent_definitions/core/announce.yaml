@@ -18,10 +18,11 @@ tier: work
 template:
   trigger: A Story's page goes live (its Item record enters the published stage) or a published Story's rating is set, changed or cleared. Both arrive from the Item change feed through the site's wake queue; nothing a publish does calls this agent, so a missed call cannot lose either one.
   inputs: The Story as it is now, re-read at the start of the run (its published copy, its rating, its section, type and tags, and whether a person reviewed its source), the site's list settings, and the site policy's rung for each list. The wake says only which of the two things happened.
-  decision: For every every-item list, whether the Story qualifies now (the list's rule and a rating of at least three stars, never a five a machine gave) and at which rung the site lets the agent go. A Story that qualifies on at least one list gets one Announcement, keyed story-published:<Story>, and one email Delivery for all of those lists. A Story that qualifies on none gets nothing.
+  decision: For every every-item list, whether the Story qualifies now (the list's rule and a rating of at least three stars, never a five a machine gave) and at which rung the site lets the agent go; and whether the Story qualifies on X (the site's X rules and bar, the same floors, a connected account and the rung). A Story that qualifies on at least one channel gets one Announcement, keyed story-published:<Story>, with one email Delivery for all of the lists that carry it and an X Delivery; a channel that qualifies later, a rating that reached the X bar, adds its Delivery to that Announcement. A Story that qualifies on none gets nothing. An X draft that fails a check is a blocked Delivery with one review request, and is drafted again only when the Story or the guidelines change.
   mayWrite:
     - The run record, which at observe lists what it would announce and why
-    - One Announcement and one email Delivery for a Story, only at the rung prepare or above, and only once for each Story however many wakes arrive
+    - One Announcement for a Story, with its email Delivery and its X Delivery, only at the rung prepare or above, and only once for each Story and channel however many wakes arrive
+    - One review request for an X draft that failed a check
   mustNever:
     - Announce a Story whose page is not live now, or one rated under three stars
     - Make a second Announcement or a second Delivery for a Story that already has one
@@ -31,6 +32,6 @@ template:
   seenAndReversed: On the Story (where it was announced), in the Announcements list and on Today. A person may edit or stop a Delivery that has not gone, according to its approval, and may withdraw the Announcement.
   records: One run record per wake, with the policy version and rung it ran under, the Story, what changed and what was decided for each list. A wake that finds the Story already announced says so and writes nothing.
   fails: Closed. A run that cannot read the Story or the settings makes nothing and ends failed, and the same wake runs again; the Story's once-only key keeps the retry from making a second Announcement.
-  costAndBound: No model call in the decision. One read of the Story, one of the list settings and, when something qualifies, the writes of one Announcement and one Delivery.
+  costAndBound: No model call in the decision about an email list. One read of the Story, one of the list settings and, when something qualifies, the writes of one Announcement and its Deliveries. The X draft is one model call, made once for a Story when X first qualifies (and once more only when a blocked draft's Story or guidelines changed); with X off, or below the rung that prepares, there is none.
   measured: How many Announcements a person stops or edits before they go, and how often a rating change is what made a Story eligible. The measure is a later task and has no spec yet.
   gherkin: [announce-durable-triggers.feature, announce-agent-definition.feature, item-change-feed.feature]

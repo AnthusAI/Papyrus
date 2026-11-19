@@ -68,13 +68,6 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
     Examples: generated from the schema
       | model                    | operation                       | outcome                                                               |
-      | Announcement             | get                             | denied, or returns nothing of "beta"                                  |
-      | Announcement             | list                            | no row of "beta" is returned and pages are not short                  |
-      | Announcement             | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
-      | Announcement             | create-with-foreign-tenantId    | denied, or returns nothing of "beta"                                  |
-      | Announcement             | update-to-foreign-tenantId      | denied, or returns nothing of "beta"                                  |
-      | Announcement             | update-foreign-row              | denied, or returns nothing of "beta"                                  |
-      | Announcement             | delete-foreign-row              | denied, or returns nothing of "beta"                                  |
       | AnnouncementDecision     | get                             | denied, or returns nothing of "beta"                                  |
       | AnnouncementDecision     | list                            | no row of "beta" is returned and pages are not short                  |
       | AnnouncementDecision     | list-filtered-to-foreign-tenant | denied, or returns nothing of "beta"                                  |
@@ -589,7 +582,6 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
     Examples: generated from the schema
       | query                                                | outcome                          |
-      | listAnnouncementsByAccountAndCreatedAt               | returns nothing of "beta"        |
       | listAnnouncementDecisionsByTenant                    | returns nothing of "beta"        |
       | listAnnouncementDecisionsByDedupeKeyAndCreatedAt     | returns nothing of "beta"        |
       | listAnnouncementDecisionsByStateAndReleaseAt         | returns nothing of "beta"        |
