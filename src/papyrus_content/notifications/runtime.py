@@ -46,6 +46,7 @@ class Runtime:
     log: DeliveryLog
     read_item: Callable[[str], Mapping[str, Any] | None]
     audience: PublicAudience
+    keys: AudienceKeys
 
 
 def utcnow() -> datetime:
@@ -74,10 +75,11 @@ def assemble(
     log = DeliveryLog(store, clock, retention_days)
     readers = AudienceDirectory(directory)
     # The audience raises its confirmation through the router, and the router fans public kinds out over the audience.
+    keys = AudienceKeys.from_secret(key_secret)
     audience = PublicAudience(
         store,
         audience_settings(settings, unsuppress),
-        AudienceKeys.from_secret(key_secret),
+        keys,
         domains,
         clock,
         lambda detail: router.handle_detail(detail),
@@ -107,7 +109,7 @@ def assemble(
         audience=audience,
     )
     return Runtime(
-        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item, audience=audience
+        settings=settings, store=store, router=router, catalog=catalog, email=email, log=log, read_item=read_item, audience=audience, keys=keys
     )
 
 

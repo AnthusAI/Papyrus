@@ -20,7 +20,10 @@ const outputs = {
         contract: 1,
         fromName: "Example News",
         basePath: "posts",
-        lists: [{ id: "stories", name: "New stories", description: "" }],
+        lists: [
+          { id: "stories", name: "New stories", description: "" },
+          { id: "daily", name: "Daily", family: "new-stories", cadence: "daily" },
+        ],
         consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
         theme: { accent: "#aa3300", text: "#111111", background: "#ffffff" },
       },
@@ -170,7 +173,29 @@ const location = (response: Response) => new URL(response.headers.get("location"
     const preferences = harness({ statusCode: 200, body: { status: "saved" } });
     const saved = await handleNotificationsPreferences(request("POST", "/api/notifications/preferences", { ...form, body: `t=${TOKEN}&action=save&l=stories&l=Bad%20Id` }), preferences.options);
     assert.equal(location(saved).searchParams.get("msg"), "saved");
-    assert.deepEqual(preferences.calls[0].event, { action: "update_preferences", token: TOKEN, lists: ["stories"] });
+    assert.deepEqual(preferences.calls[0].event, {
+      action: "update_preferences",
+      token: TOKEN,
+      lists: ["stories"],
+      consent: "",
+      formId: "notifications-preferences",
+      page: "https://news.example.com/posts/notifications/preferences/",
+      origin: "https://news.example.com",
+      ip: preferences.calls[0].event.ip,
+      userAgent: "",
+    });
+
+    // Joining a family the reader does not hold: the page's consent wording goes to the function as evidence, and the answer is "check your email", never "saved".
+    const joining = harness({ statusCode: 202, body: { status: "check_email", lists: ["stories"], confirming: ["weekly", "Bad Id"] } });
+    const consent = encodeURIComponent("I agree to get the emails I choose from Example News and can unsubscribe at any time.");
+    const asked = await handleNotificationsPreferences(request("POST", "/api/notifications/preferences", { ...form, body: `t=${TOKEN}&action=save&l=stories&l=weekly&consent=${consent}` }), joining.options);
+    assert.equal(location(asked).searchParams.get("msg"), "check_email");
+    assert.equal(location(asked).searchParams.get("confirming"), "weekly");
+    assert.equal(joining.calls[0].event.consent, decodeURIComponent(consent));
+    assert.deepEqual(joining.calls[0].event.lists, ["stories", "weekly"]);
+    const noConsent = harness({ statusCode: 400, body: { status: "invalid_consent" } });
+    const unconsented = await handleNotificationsPreferences(request("POST", "/api/notifications/preferences", { ...form, body: `t=${TOKEN}&action=save&l=weekly` }), noConsent.options);
+    assert.equal(location(unconsented).pathname, "/posts/notifications/expired/", "an answer the page does not know is not claimed as saved");
     const step = await handleNotificationsPreferences(request("POST", "/api/notifications/preferences", { ...form, body: `t=${TOKEN}&action=delete` }), preferences.options);
     assert.equal(location(step).searchParams.get("step"), "delete");
     assert.equal(preferences.calls.length, 1, "deleting waits for the confirm step");
@@ -187,7 +212,7 @@ const location = (response: Response) => new URL(response.headers.get("location"
     assert.equal(offered.status, 200);
     assert.deepEqual(await offered.json(), {
       status: "ready",
-      lists: [{ id: "stories", name: "New stories", description: "" }],
+      lists: [{ id: "stories", name: "New stories", description: "" }, { id: "daily", name: "Daily", description: "" }],
       consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
     }, "the form shows the site's own consent wording");
     assert.equal(calls.length, 0, "the offered lists come from the site's settings and ask the function nothing");
@@ -197,9 +222,17 @@ const location = (response: Response) => new URL(response.headers.get("location"
     assert.equal(unavailable.status, 503);
     assert.deepEqual(await unavailable.json(), { status: "unavailable" });
     assert.equal(calls[0].event.action, "confirm_page_state");
-    const ready = harness({ statusCode: 200, body: { status: "ready", email: "r***@example.test", lists: [{ id: "stories", name: "New stories", subscribed: true, internal: 1 }] } });
+    const ready = harness({ statusCode: 200, body: { status: "ready", email: "r***@example.test", lists: [{ id: "stories", name: "New stories", subscribed: true, internal: 1 }, { id: "daily", name: "Daily", subscribed: false }] } });
     const preferences = await handleNotificationsState(request("GET", `/api/notifications/state?kind=preferences&t=${TOKEN}`), ready.options);
-    assert.deepEqual(await preferences.json(), { status: "ready", email: "r***@example.test", lists: [{ id: "stories", name: "New stories", description: "", subscribed: true }] });
+    assert.deepEqual(await preferences.json(), {
+      status: "ready",
+      email: "r***@example.test",
+      consent: "I agree to get the emails I choose from Example News and can unsubscribe at any time.",
+      lists: [
+        { id: "stories", name: "New stories", description: "", subscribed: true, family: "stories", cadence: "" },
+        { id: "daily", name: "Daily", description: "", subscribed: false, family: "new-stories", cadence: "daily" },
+      ],
+    }, "each list names its family from the site's settings, so the page shows a family as one choice, and the consent wording comes with it");
   }
 
   console.log("notifications api ok");

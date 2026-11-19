@@ -213,7 +213,7 @@ export async function handleNotificationsUnsubscribe(request: NextRequest, optio
   }
 }
 
-const PREFERENCE_MESSAGES = new Set(["saved", "unsubscribed"]);
+const PREFERENCE_MESSAGES = new Set(["saved", "unsubscribed", "check_email"]);
 
 /** /api/notifications/preferences. POST (same-origin form) saves, unsubscribes from everything, or deletes after a confirm step; GET redirects. */
 export async function handleNotificationsPreferences(request: NextRequest, options: NotificationsApiOptions = {}): Promise<NextResponse> {
@@ -233,9 +233,21 @@ export async function handleNotificationsPreferences(request: NextRequest, optio
   if (!token || !plugin.functionName) return to.go("expired");
   const action = form.get("action");
   if (action === "delete" && form.get("confirm") !== "1") return to.go("preferences", { token, step: "delete" });
+  // Joining a family the reader does not hold needs their consent: the page shows the site's wording and posts it back with the form, the page and the network as
+  // evidence, as the subscribe form does. The function uses them only for a new family; a cadence change inside a family the reader holds ignores them.
   const operation =
     action === "save"
-      ? { action: "update_preferences", token, lists: form.getAll("l").slice(0, MAXIMUM_LISTS).filter((id) => LIST_ID.test(id)) }
+      ? {
+          action: "update_preferences",
+          token,
+          lists: form.getAll("l").slice(0, MAXIMUM_LISTS).filter((id) => LIST_ID.test(id)),
+          consent: limited(form.get("consent"), 500),
+          formId: "notifications-preferences",
+          page: `${to.origin}${basePathOf(plugin)}/notifications/preferences/`,
+          origin: to.origin,
+          ip: clientAddress(request.headers),
+          userAgent: limited(request.headers.get("user-agent"), NEWSLETTER_USER_AGENT_CHARACTERS),
+        }
       : action === "unsubscribe_all"
         ? { action: "unsubscribe", token }
         : action === "delete"
@@ -243,10 +255,11 @@ export async function handleNotificationsPreferences(request: NextRequest, optio
           : null;
   if (!operation) return failure(400, "invalid_action", "Choose save, unsubscribe from everything, or delete.");
   try {
-    const status = (await call(options, plugin.functionName, operation)).body.status;
+    const { body: answer } = await call(options, plugin.functionName, operation);
+    const status = answer.status;
     if (status === "deleted") return to.go("preferences", { msg: "deleted" });
     if (typeof status !== "string" || !PREFERENCE_MESSAGES.has(status)) return to.go("expired");
-    return to.go("preferences", { token, msg: status });
+    return to.go("preferences", { token, msg: status, ...(status === "check_email" ? { confirming: (Array.isArray(answer.confirming) ? answer.confirming : []).filter((id): id is string => typeof id === "string" && LIST_ID.test(id)).join(",") } : {}) });
   } catch (error) {
     console.error(`Notifications preferences save failed (${error instanceof Error ? error.name : "error"}).`);
     return to.go("expired");
@@ -259,6 +272,17 @@ function configuredLists(plugin: Enabled, ids: string[]): Array<{ id: string; na
     const match = known.find((entry) => entry.id === id);
     return typeof match?.name === "string" ? [{ id, name: match.name }] : [];
   });
+}
+
+/** What the preferences page needs to group lists into families: the site's public settings, nothing about any reader. A list that names no family is its own. */
+function familiesOf(plugin: Enabled): Record<string, { family: string; cadence: string }> {
+  const known = Array.isArray(plugin.settings.lists) ? (plugin.settings.lists as Array<{ id?: unknown; family?: unknown; cadence?: unknown }>) : [];
+  const result: Record<string, { family: string; cadence: string }> = {};
+  for (const entry of known) {
+    if (typeof entry.id !== "string") continue;
+    result[entry.id] = { family: typeof entry.family === "string" ? entry.family : entry.id, cadence: typeof entry.cadence === "string" ? entry.cadence : "" };
+  }
+  return result;
 }
 
 function offeredLists(plugin: Enabled): Array<{ id: string; name: string; description: string }> {
@@ -294,10 +318,24 @@ export async function handleNotificationsState(request: NextRequest, options: No
     if (result.body.status !== "ready") return json(400, { status: "invalid" });
     const lists = Array.isArray(result.body.lists) ? (result.body.lists as Array<Record<string, unknown>>) : [];
     if (kind === "confirm") return json(200, { status: "ready", lists: lists.flatMap((entry) => (typeof entry.name === "string" ? [{ name: entry.name }] : [])) });
+    const known = familiesOf(plugin);
+    // The wording the page shows, and posts back, when the reader chooses a family they do not hold: the same sentence as the subscribe form.
+    const consent = typeof plugin.settings.consent === "string" ? plugin.settings.consent : "";
     return json(200, {
       status: "ready",
       email: typeof result.body.email === "string" ? result.body.email : "",
-      lists: lists.map((entry) => ({ id: entry.id, name: entry.name, description: entry.description ?? "", subscribed: entry.subscribed === true })),
+      consent,
+      lists: lists.map((entry) => {
+        const own = typeof entry.id === "string" ? known[entry.id] : undefined;
+        return {
+          id: entry.id,
+          name: entry.name,
+          description: entry.description ?? "",
+          subscribed: entry.subscribed === true,
+          family: own?.family ?? entry.id,
+          cadence: own?.cadence ?? "",
+        };
+      }),
     });
   } catch (error) {
     console.error(`Notifications state failed (${error instanceof Error ? error.name : "error"}).`);

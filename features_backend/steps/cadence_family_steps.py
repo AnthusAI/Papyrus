@@ -103,12 +103,11 @@ def daily_time(context, time: str, zone: str) -> None:
 
 
 @given('the reader has confirmed "{list_id}" on "{moment}"')
+@when('the reader confirms "{list_id}" on "{moment}"')
 def confirmed(context, list_id: str, moment: str) -> None:
+    """A signup and the link in its confirmation: a list of a family the reader does not hold needs one (subscription-preferences.feature)."""
     _at(context, moment)
-    if READER not in context.manage:
-        context.manage[READER] = _site(context).join(READER, [list_id])
-    else:
-        assert _save(context, sorted({*_chosen(context), list_id}))["body"]["status"] == "saved"
+    context.manage[READER] = _site(context).join(READER, [list_id])
     _site(context).mailer.calls.clear()
 
 

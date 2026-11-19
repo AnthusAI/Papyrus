@@ -55,7 +55,7 @@ def route(rt: Runtime, event: Mapping[str, Any]) -> dict[str, Any]:
     if event.get("task") == "story-published":
         return story_published(rt, event)
     if event.get("action") in public.READER_ACTIONS:
-        return public.handle(rt.audience, event)
+        return public.handle(rt.audience, rt.keys, event)
     return _ignored("unknown_event")
 
 

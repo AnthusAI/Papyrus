@@ -16,6 +16,7 @@ from papyrus_content.list_cadence.family import mover
 
 from .events import KIND, PRODUCT
 from .links import SiteLinks
+from .preferences import update_preferences
 from .settings import Settings
 
 __all__ = ["READER_ACTIONS", "audience_settings", "handle"]
@@ -39,5 +40,8 @@ def audience_settings(settings: Settings, unsuppress: Any = None) -> AudienceSet
     )
 
 
-def handle(audience: Any, event: Mapping[str, Any]) -> dict[str, Any]:
+def handle(audience: Any, keys: Any, event: Mapping[str, Any]) -> dict[str, Any]:
+    """Hand a reader action to Caducus, except the preferences save: joining a family the reader does not hold needs their consent (``preferences.py``)."""
+    if event.get("action") == "update_preferences":
+        return update_preferences(audience, keys, event)
     return dispatch(audience, event)
