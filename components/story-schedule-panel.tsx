@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { CalendarClock, CalendarX2, Pencil } from "lucide-react";
+import { CalendarClock, CalendarSearch, CalendarX2, Pencil } from "lucide-react";
+import type { ScheduleSuggestResult } from "../lib/content-actions-client";
 import {
+  NEWER_VERSION_NOTE,
   PAST_TIME_MESSAGE,
+  SUGGESTION_BASIS,
   ownZoneTime,
   resolveWallTime,
   scheduleSentence,
@@ -25,7 +28,7 @@ function failureText(reason: unknown): string {
  * refuses it; what the editor typed stays in the form so nothing has to be typed again. A wall-clock time that does not exist (the spring-forward gap) is refused
  * here with a plain message; one that happens twice (fall back) asks which one. Publish now is the editor's own button and is not touched.
  */
-export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChanged }: {
+export function StorySchedulePanel({ zone, schedule, blockedReason, save, suggest, onChanged }: {
   zone: string;
   /** What was last saved. */
   schedule: StorySchedule | undefined;
@@ -33,6 +36,8 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
   blockedReason: string | null;
   /** Saves a UTC instant, or clears with null, and returns the schedule the backend recorded. */
   save: (scheduledPublishAt: string | null) => Promise<StorySchedule | undefined>;
+  /** Asks for the time the publication's own rhythm suggests (the backend's `schedule_suggest`), or why there is none. */
+  suggest: () => Promise<ScheduleSuggestResult>;
   onChanged?: (schedule: StorySchedule | undefined) => void;
 }) {
   const ids = useId();
@@ -44,6 +49,9 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
   const [chosen, setChosen] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** What the picker says about the suggested time: its basis, or why there is none. Cleared as soon as the editor types a time of their own. */
+  const [suggestionNote, setSuggestionNote] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const shown = optimistic ? optimistic.schedule : schedule;
   const now = new Date();
   const kind = shown ? scheduleKind(shown, now) : null;
@@ -52,7 +60,28 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
 
   const open = () => {
     const start = shown ? wallTimeOf(shown.at, zone) : wallTimeOf(new Date(Date.now() + 24 * 3_600_000).toISOString(), zone);
-    setDate(start.date); setTime(shown ? start.time : "09:00"); setChoices(null); setChosen(null); setProblem(null); setEditing(true);
+    setDate(start.date); setTime(shown ? start.time : "09:00"); setChoices(null); setChosen(null); setProblem(null); setSuggestionNote(null); setEditing(true);
+  };
+
+  /** Opens the picker on the suggested time, or on the time it already had with the reason there is no suggestion. The editor may pick any other time. */
+  const askForSuggestion = async () => {
+    setProblem(null); setAsking(true);
+    try {
+      const answer = await suggest();
+      if (!editing) open();
+      setChoices(null); setChosen(null);
+      if (answer.suggestion) {
+        const picked = wallTimeOf(answer.suggestion.at, zone);
+        setDate(picked.date); setTime(picked.time);
+        setSuggestionNote(SUGGESTION_BASIS);
+      } else {
+        setSuggestionNote(answer.reason ?? "No suggestion yet: this publication has no publishing history.");
+      }
+    } catch (reason) {
+      setProblem(failureText(reason));
+    } finally {
+      setAsking(false);
+    }
   };
 
   const apply = async (scheduledPublishAt: string | null) => {
@@ -89,7 +118,7 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
   };
 
   const own = shown ? ownZoneTime(shown.at, zone) : null;
-  const controlsOff = blockedReason !== null || saving;
+  const controlsOff = blockedReason !== null || saving || asking;
 
   return <section className="story-schedule" data-story-schedule-panel aria-labelledby={`${ids}-heading`}>
     <h3 className="story-schedule-heading" id={`${ids}-heading`}><CalendarClock aria-hidden size={15} />Schedule</h3>
@@ -100,16 +129,19 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
       </p>
       {own ? <p className="story-schedule-own" data-story-schedule-own>{own}</p> : null}
       {kind === "superseded" ? <p className="story-schedule-note">A newer version was saved after this was scheduled. Schedule it again.</p> : null}
+      {shown.newerVersion && kind !== "superseded" ? <p className="story-schedule-note" data-story-schedule-newer-version>{NEWER_VERSION_NOTE}</p> : null}
+      {shown.notes?.map(note => <p className="story-schedule-note" key={note} data-story-schedule-rating-note>{note}</p>)}
       {kind === "overdue" ? <p className="story-schedule-note">It was not published at its time. Publish it now, or pick a new time.</p> : null}
     </div> : <p className="story-schedule-note" data-story-schedule-none>Not scheduled. Use Publish to publish now, or pick a time. Times are in {zoneCity(zone)} time.</p>}
     {problem && !editing ? <p className="story-schedule-problem" role="alert" data-story-schedule-problem>{problem}</p> : null}
     {editing ? <form className="story-schedule-form" data-story-schedule-form onSubmit={event => { event.preventDefault(); submit(); }}>
       <div className="story-schedule-fields">
         <label htmlFor={`${ids}-date`}>Date</label>
-        <input id={`${ids}-date`} type="date" value={date} onChange={event => { setDate(event.target.value); setChoices(null); setChosen(null); }} data-story-schedule-date />
+        <input id={`${ids}-date`} type="date" value={date} onChange={event => { setDate(event.target.value); setChoices(null); setChosen(null); setSuggestionNote(null); }} data-story-schedule-date />
         <label htmlFor={`${ids}-time`}>Time ({zoneCity(zone)})</label>
-        <input id={`${ids}-time`} type="time" value={time} onChange={event => { setTime(event.target.value); setChoices(null); setChosen(null); }} data-story-schedule-time />
+        <input id={`${ids}-time`} type="time" value={time} onChange={event => { setTime(event.target.value); setChoices(null); setChosen(null); setSuggestionNote(null); }} data-story-schedule-time />
       </div>
+      {suggestionNote ? <p className="story-schedule-note" data-story-schedule-suggestion><CalendarSearch aria-hidden size={14} />{suggestionNote}</p> : null}
       {choices ? <fieldset className="story-schedule-choices" data-story-schedule-choices>
         <legend>Which one?</legend>
         {choices.map(option => <label key={option.utc}>
@@ -120,11 +152,15 @@ export function StorySchedulePanel({ zone, schedule, blockedReason, save, onChan
       {problem ? <p className="story-schedule-problem" role="alert" data-story-schedule-problem>{problem}</p> : null}
       <div className="story-schedule-buttons">
         <button type="submit" className="story-schedule-button" disabled={saving} data-story-schedule-save><CalendarClock aria-hidden size={14} />Save schedule</button>
-        <button type="button" className="story-schedule-button" onClick={() => { setEditing(false); setProblem(null); }} data-story-schedule-cancel>Cancel</button>
+        <button type="button" className="story-schedule-button" disabled={asking} onClick={() => void askForSuggestion()} data-story-schedule-suggest><CalendarSearch aria-hidden size={14} />Suggest a time</button>
+        <button type="button" className="story-schedule-button" onClick={() => { setEditing(false); setProblem(null); setSuggestionNote(null); }} data-story-schedule-cancel>Cancel</button>
       </div>
     </form> : <div className="story-schedule-buttons">
       <button type="button" className="story-schedule-button" disabled={controlsOff} onClick={open} data-story-schedule-open>
         {shown ? <Pencil aria-hidden size={14} /> : <CalendarClock aria-hidden size={14} />}{shown ? "Change time" : "Schedule…"}
+      </button>
+      <button type="button" className="story-schedule-button" disabled={controlsOff} onClick={() => void askForSuggestion()} data-story-schedule-suggest>
+        <CalendarSearch aria-hidden size={14} />Suggest a time
       </button>
       {shown ? <button type="button" className="story-schedule-button" disabled={controlsOff} onClick={() => void apply(null)} data-story-schedule-clear>
         <CalendarX2 aria-hidden size={14} />Unschedule

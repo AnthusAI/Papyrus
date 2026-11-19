@@ -2,7 +2,10 @@
 Feature: Editors see and change when a Story goes live, and see the whole schedule on one page
   A newsroom that writes faster than it wants to publish picks a time for each Story and needs to see, at a glance, what is going out when. A scheduled Story
   says so on its board card and in its drawer, in an icon and in words, in the publication's own time zone, so the page reads without colour. The drawer has a
-  date and time picker in that zone to set, change or clear the time, beside the existing Published state and Publish button, which do not change. A change
+  date and time picker in that zone to set, change or clear the time, beside the existing Published state and Publish button, which do not change. "Suggest a time"
+  opens the picker on the time the publication's own rhythm suggests, learned by the backend from when it has published before, and the editor may pick any other time;
+  a publication with no history is told why there is no suggestion. The drawer says as soon as a newer version of the Story exists than the one scheduled, and tells an
+  unrated Story what scheduling will and will not do, in the backend's words. A change
   shows at once and goes back to what was saved if the backend refuses it, and what the editor typed stays in the form. A time that does not exist on a
   spring-forward night is refused in plain words and a time that happens twice asks which one. A Schedule page shows the same Stories by day, week or month, in
   the publication's zone, beside the Stories that were published in the same range, with a plain list under the calendar and a list instead of the week grid on a
@@ -47,6 +50,28 @@ Feature: Editors see and change when a Story goes live, and see the whole schedu
     When the editor picks 02:30 on the night clocks go forward, and then 01:30 on the night they go back
     Then the first is refused with "That time does not exist on 14 March in New York. Pick another time." and nothing is sent
     And the second lists "01:30 EDT" and "01:30 EST", sends nothing until one is chosen, and then schedules the one chosen
+
+  Scenario: Asking for a suggested time opens the picker on it, and any other time may be picked
+    Given the Stories board with an unscheduled Story open in its drawer
+    When the editor asks for a suggested time, and then picks 10:30 instead
+    Then the picker offers the next weekday morning after the latest scheduled Story, with a note that says where the suggestion comes from
+    And asking schedules nothing, the note goes when the time is changed, and the time picked is the one sent
+
+  Scenario: No history, no suggestion
+    Given the Stories board with an unscheduled Story open in its drawer
+    When the editor asks for a suggested time from a publication with no published Stories
+    Then the picker says "No suggestion yet: this publication has no publishing history."
+    And the editor can still pick a time and save it
+
+  Scenario: A newer version is flagged straight away
+    Given the Stories board with a scheduled Story whose newer version has just been saved
+    When the editor opens the Story
+    Then the drawer says "A newer version exists than the one scheduled" and still shows the Story as scheduled
+
+  Scenario: An unrated Story says what scheduling will and will not do
+    Given the Stories board with an unscheduled Story open in its drawer
+    When the editor schedules an unrated Story
+    Then the drawer says "Unrated: it will publish but will not be listed or announced until it is rated."
 
   Scenario: The Schedule page shows the week in the publication's zone
     Given the Schedule page with three Stories scheduled this week, one the week after and two published on Monday

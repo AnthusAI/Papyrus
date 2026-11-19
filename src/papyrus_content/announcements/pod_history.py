@@ -19,8 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from . import links
-from .deliveries import Deliveries, DeliveryFiles, content_hash
+from . import delivery_text, links
+from .deliveries import Deliveries, DeliveryFiles
 from .links import StoryRef
 from .records import (
     ANNOUNCEMENT_STATES, ANNOUNCES, SUPERSEDES, ATTEMPT_REFUSED, ATTEMPT_SENT, DECISION_MODEL, DELIVERY_MODEL, DELIVERY_STATES, HARD, MANUAL, RecordError, account_key, announcement_id,
@@ -191,12 +191,14 @@ class PodHistory:
         if existing:
             self.deliveries.ensure_text(existing, delivery.text, now=now)
             return existing
-        file = self.deliveries.files.describe(row_id, delivery.text)
+        file = self.deliveries.files.describe(row_id, delivery.text, delivery_text.version_file(1))
+        first = delivery_text.version_entry(1, delivery_text.version_file(1), file, image_key=None, by=by, owner=delivery_text.HUMAN, at=now, replaces=None,
+                                            texts=delivery_text.split_blocks(delivery.text), flags=[delivery_text.HUMAN_FLAGS] * len(delivery_text.split_blocks(delivery.text)))
         successor = ids[corrected_by[delivery.note_id]][0] if delivery.note_id in corrected_by else None
         row: dict[str, Any] = {
             "id": row_id, "announcementId": announcement, "channel": delivery.channel, "accountId": delivery.account, "accountKey": account_key(delivery.channel, delivery.account),
             "mode": MANUAL, "state": delivery.state, "generation": generation, "version": 1,
-            "textKey": file["key"], "contentHash": content_hash(file["sha256"], None), "draftedBy": "pod",
+            "textKey": file["key"], "contentHash": first["contentHash"], "versions": [first], "draftedBy": "pod",
             "approval": HARD, "approvalPolicy": APPROVAL_POLICY,
             "releaseAt": release, "lockAt": release,
             "attempts": [_entry(attempt) for attempt in delivery.attempts] or None, "resultUrl": delivery.result_url,
@@ -214,7 +216,7 @@ class PodHistory:
                 self.deliveries.ensure_text(found, delivery.text, now=now)
                 return found
             raise
-        self.deliveries.files.put(row_id, delivery.text, now=now)
+        self.deliveries.files.put(row_id, delivery.text, now=now, name=delivery_text.version_file(1))
         return row
 
 

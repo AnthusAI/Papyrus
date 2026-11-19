@@ -46,7 +46,7 @@ def test_apply_writes_then_writes_nothing(core, tmp_path):
     site = Site()
     code, body = run([], site, core, tmp_path)
     assert code == 0 and body["result"]["action"] == "apply"
-    assert [(item["definitionId"], item["status"], item["applied"]) for item in body["result"]["definitions"]] == [("rate", "new", True)]
+    assert [(item["definitionId"], item["status"], item["applied"]) for item in body["result"]["definitions"]] == [("announce", "new", True), ("rate", "new", True)]
     record = site.rows["rate"]
     assert record["enabled"] is False and record["definitionVersion"] == 1 and "responsibility" not in record
     written = site.writes
@@ -64,10 +64,10 @@ def test_dry_run_reads_and_writes_nothing(core, tmp_path):
 def test_check_exits_2_on_drift_and_0_when_in_step(core, tmp_path):
     site = Site()
     code, body = run(["--check"], site, core, tmp_path)
-    assert code == 2 and body["error"]["code"] == "constraint_conflict" and "rate is missing" in body["error"]["message"]
+    assert code == 2 and body["error"]["code"] == "constraint_conflict" and "announce is missing" in body["error"]["message"] and "rate is missing" in body["error"]["message"]
     run([], site, core, tmp_path)
     code, body = run(["--check"], site, core, tmp_path)
-    assert code == 0 and body["result"]["action"] == "check" and site.writes == 2
+    assert code == 0 and body["result"]["action"] == "check" and site.writes == 4
 
 
 def test_unknown_procedure_stops_before_any_write(core, tmp_path):

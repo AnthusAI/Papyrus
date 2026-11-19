@@ -27,6 +27,10 @@ export type StorySchedule = {
   state: ScheduleState;
   by: string | null;
   scheduledAt: string | null;
+  /** What scheduling will and will not do for the Story's rating, in the backend's words (an unrated Story is not listed or announced until it is rated). */
+  notes?: string[];
+  /** A newer version of the Story exists than the one that is scheduled: the schedule will not publish, and the editor is told as soon as the version is saved. */
+  newerVersion?: boolean;
 };
 
 export function scheduleFromFields(fields: ScheduleFields): StorySchedule | undefined {
@@ -40,15 +44,24 @@ export function scheduleFromFields(fields: ScheduleFields): StorySchedule | unde
  * The schedule the drawer shows for a Story, from its `schedule_list` answer: the newest scheduled version, since a schedule that sits on an earlier version
  * is the one a newer save superseded. The state is the stored one; Overdue is derived from the time (`scheduleKind`), as the backend derives it.
  */
-export function scheduleFromEntries(entries: readonly { versionNumber: number | null; storedState: string; scheduledPublishAt: string; scheduledBy: string | null; scheduledAt: string | null }[]): StorySchedule | undefined {
+export function scheduleFromEntries(entries: readonly { versionNumber: number | null; storedState: string; scheduledPublishAt: string; scheduledBy: string | null; scheduledAt: string | null; newerVersionExists?: boolean; notes?: string[] }[]): StorySchedule | undefined {
   const newest = [...entries].sort((left, right) => (right.versionNumber ?? 0) - (left.versionNumber ?? 0))[0];
-  return newest ? scheduleFromFields({ scheduledPublishAt: newest.scheduledPublishAt, scheduleState: newest.storedState, scheduledBy: newest.scheduledBy, scheduledAt: newest.scheduledAt }) : undefined;
+  const found = newest ? scheduleFromFields({ scheduledPublishAt: newest.scheduledPublishAt, scheduleState: newest.storedState, scheduledBy: newest.scheduledBy, scheduledAt: newest.scheduledAt }) : undefined;
+  return found ? { ...found, notes: newest.notes ?? [], newerVersion: newest.newerVersionExists === true } : undefined;
 }
 
 /** The schedule a successful `schedule` call recorded: none after a clear, else scheduled for the instant that was sent. */
-export function scheduleFromResult(result: { scheduledPublishAt: string | null; scheduledBy: string | null }, at: Date = new Date()): StorySchedule | undefined {
-  return result.scheduledPublishAt ? { at: result.scheduledPublishAt, state: "scheduled", by: result.scheduledBy, scheduledAt: at.toISOString() } : undefined;
+export function scheduleFromResult(result: { scheduledPublishAt: string | null; scheduledBy: string | null; notes?: string[] }, at: Date = new Date()): StorySchedule | undefined {
+  return result.scheduledPublishAt ? { at: result.scheduledPublishAt, state: "scheduled", by: result.scheduledBy, scheduledAt: at.toISOString(), notes: result.notes ?? [], newerVersion: false } : undefined;
 }
+
+/** What scheduling does for a Story with no rating: the backend's sentence (`story_schedule.UNRATED_NOTE`), which the local preview repeats for its sample Stories. */
+export const UNRATED_NOTE = "Unrated: it will publish but will not be listed or announced until it is rated.";
+
+/** Said under the schedule when a newer version of the Story exists than the one that is scheduled. */
+export const NEWER_VERSION_NOTE = "A newer version exists than the one scheduled";
+/** Said in the form beside a suggested time. A publication with no history to suggest from is told why in the backend's own sentence (`publication_cadence.NO_HISTORY`). */
+export const SUGGESTION_BASIS = "Suggested from this publication's usual publishing times. Pick any other time if you prefer.";
 
 /**
  * What a reader sees. A time that has passed while the version is still scheduled or being published is Overdue (derived, as the backend derives it); a blocked

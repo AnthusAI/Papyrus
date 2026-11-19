@@ -25,7 +25,12 @@
  *
  * Styling hooks (the element renders into its own light DOM): form.markus-notifications-form, label.markus-notifications-label,
  * input.markus-notifications-input, button.markus-notifications-toggle[aria-pressed], button.markus-button, p.markus-notifications-consent,
- * p.markus-notifications-status[data-state]. Every status is words plus a mark, never colour alone. A "papyrus-notifications" event with
+ * p.markus-notifications-status[data-state]. Every status is words plus a mark, never colour alone.
+ *
+ * Analytics. On a site with a GA4 measurement id the analytics script (`papyrus-notifications-analytics-v1.js`) is loaded before this one and the
+ * form reports subscribe_start (the form was focused or submitted, once), subscribe_submitted (the service accepted the request) and
+ * subscribe_error (any other outcome) through it, with the list ids chosen, `form-id` and the page type; never the address.
+ * Without that script nothing is reported. A "papyrus-notifications" event with
  * detail.status fires on the element after each attempt. Without JavaScript the element is empty.
  */
 (function () {
@@ -140,6 +145,7 @@
       this.status = element("p", "markus-notifications-status", { role: "status", "aria-live": "polite" });
       form.appendChild(this.status);
       form.addEventListener("submit", this.onSubmit.bind(this));
+      form.addEventListener("focusin", this.begin.bind(this));
       this.appendChild(form);
 
       var wanted = (this.getAttribute("lists") || "").split(",").map(function (id) { return id.trim(); }).filter(Boolean);
@@ -181,7 +187,25 @@
       this.boxes.push(button);
     }
 
+    // Optional analytics (see the header). The reader's address is never passed; only list ids, the placement and the page type.
+    report(name) {
+      var analytics = window.papyrusNotificationsAnalytics;
+      if (!analytics) return;
+      var root = document.querySelector("[data-notifications-page]");
+      var page = root ? root.getAttribute("data-notifications-page") : "";
+      try {
+        analytics.track(name, { kind: this.chosenLists().join(","), form: this.formId, page_type: page === "index" ? "subscribe" : page || "other" });
+      } catch (e) {}
+    }
+
+    begin() {
+      if (this.started) return;
+      this.started = true;
+      this.report("subscribe_start");
+    }
+
     show(state, text) {
+      if (state !== "check_email") this.report("subscribe_error");
       this.status.setAttribute("data-state", state);
       this.status.innerHTML = ICONS[state === "check_email" ? "circle-check" : "triangle-alert"];
       var words = element("span");
@@ -198,6 +222,7 @@
     onSubmit(event) {
       event.preventDefault();
       var self = this;
+      this.begin();
       return this.ready.then(function () {
         if (self.lists.length === 0 || !self.consent) return self.show("unconfigured", MESSAGES.unconfigured);
         var value = self.input.value.trim();
@@ -219,6 +244,7 @@
           .then(function (outcome) {
             self.button.disabled = false;
             if (outcome.status === "check_email") {
+              self.report("subscribe_submitted");
               self.input.value = "";
               return self.show("check_email", self.getAttribute("success") || "Check your email to confirm your subscription.");
             }

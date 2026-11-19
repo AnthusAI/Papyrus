@@ -61,6 +61,29 @@ def stories_schedule(flags: list[str]) -> None:
         print(f"stories\tschedule\treplaced\t{story}\tthe earlier schedule of {replaced}")
 
 
+def stories_schedule_suggest(flags: list[str]) -> None:
+    """papyrus stories schedule-suggest [--story LINEAGE] [--json]
+
+    Read only. The next time to schedule a Story, learned from the publication's own history of first publications: the earliest hour after now and after the latest
+    scheduled time plus the mean gap between first publications, in the hour of the following day the publication has used most. --story leaves that Story's own schedule
+    out. A publication with no publishing history has no suggestion and the command says so."""
+    options = parse_options(flags)
+    story = normalize_string(options.get("story"))
+    client, _ = create_authoring_client()
+    response = call_remote(client, "schedule_suggest", {"storyLineageId": story} if story else {})
+    if response.get("ok") is False:
+        raise ValueError(f"stories schedule-suggest refused: {refused_message(response)}")
+    if options.get("json"):
+        print(json.dumps(response, indent=2))
+        return
+    suggestion = response.get("suggestion")
+    if not suggestion:
+        print("\t".join(["stories", "schedule-suggest", "none", str(response.get("reason") or "")]))
+        return
+    print("\t".join(["stories", "schedule-suggest", str(suggestion.get("label")), str(suggestion.get("at")),
+                     f"from {suggestion.get('publications')} first publications, a mean gap of {suggestion.get('meanGapHours')} hours"]))
+
+
 def stories_schedule_list(flags: list[str]) -> None:
     """papyrus stories schedule-list [--story LINEAGE] [--from TIME] [--to TIME] [--state scheduled|publishing|blocked|overdue ...] [--json]
 
