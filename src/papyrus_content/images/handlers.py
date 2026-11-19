@@ -203,3 +203,9 @@ HANDLERS.update({name: _list_handler(name) for name in LIST_OPERATIONS})
 from papyrus_content.rating_handlers import signed_in_handlers as _rating_handlers  # noqa: E402
 
 HANDLERS.update(_rating_handlers())
+
+
+# The handoff request (PPY-51f96f) runs on the same lane: a person's session, or the procedure runner's role inside an agent's run.
+from papyrus_content.handoff_handlers import signed_in_handlers as _handoff_handlers  # noqa: E402
+
+HANDLERS.update(_handoff_handlers())

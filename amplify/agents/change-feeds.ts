@@ -12,7 +12,7 @@ import { allowWakeSending } from "./wake-queue";
 import type { AgentPiece } from "./stack";
 
 /**
- * The change feeds for Reference, ReviewRequest, Message, LocalizationRequest and Delivery (docs/design/always-on-agents-architecture.md, slice B3, PPY-9b9e64):
+ * The change feeds for Reference, ReviewRequest, Message, LocalizationRequest, Delivery and Assignment (docs/design/always-on-agents-architecture.md, slice B3, PPY-9b9e64):
  * one function that turns each change to a row of those tables into one wake per listening agent on the site's wake queue. All the logic is
  * src/papyrus_content/change_feeds.py (the normalized change and the wake are the Item feed's, src/papyrus_content/item_change_feed.py); the handler is
  * amplify/functions/change-feed/handler.py. One function, not one per table: the feeds share every line of code and all they differ in is the table of the stream
@@ -53,6 +53,8 @@ export const CHANGE_FEED_FILTERS: Record<FeedTable, Record<string, unknown>> = {
   Message: { eventName: ["INSERT"], dynamodb: { NewImage: { messageKind: { S: ["comment"] } } } },
   LocalizationRequest: { eventName: ["INSERT", "MODIFY"], dynamodb: { NewImage: { state: { S: ["wanted"] } } } },
   Delivery: { eventName: ["INSERT", "MODIFY"] },
+  // Only the Assignments that are requests between responsibilities (type `responsibility.<agent>`, src/papyrus_content/handoff_records.py); the other kinds run by their own executors.
+  Assignment: { eventName: ["INSERT", "MODIFY"], dynamodb: { NewImage: { assignmentTypeKey: { S: [{ prefix: "responsibility." }] } } } },
 };
 
 /** The streams the stack switched on or found: a table's stream ARN, only for a table the site's schema has. */
@@ -70,7 +72,7 @@ export type ChangeFeedsSource = {
   openAiKeyParameter?: string;
 };
 
-/** The streams of every feed table the schema has. The Reference, Message and LocalizationRequest streams are the readers' own where they exist; ReviewRequest and Delivery had none. */
+/** The streams of every feed table the schema has. The Reference, Message and LocalizationRequest streams are the readers' own where they exist; ReviewRequest, Delivery and Assignment had none. */
 export function enableFeedStreams(backend: any): FeedStreams {
   const streams: FeedStreams = {};
   for (const table of FEED_TABLES) {

@@ -242,6 +242,14 @@ def policy_for(request: dict, client, s3: Callable[[], Any]) -> Gate:
     return PolicyGate.for_site(client, s3=s3(), bucket=request["siteBucket"], tenant_id=request["tenantId"])
 
 
+def handoff_of(request: dict) -> dict[str, str] | None:
+    """The Assignment this wake is the work of and the agent doing it, or None (agent_assignments.assignment_of_request)."""
+    from . import agent_assignments
+
+    assignment, agent = agent_assignments.assignment_of_request(request), (request.get("trigger") or {}).get("automationId")
+    return {"assignment": assignment, "agent": str(agent)} if assignment and agent else None
+
+
 def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
                           run_started: Callable[[str], None] | None = None) -> dict:
@@ -262,6 +270,11 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
     if not decision.start:
         return skip_run(client, run_id, request, decision, now=now)
     started_at = now()
+    handoff = handoff_of(request) if decision.state is not None else None   # an agent's run for an Assignment another responsibility filed (PPY-51f96f)
+    if handoff:
+        from . import agent_assignments
+
+        agent_assignments.begin(client, handoff["assignment"], handoff["agent"], now=started_at)   # the run record is the claim; this makes it visible on the Assignment
     if run_started is not None:
         try:
             run_started(run_id)   # lets the trigger row name its run while it is still running
@@ -271,6 +284,9 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         procedure = load_published_procedure(client, request["procedureKey"], started["versionId"])
     except ProcedureNotRunnable as error:
         refuse_run(client, run_id, error, request, now=now)
+        if handoff:   # the claimed Assignment must not be left looking in hand
+            agent_assignments.finish(client, handoff["assignment"], handoff["agent"], run_id=run_id, outcome="failed", reason=run_outcomes.NOT_RUNNABLE,
+                                     summary=None, error=str(error), now=now())
         error.run_id = run_id
         raise
     workdir = Path(tempfile.mkdtemp(prefix="papyrus-procedure-", dir=workroot))
@@ -316,6 +332,9 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         # A site backend that predates the usage fields refuses them; the run's outcome must still be recorded.
         cost_recorded = False
         update_cloud_procedure_run_record(client, record)
+    if handoff:
+        agent_assignments.finish(client, handoff["assignment"], handoff["agent"], run_id=run_id, outcome=ended["outcome"], reason=ended["outcomeReason"],
+                                 summary=record["resultSummary"], error=None if succeeded else ended["error"], now=record["finishedAt"])
     return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "versionId": procedure["version"]["id"],
             **decision.run_fields(),
             "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],

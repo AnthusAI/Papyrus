@@ -55,6 +55,7 @@ export type ImageOperationName =
   | "announcements_recent"
   | "announcements_explain"
   | "ratings_set"
+  | "handoffs_request"
 ;
 
 export type ImageErrorCode =
@@ -1589,6 +1590,26 @@ export type RatingsSetResult = {
   ratedBy?: string;
 };
 
+/** Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once. */
+export type HandoffsRequestInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** The responsibility asked, as the agent catalogue names it, such as research. */
+  responsibility: string;
+  /** What is needed and why, in plain words. It is the Assignment's brief and what the responsible agent reads. */
+  why: string;
+};
+
+export type HandoffsRequestResult = {
+  assignmentId: string;
+  responsibility: string;
+  story: string;
+  status: string;
+  askedBy: string;
+  /** False when the same ask was already made: nothing new was written and nobody is woken again. */
+  created: boolean;
+};
+
 export interface ImageOperations {
   image_profile_get: { input: ImageProfileGetInput; result: ImageProfileGetResult };
   image_profile_resolve: { input: ImageProfileResolveInput; result: ImageProfileResolveResult };
@@ -1642,6 +1663,7 @@ export interface ImageOperations {
   announcements_recent: { input: AnnouncementsRecentInput; result: AnnouncementsRecentResult };
   announcements_explain: { input: AnnouncementsExplainInput; result: AnnouncementsExplainResult };
   ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
+  handoffs_request: { input: HandoffsRequestInput; result: HandoffsRequestResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
@@ -1698,9 +1720,10 @@ export const IMAGE_OPERATIONS = {
   announcements_recent: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements recent" },
   announcements_explain: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements explain" },
   ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
+  handoffs_request: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "handoffs", command: "papyrus handoffs request" },
 } as const;
 
-/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements and ratings have no door yet (the console reads and writes their models directly). */
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements, ratings and handoffs have no door yet (the console reads and writes their models directly). */
 export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;

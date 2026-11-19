@@ -16,7 +16,7 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
  */
 
 /** The tables the change feeds of slice B3 cover (the Item table's feed is its own function, amplify/agents/item-change-feed.ts). */
-export const FEED_TABLES = ["Reference", "ReviewRequest", "Message", "LocalizationRequest", "Delivery"] as const;
+export const FEED_TABLES = ["Reference", "ReviewRequest", "Message", "LocalizationRequest", "Delivery", "Assignment"] as const;
 export type FeedTable = (typeof FEED_TABLES)[number];
 
 export const MAX_STREAM_READERS = 2;

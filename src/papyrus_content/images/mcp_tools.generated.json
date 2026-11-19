@@ -5723,6 +5723,78 @@
           "stars"
         ]
       }
+    },
+    {
+      "name": "handoffs_request",
+      "audience": "staff",
+      "description": "Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once.",
+      "agentAllowed": true,
+      "agentRung": "propose",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          },
+          "responsibility": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The responsibility asked, as the agent catalogue names it, such as research."
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What is needed and why, in plain words. It is the Assignment's brief and what the responsible agent reads."
+          }
+        },
+        "required": [
+          "story",
+          "responsibility",
+          "why"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "responsibility": {
+            "type": "string",
+            "minLength": 1
+          },
+          "story": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "askedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "created": {
+            "type": "boolean",
+            "description": "False when the same ask was already made: nothing new was written and nobody is woken again."
+          }
+        },
+        "required": [
+          "assignmentId",
+          "responsibility",
+          "story",
+          "status",
+          "askedBy",
+          "created"
+        ]
+      }
     }
   ]
 }
