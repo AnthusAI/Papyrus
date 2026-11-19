@@ -29,6 +29,11 @@ export type NotificationsList = {
   description: string;
   rule: NewsletterRule;
   approval: "admin" | "none";
+  /**
+   * What the list is for. `story.published` (the default) sends each matching story. `roundup` is a periodic issue's list: it is never
+   * sent each story, so it carries no rule. A newsletter roundup list keeps its id and becomes a `roundup` list when its subscribers move (PPY-6b2d35).
+   */
+  kind?: "story.published" | "roundup";
   /** The cadence family: lists that carry the same items at different cadences share one, and a reader holds one list of a family. None: its own family. */
   family?: string;
   /** `each`, `daily` or `weekly`, as in the site's `lists` document. A reader's switch between lists of a family waits for the next period start of its periodic list. */
@@ -59,13 +64,18 @@ export type NotificationsConfig = {
   itemUrlStyle: ItemUrlStyle;
   /** `papyrus-<siteId>` unless overridden: the sending stack's configuration set, shared with the newsletter. */
   configurationSet: string;
+  /**
+   * Honour the old newsletter's manage and unsubscribe links (they were mailed with the newsletter's tokens) until the date the migration
+   * gave them. Dated: set only while that period runs, and removed with `src/papyrus_content/notifications/legacy_links.py` (see that file).
+   */
+  legacyNewsletterLinks: boolean;
 };
 
 const KNOWN_KEYS = [
   "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "theme", "lists",
-  "itemUrlStyle", "configurationSet", "consent", "confirmWindowHours",
+  "itemUrlStyle", "configurationSet", "consent", "confirmWindowHours", "legacyNewsletterLinks",
 ];
-const LIST_KEYS = ["id", "name", "description", "rule", "approval", "family", "cadence", "sendAt", "timeZone"];
+const LIST_KEYS = ["id", "name", "description", "rule", "approval", "kind", "family", "cadence", "sendAt", "timeZone"];
 const CADENCES = ["each", "daily", "weekly"];
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -88,6 +98,9 @@ function resolveList(raw: unknown, index: number): NotificationsList {
   const list = record(raw, label, LIST_KEYS);
   const approval = list.approval === undefined ? "admin" : list.approval;
   if (approval !== "admin" && approval !== "none") fail(`${label}.approval must be "admin" or "none"`);
+  const kind = list.kind === undefined ? undefined : list.kind;
+  if (kind !== undefined && kind !== "story.published" && kind !== "roundup") fail(`${label}.kind must be "story.published" or "roundup"`);
+  if (kind === "roundup" && list.rule !== undefined) fail(`${label} is a roundup list, which is never sent each story, so it names no rule`);
   const family = list.family === undefined ? undefined : matching(list.family, `${label}.family`, NEWSLETTER_LIST_ID, "lowercase letters, digits and hyphens, starting with a letter");
   const cadence = list.cadence === undefined ? undefined : list.cadence;
   if (cadence !== undefined && !CADENCES.includes(cadence as string)) fail(`${label}.cadence must be one of: ${CADENCES.join(", ")}`);
@@ -107,6 +120,7 @@ function resolveList(raw: unknown, index: number): NotificationsList {
     description: text(list.description, `${label}.description`, 300, { optional: true, fallback: "" }),
     rule: resolveRule(list.rule, `${label}.rule`),
     approval,
+    ...(kind === undefined ? {} : { kind: kind as NotificationsList["kind"] }),
     ...(family === undefined ? {} : { family }),
     ...(cadence === undefined ? {} : { cadence: cadence as NotificationsList["cadence"] }),
     ...(periodic ? { sendAt: list.sendAt as NotificationsList["sendAt"], timeZone: list.timeZone as string } : {}),
@@ -117,6 +131,12 @@ function resolveList(raw: unknown, index: number): NotificationsList {
 function confirmWindowHours(raw: unknown): number {
   if (raw === undefined) return 72;
   if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1) fail("confirmWindowHours must be a whole number of hours, at least 1");
+  return raw;
+}
+
+function legacyNewsletterLinks(raw: unknown): boolean {
+  if (raw === undefined) return false;
+  if (typeof raw !== "boolean") fail("legacyNewsletterLinks must be true or false");
   return raw;
 }
 
@@ -152,6 +172,7 @@ export function resolveNotificationsConfig(request: PluginRequest): Notification
       confirmWindowHours: confirmWindowHours(raw.confirmWindowHours),
       itemUrlStyle: itemUrlStyle(raw.itemUrlStyle),
       configurationSet: matching(raw.configurationSet, "configurationSet", SES_NAME, "an SES configuration set name", `papyrus-${siteId}`),
+      legacyNewsletterLinks: legacyNewsletterLinks(raw.legacyNewsletterLinks),
     };
   });
 }

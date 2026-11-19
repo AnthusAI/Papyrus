@@ -48,7 +48,7 @@ def test_a_stale_record_of_an_earlier_move_is_not_the_writer_of_this_one():
     assert change.actor_kind == "person"
 
 
-@pytest.mark.parametrize("old,new", [(story(), story(versionState="superseded")), (story(), story(starRating=3)), (story(stage="idea"), story(stage="idea", metadata='{"a": 1}'))])
+@pytest.mark.parametrize("old,new", [(story(), story(versionState="superseded")), (story(stage="idea"), story(stage="idea", metadata='{"a": 1}'))])
 def test_other_updates_are_no_change(old, new):
     assert feed.changes_of(old, new, "MODIFY") == []
 
@@ -127,3 +127,46 @@ def test_the_handler_sends_through_the_wake_queue_and_reports_a_failed_record():
 
     assert module.handler(event, index=index, send=refuse, environment=environment) == {"batchItemFailures": [{"itemIdentifier": "7"}]}
     assert module.handler({"Records": []}, index=index, send=refuse, environment=environment) == {"batchItemFailures": []}
+
+
+# --- a rating changed in place (PPY-e3bb2b) --------------------------------------------------------------------------------------------------------
+
+
+def rated(stars, at="2026-11-18T12:00:00Z", by="ada", **fields):
+    return story(stage="published", **({"starRating": stars, "starRatedAt": at, "starRatedBy": by} if stars else {}), **fields)
+
+
+def test_a_rating_set_in_place_is_a_change_named_by_its_stars_and_its_moment():
+    [change] = feed.changes_of(rated(None), rated(4), "MODIFY")
+    assert (change.change, change.what, change.actor_kind, change.at) == ("rated", "rated.4.2026-11-18T12:00:00Z", "person", "2026-11-18T12:00:00Z")
+    assert (change.attributes["stars"], change.attributes["previousStars"], change.attributes["stage"]) == (4, None, "published")
+
+
+def test_rating_again_is_a_new_key_and_the_same_record_twice_is_the_same_key():
+    first = feed.changes_of(rated(3, at="2026-11-18T12:00:00Z"), rated(4, at="2026-11-18T12:01:00Z"), "MODIFY")[0]
+    again = feed.changes_of(rated(3, at="2026-11-18T12:00:00Z"), rated(4, at="2026-11-18T12:01:00Z"), "MODIFY")[0]
+    other = feed.changes_of(rated(4, at="2026-11-18T12:01:00Z"), rated(3, at="2026-11-18T12:02:00Z"), "MODIFY")[0]
+    assert first.what == again.what and first.what != other.what
+
+
+def test_clearing_a_rating_is_a_change_and_a_rating_by_an_agent_names_the_agent():
+    [cleared] = feed.changes_of(rated(4), story(stage="published", updatedAt="2026-11-18T13:00:00Z"), "MODIFY")
+    assert cleared.what == "rated.cleared.2026-11-18T13:00:00Z" and cleared.attributes["stars"] is None
+    [by_agent] = feed.changes_of(rated(None), rated(3, by="automation:rate"), "MODIFY")
+    assert (by_agent.actor_kind, by_agent.actor_label) == ("agent", "automation:rate")
+
+
+def test_a_new_version_that_carries_the_rating_over_and_an_unchanged_rating_are_no_rating_change():
+    assert [change.change for change in feed.changes_of(None, rated(4), "INSERT")] == ["version_created"]
+    assert feed.changes_of(rated(4), rated(4, updatedAt="2026-11-18T14:00:00Z"), "MODIFY") == []
+
+
+def test_the_wake_of_a_rating_says_why_in_words_and_never_wakes_the_agent_that_rated():
+    index = {"changes": {"Item/rated": [{"agent": "announce", "procedure": "announce_story", "paid": False, "serialBy": "agent", "filter": {"stage": "published"}},
+                                        {"agent": "rate", "procedure": "rate_items", "paid": True, "serialBy": "agent", "filter": {}}]}}
+    [change] = feed.changes_of(rated(None), rated(3, by="automation:rate"), "MODIFY")
+    [request] = feed.wakes_for(change, index, SITE)
+    assert request["wakeKey"] == "announce|s|s-v3|rated.3.2026-11-18T12:00:00Z"
+    assert "rated 3 stars" in request["trigger"]["summary"] and request["input"]["stars"] == 3
+    [draft_rating] = feed.changes_of(story(stage="copywriting"), story(stage="copywriting", starRating=3, starRatedAt="t", starRatedBy="ada"), "MODIFY")
+    assert [wake["wakeKey"].split("|")[0] for wake in feed.wakes_for(draft_rating, index, SITE)] == ["rate"]   # the announce agent listens for published Stories only

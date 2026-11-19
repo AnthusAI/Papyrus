@@ -24,49 +24,10 @@ export const announcementsSchemaDefinitions = {
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.group("admin").to(["read"])]),
   /**
-   * One announcement of a Story on the publication's X account: the audit row (who, what, when, post id, cost, mode, outcome). id = "<accountId>#<storyLineageId>",
-   * created with a condition so a Story is announced once per account. The post text is in S3 (ModelAttachment role announcement_document). Editors and admins read;
-   * the announcement pipeline writes.
-   */
-  Announcement: a
-    .model({
-      id: a.id().required(),
-      accountId: a.string().required(),
-      accountHandle: a.string(),
-      storyLineageId: a.id().required(),
-      storyItemId: a.id(),
-      storyVersionNumber: a.integer(),
-      channel: a.string().required(),
-      state: a.string().required(),
-      blockedReason: a.string(),
-      mode: a.string().required(),
-      trigger: a.string(),
-      link: a.string(),
-      weight: a.integer(),
-      draftedBy: a.string(),
-      checks: a.json(),
-      postId: a.string(),
-      postedAt: a.datetime(),
-      cost: a.string(),
-      attempts: a.integer(),
-      round: a.integer(),
-      error: a.string(),
-      history: a.json(),
-      withdrawnBy: a.string(),
-      withdrawnAt: a.datetime(),
-      createdAt: a.datetime().required(),
-      updatedAt: a.datetime().required(),
-    })
-    .secondaryIndexes((index) => [
-      index("accountId").sortKeys(["createdAt"]).queryField("listAnnouncementsByAccountAndCreatedAt"),
-    ])
-    .disableOperations(["subscriptions"])
-    .authorization((allow) => [allow.groups(editors).to(["read"])]),
-  /**
    * An Announcement: the decision to say something about one or more Stories (docs/announcement-records.md). It knows nothing about channels and holds no approval;
    * a Delivery holds both. id is made from the once-only key (dedupeKey), and created with a condition, so a decision is made once. The Stories it is about are
-   * `announces` relations, with the version looked at. Short fields only: no text. Named for what it is because the model `Announcement` is the X row shape that
-   * PPY-efd06c deletes. Editors and admins read; the announcement pipeline writes.
+   * `announces` relations, with the version looked at. Short fields only: no text. The model named `Announcement` (the old X row shape, with its
+   * account index and round counter) is gone: an X post is an Announcement with one Delivery. Editors and admins read; the announcement pipeline writes.
    */
   AnnouncementDecision: a
     .model({
@@ -93,7 +54,8 @@ export const announcementsSchemaDefinitions = {
   /**
    * A Delivery: one channel's version of an Announcement (docs/announcement-records.md). The words and any picture are files in S3 (textKey, imageKey, contentHash);
    * the row never holds text. id is `<announcement>#<channel>#<account>#g<generation>`, created with a condition: one live Delivery for each Announcement, channel and
-   * account, and a correction is the next generation, written with `supersedes`. Approval lives here, per Delivery. Every wait is a named time (releaseAt, lockAt,
+   * account, and a correction is the next generation, written with `supersedes`. Every edit is a new version: `versions` is the log (each version's file, key, hash, who saved it and which
+   * version it replaced; the words themselves are files in S3) and `candidates` the texts and pictures kept beside the draft. Approval lives here, per Delivery. Every wait is a named time (releaseAt, lockAt,
    * nextAttemptAt with waitingFor); dueAt is the earliest of them and, with dueKey, is present only while one is pending, so the due index is sparse.
    */
   Delivery: a
@@ -115,6 +77,8 @@ export const announcementsSchemaDefinitions = {
       contentHash: a.string(),
       draftedBy: a.string(),
       checks: a.json(),
+      versions: a.json(),
+      candidates: a.json(),
       approval: a.string().required(),
       approvalPolicy: a.string().required(),
       approvedVersion: a.integer(),
@@ -124,6 +88,7 @@ export const announcementsSchemaDefinitions = {
       lockAt: a.datetime().required(),
       lockedAt: a.datetime(),
       lockedVersion: a.integer(),
+      preferredVersion: a.integer(),
       nextAttemptAt: a.datetime(),
       waitingFor: a.string(),
       dueAt: a.datetime(),

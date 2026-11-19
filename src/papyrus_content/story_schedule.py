@@ -43,6 +43,9 @@ NAME_PREFIX_ENV = "PAPYRUS_SCHEDULE_NAME_PREFIX"
 #: Who may schedule: the groups that may call ``publishItem`` (amplify/data/schema.ts ``contentWriteGroups``).
 PUBLISH_GROUPS = ("editor", "admin")
 BLOCKED_MESSAGE = "A newer version was saved after this was scheduled. Schedule it again."
+UNRATED_NOTE = "Unrated: it will publish but will not be listed or announced until it is rated."
+REQUIRED_RATING_NOTE = ("This site requires a rating before a Story publishes: rate it (papyrus stories set-stars) before the scheduled time, "
+                        "or the publish is refused and it shows as overdue.")
 REVIEW_REQUEST_RAISED_BY = "scheduled-publishing"
 TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
@@ -234,8 +237,11 @@ class Caller:
 
 
 class ScheduleService:
-    def __init__(self, client: Any, *, zone_name: str | None, scheduler: EventBridgeScheduler | None, now: Callable[[], datetime] | None = None) -> None:
+    def __init__(self, client: Any, *, zone_name: str | None, scheduler: EventBridgeScheduler | None, now: Callable[[], datetime] | None = None,
+                 cadence: Any = None) -> None:
         self.client = client
+        #: The publication's publishing rhythm (publication_cadence.CadenceStore), or None where there is no lock table to keep it in.
+        self.cadence = cadence
         self.zone_name = (zone_name or "").strip() or None
         self.scheduler = scheduler
         self._now = now or (lambda: datetime.now(timezone.utc))
@@ -270,6 +276,16 @@ class ScheduleService:
             self._require_zone()
             raise ScheduleError("scheduling-misconfigured", "This site's scheduler is not wired. Deploy the backend again.")
         return self.scheduler
+
+    def rating_notes(self, item: Mapping[str, Any]) -> list[str]:
+        """What scheduling will and will not do for a Story with no rating: the one place these words are written (the console shows them as they are)."""
+        from .item_stars import effective_rating
+
+        if effective_rating(item)["stars"] != 0:
+            return []
+        from .story_rating import read_required
+
+        return [REQUIRED_RATING_NOTE if read_required(self.client) else UNRATED_NOTE]
 
     def entry(self, row: Mapping[str, Any]) -> dict[str, Any]:
         state = effective_state(row, self.now())
@@ -328,13 +344,9 @@ class ScheduleService:
             "ok": True, "scheduled": not dry_run, "dryRun": dry_run, "itemId": row["id"], "lineageId": lineage_id, "versionNumber": row.get("versionNumber"),
             "title": _title(row), "scheduledPublishAt": at, "scheduledBy": caller.actor, "replaced": [other["id"] for other in replaced], "timeZone": zone_name, **local_view(at, zone_name),
         }
-        from .item_stars import effective_rating
-
-        if effective_rating(item)["stars"] == 0:
-            from .story_rating import read_required
-
-            result["notes"] = (["This site requires a rating before a Story publishes: rate it (papyrus stories set-stars) before the scheduled time, or the publish is refused and it shows as overdue."]
-                               if read_required(self.client) else ["Unrated: it will publish but will not be listed or announced until it is rated."])
+        notes = self.rating_notes(item)
+        if notes:
+            result["notes"] = notes
         if dry_run:
             return result
         try:
@@ -406,11 +418,33 @@ class ScheduleService:
         if head is not None:   # one Story's read has every version, so it can say what the newest one is
             for entry in entries:
                 entry.update({"headItemId": head["id"], "headVersionNumber": head.get("versionNumber"), "newerVersionExists": head["id"] != entry["itemId"]})
+            if entries:   # what scheduling does for this Story's rating, read from its newest version (the one an editor would schedule)
+                notes = self.rating_notes(self.client.get_record("Item", head["id"]) or head)
+                for entry in entries:
+                    entry["notes"] = notes
         return {"ok": True, "timeZone": self.zone_name, "now": utc_text(self.now()), "schedules": [entry for entry in entries if entry["state"] in wanted]}
 
     def settings(self) -> dict[str, Any]:
         """Whether this site schedules, and in which zone: the one place the publication's time zone is read from (the site's backend settings)."""
         return {"ok": True, "enabled": self.zone_name is not None, "timeZone": self.zone_name, "now": utc_text(self.now())}
+
+    def suggest(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
+        """Read only. The next time the publication's own rhythm suggests for a scheduled Story, or why there is none (``suggestion`` is null and ``reason`` says it).
+        The Story named by ``storyLineageId`` is left out of "the latest scheduled time", since its own schedule is what an editor is about to move."""
+        from .publication_cadence import NO_HISTORY, suggest_time
+
+        zone_name = self._require_zone()
+        cadence = self.cadence.read() if self.cadence is not None else None
+        if cadence is None:
+            return {"ok": True, "suggestion": None, "reason": NO_HISTORY, "timeZone": zone_name}
+        now = self.now()
+        own = str(arguments["storyLineageId"]) if arguments.get("storyLineageId") else None
+        upcoming = [row for state in (SCHEDULED, PUBLISHING) for row in self.client.list_schedule(state, utc_text(now), None) if str(row.get("lineageId") or row.get("id")) != own]
+        latest = max((parse_utc(str(row["scheduledPublishAt"])) for row in upcoming), default=None)
+        picked = suggest_time(cadence, now=now, latest_scheduled=latest, zone_name=zone_name)
+        at = utc_text(picked.at)
+        return {"ok": True, "suggestion": {"at": at, **local_view(at, zone_name), "publications": picked.publications, "meanGapHours": picked.mean_gap_hours,
+                                           "latestScheduledAt": utc_text(latest) if latest else None}, "timeZone": zone_name}
 
     # the run at the scheduled time
 
@@ -495,6 +529,13 @@ OPERATIONS: dict[str, Operation] = {
         "Read only. Whether the site schedules and its publication time zone (an IANA name): the one source of that fact. Every schedule answer carries the same timeZone.",
         _closed({}),
     ),
+    "schedule_suggest": Operation(
+        "schedule_suggest", "stories_schedule_suggest", "schedule-suggest", False,
+        "Read only. The next time to schedule a Story, learned from the publication's own history: the earliest hour after now and after the latest scheduled time plus the "
+        "mean gap between first publications, in the hour of the following day the publication has used most. storyLineageId leaves that Story's own schedule out. "
+        "With no publishing history the answer has no suggestion and says why.",
+        _closed({"storyLineageId": _STR}),
+    ),
     "schedule_list": Operation(
         "schedule_list", "stories_schedule_list", "schedule-list", False,
         "Read only. The scheduled, publishing, blocked and overdue versions soonest first, from the schedule index: of one Story (storyLineageId) or of the site between from and to. "
@@ -527,6 +568,8 @@ def run_operation(name: str, arguments: Mapping[str, Any], service: ScheduleServ
             return service.schedule(arguments, caller)
         if name == "schedule_settings":
             return service.settings()
+        if name == "schedule_suggest":
+            return service.suggest(arguments)
         return service.listing(arguments)
     except ScheduleError as error:
         return error.to_response()

@@ -5,7 +5,7 @@ Feature: Human review of announcements is a setting of each publication
   value, and a channel, an Announcement kind or a newsletter list may override it; the narrowest wins and each override is optional. The value that applies is written to each
   Delivery as its approval, with where it came from and the version of the policy. A separate source rule, requireReviewedSource, is a condition on the input and not a rung:
   when it is on, an Announcement is made only for a Story a person has reviewed on its current version, and a Story edited after its review waits until a person reviews it
-  again. Both are changed at any time and apply to Announcements made afterwards. Nothing here lowers the three-star floor or lets a machine supply a five.
+  again (PROVISIONAL: what counts as a person's review is defined in announcement-human-review-stamp.feature and Ryan has not confirmed it). Both are changed at any time and apply to Announcements made afterwards. Nothing here lowers the three-star floor or lets a machine supply a five.
 
   Background:
     Given an empty announcement catalog

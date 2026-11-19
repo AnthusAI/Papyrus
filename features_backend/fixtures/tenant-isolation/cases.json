@@ -1,72 +1,16 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 74,
+    "models": 73,
     "globalModels": 3,
-    "modelCases": 512,
-    "indexCases": 229,
+    "modelCases": 505,
+    "indexCases": 228,
     "subscriptionCases": 9,
     "operationCases": 136,
     "functionCases": 72,
     "surfaceCases": 9
   },
   "cases": [
-    {
-      "id": "model:Announcement:get",
-      "kind": "model",
-      "subject": "Announcement",
-      "operation": "get",
-      "probe": "alpha gets \"beta\"'s Announcement by id",
-      "expect": "denied, or returns nothing of \"beta\""
-    },
-    {
-      "id": "model:Announcement:list",
-      "kind": "model",
-      "subject": "Announcement",
-      "operation": "list",
-      "probe": "alpha lists Announcement rows",
-      "expect": "no row of \"beta\" is returned and pages are not short"
-    },
-    {
-      "id": "model:Announcement:list-filtered-to-foreign-tenant",
-      "kind": "model",
-      "subject": "Announcement",
-      "operation": "list-filtered-to-foreign-tenant",
-      "probe": "alpha lists Announcement rows with filter tenantId eq \"beta\"",
-      "expect": "denied, or returns nothing of \"beta\""
-    },
-    {
-      "id": "model:Announcement:create-with-foreign-tenantId",
-      "kind": "model",
-      "subject": "Announcement",
-      "operation": "create-with-foreign-tenantId",
-      "probe": "alpha creates a Announcement with tenantId \"beta\"",
-      "expect": "denied, or returns nothing of \"beta\""
-    },
-    {
-      "id": "model:Announcement:update-to-foreign-tenantId",
-      "kind": "model",
-      "subject": "Announcement",
-      "operation": "update-to-foreign-tenantId",
-      "probe": "alpha updates its own Announcement setting tenantId to \"beta\" (tenantId must be immutable)",
-      "expect": "denied, or returns nothing of \"beta\""
-    },
-    {
-      "id": "model:Announcement:update-foreign-row",
-      "kind": "model",
-      "subject": "Announcement",
-      "operation": "update-foreign-row",
-      "probe": "alpha updates \"beta\"'s Announcement",
-      "expect": "denied, or returns nothing of \"beta\""
-    },
-    {
-      "id": "model:Announcement:delete-foreign-row",
-      "kind": "model",
-      "subject": "Announcement",
-      "operation": "delete-foreign-row",
-      "probe": "alpha deletes \"beta\"'s Announcement",
-      "expect": "denied, or returns nothing of \"beta\""
-    },
     {
       "id": "model:AnnouncementDecision:get",
       "kind": "model",
@@ -4106,14 +4050,6 @@
       "operation": "delete-foreign-row",
       "probe": "alpha deletes \"beta\"'s XConnection",
       "expect": "denied, or returns nothing of \"beta\""
-    },
-    {
-      "id": "index:listAnnouncementsByAccountAndCreatedAt",
-      "kind": "index",
-      "subject": "listAnnouncementsByAccountAndCreatedAt",
-      "operation": "list-by-index-at-foreign-key",
-      "probe": "alpha calls listAnnouncementsByAccountAndCreatedAt on Announcement with accountId at one of \"beta\"'s keys",
-      "expect": "returns nothing of \"beta\""
     },
     {
       "id": "index:listAnnouncementDecisionsByTenant",
@@ -8678,11 +8614,6 @@
       "code": "index-not-tenant-prefixed",
       "subject": "tagBySlug",
       "note": "partition key slug on Tag is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
-    },
-    {
-      "code": "model-without-tenantId",
-      "subject": "Announcement",
-      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
     },
     {
       "code": "model-without-tenantId",

@@ -31,6 +31,7 @@ class TactusToolsModuleTests(unittest.TestCase):
             public_tool_names(tactus_tools),
             [
                 "execute_tactus",
+                "papyrus_announce_story",
                 "papyrus_check_story_version",
                 "papyrus_copy_edit_story_version",
                 "papyrus_create_story",

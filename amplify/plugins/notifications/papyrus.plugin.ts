@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { pythonLambdaCode } from "../../functions/shared/python-bundle";
 import { SecureStringParameter } from "../newsletter/secure-string-parameter";
 import { ALARM_MINIMUM_SENDS, BOUNCE_RATE_THRESHOLD, COMPLAINT_RATE_THRESHOLD } from "../newsletter/papyrus.plugin";
-import { functionArn, postalAddressParameterArns } from "../newsletter/sending";
+import { postalAddressParameterArns } from "../newsletter/sending";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveNotificationsConfig, type NotificationsConfig } from "./config";
 import { siteApiEnvironment } from "../../site-api-access";
@@ -23,8 +23,6 @@ export { resolveNotificationsConfig };
 export type { NotificationsConfig };
 
 export const NOTIFICATIONS_OUTPUT_KEY = "notifications";
-/** Set on the site's content-actions function: it invokes the router function (`story-published`) after a real publish. Unset: no notices. */
-export const NOTIFICATIONS_FUNCTION_ENV = "PAPYRUS_NOTIFICATIONS_FUNCTION";
 export const HANDLERS = {
   router: "papyrus_content.notifications.handler.router",
   email: "papyrus_content.notifications.handler.email",
@@ -68,6 +66,8 @@ export const notificationsTableName = (siteId: string) => `papyrus-notifications
 export const notificationsOperatorsParameterName = (siteId: string) => `/papyrus/${siteId}/notifications/operators`;
 /** Generated once by the stack; the addresses' recipient keys are derived from it. */
 export const notificationsKeyParameterName = (siteId: string) => `/papyrus/${siteId}/notifications/recipient-key`;
+/** Where the newsletter plugin generated its key (it is retained when that plugin is removed): read only while old newsletter links are honoured. */
+export const legacyNewsletterKeyParameterName = (siteId: string) => `/papyrus/${siteId}/newsletter-key`;
 export const notificationsAlarmNames = (siteId: string) => ({
   emailDeadLetters: `papyrus-notifications-${siteId}-email-dlq`,
   routerDeadLetters: `papyrus-notifications-${siteId}-router-dlq`,
@@ -100,11 +100,12 @@ export function notificationsEnvironment(config: NotificationsConfig, names: { t
     FROM_NAME: config.fromName,
     CONFIGURATION_SET: config.configurationSet,
     ITEM_URL_STYLE: config.itemUrlStyle,
-    LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval, family: list.family, cadence: list.cadence, sendAt: list.sendAt, timeZone: list.timeZone }))),
+    LISTS_JSON: JSON.stringify(config.lists.map((list) => ({ id: list.id, name: list.name, description: list.description, rule: list.rule, approval: list.approval, kind: list.kind, family: list.family, cadence: list.cadence, sendAt: list.sendAt, timeZone: list.timeZone }))),
     THEME_JSON: JSON.stringify(config.theme),
     CONSENT: config.consent,
     CONFIRM_WINDOW_SECONDS: String(config.confirmWindowHours * 3600),
     METRIC_NAMESPACE: `Caducus/papyrus-${config.siteId}`,
+    ...(config.legacyNewsletterLinks ? { LEGACY_NEWSLETTER_KEY_PARAMETER: legacyNewsletterKeyParameterName(config.siteId) } : {}),
   };
 }
 
@@ -270,6 +271,10 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       `arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${operatorsParameter}`,
       keyParameter.parameterArn,
     ];
+    // Old newsletter links (dated; legacy_links.py): every function builds the same runtime, so each may read the old key.
+    if (config.legacyNewsletterLinks) {
+      parameterArns.push(`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${legacyNewsletterKeyParameterName(config.siteId)}`);
+    }
     // Every function builds the same runtime (the audience needs the recipient key), and the SES events suppress readers.
     for (const fn of [router, email, flush, sesEvents]) {
       table.grantReadWriteData(fn); // includes the table key's encrypt and decrypt
@@ -383,18 +388,7 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       });
     }
 
-    // The publish path tells the router about a real publish. The ARN is spelled out (not referenced) so the content-actions
-    // stack does not depend on this one, and the grant is for this one function only.
-    const contentActions = context.contentActionsLambda;
-    contentActions.addEnvironment(NOTIFICATIONS_FUNCTION_ENV, notificationsFunctionName(config.siteId));
-    contentActions.addToRolePolicy(
-      new PolicyStatement({
-        effect: Effect.ALLOW,
-        actions: ["lambda:InvokeFunction"],
-        resources: [functionArn(Stack.of(contentActions), notificationsFunctionName(config.siteId))],
-      }),
-    );
-    // The CMS routes are the only other caller.
+    // The CMS routes are the only caller: a publish tells this function nothing (the announce agent is woken by the Item change feed).
     router.addPermission("InvokeFromCmsCompute", { principal: new ArnPrincipal(config.computeRoleArn), action: "lambda:InvokeFunction" });
 
     backend.addOutput({ custom: { [NOTIFICATIONS_OUTPUT_KEY]: { actionsFunction: router.functionName } } });

@@ -485,11 +485,11 @@ assert.ok(!JSON.stringify(sending[0].Resource).includes("identity"));
 const invokes = statements.filter((statement) => actionsOf(statement).includes("lambda:InvokeFunction"));
 assert.ok(invokes.length >= 3, "the scheduler role, and the function and worker invoking content-actions");
 
-// The AppSync operations function and the content-actions function (to announce a publish) may each invoke the newsletter function and nothing else.
+// The AppSync operations function may invoke the newsletter function and nothing else; the content-actions function holds no such grant (a publish tells it nothing).
 const operationsStatements = Object.values(operationsTemplate.findResources("AWS::IAM::Policy")).flatMap(
   (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
 );
-assert.equal(operationsStatements.length, 2);
+assert.equal(operationsStatements.length, 1);
 for (const statement of operationsStatements) {
   assert.deepEqual(statement.Action, "lambda:InvokeFunction");
   assert.ok(JSON.stringify(statement.Resource).endsWith(`:lambda:us-east-1:${account}:function:papyrus-newsletter-example"]]}`));
@@ -506,18 +506,18 @@ const alertList = listsInEnvironment.find((entry) => entry.kind === "alert");
 assert.ok(alertList && "rule" in alertList && alertList.approval === "admin", "alert lists carry rule and approval");
 assert.ok(!("rule" in listsInEnvironment.find((entry) => entry.kind === "roundup")!), "roundup lists carry no rule");
 
-// The content-actions function is told the newsletter function's name and may invoke exactly that function.
+// A publish does not call this function (PPY-e3bb2b): the content-actions function is told nothing about it and may invoke nothing here. A Story's page going live
+// reaches the announce agent from the Item change feed.
 const contentActionsResources = Object.values(operationsTemplate.findResources("AWS::Lambda::Function")) as FunctionResource[];
 assert.ok(
-  contentActionsResources.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_NEWSLETTER_FUNCTION === "papyrus-newsletter-example"),
-  "content-actions gets PAPYRUS_NEWSLETTER_FUNCTION",
+  !contentActionsResources.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_NEWSLETTER_FUNCTION !== undefined),
+  "content-actions is not given the newsletter function's name",
 );
 const invokeStatements = Object.entries(operationsTemplate.findResources("AWS::IAM::Policy")).filter(([id]) => id.startsWith("ContentActions")).flatMap(
   ([, policy]) => ((policy as any).Properties.PolicyDocument.Statement as Array<{ Action: unknown; Resource: unknown }>),
 ).filter((statement) => JSON.stringify(statement.Action).includes("lambda:InvokeFunction") && JSON.stringify(statement.Resource).includes("papyrus-newsletter-example"));
-assert.equal(invokeStatements.length, 1, "one invoke grant for the newsletter function");
-assert.ok(!JSON.stringify(invokeStatements[0].Resource).includes("*"), "the grant names the one function");
-assert.ok(!JSON.stringify(template.toJSON()).includes("PAPYRUS_NEWSLETTER_FUNCTION"), "the variable lives on content-actions, not the newsletter stack");
+assert.equal(invokeStatements.length, 0, "content-actions has no grant to invoke the newsletter function");
+assert.ok(!JSON.stringify(template.toJSON()).includes("PAPYRUS_NEWSLETTER_FUNCTION"), "the variable is on no function of the newsletter stack");
 
 // A site with only alert lists schedules nothing.
 const alertsOnly = resolveNewsletterConfig(with_({ lists: [base.lists[1]] }));

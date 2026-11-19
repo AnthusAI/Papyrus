@@ -157,7 +157,7 @@ HANDLERS.update(_announcement_handlers())
 
 # Announcement review (PPY-97c0f2): the announce rung and its overrides, and one Delivery's review. They read the site's agent policy and the Delivery records, which the
 # monitoring router and the image service never do, so the module is imported by the call and not by this file (infra/monitoring/build.py leaves it out of the router zip).
-REVIEW_OPERATIONS = ("announcements_review_show", "announcements_review_set", "announcements_delivery_review_set", "announcements_record_manual", "announcements_correct")
+REVIEW_OPERATIONS = ("announcements_review_show", "announcements_review_set", "announcements_delivery_review_set", "announcements_record_manual", "announcements_correct", "announcements_withdraw")
 
 
 def _review_handler(name: str) -> Handler:
@@ -169,6 +169,20 @@ def _review_handler(name: str) -> Handler:
 
 
 HANDLERS.update({name: _review_handler(name) for name in REVIEW_OPERATIONS})
+
+# The editing window (PPY-e8ec54): versions, candidates, pinned blocks and unlock of a Delivery, imported by the call for the same reason.
+EDIT_OPERATIONS = ("announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_versions", "announcements_unlock")
+
+
+def _edit_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.announcements.edit_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _edit_handler(name) for name in EDIT_OPERATIONS})
 
 # The Announcements list, a Story's lines and "why was this not announced" (PPY-e4ae3a) read the same records and are imported by the call for the same reason.
 LIST_OPERATIONS = ("announcements_where", "announcements_recent", "announcements_explain")

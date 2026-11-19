@@ -357,3 +357,110 @@ def owns(context) -> None:
 def prefix(context, prefix: str) -> None:
     assert PLUGIN_PAGE_PREFIXES["notifications"] == (prefix,)
     assert "notifications" in PLUGIN_STATIC_ASSETS
+
+
+# ---- families and consent on the preferences page (PPY-2f9b22)
+
+FAMILIES = {
+    "status": 200,
+    "body": {
+        "status": "ready",
+        "email": "reader@example.com",
+        "consent": CONSENT,
+        "lists": [
+            {"id": "every-item", "name": "Every new story", "description": "", "subscribed": True, "family": "new-stories", "cadence": "each"},
+            {"id": "daily", "name": "Daily summary", "description": "", "subscribed": False, "family": "new-stories", "cadence": "daily"},
+            {"id": "weekly", "name": "Weekly newsletter", "description": "", "subscribed": False, "family": "weekly", "cadence": "weekly"},
+        ],
+    },
+}
+FAMILY_SCRIPT = """const choices = $("form").queryAll("button.markus-notifications-choice");
+const label = (button) => [button.queryAll(".markus-notifications-name")[0].textContent, button.queryAll(".markus-notifications-state")[0].textContent,
+  /data-icon="([a-z-]+)"/.exec(button.queryAll(".markus-notifications-mark")[0].innerHTML)[1]];
+const sent = () => $("form").queryAll("input").filter((i) => i.name === "l" && !i.disabled).map((i) => i.value);
+const consent = () => ({ shown: visible("[data-notifications-consent]"), value: $("form").elements.consent.value, words: text("[data-notifications-consent-words]"), save: text("button[value=save] span") });
+%s"""
+
+
+@given("a confirmed subscriber on every new story follows the manage link")
+def follows_family_link(context) -> None:
+    context.offered = None
+    project(context, ("notifications",))
+    context.preferences_reply = FAMILIES
+    context.search = f"?token={TOKEN}"
+
+
+def _family_page(context, press: str) -> None:
+    context.outcome = run_page(
+        context.site.text(notifications_pages.site_key("preferences")),
+        context.search,
+        {STATE: context.preferences_reply},
+        FAMILY_SCRIPT % (press + "console.log(JSON.stringify({ family: choices.map(label), ticks: $('form').queryAll('button.markus-notifications-toggle').length - choices.length, sent: sent(), consent: consent() }));"),
+    )
+
+
+@when("they open the page")
+def opens_page(context) -> None:
+    _family_page(context, "")
+
+
+@when("they choose the daily summary")
+def chooses_daily(context) -> None:
+    _family_page(context, "choices[1].click();")
+
+
+@when("they choose the weekly newsletter they did not hold")
+def chooses_weekly(context) -> None:
+    _family_page(context, 'const weekly = $("form").queryAll("button.markus-notifications-toggle").filter((b) => !b.className.includes("choice"))[0]; weekly.click();')
+
+
+@then("the cadences of that family are one choice with Every new story chosen, said in words and with a mark")
+def family_is_one_choice(context) -> None:
+    assert context.outcome["family"] == [["Every new story", "Chosen", "circle-check"], ["Daily summary", "Choose", "circle"], ["Off", "Choose", "circle"]]
+    assert context.outcome["sent"] == ["every-item"]
+
+
+@then("the weekly newsletter is a tick of its own")
+def newsletter_is_a_tick(context) -> None:
+
+    assert context.outcome["ticks"] == 1 and "weekly" not in context.outcome["sent"]
+
+
+@then("only the daily summary is sent with the save")
+def only_daily(context) -> None:
+    assert context.outcome["sent"] == ["daily"]
+
+
+@then("no consent wording is shown or posted")
+def no_consent_shown(context) -> None:
+    assert context.outcome["consent"]["shown"] is False and context.outcome["consent"]["value"] == ""
+    assert context.outcome["consent"]["save"] == "Save"
+
+
+@then("the page shows the site's consent wording and says the save sends a confirmation")
+def consent_shown(context) -> None:
+    consent = context.outcome["consent"]
+    assert consent["shown"] and CONSENT in consent["words"] and "does not start until you press it" in consent["words"]
+    assert consent["save"] == "Save and send a confirmation"
+
+
+@then("the save posts that wording with the weekly newsletter")
+def consent_posted(context) -> None:
+    assert context.outcome["consent"]["value"] == CONSENT
+    assert context.outcome["sent"] == ["every-item", "weekly"]
+
+
+@when("they come back after a save that is waiting for the weekly newsletter's confirmation")
+def back_after_check_email(context) -> None:
+    context.outcome = run_page(
+        context.site.text(notifications_pages.site_key("preferences")),
+        f"?token={TOKEN}&msg=check_email&confirming=weekly",
+        {STATE + "?kind=preferences": FAMILIES, STATE + "?kind=lists": {"status": 200, "body": {"status": "ready", "lists": [{"id": "weekly", "name": "Weekly newsletter"}]}}},
+        """console.log(JSON.stringify({ notice: text("[data-notifications-notice] span") }));""",
+    )
+
+
+@then("the page says in words that a link was emailed and the weekly newsletter is not on until it is pressed")
+def says_waiting(context) -> None:
+    notice = context.outcome["notice"]
+    assert "We emailed a link to confirm: Weekly newsletter. It is not on until you press the link." in notice

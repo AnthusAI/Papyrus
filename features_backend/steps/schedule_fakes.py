@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -14,6 +15,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
         sys.path.insert(0, str(entry))
 
 import test_procedure_runner as tpr  # noqa: E402
+from papyrus_content import follow_up_timers as fu  # noqa: E402
 from papyrus_content.agent_policy import AgentPolicyStore  # noqa: E402
 from papyrus_content.images.handlers import Caller  # noqa: E402
 from papyrus_content.site_store import SiteStore  # noqa: E402
@@ -157,3 +159,55 @@ class Reader:
 
     def router_config(self, monitor_id):
         return {"publications": self.publications} if monitor_id == MONITOR else None
+
+
+class Exceptions:
+    ConflictException = type("ConflictException", (Exception,), {})
+    ResourceNotFoundException = type("ResourceNotFoundException", (Exception,), {})
+
+
+class TimerScheduler:
+    """The parts of EventBridge Scheduler a one-shot entry uses: create (a second create of one name conflicts), update, delete, and firing at a time."""
+
+    exceptions = Exceptions
+
+    def __init__(self, group, queue):
+        self.group, self.queue, self.entries, self.delivered = group, queue, {}, []
+
+    def create_schedule(self, **entry):
+        assert entry["GroupName"] == self.group, f"an entry outside the site's group: {entry['GroupName']}"
+        if entry["Name"] in self.entries:
+            raise self.exceptions.ConflictException()
+        self.entries[entry["Name"]] = copy.deepcopy(entry)
+
+    def update_schedule(self, **entry):
+        assert entry["GroupName"] == self.group and entry["Name"] in self.entries
+        self.entries[entry["Name"]] = copy.deepcopy(entry)
+
+    def delete_schedule(self, Name, GroupName):  # noqa: N803
+        assert GroupName == self.group
+        if Name not in self.entries:
+            raise self.exceptions.ResourceNotFoundException()
+        del self.entries[Name]
+
+    @staticmethod
+    def at_of(entry):
+        expression = entry["ScheduleExpression"]
+        assert expression.startswith("at(") and entry["ScheduleExpressionTimezone"] == "UTC", expression
+        return datetime.strptime(expression[3:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+
+    def fire_until(self, moment):
+        for name in sorted(self.entries, key=lambda n: self.at_of(self.entries[n])):
+            entry = self.entries[name]
+            if self.at_of(entry) <= moment:
+                self.deliver(name, entry["Target"])
+                if entry["ActionAfterCompletion"] == "DELETE":
+                    del self.entries[name]
+
+    def deliver(self, name, target):
+        self.delivered.append((name, target))
+        self.queue.send(target["Input"], target["SqsParameters"]["MessageGroupId"])
+
+
+def utc(text):
+    return datetime.strptime(text, fu.TIME_FORMAT).replace(tzinfo=timezone.utc)

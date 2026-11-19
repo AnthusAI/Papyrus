@@ -3490,371 +3490,6 @@
       }
     },
     {
-      "name": "announcements_list",
-      "audience": "staff",
-      "description": "List the account's announcements, newest first, optionally one state.",
-      "agentAllowed": true,
-      "agentRung": "observe",
-      "agentRefusal": "human_required",
-      "effect": "read",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "state": {
-            "type": "string",
-            "enum": [
-              "posting",
-              "posted",
-              "failed",
-              "blocked",
-              "dry_run",
-              "withdrawn"
-            ],
-            "description": "One state of an announcement."
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "How many to return; 50 when left out."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "outputSchema": {
-        "type": "object",
-        "properties": {
-          "announcements": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "accountId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "storyLineageId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "storyVersionNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "posting",
-                    "posted",
-                    "failed",
-                    "blocked",
-                    "dry_run",
-                    "withdrawn"
-                  ],
-                  "description": "One state of an announcement."
-                },
-                "label": {
-                  "type": "string",
-                  "minLength": 1,
-                  "description": "The state in plain words, such as Dry run: not sent."
-                },
-                "blockedReason": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "mode": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "link": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "weight": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "draftedBy": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "checks": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "passed": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "passed"
-                    ]
-                  }
-                },
-                "postId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "postedAt": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "cost": {
-                  "type": "string",
-                  "description": "Dollars Caducus charged on this announcement so far, as a decimal string."
-                },
-                "attempts": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "error": {
-                  "type": "string"
-                },
-                "history": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "at": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "by": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "state": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "note": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "at",
-                      "by",
-                      "state",
-                      "note"
-                    ]
-                  }
-                },
-                "withdrawnBy": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "createdAt": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "id",
-                "state",
-                "label"
-              ]
-            }
-          }
-        },
-        "required": [
-          "announcements"
-        ]
-      }
-    },
-    {
-      "name": "announcements_show",
-      "audience": "staff",
-      "description": "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.",
-      "agentAllowed": true,
-      "agentRung": "observe",
-      "agentRefusal": "human_required",
-      "effect": "read",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "story": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The lineage id of the Story."
-          }
-        },
-        "required": [
-          "story"
-        ],
-        "additionalProperties": false
-      },
-      "outputSchema": {
-        "type": "object",
-        "properties": {
-          "announcement": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "accountId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "storyLineageId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "storyVersionNumber": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "state": {
-                "type": "string",
-                "enum": [
-                  "posting",
-                  "posted",
-                  "failed",
-                  "blocked",
-                  "dry_run",
-                  "withdrawn"
-                ],
-                "description": "One state of an announcement."
-              },
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "description": "The state in plain words, such as Dry run: not sent."
-              },
-              "blockedReason": {
-                "type": "string",
-                "minLength": 1
-              },
-              "mode": {
-                "type": "string",
-                "minLength": 1
-              },
-              "link": {
-                "type": "string",
-                "minLength": 1
-              },
-              "weight": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "draftedBy": {
-                "type": "string",
-                "minLength": 1
-              },
-              "checks": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "passed": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "passed"
-                  ]
-                }
-              },
-              "postId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "postedAt": {
-                "type": "string",
-                "minLength": 1
-              },
-              "cost": {
-                "type": "string",
-                "description": "Dollars Caducus charged on this announcement so far, as a decimal string."
-              },
-              "attempts": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "error": {
-                "type": "string"
-              },
-              "history": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "at": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "by": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "state": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "note": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "at",
-                    "by",
-                    "state",
-                    "note"
-                  ]
-                }
-              },
-              "withdrawnBy": {
-                "type": "string",
-                "minLength": 1
-              },
-              "createdAt": {
-                "type": "string",
-                "minLength": 1
-              },
-              "updatedAt": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "id",
-              "state",
-              "label"
-            ]
-          },
-          "document": {
-            "type": "object",
-            "description": "The stored post: text, post, link, weight, model and every check's problems."
-          }
-        },
-        "required": [
-          "announcement"
-        ]
-      }
-    },
-    {
       "name": "announcements_dry_run",
       "audience": "staff",
       "description": "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.",
@@ -3938,7 +3573,7 @@
     {
       "name": "announcements_pause",
       "audience": "staff",
-      "description": "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.",
+      "description": "Pause announcements: nothing is posted, and an X Delivery that comes due waits as Blocked: paused.",
       "agentAllowed": true,
       "agentRung": "propose",
       "agentRefusal": "human_required",
@@ -3976,7 +3611,7 @@
     {
       "name": "announcements_resume",
       "audience": "staff",
-      "description": "Resume announcements and announce the Stories that waited.",
+      "description": "Resume announcements and put back the X Deliveries that waited.",
       "agentAllowed": false,
       "agentRung": "person",
       "agentRefusal": "human_required",
@@ -4058,9 +3693,44 @@
               "labelConfirmed": {
                 "type": "boolean"
               },
+              "spacing": {
+                "type": "object",
+                "description": "Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing."
+              },
               "pause": {
                 "type": "object",
                 "description": "paused, reason (budget, disconnected or manual), detail, by and at."
+              },
+              "editWindows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The kind of Announcement, such as story_published or roundup. Absent: every kind."
+                    },
+                    "channel": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The channel, such as x or email. Absent: every channel."
+                    },
+                    "windowMinutes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Minutes from the Delivery's creation to its release: how long it stays a draft that people edit."
+                    },
+                    "lockLeadMinutes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Minutes before the release that the Delivery locks for the send job. At most the window; 0 is no separate lock."
+                    }
+                  },
+                  "required": [
+                    "windowMinutes"
+                  ]
+                }
               }
             },
             "required": [
@@ -4121,7 +3791,7 @@
           },
           "requireReviewedSource": {
             "type": "boolean",
-            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default."
+            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed."
           },
           "budget": {
             "type": "string",
@@ -4140,6 +3810,42 @@
           "labelConfirmed": {
             "type": "boolean",
             "description": "The account shows X's Automated label, managed by a person's account."
+          },
+          "spacing": {
+            "type": "object",
+            "description": "Minutes between one post and the next on a channel account, by account (<channel>#<account>, such as x#handle). A number sets it, null takes it away; an account that is not named keeps what it has. Empty by default: no spacing."
+          },
+          "editWindows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The kind of Announcement, such as story_published or roundup. Absent: every kind."
+                },
+                "channel": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The channel, such as x or email. Absent: every channel."
+                },
+                "windowMinutes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Minutes from the Delivery's creation to its release: how long it stays a draft that people edit."
+                },
+                "lockLeadMinutes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Minutes before the release that the Delivery locks for the send job. At most the window; 0 is no separate lock."
+                }
+              },
+              "required": [
+                "windowMinutes"
+              ]
+            },
+            "description": "How long a Delivery stays a draft that people edit, and how long before its release it locks, for each kind of Announcement and channel. The narrowest entry that fits wins. This replaces the whole list; an empty list means no window."
           }
         },
         "required": [],
@@ -4183,9 +3889,44 @@
               "labelConfirmed": {
                 "type": "boolean"
               },
+              "spacing": {
+                "type": "object",
+                "description": "Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing."
+              },
               "pause": {
                 "type": "object",
                 "description": "paused, reason (budget, disconnected or manual), detail, by and at."
+              },
+              "editWindows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The kind of Announcement, such as story_published or roundup. Absent: every kind."
+                    },
+                    "channel": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The channel, such as x or email. Absent: every channel."
+                    },
+                    "windowMinutes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Minutes from the Delivery's creation to its release: how long it stays a draft that people edit."
+                    },
+                    "lockLeadMinutes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Minutes before the release that the Delivery locks for the send job. At most the window; 0 is no separate lock."
+                    }
+                  },
+                  "required": [
+                    "windowMinutes"
+                  ]
+                }
               }
             },
             "required": [
@@ -4470,7 +4211,7 @@
     {
       "name": "announcements_draft",
       "audience": "staff",
-      "description": "Draft a Delivery, add a candidate text or picture, or edit a block nobody pinned.",
+      "description": "Save a Delivery's words as the next version, or keep a text or picture beside the draft as a candidate.",
       "agentAllowed": true,
       "agentRung": "draft",
       "agentRefusal": "human_required",
@@ -4482,6 +4223,25 @@
             "type": "string",
             "minLength": 1,
             "description": "The Delivery's id."
+          },
+          "replaces": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The version of the Delivery you read. Refused as stale_version, naming the version that replaced it, when the Delivery has moved on."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The words. A person's save marks the blocks it changed as theirs and pinned; an agent's redraft keeps every pinned block as it is."
+          },
+          "imageKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The picture of the version, or of the candidate."
+          },
+          "candidate": {
+            "type": "boolean",
+            "description": "Keep this text or picture beside the draft as a candidate (nothing goes out differently) instead of saving a version. No replaces is needed."
           }
         },
         "required": [
@@ -4495,17 +4255,269 @@
           "id": {
             "type": "string",
             "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "saved",
+              "preferred",
+              "unchanged",
+              "dropped",
+              "candidate"
+            ],
+            "description": "saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "replaces": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The candidate's id, when one was kept."
+          },
+          "approvedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lockedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "preferredVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Each block's owner (human or machine) and whether it is pinned."
           }
         },
         "required": [
-          "id"
+          "id",
+          "status"
+        ]
+      }
+    },
+    {
+      "name": "announcements_candidate_choose",
+      "audience": "staff",
+      "description": "Choose one candidate as the Delivery's words: a new version. The other candidates are kept.",
+      "agentAllowed": true,
+      "agentRung": "draft",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          },
+          "candidate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The candidate's id, such as c1."
+          },
+          "replaces": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The version of the Delivery you read."
+          }
+        },
+        "required": [
+          "delivery",
+          "candidate",
+          "replaces"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "saved",
+              "preferred",
+              "unchanged",
+              "dropped",
+              "candidate"
+            ],
+            "description": "saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "replaces": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The candidate's id, when one was kept."
+          },
+          "approvedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lockedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "preferredVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Each block's owner (human or machine) and whether it is pinned."
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      }
+    },
+    {
+      "name": "announcements_versions",
+      "audience": "staff",
+      "description": "List a Delivery's versions and candidates: who saved each, when, what it replaced and which blocks are pinned. With a version or a candidate, its words.",
+      "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's id."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Show the words of this version."
+          },
+          "candidate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Show the words of this candidate."
+          }
+        },
+        "required": [
+          "delivery"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "approvedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lockedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lockedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferredVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The words asked for."
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "versions",
+          "candidates"
         ]
       }
     },
     {
       "name": "announcements_pinned_change",
       "audience": "staff",
-      "description": "Change or unpin a block a person pinned.",
+      "description": "Change or unpin a block a person pinned, as the next version.",
       "agentAllowed": false,
       "agentRung": "person",
       "agentRefusal": "blocked",
@@ -4517,10 +4529,31 @@
             "type": "string",
             "minLength": 1,
             "description": "The Delivery's id."
+          },
+          "replaces": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The version of the Delivery you read."
+          },
+          "block": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The block, counting from 1."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The block's new words, one paragraph. It stays pinned."
+          },
+          "unpin": {
+            "type": "boolean",
+            "description": "Unpin the block, so a later redraft may rewrite it."
           }
         },
         "required": [
-          "delivery"
+          "delivery",
+          "replaces",
+          "block"
         ],
         "additionalProperties": false
       },
@@ -4530,10 +4563,66 @@
           "id": {
             "type": "string",
             "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "saved",
+              "preferred",
+              "unchanged",
+              "dropped",
+              "candidate"
+            ],
+            "description": "saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "replaces": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The candidate's id, when one was kept."
+          },
+          "approvedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lockedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "preferredVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Each block's owner (human or machine) and whether it is pinned."
           }
         },
         "required": [
-          "id"
+          "id",
+          "status"
         ]
       }
     },
@@ -4587,6 +4676,16 @@
             "type": "string",
             "minLength": 1,
             "description": "The Delivery's id."
+          },
+          "lockAt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "When it locks again (UTC), after now and no later than the release. By default the release time."
+          },
+          "releaseAt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A new release time (UTC), when the old one has passed."
           }
         },
         "required": [
@@ -4600,10 +4699,26 @@
           "id": {
             "type": "string",
             "minLength": 1
+          },
+          "lockAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "releaseAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lockedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
-          "id"
+          "id",
+          "lockAt",
+          "releaseAt"
         ]
       }
     },
@@ -4753,9 +4868,9 @@
     {
       "name": "announcements_withdraw",
       "audience": "staff",
-      "description": "Withdraw a Delivery that went: this deletes a public post.",
-      "agentAllowed": false,
-      "agentRung": "person",
+      "description": "Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted).",
+      "agentAllowed": true,
+      "agentRung": "prepare",
       "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
@@ -4778,10 +4893,35 @@
           "id": {
             "type": "string",
             "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Delivery's state afterwards: withdrawn."
+          },
+          "withdrawnBy": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Who withdrew it."
+          },
+          "cost": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What Caducus has charged for the post in all, deletion included, when a post was deleted."
+          },
+          "announcementState": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Announcement's state afterwards: withdrawn once every Delivery is, cancelled when none had gone."
           }
         },
         "required": [
-          "id"
+          "id",
+          "state",
+          "withdrawnBy",
+          "announcementState"
         ]
       }
     },

@@ -28,7 +28,9 @@ from papyrus_content.story_schedule import BLOCKED_MESSAGE, Caller  # noqa: E402
 from papyrus_content.story_signals_mcp import call_story_signal_tool  # noqa: E402
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: E402
 from procedures.newsroom.tests.incremental_site import Site, add_item  # noqa: E402
-from procedures.newsroom.tests.schedule_support import LINEAGE, Clock, FakeScheduler, SiteClient, new_story, service_for  # noqa: E402
+from procedures.newsroom.tests.schedule_support import LINEAGE, Clock, FakeLockTable, FakeScheduler, SiteClient, new_story, service_for  # noqa: E402
+from papyrus_content.publication_cadence import NO_HISTORY, CadenceStore  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
 
 HANDLER_PATH = REPO_ROOT / "amplify/functions/content-actions/handler.py"
 MONTHS = {"January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6, "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12}
@@ -50,6 +52,7 @@ class World:
         self.zone: str | None = "America/New_York"
         self.client = FakeAuthoringClient()
         self.scheduler = FakeScheduler()
+        self.lock_table = FakeLockTable()   # the lock table that keeps the publication's rhythm
         self.clock = Clock("2026-11-10T15:00:00Z")
         self.versions, self.first_published, self.title = 1, None, "Robots in the warehouse"
         self.built = False
@@ -63,9 +66,14 @@ class World:
             new_story(self.client, first_published=self.first_published, versions=self.versions)
             self.built = True
 
+    def cadence(self, zone: str | None = None):
+        """The publication's rhythm in the world's lock table, or None for a site with no time zone (it keeps none)."""
+        zone = zone or self.zone
+        return CadenceStore(self.lock_table, "site", zone) if zone else None
+
     @property
     def service(self):
-        return service_for(self.client, self.scheduler, self.clock, self.zone)
+        return service_for(self.client, self.scheduler, self.clock, self.zone, cadence=self.cadence())
 
     def row(self, number: int) -> dict:
         self.story()
@@ -84,6 +92,7 @@ class World:
         handler = self.handler
         go_live = self.clock.iso()
         with mock.patch.object(handler, "create_authoring_client", return_value=(self.client, {})), mock.patch.object(handler, "schedule_service", side_effect=lambda client: self.service), \
+                mock.patch.object(handler, "cadence_from_environment", side_effect=lambda zone: self.cadence(zone)), \
                 mock.patch.object(handler, "render_preflight"), mock.patch.object(handler, "projection_configured", return_value=False), \
                 mock.patch.object(handler, "project_item_action", return_value={"projected": True}), mock.patch("papyrus_content.publishing.utc_now_iso", return_value=go_live):
             return handler.handler(event, None)
@@ -542,7 +551,8 @@ def _agent_runs(context, command) -> None:
     verb, flags = tokens[2], tokens[3:]
     session = SiteClient(w.client, w.service)
     context.session, context.error, out = session, None, io.StringIO()
-    entry = {"schedule": story_schedule_commands.stories_schedule, "schedule-list": story_schedule_commands.stories_schedule_list, "show": story_commands.stories_show}[verb]
+    entry = {"schedule": story_schedule_commands.stories_schedule, "schedule-list": story_schedule_commands.stories_schedule_list,
+             "schedule-suggest": story_schedule_commands.stories_schedule_suggest, "show": story_commands.stories_show}[verb]
     real_effective = story_schedule.effective_state
     with contextlib.redirect_stdout(out), mock.patch("papyrus_content.story_schedule_commands.create_authoring_client", return_value=(session, {})), \
             mock.patch("papyrus_content.story_commands.create_authoring_client", return_value=(session, {})), \
@@ -614,3 +624,115 @@ def _tool_schedules(context, at) -> None:
 def _tool_lists(context) -> None:
     listed = call_story_signal_tool("stories_schedule_list", {"storyLineageId": LINEAGE}, context.session)
     assert [entry["state"] for entry in listed["schedules"]] == ["scheduled"], listed
+
+
+# --- suggesting a time (scheduled-publishing-suggestion.feature) -----------------------------------------------------------------------------------------------
+
+
+def _new_york(day: int, month: int, year: int, hour: int) -> datetime:
+    return datetime(year, month, day, hour, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(timezone.utc)
+
+
+@given("the publication has published nothing yet")
+def _nothing_yet(context) -> None:
+    world(context)
+
+
+@given("the publication first published a Story at 09:00 New York time on each weekday from 26 October to 6 November 2026")
+def _weekday_mornings(context) -> None:
+    store = world(context).cadence()
+    for month, day in [(10, 26), (10, 27), (10, 28), (10, 29), (10, 30), (11, 2), (11, 3), (11, 4), (11, 5), (11, 6)]:
+        store.record_first_publication(_new_york(day, month, 2026, 9))
+
+
+@given("the Story is scheduled for {day:d} {month} {year:d} at {hour:d}:{minute:d} New York time")
+def _story_scheduled_for(context, day, month, year, hour, minute) -> None:
+    w = world(context)
+    answer = w.schedule({"itemId": w.row(w.versions)["id"], "at": local_text(day, month, year, hour, minute)})
+    assert answer.get("ok") is True, answer
+
+
+@when("Sam asks for a suggested time")
+def _asks_suggestion(context) -> None:
+    w = world(context)
+    w.story()
+    w.response = w.call(w.event("scheduleItem", {"operation": "schedule_suggest", "arguments": {}}))
+
+
+@when("the newsroom reads the Story's schedule")
+def _reads_schedule(context) -> None:
+    w = world(context)
+    w.response = w.call(w.event("scheduleItem", {"operation": "schedule_list", "arguments": {"storyLineageId": LINEAGE}}))
+
+
+@when("an agent asks the stories_schedule_suggest tool for a time")
+def _tool_suggests(context) -> None:
+    w = world(context)
+    w.story()
+    context.session = SiteClient(w.client, w.service)
+    context.tool_answer = call_story_signal_tool("stories_schedule_suggest", {}, context.session)
+
+
+def _answer_of(w: World) -> dict:
+    """The operation's answer: the handler returns it as the mutation's JSON text."""
+    answer = w.response
+    return json.loads(answer) if isinstance(answer, str) else answer
+
+
+@then('the picker says "{message}"')
+def _picker_says(context, message) -> None:
+    answer = _answer_of(world(context))
+    assert answer["suggestion"] is None and answer["reason"] == message == NO_HISTORY, answer
+
+
+@then('the suggested time is "{label}"')
+def _suggested(context, label) -> None:
+    answer = _answer_of(world(context))
+    assert answer["suggestion"]["label"] == label, answer
+
+
+@then("the publication's rhythm counts {count:d} first publication")
+@then("the publication's rhythm counts {count:d} first publications")
+def _counted(context, count) -> None:
+    w = world(context)
+    cadence = CadenceStore(w.lock_table, "site", "America/New_York").read()   # whatever zone the site has now: the hours are only ever kept in a zone
+    assert (cadence.total if cadence else 0) == count, cadence
+
+
+@then("the hour the Story went live in is the one counted")
+def _hour_counted(context) -> None:
+    w = world(context)
+    cadence = CadenceStore(w.lock_table, "site", w.zone).read()
+    moment = datetime.strptime(w.clock.iso(), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(ZoneInfo(w.zone))
+    assert dict(cadence.hours) == {moment.weekday() * 24 + moment.hour: 1}, cadence
+
+
+@then("the output says there is no suggestion yet")
+def _out_none(context) -> None:
+    assert context.output[0][:3] == ["stories", "schedule-suggest", "none"] and context.output[0][3] == NO_HISTORY, context.output
+
+
+@then('the output suggests "{label}"')
+def _out_suggests(context, label) -> None:
+    assert context.output[0][:3] == ["stories", "schedule-suggest", label], context.output
+
+
+@then('the tool answers with the suggestion "{label}"')
+def _tool_answer(context, label) -> None:
+    assert context.tool_answer["suggestion"]["label"] == label, context.tool_answer
+
+
+@then("the schedule entry says a newer version exists and that it is still scheduled")
+def _newer_exists(context) -> None:
+    entry = _answer_of(world(context))["schedules"][0]
+    assert entry["newerVersionExists"] is True and entry["state"] == "scheduled" and entry["versionNumber"] == 3 and entry["headVersionNumber"] == 4, entry
+
+
+@then('the schedule entry carries the note "{note}"')
+def _entry_note(context, note) -> None:
+    assert _answer_of(world(context))["schedules"][0]["notes"] == [note], world(context).response
+
+
+@then('the scheduling answer carries the note "{note}"')
+def _answer_note(context, note) -> None:
+    assert _answer_of(world(context))["notes"] == [note], world(context).response

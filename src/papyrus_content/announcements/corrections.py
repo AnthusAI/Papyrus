@@ -1,7 +1,7 @@
 """``papyrus announcements correct``: a correction of a Delivery that went, with the words of a new Delivery's checks.
 
 The words are checked before anything is written, so a text that fails leaves the catalog as it was. What is written is ``Deliveries.supersede`` (the next generation, the old
-Delivery marked superseded, the ``supersedes`` relation); the refusals it raises are plain sentences. The old post is not deleted here (the withdraw operation, PPY-efd06c).
+Delivery marked superseded, the ``supersedes`` relation); the refusals it raises are plain sentences. The old post is deleted by ``withdrawals.Withdrawals.delete_superseded`` (the site's own X channel, when the correction is made, or the deliver side just before it sends the new one).
 
 The checks are the ones a post's words get when an Announcement is made (``drafting.check_draft``: length, markup, the rule lane and the facts against the Story). Only the X
 post has them, so a Delivery on another channel gets the record's own rules (words that are not empty).
@@ -16,7 +16,7 @@ from . import link_reads
 from .deliveries import Deliveries, Plan
 from .drafting import check_draft
 from .eligibility import StoryFacts, load_story
-from .post import tagged_link
+from .post import compose, tagged_link
 from .records import RecordError
 
 X = "x"
@@ -54,6 +54,15 @@ def check_words(old: Mapping[str, Any], text: str, *, story: Callable[[], StoryF
     if problems:
         raise ChecksFailed(problems, checks)
     return checks
+
+
+def words(old: Mapping[str, Any], text: str, *, story: Callable[[], StoryFacts], site_origin: Callable[[], str]) -> str:
+    """The words the new Delivery carries. An X Delivery's words are the post exactly as it will go: the checked draft, a blank line and the Story's tagged link (the draft
+    itself may not carry a link, so the link is added here, as it is when a Delivery is first drafted). A Delivery on another channel carries the text as given."""
+    text = text.strip()
+    if old["channel"] != X:
+        return text
+    return compose(text, tagged_link(site_origin().rstrip("/") + story().path))
 
 
 def correct(deliveries: Deliveries, old: Mapping[str, Any], text: str, checks: list[dict[str, Any]], *, by: str, drafted_by: str, now: str | None = None) -> dict[str, Any]:

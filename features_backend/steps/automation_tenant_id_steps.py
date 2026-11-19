@@ -101,7 +101,7 @@ def operator_disables(context, automation_id):
 def deploy_applies(context, definition_id):
     context.error, context.mutations_before = None, context.api.mutations
     try:
-        results = release.apply_release(context.client, release.load(None), {"rate_items"}, apply=True, now=NOW)
+        results = release.apply_release(context.client, [item for item in release.load(None) if item.id == definition_id], {"rate_items"}, apply=True, now=NOW)
         context.report = {entry["definitionId"]: entry["status"] for entry in results}
     except release.ReleaseError as error:
         context.error, context.report = error, {}

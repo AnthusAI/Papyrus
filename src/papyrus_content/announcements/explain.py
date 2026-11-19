@@ -19,8 +19,8 @@ from typing import Any, Callable, Mapping
 
 from papyrus_content.agent_policy.resolve import PolicyState
 
-from .eligibility import StoryFacts, verdict
-from .intake import NOT_REVIEWED, ReviewStamps, floor_refusal
+from .eligibility import StoryFacts, refusal
+from .intake import NOT_REVIEWED, PROVISIONAL_NOTE, ReviewStamps, floor_refusal
 from .lines import STATE_SHOWN
 from .review_policy import choose
 
@@ -29,26 +29,9 @@ X = "x"
 
 ANNOUNCED, WOULD_ANNOUNCE = "announced", "would_announce"
 
-_VERDICT_WORDS = {
-    "off": "Announcements are off for this publication, so nothing is announced.",
-    "not_a_story": "It is not a Story (a Reference is never announced).",
-    "retired": "The Story was retired.",
-    "not_published": "The Story is not published yet; only a published Story is announced.",
-    "type_not_announced": "Its type is not one of the types this publication announces.",
-    "section_not_announced": "Its section is not one of the sections this publication announces.",
-    "below_bar": "Its star rating is below the bar this publication set for announcements.",
-}
-
-
 def _x_rule(story: StoryFacts, settings: Mapping[str, Any]) -> tuple[str, str] | None:
     """The channel's own rules for X: the code and the words of the first one that keeps the Story out, or None."""
-    decision = verdict(story, settings)
-    if decision.eligible:
-        return None
-    words = _VERDICT_WORDS.get(decision.reason, decision.reason)
-    if decision.reason == "below_bar":
-        words = f"It has {story.stars or 'no'} {'star' if story.stars == 1 else 'stars'}, and the bar for announcements is {settings.get('minStars')} stars."
-    return decision.reason, words
+    return refusal(story, settings)
 
 
 #: Each channel's own rules, by channel: (story, settings) to the code and words of the rule that keeps the Story out, or None.
@@ -80,7 +63,7 @@ def _answer(channel: str, story: StoryFacts, settings: Mapping[str, Any], policy
         return {"announced": False, "rule": floor.code, "words": floor.reason}
     if settings.get("requireReviewedSource") and not stamps.reviewed(story.lineage_id, story.version_number):
         return {"announced": False, "rule": NOT_REVIEWED,
-                "words": f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories."}
+                "words": f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories. {PROVISIONAL_NOTE}"}
     choice = choose(policy, channel=channel, kind=STORY_PUBLISHED)
     if not choice.prepares:
         return {"announced": False, "rule": "no_delivery", "words": str(choice.reason)}

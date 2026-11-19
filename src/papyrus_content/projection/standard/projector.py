@@ -2197,7 +2197,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if page.kind == "newsletter_page":
             scripts += (newsletter_pages.PAGES_SCRIPT_PATH,)
         if page.kind == "notifications_page":
-            scripts += (notifications_pages.PAGES_SCRIPT_PATH,) + ((notifications_pages.COMPONENT_SCRIPT_PATH,) if "<papyrus-notifications>" in page.fragment else ())
+            # the event script comes first so the pages script finds it, and exists only where a measurement id does (a guarded build has none)
+            scripts += ((notifications_pages.ANALYTICS_SCRIPT_PATH,) if base.ga_measurement_id is not None else ()) + (notifications_pages.PAGES_SCRIPT_PATH,) + ((notifications_pages.COMPONENT_SCRIPT_PATH,) if "<papyrus-notifications>" in page.fragment else ())
         if page.ledger.paged_lists_used:   # only a page with a paged Reference list loads the script that loads more
             scripts += (home_page_lists.SCRIPT_PATH,)
         if page.alternates and self.standard.identity.language_switcher_placement != "none":   # only a page that exists in more than one language draws the switcher
