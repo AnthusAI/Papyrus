@@ -84,6 +84,7 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
     FROM_NAME: config.fromName,
     CONFIGURATION_SET: config.configurationSet,
     ITEM_URL_STYLE: config.itemUrlStyle,
+    ...(config.floorStars === undefined ? {} : { FLOOR_STARS: String(config.floorStars) }),
     LISTS_JSON: JSON.stringify(
       config.lists.map((list) => ({
         id: list.id,

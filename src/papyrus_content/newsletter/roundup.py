@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo
 
 from papyrus_content.item_front_matter import front_matter as _front_matter, item_path
 from papyrus_content.item_language import localization_original
+from papyrus_content.item_stars import effective_rating
+from papyrus_content.quality_floor import meets_floor
 from papyrus_content.publishing import ItemFields, save_item
 
 from .confirmation import markus_text
@@ -23,6 +25,8 @@ DEFAULT_WINDOW_SECONDS = 7 * 24 * 60 * 60
 INTRO_PLACEHOLDER = "Write a short introduction for this issue here, then delete this line."
 DEK_FIELDS = ("description", "summary", "excerpt", "blurb", "dek", "deck", "standfirst")
 OTHER_SECTION = "More"
+LEFT_OUT_HEADING = "Left out"
+LEFT_OUT_NOTE = "These did not reach the site's floor of {floor} stars, so they are not in this issue. Delete this section before sending."
 
 
 def archive_section(archive_path: str) -> str:
@@ -74,6 +78,25 @@ def items_in_window(service: IssueService, since: float, until: float) -> list[d
     return [row for _published, row in chosen]
 
 
+def stars_of(content: Any, row: Mapping[str, Any]) -> int:
+    """The effective human rating (0: unrated) on the current published version of the Story a published row belongs to."""
+    lineage = row.get("itemLineageId")
+    head = next((version for version in content.list_by_index("itemsByLineageAndVersion", lineage) if version.get("versionState") == "current" and version.get("stage") == "published"), None) if lineage else None
+    return int(effective_rating(head)["stars"])
+
+
+def apply_floor(service: IssueService, rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """``(kept, left_out)``: the rows at or above the site's quality floor (``quality_floor.py``) and those under it, each in the order it came. With no floor
+    every row is kept and no rating is read. Only the window's own few rows are looked up, one request each."""
+    floor = service.settings.floor_stars
+    if floor is None:
+        return rows, []
+    kept, left_out = [], []
+    for row in rows:
+        (kept if meets_floor(stars_of(service.content, row), floor) else left_out).append(row)
+    return kept, left_out
+
+
 def section_heading(section: str | None) -> str:
     """A section name as a heading: ``security-notes`` becomes ``Security Notes`` (names with capitals are kept)."""
     if not section:
@@ -82,20 +105,28 @@ def section_heading(section: str | None) -> str:
     return " ".join(word.capitalize() if word.islower() else word for word in words) or OTHER_SECTION
 
 
-def draft_body(settings: Any, rows: list[dict[str, Any]]) -> str:
-    """Markus: an intro placeholder line, then the items grouped by section (alphabetical, unsectioned last)."""
+def _item_line(settings: Any, row: Mapping[str, Any]) -> str:
+    front_matter = _front_matter(row)
+    title = " ".join(str(row.get("title") or front_matter.get("title") or str(row.get("slug") or "")).split())
+    url = settings.site_origin.rstrip("/") + item_path(row.get("section") or None, str(row.get("slug") or ""), settings.item_url_style)
+    dek = _dek(front_matter)
+    return f"- [{markus_text(title)}]({url})" + (f": {markus_text(dek)}" if dek else "")
+
+
+def draft_body(settings: Any, rows: list[dict[str, Any]], left_out: list[dict[str, Any]] = ()) -> str:
+    """Markus: an intro placeholder line, then the items grouped by section (alphabetical, unsectioned last). Items the site's quality floor left out follow under
+    their own heading, which the editor deletes before sending: a person sees what did not reach the floor, and a reader never gets it unless an editor moves it."""
     groups: dict[str | None, list[dict[str, Any]]] = {}
     for row in rows:
         groups.setdefault(row.get("section") or None, []).append(row)
     lines = [INTRO_PLACEHOLDER, ""]
     for section in sorted(groups, key=lambda name: (name is None, name or "")):
         lines += [f"## {markus_text(section_heading(section))}", ""]
-        for row in groups[section]:
-            front_matter = _front_matter(row)
-            title = " ".join(str(row.get("title") or front_matter.get("title") or str(row.get("slug") or "")).split())
-            url = settings.site_origin.rstrip("/") + item_path(section, str(row.get("slug") or ""), settings.item_url_style)
-            dek = _dek(front_matter)
-            lines.append(f"- [{markus_text(title)}]({url})" + (f": {markus_text(dek)}" if dek else ""))
+        lines += [_item_line(settings, row) for row in groups[section]]
+        lines.append("")
+    if left_out:
+        lines += [f"## {LEFT_OUT_HEADING}", "", LEFT_OUT_NOTE.format(floor=settings.floor_stars), ""]
+        lines += [_item_line(settings, row) for row in left_out]
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -134,7 +165,7 @@ def assemble(service: IssueService, entry: Mapping[str, Any], *, manual: bool, a
     now = service.clock()
     zone = ZoneInfo(entry.get("timezone") or "UTC")
     since = window_start(service, entry["id"], now)
-    rows = items_in_window(service, since, now)
+    rows, left_out = apply_floor(service, items_in_window(service, since, now))
     if not rows and not manual:
         log("roundup_empty", "-", listId=entry["id"])
         return {"status": "empty"}
@@ -152,7 +183,7 @@ def assemble(service: IssueService, entry: Mapping[str, Any], *, manual: bool, a
         slug=slug,
         section=section,
         front_matter_yaml=f"title: {json.dumps(title)}\ndate: {local_date.isoformat()}\n",
-        body_markus=draft_body(settings, rows),
+        body_markus=draft_body(settings, rows, left_out),
         aliases=[],
         id=item_id,
     )

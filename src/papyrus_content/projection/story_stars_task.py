@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..item_stars import item_stars
+from ..item_stars import effective_rating
 from ..publishing import published_item_id_for
 from .engine import project_stale_listings
 from .source import is_projectable
@@ -31,7 +31,7 @@ def run_story_stars_task(context: Any, client: Any, task: dict[str, Any]) -> dic
     if item is None:
         return {"ok": True, "skipped": f"no Item {item_id}", "pagesRewritten": 0}
     lineage_id = str(item.get("lineageId") or item_id)
-    stars = item_stars(item) or UNRATED
+    stars = effective_rating(item)["stars"] or UNRATED
     if store.load().get(lineage_id) == stars:
         return {"ok": True, "recorded": False, "pagesRewritten": 0}
     store.record({lineage_id: stars})

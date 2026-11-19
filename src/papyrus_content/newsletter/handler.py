@@ -66,6 +66,7 @@ class Settings:
     item_url_style: str = "html"  # how the site's item pages are addressed (projection.json urls.style), for links in roundup drafts
     base_path: str = ""  # projection.json urls.basePath without slashes: the plugin's pages live under it ("" is the root)
     alarm_names: tuple[str, ...] = ()
+    floor_stars: int | None = None  # the site's quality floor (projection.json quality.floorStars): roundup drafts take only Stories rated at least this; None: no floor
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str]) -> "Settings":
@@ -81,6 +82,7 @@ class Settings:
             item_url_style=environment.get("ITEM_URL_STYLE", "html"),
             base_path=environment.get("SITE_BASE_PATH", ""),
             alarm_names=tuple(name for name in environment.get("ALARM_NAMES", "").split(",") if name),
+            floor_stars=int(environment["FLOOR_STARS"]) if environment.get("FLOOR_STARS") else None,
         )
 
     def list_named(self, list_id: str) -> Mapping[str, str] | None:
