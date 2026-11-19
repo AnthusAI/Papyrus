@@ -29,10 +29,17 @@
       "text": "Branch feat/PPY-5a1607-subscription-analytics, PR 1701 into develop. Event script loads on the notifications pages only on a site with a measurement id; events go from the page through gtag. Left for a deploy: seeing the events arrive in the live GA4 property.",
       "created_at": "2026-11-19T04:44:34.141711Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5cc70a78-7972-426e-a9cc-ee7fec60e3da",
+      "author": "home",
+      "text": "Merged to develop in PR #1701. Open: events seen arriving in the real GA4 property (needs a deployed site with a measurement id and a person watching DebugView). Question for Ryan: kind carries list ids, not the notification kind; the script asset is named with a -v1 suffix because the secret scanner reads an at-sign version suffix as an address.",
+      "created_at": "2026-11-19T07:24:30.742209Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T12:46:03.322044Z",
-  "updated_at": "2026-11-19T04:44:34.142366Z",
+  "updated_at": "2026-11-19T07:24:46.095664Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
