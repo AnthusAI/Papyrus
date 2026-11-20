@@ -44,7 +44,7 @@
   "src/papyrus_content/monitoring_vectors.py": 1,
   "src/papyrus_content/monitoring_web_queries.py": 1,
   "src/papyrus_content/newsletter/roundup.py": 1,
-  "src/papyrus_content/newsroom_commands.py": 28,
+  "src/papyrus_content/newsroom_commands.py": 19,
   "src/papyrus_content/newsroom_context_pack.py": 1,
   "src/papyrus_content/ontology_enrichment.py": 2,
   "src/papyrus_content/priming_export.py": 2,

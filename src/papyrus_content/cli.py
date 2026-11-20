@@ -127,12 +127,8 @@ from .messages_commands import (
     messages_migrate_insights_to_notes,
     messages_scrub_inline_content,
 )
-from .model_defaults import (
-    DEFAULT_REFERENCE_FILTER_MODEL,
-    DEFAULT_REFERENCE_SUMMARY_MODEL,
-)
 from .relations_commands import relations_backfill, relations_import_types
-from .reference_reads import attachments_for_references, reference_by_token, targeted_scope
+from .reference_reads import attachments_for_references, reference_by_token
 from .references_commands import (
     references_attach_extracted_text,
     references_backfill_corpus_storage_paths,
@@ -194,13 +190,11 @@ from .newsroom_commands import (
     newsroom_import_sections,
     newsroom_prune_attachments,
     newsroom_repair_message_status,
-    newsroom_purge_planning,
     newsroom_recount_summary,
     newsroom_seed_required_procedures,
 )
 from .newsroom_summary import (
     update_newsroom_summary_after_assignment_creates,
-    update_newsroom_summary_after_extracted_text_attachments,
     update_newsroom_summary_after_reference_registration,
 )
 from .options import normalize_non_negative_integer, normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
@@ -472,7 +466,6 @@ PORTED_COMMANDS = GENERATED_CLI_ROUTES | frozenset(
         "reviews:steering",
         "reviews:applied",
         "reviews:recipients",
-        "newsroom:purge-planning",
         "relations:import-types",
         "relations:backfill",
         "relations:migrate-concept-tags",
@@ -1139,8 +1132,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif group == "reviews":
         from .review_requests import run_command as reviews_command
         reviews_command(command, flags)
-    elif route == "newsroom:purge-planning":
-        newsroom_purge_planning(flags)
     elif route == "relations:import-types":
         relations_import_types(flags)
     elif route == "relations:backfill":
@@ -1834,131 +1825,6 @@ def sync_reference_vectors_after_registration(result: dict[str, Any], options: d
             lines.append(f"references\tvector-sync\tfailed\t{len(batch)}\t{message}")
             raise RuntimeError(f"Reference registration updated GraphQL state but vector sync failed: {message}")
         lines.append(f"references\tvector-sync\tsynced\t{len(batch)}")
-    return {"lines": lines}
-
-
-def fetch_reference_url_text_after_registration(
-    client,
-    result: dict[str, Any],
-    options: dict[str, Any],
-) -> dict[str, Any]:
-    if parse_boolean_option(options.get("url-text"), True, "--url-text") is False:
-        return {"lines": ["references\tprocess-fetch-url-text\tdisabled"]}
-    reference_ids = sorted(
-        {
-            change["expected"].get("id")
-            for change in result["changes"]
-            if change.get("modelName") == "Reference" and change.get("action") in {"create", "update"}
-        }
-    )
-    if not reference_ids:
-        return {"lines": ["references\tprocess-fetch-url-text\tskipped\tno GraphQL Reference changes"]}
-    # The References this registration just wrote, and nothing else; the whole tables are read only if a citation graph needs them.
-    scope = targeted_scope(client, reference_ids=reference_ids)
-    references, attachments, semantic_relations = scope["references"], scope["attachments"], scope["relations"]
-    corpus_config = result.get("corpusConfig") or {}
-    corpus_id = result.get("plan", {}).get("corpusId")
-    max_count = normalize_non_negative_integer(options.get("url-text-max-count"), "--url-text-max-count")
-    force = parse_boolean_option(options.get("url-text-force"), False, "--url-text-force")
-    model = normalize_string(options.get("url-text-model")) or DEFAULT_REFERENCE_FILTER_MODEL
-    extraction = run_reference_url_text_extraction(
-        client=client,
-        references=references,
-        all_references=scope["all_references"],
-        attachments=attachments,
-        semantic_relations=semantic_relations,
-        corpus_key_by_id={str(corpus_id or ""): str(corpus_config.get("key") or "")},
-        corpus_id=str(corpus_id or "") or None,
-        reference_ids=set(reference_ids),
-        curation_status="all",
-        max_count=max_count,
-        force=force,
-        apply=True,
-        bucket=normalize_string(options.get("bucket")),
-        model=model,
-    )
-    update_newsroom_summary_after_extracted_text_attachments(
-        client,
-        extraction["changes"],
-        actor_label=str(options.get("actor") or "Papyrus content CLI"),
-        reason=f"references create-from-catalog process-fetch-url-text {corpus_id or '-'}",
-    )
-    lines = [
-        f"references\tprocess-fetch-url-text\teligible\t{extraction['eligibleCount']}",
-        f"references\tprocess-fetch-url-text\tskipped-existing\t{extraction['skippedExistingCount']}",
-        f"references\tprocess-fetch-url-text\tplanned\t{extraction['plannedCount']}",
-        f"references\tprocess-fetch-url-text\tplanned-attachments\t{extraction.get('plannedAttachmentCount', 0)}",
-        f"references\tprocess-fetch-url-text\tplanned-reference-metadata\t{extraction.get('plannedReferenceMetadataCount', 0)}",
-        f"references\tprocess-fetch-url-text\tfiltered\t{extraction.get('filteredCount', 0)}",
-        f"references\tprocess-fetch-url-text\tchanges\t{extraction['changeCount']}",
-        f"references\tprocess-fetch-url-text\treference-metadata-changes\t{extraction.get('referenceMetadataChangeCount', 0)}",
-        f"references\tprocess-fetch-url-text\tattachment-changes\t{extraction.get('attachmentChangeCount', 0)}",
-        f"references\tprocess-fetch-url-text\tfailures\t{len(extraction['failures'])}",
-        f"references\tprocess-fetch-url-text\tmodel\t{model}",
-    ]
-    if max_count:
-        lines.append(f"references\tprocess-fetch-url-text\tmax-count\t{max_count}")
-    for failure in extraction["failures"][:10]:
-        lines.append(
-            f"reference-url-text\tfailed\t{failure.get('referenceId') or '-'}\t"
-            f"{failure.get('sourceUri') or '-'}\t{failure.get('error') or 'unknown error'}"
-        )
-    if len(extraction["failures"]) > 10:
-        lines.append(f"references\tprocess-fetch-url-text\tomitted-failures\t{len(extraction['failures']) - 10}")
-    return {"lines": lines}
-
-
-def generate_reference_metadata_after_registration(
-    client,
-    result: dict[str, Any],
-    options: dict[str, Any],
-) -> dict[str, Any]:
-    if parse_boolean_option(options.get("metadata-from-text"), True, "--metadata-from-text") is False:
-        return {"lines": ["references\tprocess-generate-metadata\tdisabled"]}
-    reference_ids = sorted(
-        {
-            change["expected"].get("id")
-            for change in result["changes"]
-            if change.get("modelName") == "Reference" and change.get("action") in {"create", "update"}
-        }
-    )
-    if not reference_ids:
-        return {"lines": ["references\tprocess-generate-metadata\tskipped\tno GraphQL Reference changes"]}
-    scope = targeted_scope(client, reference_ids=reference_ids)
-    references, attachments = scope["references"], scope["attachments"]
-    corpus_id = result.get("plan", {}).get("corpusId")
-    max_count = normalize_non_negative_integer(options.get("metadata-max-count"), "--metadata-max-count")
-    generation = run_reference_metadata_generation_from_extracted_text(
-        references=references,
-        attachments=attachments,
-        corpus_id=str(corpus_id or "") or None,
-        reference_ids=set(reference_ids),
-        curation_status="all",
-        max_count=max_count,
-        model=normalize_string(options.get("metadata-model")) or DEFAULT_REFERENCE_SUMMARY_MODEL,
-        apply=True,
-        bucket=normalize_string(options.get("bucket")),
-    )
-    lines = [
-        f"references\tprocess-generate-metadata\tattempted\t{generation['attemptedCount']}",
-        f"references\tprocess-generate-metadata\tgenerated\t{generation['generatedCount']}",
-        f"references\tprocess-generate-metadata\tskipped-missing-text\t{generation['skippedMissingTextCount']}",
-        f"references\tprocess-generate-metadata\tgeneration-failures\t{generation['generationFailureCount']}",
-    ]
-    if max_count:
-        lines.append(f"references\tprocess-generate-metadata\tmax-count\t{max_count}")
-    failure_rows = [
-        item for item in generation.get("items") or []
-        if str(item.get("status") or "") not in {"generated", "skipped_missing_text"}
-    ]
-    for failure in failure_rows[:10]:
-        reference = failure.get("reference") if isinstance(failure.get("reference"), dict) else {}
-        lines.append(
-            f"reference-metadata\tfailed\t{reference.get('id') or '-'}\t"
-            f"{reference.get('externalItemId') or '-'}\t{failure.get('error') or 'generation failed'}"
-        )
-    if len(failure_rows) > 10:
-        lines.append(f"references\tprocess-generate-metadata\tomitted-failures\t{len(failure_rows) - 10}")
     return {"lines": lines}
 
 
