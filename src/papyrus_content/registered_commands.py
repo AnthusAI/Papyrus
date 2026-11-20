@@ -50,4 +50,4 @@ def run_registered_command(route: str, flags: list[str]) -> None:
 def usage_line(command: RegisteredCommand) -> str:
     required = " ".join(f"--{option_name(name)} VALUE" for name in command.required)
     optional = " ".join(f"[--{option_name(name)} VALUE]" for name in command.optional)
-    return f"{required} {optional}".strip() + f"  ({command.description})"
+    return f"{required} {optional}".strip()

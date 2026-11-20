@@ -36,6 +36,7 @@ class RegisteredCommand:
     optional: dict[str, dict] = field(default_factory=dict)
     cli_native: bool = False
     cli_available: bool = True
+    writes: str = "reads"
 
     @property
     def route(self) -> str:
@@ -51,7 +52,7 @@ class RegisteredCommand:
 
 
 def _command(group: str, command: str, audience: str, handler: str, description: str, required: dict | None = None, optional: dict | None = None,
-             **flags: bool) -> RegisteredCommand:
+             **flags: bool | str) -> RegisteredCommand:
     return RegisteredCommand(group, command, audience, handler, description, required or {}, optional or {}, **flags)
 
 
@@ -68,20 +69,20 @@ REGISTRY: tuple[RegisteredCommand, ...] = (
     _command("assignments", "list", STAFF, "assignments_list", "List Assignments.", {"storyLineageId": STRING}, PAGE, cli_native=True),
     _command("assignments", "show", STAFF, "assignment_get", "Read an Assignment.", {"id": STRING}, cli_native=True),
     _command("stories", "save-draft", STAFF, "story_save_draft", "Save a new immutable Story draft.",
-             {**VERSION, "body": STRING, "reason": STRING}, {"frontMatter": {"type": "string"}}),
+             {**VERSION, "body": STRING, "reason": STRING}, {"frontMatter": {"type": "string"}}, writes="writes"),
     _command("references", "decide", STAFF, "reference_decide", "Accept or reject a Reference.",
-             {**REVISION, "decision": {"type": "string", "enum": ["accept", "reject"]}}, {"note": STRING}),
+             {**REVISION, "decision": {"type": "string", "enum": ["accept", "reject"]}}, {"note": STRING}, writes="writes"),
     _command("stories", "set-stars", STAFF, "story_star", "Rate a Story with stars.", {**REVISION, "stars": STARS}, cli_native=True),
     _command("reviews", "list", STAFF, "reviews_list", "List review requests.", {"subjectType": STRING, "subjectId": STRING},
              {"state": STRING, "mode": STRING, **PAGE}, cli_native=True),
     _command("reviews", "show", STAFF, "review_get", "Read a review request.", {"id": STRING}, cli_native=True),
     _command("reviews", "answer", STAFF, "review_answer", "Answer a review request.",
              {"id": STRING, "expectedRevision": STRING, "decision": STRING}, {"feedback": STRING, "steer": STRING}, cli_native=True),
-    _command("stories", "request-publish", STAFF, "story_request_publish", "Request a person's approval to publish a Story.", VERSION),
+    _command("stories", "request-publish", STAFF, "story_request_publish", "Request a person's approval to publish a Story.", VERSION, writes="writes"),
     _command("reader", "comment", READER, "reader_comment", "Comment on a subject under the site's reader policy.",
-             {"subject": STRING, "body": STRING}, {"parent": STRING, "ratingContext": {"type": "object"}}, cli_available=False),
+             {"subject": STRING, "body": STRING}, {"parent": STRING, "ratingContext": {"type": "object"}}, cli_available=False, writes="writes"),
     _command("reader", "submit", READER, "reader_submit", "Submit a link under the site's reader policy.",
-             {"url": STRING, "title": STRING}, {"kind": STRING, "note": STRING}, cli_available=False),
+             {"url": STRING, "title": STRING}, {"kind": STRING, "note": STRING}, cli_available=False, writes="writes"),
 )
 
 BY_TOOL_NAME = {command.tool_name: command for command in REGISTRY}
