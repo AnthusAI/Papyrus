@@ -63,8 +63,8 @@ export interface SubTaskItemRecord {
   metadata?: unknown;
 }
 
-/** The steps whose done needs a short findings note (the four review lenses); mirrors `manual` in src/papyrus_content/newsroom_process.py. */
-export const MANUAL_STEP_KEYS: readonly string[] = ["review_people", "review_reader_agents", "review_search", "review_social", "concepts", "related_content"];
+/** The steps whose done needs a short findings note (the four review lenses, and a translation's `human_review`); mirrors `manual` in src/papyrus_content/newsroom_process.py and TRANSLATION_STEPS in src/papyrus_content/story_checklist.py. */
+export const MANUAL_STEP_KEYS: readonly string[] = ["review_people", "human_review", "review_reader_agents", "review_search", "review_social", "concepts", "related_content"];
 
 /** What an editor must give for a change, the same rules the backend enforces (src/papyrus_content/story_checklist.py): a reason to skip or mark not applicable, findings to mark a review done. */
 export function stepChangeProblem(stepKey: string, state: StoryStepState, input: { reason?: string; note?: string }): string | null {

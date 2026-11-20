@@ -199,7 +199,7 @@ def automation_publishes(context, path):
 def person_without_approval_publishes(context, path):
     context.publish_error = None
     try:
-        publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", by_person="editor-sub", now=NOW)
+        publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", now=NOW)
     except PublishError as error:
         context.publish_error = error
 
@@ -209,7 +209,7 @@ def editor_publishes(context, path):
     context.publish_error = None
     with patch("papyrus_content.editorial_commands.read_item_check_run", lambda _item_id: None):
         try:
-            publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", approved_by="editor-sub", by_person="editor-sub", now=NOW)
+            publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", approved_by="editor-sub", now=NOW)
         except PublishError as error:
             context.publish_error = error
 

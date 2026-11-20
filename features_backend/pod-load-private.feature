@@ -73,11 +73,11 @@ Feature: A pod with no site is private, and its load never publishes
     When I run the pod command "papyrus pod build POD"
     Then the pod report does not say "is a private pod"
 
-  Scenario: A pod with a site loads a published Article, and the publish step refuses it until a person publishes it
+  Scenario: A pod with a site loads a published Article, and the publish step refuses it while its checklist is open
     Given the pod has a "web" folder of site settings
     And the pod is a git repository with everything committed
     When I load the pod with "papyrus pod load POD"
     Then the pod command exits with status 0
     And the pod report says "kind: site pod (web/projection.json)"
-    And the pod report says "refused [person-publish-required]"
+    And the pod report says "refused [checklist-open]"
     And no story is published

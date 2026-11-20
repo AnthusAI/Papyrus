@@ -127,7 +127,7 @@ def publish(context):
     context.publish_error = None
     with evidence_patches(context):
         try:
-            publish_item(client, f"{LINEAGE}-v{context.world.version_number}", actor="editor", approved_by="editor-sub", by_person="editor-sub")
+            publish_item(client, f"{LINEAGE}-v{context.world.version_number}", actor="editor", approved_by="editor-sub")
         except PublishError as error:
             context.publish_error = error
 

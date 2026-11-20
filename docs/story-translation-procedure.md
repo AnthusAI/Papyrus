@@ -21,7 +21,7 @@ publishes: the result is published by a person, or by the site's own switches fo
   publish check that every picture is present passes.
 - Its provenance is a ModelAttachment on the version (role `localization_provenance`): source, models, prompt version, Humanus, language pack,
   policy pack and glossary versions, rounds, reverted blocks, findings by category and severity, cost by purpose and the prediction, outcome, the
-  alignment (each block's source block, owner, pinned flag and text) and the checklist steps it proves.
+  alignment (each block's source block, owner, pinned flag and text) and the checklist steps it proves, which the run also writes as the language's own checklist rows (see [Publishing a translation](#publishing-a-translation)).
 
 ## Setting a site up, and starting a run
 
@@ -190,8 +190,9 @@ their usage is reported to the runner (`model_usage`), so the run's cost counts 
 
 ## Publishing a translation
 
-A translation is published by a person, through the ordinary publish path, unless the site turned on [translating on publish](#translating-on-publish) or the
-operator runs `--publish-clean`: both publish only what a run saved cleanly. A localization is a Story lineage of its
+A translation is published through the ordinary publish path, which checks the checklist of its own lineage. A clean translation on a site that requires a person's
+review of readers (the default procedure does) stays a ready draft until a person records `human_review`, whoever publishes it; on a site that makes that review
+optional, [translating on publish](#translating-on-publish) and `--publish-clean` publish what a run saved cleanly. A localization is a Story lineage of its
 own, so the commands are the English Story's, with the version id of the translation:
 
 ```sh
@@ -204,15 +205,13 @@ Where the translation differs from an English Story, in one place each (`src/pap
 
 | Rule | What it does |
 | --- | --- |
-| **The checklist is the provenance** | The English checklist (research, draft, the four review lenses, the cover, the rating) describes how a person or an agent writes a Story; a translation has none of those steps, so `publish_item` does not build or read one for it and writes no sub-task Items. What applies to a translation (translated, checked against the English, copy edited) is proven by the records of the run that saved the version. Nobody ticks it by hand. |
+| **Its own checklist** | A translation has a checklist of its own (sub-task Items under `{story}--{language}`, written by `story_checklist.py`): `translate`, `faithfulness`, `copy_edit`, `human_review` and `publish`. The run that saves a version (and the imported copy and the correction, which save through the same path) records the first three for that version, done where its provenance says so; a faithfulness finding at error severity leaves `faithfulness` open and holds the version (next row). `human_review` is a person's step, with a findings note: it is required exactly when the site's procedure has `review_people` required (the default does), and it is done against one version, so a correction or a new run drops it until a person records it again (`papyrus stories step --story LINEAGE--es-419 --step human_review --state done --note <findings>`). Rating and the cover are the original's, not rows of the translation. `publish_item` checks these rows at the version being published and refuses with `checklist-open`, naming each open step and the command, like a Story. A translation saved before language checklists has no rows and is refused the same way until a person records them or it is translated again. |
 | **A held translation is cleared by a person** | A run holds a translation when an error-severity faithfulness finding remains or its cost reached its ceiling. The version records `metadata.localization.outcome: held` and the run raises a flag review request (`localize-<first 24 characters of the run key>`). Publishing that version is refused (`translation-held`, naming the request) until a person answers it `approve` or `acknowledge` (`papyrus reviews answer --id ID --decision approve`). An open, rejected or missing request keeps it back. A new version of the translation is judged by its own run. A held translation never touches the English Story: its checklist, page and publication are unaffected. |
 | **Only while the original is published** | Publishing is refused (`original-unpublished`) unless the original's published row exists. The site serves a translation by the same rule (`PublishedContentSource` leaves out a translation whose original is not published): taking the original down takes the translation's pages, listings and sitemap entry off the site without touching its record, and publishing the original again brings them back. |
 | **No rating of its own** | One star rating serves every language of a Story (plan decision 10), and the original passed the site's `publishRequiresRating` gate when it was published. The run does not copy the rating, nothing asks for one, and a machine never creates one. |
-| **Only a person publishes it (for now)** | `publish_item` refuses a translation unless a person is publishing it by hand (`person-publish-required`, `src/papyrus_content/publish_by_person.py`): translating on publish (`languages.auto` with `publish: true`), `--publish-clean`, a scheduled publish and an agent's publish all leave a ready draft and say so, and the person publishes it in the console or with `papyrus ops content publish` signed in as themselves. This is a temporary block, lifted by the per-language checklist gate (PPY-473f8f); see [Releasing](releasing.md#only-a-person-publishes-pod-loaded-imported-and-translated-stories-ppy-473f8f). |
 | **The site's approval gate is the site's** | A site that requires a person's approval to publish (`publish-gate`) requires it for a translation like any other Story. |
 
-Scheduled publishing and the publish step of `papyrus stories next` read the same `publish_item`: a translation cannot be scheduled (it is refused when the
-schedule is made, with the person-only rule above), and one whose original has been taken down by the time it fires fails with the same message and shows as overdue.
+Scheduled publishing and the publish step of `papyrus stories next` read the same `publish_item`: a translation is refused at its moment while a required step of its checklist is open, and one whose original has been taken down by the time it fires fails with the same message and shows as overdue.
 
 ### A person's correction
 

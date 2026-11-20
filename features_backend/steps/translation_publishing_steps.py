@@ -20,7 +20,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
         sys.path.insert(0, str(entry))
 
 from features_backend.steps.language_serving_steps import NOW, LanguageSite  # noqa: E402
-from papyrus_content import review_requests  # noqa: E402
+from papyrus_content import review_requests, story_checklist as checklist  # noqa: E402
 from papyrus_content.newsletter.issues_test import rig_context  # noqa: E402
 from papyrus_content.newsletter.roundup import candidates  # noqa: E402
 from papyrus_content.publishing import PublishError, project_item_to_published, publish_item, published_item_id_for, unpublish_item  # noqa: E402
@@ -98,7 +98,7 @@ def step_publish(context):
     version = _translation(context)
     context.publish_error = None
     try:
-        publish_item(context.client, version["id"], actor=PERSON, by_person=PERSON)
+        publish_item(context.client, version["id"], actor=PERSON)
     except PublishError as error:
         context.publish_error = error
         return
@@ -179,10 +179,10 @@ def step_listing(context):
     assert "bajan-los-choques" not in _text(context, "articles/index.html") and "bajan-los-choques" not in _text(context, "index.html")
 
 
-@then("the translation has no checklist steps and no rating of its own")
-def step_no_checklist(context):
+@then("the translation has its own checklist steps and no rating of its own")
+def step_own_checklist(context):
     items = context.client.tables["Item"].values()
-    assert not [row for row in items if row.get("type") == "sub-task" and LINEAGE in str(row.get("parentLineageId"))]
+    assert {row["stepKey"] for row in checklist.read_steps(context.client, LINEAGE)} == {"translate", "faithfulness", "copy_edit", "human_review", "publish"}
     assert not any(row.get(field) for row in items if row.get("lineageId") == LINEAGE for field in ("starRating", "starRatedBy"))
 
 
