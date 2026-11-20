@@ -43,6 +43,12 @@ const announce: TodayRow = {
 /** A realistic Today for tests and the `?demo=1` newsroom. */
 export const FIXTURE_TODAY: TodayOverview = {
   state: "ready", asOf: "2026-11-16T17:00:00.000Z", day: "2026-11-16", timeZone: "America/New_York", start: "2026-11-16T05:00:00.000Z", end: "2026-11-17T05:00:00.000Z",
+  overdue: [
+    {
+      kind: "Delivery", id: "announcement-daily#email#site#g1", dueAt: "2026-11-16T11:00:00Z", waitingFor: "release", flagId: "overdue-0f3a",
+      shown: "⏰ Overdue: Delivery announcement-daily#email#site#g1 was due 2026-11-16T11:00:00Z (release) and nothing ran",
+    },
+  ],
   rows: [announce, rate, translate],
   didNotRun: [
     { automationId: "digest.weekly", title: "Weekly digest", state: "Did not run", whyCode: "disabled", why: "Disabled: the router starts nothing for a disabled automation" },
