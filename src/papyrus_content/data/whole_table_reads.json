@@ -75,7 +75,6 @@
   "src/papyrus_content/story_selection.py": 1,
   "src/papyrus_content/story_triggers.py": 1,
   "src/papyrus_content/tenant_adoption.py": 1,
-  "src/papyrus_newsroom/email_submissions.py": 2,
   "src/papyrus_newsroom/newsroom.py": 2,
   "src/papyrus_newsroom/tactus_tools.py": 1
 }
