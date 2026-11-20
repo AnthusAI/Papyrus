@@ -19,7 +19,7 @@ from papyrus_content.images.handlers import Caller, Handler, ImageOperationError
 from . import operations
 from .deliveries import Deliveries
 from .operations import Services
-from .spend import SpendLedger
+from .spend import FunctionLedger
 from .x_account import AnnouncementError
 from .x_runner import SpendControl
 
@@ -56,6 +56,10 @@ class Functions:
 
     def status(self) -> dict:
         return self._call("announcementsXStatus", {})["status"]
+
+    def spent(self, account_id: str, start: Any) -> str | None:
+        """What the account spent on X in the cycle that starts on ``start``: the function reads it from the spend ledger, which a person's own client cannot."""
+        return self._call("announcementsXSpend", {"accountId": account_id, "cycleStart": start.isoformat()})["spent"]
 
 
 def _lazy_model() -> tuple[Callable[..., dict], Callable[..., dict]]:
@@ -138,7 +142,7 @@ def build_services(client: Any, environ: Mapping[str, str] | None = None, *, mod
                    files: Any = None, functions: Any = None) -> Services:
     functions = functions or Functions(client)
     x = x_services(client, environ, model=model, llm=llm, judge=judge, guidelines_text=guidelines_text, functions=functions)
-    return Services(client=client, x=x, control=SpendControl(settings=functions, connection=functions.status, ledger=SpendLedger(client)), deliveries=Deliveries(client, files))
+    return Services(client=client, x=x, control=SpendControl(settings=functions, connection=functions.status, ledger=FunctionLedger(functions)), deliveries=Deliveries(client, files))
 
 
 def _publication(client: Any) -> str:

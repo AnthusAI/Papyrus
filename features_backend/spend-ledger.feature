@@ -29,3 +29,17 @@ Feature: One spend ledger counts every paid run once (slice G1, PPY-fa165c)
     And the run "run-3" of the agent "rate" finishes on Monday 23 November 2026 with 2 priced calls costing 0.004 dollars
     Then the site's cycle starting Monday 16 November 2026 holds 0.012 dollars from 3 calls
     And the site's cycle starting Monday 23 November 2026 holds 0.004 dollars from 2 calls
+
+  Scenario: The X account's spend is counted in the same ledger, by its own billing cycle
+    Given an empty spend ledger and a site whose budget period is "week"
+    When Caducus charges the X account "mom" 0.20 dollars on Wednesday 18 November 2026 in the cycle starting Sunday 1 November 2026
+    And Caducus charges the X account "mom" 0.20 dollars on Thursday 19 November 2026 in the cycle starting Sunday 1 November 2026
+    Then the X account "mom" cycle starting Sunday 1 November 2026 holds 0.40 dollars
+    And the X account "mom" cycle starting Sunday 1 December 2026 holds nothing
+
+  Scenario: X spend and AI spend do not mix
+    Given an empty spend ledger and a site whose budget period is "month"
+    When the run "run-1" of the agent "rate" finishes on Wednesday 18 November 2026 with 3 priced calls costing 0.012 dollars
+    And Caducus charges the X account "mom" 0.20 dollars on Wednesday 18 November 2026 in the cycle starting Sunday 1 November 2026
+    Then the site's cycle starting Sunday 1 November 2026 holds 0.012 dollars from 3 calls
+    And the X account "mom" cycle starting Sunday 1 November 2026 holds 0.20 dollars

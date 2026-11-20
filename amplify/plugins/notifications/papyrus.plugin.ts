@@ -21,6 +21,7 @@ import { resolveNotificationsConfig, type NotificationsConfig } from "./config";
 import { siteApiEnvironment } from "../../site-api-access";
 import { X_ENDPOINTS, announcementsParameterPrefix } from "../../functions/announcements/wire";
 import { ANNOUNCEMENTS_TIMEOUT_SECONDS } from "../../functions/announcements/resource";
+import { wireSpendLedger } from "../../functions/announcements/spend-ledger-wire";
 
 export { resolveNotificationsConfig };
 export type { NotificationsConfig };
@@ -240,7 +241,6 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       ...X_ENDPOINTS,
       ANNOUNCEMENT_SETTINGS_TABLE: announcementTables.AnnouncementSettings.tableName,
       X_CONNECTION_TABLE: announcementTables.XConnection.tableName,
-      ANNOUNCEMENT_SPEND_TABLE: announcementTables.AnnouncementSpend.tableName,
       X_REFRESH_LEASE_SECONDS: String(ANNOUNCEMENTS_TIMEOUT_SECONDS),
       ...siteApiEnvironment(context.graphqlEndpoint),
     };
@@ -325,11 +325,11 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
     // A reader who lifts a bounce or complaint by opting in again is cleared from the SES account suppression list too.
     // The action has no resource-level form (as for the newsletter function).
     router.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:DeleteSuppressedDestination"], resources: ["*"] }));
-    // The X consumer reads the account's connection, its token parameters (a refresh saves the next one), the settings and the spend counter, and nothing else of the site's.
+    // The X consumer reads the account's connection, its token parameters (a refresh saves the next one), the settings and the X spend counter in the shared ledger, and nothing else of the site's.
     announcementTables.AnnouncementSettings.grantReadData(x);
     announcementTables.XConnection.grantReadWriteData(x); // a refresh takes the connection's lease and records its result
     announcementTables.AnnouncementSettings.grantReadWriteData(x); // a refresh X refuses pauses announcements
-    announcementTables.AnnouncementSpend.grantReadWriteData(x);
+    wireSpendLedger(x); // the X spend counter is in the shared ledger, this site's X rows only
     x.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
