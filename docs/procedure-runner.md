@@ -337,6 +337,10 @@ Spend is checked before a run, not only counted after it (`src/papyrus_content/s
 
 The check is before the run, so a run that starts under the budget can end over it by what was in flight. A site's own pause (`site.paused` in the agent policy) remains the per-site stop that needs no table access.
 
+## Who changes the agent policy
+
+A signed-in admin changes the agent policy (`papyrus agents set-rung --apply`, pause, resume, budget, loop limit, overrides) only through the site's `agent-policy` function (`agentPolicyChange`). The function checks that the caller is an admin and that the token was issued to a person-only app client (`PERSON_ONLY_CLIENT_IDS`); with none configured nobody qualifies. It refuses `publish_auto` while the hard floor stands, and it writes the version object and catalogue rows with its own role. The admin group's S3 grant on the policy objects is read-only. A CLI token still passes the client check while the CLI signs in on the console's own app client (`cliOnFederationClient` separates them). Operators with AWS credentials write directly, as the deploy does.
+
 ## Deploying
 
 The release deploys the runner, like every shared stack: a merge to `main` builds the image and updates the stack (`.github/workflows/stack-deploy.yml`, `infra/pipeline/stacks.json`). Nothing is built, pushed or applied by hand.

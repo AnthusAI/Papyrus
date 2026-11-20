@@ -42,3 +42,18 @@ def actor_kind(environ: Mapping[str, str] | None = None, *, interactive: bool | 
         return AGENT
     is_interactive = terminal_is_interactive() if interactive is None else interactive
     return PERSON if is_interactive else AGENT
+
+
+PERSON_CLIENT_IDS_VARIABLE = "PERSON_ONLY_CLIENT_IDS"
+
+
+def person_client_ids(environ: Mapping[str, str] | None = None) -> frozenset[str]:
+    """The app clients a person signs in with (the console). A credential issued to any other client, such as the CLI's that an agent shares, is not a person's."""
+    raw = (os.environ if environ is None else environ).get(PERSON_CLIENT_IDS_VARIABLE, "")
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
+def credential_is_person(claims: Mapping[str, object], environ: Mapping[str, str] | None = None) -> bool:
+    """True only when the token was issued to a person-only app client. No configured client means no credential is a person's: the rule fails closed."""
+    issued_to = {str(claims.get(name)) for name in ("aud", "client_id") if claims.get(name)}
+    return bool(issued_to & person_client_ids(environ))
