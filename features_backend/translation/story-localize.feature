@@ -1,5 +1,5 @@
 Feature: A published Story is translated, checked and polished by one procedure
-  The Story translation procedure (`papyrus.story.localize`, PPY-843a7c) translates one published Story into one language per run. It
+  The Story translation procedure (`papyrus.story.localize`) translates one published Story into one language per run. It
   translates only the blocks whose source changed, checks every block against the English with the parity rules and a bilingual judge, checks
   it with the language's copy-edit policies, and repairs what it may until a round no longer reduces the findings. Every repair is checked
   against the English again, and one that makes faithfulness worse is undone. Links, citations, code and fixed attributes such as an image's

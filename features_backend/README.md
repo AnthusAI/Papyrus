@@ -35,7 +35,7 @@ is published as a static site that readers can steer. One engine serves many pub
 - Name the file in lower case with hyphens.
 - Title it with a sentence that says what Papyrus does, such as "A newsletter address is subscribed only after it confirms". A bare topic ("Newsletter double opt-in") tells a reader nothing, and a title of fewer than four words fails the build.
 - Open with a few sentences that say what the behaviour is for, in the reader's words, before the first scenario. Say who does what and what they can rely on. Fewer than twenty words fails the build.
-- Describe what is true now. Leave out ticket ids, slice numbers and what is planned next: those belong on the board, and a ticket id in a title fails the build.
+- Describe what is true now. Leave out ticket ids, slice numbers and what is planned next: those belong on the board, and a ticket id anywhere in a feature file fails the build.
 - Name things as a person in the newsroom would (a Story, a Reference, an editor), and keep table, function and file names for the scenarios that really are about them.
 - Every `Then` must check the thing its sentence says. A step that only runs another test file and reads its exit code proves nothing a reader can see.
 - One scenario, one behaviour. A scenario that repeats another with a different literal belongs in that scenario's `Examples` table, or nowhere.

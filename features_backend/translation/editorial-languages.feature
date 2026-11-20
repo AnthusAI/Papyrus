@@ -5,7 +5,7 @@ Feature: Each language of a publication is checked against its own rules
   and Humanus reads the text in that language or refuses it: a language it has no pack for is never read as English. A site's editorial
   settings name the languages it writes in, each as the exact variant (Machines on Machines writes neutral Latin American Spanish, es-419),
   and enabling a language brings that language's starter rules. The publication's voice and binding rules are written once; a language
-  overlay of the writing guidelines adds only what is particular to the language. (PPY-d0132d; the data is synthetic and no model is called.)
+  overlay of the writing guidelines adds only what is particular to the language. (The data is synthetic and no model is called.)
 
   Background:
     Given a site that writes in "en, zh-Hans, es-419" with English as its primary language

@@ -1,6 +1,6 @@
 Feature: A person's correction of a published translation is saved as their own wording
   A translation is a Story lineage of its own (`<story>--<language>`), written by the translation procedure. When a person finds a flaw in it, the
-  command `papyrus stories correct-translation` saves their edit as a new version of that lineage (PPY-ef71cd, PPY-c0aebc). Each block the edit changes
+  command `papyrus stories correct-translation` saves their edit as a new version of that lineage. Each block the edit changes
   becomes the person's in the version's alignment: owner `human`, pinned. A later translation run keeps a pinned block exactly as written; if its
   English source changed, the block is reported as a conflict and nothing is overwritten. The provenance of the new version says honestly who edited,
   who applied the edit, why, and what each changed block said before and after. Whoever approved the edit is recorded there as metadata and never

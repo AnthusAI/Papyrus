@@ -1,6 +1,6 @@
 Feature: An Assignment is the request one responsibility makes of another
-  When one agent needs another's work (the fact-checker needs a source found), it asks for it as an Assignment on the Story, through the gate (PPY-51f96f, slice F1
-  of the always-on agents design). The Assignment says who asked and why. The agent responsible for that kind of work is woken once, by the change feed: the wake
+  When one agent needs another's work (the fact-checker needs a source found), it asks for it as an Assignment on the Story, through the gate.
+  The Assignment says who asked and why. The agent responsible for that kind of work is woken once, by the change feed: the wake
   key names the Assignment, so the run record made from it is the claim and the agent runs once however many times the stream record is delivered. When the run
   ends, the Assignment closes: completed, with the run's result recorded on the Story's Assignment, which wakes the agent that asked and no other; or failed, with
   the error recorded and one flag raised for a person. Nothing retries a failed Assignment: a person reopens it, which is a new wake. A person files the same

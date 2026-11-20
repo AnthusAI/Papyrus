@@ -1,7 +1,7 @@
 Feature: Every way tenant A could reach tenant B is a generated case, and a gap fails the build
-  The shared stack serves many tenants from one set of tables. The adversarial suite (PPY-29f730) tries every way
+  The shared stack serves many tenants from one set of tables. The adversarial suite tries every way
   tenant A could see or change tenant B's data, and it is generated from the schema and the function list so that a new
-  model, index, query, mutation or function cannot ship without a case. This first part (PPY-65e5a9) is the generator
+  model, index, query, mutation or function cannot ship without a case. This first part is the generator
   and the case table. It reads the GraphQL that Amplify generates from amplify/data/schema.ts (with every plugin's
   models), and the function directories, then writes features_backend/fixtures/tenant-isolation/cases.json and the
   generated scenarios below. It calls no AWS service.
@@ -11,7 +11,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
   The generator also lists the gaps it can already see in the schema, for example a tenantId that an editor can change
   and an index whose partition key is shared by every tenant (npx tsx scripts/generate-tenant-isolation-cases.ts
-  --report). They are reported, not failed, until the group rules are removed (PPY-bdc4ee).
+  --report). They are reported, not failed, until the group rules are removed.
 
   Scenario: A model without a case fails the build
     Given a model is added to schema.ts

@@ -5,8 +5,8 @@ Feature: The publication's voice applies in every language; a language overlay a
   to that language: register notes, words to prefer and avoid, the target locale's conventions for naming organisations and people, glossary
   entries. Resolving the guidelines for a Story in a language lays its overlays over the shared layers and says which layer each part came from.
   Saving an overlay draws checks written for that language only. The locale's conventions are expressed here and in the glossary, never by
-  leaving out or changing a fact; the translation procedure that applies them and re-checks every claim against the English is PPY-843a7c.
-  (PPY-d0132d; an in-memory backend that fails on any table scan; no model is called.)
+  leaving out or changing a fact; the translation procedure that applies them and re-checks every claim against the English is the Story translation procedure (`papyrus stories localize`).
+  (An in-memory backend that fails on any table scan; no model is called.)
 
   Background:
     Given the publication's writing guidelines set the audience "General readers", the tone "Warm." and the binding rule "no-hype"

@@ -9,9 +9,9 @@ Feature: Every table can list one tenant's rows without reading the others
   index at all (ReaderVote, ReviewRequest, Automation and others) or because every index they have leaves rows out
   (Item's indexes sort on fields an idea does not have yet). Each of those tables gets one sparse index partitioned
   on tenantId and sorted by id. Item's waits one release: the release this lands in already gives Item its language
-  group index, and a table gains one index per release (follow-up PPY-e958b5). The tenant client reads a tenant's rows through it with one paged Query
+  group index, and a table gains one index per release. The tenant client reads a tenant's rows through it with one paged Query
   (`list_tenant_rows`), never a Scan. The index holds only rows that carry a tenantId, so a listing is complete once
-  the tenantId backfill (PPY-8f9462) has stamped every row.
+  the tenantId backfill has stamped every row.
 
   DynamoDB creates one index per table in one update, so a table may gain only one index in a release. The GSI ledger
   compares every schema source (the core schema and each plugin's and function's schema) with the last release and

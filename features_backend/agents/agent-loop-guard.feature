@@ -1,5 +1,5 @@
 Feature: Agents that wake each other stop at the owner's limit
-  Agents wake each other by changing records, so two agents could pass a Story back and forth (PPY-4e7e8b, slice B7 of the always-on agents design). The guard
+  Agents wake each other by changing records, so two agents could pass a Story back and forth. The guard
   keeps the count the Stage Bots already kept and makes it general: the number of wakes caused by an agent's change on a Story since a person last acted on it. The
   limit is the owner's, set per responsibility in the agent policy document (it starts at 5). At the limit nothing more starts for that Story and ONE hard-gate review
   request says so. A person's change to the Story clears the count and opens the next round, so a later loop raises its own request. An agent's own new version wakes
