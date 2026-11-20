@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import agent_wakes, request_meter, run_outcomes, spend_ledger, wake_keys
+from . import agent_wakes, request_meter, run_outcomes, run_settle, spend_ledger, wake_keys
 from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
@@ -279,13 +279,19 @@ def handoff_of(request: dict) -> dict[str, str] | None:
 
 def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
-                          run_started: Callable[[str], None] | None = None) -> dict:
+                          run_started: Callable[[str], None] | None = None, receive_count: int = 1) -> dict:
     request = validate_request(request)
     started = start_run_record(client, request)   # the record exists, `started`, before any procedure is loaded
     run_id = started["runId"]
-    if started["duplicate"]:   # this wake already has its run: nothing more happens for it
-        return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
-                "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
+    attempt = 1
+    if started["duplicate"]:   # this wake already has its run: nothing more happens for it, unless the queue says the first attempt died
+        existing_run = client.get_record(run_settle.RUN_MODEL, run_id) if receive_count >= run_settle.SETTLING_RECEIPT else None
+        if not run_settle.first_attempt_died(existing_run, receive_count):
+            return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
+                    "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
+        if not run_settle.safe_to_repeat(request):
+            return run_settle.record_unknown(client, run_id, existing_run, request, now=now)
+        attempt = run_settle.REPEAT_ATTEMPT
     try:
         decision = policy.decide(request)   # the site's policy is read here, before anything is loaded or run
     except PolicyUnreadable as error:
@@ -345,7 +351,7 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
     record = {
         "id": run_id, "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
         "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
-        "startedAt": started_at, "finishedAt": now(), "attempt": 1,
+        "startedAt": started_at, "finishedAt": now(), "attempt": attempt,
         "resultSummary": summarize_output(output, outcome.get("seconds", 0)) if succeeded else None,
         "errorSummary": None if succeeded else ended["error"][:MAX_SUMMARY_CHARACTERS],
         "output": output if succeeded or gate is not None else None,   # a run the gate stopped keeps its answers
@@ -439,7 +445,8 @@ def handler(event, context):
         result = run_procedure_request(request, client=client, policy=policy, execute=execute_in_child,
                                        seconds_available=seconds_available,
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
-                                       run_started=lambda run_id: record_trigger_run(table, trigger, run_id))
+                                       run_started=lambda run_id: record_trigger_run(table, trigger, run_id),
+                                       receive_count=agent_wakes.receive_count(event))
     except ProcedureNotRunnable as error:
         result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
                   "error": str(error)}
@@ -452,8 +459,8 @@ def handler(event, context):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
     record_spend(table, result)   # after the trigger row, so a ledger error never leaves a finished run's row looking unfinished
-    if result.get("skipped"):
-        return result   # the policy started nothing: no story is advanced and no stage trigger fires for a run that did not happen
+    if result.get("skipped") or result.get("settled"):
+        return result   # the policy started nothing, or the run was settled unknown: no run happened: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
         finish_story_stage_run(table, trigger, result)
     if table is not None:

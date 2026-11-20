@@ -59,6 +59,18 @@
       "text": "Back in progress: on the always-on agents track: the spend ledger part 2 moves the X announcement spend counter onto it.",
       "created_at": "2026-11-20T14:08:10.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "1b56ca3e-fed3-4847-9d44-053ffb5b827e",
+      "author": "ryan",
+      "text": "Update: the runner role block above is resolved. The runner role change (UpdateItem and TransactWriteItems on the ledger table) shipped in v5.138.0 with part 1 (#1736). Part 2, the X counter on the one ledger, is PR #1745 and stays with the M3.",
+      "created_at": "2026-11-20T18:28:25.793061Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "CLI and MCP thread"
+      }
     }
   ],
   "created_at": "2026-11-16T22:43:07.557587Z",

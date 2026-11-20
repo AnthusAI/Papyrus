@@ -140,3 +140,9 @@ def request_from_event(event: Any) -> dict:
     if wake_of(request) != {name: wake.get(name) for name in WAKE_FIELDS} or set(wake) != set(WAKE_FIELDS):
         raise WakeError("the wake message's agent, subject, reason or scope does not match its wake key and trigger")
     return request
+
+
+def receive_count(event: Any) -> int:
+    """Which delivery of its message this is, as the queue reports it (`ApproximateReceiveCount`): 1 for the first, 2 for the one that settles."""
+    attributes = event["Records"][0].get("attributes") or {}
+    return int(attributes.get("ApproximateReceiveCount") or 1)

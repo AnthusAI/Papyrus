@@ -33,7 +33,7 @@ def build(definitions: Iterable[Definition]) -> dict[str, Any]:
     for item in sorted(definitions, key=lambda definition: definition.id):
         for listened in item.data["wakes"].get("changes") or []:
             changes.setdefault(change_name(listened["kind"], listened["change"]), []).append({
-                "agent": item.id, "responsibility": item.responsibility, "procedure": item.data["procedure"], "paid": bool(item.data["paid"]), "serialBy": item.data["serialBy"],
+                "agent": item.id, "responsibility": item.responsibility, "procedure": item.data["procedure"], "paid": bool(item.data["paid"]), "serialBy": item.data["serialBy"], "safeToRepeat": bool(item.data["safeToRepeat"]),
                 "filter": dict(listened.get("filter") or {}),
             })
     return {"schemaVersion": SCHEMA_VERSION, "changes": changes}
