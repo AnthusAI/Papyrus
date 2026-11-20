@@ -19,9 +19,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "646d06c9-f213-477f-91eb-42a86a97f076",
+      "author": "home",
+      "text": "lead8: Layering merged in #1729: a rule file scoped to channel/<name> reaches the drafter for that channel (guidelines resolve --channel), adds and never loosens. NOT built (left open): the newsroom channel preview and draft editor UI (TypeScript, needs a browser check), the Announcements list columns (state, window, last editor, human-touched flag), CLI-parity spec for the editor, and the drafter reading the account's previous sent Deliveries (change F). Draft saves already name the version they replace (PPY-e8ec54).",
+      "created_at": "2026-11-19T13:38:37.189032Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:36.351073Z",
-  "updated_at": "2026-11-16T22:00:45.453113Z",
+  "updated_at": "2026-11-19T13:38:37.189257Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

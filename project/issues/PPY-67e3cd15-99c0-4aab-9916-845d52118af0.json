@@ -21,9 +21,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9343d50d-f7f4-4e76-99bd-7f7cf92ef9f7",
+      "author": "home",
+      "text": "Implemented with PPY-4e7e8b in one PR (wake gate, src/papyrus_content/wake_gate.py); see PR on branch feat/PPY-67e3cd-coalesce-loop-guard.",
+      "created_at": "2026-11-19T08:44:10.920923Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:02.729337Z",
-  "updated_at": "2026-11-16T22:43:24.324327Z",
+  "updated_at": "2026-11-19T08:44:10.921827Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -122,3 +122,23 @@ def test_the_narrowest_window_wins_and_a_window_that_is_not_possible_is_refused(
             edit_windows.validate(bad)
     release, plans = edit_windows.apply(settings, "story_published", [Plan("x", "h", "soft", "p", "Hi"), Plan("email", "h", "soft", "p", "Hi", lock_at="2026-11-16T14:03:00Z")], now=NOW)
     assert release == "2026-11-16T14:10:00Z" and [(p.release_at, p.lock_at) for p in plans] == [("2026-11-16T14:10:00Z", "2026-11-16T14:08:00Z"), ("2026-11-16T14:20:00Z", "2026-11-16T14:03:00Z")]
+
+
+def test_a_person_after_the_send_saves_a_preferred_version_and_a_machine_is_refused():
+    from papyrus_content.announcements.delivery_versions import NotEditable, PREFERRED
+    from papyrus_content.announcements.records import SENT
+
+    deliveries, versions, row_id = make(approval="none")
+    deliveries._change(deliveries.get(row_id), {"state": SENT}, by="worker", note="sent", now=NOW)
+    saved = versions.save(row_id, replaces=1, text="How it should have read.", by="ellie", preferred_only=True)
+    assert saved.status == PREFERRED and saved.row["preferredVersion"] == 2 and saved.row["state"] == SENT
+    with pytest.raises(NotEditable):
+        versions.save(row_id, replaces=2, text="A machine idea.", by="announce", owner=dt.MACHINE)
+
+
+def test_preferred_only_refuses_a_delivery_that_has_not_gone_out():
+    from papyrus_content.announcements.delivery_versions import NotEditable
+
+    _, versions, row_id = make()
+    with pytest.raises(NotEditable):
+        versions.save(row_id, replaces=1, text="Too early.", by="ellie", preferred_only=True)

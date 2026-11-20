@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "548e845e-d4ba-415c-8b50-353093456e8e",
+  "issue_id": "PPY-e37b6dc6-33fe-48d8-b421-5933e3d7d3f7",
+  "event_type": "state_transition",
+  "occurred_at": "2026-11-20T07:16:33.347Z",
+  "actor_id": "ryan",
+  "payload": {
+    "from_status": "open",
+    "to_status": "closed"
+  }
+}

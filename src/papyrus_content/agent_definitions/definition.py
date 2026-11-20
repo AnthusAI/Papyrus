@@ -314,6 +314,14 @@ def read_folder(directory: Path) -> tuple[dict[str, Any], list[Problem]]:
     return found, problems
 
 
+def core_definition(definition_id: str) -> dict[str, Any]:
+    """The engine's own definition of this id, as written in its file: the one place an agent's procedure reads what its definition says (its tier)."""
+    core, _ = read_folder(CORE_DIRECTORY)
+    if definition_id not in core:
+        raise KeyError(f"The engine has no core agent definition named {definition_id}.")
+    return core[definition_id]
+
+
 def load_sets(site_directory: Path, core_directory: Path = CORE_DIRECTORY) -> Loaded:
     """The effective definitions: the engine's core ones, each with what the site added, and the site's own. Valid whole or refused whole."""
     loaded = Loaded()

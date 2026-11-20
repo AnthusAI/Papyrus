@@ -59,18 +59,19 @@ def estimate_cost(calls: list[dict[str, Any]] | None, prices: dict[str, dict[str
     `costUsd` is None when nothing was reported or no call could be priced."""
     prices = load_prices() if prices is None else prices
     calls = [call for call in (calls or []) if isinstance(call, dict)]
-    total, priced, unpriced, models = 0.0, 0, set(), {}
+    total, priced, unpriced, models, unpriced_calls = 0.0, 0, set(), {}, 0
     for call in calls:
         model = str(call.get("model") or "unknown")
         models[model] = models.get(model, 0) + 1
         price = price_for(model, prices)
         if price is None:
             unpriced.add(model)
+            unpriced_calls += 1
             continue
         total += call_cost(call, price)
         priced += 1
     return {"costUsd": round(total, 6) if priced else None, "complete": bool(calls) and not unpriced,
-            "unpricedModels": sorted(unpriced), "calls": len(calls),
+            "unpricedModels": sorted(unpriced), "unpricedCalls": unpriced_calls, "calls": len(calls),
             "promptTokens": sum(_tokens(call.get("promptTokens")) for call in calls),
             "completionTokens": sum(_tokens(call.get("completionTokens")) for call in calls),
             "models": models}

@@ -17,8 +17,8 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Counts
 
-- 73 models, 228 indexes.
-- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 71, global 100.
+- 73 models, 230 indexes.
+- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 71, global 102.
 - Indexes that list a tenant once prefixed: 75; dense indexes: 106.
 - Models: 60 with an index that lists a tenant, 5 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
@@ -36,7 +36,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `CategoryKeyword` | 5 | yes | `listCategoryKeywordsByTenant` |
 | `CategorySet` | 4 | yes | `listCategorySetsByCorpusAndClassifier`, `listCategorySetsByStatusAndName` |
 | `CurationDelegationRecord` | 2 | yes | `listCurationDelegationRecordsByTenant` |
-| `Delivery` | 4 | yes | `listDeliveriesByTenant` |
+| `Delivery` | 5 | yes | `listDeliveriesByTenant` |
 | `Edition` | 5 | yes | `listEditionsByStatusAndEditionDate` |
 | `EditionItem` | 3 | yes | `listEditionItemsByTenant` |
 | `EditorialCheckRun` | 2 | yes | `listEditorialCheckRunsByTenant` |
@@ -59,7 +59,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `ModerationAction` | 2 | yes | `listModerationActionsByTenant` |
 | `NewsroomSection` | 4 | yes | `listNewsroomSectionsByTenantAndSortOrder`, `listNewsroomSectionsByTypeAndSortOrder`, `listNewsroomSectionsByEnabledStatusAndSortOrder` |
 | `ProcedureDefinition` | 3 | yes | `listProcedureDefinitionsByEnabledAndUpdatedAt` |
-| `ProcedureRun` | 4 | yes | `listProcedureRunsByStatusAndRequestedAt` |
+| `ProcedureRun` | 5 | yes | `listProcedureRunsByStatusAndRequestedAt` |
 | `ProcedureVersion` | 3 | yes | `listProcedureVersionsByStatusAndUpdatedAt` |
 | `Proposal` | 1 | yes | `listProposalsByStateAndCreatedAt` |
 | `PublicHandleClaim` | 0 | global by design |  |
@@ -119,6 +119,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `assigneeKey` | global | open | `Assignment` |
 | `assignmentId` | record-id | open | `AssignmentEvent`, `ProcedureRun` |
 | `assignmentTypeKey` | global | closed | `Assignment` |
+| `attentionKey` | global | one | `ProcedureRun` |
 | `authorSub` | global | open | `Message` |
 | `authorUserProfileId` | record-id | open | `Message` |
 | `categoryKey` | global | open | `CategoryKeyword`, `PublishedCategory` |
@@ -143,6 +144,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `enabledStatus` | global | closed | `NewsroomSection`, `ProcedureDefinition` |
 | `entityKey` | record-id | open | `EntityLabel` |
 | `eventType` | global | closed | `AssignmentEvent` |
+| `exampleKey` | global | closed | `Delivery` |
 | `feedStateKey` | corpus-prefixed | open | `Reference` |
 | `form` | global | open | `SignupEntry` |
 | `grantorSub` | global | open | `CurationDelegationRecord` |
@@ -263,6 +265,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `Delivery` | `listDeliveriesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `Delivery` | `listDeliveriesByAnnouncementAndCreatedAt` | `announcementId` | `createdAt` | record-id | open | yes | no |
 | `Delivery` | `listDeliveriesByAccountKeyAndCreatedAt` | `accountKey` | `createdAt` | record-id | open | yes | no |
+| `Delivery` | `listDeliveriesByExampleKeyAndExampleAt` | `exampleKey` | `exampleAt` | global | closed | no | no |
 | `Delivery` | `listDeliveriesByDueKeyAndDueAt` | `dueKey` | `dueAt` | global | one | no | no |
 | `Edition` | `listEditionsByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `Edition` | `listEditionsByVersionStateAndPublishedAt` | `versionState` | `publishedAt` | global | closed | no | no |
@@ -347,6 +350,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `ProcedureRun` | `listProcedureRunsByAssignmentAndRequestedAt` | `assignmentId` | `requestedAt` | record-id | open | no | no |
 | `ProcedureRun` | `listProcedureRunsByStatusAndRequestedAt` | `runStatus` | `requestedAt` | global | closed | yes | yes |
 | `ProcedureRun` | `listProcedureRunsByFeedAndRequestedAt` | `newsroomFeedKey` | `requestedAt` | global | one | no | no |
+| `ProcedureRun` | `listProcedureRunsByAttentionKeyAndDueAt` | `attentionKey` | `dueAt` | global | one | no | no |
 | `ProcedureVersion` | `listProcedureVersionsByProcedureAndVersion` | `procedureId` | `versionNumber` | record-id | open | yes | no |
 | `ProcedureVersion` | `listProcedureVersionsByProcedureAndCreatedAt` | `procedureId` | `createdAt` | record-id | open | yes | no |
 | `ProcedureVersion` | `listProcedureVersionsByStatusAndUpdatedAt` | `status` | `updatedAt` | global | closed | yes | yes |

@@ -127,7 +127,18 @@ def publish(context):
     context.publish_error = None
     with evidence_patches(context):
         try:
-            publish_item(client, f"{LINEAGE}-v{context.world.version_number}", actor="editor", approved_by="editor-sub")
+            publish_item(client, f"{LINEAGE}-v{context.world.version_number}", actor="editor", approved_by="editor-sub", by_person="editor-sub")
+        except PublishError as error:
+            context.publish_error = error
+
+
+@when("the Story is published by an automation")
+def publish_by_automation(context):
+    client = client_of(context)
+    context.publish_error = None
+    with evidence_patches(context):
+        try:
+            publish_item(client, f"{LINEAGE}-v{context.world.version_number}", actor="automation:import")
         except PublishError as error:
             context.publish_error = error
 

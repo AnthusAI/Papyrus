@@ -669,6 +669,7 @@ papyrus guidelines show --kind writing
 papyrus guidelines show --kind writing --section security
 papyrus guidelines resolve --kind writing --section security
 papyrus guidelines resolve --kind writing --section security --language zh-Hans
+papyrus guidelines resolve --kind writing --channel x      # also the rule files scoped to channel/x; the other channels are left out
 papyrus guidelines history --kind writing
 papyrus guidelines diff --kind writing --file ./writing.yml
 papyrus guidelines save --kind writing --file ./writing.yml --reason "Narrowed the audience" --expected-current-version-id item-editorial-doctrine-writing-v1 --dry-run
@@ -710,6 +711,7 @@ papyrus announcements dry-run story-containment-note
 papyrus announcements where story-containment-note
 papyrus announcements recent
 papyrus announcements explain --story story-containment-note
+papyrus announcements explain --delivery 'announcement-1#x#handle#g1'   # the guideline layers and examples its draft read
 papyrus announcements pause
 papyrus announcements resume
 papyrus announcements record-manual 'announcement-1#x#handle#g1' --url https://example.org/status/1
@@ -722,6 +724,7 @@ papyrus announcements candidate choose 'announcement-1#x#handle#g1' c1 --replace
 papyrus announcements pinned 'announcement-1#x#handle#g1' --replaces 2 --block 2 --unpin
 papyrus announcements unlock 'announcement-1#x#handle#g1' --lock-at 2026-11-17T08:55:00Z   # after the lock time, so it can be edited again
 papyrus announcements example 'announcement-1#x#handle#g1' --scope channel --reason 'Open with the verb.'   # a person says how far an edit reaches; no scope keeps it as a candidate
+papyrus announcements preferred 'announcement-1#x#handle#g1' --replaces 1 --text 'Slow water has landed.' --scope channel   # how it should have read, after the send: teaches, sends nothing, changes no public text
 ```
 
 - `prices.json` holds `{"prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}}` copied from X's price list (docs.x.com/x-api/getting-started/pricing); `--input-file` is how an object is given. The site's `announcements` function checks every rule and refuses with the plain sentence (`settings_refused`); nothing is saved when one fails. `--billing-cycle-day` is the day of the month your X billing cycle starts: the budget is per cycle.

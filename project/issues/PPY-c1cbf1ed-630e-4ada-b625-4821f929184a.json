@@ -17,9 +17,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "111252c9-eef0-4459-851a-7ce66dc4a5c3",
+      "author": "home",
+      "text": "lead8: not built; blocked on PPY-a7174b (see its comment for the question to Ryan).",
+      "created_at": "2026-11-19T11:47:29.733841Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:20.728304Z",
-  "updated_at": "2026-11-16T22:47:40.161640Z",
+  "updated_at": "2026-11-19T11:47:29.734067Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

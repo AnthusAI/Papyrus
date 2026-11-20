@@ -36,7 +36,7 @@ def _version(context, language: str) -> dict:
 
 def _publish(context, language: str) -> None:
     version = _version(context, language)
-    publish_item(context.client, version["id"], actor=PERSON)
+    publish_item(context.client, version["id"], actor=PERSON, by_person=PERSON)
     context.draw_error = None
     try:
         report = project(_site(context).context, version["id"])

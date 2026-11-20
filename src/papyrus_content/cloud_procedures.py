@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .env import PAPYRUS_ROOT, resolve_corpora_file
-from . import run_outcomes, wake_keys
+from . import run_attention, run_outcomes, wake_keys
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
 REQUIRED_PROCEDURES_CONFIG_PATH = resolve_corpora_file("corpora/papyrus-required-procedures.json")
@@ -235,6 +235,8 @@ def update_cloud_procedure_run_record(client: PapyrusGraphQLAuthoringClient, pay
                 "output": None if output is None else json.dumps(output),
                 "error": None if error is None else json.dumps(error),
                 "attempt": payload.get("attempt"),
+                # A run that needs a person (failed, or outcome unknown) joins the sparse attention index (PPY-577310).
+                **run_attention.attention_fields(payload["outcome"], payload.get("finishedAt")),
                 # Only sent when the run reported model usage, so a site backend without these fields is not asked for them.
                 **({"usage": json.dumps(payload["usage"]), "costUsd": payload.get("costUsd")} if payload.get("usage") is not None else {}),
             }

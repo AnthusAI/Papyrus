@@ -76,7 +76,7 @@ def content_import_markus(flags: list[str]) -> None:
         mode = "dry run" if not apply else "applied"
         print(f"content import-markus ({mode}): ok={payload['ok']}")
         for key in (
-            "created", "updated", "unchanged", "skippedEditedInCms", "published",
+            "created", "updated", "unchanged", "skippedEditedInCms", "published", "storiesForAPerson",
             "mediaUploaded", "mediaUnchanged", "readerOwnedAssets",
         ):
             print(f"  {key}: {payload[key]}")
