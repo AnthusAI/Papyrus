@@ -362,12 +362,11 @@ def _delete_published_media(client, lineage_id: str, rows: list[dict]) -> list[s
 
 
 def publish_item(
-    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None, by_person: str | None = None
+    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None
 ) -> PublishResult:
     """Publish an item. ``approved_by`` names the signed-in person whose action this is (the console editor); a site that requires
     approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version.
-    ``by_person`` names the person publishing by hand (the console editor, the CLI in the signed-in lane): a pod-loaded, imported or translated Story
-    publishes only with it (``publish_by_person.py``). A schedule, an automation or an agent never passes it."""
+    The checklist of the lineage being published gates it, a translation's included (``story_checklist.require_checklist_closed``)."""
     now = now or utc_now_iso()
     item = _load_item(client, item_id)
     lineage_id = item.get("lineageId") or item_id
@@ -395,20 +394,16 @@ def publish_item(
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
     from .localization_publish import original_of, require_publishable
-    from .publish_by_person import require_person_act
     from .publish_gate import ensure_publish_approval
     from .story_checklist import ChecklistError, require_checklist_closed
 
-    require_person_act(client, item, by_person=by_person)   # the one rule that keeps unreviewed pod, import and translation Stories from publishing by themselves
     original = original_of(client, item)
     if original is not None:
-        require_publishable(client, item, original)   # a translation's checklist is its provenance; its gates are its original and any hold (localization_publish.py)
-    from .authored_editions import is_authored
-    if original is None or is_authored(item):
-        try:
-            require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
-        except ChecklistError as error:
-            raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
+        require_publishable(client, item, original)   # a translation is published only while its original is, and a hold on it is cleared (localization_publish.py)
+    try:
+        require_checklist_closed(client, item)   # the checklist of this lineage (a Story's or a language's): every required step done, or skipped / not applicable with a reason
+    except ChecklistError as error:
+        raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
     ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
     if item.get("type") == WIKI_PAGE_ITEM_TYPE:
         # A concept's own page is served in every language the site serves, so the concept's name is needed in each (a note in the work list; nothing is named now).
@@ -467,7 +462,7 @@ def publish_item(
             client.update_record("Item", superseding_update(sibling))
     from .content_item_lifecycle import is_story_item_type
 
-    if is_story_item_type(item.get("type")) and original is None:
+    if is_story_item_type(item.get("type")):
         from .story_checklist import mark_published
 
         mark_published(client, lineage_id, actor_label=actor)
