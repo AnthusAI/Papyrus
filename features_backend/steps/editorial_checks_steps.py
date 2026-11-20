@@ -630,11 +630,6 @@ def step_run_skipped(context):
     assert lane["status"] == "skipped" and "mission" in lane["reason"], lane
 
 
-@then('the check fails with "{text}"')
-def step_check_fails(context, text):
-    assert context.check_error is not None and text in str(context.check_error), context.check_error
-
-
 # --- papyrus editorial policies add / export ----------------------------------------
 
 
@@ -817,14 +812,6 @@ def step_xstory_names(context, slug, other):
 def step_no_xstory(context, slug):
     run = context.store.get_check_run(f"{slug}-v{2 if context.store.get_check_run(f'{slug}-v2') else 1}")
     assert not [f for f in run["findings"] if f["policyId"] == "cross-story-boilerplate"], run["findings"]
-
-
-@then('the "cross-story-boilerplate" finding does not name "{other}"')
-def step_xstory_not_naming(context, other):
-    for run in context.store.check_runs:
-        for finding in run["findings"]:
-            if finding["policyId"] == "cross-story-boilerplate":
-                assert other not in finding["message"], finding
 
 
 def _run_draft_check(context, body, story=None):

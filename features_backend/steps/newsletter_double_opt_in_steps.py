@@ -142,7 +142,6 @@ def answer_is(context, status: str) -> None:
 
 
 @then("{count:d} confirmation email is sent naming \"{name}\"")
-@then("{count:d} confirmation emails are sent naming \"{name}\"")
 def emails_naming(context, count: int, name: str) -> None:
     assert len(context.harness.ses.sent) == count, len(context.harness.ses.sent)
     assert name in context.harness.ses.sent[-1]["Content"]["Simple"]["Body"]["Text"]["Data"]

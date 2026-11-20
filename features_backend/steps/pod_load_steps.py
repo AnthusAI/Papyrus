@@ -246,11 +246,6 @@ def no_stories(context):
     assert not _newsroom(context).tables.get("Item"), _newsroom(context).tables.get("Item")
 
 
-@then("the load output says that nothing was published")
-def says_nothing_published(context):
-    assert "nothing was published" in context.output, context.output
-
-
 # ---- Then: what a note became ----------------------------------------------------------------------------------------
 
 @then('the story for the note "{path}" has the {field} "{value}"')

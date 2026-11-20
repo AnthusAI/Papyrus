@@ -115,7 +115,6 @@ def step_exists_scoped(context, key, scope, source):
 
 
 @then('that check detects the word "{word}"')
-@then('the publication check "avoid-lexicon" still detects the word "{word}"')
 def step_detects(context, word):
     assert word in words_of(check(context, PUBLICATION_ID)), check(context, PUBLICATION_ID)
 

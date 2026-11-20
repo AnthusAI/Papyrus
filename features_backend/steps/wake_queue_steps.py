@@ -224,7 +224,6 @@ def runner_takes(context):
 
 
 @when("the runner takes and finishes every message")
-@when("the runner takes every message")
 def takes_all(context):
     while context.queue.messages:
         take(context)
@@ -286,7 +285,6 @@ def ran_twice(context):
 
 
 @then("the message is deleted")
-@then("the first message is deleted")
 def is_deleted(context):
     assert context.error is None, context.error
     assert context.taken in context.deleted and context.taken not in context.queue.messages

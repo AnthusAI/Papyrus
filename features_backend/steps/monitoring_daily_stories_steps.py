@@ -204,7 +204,6 @@ def filed(context, publication=None):
 
 
 @then("{count:d} story drafts are filed, one per Reference, each citing its source")
-@then("{count:d} story draft is filed, one per Reference, each citing its source")
 def step_filed(context, count):
     rows = filed(context)
     assert len(rows) == count, len(rows)
@@ -265,11 +264,6 @@ def step_two_errors(context, publication):
 def step_one_error(context, publication):
     line = state(context).lines[publication]
     assert line["drafted"] == 2 and line["fileErrors"] == 1 and line["stoppedBy"] != "file_error", line
-
-
-@then("the model was asked exactly once")
-def step_once(context):
-    assert len(state(context).model.drafting) == 1, len(state(context).model.drafting)
 
 
 def check(context, publication, expected):

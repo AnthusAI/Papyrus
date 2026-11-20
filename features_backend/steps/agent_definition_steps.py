@@ -183,7 +183,6 @@ def step_accepted_plain(context):
 
 
 @then("the set is accepted with {count:d} definition")
-@then("the set is accepted with {count:d} definitions")
 def step_accepted(context, count):
     assert not context.loaded.problems and len(context.loaded.definitions) == count, context.loaded.problems
 

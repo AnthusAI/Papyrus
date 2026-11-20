@@ -106,17 +106,8 @@ def _runs_again(context):
 
 
 @then("the x queue holds {count:d} message")
-@then("the x queue holds {count:d} messages")
 def _queue_holds(context, count):
     assert len([1 for name, _ in context.caducus_queues.sent if name == "x"]) == count, context.caducus_queues.sent
-
-
-@then('the fake X server received {count:d} post with the text "{text}"')
-@then('the fake X server received {count:d} posts with the text "{text}"')
-def _x_received(context, count, text):
-    posted = [r for r in context.fake_x.requests if r["method"] == "POST" and r["path"] == "/2/tweets"]
-    assert len(posted) == count, posted
-    assert all(r["body"]["text"] == text or text in r["body"]["text"] for r in posted), posted
 
 
 @then("the fake X server holds {count:d} post")
@@ -128,12 +119,6 @@ def _x_holds(context, count):
 @then("every request to the fake X server carried the account's access token")
 def _token(context):
     assert context.fake_x.requests and all(r["authorization"] == "Bearer " + X_TOKEN for r in context.fake_x.requests), context.fake_x.requests
-
-
-@then("the fake X server was asked for the account's recent posts before it was asked to post again")
-def _recent_first(context):
-    kinds = [r["method"] for r in context.fake_x.requests]
-    assert kinds == ["POST", "GET"], kinds
 
 
 @then("the account's recent posts were read once and none was posted again")

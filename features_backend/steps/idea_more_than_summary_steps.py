@@ -203,7 +203,6 @@ def step_describes_story(context):
 
 
 @given("the model writes a story that rests on the comment and the editors' reason")
-@when("the model writes a story that rests on the comment and the editors' reason")
 def step_comment_story(context):
     model_says(context, story(dek=("A commenter says claim checking is overdue.", "M1", "I1"), body=[
         ("A commenter says claim checking is overdue for sourcing coverage.", "M1", "I1"),

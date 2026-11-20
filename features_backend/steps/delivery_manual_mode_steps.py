@@ -144,6 +144,5 @@ def attempt_names(context, channel, account, who):
 
 
 @step('the attempt log of the Delivery "{channel:M}" "{account:M}" has {count:d} entry')
-@step('the attempt log of the Delivery "{channel:M}" "{account:M}" has {count:d} entries')
 def attempt_count(context, channel, account, count):
     assert len(attempt_log(delivery(context, channel, account))) == count

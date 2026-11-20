@@ -161,11 +161,6 @@ def save_refused(context, code, text):
     assert error.code == code and text in error.message, error
 
 
-@then('the save warns "{text}"')
-def save_warns(context, text):
-    assert [w for w in context.derivation.warnings if text in w.message], context.derivation.warnings
-
-
 # ------------------------------------------------------------------ projecting
 
 class VideoSite:
@@ -276,11 +271,6 @@ def figure_caption(context, caption, credit):
     assert match, "no caption"
     assert match.group(1).startswith(caption + " · ")
     assert f'<span class="papyrus-image-credit"><a href="https://www.youtube.com/watch?v={VIDEO}' in match.group(1) and f">{credit}</a>" in match.group(1)
-
-
-@then("the page has no frame")
-def no_frame(context):
-    assert "<iframe" not in context.html.lower()
 
 
 @then("the stock rules give an Instagram frame a portrait ratio and a minimum height")
@@ -466,11 +456,6 @@ def checks_cited_on_site(context, url):
 @then("the check {key} looks fine")
 def check_fine(context, key):
     assert context.found[key]["state"] == "pass", context.found[key]
-
-
-@then('the check {key} looks fine saying "{text}"')
-def check_fine_saying(context, key, text):
-    assert context.found[key]["state"] == "pass" and text in context.found[key]["message"], context.found[key]
 
 
 @then('the check {key} needs a look saying "{text}"')

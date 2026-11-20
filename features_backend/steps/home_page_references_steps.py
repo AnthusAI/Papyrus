@@ -211,15 +211,6 @@ def card_confidence(context, title: str, text: str, icon: str, filled: int) -> N
     assert card.count("home-page-meter-segment--filled") == filled, card
 
 
-@then('the row card for "{title}" shows "{text}" with a visually hidden "confidence" label, a "{icon}" icon and a meter with {filled:d} filled segments')
-def row_card_confidence(context, title: str, text: str, icon: str, filled: int) -> None:
-    card = card_titled(context, title, ("rows/index.html",))
-    assert card.startswith('<div class="home-page-row"'), card
-    assert f'<span class="home-page-confidence-value">{text}<span class="home-page-visually-hidden"> confidence</span></span>' in card, card
-    assert f'data-icon="{icon}"' in card, card
-    assert card.count("home-page-meter-segment--filled") == filled, card
-
-
 @then('the card for "{title}" shows no confidence')
 def card_no_confidence(context, title: str) -> None:
     card = card_titled(context, title)

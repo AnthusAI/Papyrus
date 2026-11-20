@@ -146,6 +146,3 @@ def step_no_cut(context):
     assert "bodyTruncatedForLabLimit" not in context.table_.items[("MONITOR#hn", "DISC#101#000001")]
 
 
-@then("the captured text kept for the editors is whole")
-def step_whole(context):
-    assert context.enricher.texts.objects[context.table_.items[ROW]["textKey"]] == context.article

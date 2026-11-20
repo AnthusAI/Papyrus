@@ -164,11 +164,6 @@ def _rate(context, stars, stage="published", by="ada"):
     deliver(context, ("MODIFY", old, new))
 
 
-@given('the published Story "{story}" is rated {stars:d} stars')
-def already_rated(context, story, stars):
-    context.rating = stars
-
-
 @when('a person rates the published Story "{story}" {stars:d} stars')
 def rates_published(context, story, stars):
     _rate(context, stars)
@@ -236,7 +231,6 @@ def _wakes(context):
     return [json.loads(message.body) for message in context.queue.messages]
 
 
-@then("the queue holds {count:d} wake")
 @then("the queue holds {count:d} wakes")
 def holds(context, count):
     assert len(context.queue.messages) == count, f"{len(context.queue.messages)} wakes: {[w['wake']['key'] for w in _wakes(context)]}"

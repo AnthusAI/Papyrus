@@ -354,11 +354,6 @@ def step_two_drafted(context):
     assert state(context).line["drafted"] == 2, state(context).line
 
 
-@then("the log line shows no raised curation flag")
-def step_no_flag_line(context):
-    assert state(context).line["curationFlag"] != "raised", state(context).line
-
-
 @given("the router has {seconds:d} seconds left when a publication starts")
 def step_budget_given(context, seconds):
     reset(context)
@@ -391,14 +386,6 @@ def step_budget_run(context):
         patches.undo()
     current.seen, current.remaining = seen, remaining
     current.checks = lambda left: (remaining.__setitem__(0, left), seen["out_of_time"](), seen["vector_out_of_time"]())[1:]
-
-
-@then("drafting is out of time at {drafting:d} seconds left and the vector pass at {vectors:d} seconds left")
-def step_budget_then(context, drafting, vectors):
-    check = state(context).checks
-    assert check(vectors + 1) == (False, False)
-    assert check(vectors - 1) == (False, True)
-    assert check(drafting - 1) == (True, True)
 
 
 @given("the router package modules computed from this repository")

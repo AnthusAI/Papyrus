@@ -172,23 +172,8 @@ def model_operation(context, operation, model):
     raise NotImplementedError(PENDING)
 
 
-@when('the "alpha" session calls {query} at one of "beta\'s" keys')
-def index_call(context, query):
-    raise NotImplementedError(PENDING)
-
-
 @when('the "alpha" session subscribes to {event} on {model} while "beta" writes')
 def subscribes(context, event, model):
-    raise NotImplementedError(PENDING)
-
-
-@when('the "alpha" session calls {operation} with "beta\'s" ids')
-def custom_operation(context, operation):
-    raise NotImplementedError(PENDING)
-
-
-@when('the "alpha" session reaches the {function} function with an event naming "beta"')
-def reaches_function(context, function):
     raise NotImplementedError(PENDING)
 
 

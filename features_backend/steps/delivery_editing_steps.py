@@ -153,11 +153,6 @@ def person_saves_block_text(context, who, number, channel, account):
     context.saved = attempt(context, lambda: versions_of(context).save(row_of(context, channel, account)["id"], replaces=number, text=context.text, by=who, now=context.now))
 
 
-@step('the person "{who:Q}" saves version {number:d} of the Delivery "{channel:Q}" "{account:Q}" with the picture "{image:Q}"')
-def person_saves_picture(context, who, number, channel, account, image):
-    context.saved = attempt(context, lambda: versions_of(context).save(row_of(context, channel, account)["id"], replaces=number, image_key=image, by=who, now=context.now))
-
-
 @step('the machine redrafts version {number:d} of the Delivery "{channel:Q}" "{account:Q}" with these words')
 def machine_redrafts_block_text(context, number, channel, account):
     context.saved = attempt(context, lambda: versions_of(context).redraft(row_of(context, channel, account)["id"], replaces=number, text=context.text, by="announce", now=context.now))
@@ -406,12 +401,6 @@ def due_for_lock(context, channel, account, when):
     assert row_of(context, channel, account)["dueAt"] == when
 
 
-@step('the person "{who:Q}" approves the locked version of the Delivery "{channel:Q}" "{account:Q}"')
-def approves_current(context, who, channel, account):
-    row = row_of(context, channel, account)
-    attempt(context, lambda: context.deliveries.approve(row, version=int(row["version"]), by=who, now=context.now))
-
-
 @when('the person "{who:Q}" unlocks the Delivery "{channel:Q}" "{account:Q}" to lock again at "{lock:Q}"')
 def person_unlocks(context, who, channel, account, lock):
     context.unlocked = attempt(context, lambda: delivery_lock.unlock(context.deliveries, row_of(context, channel, account)["id"], by=who, now=context.now, lock_at=lock))
@@ -569,7 +558,6 @@ def timers_time_arrives(context, moment):
 
 
 @then("the wake queue holds {count:d} message")
-@then("the wake queue holds {count:d} messages")
 def wake_count(context, count):
     assert len(context.queue.messages) == count, [m.body for m in context.queue.messages]
 
@@ -623,12 +611,6 @@ def agent_at_rung(context, rung, channel, kind):
     store = _policy(context, rung)
     context.agent_run = GateRun(store.read(TENANT), review_policy.RESPONSIBILITY, "run-1", {"channel": channel, "kind": kind})
     context.agent = Caller(kind="agent", subject="announce", gate_run=context.agent_run)
-
-
-@when('the announce agent asks the door to "{name:Q}" the Delivery "{channel:Q}" "{account:Q}"')
-def agent_asks_door(context, name, channel, account):
-    arguments = {"delivery": row_of(context, channel, account)["id"]}
-    context.envelope = execute(f"announcements_{name}", arguments, context.agent, _handlers(context))
 
 
 @when('the announce agent asks the door to unlock the Delivery "{channel:Q}" "{account:Q}"')
@@ -706,13 +688,7 @@ def door_no_words(context):
     assert "newsroom/payloads" not in text and '"text"' not in text, text
 
 
-@then('the Delivery "{channel:Q}" "{account:Q}" is unchanged since the writes were remembered')
-def unchanged_since(context, channel, account):
-    assert len(context.backend.writes) == context.writes_before, context.backend.writes[context.writes_before:]
-
-
 @then("exactly {count:d} review request has been raised for the Deliveries")
-@then("exactly {count:d} review requests have been raised for the Deliveries")
 def review_requests_raised(context, count):
     assert len(context.backend.rows("ReviewRequest")) == count, context.backend.rows("ReviewRequest")
 

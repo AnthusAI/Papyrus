@@ -115,10 +115,3 @@ Feature: Subscribers and consent live in notifications
     When the command runs with the freeze statement and the date "2027-06-30"
     And the command verifies
     Then it reports that every count matches
-
-  # The newsletter plugin's subscriber, consent and suppression code is deleted in the change that follows the verified move of
-  # both Shipped and Distinctive; until then this cannot be true, so the scenario waits.
-  @wip
-  Scenario: One owner
-    Given the migration is verified on every site
-    Then no code in the newsletter plugin reads or writes a subscriber, consent or suppression row

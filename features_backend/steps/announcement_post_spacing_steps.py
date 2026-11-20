@@ -45,7 +45,6 @@ def decision_delivery_is(context, key, channel, account, state):
     assert row_for(context, key, channel, account)["state"] == state
 
 
-@then('the Delivery of "{key:Q}" for "{channel:Q}" "{account:Q}" has {count:d} attempt')
 @then('the Delivery of "{key:Q}" for "{channel:Q}" "{account:Q}" has {count:d} attempts')
 def decision_delivery_attempts(context, key, channel, account, count):
     assert len(attempt_log(row_for(context, key, channel, account))) == count

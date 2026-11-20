@@ -190,7 +190,6 @@ def step_planned_line(context, publication, count):
 
 
 @then("{count:d} story drafts are filed by the workers, one per Reference")
-@then("{count:d} story draft is filed by the workers, one per Reference")
 def step_filed(context, count):
     client = state(context).client
     assert len(client.filed) == count, len(client.filed)

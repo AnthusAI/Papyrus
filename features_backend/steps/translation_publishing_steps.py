@@ -121,7 +121,6 @@ def step_ready_draft(context):
     assert context.client.get_record("PublishedItem", published_item_id_for(LINEAGE)) is None
 
 
-@given("a person unpublishes the translation")
 @when("a person unpublishes the translation")
 def step_unpublish(context):
     version = _translation(context)

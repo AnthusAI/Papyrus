@@ -302,12 +302,6 @@ def step_refused(context):
     assert context.refused is not None and context.model.requests == []
 
 
-@then("the run records a pending review of {count:d} idea that was not requested from anyone")
-def step_review(context, count):
-    review = context.run["review"]
-    assert (review["status"], review["requested"], review["ideas"]) == ("pending", False, count), review
-
-
 @then('one soft review "{reason}" is open with no deadline')
 def step_one_review(context, reason):
     (request,) = [review_requests.read_review(row) for row in client_of(context).reviews.values()]

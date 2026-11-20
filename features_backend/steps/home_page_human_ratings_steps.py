@@ -80,12 +80,6 @@ def snapshot_has_run(context) -> None:
     context.before = document(context)
 
 
-@when("editors rate these References: {ratings} and the home-page-snapshot task runs")
-def rate_and_run(context, ratings: str) -> None:
-    editors_rated(context, ratings)
-    run_snapshot(context)
-
-
 @when('an editor rates "{title}" {stars:d} stars and the home-page-snapshot task runs again')
 def rate_and_run_again(context, title: str, stars: int) -> None:
     rate(context, title, stars)

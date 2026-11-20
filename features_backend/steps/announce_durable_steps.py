@@ -210,12 +210,6 @@ def duplicates(context):
     assert any(run[0] == "duplicate" for run in context.runs) or len(context.runs) == 1, context.runs
 
 
-@then('the announce agent\'s last run made nothing and said "{reason}"')
-def made_nothing(context, reason):
-    result = context.runs[-1][1]
-    assert result.outcome is None and result.reason == reason, (result.reason, result.code)
-
-
 @then('the announce agent\'s last run made nothing and gave the reason code "{code}"')
 def made_nothing_code(context, code):
     result = context.runs[-1][1]
