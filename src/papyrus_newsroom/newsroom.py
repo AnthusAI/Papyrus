@@ -1657,34 +1657,6 @@ def _assignment_doctrine_context(assignment: dict[str, Any]) -> list[dict[str, A
              "contextHash": pack["contextHash"]} for entry in pack["entries"]]
 
 
-def _newsroom_section_by_id(section_id: Any) -> dict[str, Any] | None:
-    key = str(section_id or "").strip()
-    if not key:
-        return None
-    try:
-        data = execute_graphql(GET_NEWSROOM_SECTION_QUERY, {"id": key})
-    except Exception:
-        return None
-    section = data.get("getNewsroomSection")
-    if not isinstance(section, dict):
-        return None
-    return _decode_record_json(section)
-
-
-def _doctrine_item_by_slug(slug: str) -> dict[str, Any] | None:
-    try:
-        data = execute_graphql(GET_DOCTRINE_BY_SLUG_QUERY, {"slug": slug, "limit": 10})
-    except Exception:
-        return None
-    connection = data.get("itemBySlug") or {}
-    items = connection.get("items") or []
-    for item in items:
-        decoded = _decode_record_json(item)
-        if decoded.get("type") == "doctrine" and decoded.get("status") in {"private", "published"}:
-            return decoded
-    return _decode_record_json(items[0]) if items else None
-
-
 def _normalize_string_array(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -1959,13 +1931,6 @@ def papyrus_get_reference(reference_id: str) -> dict[str, Any]:
     return _semantic_client().get_reference(reference_id)
 
 
-def papyrus_find_reference(corpus_id: str, external_item_id: str) -> dict[str, Any]:
-    """
-    Find Reference metadata by corpus id plus external item id.
-    """
-    return _semantic_client().find_reference(corpus_id, external_item_id)
-
-
 def papyrus_email_submission_process(
     *,
     message_id: str,
@@ -1987,19 +1952,6 @@ def papyrus_email_submission_process(
         message_id=str(message_id).strip(),
         corpus_key=corpus_key or default_corpus_key(),
         apply=apply,
-    )
-
-
-def papyrus_list_reference_attachments(
-    reference_lineage_id: str | None = None,
-    reference_version_key: str | None = None,
-) -> dict[str, Any]:
-    """
-    List private attachment metadata for one Reference lineage or exact version.
-    """
-    return _semantic_client().list_reference_attachments(
-        reference_lineage_id=reference_lineage_id,
-        reference_version_key=reference_version_key,
     )
 
 
@@ -2512,67 +2464,6 @@ def papyrus_resolve_uri(uri: str) -> dict[str, Any]:
     Resolve a papyrus:// object URI to the current GraphQL object when possible.
     """
     return _semantic_client().resolve_uri(uri)
-
-
-def papyrus_semantic_outgoing(subject_kind: str, subject_lineage_id: str) -> dict[str, Any]:
-    """
-    List current SemanticRelation rows leaving one subject lineage.
-    """
-    return _semantic_client().list_outgoing(subject_kind, subject_lineage_id)
-
-
-def papyrus_semantic_incoming(object_kind: str, object_lineage_id: str) -> dict[str, Any]:
-    """
-    List current SemanticRelation rows pointing at one object lineage.
-    """
-    return _semantic_client().list_incoming(object_kind, object_lineage_id)
-
-
-def papyrus_semantic_neighbors(kind: str, lineage_id: str, direction: str = "both") -> dict[str, Any]:
-    """
-    List one-hop semantic neighbors around a Reference, Item, Category, or SemanticNode.
-    """
-    return _semantic_client().neighbors(kind, lineage_id, direction=direction)
-
-
-def papyrus_references_for_category(category_lineage_id: str) -> dict[str, Any]:
-    """
-    List Reference relations classified under a category lineage.
-    """
-    return _semantic_client().references_for_category(category_lineage_id)
-
-
-def papyrus_references_for_semantic_node(node_lineage_id: str, predicate: str | None = None) -> dict[str, Any]:
-    """
-    List Reference relations attached to a semantic node, optionally predicate-scoped.
-    """
-    return _semantic_client().references_for_semantic_node(node_lineage_id, predicate=predicate)
-
-
-def papyrus_items_using_reference(reference_lineage_id: str) -> dict[str, Any]:
-    """
-    List Item relations that point at a Reference as evidence or context.
-    """
-    return _semantic_client().items_using_reference(reference_lineage_id)
-
-
-def papyrus_semantic_walk(
-    start_kind: str,
-    start_lineage_id: str,
-    depth: int = 2,
-    predicates: list[str] | None = None,
-    kinds: list[str] | None = None,
-) -> dict[str, Any]:
-    """
-    Walk the private semantic graph from one lineage with bounded depth.
-    """
-    return _semantic_client().walk(
-        start_kind=start_kind,
-        start_lineage_id=start_lineage_id,
-        depth=depth,
-        predicates=predicates,
-        kinds=kinds,
-    )
 
 
 def papyrus_search_semantic_nodes(query: str, limit: int = 10, category_set_id: str = "") -> dict[str, Any]:
@@ -3973,18 +3864,6 @@ def _content_hash(record: dict[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
-def _iam_signed_graphql_headers(endpoint: str, body: bytes) -> dict[str, str]:
-    from papyrus_content.graphql_http import iam_signed_graphql_headers
-
-    return iam_signed_graphql_headers(endpoint, body)
-
-
-def _region_from_appsync_host(host: str) -> str:
-    from papyrus_content.graphql_http import region_from_appsync_host
-
-    return region_from_appsync_host(host)
-
-
 def _hydrate_assignment_payloads(assignment: dict[str, Any]) -> None:
     metadata = _read_json_model_payload("assignment", assignment.get("id"), "metadata", "metadata")
     if metadata is not None:
@@ -4896,13 +4775,6 @@ def _build_assignment_context_blocks(
     return [block for block in blocks if block.get("text")]
 
 
-def _format_doctrine_block(title: str, records: list[dict[str, Any]]) -> str:
-    lines = [title]
-    for record in records:
-        lines.append(f"- {record.get('label')}: {' '.join(_string_list(record.get('body') or []))}")
-    return "\n".join(lines)
-
-
 def _format_category_block(label: str, category: dict[str, Any]) -> str:
     lines = [
         f"{label}: {category.get('displayName') or category.get('categoryKey')}",
@@ -4916,47 +4788,6 @@ def _format_category_block(label: str, category: dict[str, Any]) -> str:
     if aliases:
         lines.append(f"aliases: {', '.join(aliases[:8])}")
     return "\n".join(lines)
-
-
-def _format_inclusion_risk_block(
-    assignment: dict[str, Any],
-    *,
-    lane_key: str,
-    profile_key: str,
-    publication_doctrine: list[dict[str, Any]],
-    desk_doctrine: list[dict[str, Any]],
-) -> str:
-    checks_by_lane = {
-        "reporting": [
-            "Prefer verifiable and recent developments over broad thesis claims.",
-            "Prioritize concrete operational evidence, cited outputs, and audit trails.",
-            "Surface human review boundaries, failure modes, and unresolved uncertainty.",
-        ],
-        "analysis": [
-            "Prefer patterns that can be compared across multiple systems or episodes.",
-            "Include counterevidence, uncertainty, and where the evidence base is thin.",
-            "Distinguish operational facts from interpretation or extrapolation.",
-        ],
-        "briefs": [
-            "Prefer concise developments with a clear why-now and evidence trail.",
-            "Avoid speculative framing when the evidence only supports a narrow update.",
-            "Keep the evidence ask compact enough for a short-form publication lane.",
-        ],
-    }
-    checks = checks_by_lane.get(lane_key, checks_by_lane["reporting"])
-    doctrine_summary = []
-    if publication_doctrine:
-        doctrine_summary.append("Apply publication mission and policies as the primary inclusion standard.")
-    if desk_doctrine:
-        doctrine_summary.append("Apply section doctrine as the local beat standard before narrowing the angle.")
-    else:
-        doctrine_summary.append("No section doctrine is available; continue with publication doctrine and report the gap.")
-    return "\n".join([
-        f"Inclusion and risk profile: {profile_key}",
-        f"assignment: {assignment.get('title') or assignment.get('id')}",
-        *[f"- {entry}" for entry in doctrine_summary],
-        *[f"- {entry}" for entry in checks],
-    ])
 
 
 def _format_fresh_evidence_block(

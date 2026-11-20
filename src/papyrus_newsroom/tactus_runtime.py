@@ -83,10 +83,6 @@ _JS_SHAPE_API_CALL_RE = re.compile(
 _EXECUTE_TACTUS_CONTRACT_VERSION = "execute_tactus_snippet_contract_v1"
 
 
-def _normalize_tactus_whitespace(value: str) -> str:
-    return " ".join(str(value or "").split())
-
-
 def _normalize_tactus_identifier(value: str) -> str:
     return re.sub(r"\s+", "", str(value or ""))
 

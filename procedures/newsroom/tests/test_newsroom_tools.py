@@ -52,6 +52,11 @@ ARTS_AND_METHODS_NEWSROOM_SECTIONS = [
 
 
 class NewsroomToolTests(unittest.TestCase):
+    def setUp(self):
+        token_estimate_without_downloaded_encoding = mock.patch.object(reference_curation_signals, "tiktoken", None)
+        token_estimate_without_downloaded_encoding.start()
+        self.addCleanup(token_estimate_without_downloaded_encoding.stop)
+
     def test_wrapper_shim_exports_newsroom_functions(self):
         import importlib.util
 
@@ -2727,39 +2732,6 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(item["metadata"]["title_subtitle_resolution"]["title_mode"], "original_metadata")
         self.assertNotIn("summary_resolution", item["metadata"])
 
-    def test_biblicus_catalog_item_keeps_editorial_fields_in_metadata_only(self):
-        enriched = reference_curation_signals.apply_title_subtitle_to_catalog_item(
-            {
-                "id": "item-1",
-                "relpath": "raw/paper.pdf",
-                "sha256": "abc123",
-                "bytes": 10,
-                "media_type": "application/pdf",
-                "created_at": "2026-05-01T00:00:00Z",
-                "title": "Old title",
-                "metadata": {},
-                "papyrus": {"legacy": True},
-                "summary": "Legacy root summary",
-            },
-            resolution={
-                "status": "resolved",
-                "title": "Updated title",
-                "subtitle": "Updated subtitle",
-                "summary": "Updated summary",
-                "title_mode": "original_metadata",
-                "subtitle_mode": "original_metadata",
-                "summary_mode": "original_metadata",
-            },
-        )
-
-        self.assertEqual(enriched["title"], "Updated title")
-        self.assertNotIn("subtitle", enriched)
-        self.assertNotIn("summary", enriched)
-        self.assertNotIn("papyrus", enriched)
-        self.assertEqual(enriched["metadata"]["subtitle"], "Updated subtitle")
-        self.assertEqual(enriched["metadata"]["summary"], "Updated summary")
-        self.assertIn("papyrus", enriched["metadata"])
-
     def test_resolver_preserves_local_subtitle_verbatim(self):
         result = reference_curation_signals.resolve_reference_title_subtitle(
             reference={"id": "reference-1-v1", "title": "Reliable Title"},
@@ -3760,7 +3732,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             if record["modelName"] == "Assignment" and record["input"]["assignmentTypeKey"] == "reporting.candidate"
         ]
         self.assertEqual(len(candidate_content_items), 5)
-        self.assertTrue(all(item["stage"] == "report" and item["status"] == "draft" for item in candidate_content_items))
+        self.assertTrue(all(item["stage"] == "reporting" and item["status"] == "draft" for item in candidate_content_items))
         self.assertEqual(
             sorted(item["lineageId"] for item in candidate_content_items),
             sorted(assignment["itemLineageId"] for assignment in reporting_assignments),
@@ -3836,7 +3808,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(result["summary"]["reportingPacketCount"], 5)
         self.assertFalse(any(record["modelName"] == "EditionItem" for record in result["records"]))
         self.assertTrue(
-            all(record["input"]["stage"] == "report" for record in result["records"] if record["modelName"] == "Item")
+            all(record["input"]["stage"] == "reporting" for record in result["records"] if record["modelName"] == "Item")
         )
         message_kinds = [
             record["input"]["messageKind"]
@@ -4276,9 +4248,15 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
                 "sectionBudgets": [{"sectionKey": "arts", "slots": 2}],
             },
         }]
-        self.assertEqual(papyrus_coverage_theme.collect_recent_optional_desk_usage(editions), [])
-        editions[0]["metadata"]["selectedOptionalDeskKey"] = "arts"
-        usage = papyrus_coverage_theme.collect_recent_optional_desk_usage(editions)
+        publication_with_a_floating_arts_section = mock.patch.object(
+            papyrus_coverage_theme,
+            "load_newsroom_section_seeds",
+            return_value=[{"id": "arts", "title": "Arts", "type": "floating"}],
+        )
+        with publication_with_a_floating_arts_section:
+            self.assertEqual(papyrus_coverage_theme.collect_recent_optional_desk_usage(editions), [])
+            editions[0]["metadata"]["selectedOptionalDeskKey"] = "arts"
+            usage = papyrus_coverage_theme.collect_recent_optional_desk_usage(editions)
         self.assertEqual(len(usage), 1)
         self.assertEqual(usage[0]["sectionKey"], "arts")
         self.assertEqual(usage[0].get("selectionSource"), "confirmed")

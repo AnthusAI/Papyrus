@@ -203,15 +203,11 @@ jobs:
           poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py src/papyrus_content/mcp_story_atomic_test.py src/papyrus_content/mcp_story_transaction_test.py src/papyrus_content/mcp_publish_request_test.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
-      #   test_newsroom_tools            PPY-7e2ca6 (needs local poetry/Biblicus/corpora)
-      #   test_papyrus_content           PPY-7e2ca6 (needs local uv/corpora)
       # pytest-xdist: one worker per vCPU.
       - name: Python unit tests
         run: |
           poetry run pytest -q -n auto \
             --ignore=procedures/newsroom/tests/test_content_cli_live.py \
-            --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
-            --ignore=procedures/newsroom/tests/test_papyrus_content.py
 
   # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
   # Feature files live in one directory per product area (features_backend/README.md). Sorted by path; shard N takes every third file starting at N, so the shards partition features_backend exactly.
