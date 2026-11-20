@@ -33,10 +33,6 @@ def web_search_chain_names(value: Any = None) -> list[str]:
     return chain_names(parse_names(value) or None)
 
 
-def configured_web_search_provider() -> WebSearchProviderName:
-    return normalize_web_search_provider(None)
-
-
 def reference_web_search(
     *,
     query: str,

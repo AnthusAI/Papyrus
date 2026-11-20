@@ -794,48 +794,6 @@ def _pipeline_stats_html(
     )
 
 
-def is_agent_intake_acknowledgment(report: dict[str, Any]) -> bool:
-    if str(report.get("intakeClassification") or "").strip() != "agent_intake":
-        return False
-    result = report.get("processingResult")
-    if isinstance(result, dict) and str(result.get("mode") or "").strip() == "agent_intake":
-        return True
-    return int(report.get("directCitationCount") or 0) > 1
-
-
-def format_agent_intake_feedback_email(report: dict[str, Any]) -> tuple[str, str, str]:
-    subject_line = str(report.get("subject") or "your submission")
-    subject = f"Re: {subject_line} — received for agent intake"
-    message_id = str(report.get("messageId") or "(unknown)")
-    citation_count = int(report.get("directCitationCount") or 0)
-    body_text = "\n".join(
-        [
-            "Papyrus received your email submission.",
-            "",
-            f"We found {citation_count} link(s) and started the intake agent to file relevant references",
-            "(newsletter-style submissions may include many links — footer and unsubscribe links are skipped).",
-            "",
-            "You will receive another message when individual references are registered and summarized.",
-            "",
-            f"Message ID: {message_id}",
-        ]
-    )
-    message_id_html = html.escape(message_id)
-    body_html = (
-        f'<!DOCTYPE html><html><body style="margin:0;padding:0;background:{_EMAIL_PAPER};color:{_EMAIL_INK};">'
-        f'<div style="max-width:640px;margin:0 auto;padding:calc({_EMAIL_RHYTHM_PX}px * 1.5) 16px;">'
-        f'<div style="background:{_EMAIL_PAPER};border:1px solid {_EMAIL_RULE};padding:calc({_EMAIL_RHYTHM_PX}px * 1.5);">'
-        f'<p style="margin:0 0 {_EMAIL_RHYTHM_PX}px;font-family:{_EMAIL_SERIF};font-size:22px;font-weight:900;">'
-        f"Submission received</p>"
-        f'<p style="{_email_story_label_style(margin="0 0 8px")}">Message {message_id_html}</p>'
-        f'<p style="margin:0;color:{_EMAIL_INK};font-family:{_EMAIL_SANS};font-size:14px;line-height:1.5;">'
-        f"We found <strong>{citation_count}</strong> link(s) and started the intake agent to file relevant "
-        f"references. Newsletter-style mail may include many links; navigation and unsubscribe URLs are skipped."
-        f"</p></div></div></body></html>"
-    )
-    return subject, body_text, body_html
-
-
 def format_submission_feedback_email(report: dict[str, Any]) -> tuple[str, str, str]:
     if is_unregistered_sender_rejection(report):
         return format_unregistered_sender_feedback_email(report)

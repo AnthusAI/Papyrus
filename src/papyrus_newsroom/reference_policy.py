@@ -29,19 +29,6 @@ def normalize_reference_curation_status(value: Any, default: str = "pending") ->
     return "pending"
 
 
-def reference_curation_status_for_action(action: str) -> str:
-    normalized = _normalize_policy_token(action)
-    if normalized == "accept":
-        return "accepted"
-    if normalized == "reject":
-        return "rejected"
-    if normalized == "archive":
-        return "archived"
-    if normalized == "reopen":
-        return "pending"
-    raise ValueError(f"Unsupported reference curation action {action}.")
-
-
 def normalize_reference_rejection_reason_code(value: Any) -> str | None:
     normalized = _normalize_policy_token(value)
     if not normalized:
