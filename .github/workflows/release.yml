@@ -109,16 +109,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: develop
           fetch-depth: 0
-      - name: Merge main back into develop
+      # develop and main take changes only through a pull request with green `ts` and `python` (the ruleset, infra/pipeline/protect-branches.sh), so
+      # the merge goes up as a pull request from its own branch. The workflow token cannot start the pull_request run, so the tests are dispatched on
+      # the branch (tests.yml has workflow_dispatch) and report the same two checks on the branch tip, which is the pull request's tip.
+      - name: Merge main into a branch and open the pull request
         env:
           RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="back-merge/v${RELEASE_VERSION}"
+          git checkout -b "$branch"
           git merge --no-edit origin/main -m "chore: merge main back into develop after v${RELEASE_VERSION}"
-          git push origin HEAD:develop
+          git push origin "$branch"
+          gh pr create --base develop --head "$branch" --title "chore: merge main back into develop after v${RELEASE_VERSION}" \
+            --body "Git Flow back-merge of the v${RELEASE_VERSION} release (opened by release.yml). Merges itself when ts and python pass."
+          gh workflow run tests.yml --ref "$branch"
+          gh pr merge "$branch" --auto --merge
