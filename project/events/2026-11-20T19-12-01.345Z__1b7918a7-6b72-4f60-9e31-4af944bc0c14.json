@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "1b7918a7-6b72-4f60-9e31-4af944bc0c14",
+  "issue_id": "PPY-8b131e10-6f54-409c-886b-62bc59e38b21",
+  "event_type": "comment_added",
+  "occurred_at": "2026-11-20T19:12:01.345Z",
+  "actor_id": "ryan",
+  "payload": {
+    "comment_id": "f2095d0b-282a-4147-ae31-ab5599452457",
+    "comment_author": "ryan",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "CLI and MCP thread"
+    }
+  }
+}
