@@ -841,6 +841,10 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | operation                            | outcome                              |
       | abortModelAttachmentUpload           | denied, or returns nothing of "beta" |
       | addStoryAgentNote                    | denied, or returns nothing of "beta" |
+      | agentRequestStoryPublish             | denied, or returns nothing of "beta" |
+      | agentReviewReferenceCuration         | denied, or returns nothing of "beta" |
+      | agentSaveStoryDraft                  | denied, or returns nothing of "beta" |
+      | agentSetItemStars                    | denied, or returns nothing of "beta" |
       | announcementsPause                   | denied, or returns nothing of "beta" |
       | announcementsRead                    | denied, or returns nothing of "beta" |
       | announcementsSaveSettings            | denied, or returns nothing of "beta" |
@@ -1020,6 +1024,10 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | localization-dispatch      | iam-call-without-tenant          | refused before any read            |
       | manage-user-role           | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | manage-user-role           | iam-call-without-tenant          | refused before any read            |
+      | mcp-oauth                  | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | mcp-oauth                  | iam-call-without-tenant          | refused before any read            |
+      | mcp-tools                  | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | mcp-tools                  | iam-call-without-tenant          | refused before any read            |
       | model-attachment-upload    | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | model-attachment-upload    | iam-call-without-tenant          | refused before any read            |
       | monitoring-view            | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |

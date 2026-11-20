@@ -6,8 +6,8 @@
     "modelCases": 505,
     "indexCases": 230,
     "subscriptionCases": 9,
-    "operationCases": 136,
-    "functionCases": 72,
+    "operationCases": 140,
+    "functionCases": 76,
     "surfaceCases": 9
   },
   "cases": [
@@ -5980,6 +5980,38 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "operation:agentRequestStoryPublish",
+      "kind": "operation",
+      "subject": "agentRequestStoryPublish",
+      "operation": "call-scope",
+      "probe": "alpha calls agentRequestStoryPublish with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:agentReviewReferenceCuration",
+      "kind": "operation",
+      "subject": "agentReviewReferenceCuration",
+      "operation": "call-with-foreign-ids",
+      "probe": "alpha calls agentReviewReferenceCuration with \"beta\"'s ids for referenceId, lineageId",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:agentSaveStoryDraft",
+      "kind": "operation",
+      "subject": "agentSaveStoryDraft",
+      "operation": "call-scope",
+      "probe": "alpha calls agentSaveStoryDraft with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:agentSetItemStars",
+      "kind": "operation",
+      "subject": "agentSetItemStars",
+      "operation": "call-with-foreign-ids",
+      "probe": "alpha calls agentSetItemStars with \"beta\"'s ids for itemId, lineageId",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "operation:announcementsPause",
       "kind": "operation",
       "subject": "announcementsPause",
@@ -7337,6 +7369,38 @@
       "subject": "manage-user-role",
       "operation": "iam-call-without-tenant",
       "probe": "the platform operator role invokes amplify/functions/manage-user-role without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
+      "id": "function:mcp-oauth",
+      "kind": "function",
+      "subject": "mcp-oauth",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/mcp-oauth (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:mcp-oauth:iam-without-tenant",
+      "kind": "function",
+      "subject": "mcp-oauth",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/mcp-oauth without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
+      "id": "function:mcp-tools",
+      "kind": "function",
+      "subject": "mcp-tools",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/mcp-tools (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:mcp-tools:iam-without-tenant",
+      "kind": "function",
+      "subject": "mcp-tools",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/mcp-tools without naming a tenant",
       "expect": "refused before any read"
     },
     {

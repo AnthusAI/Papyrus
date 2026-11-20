@@ -107,6 +107,15 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Shared chat browser acceptance
         run: npm run test:shared-chat
+      - name: MCP transport, OAuth and Apps
+        run: |
+          npm run test:mcp-integration
+          npx tsx scripts/test-mcp-transport.ts
+          npx tsx scripts/test-mcp-oauth-runtime.ts
+          npx tsx scripts/test-mcp-oauth-browser.ts
+          npx cucumber-js --profile mcpCards
+          npx cucumber-js --profile mcpTransport
+          npx cucumber-js --profile mcpOAuth
 
   # `npm test` as three shards. The file list is the same set of globs package.json's `test` script uses, sorted, and shard N takes every
   # third file starting at N; the three shards together are exactly the files `npm test` would run, none dropped, none repeated.
@@ -188,6 +197,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/python-deps
+      - uses: ./.github/actions/node-deps
+      - name: MCP private services and domain behavior
+        run: |
+          poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py src/papyrus_content/mcp_story_atomic_test.py src/papyrus_content/mcp_story_transaction_test.py src/papyrus_content/mcp_publish_request_test.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
       #   test_references_commands       PPY-c22e1c (stale assertions)

@@ -135,10 +135,11 @@ assert.deepEqual(resolveSiteBackendFeatureFlags(undefined, allOff, newSiteMain),
   storageBackups: false,
   cliRemoteLogin: false,
   cliOnFederationClient: false,
+  mcp: false,
 });
 assert.deepEqual(
   resolveSiteBackendFeatureFlags(undefined, { ...allOff, PAPYRUS_ENABLE_INBOUND_EMAIL: "true", PAPYRUS_ENABLE_STORAGE_BACKUPS: "1" }, newSiteMain),
-  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true, cliRemoteLogin: false, cliOnFederationClient: false },
+  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true, cliRemoteLogin: false, cliOnFederationClient: false, mcp: false },
 );
 assert.equal(
   resolveSiteBackendFeatureFlags({ inboundEmail: false }, { PAPYRUS_ENABLE_INBOUND_EMAIL: "true" }, newSiteMain).inboundEmail,
@@ -151,7 +152,7 @@ assert.equal(defaultsNewSite.storageBackups, false);
 assert.equal(defaultsNewSite.slack, false);
 const defaultsLegacy = resolveSiteBackendFeatureFlags(undefined, {}, legacyMain);
 for (const defaults of [defaultsNewSite, defaultsLegacy]) {
-  assert.deepEqual(defaults, { consoleResponder: false, inboundEmail: false, slack: false, storageBackups: false, cliRemoteLogin: false, cliOnFederationClient: false },
+  assert.deepEqual(defaults, { consoleResponder: false, inboundEmail: false, slack: false, storageBackups: false, cliRemoteLogin: false, cliOnFederationClient: false, mcp: false },
     "every optional feature is off when nothing says otherwise, for every site");
 }
 assert.equal(resolveSiteBackendFeatureFlags(undefined, { PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true" }, newSiteMain).consoleResponder, true, "and on when the site says so");
