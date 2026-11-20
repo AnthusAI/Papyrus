@@ -724,6 +724,9 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
                "trigger": {"kind": "manual", "automationId": automation["id"], "monitorId": config["monitorId"], "pk": pk, "sk": key,
                            "title": f"{automation['procedureKey']}: run now by {actor}"[:200],
                            "summary": f"Started by {actor} with Run now on automation {automation['id']}"[:500]}}
+    # Tenant authority comes from the configured publication, never workflow input.
+    if publication.get("tenantId") is not None:
+        request["tenantId"] = publication["tenantId"]
     result = {"started": not dry_run, "dryRun": dry_run, "automationId": automation["id"], "procedureKey": automation["procedureKey"],
               "input": input_values, "timeoutSeconds": gate.timeout_seconds, "requestedBy": actor, "key": key}
     if dry_run:
