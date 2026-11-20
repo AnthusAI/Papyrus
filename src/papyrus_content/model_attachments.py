@@ -24,6 +24,7 @@ MODEL_ATTACHMENT_OWNER_MODELS = {
     "knowledgeRawPayload": "KnowledgeRawPayload",
     "message": "Message",
     "publishedItem": "PublishedItem",
+    "procedureRun": "ProcedureRun",
     "procedureVersion": "ProcedureVersion",
     "reference": "Reference",
     "semanticNode": "SemanticNode",
