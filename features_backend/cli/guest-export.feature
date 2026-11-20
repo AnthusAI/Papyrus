@@ -1,6 +1,7 @@
-Feature: Guest-read export for credential-free reader builds
-  A static reader build exports published content as a Cognito identity pool
-  guest. The guest lane is read-only and only valid for export-published.
+Feature: A reader build exports published content as a guest, with no credentials
+  A static reader build has no credentials of its own. It exports published content as a guest of the site's Cognito identity
+  pool, signing each request with the guest identity. The guest lane can only read, and only what is published: drafts are
+  refused, and every command other than the published export refuses the lane.
 
   Scenario: Guest export refuses drafts
     When I run export-published with auth guest and drafts

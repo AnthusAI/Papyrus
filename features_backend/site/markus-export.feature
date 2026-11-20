@@ -1,6 +1,7 @@
-Feature: Exporting CMS content as a Markus build input
-  The exporter writes published items (or drafts, for staging) back into the
-  directory layout the Markus static build consumes.
+Feature: Stories are exported as the input of the static site build
+  The exporter writes Stories back into the directory layout the Markus static build reads: published Stories only for the live
+  site, drafts as well for staging. Old addresses of a Story become redirect rules, and an export that would write nothing fails
+  instead of producing an empty site.
 
   Scenario: Exporting published content writes only published items
     Given a CMS with a published article and a draft article

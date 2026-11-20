@@ -1,5 +1,7 @@
-Feature: Safe agent Story writes
-  An agent must not overwrite a colleague's work or approve its own publication.
+Feature: An agent saves Story drafts without overwriting anyone's work
+  An agent writes a Story the way a careful colleague would. When two drafts start from the same version only one can win, a
+  version id that was used before cannot be used again, and publishing is unavailable to the agent unless the site can check the
+  person's approval and publish in one step. Drafts that carry images wait until their media can be carried forward safely.
 
   Scenario: Two drafts based on the same Story version compete
     Given a Story has a single current version

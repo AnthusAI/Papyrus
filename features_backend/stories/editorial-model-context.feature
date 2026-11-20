@@ -1,5 +1,7 @@
-Feature: Database editorial guidance reaches model requests
-  Current private doctrine complements learned criteria and copy-edit controls.
+Feature: The publication's stored guidance reaches every model request
+  A request to a model carries the publication's current guidance from the database, alongside the criteria learned from editors
+  and the copy-edit controls. It carries only the guidance of the section the request is for, a request prepared before the policy
+  changed is refused before it is sent, and a call that names no model uses the one standard model.
 
   Scenario: A classification request inherits only its selected desk guidance
     Given current synthetic publication doctrine and two independent desks

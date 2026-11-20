@@ -1,8 +1,8 @@
 @backend @assignments
-Feature: Assignment Management REST Semantics
-  As a newsroom operator
-  I need deterministic Assignment resource behavior
-  So create/list/get/update/filter flows stay stable.
+Feature: Assignments are created, listed, read and updated the same way every time
+  An Assignment is a piece of work the newsroom hands to a person or an agent. An operator creates one and fetches it by id, lists
+  Assignments by status and by type a page at a time, and moves one from open to claimed. A list comes back in the same order on
+  every call, and a request that cannot be honoured answers with an error in one fixed shape that says what was wrong.
 
   Scenario: Create and fetch a research assignment
     Given an empty assignment resource

@@ -1,5 +1,7 @@
-Feature: Site-bound authorization for hosted MCP
-  A person grants a client access to one publication using their existing identity.
+Feature: A person grants an MCP client access to one publication
+  A person connects an MCP client to one publication by signing in as themselves: a reader with their verified identity on that
+  site, a staff member with their own newsroom credentials. The grant is bound to that client and that publication, lasts a fixed
+  seven days, and never outlives the sign-in behind it. Refresh tokens rotate, and replaying a spent one revokes the grant.
 
   Scenario: Authorization codes bind the client, redirect, resource and PKCE verifier
     Given a signed-in person authorizes a registered client for a publication

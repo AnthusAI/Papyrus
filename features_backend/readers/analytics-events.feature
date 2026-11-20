@@ -1,4 +1,4 @@
-Feature: Privacy-safe Google Analytics events
+Feature: Google Analytics never receives a reader's identity
   A publication that sets a GA4 measurement id gets Consent Mode v2, a first-party banner and a small, fixed set of
   events. No identity ever reaches Google Analytics: not in event parameters, not in the page address it records, and
   not as a user id. A publication without a measurement id gets none of it.

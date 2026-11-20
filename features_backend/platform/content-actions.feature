@@ -1,6 +1,7 @@
-Feature: Content actions for the newsroom editor
-  The content-actions Lambda exposes derive, save, publish and unpublish so the
-  browser never parses Markus itself.
+Feature: The newsroom editor saves and publishes through content actions
+  The newsroom editor in the browser never parses Markus itself. It asks the content actions to derive a body, save a draft,
+  publish and unpublish. A save made from an out-of-date copy of the article is refused, so one editor cannot silently overwrite
+  what another just saved.
 
   Scenario: An editor derives, saves, publishes and unpublishes an article through the content actions
     Given a content actions backend

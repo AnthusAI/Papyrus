@@ -1,10 +1,9 @@
-Feature: Tenant records
-  A shared stack needs to know which tenants exist, who belongs to each and which hostnames each serves. Three new
-  tables hold that: Tenant (one row per site, owned by a Prospectus Account), TenantMembership (one row per person and
-  tenant, found by the person's sign-in id) and TenantDomain (one row per hostname). They sit in an optional model
-  group named "tenancy", so a dedicated site can leave them out of a first deploy. Nothing reads or writes them yet;
-  the token Lambda and provisioning come next. A platform operator writes the rows, a tenant's admin reads its own,
-  and the tenant-claims and provisioning functions reach them with their own IAM grants.
+Feature: A shared stack records its tenants, their members and their hostnames
+  A shared stack needs to know which tenants exist, who belongs to each and which hostnames each serves. Three tables hold that:
+  Tenant (one row per site, owned by a Prospectus Account), TenantMembership (one row per person and tenant, found by the person's
+  sign-in id) and TenantDomain (one row per hostname). They sit in an optional model group named "tenancy", so a dedicated site
+  can leave them out of a first deploy. A platform operator writes the rows, a tenant's admin reads its own, and the tenant-claims
+  and provisioning functions reach them with their own IAM grants.
 
   Scenario: A tenant's members are found without a scan
     Given 3 tenants with 5 members each

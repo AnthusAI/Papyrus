@@ -1,8 +1,8 @@
 @cli @operator
-Feature: Operator CLI
-  As a Papyrus operator
-  I want one `papyrus` command with the same verbs against local pod or cloud backends
-  So I can list references and work without PYTHONPATH hacks or parallel tool trees.
+Feature: One papyrus command works the same against a local pod and a cloud site
+  An operator installs Papyrus and gets one `papyrus` command. Its groups and verbs are the same whether it talks to a pod on the
+  operator's own disk or to a deployed site, and it runs from the installed entry point with no path to set up first. A group name
+  typed on its own prints that group's help, so an operator can find the next word to type without reading the source.
 
   Background:
     Given the operator CLI fixture root is available

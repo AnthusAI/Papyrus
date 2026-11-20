@@ -1,9 +1,9 @@
 Feature: Every tenant-owned model carries an optional tenantId
-  A site that serves several tenants needs to know whose row each one is. Every model a tenant owns has an
-  optional tenantId, added without changing any table, key or index, so a dedicated site's rows and calls are
-  exactly as they were. A client that has a tenant stamps it on each write, with no setting to turn it on (a site gains the field with its deploy, never by a flag the writer must be told about); a client without one writes nothing
-  tenant-shaped. Nothing reads the field yet. The people, sign-in identities and public handles that belong to no
-  single tenant stay global.
+  A site that serves several tenants needs to know whose row each one is. Every model a tenant owns has an optional tenantId,
+  added without changing any table, key or index, so a dedicated site's rows and calls are exactly as they were. A client that has
+  a tenant stamps it on each write, with no setting to turn it on (a site gains the field with its deploy, never by a flag the
+  writer must be told about); a client without one writes nothing tenant-shaped. The people, sign-in identities and public handles
+  that belong to no single tenant stay global.
 
   Scenario: A tenant client stamps its tenant on every write
     Given a client for tenant "alpha"

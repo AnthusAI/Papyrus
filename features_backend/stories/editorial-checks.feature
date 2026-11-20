@@ -1,5 +1,5 @@
 @backend @editorial-checks
-Feature: Editorial checks
+Feature: Editors check a Story against the publication's editorial policies
   Editors check an article against the publication's editorial policies and ask
   for rewrite options without leaving the newsroom. Admins keep the policies in
   Papyrus: they start from a starter pack, write their own, try them on sample

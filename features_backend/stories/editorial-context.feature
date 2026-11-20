@@ -1,5 +1,8 @@
-Feature: Current editorial context for newsroom agents
-  Required publication policy is resolved once and never replaced by stale assignment snapshots.
+Feature: Agents work from the publication's current editorial policy
+  Before a newsroom agent works on an Assignment or a Story, Papyrus resolves the publication's current policy for it: mission,
+  section guidance and the writing and image guidelines, each with its version. The policy is read fresh and never taken from an
+  old copy stored on the Assignment or from text a caller supplies. Policy that is missing, that the caller may not read, or that
+  does not fit the budget is an error and never an empty policy.
 
   Scenario: Resolve current policy for an assignment and its story
     Given editorial records with current publication and section policies

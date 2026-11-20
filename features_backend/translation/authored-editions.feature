@@ -1,6 +1,8 @@
-Feature: Independently authored language companions
-  A publication can tell a subject differently in each language without pretending
-  that independently reported copy is a translation. Editorial review still applies.
+Feature: A publication tells a subject in its own words in each language
+  A publication can report a subject separately in each language, with different sources and a different structure, without
+  pretending the copy is a translation. An authored companion never silently replaces an existing translation, and translation
+  work never overwrites it. It needs its own editorial checklist before it is published, and readers are never told that original
+  copy is a translation.
 
   Scenario: Different sources and structure survive as an unpublished companion
     Given an original article and independently authored Spanish copy

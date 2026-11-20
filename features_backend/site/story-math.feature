@@ -1,8 +1,7 @@
-Feature: Equations in Stories
+Feature: An author writes equations as TeX and readers get MathML
   An author writes an equation as TeX. A display equation is a fenced block whose info string is "math"; an inline
   equation is a code span with a dollar sign on each side. The code span keeps Markdown from reading the underscores,
   asterisks, backslashes and braces in TeX. A bare dollar sign is never math, because stored articles contain prices.
-
   The projected page carries MathML generated while the page is built: no script, no web font, and the text takes the
   page's colour, so both themes work. The TeX stays the source of truth: the Markdown twin and llms-full.txt keep it
   verbatim, and an email shows it as code because mail clients ignore MathML. TeX that cannot be converted never breaks a

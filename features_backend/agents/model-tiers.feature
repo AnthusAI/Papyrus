@@ -1,5 +1,5 @@
 @backend @newsroom
-Feature: A definition names a model tier and the site's policy names the model (slice G4, PPY-c9c165)
+Feature: A definition names a model tier and the site's policy names the model
   An agent's definition says which tier its work is: editorial, work, bulk or decision. It never names a model. The site's agent policy maps each tier to a
   model id, and a tier the site has not mapped uses the engine's default for it. Changing a model is a new version of the policy, read by the next run with
   no deploy. A model the price table does not list is refused when the policy is saved, so a run's cost is never counted as free. A tier with no model at all

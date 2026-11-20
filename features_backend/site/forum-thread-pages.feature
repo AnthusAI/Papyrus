@@ -1,4 +1,4 @@
-Feature: Public thread pages
+Feature: Every public Message thread gets its own read-only page
   A site that opts in with homePage.forum gives every public Message thread its own static, read-only page at
   <threadBase>/<key>/, where threadBase defaults to "conversations". The page is drawn from the per-thread file that the home-page
   snapshot already writes under _data/home-page/threads/, so it shows exactly what that file holds and nothing else: a header with
@@ -6,7 +6,6 @@ Feature: Public thread pages
   Message in sequence. A Message says who wrote it by a public handle with a Lucide "user" icon, or by a role label such as
   "Editor" with a "badge-check" icon, shows when it was written in a time element, and says "edited" in words beside a "pencil"
   icon when it was edited. The page has no borders, never uses colour alone, and works without a script.
-
   Every thread page has a Markdown twin and an entry in llms.txt. The "threads" include on any page links each thread to its page
   once the site has a forum. A thread that stops being public loses its page and its twin on the next snapshot, and a page is
   rewritten only when its own thread file changed. threadBase cannot be a path that the platform serves itself. No email

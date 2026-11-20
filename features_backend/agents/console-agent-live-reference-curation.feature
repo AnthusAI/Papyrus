@@ -1,6 +1,8 @@
 @live-agent @agent-curation
-Feature: Live console agent Reference curation behavior
-  Live AppSync and LLM reference editorial and re-curation specs.
+Feature: The console agent carries a Reference through an editor's decision in the live newsroom
+  Live scenarios against a deployed site and a real model, run only when live agent tests are turned on. A person tells the
+  console agent what they decided about a Reference, and the agent records it: accept, reject, archive or reopen. The agent can
+  also queue a Reference to be curated again and report where that stands.
 
   Background:
     Given live console agent tests are enabled

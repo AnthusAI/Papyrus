@@ -1,4 +1,4 @@
-Feature: Approval and release
+Feature: An Announcement is released on time and each Delivery waits for its own approval
   An Announcement is released when its time comes: that is all release means for the Announcement. Whether a Delivery may then go is the Delivery's own
   approval (docs/announcement-records.md): approval "none" goes at once, because the publication's policy approved that version; "hard" waits for a person
   to approve that exact version; "soft" goes when a person approved it, or when the lock time has come with nobody having stopped it. A newer version of the

@@ -1,5 +1,5 @@
 @backend @newsroom
-Feature: One spend ledger counts every paid run once (slice G1, PPY-fa165c)
+Feature: One spend ledger counts every paid run once
   A finished run that called a model adds its cost to the site's counter and to its agent's counter for the budget cycle it finished in. The cycle is the budget
   period of the site's agent policy: a day, a week (Monday to Sunday) or a month. The ledger holds numbers only, in millionths of a dollar, and counts a run once however
   many times its wake is delivered. A model call with no price is counted as an unpriced call and never as free, so a cycle that has any is partial.

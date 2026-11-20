@@ -1,6 +1,8 @@
 @live-agent @agent-references
-Feature: Live console agent Reference behavior
-  Live AppSync and LLM reference discussion/query/quality/note specs.
+Feature: The console agent finds, discusses and rates References in the live newsroom
+  Live scenarios against a deployed site and a real model, run only when live agent tests are turned on. A person asks the console
+  agent about the publication's References: what came in recently, the details of one, what the knowledge base says about one or
+  about three taken together, and how good one is as a source. The agent answers from the real corpus through its tools.
 
   Background:
     Given live console agent tests are enabled

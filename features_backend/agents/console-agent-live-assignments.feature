@@ -1,6 +1,9 @@
 @live-agent @agent-assignments
-Feature: Live console agent Assignment behavior
-  Live AppSync and LLM Assignment behavior specs for the Papyrus console responder.
+Feature: The console agent manages Assignments when a person asks in the live newsroom
+  Live scenarios against a deployed site and a real model, run only when live agent tests are turned on. A person asks the console
+  agent in plain words to create a research Assignment, list Assignments, read one and change its status, and the agent does the
+  work with its tools. Input an Assignment cannot take comes back as a structured error the agent can explain, never as an
+  invented success.
 
   Background:
     Given live console agent tests are enabled
