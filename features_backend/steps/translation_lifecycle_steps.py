@@ -28,6 +28,9 @@ class RequestTable:
         self.gets += 1
         return dict(self.rows[record_id]) if record_id in self.rows else None
 
+    def list_by_index(self, index, lineage):
+        return []   # no independently authored companion exists for any language of this Story
+
     def list_records(self, model, **_):
         raise AssertionError(f"the whole {model} table was listed")
 
