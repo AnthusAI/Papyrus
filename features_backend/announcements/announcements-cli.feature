@@ -80,3 +80,9 @@ Feature: People and agents at a terminal manage announcements
     When an AI agent types "papyrus announcements account set-app --client-id id-1" with the secret "secret-4" on standard input
     Then the announcement command fails with "blocked"
     And the site saved no X app keys
+
+  Scenario: At a terminal the command asks for the ID and the hidden secret
+    When a person types "papyrus announcements account set-app" at a terminal answering the ID "id-9" and the secret "secret-9" privately
+    Then the announcement command succeeds
+    And the site saved the X app "id-9" with the secret "secret-9"
+    And the announcement answer does not contain "secret-9"

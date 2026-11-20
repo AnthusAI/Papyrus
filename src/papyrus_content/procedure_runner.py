@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import agent_wakes, request_meter, run_outcomes, run_settle, spend_ledger, wake_keys
+from . import agent_wakes, request_meter, run_continuation, run_outcomes, run_settle, spend_ledger, wake_keys
 from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
@@ -281,7 +281,8 @@ def handoff_of(request: dict) -> dict[str, str] | None:
 
 def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
-                          run_started: Callable[[str], None] | None = None, receive_count: int = 1, spend_brake: Any = None) -> dict:
+                          run_started: Callable[[str], None] | None = None, receive_count: int = 1,
+                          schedule_continuation: Callable[[dict, str, str], None] | None = None, spend_brake: Any = None) -> dict:
     request = validate_request(request)
     started = start_run_record(client, request)   # the record exists, `started`, before any procedure is loaded
     run_id = started["runId"]
@@ -351,6 +352,7 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         ended = run_outcomes.finished_outcome(False, None, f"The run asked for {', '.join(gate.blocked)}, which no agent may do.") | {"outcomeReason": run_end.GATE_BLOCKED}
     else:
         ended = run_outcomes.finished_outcome(bool(outcome.get("success")), {**output, **gate.declaration} if gate and gate.declaration else output, outcome.get("error"))
+    ended = continue_or_fail(ended, output, request, run_id, schedule_continuation)
     succeeded = ended["runStatus"] == "completed"
     usage, cost_usd = usage_record(outcome)
     trigger = request.get("trigger") or {}
@@ -380,6 +382,38 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
             "seconds": outcome.get("seconds"),
             "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
             "output": output if succeeded or gate is not None else None}
+
+
+def continue_or_fail(ended: dict, output: Any, request: dict, run_id: str, schedule_continuation: Callable[[dict, str, str], None] | None) -> dict:
+    """A finished run that asked for a continuation has its timer set before its record is written. A run that asked for one it cannot have is `failed`."""
+    if ended["outcome"] != "acted":
+        return ended
+    try:
+        due_at = run_continuation.requested_time(output)
+        if due_at is None:
+            return ended
+        following = run_continuation.next_request(request, run_id, due_at)
+        if schedule_continuation is None:
+            raise run_continuation.ContinuationError(run_continuation.NOT_SCHEDULED, "this runner has no timer service to continue the run with")
+        try:
+            schedule_continuation(following, due_at, run_id)
+        except Exception as error:
+            raise run_continuation.ContinuationError(run_continuation.NOT_SCHEDULED, f"the continuation could not be scheduled: {error}") from error
+    except run_continuation.ContinuationError as refused:
+        return run_outcomes.finished_outcome(False, None, str(refused)) | {"outcomeReason": refused.reason}
+    return ended
+
+
+def continuation_scheduler(request: dict, context: Any) -> Callable[[dict, str, str], None]:
+    """The runner's way to set a continuation's timer, built when a run asks for one: the account and partition come from the function's own ARN."""
+    from .follow_up_timers import FollowUpTimers
+
+    def schedule(following: dict, due_at: str, run_id: str) -> None:
+        arn_parts = context.invoked_function_arn.split(":")
+        timers = FollowUpTimers.for_site(request["publicationId"], account=arn_parts[4], region=arn_parts[3], partition=arn_parts[1])
+        timers.schedule_continuation(following, due_at=due_at, record_id=run_id)
+
+    return schedule
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
@@ -452,7 +486,8 @@ def handler(event, context):
                                        seconds_available=seconds_available,
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
                                        run_started=lambda run_id: record_trigger_run(table, trigger, run_id),
-                                       receive_count=agent_wakes.receive_count(event), spend_brake=SpendBrake(table))
+                                       receive_count=agent_wakes.receive_count(event),
+                                       schedule_continuation=continuation_scheduler(request, context), spend_brake=SpendBrake(table))
     except ProcedureNotRunnable as error:
         result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
                   "error": str(error)}

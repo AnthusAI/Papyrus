@@ -11,9 +11,10 @@ on:
     paths-ignore:
       - "project/**"
 
-# A newer push to the same pull request or branch makes the older run moot.
+# A newer push to the same pull request or branch makes the older run moot. Inside a reusable call github.workflow is the caller's name, so the
+# copy that release.yml and stack-deploy.yml call never cancels, or is cancelled by, the copy this workflow's own push trigger starts.
 concurrency:
-  group: tests-${{ github.ref }}
+  group: tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -144,7 +145,7 @@ jobs:
               publications/threat_intelligence/tests/test-blog-defense-graph.cjs publications/threat_intelligence/tests/test-pictograms.cjs \
               | grep -v node_modules | LC_ALL=C sort -u)
           echo "$files" | wc -l
-          mine=$(echo "$files" | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
+          mine=$(echo "$files" | python3 infra/pipeline/deal_out_test_files.py --shard "$SHARD" --of "$SHARDS" --seconds infra/pipeline/ts-test-seconds.json)
           echo "$mine"
           node --import tsx --test --test-reporter=spec --test-concurrency=4 $mine
 

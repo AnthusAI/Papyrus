@@ -717,7 +717,7 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         (Example({"clientId": "client-id-1", "clientSecret": "client-secret-1"}, {"status": {"connection": "not_connected"}, "saved": True}),), group="announcements",
         agent_rung=PERSON_ONLY, agent_refusal="blocked",
         notes="A person only, and an admin of the site. It saves the app keys the console's Save keys button saves, and the answer never carries the secret: a --dry-run shows it as (hidden). "
-              "The secret is never a flag: set PAPYRUS_X_CLIENT_SECRET, or pipe it in (`printf %s \"$SECRET\" | papyrus announcements account set-app --client-id ID`). "
+              "At a terminal, run it with no flags: it asks for the client ID and the secret (hidden). The secret is never a flag: set PAPYRUS_X_CLIENT_SECRET, or pipe it in (`printf %s \"$SECRET\" | papyrus announcements account set-app --client-id ID`). "
               "Connecting the account itself is still the browser step (`announcements account connect`).",
     ),
     Operation(
