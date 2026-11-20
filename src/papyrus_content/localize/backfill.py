@@ -15,19 +15,30 @@ Two ways to run the remaining work, as for one Story:
 * **queued for the site's runner** (``--automation ID``): the records are written ``wanted`` with the automation and the publish choice, and the site's
   dispatcher (``dispatch.py``) starts and publishes them, as it does for translate on publish. Nothing waits here.
 
+``--updated-since`` and ``--updated-before`` narrow the whole survey to the Stories whose source text was updated in a range (``UpdatedWindow``). A
+Story's source text was updated when its current published version was published: the summary's ``versionPublishedAt``, which every publish of a new version
+sets and which the published summaries already carry, so the filter costs no read. (``publishedAt`` is the first publication and never moves, so it says
+when a Story appeared, not when its text last changed; a Story without a ``versionPublishedAt`` cannot be dated and is left out, and the count is reported.)
+The window is applied to the survey itself, so a dry run, a run in this process, ``--automation`` queueing and ``--publish-clean`` all see only the Stories
+in the range: ``--publish-clean`` publishes a saved translation only when its Story is in the range.
+
 Publishing goes through ``publish.publishable`` and ``publishing.publish_item`` like every other publish: never a held translation, never when the original
 is not published at this text, never in a language the site does not write in.
 """
 from __future__ import annotations
 
 import json
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .. import request_meter
 from ..content_item_lifecycle import is_story_item_type
+from ..ideas.digest import parse_time, parse_window
 from ..item_language import bare_group_id, localization_lineage_id
+from ..options import normalize_string
 from ..language_serving import serving_languages
 from ..story_reporting import published_story_version, story_versions
 from . import desired_state
@@ -54,6 +65,55 @@ class Job:
         return {"story": self.story, "language": self.language, "status": self.status, "costUsd": self.costUsd, "detail": self.detail, **self.extra}
 
 
+@dataclass
+class UpdatedWindow:
+    """The range of source-update times a survey keeps: ``since`` inclusive, ``before`` exclusive, either may be open. ``undated`` counts the Stories the filter
+    could not date (a summary with no ``versionPublishedAt``), which are left out."""
+    since: datetime | None = None
+    before: datetime | None = None
+    undated: int = 0
+
+    @staticmethod
+    def parse(since: str | None, before: str | None, *, now: datetime | None = None) -> "UpdatedWindow | None":
+        """From the two flags' text: an ISO date or datetime (no zone means UTC) or a relative duration (``7d``, ``36h``, ``1w``, meaning that long before now).
+        Raises ``ValueError`` for anything else, and when the range would end before it starts. ``None`` when neither flag is given."""
+        now = now or datetime.now(timezone.utc)
+        bounds = [_bound(text, now, option) for text, option in ((since, "--updated-since"), (before, "--updated-before"))]
+        if bounds[0] is None and bounds[1] is None:
+            return None
+        if bounds[0] is not None and bounds[1] is not None and bounds[0] >= bounds[1]:
+            raise ValueError(f"--updated-since ({bounds[0].isoformat()}) must be earlier than --updated-before ({bounds[1].isoformat()}).")
+        return UpdatedWindow(since=bounds[0], before=bounds[1])
+
+    def admits(self, summary: dict[str, Any]) -> bool:
+        moment = parse_time(summary.get("versionPublishedAt"))
+        if moment is None:
+            self.undated += 1
+            return False
+        return (self.since is None or moment >= self.since) and (self.before is None or moment < self.before)
+
+    def describe(self) -> str:
+        shown = lambda moment: moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+        return " and ".join(part for part in (f"since {shown(self.since)}" if self.since else "", f"before {shown(self.before)}" if self.before else "") if part)
+
+    def empty_message(self) -> str:
+        return (f"No published Story was updated {self.describe()}: nothing to translate."
+                + (f" {self.undated} Stories have no publish time to date them by and were left out." if self.undated else ""))
+
+
+def _bound(text: str | None, now: datetime, option: str) -> datetime | None:
+    text = normalize_string(text)
+    if not text:
+        return None
+    if re.fullmatch(r"\d{1,4}[dhwDHW]", text):
+        return now - parse_window(text, option=option)
+    try:
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"{option} must be an ISO date or datetime (UTC, e.g. 2026-11-10 or 2026-11-10T06:00:00Z) or a duration such as 7d, 36h or 1w, not {text!r}.") from None
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
+
+
 def _metadata(row: dict[str, Any]) -> dict[str, Any]:
     value = row.get("metadata")
     return json.loads(value) if isinstance(value, str) and value.strip() else dict(value or {})
@@ -68,8 +128,9 @@ def _never_reported(record: dict[str, Any], now: float) -> bool:
     return started is not None and now - started > MAX_TIMEOUT_SECONDS + 120
 
 
-def survey(client, settings: dict[str, Any], languages: list[str], *, now: float | None = None) -> list[Job]:
-    """Every (published primary Story, language) with its place: ``up to date`` rows carry the record's state, the others are ``to do``."""
+def survey(client, settings: dict[str, Any], languages: list[str], *, now: float | None = None, window: UpdatedWindow | None = None) -> list[Job]:
+    """Every (published primary Story, language) with its place: ``up to date`` rows carry the record's state, the others are ``to do``.
+    With ``window`` only the Stories whose source text was updated in it are listed."""
     import time
 
     now = time.time() if now is None else now
@@ -88,6 +149,8 @@ def survey(client, settings: dict[str, Any], languages: list[str], *, now: float
         lineage = summary.get("itemLineageId")
         if (summary.get("status") not in (None, "published") or not lineage or summary.get("language") != serving.primary
                 or bare_group_id(summary.get("languageGroupId"), tenant_id) != lineage or not is_story_item_type(summary.get("type")) or _metadata(summary).get("doNotLocalize")):
+            continue
+        if window is not None and not window.admits(summary):
             continue
         source_hash = str(_metadata(summary).get("sourceContentHash") or "")
         for language in languages:

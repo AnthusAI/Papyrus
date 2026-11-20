@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ec5e2a03-12b3-47d8-87ad-f050b9028481",
+  "issue_id": "PPY-920fdaf1-81c3-412b-861d-fc8ae963a730",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T18:50:48.546Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A persona's recent work keeps it consistent",
+    "description": "The voice_examples layer, for a Story with a persona, prefers that persona's own recent published Stories, newest first and within the existing budget, then the section's. Needs a query by persona (an index on the persona id of published Stories), never a scan.\nScenario: persona A's draft pack shows A's last published Stories before other examples. Scenario: a new persona with no published work falls back to the section's examples as today's layer does.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-40443baa-fee3-4b94-811c-569f70a62024",
+    "labels": []
+  }
+}

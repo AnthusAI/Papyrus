@@ -82,7 +82,7 @@ def test_import_summary_labels_board_only_items(monkeypatch):
         ok = True
 
         def to_dict(self):
-            return {"ok": True, "created": 0, "updated": 0, "unchanged": 1, "skippedEditedInCms": 0, "published": 0,
+            return {"ok": True, "created": 0, "updated": 0, "unchanged": 1, "skippedEditedInCms": 0, "published": 0, "storiesForAPerson": 0,
                     "mediaUploaded": 0, "mediaUnchanged": 0, "readerOwnedAssets": 0, "notInSource": 3, "errors": []}
 
     monkeypatch.setattr(commands, "create_authoring_client", lambda tenant=None: (object(), {}))

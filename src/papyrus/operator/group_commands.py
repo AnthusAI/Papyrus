@@ -132,6 +132,10 @@ def group_subcommands(group: str) -> list[str] | None:
     from papyrus_content.rating_cli import route_tree as ratings_route_tree
 
     return list(ratings_route_tree())
+  if group == "handoffs":
+    from papyrus_content.handoff_cli import route_tree as handoffs_route_tree
+
+    return list(handoffs_route_tree())
   if group == "announcements":
     from papyrus_content.announcements.cli import route_tree as announcements_route_tree
 

@@ -231,6 +231,7 @@ from .markus_export_commands import content_export_published
 from .backend_copy_commands import content_copy_backend
 from .markus_import_commands import content_import_markus
 from .tenant_adoption_commands import content_adopt_tenant_data
+from .tenant_field_backfill_commands import content_backfill_tenant_id
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
 from .knowledge_snapshot.commands import KNOWLEDGE_COMMANDS
@@ -251,6 +252,7 @@ PORTED_COMMANDS = frozenset(
         "content:markus-derive",
         "content:import-markus",
         "content:adopt-tenant-data",
+        "content:backfill-tenant-id",
         "content:publish",
         "content:publish-gate",
         "content:unpublish",
@@ -403,6 +405,7 @@ PORTED_COMMANDS = frozenset(
         "stories:retire",
         "stories:schedule",
         "stories:schedule-list",
+        "stories:schedule-suggest",
         "stories:set-type",
         "stories:set-stars",
         "assignments:backfill-content-items",
@@ -458,6 +461,8 @@ PORTED_COMMANDS = frozenset(
         "automations:create",
         "automations:update",
         "automations:adopt",
+        "automations:attention",
+        "automations:acknowledge",
         "automations:run",
         "reviews:list",
         "reviews:show",
@@ -620,6 +625,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_import_markus(flags)
     elif route == "content:adopt-tenant-data":
         content_adopt_tenant_data(flags)
+    elif route == "content:backfill-tenant-id":
+        content_backfill_tenant_id(flags)
     elif route == "content:publish":
         content_publish(flags)
     elif route == "content:publish-gate":
@@ -957,10 +964,11 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_retire import stories_retire
 
         stories_retire(flags)
-    elif route in ("stories:schedule", "stories:schedule-list"):
+    elif route in ("stories:schedule", "stories:schedule-list", "stories:schedule-suggest"):
         from . import story_schedule_commands
 
-        {"stories:schedule": story_schedule_commands.stories_schedule, "stories:schedule-list": story_schedule_commands.stories_schedule_list}[route](flags)
+        {"stories:schedule": story_schedule_commands.stories_schedule, "stories:schedule-list": story_schedule_commands.stories_schedule_list,
+         "stories:schedule-suggest": story_schedule_commands.stories_schedule_suggest}[route](flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 
@@ -2082,9 +2090,10 @@ def print_usage() -> None:
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json]  (signed in with `papyrus login` and no --function-name it needs no AWS login: it asks the site's image function through the editor's own bucket access),")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
+    print("  content backfill-tenant-id --tenant ID [--models A,B] [--apply] [--json]  (dry run unless --apply; stamps tenantId on rows written without one, so the tenantId indexes list them),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish-gate show | set --approval required|not_required [--dry-run] [--json]  (the site's publish approval setting; default not_required),")
-    print("  stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME --reason TEXT [--dry-run] [--json]  (attaches finished copy written by a person or another agent as the translation of a published Story: an unpublished version whose every block is pinned to the writer, checked with the parity, glossary and language rules and no model; a copy that does not line up block for block, or changes a link, credit or figure, is refused; error findings hold it; docs/story-translation-procedure.md),")
+    print("  stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]  (attaches finished copy written by a person or another agent as the translation of a published Story: an unpublished version whose every block is pinned to the writer, checked with the parity, glossary and language rules and no model; a copy that does not line up block for block, or changes a link, credit or figure, is refused; error findings hold it; docs/story-translation-procedure.md),")
     print("  stories correct-translation --story LINEAGE --language TAG --edits-file FILE --edited-by PERSON --reason TEXT [--approved-by PERSON] [--publish [--verify]] [--dry-run] [--json]  (saves a person's correction of a translation as a new version whose edited blocks are pinned to the person; FILE is [{\"from\": \"old\", \"to\": \"new\"}]; the approver is metadata only; docs/story-translation-procedure.md),")
     print("  stories measure [--story LINEAGE] [--body-file FILE] [--front-matter-file FILE] [--language TAG] [--json]  (read only; size, structure, sourcing and change from Humanus: guidance, never a limit; a draft with no --story needs --language; docs/editorial-checks.md),")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (several --id, or --batch, publish them as one batch in the signed-in lane: every version is saved, each page build is queued without starting one, and the site builds the queue once under one hold of the projection lease, so a backfill never fights a deploy; s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally; signed in with `papyrus login` it asks the newsroom's publishItem/unpublishItem mutation instead; each stage (saved, projected, cache invalidated, publicly verified) is reported on its own, --verify [--verify-seconds N] waits for the public page, and the exit code names the failed stage: 1 save, 3 checklist open (--json lists openSteps), 4 page not built, 5 page still building, 6 cache not purged, 7 public page stale (docs/site-hosting.md); publish refuses a placeholder draft-<section>-<hash> slug: run `stories set-slug` first; a translation (`<story>--<language>`) publishes only while its original is published, and a held one only after a person answers its review request: docs/story-translation-procedure.md),")

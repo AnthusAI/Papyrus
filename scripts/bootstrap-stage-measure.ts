@@ -15,9 +15,9 @@ export const BOOTSTRAP_BUDGET = 2000;
 
 export type BootstrapStageMeasure = { resources: number; modelStacks: string[]; templates: string[]; resourcesByTemplate: Record<string, number> };
 
-/** Synthesizes the backend in the first-deploy stage (the default) or, with `bootstrapStage: false`, as the second deploy and every later one do. */
-export function measureBootstrapStage(bootstrapStage = true): BootstrapStageMeasure {
-  const environment: NodeJS.ProcessEnv = { ...process.env };
+/** Synthesizes the backend in the first-deploy stage (the default) or, with `bootstrapStage: false`, as the second deploy and every later one do. `extraEnvironment` is set for the child (a site's tenant id, for the pieces a tenant turns on). */
+export function measureBootstrapStage(bootstrapStage = true, extraEnvironment: Record<string, string> = {}): BootstrapStageMeasure {
+  const environment: NodeJS.ProcessEnv = { ...process.env, ...extraEnvironment };
   if (bootstrapStage) environment.PAPYRUS_BOOTSTRAP_STAGE = "1";
   else delete environment.PAPYRUS_BOOTSTRAP_STAGE;
   const outputDirectory = mkdtempSync(path.join(tmpdir(), "papyrus-bootstrap-"));

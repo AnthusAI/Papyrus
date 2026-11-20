@@ -17,6 +17,7 @@ from papyrus_content.agent_rungs import RUNGS
 from papyrus_content.images.cli import ERROR_EXIT_CODE
 from papyrus_content.images.handlers import error_envelope
 
+from .. import agent_listeners as listeners
 from . import definition, release, schedules
 
 GROUP = "agents"
@@ -35,6 +36,14 @@ APPLY_USAGE = ("Usage: papyrus agents apply [--dir DIR] [--core DIR] [--root DIR
                f"  --dir is the site's folder of definitions (default ./{release.SITE_FOLDER} under --root, when it exists; the core definitions alone otherwise);\n"
                "  --root is the site's checkout (default the current folder), where papyrus-site-procedures.json is read. --dry-run reads the site and says what\n"
                "  would change; --check also exits 2 when anything differs from Git. Run it as the operator (PAPYRUS_GRAPHQL_AUTH=iam).")
+
+
+LISTENERS_USAGE = ("Usage: papyrus agents listeners [--dir DIR] [--core DIR] [--root DIR] [--dry-run | --check]\n"
+                   "  Write the site's listener index: one small document, derived from the agent definitions in Git, that says which agents listen for which\n"
+                   "  change (slice B2, PPY-8a374e). The Item change feed reads it to put a wake on the queue for each agent that listens, so it never lists the\n"
+                   "  Automation table or any other. It is run by the deploy right after `papyrus agents schedules`; the same definitions write nothing, a changed set\n"
+                   "  writes the next version. It holds no rung, pause or budget (those are the agent policy). --dir, --core and --root are as for `papyrus agents apply`.\n"
+                   "  --dry-run reads and says what would change; --check also exits 2 when the index differs. Run it as the operator (PAPYRUS_GRAPHQL_AUTH=iam).")
 
 
 SCHEDULES_USAGE = ("Usage: papyrus agents schedules --site SITE [--dry-run | --check]\n"
@@ -59,11 +68,11 @@ SET_RUNG_USAGE = ("Usage: papyrus --site SITE agents set-rung --id AGENT --rung 
 
 
 def route_tree() -> dict:
-    return {"validate": {}, "apply": {}, "schedules": {}, "set-rung": {}}
+    return {"validate": {}, "apply": {}, "schedules": {}, "listeners": {}, "set-rung": {}}
 
 
 def usage_for(words: list[str]) -> str | None:
-    return {"validate": VALIDATE_USAGE, "apply": APPLY_USAGE, "schedules": SCHEDULES_USAGE, "set-rung": SET_RUNG_USAGE}.get(" ".join(words))
+    return {"validate": VALIDATE_USAGE, "apply": APPLY_USAGE, "schedules": SCHEDULES_USAGE, "listeners": LISTENERS_USAGE, "set-rung": SET_RUNG_USAGE}.get(" ".join(words))
 
 
 def validate_command(argv: list[str], stdout: TextIO | None = None) -> int:
@@ -161,7 +170,7 @@ def _aws_clients():
     return boto3.client("sqs"), boto3.client("scheduler")
 
 
-def schedules_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, aws_factory=None, reader_factory=None) -> int:
+def schedules_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, aws_factory=None, reader_factory=None, site_store_factory=None) -> int:
     out = stdout or sys.stdout
     if argv in (["--help"], ["-h"]):
         out.write(SCHEDULES_USAGE + "\n")
@@ -193,11 +202,13 @@ def schedules_command(argv: list[str], stdout: TextIO | None = None, client_fact
         from papyrus_content.automations import monitoring_reader_from_environment
         from papyrus_content.graphql_authoring import AUTOMATION_FIELDS
 
-        rows = (client_factory or _client)().list_tenant_rows("Automation", AUTOMATION_FIELDS)
+        client = (client_factory or _client)()
+        rows = client.list_tenant_rows("Automation", AUTOMATION_FIELDS)
+        lists = _lists_for_site(client, site_store_factory)
         sqs, scheduler = (aws_factory or _aws_clients)()
         result = schedules.reconcile_site(sqs, scheduler, rows, site, reader=(reader_factory or monitoring_reader_from_environment)(),
-                                          endpoint=os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT") or None, apply=not (dry_run or check))
-    except (schedules.ScheduleError, schedules.CronError) as error:
+                                          endpoint=os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT") or None, apply=not (dry_run or check), lists=lists)
+    except (schedules.ScheduleError, schedules.CronError, ValueError) as error:
         return refuse(str(error))
     action = "check" if check else "dry-run" if dry_run else "apply"
     changed = result["created"] or result["updated"] or result["deleted"]
@@ -209,9 +220,57 @@ def schedules_command(argv: list[str], stdout: TextIO | None = None, client_fact
     return finish({"ok": True, "op": "agents_schedules", "result": {"action": action, **result}, "warnings": warnings}, 0)
 
 
-def _policy_store_for_site(client):
-    """The policy store over the site's own catalogue and media bucket: the bucket the site publishes, where the runner reads ``tenants/<tenant>/site/agents/``."""
-    from papyrus_content.agent_policy import AgentPolicyStore
+def listeners_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, site_store_factory=None) -> int:
+    out = stdout or sys.stdout
+    if argv in (["--help"], ["-h"]):
+        out.write(LISTENERS_USAGE + "\n")
+        return 0
+
+    def finish(envelope: dict, code: int) -> int:
+        out.write(json.dumps(envelope, indent=2) + "\n")
+        return code
+
+    def refuse(message: str, code: str = "invalid_input", **details) -> int:
+        return finish(error_envelope("agents_listeners", code, message, details=details), ERROR_EXIT_CODE)
+
+    values: dict[str, str] = {}
+    dry_run = check = False
+    rest = list(argv)
+    while rest:
+        word = rest.pop(0)
+        if word == "--dry-run":
+            dry_run = True
+        elif word == "--check":
+            check = True
+        elif word in ("--dir", "--core", "--root") and rest:
+            values[word] = rest.pop(0)
+        else:
+            return refuse(f"{word} is not a flag of agents listeners, or has no value.", path=word)
+    if dry_run and check:
+        return refuse("agents listeners takes --check or --dry-run, not both: both read only, --check also fails on a difference.")
+    root = Path(values.get("--root", "."))
+    site_folder = Path(values["--dir"]) if "--dir" in values else root / release.SITE_FOLDER
+    if "--dir" in values and not site_folder.is_dir():
+        return refuse(f"The folder of definitions {site_folder} is not there.", path="--dir")
+    core = Path(values["--core"]) if "--core" in values else definition.CORE_DIRECTORY
+    try:
+        definitions = release.load(site_folder if site_folder.is_dir() else None, core)
+        client = (client_factory or _client)()
+        tenant_id = getattr(client, "tenant_id", None)
+        if not tenant_id:
+            return refuse("The site's tenant is not known, so its listener index cannot be written: sign in to the site (papyrus login), or run as the operator with the site's tenant set.", path="--site")
+        result = listeners.publish((site_store_factory or _site_store_for)(client), tenant_id, definitions, actor=release.ACTOR, apply=not (dry_run or check))
+    except release.ReleaseError as error:
+        return refuse(str(error))
+    except ValueError as error:
+        return refuse(str(error))
+    if check and result["action"] != "unchanged":
+        return refuse(f"The listener index differs from the definitions in Git ({result['action']}). The deploy writes it (papyrus agents listeners).", "constraint_conflict")
+    return finish({"ok": True, "op": "agents_listeners", "result": {"action": "check" if check else "dry-run" if dry_run else "apply", "index": result}, "warnings": []}, 0)
+
+
+def _site_store_for(client):
+    """The site store over the site's own catalogue and media bucket: the bucket the site publishes, where the runner reads ``tenants/<tenant>/site/<kind>/``."""
     from papyrus_content.agent_policy.catalogue import SiteCatalogueTable
     from papyrus_content.env import storage_bucket_from_amplify_outputs
     from papyrus_content.site_store import SiteStore
@@ -227,7 +286,24 @@ def _policy_store_for_site(client):
         import boto3
 
         s3 = boto3.client("s3")
-    return AgentPolicyStore(SiteStore(s3, bucket, SiteCatalogueTable(client)))
+    return SiteStore(s3, bucket, SiteCatalogueTable(client))
+
+
+def _policy_store_for_site(client):
+    from papyrus_content.agent_policy import AgentPolicyStore
+
+    return AgentPolicyStore(_site_store_for(client))
+
+
+def _lists_for_site(client, site_store_for=None) -> dict:
+    """The periodic lists of the site (``list_cadence.schedule.wanted``): each is a schedule entry the group must hold. A site that has never saved list settings has none."""
+    from papyrus_content.list_cadence import schedule as list_schedule
+    from papyrus_content.list_cadence.store import ListSettingsStore
+
+    tenant_id = getattr(client, "tenant_id", None)
+    if not tenant_id:
+        raise ValueError("The site's tenant is not known, so its lists cannot be read and their schedule entries would be deleted: sign in to the site (papyrus login).")
+    return list_schedule.wanted(ListSettingsStore((site_store_for or _site_store_for)(client)).read(tenant_id).document)
 
 
 def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, policy_factory=None, caller_factory=None) -> int:
@@ -301,6 +377,8 @@ def command(argv: list[str], stdout: TextIO | None = None) -> int:
         return apply_command(argv[1:], stdout)
     if argv[:1] == ["schedules"]:
         return schedules_command(argv[1:], stdout)
+    if argv[:1] == ["listeners"]:
+        return listeners_command(argv[1:], stdout)
     out = stdout or sys.stdout
-    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply, schedules, set-rung.", details={"command": " ".join(argv)}), indent=2) + "\n")
+    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply, schedules, listeners, set-rung.", details={"command": " ".join(argv)}), indent=2) + "\n")
     return ERROR_EXIT_CODE

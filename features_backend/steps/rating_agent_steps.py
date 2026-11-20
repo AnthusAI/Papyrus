@@ -96,7 +96,7 @@ def _transport(context):
 def _services(context):
     handlers = {"guidelines_resolve": _guidelines(context), **rating_handlers.signed_in_handlers(lambda: object())}
     client = FakeIndexClient(context)
-    return rating_agent.Services(stories=lambda: rating_agent.published_unrated(client), judge=rating_agent.openai_judge("test-key", transport=_transport(context)),
+    return rating_agent.Services(stories=lambda: rating_agent.published_unrated(client), judge=rating_agent.openai_judge("test-key", "gpt-6-luna", tier="bulk", transport=_transport(context)),
                                  execute=execute, clock=lambda: context.clock[0], handlers=handlers)
 
 

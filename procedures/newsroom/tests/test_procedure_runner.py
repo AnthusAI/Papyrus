@@ -176,7 +176,7 @@ def test_the_runner_materializes_skills_records_the_run_and_its_output(tmp_path)
 
     assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "wakeKey": REQUEST["wakeKey"], "versionId": "version-1",
                       "runStatus": "completed", "outcome": "acted", "outcomeReason": None, "seconds": 42, "error": None, "costUsd": None, "costRecorded": False,
-                      "output": {"title": "Wemby"}}
+                      "responsibility": None, "spend": None, "output": {"title": "Wemby"}}
     assert seen["skill"] == "# Example" and "Procedure {" in seen["source"] and seen["timeout"] == 840
     assert json.loads(client.started[0]["input"])["__papyrusExecutionMode"] == "external_cli"
     assert client.updates[0]["runStatus"] == "completed" and json.loads(client.updates[0]["output"]) == {"title": "Wemby"}
@@ -436,13 +436,18 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     assert pr.SECONDS_KEPT_FOR_RECORDING < function["Timeout"]
     statements = resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {statement["Sid"] for statement in statements} == {
-        "Logs", "FailedInvocations", "PublicationOpenAiKeys", "TriggerOutcomes", "StageTriggerRows",
-        "ReadWakeQueues", "PutWakes", "PublicationNewsrooms", "SiteAgentPolicyBody"}
+        "Logs", "FailedInvocations", "PublicationOpenAiKeys", "AgentModelKeyParameters", "TriggerOutcomes", "StageTriggerRows",
+        "ReadWakeQueues", "PutWakes", "PublicationNewsrooms", "SiteAgentPolicyBody", "SpendLedger"}
     assert all("*" != statement["Resource"] for statement in statements)
     by_sid = {statement["Sid"]: statement for statement in statements}
     rows = by_sid["StageTriggerRows"]
     assert set(rows["Action"]) == {"dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"}
     assert rows["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["MONITOR#*"]
+    ledger = by_sid["SpendLedger"]   # PPY-fa165c: the spend ledger rows of the shared table, and no other key
+    assert set(ledger["Action"]) == {"dynamodb:UpdateItem", "dynamodb:PutItem", "dynamodb:GetItem"}
+    assert ledger["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["SPEND#*"]
+    model_key = by_sid["AgentModelKeyParameters"]   # PPY-8a374e: one named parameter, GetParameter alone (no decrypt, no wildcard under /papyrus/)
+    assert model_key["Action"] == "ssm:GetParameter" and len(model_key["Resource"]) == 1 and model_key["Resource"][0][1].endswith(":parameter/papyrus/shipped/openai-api-key")
     policy_body = by_sid["SiteAgentPolicyBody"]   # PPY-c8175e: read one document's objects, nothing else of S3
     assert policy_body["Action"] == "s3:GetObject" and policy_body["Resource"][1].endswith(":::*/tenants/*/site/agents/*")
     queues = ":papyrus-*-agent-wakes.fifo"   # the wake queues by name pattern (PPY-567bf9); the dead-letter queues do not match

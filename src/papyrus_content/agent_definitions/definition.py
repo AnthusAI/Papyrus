@@ -8,7 +8,7 @@ One agent is one file, ``<id>.yaml``, in a folder under Git::
     responsibility: illustrate        # a key of the engine's catalog (responsibilities.py)
     procedure: illustrate_story       # the procedure's key as the registry names it (the release stops when it is not registered)
     wakes:
-      changes: [{kind: Item, change: ready, filter: {step: illustration}}]
+      changes: [{kind: Item, change: step_changed, filter: {step: illustration, state: open}}]
       schedule: {cron: "0 6 * * *", timeZone: America/New_York}      # optional; either or both
     serialBy: subject                 # subject | agent | key:<name>
     paid: true
@@ -44,6 +44,7 @@ import yaml
 from papyrus_content.agent_policy.document import RUNGS, TIERS
 from papyrus_content.images.operations import operation as operation_named
 
+from ..change_vocabulary import describe as describe_changes, known as known_change
 from ..responsibilities import BY_KEY
 from .cron import CronError, scheduler_expression
 
@@ -140,6 +141,8 @@ def _wakes(wakes: Any, add) -> None:
             add(f"{here}.kind", "must be a record kind such as Reference or Item")
         if not (isinstance(change["change"], str) and _WORD.match(change["change"])):
             add(f"{here}.change", "must be one lower-case word for the kind of change, such as created or accepted")
+        elif isinstance(change["kind"], str) and not known_change(change["kind"], change["change"]):
+            add(f"{here}", f"listens for {change['kind']}/{change['change']}, which no change feed produces; the changes are {describe_changes()}", "unknown_change")
         selector = change.get("filter", {})
         if not isinstance(selector, dict) or any(isinstance(value, (dict, list)) for value in selector.values()):
             add(f"{here}.filter", "must be a flat set of fields and values")
@@ -309,6 +312,14 @@ def read_folder(directory: Path) -> tuple[dict[str, Any], list[Problem]]:
         except yaml.YAMLError:
             problems.append(Problem(path.stem, "", "is not valid YAML", "unreadable"))
     return found, problems
+
+
+def core_definition(definition_id: str) -> dict[str, Any]:
+    """The engine's own definition of this id, as written in its file: the one place an agent's procedure reads what its definition says (its tier)."""
+    core, _ = read_folder(CORE_DIRECTORY)
+    if definition_id not in core:
+        raise KeyError(f"The engine has no core agent definition named {definition_id}.")
+    return core[definition_id]
 
 
 def load_sets(site_directory: Path, core_directory: Path = CORE_DIRECTORY) -> Loaded:

@@ -20,6 +20,7 @@ import re
 from ...markus_renderer.content_markup import drop_hidden_credits
 from ...url_paths import encoded_path
 from ...authors import absolute_author_url, normalize_authors
+from ...item_language import MACHINE_TRANSLATION
 
 FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
 LLMS_KEY = "llms.txt"
@@ -76,9 +77,9 @@ def byline_markdown(authors, origin: str | None = None) -> str:
 
 
 def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None,
-                  translation: tuple[str, str, str, str | None] | None = None) -> str:
-    """``translation`` is ``(language tag, URL of the original, translation kind, writer)`` of a translated page: the twin says so for agents (``Translation: machine``,
-    or ``Translation: imported`` and ``Written by: <name>`` for copy a person wrote; the writer is None for a machine translation). ``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
+                  translation: tuple[str, str, str] | None = None) -> str:
+    """``translation`` is ``(language tag, URL of the original, translation kind)`` of a translated page: the twin says so for agents (``Translation: machine`` for a
+    machine translation; copy a person wrote and imported says no kind, never AI, and its "By ..." line says who wrote it). ``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
     body = drop_hidden_credits(body_of(source_text))
     lines = []
     if not _opens_with_heading(body):
@@ -94,11 +95,11 @@ def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[s
     if entry.updated and entry.updated != entry.date:
         facts.append(f"Updated {entry.updated}")
     if translation is not None:
-        tag, original, kind, writer = translation
+        tag, original, kind = translation
         if kind == "authored":
             facts += [f"Language: {tag}", "Edition: independently authored", f"Companion: {original}"]
         else:
-            facts += [f"Language: {tag}", f"Translation: {kind}", *([f"Written by: {writer}"] if writer else []), f"Translated from: {original}"]
+            facts += [f"Language: {tag}", *(["Translation: machine"] if kind == MACHINE_TRANSLATION else []), f"Translated from: {original}"]
     if entry.summary_text:
         lines += [f"> {entry.summary_text}", ""]
     if facts:

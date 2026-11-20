@@ -25,7 +25,7 @@ from papyrus_content.site_store_test import FakeS3, FakeTable  # noqa: E402
 
 TENANT = "alpha"
 ADMIN = Caller(kind="person", subject="ada", is_admin=True)
-CORE_PROCEDURES = {"rate_items"}
+CORE_PROCEDURES = {"rate_items", "announce_story"}
 
 
 class Site:

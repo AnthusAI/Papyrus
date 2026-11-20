@@ -37,6 +37,20 @@ Re-measure after any release that created indexes, once its CloudFormation updat
 
 A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary and the reviewer approves in GitHub, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" has an approval waiting. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
 
+## Only a person publishes pod-loaded, imported and translated Stories (PPY-473f8f)
+
+Stories reached publishing without going through the whole checklist: a Story loaded from a pod (`papyrus pod load`, #1691) and an imported Story get a checklist
+with every step but publishing marked not applicable, and a translation skips the English checklist and has no steps of its own. Until each language has its own
+checklist that publishing checks, one rule blocks all three (`src/papyrus_content/publish_by_person.py`, called once by `publishing.publish_item`; spec
+`features_backend/publish-person-only.feature`):
+
+- `publish_item` refuses a publish of a pod-loaded Story, an imported Story or a translation unless it is a person's own act, with the code `person-publish-required` (`details.storyKind`: `pod-loaded`, `imported` or `translation`) and words that say how to proceed. Nothing is forced and nothing falls back.
+- A person publishing by hand passes: the console's Publish (or Save on a live article) and the CLI in the signed-in lane (`papyrus login`, not `--auth iam`). The checklist, the rating and the site's approval gate still apply to them.
+- Everything else is refused: `papyrus pod load` (the Story stays a draft and the load reports the refusal), `papyrus ops content import-markus` (an imported Story is saved as a draft and the import reports it as `storiesForAPerson`; pages still publish), `languages.auto` with `publish: true`, `papyrus stories localize --publish-clean`, a scheduled publish (a schedule of such a Story is refused when it is made), the restore and un-retire commands, and any agent. An automatic translation leaves a ready draft.
+- Pages and wiki pages are not Stories and are not held by the pod and import kinds; a translation of any item is.
+
+The block is temporary. The per-language checklist gate (PPY-473f8f, follow-up) gives each `{story}--{language}` lineage a checklist that publishing checks, and then lifts this rule: delete `publish_by_person.py`, its one call in `publish_item` and the `by_person` argument.
+
 ## Enforcing the agent policy on a site
 
 From the release that carries PPY-c8175e, the shared procedure runner reads each site's agent policy before it starts a run
@@ -96,6 +110,44 @@ Right after it registers the procedures, a site's Amplify build runs `papyrus ag
 ## The schedule group is reconciled by the site's deploy
 
 Right after `papyrus agents apply`, the production build runs `papyrus agents schedules --site <brand id>` ([details](automations.md#the-schedule-trigger)): one EventBridge Scheduler entry for each switched-on agent that names a schedule, targeting the site's wake queue. **Unlike the apply step, it needs permissions the build role does not have yet** (the scheduler actions on the site's group, `iam:PassRole` on the scheduler role, the wake queue's address and the monitoring table read; the exact list is in automations.md). **Do not release a version that carries this step until a person has granted them**, or every site's build stops at it. The schedule group and the scheduler role are in the site's `agents` stack, which the first deploy of a new site leaves out.
+
+## The Item change feed and the listener index (PPY-8a374e)
+
+The release that carries slice B2 does three things, all ordinary updates (nothing is added to a new site's first deploy, whose resource count does not move; `npm run test:agents-stack` prints the count and proves it):
+
+1. **The Item table gets a stream** (both images; it had none and no reader). It is switched on only with the `agents` stack that reads it, so a site's second deploy turns it on and a first deploy does not. Enabling a stream is a property change on an existing table: no index is added, so the one-new-index-per-table rule is untouched.
+2. **The `agents` stack gains the feed**: a function, its role and policy, and the stream mapping (4 resources), for a dedicated site that has a tenant id. A shared stack gets none.
+3. **The production build writes the listener index** right after the schedule step: `papyrus agents listeners` ([details](automations.md#the-listener-index-and-the-item-change-feed)). It needs nothing the schedule step does not. A site whose index has not been written has no listeners, so the feed sends nothing until its first build with this step; no agent is switched on by it (the runner still checks the policy for every wake).
+
+What a deploy cannot show, and a person checks once on a real site after the release: a board move and a CLI save each put one wake per listening agent on the queue, a repeat of the same record puts none, and the dead-letter queue stays empty (PPY-8a374e lists the proof that remains).
+
+## The agents' model key: the parameter a site names (PPY-8a374e, PPY-6af46b)
+
+A run an agent's wake starts needs a model key, and the wake carries the NAME of the SSM parameter that holds it. A site sets the name in its backend configuration (a name is not a secret; the deploy never reads, prints or stores the key):
+
+```ts
+defineSiteBackend({ /* ... */ agents: { openAiKeyParameter: "/papyrus/shipped/openai-api-key" } });
+```
+
+- **What it does.** The Item change feed and the change feed set `PAPYRUS_OPENAI_KEY_PARAMETER` to the name, and each wake they send carries it as `openaiKeyParameter`. Nothing is added to the `agents` stack (no resource, no permission on the feeds), so `npm run test:agents-stack` and the first-stage budget do not move.
+- **Who reads the key.** The procedure runner (`infra/procedures/papyrus-procedure-runner.yaml`), with its own role: statement `AgentModelKeyParameters` gives it `ssm:GetParameter` on `/papyrus/shipped/openai-api-key` and nothing else under `/papyrus/`. The key is a SecureString under the AWS-managed `alias/aws/ssm` key, so no `kms:Decrypt` is granted. A site that names another parameter is a change to that statement, through Git and the release pipeline; nothing is granted by hand.
+- **With no name set** (or a key that has expired), a feed's wakes carry none, the run has no model key and fails closed with `The run has no model key`. There is no fallback key.
+- **Rotation is a separate job.** This setting only names where the key is; rotating it is PPY-6af46b (Ryan rotates the current key).
+
+## The change feeds for Reference, review requests, Messages, translation requests and Deliveries (PPY-9b9e64)
+
+The release that carries slice B3 is an ordinary update too; a new site's first deploy does not move (`npm run test:agents-stack` prints the first-stage count, 1,978 of the 2,000 budget before and after, and the `agents` stack's own count):
+
+1. **The ReviewRequest and Delivery tables get a stream** (both images; neither had one). It is switched on only with the `agents` stack that reads it. A model group left out of a site's schema has no table, so no stream and no mapping for it. A stream is a property of an existing table: no index is added, so the one-new-index-per-table rule is untouched. Staged where a table gains a stream: nothing else in the release changes a table's stream.
+2. **The `agents` stack gains one feed function** with its role and policy (3 resources) and one mapping, with a filter, for each stream the feed reads itself (up to 5): 8 resources for a site with every table. It reads no stream that already has two readers.
+3. **Where a stream already has two readers** (the Reference stream with the word index and the home page; the Message stream with two or three of the console responder, Slack delivery and the home page) the feed gets no mapping. The reader that stays on the stream (the word index, Slack delivery or the home page) is given the feed's function name and permission to invoke it, and hands its batch over. This changes the reader's function code and settings and adds no resource. Until the `agents` stack has created the function the reader finds none and has nothing to hand over; there are no listeners before the deploy writes the listener index, so nothing is lost.
+4. **The listener index** (`papyrus agents listeners`, unchanged) now holds the new changes for any agent definition that names them.
+
+What a deploy cannot show, and a person checks once on a real site after the release: accepting a Reference puts one wake per listening agent on the queue; answering a review request puts one wake for the agent that asked; a comment on a Story wakes that Story's listeners; a Delivery state change wakes its listeners; a repeat of the same record puts none; and the dead-letter queue stays empty. The Message stream already has three readers on a site that turns on the console responder, Slack and the home page together; the feed adds none there, but that site's stream is over the guidance until one of those readers moves behind another (not done here).
+
+## The announce agent's definition (PPY-e3bb2b)
+
+`core/announce.yaml` (procedure `announce_story`, registered with the engine's procedures in the same release) is the second core definition. The build of every site that takes this release creates the automation `announce`, **disabled**, with its registered copy, and the next listener-index write lists it under `Item/stage_entered` (`stage=published`) and `Item/rated` (`stage=published`). The site's agent policy starts it at `off`, so the runner refuses its wakes until a person adopts it (`papyrus automations adopt --id announce --responsibility announce`) and sets a rung. A site that already has its own automation named `announce` that the deploy did not create is stopped by `papyrus agents apply` before anything is written (the plan names it). This release also removes the publish path's call to the newsletter and notifications functions: the plugins no longer give `content-actions` their names or an invoke grant, so a site's newsletter alerts and `story.published` notices stop being raised from a publish until PPY-58d962 replaces them with the Delivery of an Announcement.
 
 ## The first agent: rating on Machines on Machines (PPY-d85860)
 

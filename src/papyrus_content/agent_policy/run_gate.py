@@ -31,6 +31,10 @@ class PolicyUnreadable(Exception):
     """The site's policy could not be read, so no decision can be made. The run does not start."""
 
 
+class PolicyNotLocated(PolicyUnreadable):
+    """The request names no site policy (no tenant id or no site bucket), so there is nowhere to read one."""
+
+
 @dataclass(frozen=True)
 class RunDecision:
     start: bool
@@ -50,6 +54,13 @@ class RunDecision:
 
 class Gate(Protocol):
     def decide(self, request: dict) -> RunDecision: ...
+
+
+class UnlocatedPolicy:
+    """The gate for a request that does not say where the site's policy is: it refuses, so the runner records the refusal on the run."""
+
+    def decide(self, request: dict) -> RunDecision:
+        raise PolicyNotLocated("the request names no site policy: tenantId and siteBucket are required, so no run starts without one")
 
 
 class PersonStart:

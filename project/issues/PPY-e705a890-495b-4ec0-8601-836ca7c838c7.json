@@ -17,9 +17,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "970dbe1e-a6f6-4481-b810-c2c7df5b36de",
+      "author": "home",
+      "text": "lead8: not built; blocked on PPY-a7174b (see its comment for the question to Ryan). What does not depend on it ships with O3: Examples.stop(OFF) takes an example out of the next draft and records who and why in the Delivery history, and explain --delivery shows whether each example a draft read is still on. Remaining: the list page and commands for learned examples and rules, retiring a learned guideline as a new guideline version, and the health numbers.",
+      "created_at": "2026-11-19T11:47:29.509079Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:20.480238Z",
-  "updated_at": "2026-11-16T22:47:39.976507Z",
+  "updated_at": "2026-11-19T11:47:29.509384Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

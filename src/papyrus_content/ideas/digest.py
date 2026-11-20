@@ -32,14 +32,15 @@ DEFAULT_WINDOW = "7d"
 DEFAULT_MAXIMUM_REFERENCES = 60
 
 
-def parse_window(value: str | None) -> timedelta:
-    match = re.fullmatch(r"(\d{1,4})([dh])", (value or DEFAULT_WINDOW).strip().lower())
+def parse_window(value: str | None, *, option: str = "--since") -> timedelta:
+    """A relative duration: ``7d``, ``36h`` or ``2w`` (a week is seven days). ``option`` names the flag in the refusal."""
+    match = re.fullmatch(r"(\d{1,4})([dhw])", (value or DEFAULT_WINDOW).strip().lower())
     if not match:
-        raise ValueError(f"--since must look like 7d or 36h, not {value!r}.")
+        raise ValueError(f"{option} must look like 7d, 36h or 2w, not {value!r}.")
     amount = int(match.group(1))
     if amount == 0:
-        raise ValueError("--since must be longer than zero.")
-    return timedelta(days=amount) if match.group(2) == "d" else timedelta(hours=amount)
+        raise ValueError(f"{option} must be longer than zero.")
+    return {"d": timedelta(days=amount), "h": timedelta(hours=amount), "w": timedelta(weeks=amount)}[match.group(2)]
 
 
 def parse_statuses(value: str | None) -> list[str]:

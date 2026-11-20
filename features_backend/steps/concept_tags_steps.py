@@ -175,3 +175,11 @@ def _translation(context, lineage):
 def _edge_on_original(context, lineage):
     rows = _relations(context)
     assert [row["subjectLineageId"] for row in rows] == [lineage], rows
+
+
+@given('the site is the tenant backend "{tenant}", whose stored language groups carry the tenant prefix')
+def _tenant_backend(context, tenant):
+    context.site.tenant_id = tenant
+    for row in context.site.tables["Item"].values():
+        row.setdefault("language", "en")
+        row["languageGroupId"] = f"{tenant}#{row.get('languageGroupId') or row['lineageId']}"

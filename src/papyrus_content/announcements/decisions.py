@@ -18,15 +18,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from . import links
+from . import link_reads
 from .deliveries import Conflict, DeliveryExists, Deliveries, Plan
-from .links import StoryRef
+from .link_reads import StoryRef
 from .records import (
-    CANCELLED, DECISION_MODEL, PLANNED, RELEASED, RecordError, announcement_id, history_with, now_iso, stored, stored_dedupe_key, utc,
+    BLOCKED, CANCELLED, DECISION_MODEL, DELIVERY_WITHDRAWN, DRAFTED, FAILED, PLANNED, READY, RELEASED, SENDING, SENT, WITHDRAWN, RecordError, announcement_id, history_with, now_iso, stored,
+    stored_dedupe_key, utc,
 )
 
 INDEX_BY_DEDUPE_KEY = "announcementDecisionsByDedupeKey"
 INDEX_BY_STATE = "announcementDecisionsByState"
+#: The Delivery states of something that has not gone and may be withdrawn.
+UNSENT_STATES = (DRAFTED, READY, BLOCKED, FAILED)
 
 
 class AlreadyDecided(RecordError):
@@ -51,6 +54,13 @@ class Announcements:
         self.client = client
         self.deliveries = deliveries or Deliveries(client)
 
+    @staticmethod
+    def _links():
+        """The writer of the relations, imported when one is written: it needs PyYAML (the relation types), which a read does not."""
+        from . import links
+
+        return links
+
     # --- reads: every one is an index or a get ----------------------------------------------------------------------------------------------------
 
     def get(self, row_id: str) -> dict[str, Any] | None:
@@ -71,13 +81,13 @@ class Announcements:
         return [dict(row) for row in self.client.list_by_index(INDEX_BY_STATE, PLANNED, sort_condition={"between": [utc(start), utc(end)]})]
 
     def stories(self, announcement: str) -> list[dict[str, Any]]:
-        return links.stories_of_announcement(self.client, announcement)
+        return link_reads.stories_of_announcement(self.client, announcement)
 
     def for_story(self, lineage_id: str) -> list[dict[str, Any]]:
         """Where a Story was announced: each Announcement that announces it, with its live Deliveries, one line per channel. Read through the relation, then
         one Announcement and one Deliveries index query each; nothing lists a table."""
         found = []
-        for link in links.announcements_of_story(self.client, lineage_id):
+        for link in link_reads.announcements_of_story(self.client, lineage_id):
             announcement = self.get(link["subjectId"])
             if announcement:
                 found.append({"announcement": announcement, "versionLookedAt": link.get("objectVersionNumber"), "deliveries": self.deliveries.live_for_announcement(announcement["id"])})
@@ -87,13 +97,16 @@ class Announcements:
 
     def announce(
         self, *, dedupe_key: str, kind: str, stories: Sequence[StoryRef], plans: Sequence[Plan], created_by: str, trigger: str,
-        release_at: str | None = None, now: str | None = None,
+        release_at: str | None = None, now: str | None = None, stories_optional: bool = False,
     ) -> Outcome | None:
         """Decide to announce. Returns None, writing nothing, when no channel qualifies (``plans`` is empty). Calling it again for the same once-only key finds the
-        Announcement and completes whatever a crash left undone; it never makes a second Announcement."""
+        Announcement and completes whatever a crash left undone; it never makes a second Announcement.
+
+        An Announcement is about at least one Story, unless ``stories_optional``: a periodic issue that a person fills (a draft waiting for words, or one made from a
+        person's own note) may have none yet."""
         if not plans:
             return None
-        if not stories:
+        if not stories and not stories_optional:
             raise RecordError("An Announcement is about at least one Story.")
         now = now or now_iso()
         for plan in plans:
@@ -114,7 +127,7 @@ class Announcements:
                 self.deliveries.ensure_text(exists.row, plan.text, now=now)
                 delivered.append(exists.row)
         for story in stories:
-            links.announces(self.client, row_id, story, now=now)
+            self._links().announces(self.client, row_id, story, now=now)
         return Outcome(announcement, delivered, created)
 
     def _create(self, row_id: str, dedupe_key: str, kind: str, release: str, created_by: str, trigger: str, now: str) -> dict[str, Any]:
@@ -184,10 +197,42 @@ class Announcements:
             self.deliveries.finish(delivery, "withdrawn", by=by, note="the Announcement was cancelled before release", now=now)
         return cancelled
 
+    def cancel_unsent(self, row: Mapping[str, Any], *, reason: str, by: str, now: str | None = None) -> dict[str, Any]:
+        """Stop an Announcement none of whose Deliveries has gone, planned or released: an issue that was never sent before the next period began. Its Deliveries that
+        are waiting (drafted, ready, blocked, or failed with nobody having tried again) are withdrawn with the same reason, so nothing can send them later. Refused when any
+        Delivery is sending or sent: that is no longer an unsent issue, and a correction to something out is a new Delivery."""
+        if row.get("state") not in (PLANNED, RELEASED):
+            raise RecordError(f"{row['id']} is {row.get('state')}; only a planned or released Announcement is cancelled as unsent.")
+        now = now or now_iso()
+        live = self.deliveries.live_for_announcement(row["id"])
+        out = [delivery for delivery in live if delivery.get("state") in (SENDING, SENT)]
+        if out:
+            raise RecordError(f"{row['id']} has a Delivery that is {out[0]['state']}, so it is not unsent.")
+        cancelled = self._change(row, {"state": CANCELLED}, by=by, note=reason, now=now, expect_state=row["state"])
+        for delivery in live:
+            if delivery.get("state") in UNSENT_STATES:
+                self.deliveries.finish(delivery, DELIVERY_WITHDRAWN, by=by, note=reason, now=now)
+        return cancelled
+
+    def after_withdrawal(self, announcement_id: str, *, by: str, now: str | None = None) -> dict[str, Any] | None:
+        """A Delivery was withdrawn: when every live Delivery of the Announcement is withdrawn, the Announcement is too. A released Announcement becomes ``withdrawn``; one that had
+        not been released becomes ``cancelled``, because nothing of it ever went. Anything else (another Delivery still stands) leaves the Announcement as it is. Returns the
+        Announcement as it stands, or None when there is none."""
+        row = self.get(announcement_id)
+        if row is None or row.get("state") not in (PLANNED, RELEASED):
+            return row
+        live = self.deliveries.live_for_announcement(announcement_id)
+        if not live or any(delivery.get("state") != DELIVERY_WITHDRAWN for delivery in live):
+            return row
+        now = now or now_iso()
+        if row["state"] == PLANNED:
+            return self._change(row, {"state": CANCELLED}, by=by, note="every Delivery was withdrawn before release", now=now, expect_state=PLANNED)
+        return self._change(row, {"state": WITHDRAWN}, by=by, note="every Delivery was withdrawn", now=now, expect_state=RELEASED)
+
     def story_changed(self, announcement: Mapping[str, Any], story: StoryRef, *, by: str, now: str | None = None) -> list[dict[str, Any]]:
         """A newer version of a Story the Announcement is about: it looks at that version now, and each Delivery that has not gone returns to a draft, so an approval
         of the earlier version no longer counts."""
         now = now or now_iso()
-        links.announces(self.client, announcement["id"], story, now=now)
+        self._links().announces(self.client, announcement["id"], story, now=now)
         return [self.deliveries.next_version(row, by=by, note=f"{story.lineage_id} changed to version {story.version_number}", now=now)
                 for row in self.deliveries.live_for_announcement(announcement["id"])]

@@ -31,13 +31,17 @@ def _term(key: Key) -> dict | str:
     return {"@id": key.iri, "@type": profile.TERM_TYPES[key.kind]}
 
 
+def _class_keys() -> tuple[Key, ...]:
+    return tuple(key for keys in profile.CLASS_KEYS.values() for key in keys)
+
+
 def generate(relation_types_path: str | Path | None = None, namespace: str | None = None) -> str:
     """The text of ``papyrus.context.jsonld`` for the relation-types file (the packaged one when no path is given) and the vocabulary namespace
     (the packaged relation-types file's when none is given)."""
     namespace = namespace or load_vocabulary_namespace()
     relation_types = profile.relation_types(relation_types_path)
     terms: dict[str, object] = {"@version": 1.1, **profile.prefixes(namespace), **KEYWORDS}
-    for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *profile.RELATION_KEYS):
+    for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *_class_keys()):
         terms[key.name] = _term(key)
     for relation_type in relation_types:
         terms[relation_type.key] = {"@id": f"papyrus:{relation_type.key}", "@type": "@id", "@container": "@set"}
@@ -142,7 +146,7 @@ def read_root(path: Path) -> tuple[RootContext, list[str]]:
 
 
 def reserved_names(relation_types_path: str | Path | None = None) -> set[str]:
-    names = {key.name for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *profile.RELATION_KEYS)}
+    names = {key.name for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *_class_keys())}
     names |= {relation_type.key for relation_type in profile.relation_types(relation_types_path)} | set(KEYWORDS)
     return names
 

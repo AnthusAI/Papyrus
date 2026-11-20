@@ -1,4 +1,5 @@
-"""``papyrus pod init|id|check``: work on a folder of notes. No sign-in, no site, no network; ``check`` only reads.
+"""``papyrus pod init|id|check|build|load``: work on a folder of notes. ``init``, ``id``, ``check`` and ``build``'s refusal need no sign-in, no site and no
+network, and ``check`` only reads. ``load`` signs in to a site and writes its notes there as private newsroom data (``load.py``).
 
 Exit status: 0 for success, 1 when ``check`` found problems, 2 for a command that could not run (the operator-error status).
 """
@@ -14,12 +15,15 @@ from papyrus_content.relation_types import load_vocabulary_namespace
 
 from . import context, profile
 from .check import POD_LEVEL, REVIEW_CLAIMS_LINE, check_pod
+from .load import apply_plan, commit_of, plan_load, refuse_private, render
 
-ROUTES = {"init": {}, "id": {}, "check": {}}
+ROUTES = {"init": {}, "id": {}, "check": {}, "build": {}, "load": {}}
 USAGE = {
     "init": "papyrus pod init POD --id-base URL [--namespace URL]",
     "id": "papyrus pod id POD [N]",
     "check": "papyrus pod check POD",
+    "build": "papyrus pod build POD",
+    "load": "papyrus pod load POD [--dry-run] [--tenant ID]",
 }
 
 
@@ -30,9 +34,9 @@ def route_tree() -> dict:
 def command(argv: list[str], *, stdout: TextIO | None = None) -> int:
     out = stdout or sys.stdout
     if not argv or argv[0] not in ROUTES:
-        raise ValueError("papyrus pod requires <command>: init, id or check.")
+        raise ValueError("papyrus pod requires <command>: init, id, check, build or load.")
     name, rest = argv[0], argv[1:]
-    return {"init": _init, "id": _id, "check": _check}[name](rest, out)
+    return {"init": _init, "id": _id, "check": _check, "build": _build, "load": _load}[name](rest, out)
 
 
 def _pod_argument(args: list[str], name: str) -> Path:
@@ -123,3 +127,44 @@ def _check(args: list[str], out: TextIO) -> int:
         where = "" if problem.path == POD_LEVEL else f"{problem.path}: "
         print(f"  {where}{problem.message}", file=out)
     return 1
+
+
+def _build(args: list[str], out: TextIO) -> int:
+    pod = _pod_argument(args, "build")
+    if len(args) > 1:
+        raise ValueError(f"papyrus pod build does not take {args[1]!r}; the usage is {USAGE['build']}.")
+    refuse_private(_existing(pod), "build")
+    raise OperatorError(f"{pod} names a site, but building a site from a pod is not part of papyrus pod yet. Nothing was built.")
+
+
+def _load(args: list[str], out: TextIO) -> int:
+    from papyrus_content import graphql_authoring
+    from papyrus_content.tenancy import tenant_id_from_options
+
+    pod = _pod_argument(args, "load")
+    options, dry_run, tenant = args[1:], False, None
+    while options:
+        flag, separator, inline = options[0].partition("=")
+        if flag == "--dry-run" and not separator:
+            dry_run, options = True, options[1:]
+        elif flag == "--tenant":
+            value, options = (inline, options[1:]) if separator else (options[1] if len(options) > 1 else "", options[2:])
+            tenant = value
+        else:
+            raise ValueError(f"papyrus pod load does not take {options[0]!r}; the usage is {USAGE['load']}.")
+    if tenant == "":
+        raise ValueError("--tenant takes a tenant id.")
+    commit = commit_of(_existing(pod))
+    tenant_id = tenant_id_from_options({"tenant": tenant} if tenant else {})
+    plan = plan_load(pod, commit, tenant_id, lambda: graphql_authoring.create_authoring_client(tenant_id)[0])
+    if plan.problems:
+        print(f"pod: {pod}", file=out)
+        print(f"problems: {len(plan.problems)}", file=out)
+        for problem in plan.problems:
+            print(f"  {problem}", file=out)
+        print("Nothing was loaded.", file=out)
+        return 1
+    if not dry_run:
+        apply_plan(plan, plan.client)
+    render(plan, out, dry_run=dry_run)
+    return 0

@@ -118,13 +118,21 @@ def lay_over(kind: str, publication: dict, publication_version: int, overlays: l
 RULE_KEYS = ("name", "severity", "scope", "language", "description", "avoid", "prefer", "pattern", "maxLength", "body")
 
 
-def _lay_rules(layers: list[tuple[list[dict], dict]]) -> tuple[list[dict], list[dict]]:
+def _applies(rule: dict, channel: str | None) -> bool:
+    """A rule scoped to a channel applies only when writing for that channel; every other rule applies everywhere."""
+    scope = str(rule.get("scope") or "")
+    return not scope.startswith("channel/") or scope == f"channel/{channel}"
+
+
+def _lay_rules(layers: list[tuple[list[dict], dict]], channel: str | None = None) -> tuple[list[dict], list[dict]]:
     """The rule files of every layer, publication first, as one list: ``(rules, warnings)``. A section adds rules and never replaces or removes one, so a section's rule
     with the name of an earlier layer's is left out with a warning, and the earlier one stands."""
     merged: list[dict] = []
     warnings: list[dict] = []
     for rules, entry in layers:
         for rule in rules:
+            if not _applies(rule, channel):
+                continue
             if any(item["name"] == rule["name"] for item in merged):
                 warnings.append({"code": "rule_file_shadowed", "field": "guidelineFiles", "message": f"The rule file {rule['name']} of the {entry['layer'].replace('-', ' ')} layer has the name of an earlier layer's; the earlier one stands."})
                 continue
@@ -136,8 +144,12 @@ def _layer(scope: str, found: dict, language: str | None = None) -> dict:
     return {"scope": scope, **({"language": language} if language else {}), **{k: found["reference"][k] for k in ("itemId", "slug", "versionNumber", "contentHash")}}
 
 
-def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = None, language: str | None = None) -> dict:
-    """The effective guidelines of ``kind`` for the publication, or for ``section`` laid over it, and for text in ``language``.
+def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = None, language: str | None = None, channel: str | None = None) -> dict:
+    """The effective guidelines of ``kind`` for the publication, or for ``section`` laid over it, and for text in ``language``, written for ``channel`` when one is named.
+
+    A rule file scoped to a channel (``channel/x``) is in the answer only for that channel: the drafter and the checker for X read X's craft rules (hook, length, links, tags, tone, image
+    shape) and no other channel's. A channel rule is laid like any rule file: it adds and never loosens, since a section's rule with the name of an earlier layer's is left out and the
+    earlier one stands.
 
     The layers, most general first: the publication's document (voice, audience, binding constraints: written once, for every language), the section's,
     then for a language each of its language overlays (a variant's base language first: ``es`` then ``es-419``), then the section's own overlays for that
@@ -150,7 +162,7 @@ def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = N
     spec = kind_spec(kind)
     if not spec.layers:
         raise GuidelineError("resolver_not_available", f"{kind} guidelines are resolved by their own resolver, not this one.")
-    answer: dict[str, Any] = {"kind": kind, "section": section, **({"language": language} if language else {}),
+    answer: dict[str, Any] = {"kind": kind, "section": section, **({"language": language} if language else {}), **({"channel": channel} if channel else {}),
                               "found": False, "document": {}, "fieldSources": {}, "layers": [], "warnings": []}
     base = store.read(kind)
     layers = [_layer(PUBLICATION, base)] if base else []
@@ -181,7 +193,7 @@ def resolve_guidelines(store: GuidelineStore, kind: str, section: str | None = N
         answer["warnings"].append({"code": f"{kind}_shared_document_missing", "message": f"This publication has no shared {kind} document; only the overlays that exist were applied."})
         base = {"document": {}, "reference": {"versionNumber": 0}}
     document, sources, warnings = lay_over(kind, base["document"], base["reference"]["versionNumber"], overlays)
-    rules, rule_warnings = _lay_rules(rule_layers)
+    rules, rule_warnings = _lay_rules(rule_layers, channel)
     if rules:
         document["guidelineFiles"] = rules
         sources["guidelineFiles"] = [dict(entry) for rules_of, entry in rule_layers if rules_of]

@@ -15,9 +15,24 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "626cd622-cd93-4aa9-908d-85503f04d59f",
+      "author": "home",
+      "text": "Audit: guard and auto-pause met; unmet: budget.suggestion and Standing.sentence not surfaced in page/operation; our count beside X's count; guard has no live call path.",
+      "created_at": "2026-11-18T16:59:13.828194Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4e755188-7e07-44ae-9fb1-480511c8bd67",
+      "author": "home",
+      "text": "Built (PR #1714): papyrus announcements account status now shows our post count for the current billing cycle (every sent attempt counts, a deleted post included, because X charged for it) and the budget suggestion from the site's own pace (Stories with an Announcement in the last 60 days x 30/60 x the link price, as a pace never a limit; left out until prices are entered). Standing.sentence was already shown as standing. Specs: features_backend/announcement-operations.feature. Still open: X's own usage count (GET /2/usage/tweets) beside ours, and the guard's live call path; both need a live X account and a deploy. The console page still has to draw the two new fields (needs the TypeScript door; not done here).",
+      "created_at": "2026-11-19T10:21:54.113325Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:39.280312Z",
-  "updated_at": "2026-11-12T18:51:02.488117Z",
+  "updated_at": "2026-11-19T10:21:54.113552Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -216,6 +216,7 @@ GENERATED: dict[str, tuple[str | None, str]] = {
   'ops categories sandbox-steering-config': (None, '?'),
   'ops content adopt-tenant-data': (None, '?'),
   'ops content backfill-item-body-attachments': (None, 'writes'),
+  'ops content backfill-tenant-id': (None, '?'),
   'ops content convert-bodies': (None, '?'),
   'ops content copy-backend': (None, '?'),
   'ops content export-published': (None, 'reads'),

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a8fa25dc-5214-46e6-a425-2f842218fc83",
+  "issue_id": "PPY-df6d88eb-2ed3-44fe-8c76-a2112cdaaa52",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T21:13:41.851Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Design question: one agent's missing config fails the whole build in agents schedules",
+    "description": "agents schedules refuses to reconcile any schedule when one agent (rate on Machines on Machines) names a publication with no siteBucket, exits 2 and fails the entire Amplify build, including the frontend. Decide whether it should skip and report the one agent, or keep refusing. Found 2026-11-17 during the 5.130.3 bump (job failed at the schedules step; rate was disabled and the build retried green). Related: PPY-e713eb, PPY-d85860.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

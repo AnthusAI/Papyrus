@@ -4,7 +4,9 @@ Feature: Finished copy written by a person or another agent is attached as a Sto
   `papyrus stories import-translation` does (PPY-b64b0b): it saves the copy as the next version of the sibling lineage `<story>--<language>`, the way the
   translation procedure saves one, as an unpublished companion edition of the English version it pairs with. The version's author is the writer, and its
   provenance says the copy was written and not machine-generated. Every block is the writer's, owner human and pinned, so a later translation run keeps the
-  copy exactly. No model is called: the parity and glossary rules and the language's copy-edit policies check each block and the whole body, and an
+  copy exactly. The version's front matter says who made it for the site's standard byline ("By various bots", "By various bots and NAME", or "By NAME"):
+  `author` is the writer and `drafting: {by: AI}` is there only when the caller says bots helped (`--drafting-by-ai`), never inherited from the English
+  Story, whose byline is the English's. No model is called: the parity and glossary rules and the language's copy-edit policies check each block and the whole body, and an
   error-severity finding holds the version with a flag review request, exactly as it holds a machine translation. The copy must line up with the English
   block for block, and it must not change a link, a credit or a figure; a copy that does not, or that asks for a language the site does not write in, an
   unpublished Story or a translation, is refused and nothing is saved. The Story's translation request is written finished so that
@@ -30,6 +32,21 @@ Feature: Finished copy written by a person or another agent is attached as a Sto
     And its provenance says the copy was written by "Ana Writer" and was not machine-generated
     And its provenance names no model and no cost, and no judge was given to the checks
 
+  Scenario: The writer is the byline's author, and the English Story's byline is not inherited
+    Given the English Story is drafted by AI and names the author "Ryan Porter"
+    When "Ana Writer" imports the copy as the "es-419" translation of "story-waymo" because "Beijing draft"
+    Then the saved version's front matter has the author "Ana Writer" and no drafting by AI
+
+  Scenario: The caller says bots helped, so the byline gets the bots
+    Given the English Story is drafted by AI and names the author "Ryan Porter"
+    When "Ana Writer" imports the copy as the "es-419" translation of "story-waymo" because "Beijing draft" saying bots helped
+    Then the saved version's front matter has the author "Ana Writer" and drafting by AI
+
+  Scenario: An English Story with no front matter still gets the writer as the author
+    Given the English Story has no front matter
+    When "Ana Writer" imports the copy as the "es-419" translation of "story-waymo" because "Beijing draft" saying bots helped
+    Then the saved version's front matter has the author "Ana Writer" and drafting by AI
+
   Scenario: Every block is the writer's and pinned
     When "Ana Writer" imports the copy as the "es-419" translation of "story-waymo" because "Beijing draft"
     Then in its alignment all 5 blocks are human and pinned and name the English blocks they pair with
@@ -52,6 +69,7 @@ Feature: Finished copy written by a person or another agent is attached as a Sto
     When the English Story's second paragraph says "The [report](https://example.test/report) covers 14 cities." in version 4 and the translation is run again
     Then the second paragraph of the newest translation still says "El [informe](https://example.test/report) abarca 12 ciudades."
     And the newest provenance marks that paragraph as a conflict
+    And the newest translation is held saying the person's wording no longer matches the English
 
   Scenario: The Story's translation request is written finished, so translating the whole site leaves the copy alone
     When "Ana Writer" imports the copy as the "es-419" translation of "story-waymo" because "Beijing draft"

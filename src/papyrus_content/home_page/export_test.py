@@ -333,3 +333,43 @@ def test_section_titles_are_keyed_by_the_id_a_reference_stores():
             return [{"id": "security", "title": "Security"}]
 
     assert export.section_labels_of(UntenantedClient()) == {"security": "Security"}, "a backend with no tenant stores the id as it is"
+
+
+def floor_settings(floor=3):
+    return HomePageSettings(floor_stars=floor)
+
+
+def test_with_the_floor_on_only_accepted_references_rated_at_the_floor_are_public():
+    client = FixtureClient()
+    for title, stars in (("Accepted one", 5), ("Accepted two", 3), ("Accepted three", 2), ("Pending mid", 5)):
+        rate(client, title, stars)
+    records = collect_references(client, client.corpus_id, floor_settings())
+    titles = {record["title"] for record in records}
+    assert titles == {"Accepted one", "Accepted two"}, "unrated accepted, two stars and every pending one (rated or predicted) are off the public snapshot"
+    assert {record["status"] for record in records} == {"accepted"}, "recommended leaves the public snapshot"
+
+
+def test_a_higher_floor_drops_three_stars_and_a_floor_of_one_still_needs_a_rating():
+    client = FixtureClient()
+    for title, stars in (("Accepted one", 5), ("Accepted two", 3), ("Accepted three", 1)):
+        rate(client, title, stars)
+    assert {record["title"] for record in collect_references(client, client.corpus_id, floor_settings(4))} == {"Accepted one"}
+    assert {record["title"] for record in collect_references(client, client.corpus_id, floor_settings(1))} == {"Accepted one", "Accepted two", "Accepted three, contact"}
+
+
+def test_a_prediction_is_not_a_rating_however_sure():
+    row = pending_row(predictedAcceptProbability=0.95)
+    assert not is_chosen(row, None, floor_settings(1))
+    assert is_chosen(row, None, HomePageSettings()), "with no floor it is still recommended"
+
+
+def test_the_floor_does_not_read_the_unrated_partition():
+    client = FixtureClient()
+    collect_references(client, client.corpus_id, floor_settings())
+    assert "referencesByFeedStateAndPrediction" not in client.calls
+
+
+def test_the_floor_is_part_of_the_stored_state_fingerprint_and_no_floor_leaves_it_as_it_was():
+    from papyrus_content.home_page.incremental import fingerprint_of
+
+    assert len({fingerprint_of(floor_settings(3), "c"), fingerprint_of(floor_settings(4), "c"), fingerprint_of(HomePageSettings(), "c")}) == 3

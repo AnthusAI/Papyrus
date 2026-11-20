@@ -17,10 +17,24 @@
       "text": "Filed 2026-11-12 from the deliverability findings. Blocks PPY-a85725 and the MoM launch PPY-f4b164. Owner decision pending: Ryan chooses the mailbox or aggregate-report service.",
       "created_at": "2026-11-12T13:04:32.653163Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4f024a80-60f5-4405-a3f2-584f3e394cb9",
+      "author": "home",
+      "text": "Blocked on owner: which mailbox or aggregate-report service receives DMARC rua reports (autonomous run 2026-11-18; nothing done).",
+      "created_at": "2026-11-18T16:54:12.929018Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6e001596-83af-4bd5-ac3f-97df99a1b7a9",
+      "author": "home",
+      "text": "Part 1 merged to develop in #1692 (not released): infra/email/papyrus-dmarc.yaml publishes _dmarc.<domain> at p=none with rua taken from an SSM parameter (stack holds only the NAME /papyrus/dmarc/report-address; no address anywhere in Git, specs use a placeholder), no external-destination record needed (same organisational domain), pipeline roles gain papyrus-dmarc-*; spec features_backend/dmarc-report-record.feature. Part 2 is draft PR #1694 (the two stacks for anth.us and mail.machines-on-machines.anth.us in stacks.json); its dry run fails until the roles apply. Nothing deployed. Deploy steps remaining, in order: (1) a person approves the role-stack-deploy run for the roles change; (2) a person creates the String parameter /papyrus/dmarc/report-address in papyrus-production with the existing anth.us mailbox's address; (3) re-run checks on #1694 and merge, then the release deploys both stacks; (4) a first aggregate report arrives and is read, then a stricter policy is its own change. Not covered: notify.anth.us keeps its own _dmarc record (no rua) from the operators newsletter stack, a separate follow-up. Owner decision (which mailbox) now given by the parent task: an existing anth.us mailbox.",
+      "created_at": "2026-11-19T01:40:05.742346Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T13:02:07.491996Z",
-  "updated_at": "2026-11-12T13:04:32.653416Z",
+  "updated_at": "2026-11-19T01:40:05.742633Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

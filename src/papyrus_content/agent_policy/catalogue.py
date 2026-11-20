@@ -4,7 +4,8 @@
 side the runner uses; this adds the writes a person's signed-in session makes, so ``papyrus agents set-rung`` saves through the same ``SiteStore``
 the runner reads. Each write is one conditional mutation, so two admins saving at once cannot both succeed:
 
-* ``create`` fails when the id exists (``KeyError``), so a version number is never reused;
+* ``create`` fails when the id exists (``KeyError``), so a version number is never reused. The model's create mutation itself refuses an existing
+  key (``ModelXConditionInput`` has no key field to put a condition on, so none is sent);
 * ``update_if`` moves ``SiteDocument.currentVersion`` only while it is still the version the save started from;
 * ``latest_version`` is one query on the ``documentId`` index, highest version first, one row.
 """
@@ -25,10 +26,9 @@ def _failed_condition(error: Exception) -> bool:
 
 class SiteCatalogueTable(SiteCatalogue):
     def create(self, model: str, row: dict[str, Any]) -> None:
-        mutation = (f"mutation Create{model}($input: Create{model}Input!, $condition: Model{model}ConditionInput) "
-                    f"{{ create{model}(input: $input, condition: $condition) {{ id }} }}")
+        mutation = f"mutation Create{model}($input: Create{model}Input!) {{ create{model}(input: $input) {{ id }} }}"
         try:
-            self._client.graphql(mutation, {"input": row, "condition": {"id": {"attributeExists": False}}})
+            self._client.graphql(mutation, {"input": row})
         except Exception as error:   # noqa: BLE001 - only a failed condition means the id exists; anything else is the caller's to see
             if _failed_condition(error):
                 raise KeyError(row["id"]) from error

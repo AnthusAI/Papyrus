@@ -35,12 +35,13 @@ DELIVERY_STATES = (*LIVE_STATES, SENT, FAILED, DRY_RUN, DELIVERY_WITHDRAWN, SUPE
 # A Delivery is waiting for its release time or its lock only while it is a draft or ready.
 BEFORE_SEND_STATES = (DRAFTED, READY)
 
+EMAIL = "email"   # the channel whose Deliveries carry counts
 NONE, SOFT, HARD = "none", "soft", "hard"
 APPROVALS = (NONE, SOFT, HARD)
 AUTOMATIC, MANUAL = "automatic", "manual"
 MODES = (AUTOMATIC, MANUAL)
-RATE_LIMIT, BUDGET_CYCLE, RELEASE = "rate limit", "budget cycle", "release"
-WAITING_FOR = (RATE_LIMIT, BUDGET_CYCLE, RELEASE)
+RATE_LIMIT, BUDGET_CYCLE, RELEASE, POST_SPACING = "rate limit", "budget cycle", "release", "post spacing"
+WAITING_FOR = (RATE_LIMIT, BUDGET_CYCLE, RELEASE, POST_SPACING)
 # An attempt's outcome (the always-on standard's words, PPY-f58445). An attempt opens ``started`` and closes ``sent``, ``refused`` or ``unknown``; ``started`` and
 # ``unknown`` are both open, and only settling (reading what the provider recorded) closes them.
 STARTED, ATTEMPT_SENT, ATTEMPT_REFUSED, UNKNOWN = "started", "sent", "refused", "unknown"
@@ -48,6 +49,8 @@ ATTEMPT_OUTCOMES = (STARTED, ATTEMPT_SENT, ATTEMPT_REFUSED, UNKNOWN)
 OPEN_OUTCOMES = (STARTED, UNKNOWN)
 # The codes of a refusal that is a wait, not an answer: the next try is the next attempt.
 PAUSED_CODE, BUDGET_REACHED_CODE, RATE_LIMIT_CODE = "paused", "budget reached", "rate limit"
+#: Why a draft is blocked before any attempt: the checks on its words failed (the design's ``blockedReason``).
+CHECK_FAILED_CODE = "check failed"
 SYSTEM = "system"   # who approved a Delivery whose approval is ``none``: the publication's policy did, and ``approvalPolicy`` says which
 
 #: The one partition of the sparse due index: a Delivery carries it only while it has a pending time.
@@ -103,12 +106,6 @@ def delivery_id(announcement: str, channel: str, account_id: str, generation: in
     return f"{announcement}#{channel}#{account_id}#g{generation}"
 
 
-def attempt_event_id(delivery: str, number: int) -> str:
-    """The Caducus event id of attempt ``number`` of a Delivery: ``delivery:<deliveryId>:a<N>``. Caducus dedupes on it, so one attempt is one event and the same
-    attempt submitted twice posts once. A retry is the next attempt, so it is a new event. There is no other suffix."""
-    return f"delivery:{delivery}:a{number}"
-
-
 def attempt_log(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     """The Delivery's attempts, oldest first."""
     return json_list(row.get("attempts"))
@@ -144,12 +141,13 @@ def pending_times(row: Mapping[str, Any]) -> list[str]:
     """The times a Delivery is still waiting for.
 
     A draft or a ready Delivery waits for its release time and, until it is locked, for its lock time, until its first attempt opens: after that those times are
-    used up, and only a named wait (a rate limit, a budget cycle) is pending. A Delivery that is live in any state waits for its next attempt time while one is set. A final Delivery, and a Delivery superseded or withdrawn, waits for nothing."""
+    used up, and only a named wait (a rate limit, a budget cycle, post spacing) is pending. A Delivery that is live in any state waits for its next attempt time while one is set. A final Delivery, and a Delivery superseded or withdrawn, waits for nothing."""
     state = row.get("state")
     if state not in LIVE_STATES:
         return []
     times: list[str] = []
-    if state in BEFORE_SEND_STATES and not attempt_log(row):
+    # Post spacing holds a Delivery whose release time has already come, so while it is held only the end of the spacing is pending.
+    if state in BEFORE_SEND_STATES and not attempt_log(row) and row.get("waitingFor") != POST_SPACING:
         times.append(row.get("releaseAt"))
         if not row.get("lockedAt"):
             times.append(row.get("lockAt"))
@@ -209,4 +207,4 @@ def stored(row: Mapping[str, Any], *, clearing: bool = False) -> dict[str, Any]:
     }
 
 
-JSON_FIELDS = ("history", "attempts", "checks", "counts")
+JSON_FIELDS = ("history", "attempts", "checks", "counts", "versions", "candidates")

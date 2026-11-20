@@ -31,7 +31,7 @@ from typing import Any, Callable
 
 from .tenancy import TENANT_KEY_SEPARATOR, TenantError, validate_tenant_id
 
-SITE_DOCUMENT_KINDS = ("site", "brand", "nav", "agents")
+SITE_DOCUMENT_KINDS = ("site", "brand", "nav", "agents", "lists", "listeners")
 SCHEMA_VERSION = 1
 
 #: Index query field, as declared in amplify/data/schema.ts and resource.ts.

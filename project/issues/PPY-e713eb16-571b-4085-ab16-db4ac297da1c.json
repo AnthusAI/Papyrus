@@ -51,10 +51,45 @@
       "text": "Release blockers found by D2 (PR #1648), do not release until settled: (1) core/rate.yaml names procedure rate_items which no registry lists, so papyrus agents apply would fail every site's build until PPY-d85860 registers that procedure under a matching registry kind (or the definition leaves core/); see docs/releasing.md. (2) The agents apply step queries Automation by the tenantId index and needs a tenant id in the build environment (PAPYRUS_TENANT_ID or the site file's): confirm on a pre-production site first. (3) The first build of 'procedures seed-required' must confirm the data schema admits the build role on the procedure mutations.",
       "created_at": "2026-11-17T06:10:56.517075Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d0122eb9-c3da-4689-a3a3-729446e6f584",
+      "author": "home",
+      "text": "5.130 window, 2026-11-17 (Claude, for Ryan).\nRelease: runner and router held in #1659; 5.130.0 released via #1660 (tag v5.130.0, PyPI and npm 5.130.0). MoM bump #317/#318 -> Amplify job 137 FAILED: the agents stack's wake-queue mapping (agents/wake-queue/RunnerMapping) needs the runner role's ReadWakeQueues, which ships with the held runner stack. Ryan approved the refusal window for other sites: runner hold lifted in #1661, released as 5.130.1 via #1662 (tag v5.130.1); pipeline run 44109625394 deployed papyrus-procedure-runner (UPDATE_COMPLETE, ReadWakeQueues in the template). papyrus-monitoring stays held.\nRetry: Amplify job 138 SUCCEED (BUILD, DEPLOY, VERIFY). FINDING: the build log shows none of procedures seed-required, agents apply, agents schedules. MoM's Amplify app buildSpec (set by the site's own stack) is the plain ampx pipeline-deploy spec; those steps live only in the app-shell cms build spec. So rate is NOT registered on MoM (automations list shows only story-localize) and the first-build schema/role check has not happened. Needs a decision: how MoM (non-cms site) gets the steps.\nBefore window: TRIGGER rows in the monitoring table: MoM 0 (deferred 0, starting 0, startFailed 0); Distinctive 14 completed, none deferred.\nGuidelines: convert dry run matched the plan (writing v3 4 files, es-419 v2 2, zh-Hans v1 1); --apply converted all 3; convert again shows already_files; resolve (base, es-419, zh-Hans) and export (4 files) work; base document identical to the saved 5.126 show output.\nNot done: once-only check (checklist step 11), run outcome check, other sites' bumps.",
+      "created_at": "2026-11-17T15:38:59.752663Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "5d24c493-2da0-4271-97c4-f566a7e59ebc",
+      "author": "home",
+      "text": "MoM deploy of 5.130.0 done 2026-11-17. Release PR AnthusAI/Machines-on-Machines#320 (develop to main, includes #319 generated build spec), ci green, merge-commit. GitHub Actions run 44119440298 success. Amplify main-branch job 139 SUCCEED (BUILD, DEPLOY, VERIFY). Build log: backend-deploy 1 pass (no cost-tag wave, release only); uv install papyrus-newsroom[markus]==5.130.0 ok; procedures seed-required registered 15 incl. rate_items; agents apply ok (rate new, applied, disabled); agents schedules ok (group deployed, nothing created or changed); alexa-sync skipped (site does not enable alexa); frontend build ok with no cp amplify_outputs.json step. Verified: public / and /articles 200, newsroom host /newsroom 200; automations list shows rate (schedule, rate_items) disabled, no runs. Not adopted, no rungs set, nothing enabled. Notes: local papyrus CLI is 5.126 (agents group unsupported); via uvx 5.130.0 agents apply --check reports rate missing (local check environment; the deploy's own apply returned ok) and agents validate needs --dir (no core dir located locally). story-localize monitor shows enabled/failed (pre-existing, untouched). Repo amplify.yml and the Amplify app buildSpec still contain the old cp line but the job ran the generated spec without it.",
+      "created_at": "2026-11-17T16:22:59.671229Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "00036490-801f-4c96-8947-061379cf60ab",
+      "author": "home",
+      "text": "2026-11-17 MoM rating agent first-run steps (5.130.0 CLI, signed-in lane). Step 1 head-index: dry run reported 26 keys to set (doc says apply first); applied; re-run dry shows 0 to set, 719 already right, 1 no-head (a zh-Hans translation Story with every row superseded; suggests papyrus stories repair-versions, not run). Step 2 adopt rate dry run + real: ok. Step 3 set-rung observe dry run ok (policy v0 -> v1); --apply FAILED, NOT AccessDenied: 'GraphQL request failed: The variables input contains a field that is not defined for input object type ModelSiteDocumentVersionConditionInput'. Likely CLI/site-store bug: create sends condition {id: {attributeExists: false}} but SiteDocumentVersion is keyed by documentId+version, no id field (compare src/papyrus_content/agent_policy/catalogue.py line 31). Nothing written (policy still v0). Steps 4-5 not run; rung is unset so they would only record rung_off. Needs a fix and release before retry.",
+      "created_at": "2026-11-17T16:27:06.416014Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "7ddc1668-7085-4c4c-83b8-2da8f0ba5d35",
+      "author": "home",
+      "text": "2026-11-17 MoM rating agent resume with 5.130.2 CLI. set-rung observe dry run then --apply: OK (policy v0 -> v1, rate=observe, reason recorded). automations update --id rate --monitor hn --publication machines-on-machines --enabled true: OK, rate now enabled; show reports schedule 30 3 * * * America/New_York 'from its definition'. agents schedules dry run AND real both FAILED: botocore LoginRefreshRequired (AWS session expired); the command is operator lane (AWS credentials / --auth iam), not the signed-in lane, so I did not use AWS creds to write; needs Ryan or coordinator to aws login and run it. automations run --id rate --input {} : started (manual run requested), but 2+ minutes later automations runs --id rate still lists 0 runs and show says no runs; no failed-closed record seen yet. No story updated after the run (newest published update 15:56Z), so no ratings appear written. Open: schedules step; why the manual run left no run record.",
+      "created_at": "2026-11-17T17:43:46.243744Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "66822362-4e67-4aa7-957a-510ff7c391ce",
+      "author": "home",
+      "text": "2026-11-17, Machines on Machines moved to Papyrus 5.130.3. Release: Papyrus PR #1668 (develop to main); tag v5.130.3, PyPI and npm verified (npm took about 6 minutes to show the version after a clean 202 publish, same as 5.130.2); stack-deploy run green, monitoring stack untouched and still held. MoM: bump PR #321 to develop, release PR #322 to main, amplify.yml regenerated with print-buildspec. Before the main merge, the Automation tenantId backfill ran as a dry run (2 rows: story-localize and rate, both unstamped), then --apply wrote 2 tenantId fields; a second dry run showed 0 pending, 2 already stamped, and agents apply --check then saw rate as unchanged. Main deploy 1 (Amplify job 140) FAILED at agents schedules: the router publication machines-on-machines names no siteBucket, so rate cannot be scheduled; nothing was written, frontend did not run, and the live site stayed on the previous build. Decision: rate stays disabled while its publication has no siteBucket, so automations update --id rate --enabled false was applied and verified (rate disabled, definition unchanged per agents apply --check). Retry (job 141) SUCCEEDED: agents apply unchanged, agents schedules ok with nothing to create, frontend build ran, deploy and verify succeeded. Public pages and /newsroom return 200; the agent schedule group is empty, so no agent-rate schedule exists. Re-enabling rate waits on lifting the papyrus-monitoring hold (siteBucket). Follow-up filed: PPY-df6d88, whether agents schedules should fail the whole build over one agent's missing config.",
+      "created_at": "2026-11-17T21:13:51.442829Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T01:18:00.727665Z",
-  "updated_at": "2026-11-17T06:10:56.517588Z",
+  "updated_at": "2026-11-17T21:13:51.443978Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

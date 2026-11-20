@@ -1,36 +1,31 @@
 import Link from "next/link";
-import { CheckIcon, ChevronDownIcon, CircleHelpIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { OUTCOME_MARKS, RunOutcome } from "./run-outcome";
 import {
   OTHER_ORDER,
   OUTCOME_ORDER,
   OUTCOME_WORDS,
+  SEND_COUNT_ORDER,
+  SEND_COUNT_WORDS,
   automationsHref,
   costText,
   countWords,
   dayTitle,
   reasonsText,
   runsText,
+  sendCostText,
+  sendItemsText,
   type TodayCountKey,
   type TodayDidNotRun,
   type TodayOverview,
   type TodayResult,
   type TodayRow,
   type TodayRun,
+  type TodaySend,
 } from "../lib/today-overview";
 
-/** Every status is a mark and its words, never a colour alone. The marks are Lucide icons; the words come with them. */
-const MARKS: Record<TodayCountKey, LucideIcon> = {
-  acted: CheckIcon,
-  nothing: MinusIcon,
-  asked: CircleHelpIcon,
-  failed: XIcon,
-  unknown: TriangleAlertIcon,
-  notFinished: ClockIcon,
-  beforeOutcomes: MinusIcon,
-};
-
 function Mark({ name }: { name: TodayCountKey }) {
-  const Icon = MARKS[name];
+  const Icon = OUTCOME_MARKS[name];
   return <Icon aria-hidden="true" className="size-3.5 shrink-0" />;
 }
 
@@ -49,10 +44,7 @@ function RunLine({ run }: { run: TodayRun }) {
   const outcome = run.outcome ?? (run.runStatus === "completed" || run.runStatus === "failed" ? "beforeOutcomes" : "notFinished");
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-today-run={run.runId ?? "unlinked"} data-today-run-outcome={outcome}>
-      <span className="inline-flex items-center gap-1.5 font-medium">
-        <Mark name={outcome} />
-        {run.outcomeShown}
-      </span>
+      <span className="font-medium"><RunOutcome outcome={outcome} shown={run.outcomeShown} /></span>
       <span className="tabular-nums text-muted-foreground">{run.requestedAt ? run.requestedAt.slice(11, 16) + " UTC" : "time not recorded"}</span>
       <span className="text-muted-foreground">{run.costUsd === null ? "cost unknown" : costText({ costUsd: run.costUsd, costKnownRuns: 1, costUnknownRuns: 0 })}</span>
       <span className="break-all text-muted-foreground">{run.runId ? `Run ${run.runId}` : "No run id"}</span>
@@ -112,6 +104,38 @@ function Row({ row, demo }: { row: TodayRow; demo: boolean }) {
   );
 }
 
+/** Where a send stands: a mark and its words, never colour alone. A state the table does not name is shown by its words with the neutral mark. */
+const SEND_MARKS: Record<string, LucideIcon> = {
+  sent: CheckIcon, sending: ClockIcon, ready: ClockIcon, drafted: ClockIcon, blocked: TriangleAlertIcon, failed: XIcon, dry_run: MinusIcon, withdrawn: MinusIcon, superseded: MinusIcon,
+};
+
+function SendLine({ send }: { send: TodaySend }) {
+  const Icon = SEND_MARKS[send.state] ?? MinusIcon;
+  const counted = SEND_COUNT_ORDER.filter((key) => send.counts[key] > 0);
+  return (
+    <li className="space-y-2 rounded-[16px] bg-[var(--feed-card)] p-3" data-today-send={send.deliveryId} data-today-send-state={send.state}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-sm font-semibold">{send.lists.length ? send.lists.join(", ") : "No lists"}</h3>
+        <span className="text-xs tabular-nums text-muted-foreground" data-today-send-items-cost>{sendItemsText(send.items)} · {sendCostText(send.cost)}</span>
+      </div>
+      <p className="inline-flex items-center gap-1.5 text-xs font-medium" data-today-send-status>
+        <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+        {send.stateWords}
+      </p>
+      {counted.length ? (
+        <ul className="flex flex-wrap gap-1.5" data-today-send-counts>
+          {counted.map((key) => (
+            <li className={CHIP} data-today-send-count={key} key={key}>
+              <span>{SEND_COUNT_WORDS[key]}</span>
+              <strong className="tabular-nums">{send.counts[key]}</strong>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="text-xs text-muted-foreground" data-today-send-no-readers>No readers yet.</p>}
+    </li>
+  );
+}
+
 function DidNotRunLine({ entry, demo }: { entry: TodayDidNotRun; demo: boolean }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm" data-today-did-not-run={entry.automationId} data-today-why={entry.whyCode}>
@@ -138,6 +162,14 @@ function Ready({ overview, demo }: { overview: TodayOverview; demo: boolean }) {
           {overview.rows.map((row) => <Row demo={demo} key={row.key} row={row} />)}
         </ul>
       ) : <p className="text-sm text-muted-foreground" data-today-nothing-ran>Nothing ran in this day.</p>}
+      {overview.sends.length ? (
+        <>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sends</h3>
+          <ul className="space-y-2" data-today-sends>
+            {overview.sends.map((send) => <SendLine key={send.deliveryId} send={send} />)}
+          </ul>
+        </>
+      ) : null}
       {overview.didNotRun.length ? (
         <>
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Did not run</h3>

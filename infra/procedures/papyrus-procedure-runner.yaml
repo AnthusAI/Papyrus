@@ -96,6 +96,14 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/shared/*/OPENAI_API_KEY"
                   - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/*/*/OPENAI_API_KEY"
+              - Sid: AgentModelKeyParameters
+                Effect: Allow
+                Action: ssm:GetParameter
+                # The model key of runs a site's change feeds start (PPY-8a374e): the parameter a site names in `agents.openAiKeyParameter`, carried on the wake. Each parameter the
+                # runner may read is named here, one ARN each, and nothing else under /papyrus/. The key is a SecureString under the AWS-managed alias/aws/ssm key,
+                # which needs no kms:Decrypt grant. A site that names another parameter is a change to this list, through Git and the release.
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/shipped/openai-api-key"
               - Sid: SiteAgentPolicyBody
                 Effect: Allow
                 Action: s3:GetObject
@@ -121,6 +129,15 @@ Resources:
                 Condition:
                   ForAllValues:StringLike:
                     dynamodb:LeadingKeys: ["MONITOR#*"]
+              - Sid: SpendLedger
+                Effect: Allow
+                Action: [dynamodb:UpdateItem, dynamodb:PutItem, dynamodb:GetItem]
+                Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}"
+                # The one spend ledger (PPY-fa165c): a finished run's cost is added to its site's and its agent's counters, and a marker says the run was counted, in one
+                # transaction (a transaction needs no action of its own: each item is checked as the put or the update it is). Only keys that start with `SPEND#`.
+                Condition:
+                  ForAllValues:StringLike:
+                    dynamodb:LeadingKeys: ["SPEND#*"]
               - Sid: PutWakes
                 Effect: Allow
                 Action: [sqs:GetQueueUrl, sqs:SendMessage]

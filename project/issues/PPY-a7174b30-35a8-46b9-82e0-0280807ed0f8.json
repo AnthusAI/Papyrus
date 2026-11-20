@@ -33,9 +33,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "94ced4e1-5866-4e92-a1c8-4a896d0b5b51",
+      "author": "home",
+      "text": "lead8: not built. O1 (PPY-627bbc), O2 (PPY-75a314) and O3 (PPY-d99bd0) are done in PRs. The learner needs a Proposal of kind guideline_change, and Proposal is the reader-steering model owned by the proposal-actions function (amplify/functions/proposal-actions: KINDS is a fixed list; states draft, in_steering, editor_review, approved; a deployed Lambda). Adding the kind is a live deploy of that function, and accepting would write a guideline version (needs the guideline store, which the Lambda does not use). Question for Ryan: should a learned rule be a Proposal of the existing reader-steering kind (new kind in the deployed function, accept = a client step that then saves the guideline version), or its own small record (a LearnedRule row with states proposed, accepted, rejected, retired; no reader votes, no steering) read by the newsroom list and CLI? I recommend the second: the steering states and public history of Proposal do not fit an admin-only accept, and it needs no change to the proposals function. Until you choose, O4, O5 (PPY-e705a8) and O6 (PPY-c1cbf1) stay held.",
+      "created_at": "2026-11-19T11:47:29.128307Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:20.218861Z",
-  "updated_at": "2026-11-16T22:47:39.794346Z",
+  "updated_at": "2026-11-19T11:47:29.128596Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

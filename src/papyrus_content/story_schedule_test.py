@@ -312,7 +312,7 @@ def test_the_listing_reads_the_index_by_state_and_range_and_marks_overdue() -> N
 
 
 def test_the_operation_table_has_one_tool_and_one_command_per_operation() -> None:
-    assert {name: (operation.mcp, operation.cli) for name, operation in OPERATIONS.items()} == {"schedule": ("stories_schedule", "schedule"), "schedule_settings": ("stories_schedule_settings", ""), "schedule_list": ("stories_schedule_list", "schedule-list")}
+    assert {name: (operation.mcp, operation.cli) for name, operation in OPERATIONS.items()} == {"schedule": ("stories_schedule", "schedule"), "schedule_settings": ("stories_schedule_settings", ""), "schedule_suggest": ("stories_schedule_suggest", "schedule-suggest"), "schedule_list": ("stories_schedule_list", "schedule-list")}
     from papyrus_content.story_signals_mcp import story_signal_descriptions, story_signal_tools
 
     tools = story_signal_tools()

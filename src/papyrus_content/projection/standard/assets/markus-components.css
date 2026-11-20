@@ -129,6 +129,8 @@ papyrus-notifications { display: block; max-width: 36rem; margin: 1.5rem 0; }
 .markus-notifications-lists { margin: 1rem 0; }
 .markus-notifications-list { margin: .6rem 0; }
 .markus-notifications-list p { margin: .3rem .9rem 0; font-size: .9375rem; }
+.markus-notifications-family { display: flex; flex-direction: column; gap: .35rem; }
+.markus-notifications-family .markus-notifications-family-label { margin: 0 0 .1rem; font-weight: 600; }
 .markus-notifications-toggle { display: flex; align-items: center; gap: .6rem; box-sizing: border-box; width: 100%; padding: .75rem .9rem; border: 0; border-radius: var(--papyrus-radius, .5rem); background: color-mix(in srgb, currentColor 9%, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .markus-notifications-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--papyrus-button-bg, currentColor) 28%, transparent); }
 .markus-notifications-name { flex: 1; font-weight: 600; }

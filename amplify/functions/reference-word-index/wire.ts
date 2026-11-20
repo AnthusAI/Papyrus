@@ -81,9 +81,11 @@ export function wireReferenceWordIndex(backend: any, knowledgeQueryLambda: Lambd
         "-c",
         [
           "set -euo pipefail",
-          "mkdir -p /asset-output/papyrus_knowledge_query",
+          "mkdir -p /asset-output/papyrus_knowledge_query /asset-output/papyrus_content",
           "cp amplify/functions/reference-word-index/handler.py /asset-output/handler.py",
           "cp -R src/papyrus_knowledge_query/. /asset-output/papyrus_knowledge_query/",
+          // The one file that passes a batch to the change feed (PPY-9b9e64), alone: it needs nothing else of papyrus_content.
+          "cp src/papyrus_content/change_feed_relay.py /asset-output/papyrus_content/change_feed_relay.py",
         ].join(" && "),
       ],
     ),

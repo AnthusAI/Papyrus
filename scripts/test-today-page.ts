@@ -32,6 +32,16 @@ async function main() {
     assert.ok(page.includes(expected), `did-not-run shows: ${expected}`);
   assert.match(html, /data-today-did-not-run="digest.weekly"[^>]*data-today-why="disabled"/);
 
+  // One line per send: the lists, the items, the counts in words, the cost and where it stands, with a mark and its words.
+  for (const expected of ["Sends", "weekly", "5 items", "no cost recorded", "Sent", "Sent 12", "Suppressed 1", "Skipped 2", "Delivered 11", "Bounced 1"])
+    assert.ok(page.includes(expected), `a send shows: ${expected}`);
+  assert.ok(!page.includes("Complained 0") && !page.includes("Queued 0"), "a count of zero is left out");
+  assert.match(html, /data-today-send="announcement-weekly#email#site#g1"[^>]*data-today-send-state="sent"/);
+  const status = /<p[^>]*data-today-send-status[^>]*>(.*?)<\/p>/.exec(html)?.[1] ?? "";
+  assert.match(status, /<svg[^>]*aria-hidden="true"/, "a send's state has a mark");
+  assert.ok(text(status).includes("Sent"), "and its words");
+  assert.ok(!render({ ...FIXTURE_TODAY, sends: [] }).includes("data-today-sends"), "a day with no sends has no Sends section");
+
   // Cost is the sum of the runs; a run with no recorded cost is counted as unknown, not free.
   assert.ok(page.includes("3 runs · $0.00"), "the announce line costs nothing, and says so");
   assert.ok(page.includes("4 runs · $0.41 (cost unknown for 1 run)"), "the translate line says one run has no cost");
@@ -43,7 +53,7 @@ async function main() {
 
   // Each line opens the runs: the runs are listed under it, and it links to the Automation page for its automation.
   assert.match(html, /data-today-run="run-t2"[^>]*data-today-run-outcome="failed"/);
-  assert.ok(page.includes("✗ Failed (timed_out)") && page.includes("Error: timed out after 840 s"), "a run lists its outcome words and error");
+  assert.ok(page.includes("Failed (timed_out)") && page.includes("Error: timed out after 840 s"), "a run lists its outcome words and error");
   assert.match(html, /href="\/newsroom\/administration\/automations\?automation=rate\.new-references"/, "a line links to its runs");
   assert.equal(automationsHref("a b"), "/newsroom/administration/automations?automation=a%20b");
 

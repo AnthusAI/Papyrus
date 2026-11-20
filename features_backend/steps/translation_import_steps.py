@@ -11,6 +11,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import yaml
 from behave import given, then, when
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -211,6 +212,38 @@ def step_imported(context, writer, language, story, reason):
 @when('"{writer}" imports the copy as the "{language}" translation of "{story}" because "{reason}"')
 def step_import(context, writer, language, story, reason):
     _import(context, writer, language, story=story, reason=reason)   # a scenario about a refusal reads context.error
+
+
+@when('"{writer}" imports the copy as the "{language}" translation of "{story}" because "{reason}" saying bots helped')
+def step_import_with_bots(context, writer, language, story, reason):
+    _import(context, writer, language, story=story, reason=reason, extra=["--drafting-by-ai"])
+    assert context.error is None, context.error
+
+
+@given('the English Story is drafted by AI and names the author "{author}"')
+def step_english_byline(context, author):
+    context.primary["metadata"] = json.dumps({"frontMatterYaml": f"title: Waymo\nauthor: {author}\ndrafting:\n  by: AI\n"})
+
+
+@given("the English Story has no front matter")
+def step_english_no_front_matter(context):
+    context.primary["metadata"] = json.dumps({})
+
+
+@then('the saved version\'s front matter has the author "{author}" and no drafting by AI')
+def step_front_matter_human(context, author):
+    front = yaml.safe_load(_localization_front(context))
+    assert front["author"] == author and "drafting" not in front and "authors" not in front, front
+
+
+@then('the saved version\'s front matter has the author "{author}" and drafting by AI')
+def step_front_matter_bots(context, author):
+    front = yaml.safe_load(_localization_front(context))
+    assert front["author"] == author and front["drafting"] == {"by": "AI"}, front
+
+
+def _localization_front(context) -> str:
+    return json.loads(_latest(context)["metadata"])["frontMatterYaml"]
 
 
 @given('the site writes in {tags}')

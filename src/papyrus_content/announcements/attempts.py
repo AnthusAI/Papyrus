@@ -20,14 +20,19 @@ state of a superseded Delivery: the outcome goes in the log and the state stays 
 from __future__ import annotations
 
 import hashlib
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 from ..run_outcomes import OUTCOME_SHOWN
+from .channel import attempt_event_id
+from .counts import DeliveryCounts
 from .deliveries import Conflict, Deliveries, OpenAttempt, content_hash
+from .delivery_lock import WAITING_FOR_PERSON, decide, raise_flag
+from .delivery_text import sendable_number
 from .records import (
-    ATTEMPT_REFUSED, ATTEMPT_SENT, BLOCKED, BUDGET_CYCLE, BUDGET_REACHED_CODE, FAILED, PAUSED_CODE, RATE_LIMIT, RATE_LIMIT_CODE, READY, SENDING, SENT, STARTED, SUPERSEDED,
-    UNKNOWN, RecordError, account_key, attempt_event_id, attempt_log, now_iso, open_attempt_of, utc,
+    EMAIL, ATTEMPT_REFUSED, ATTEMPT_SENT, BLOCKED, BUDGET_CYCLE, BUDGET_REACHED_CODE, FAILED, MANUAL, PAUSED_CODE, RATE_LIMIT, RATE_LIMIT_CODE, READY, SENDING, SENT, STARTED, SUPERSEDED,
+    UNKNOWN, POST_SPACING, RecordError, account_key, attempt_log, now_iso, open_attempt_of, utc,
 )
 
 FLAG_RAISER = "announce"
@@ -52,6 +57,13 @@ class AttemptRefused(RecordError):
     def __init__(self, delivery: str, reason: str, flag: str):
         super().__init__(f"{delivery} is not sent: {reason}.")
         self.reason, self.flag = reason, flag
+
+
+class ManualDelivery(RecordError):
+    """The Delivery is in manual mode: a person posts it by hand, so no worker and no channel ever sends it. Nothing was written and no flag is raised."""
+
+    def __init__(self, delivery: str):
+        super().__init__(f"{delivery} is not sent: it is a manual Delivery, so a person posts it and records the address (record_manual).")
 
 
 class AttemptClosed(RecordError):
@@ -114,6 +126,19 @@ def shown(entry: Mapping[str, Any]) -> tuple[str, str]:
     return ATTEMPT_SHOWN[entry["outcome"]]
 
 
+def manual_address(url: str) -> str:
+    """The address of a post made by hand: an http or https URL with a host and no spaces, or a refusal in plain words."""
+    address = (url or "").strip()
+    try:
+        parts = urlsplit(address)
+        valid = parts.scheme in ("http", "https") and bool(parts.hostname) and not any(ch.isspace() for ch in address)
+    except ValueError:
+        valid = False
+    if not valid:
+        raise RecordError(f"The address of the post is a web address that starts with http:// or https://; not {url!r}.")
+    return address
+
+
 def flag_id(delivery: str, reason: str) -> str:
     """One flag for one Delivery and one reason, so raising it again finds the first."""
     return "attempt-" + hashlib.sha256(f"{delivery}\n{reason}".encode("utf-8")).hexdigest()[:24]
@@ -136,11 +161,14 @@ class Attempts:
 
     def words_refusal(self, row: Mapping[str, Any]) -> str | None:
         """Why the words cannot go out: the file is missing, or it is not the file the row's content hash names."""
-        text = self.deliveries.text(row)
+        entry = self.deliveries.sendable(row)
+        text = self.deliveries.sent_text(row)
         if text is None:
             return "its words file is missing"
-        described = self.deliveries.files.describe(row["id"], text)
-        if content_hash(described["sha256"], row.get("imageKey")) != row.get("contentHash"):
+        if not text.strip():
+            return "it has no words"
+        described = self.deliveries.files.describe(row["id"], text, entry["file"])
+        if content_hash(described["sha256"], entry.get("imageKey")) != entry.get("contentHash"):
             return "its words file does not match the row's content hash"
         return None
 
@@ -159,33 +187,50 @@ class Attempts:
 
     # --- open -------------------------------------------------------------------------------------------------------------------------------------
 
-    def open(self, delivery: str, *, by: str, now: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    def open(self, delivery: str, *, by: str, now: str | None = None, spacing_minutes: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         """Open the next attempt, or say why not. Returns the Delivery as written and the new entry.
 
         The entry is written, and the Delivery moves to ``sending``, in one conditional write on the row's revision: if the row changed since it was read (a correction
-        marked it superseded, someone else opened an attempt) nothing is written and ``Conflict`` is raised. Only after this returns may the provider be called."""
+        marked it superseded, someone else opened an attempt) nothing is written and ``Conflict`` is raised. Only after this returns may the provider be called.
+
+        ``spacing_minutes`` is the owner's post spacing for this account (None: none). While the account's last post is closer than that, the Delivery waits: it keeps its
+        place, ``waitingFor`` says ``post spacing``, ``nextAttemptAt`` names when the spacing ends, and no attempt is opened. It goes like any wait, once the time has come."""
         now = now or now_iso()
         row = self.deliveries.get(delivery)
         if row is None:
             raise RecordError(f"There is no Delivery {delivery}.")
+        if row.get("mode") == MANUAL:
+            raise ManualDelivery(delivery)
         refused = self.structural_refusal(row)
         if refused:
             raise AttemptRefused(delivery, refused, self._flag(row, refused, now))
         pending = open_attempt_of(row)
         if pending:
             raise OpenAttempt(f"{delivery} has attempt {pending['number']} with no answer yet ({pending['outcome']}); settle it before another attempt opens.")
-        ok, why = self.deliveries.releasable(row, now)
+        # The sender reads only the locked version: a Delivery whose lock time has come is locked by the same write that opens the attempt (delivery_lock.decide).
+        lock = decide(self.deliveries, row, utc(now)) if not row.get("lockedAt") else None
+        locking = dict(lock.changes) if lock and lock.changes else {}
+        if lock and lock.action == WAITING_FOR_PERSON:
+            raise_flag(self.deliveries, row, lock.reason or "")
+        seen = {**row, **locking}
+        ok, why = self.deliveries.releasable(seen, now)
         if not ok:
             raise NotReleasable(delivery, why or "not releasable")
-        refused = self.words_refusal(row)
+        refused = self.words_refusal(seen)
         if refused:
             raise AttemptRefused(delivery, refused, self._flag(row, refused, now))
+        if spacing_minutes:
+            until = self.deliveries.spacing_until(row, spacing_minutes)
+            if until and utc(now) < until:
+                if row.get("nextAttemptAt") != until or row.get("waitingFor") != POST_SPACING:
+                    self.deliveries._change(row, {"waitingFor": POST_SPACING, "nextAttemptAt": until}, by=by, note=f"held by post spacing until {until}", now=now)
+                raise NotReleasable(delivery, f"waiting for {POST_SPACING} until {until}")
         log = attempt_log(row)
         number = len(log) + 1
-        entry = {"number": number, "at": now, "eventId": attempt_event_id(delivery, number), "outcome": STARTED, "by": by}
+        entry = {"number": number, "at": now, "eventId": attempt_event_id(delivery, number), "outcome": STARTED, "by": by, "version": sendable_number(seen)}
         written = self.deliveries._change(
-            row, {"attempts": [*log, entry], "state": SENDING, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None},
-            by=by, note=f"attempt {number} started", now=now)
+            row, {**locking, "attempts": [*log, entry], "state": SENDING, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None},
+            by=by, note=f"attempt {number} started" + (f"; {lock.note}" if locking and lock else ""), now=now)
         return written, entry
 
     # --- close ------------------------------------------------------------------------------------------------------------------------------------
@@ -251,6 +296,38 @@ class Attempts:
             return {**facts, "state": READY, "blockedReason": None, "waitingFor": RATE_LIMIT, "nextAttemptAt": utc(wait.until)}
         return {**facts, "state": FAILED, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None}
 
+    # --- manual mode ------------------------------------------------------------------------------------------------------------------------------
+
+    def record_manual(self, delivery: str, url: str, *, by: str, now: str | None = None) -> dict[str, Any]:
+        """A person posted a manual Delivery's words by hand and pastes the address of the post: the Delivery becomes ``sent`` and the attempt log names that person.
+
+        Only a manual Delivery that is ``ready`` (its words are drafted and checked: a draft, a blocked draft, a sending, sent, failed or superseded Delivery is
+        refused), is the highest generation, and whose words file is the one its content hash names. The address is an http or https URL. It is one conditional
+        write on the row's revision (the attempt, the state and ``resultUrl`` together), so recording twice, or two people recording at once, gives one entry and the
+        second is refused. Nothing is handed to a provider; the attempt has no event id because there is no provider event."""
+        now = now or now_iso()
+        row = self.deliveries.get(delivery)
+        if row is None:
+            raise RecordError(f"There is no Delivery {delivery}.")
+        if not (by or "").strip():
+            raise RecordError("A manual post is recorded by a person: say who posted it.")
+        if row.get("mode") != MANUAL:
+            raise RecordError(f"{delivery} is an automatic Delivery: only a manual Delivery is recorded by hand.")
+        if row.get("state") == SENT:
+            raise RecordError(f"{delivery} is already sent (address {row.get('resultUrl')}); an earlier record is never changed.")
+        if row.get("state") != READY:
+            raise RecordError(f"{delivery} is {row.get('state')}; only a ready Delivery, whose words are drafted and checked, is recorded as posted.")
+        address = manual_address(url)
+        refused = self.refusal(row)
+        if refused:
+            raise RecordError(f"{delivery} is not recorded: {refused}.")
+        log = attempt_log(row)
+        number = len(log) + 1
+        entry = {"number": number, "at": now, "outcome": ATTEMPT_SENT, "closedAt": now, "by": by, "url": address, "version": sendable_number(row)}
+        return self.deliveries._change(
+            row, {"attempts": [*log, entry], "state": SENT, "resultUrl": address, "blockedReason": None, "nextAttemptAt": None, "waitingFor": None},
+            by=by, note=f"posted by hand by {by}: {address}", now=now)
+
     # --- settle -----------------------------------------------------------------------------------------------------------------------------------
 
     def read(self, delivery: str, entry: Mapping[str, Any], transport: Transport, *, by: str, now: str) -> dict[str, Any]:
@@ -292,8 +369,11 @@ class Attempts:
         return self.read(delivery, entry, transport, by=by, now=now)
 
     def hand_over(self, row: Mapping[str, Any], entry: Mapping[str, Any], transport: Transport, *, by: str, now: str) -> None:
-        """Call the provider for an attempt that is already written. A rate limit ends the attempt; any other failure leaves its outcome ``unknown`` and is raised."""
-        text = self.deliveries.text(row)
+        """Call the provider for an attempt that is already written. A rate limit ends the attempt; any other failure leaves its outcome ``unknown`` and is raised.
+        A manual Delivery is never handed to a provider."""
+        if row.get("mode") == MANUAL:
+            raise ManualDelivery(row["id"])
+        text = self.deliveries.sent_text(row)
         try:
             transport.submit(row, text or "", entry["eventId"])
         except RateLimited as limited:
@@ -307,7 +387,8 @@ class AccountWorker:
     """The one consumer for one channel account. Every attempt for the account passes through it, one at a time, so two attempts for one account never race. A
     Delivery of another account is refused. (The queue that gives the worker its single consumer belongs to the channel's infrastructure; this is the rule it keeps.)"""
 
-    def __init__(self, deliveries: Deliveries, transport: Transport, channel: str, account_id: str):
+    def __init__(self, deliveries: Deliveries, transport: Transport, channel: str, account_id: str, *, spacing_minutes: int | None = None):
+        self.spacing_minutes = spacing_minutes   # the owner's post spacing for this account (``settings.spacing_minutes``); None means none
         self.attempts = Attempts(deliveries)
         self.deliveries = deliveries
         self.transport = transport
@@ -328,11 +409,21 @@ class AccountWorker:
         now = now or now_iso()
         self._mine(delivery)
         self.handled.append(delivery)
-        row, entry = self.attempts.open(delivery, by=by, now=now)
+        row, entry = self.attempts.open(delivery, by=by, now=now, spacing_minutes=self.spacing_minutes)
         self.attempts.hand_over(row, entry, self.transport, by=by, now=now)
-        return self.attempts.read(delivery, entry, self.transport, by=by, now=now)
+        return self._counted(self.attempts.read(delivery, entry, self.transport, by=by, now=now), by=by, now=now)
 
     def settle(self, delivery: str, *, by: str, now: str | None = None) -> dict[str, Any]:
         self._mine(delivery)
         self.handled.append(delivery)
-        return self.attempts.settle(delivery, self.transport, by=by, now=now)
+        return self._counted(self.attempts.settle(delivery, self.transport, by=by, now=now), by=by, now=now)
+
+    def refresh_counts(self, delivery: str, *, by: str, now: str | None = None) -> dict[str, Any]:
+        """Read Caducus's records of the Delivery again and write its counts. The provider reports deliveries, bounces and complaints after the send, so whatever
+        wakes the Delivery later (the due check, a provider event) calls this."""
+        self._mine(delivery)
+        return DeliveryCounts(self.deliveries).refresh(delivery, self.transport, by=by, now=now)  # type: ignore[arg-type]
+
+    def _counted(self, row: dict[str, Any], *, by: str, now: str | None) -> dict[str, Any]:
+        """An email Delivery's counts follow its attempt: they are read from Caducus's records every time the worker has touched the Delivery."""
+        return self.refresh_counts(row["id"], by=by, now=now) if row.get("channel") == EMAIL else row

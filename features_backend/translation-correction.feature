@@ -33,6 +33,7 @@ Feature: A person's correction of a published translation is saved as their own 
     When the English Story's second paragraph says "The [report](https://example.test/report) covers 14 cities." in version 4 and the translation is run again
     Then the second paragraph of the newest translation still says "El [informe](https://example.test/report) cubre 12 ciudades."
     And the newest provenance marks that paragraph as a conflict
+    And the newest translation is held saying the person's wording no longer matches the English
 
   Scenario: Wording that occurs more than once is refused unless every occurrence is named
     When a person corrects "Waymo" to "Waymo Inc." in the "es-419" translation without saying every

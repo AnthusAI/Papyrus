@@ -199,7 +199,7 @@ def step_one_to_one(context, lineage, language, primary):
 def step_not_a_translation(context, lineage):
     from papyrus_content.item_language import localization_original
 
-    assert localization_original({"lineageId": lineage, "languageGroupId": lineage, "language": "en"}) is None
+    assert localization_original({"lineageId": lineage, "languageGroupId": lineage, "language": "en"}, None) is None
 
 
 @then("a language tag containing the separator is refused")

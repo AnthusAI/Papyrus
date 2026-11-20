@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
+import { AttributeType, Table } from "aws-cdk-lib/aws-dynamodb";
 import { Architecture, Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { schemaWithPlugins } from "../amplify/data/schema";
 import { resolveNotificationsConfig, type NotificationsConfig } from "../amplify/plugins/notifications/config";
 import {
   CADUCUS_REQUIREMENT,
   HANDLERS,
+  notificationsXName,
   NOTIFICATIONS_REQUIREMENTS,
   notificationsAlarmNames,
   notificationsPauseAlarmNames,
@@ -65,7 +67,21 @@ refuses({ ...base, fromAddress: "x@other.example" }, /notifications plugin fromA
 refuses({ ...base, lists: [] }, /lists must be a list of 1 to 20 lists/);
 refuses({ ...base, lists: [base.lists[0], base.lists[0]] }, /duplicate ids: stories/);
 refuses({ ...base, lists: [{ ...base.lists[0], approval: "sometimes" }] }, /approval must be "admin" or "none"/);
-refuses({ ...base, lists: [{ ...base.lists[0], kind: "alert" }] }, /unknown settings: kind/);
+refuses({ ...base, lists: [{ ...base.lists[0], kind: "alert" }] }, /kind must be "story.published" or "roundup"/);
+// A roundup list (the newsletter's weekly issue, moved by PPY-6b2d35) is never sent each story, so it names no rule.
+const roundup = { id: "weekly", name: "Weekly roundup", description: "", kind: "roundup" };
+assert.equal(resolveNotificationsConfig({ ...base, lists: [base.lists[0], roundup] } as never).lists[1].kind, "roundup");
+refuses({ ...base, lists: [{ ...roundup, rule: { sections: ["News"] } }] }, /roundup list, which is never sent each story/);
+// Old newsletter links are off unless asked for, and the old key is read only then.
+assert.equal(config.legacyNewsletterLinks, false);
+refuses({ ...base, legacyNewsletterLinks: "yes" }, /legacyNewsletterLinks must be true or false/);
+const family = resolveNotificationsConfig({ ...base, lists: [{ ...base.lists[0], family: "new-stories", cadence: "daily", sendAt: { time: "06:00" }, timeZone: "America/New_York" }] } as never);
+assert.deepEqual(family.lists[0].sendAt, { time: "06:00" }, "a periodic list keeps its local send time, so a switch can wait for the next period start");
+assert.equal(family.lists[0].family, "new-stories");
+refuses({ ...base, lists: [{ ...base.lists[0], family: "Not A Family" }] }, /family/);
+refuses({ ...base, lists: [{ ...base.lists[0], cadence: "hourly" }] }, /cadence must be one of/);
+refuses({ ...base, lists: [{ ...base.lists[0], cadence: "daily" }] }, /sendAt/);
+refuses({ ...base, lists: [{ ...base.lists[0], cadence: "each", timeZone: "America/New_York" }] }, /names no sendAt or timeZone/);
 refuses({ ...base, theme: { ...base.theme, accent: "red;}" } }, /notifications plugin theme.accent/, "an unsafe theme stops the synth, worded for this plugin");
 refuses({ ...base, extra: 1 }, /unknown settings: extra/);
 {
@@ -80,7 +96,7 @@ refuses({ ...base, extra: 1 }, /unknown settings: extra/);
 }
 
 // Caducus is pinned exactly; the requirement file the bundler installs says the same.
-assert.equal(CADUCUS_REQUIREMENT, "caducus[notify]==0.3.0");
+assert.equal(CADUCUS_REQUIREMENT, "caducus[notify]==0.4.0");
 assert.ok(NOTIFICATIONS_REQUIREMENTS.includes(CADUCUS_REQUIREMENT));
 const requirements = readFileSync(new URL("../amplify/plugins/notifications/function/requirements.txt", import.meta.url), "utf8").split("\n");
 assert.ok(requirements.includes(CADUCUS_REQUIREMENT), "requirements.txt pins the same Caducus");
@@ -91,6 +107,13 @@ assert.equal(environment.SITE_ID, "example");
 assert.equal(environment.OPERATORS_PARAMETER, "/papyrus/example/notifications/operators");
 assert.deepEqual(JSON.parse(environment.THEME_JSON), base.theme);
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), config.lists);
+assert.equal(environment.LEGACY_NEWSLETTER_KEY_PARAMETER, undefined, "no old-link key unless asked for");
+const legacyConfig = resolveNotificationsConfig({ ...base, legacyNewsletterLinks: true } as never);
+assert.equal(
+  notificationsEnvironment(legacyConfig, { table: "t", operators: "/o", key: "/k" }).LEGACY_NEWSLETTER_KEY_PARAMETER,
+  "/papyrus/example/newsletter-key",
+  "the key the newsletter plugin generated and retained",
+);
 assert.equal(environment.CONSENT, base.consent);
 assert.equal(environment.CONFIRM_WINDOW_SECONDS, "259200");
 assert.equal((notificationsPlugin.publicSettings(config) as { consent: string }).consent, base.consent, "the subscribe form shows the stored wording");
@@ -98,6 +121,13 @@ assert.ok(!JSON.stringify(environment).includes("@example.com") || environment.F
 
 // A site without plugins touches nothing.
 wirePlugins(new Proxy({}, { get: () => assert.fail("a site without plugins must not touch the backend") }), [], undefined as never);
+
+/** The announcements function's three model tables, as the site's data stack holds them. */
+function announcementTables(dataStack: Stack) {
+  return Object.fromEntries(
+    ["AnnouncementSettings", "XConnection", "AnnouncementSpend"].map((name) => [name, new Table(dataStack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+  );
+}
 
 // Synthesis. The Python asset is a pip install, so the test uses inline code in its place.
 overrideNotificationsCodeForTests(Code.fromInline("def handler(event, context): pass"));
@@ -108,7 +138,7 @@ function synthesize(settings: NotificationsConfig = config) {
   const stacks: Stack[] = [];
   const dataStack = new Stack(app, "Data", { env: awsEnvironment });
   const backend = {
-    data: { resources: { tables: {}, graphqlApi: { apiId: "api" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://x.test/graphql" } } } },
+    data: { resources: { tables: announcementTables(dataStack), graphqlApi: { apiId: "api" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://x.test/graphql" } } } },
     createStack: (name: string) => {
       const stack = new Stack(app, name, { env: awsEnvironment });
       stacks.push(stack);
@@ -154,10 +184,11 @@ template.hasResourceProperties("Custom::SecureStringParameter", { ParameterName:
 // Four Python arm64 functions with the right handlers, names and timeouts.
 const functions = template.findResources("AWS::Lambda::Function");
 const ours = Object.values(functions).filter((entry) => (entry as { Properties: { Handler?: string } }).Properties.Handler?.startsWith("papyrus_content."));
-assert.equal(ours.length, 5, "router, email, flush, SES events, and the pause (no newsletter on this site)");
+assert.equal(ours.length, 6, "router, email, x, flush, SES events, and the pause (no newsletter on this site)");
 for (const [handler, name] of [
   [HANDLERS.router, notificationsFunctionName("example")],
   [HANDLERS.email, notificationsEmailName("example")],
+  [HANDLERS.x, notificationsXName("example")],
   [HANDLERS.flush, "papyrus-notifications-flush-example"],
   [HANDLERS.sesEvents, "papyrus-notifications-ses-example"],
   [HANDLERS.pause, "papyrus-notifications-pause-example"],
@@ -173,8 +204,23 @@ template.hasResourceProperties("AWS::Lambda::Function", {
   DeadLetterConfig: { TargetArn: Match.anyValue() },
 });
 
-// Queues: the email queue and both dead letter queues, each dead letter queue watched by an alarm with no action.
-template.resourceCountIs("AWS::SQS::Queue", 3);
+// X: its queue (one consumer, one message at a time, the Lambda maximum to wait out X's rate limit), its dead letter queue, and only the announcements stores and parameters.
+template.hasResourceProperties("AWS::Lambda::Function", { FunctionName: notificationsXName("example"), ReservedConcurrentExecutions: 1, Timeout: 900 });
+template.hasResourceProperties("AWS::SQS::Queue", {
+  QueueName: "papyrus-notifications-example-x",
+  RedrivePolicy: { maxReceiveCount: 3, deadLetterTargetArn: Match.anyValue() },
+  VisibilityTimeout: 5400,
+  SqsManagedSseEnabled: true,
+});
+template.hasResourceProperties("AWS::Lambda::EventSourceMapping", { FunctionResponseTypes: ["ReportBatchItemFailures"], BatchSize: 1 });
+template.hasResourceProperties("AWS::Lambda::Function", {
+  FunctionName: notificationsXName("example"),
+  Environment: { Variables: Match.objectLike({ X_QUEUE_URL: Match.anyValue(), X_API_BASE: "https://api.x.com", ANNOUNCEMENT_SETTINGS_TABLE: Match.anyValue(), X_CONNECTION_TABLE: Match.anyValue(), ANNOUNCEMENT_SPEND_TABLE: Match.anyValue() }) },
+});
+assert.match(JSON.stringify(template.findResources("AWS::IAM::Policy")), /parameter\/papyrus\/example\/announcements\/x\/\*/, "the account's token parameters, and no other of the site's");
+
+// Queues: the email queue, the x queue and the dead letter queues, each dead letter queue watched by an alarm with no action.
+template.resourceCountIs("AWS::SQS::Queue", 5);
 template.hasResourceProperties("AWS::SQS::Queue", {
   QueueName: "papyrus-notifications-example-email",
   RedrivePolicy: { maxReceiveCount: 3, deadLetterTargetArn: Match.anyValue() },
@@ -182,7 +228,7 @@ template.hasResourceProperties("AWS::SQS::Queue", {
 });
 template.hasResourceProperties("AWS::Lambda::EventSourceMapping", { FunctionResponseTypes: ["ReportBatchItemFailures"], BatchSize: 10 });
 const alarmNames = notificationsAlarmNames("example");
-template.resourceCountIs("AWS::CloudWatch::Alarm", 4);
+template.resourceCountIs("AWS::CloudWatch::Alarm", 5);
 for (const alarmName of Object.values(alarmNames)) {
   template.hasResourceProperties("AWS::CloudWatch::Alarm", {
     AlarmName: alarmName, Namespace: "AWS/SQS", MetricName: "ApproximateNumberOfMessagesVisible", Threshold: 1,
@@ -237,11 +283,11 @@ template.hasResourceProperties("AWS::Lambda::Permission", {
 });
 assert.ok(!/"Principal":"\*"/.test(JSON.stringify(template.findResources("AWS::Lambda::Permission"))));
 
-// The publish path: the content-actions function learns the router's name and may invoke that one function.
+// A publish does not call the router (PPY-e3bb2b): the content-actions function is told nothing about it and holds no grant to invoke it.
 const contentActionsFunctions = Object.values(dataTemplate.findResources("AWS::Lambda::Function")) as Array<{ Properties: { Environment?: { Variables?: Record<string, string> } } }>;
-assert.ok(contentActionsFunctions.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_NOTIFICATIONS_FUNCTION === "papyrus-notifications-example"));
+assert.ok(!contentActionsFunctions.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_NOTIFICATIONS_FUNCTION !== undefined));
 assert.ok(contentActionsFunctions.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_PLUGINS === "notifications"));
-assert.match(JSON.stringify(dataTemplate.findResources("AWS::IAM::Policy")), /function:papyrus-notifications-example/);
+assert.doesNotMatch(JSON.stringify(dataTemplate.findResources("AWS::IAM::Policy")), /function:papyrus-notifications-example/);
 
 // Outputs: public settings (no secrets) and the function the routes invoke.
 assert.equal(outputs.length, 2);
@@ -249,7 +295,7 @@ const published = (outputs[1] as { custom: { papyrusPlugins: { notifications: Re
 assert.deepEqual(Object.keys(published).sort(), ["basePath", "consent", "contract", "fromName", "lists", "theme"]);
 assert.deepEqual(published.lists, [{ id: "stories", name: "New stories", description: "Every published story." }]);
 assert.ok(!JSON.stringify(published).includes("computeRoleArn"));
-assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } }).custom.notifications), ["actionsFunction"]);
+assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } }).custom.notifications), ["actionsFunction", "xQueueUrl"]);
 
 // A site that also has the newsletter plugin: the newsletter owns the rate alarms and the pause, so none is added here.
 {
@@ -258,7 +304,7 @@ assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } 
   const stacks: Stack[] = [];
   const dataStack = new Stack(app, "Data", { env: awsEnvironment });
   const backend = {
-    data: { resources: { tables: {}, graphqlApi: { apiId: "api" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://x.test/graphql" } } } },
+    data: { resources: { tables: announcementTables(dataStack), graphqlApi: { apiId: "api" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://x.test/graphql" } } } },
     createStack: (name: string) => {
       const stack = new Stack(app, name, { env: awsEnvironment });
       stacks.push(stack);
@@ -272,7 +318,7 @@ assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } 
   const newsletterStub = { manifest: { name: "newsletter" }, publicSettings: () => ({}), wire: () => undefined } as never;
   wirePlugins(backend, [{ plugin: newsletterStub, config: {} }, { plugin: notificationsPlugin, config }], contentActions);
   const withNewsletter = Template.fromStack(stacks[0]);
-  withNewsletter.resourceCountIs("AWS::CloudWatch::Alarm", 2);
+  withNewsletter.resourceCountIs("AWS::CloudWatch::Alarm", 3);
   assert.ok(!JSON.stringify(withNewsletter.toJSON()).includes("papyrus-notifications-pause-example"));
   assert.ok(!JSON.stringify(withNewsletter.toJSON()).includes("PutConfigurationSetSendingOptions"));
 }
@@ -281,5 +327,11 @@ assert.deepEqual(Object.keys((outputs[0] as { custom: { notifications: object } 
 const other = synthesize(resolveNotificationsConfig({ ...base, siteId: "other", sendingDomain: "other.example", fromAddress: "notifications@other.example", siteOrigin: "https://other.example" }));
 assert.match(JSON.stringify(other.template.toJSON()), /papyrus-notifications-other/);
 assert.ok(!JSON.stringify(other.template.toJSON()).includes("papyrus-notifications-example"));
+
+// Old newsletter links: the functions read the retained newsletter key only while the setting is on.
+assert.ok(!JSON.stringify(template.toJSON()).includes("newsletter-key"), "no grant on the newsletter key by default");
+const legacy = JSON.stringify(synthesize(legacyConfig).template.toJSON());
+assert.match(legacy, /LEGACY_NEWSLETTER_KEY_PARAMETER/);
+assert.match(legacy, /newsletter-key/, "and may read the retained key");
 
 console.log("notifications plugin ok");

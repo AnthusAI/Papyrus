@@ -77,7 +77,7 @@ For each request, the runner does these steps:
    automation named by the request's trigger and its `responsibility`, then the site's policy document (the live version only: the
    `SiteDocument` row, the live `SiteDocumentVersion` row, and the version's body from S3, all by key), and asks `decide_start`.
    The request names where the policy is with `tenantId` and `siteBucket`, which the router and Run now copy from the router
-   publication (`tenantId`, `siteBucket`); a request without them is refused and starts nothing.
+   publication (`tenantId`, `siteBucket`); a request without them is refused and starts nothing. Run now refuses a publication without them up front, and a wake without them that reaches the runner anyway has its run record made, failed with the reason `no_site_policy` and the automation's id, so the automation's run list shows it (not only the monitoring row).
    * No automation named, or an automation with no `responsibility` (not yet adopted with `papyrus automations adopt`): the run
      record is finished as `nothing` with the reason `not_adopted`.
    * The responsibility is `off` (including a responsibility the policy does not name, and a site with no policy document) or
@@ -99,7 +99,7 @@ For each request, the runner does these steps:
    as the run exists (status `running`, `runId`) and records the outcome (status, outcome, reason, error) there when it ends.
 
 The runner signs its AppSync calls with its own role. The procedure tools in the child process do the
-same (`PAPYRUS_GRAPHQL_AUTH=iam`). The OpenAI key comes from the publication's Amplify secret in SSM.
+same (`PAPYRUS_GRAPHQL_AUTH=iam`). The OpenAI key comes from the publication's Amplify secret in SSM. For a run a change feed starts (the Item change feed, `change-feeds`), the wake names the parameter: the site's `agents.openAiKeyParameter`, put on the feeds as `PAPYRUS_OPENAI_KEY_PARAMETER` ([releasing](releasing.md#the-agents-model-key-the-parameter-a-site-names-ppy-8a374e-ppy-6af46b)). The runner's role may read only the parameters its template names (`AgentModelKeyParameters`); with none named the run has no key and fails closed.
 The runner keeps no state of its own. A failure never starts a second run: the wake key's run record is created once,
 and a second delivery of the same wake only finds it (`duplicate`).
 
@@ -114,13 +114,16 @@ leaves out and its second deploy adds. The procedure runner is the queue's consu
 
 * `key` is the wake key. `agent` is its owner (the automation, or `procedure:<procedure key>`). `subject` is what it is about: the record, `schedule`, or the
   request id of a person's request. `why` is the trigger's own one-line summary.
-* The **message group** is the agent plus the subject. Wakes of one group run one after the other, in order; wakes of different groups run at the same time.
-  (The definition's own scope, `serialBy`, and the total concurrency from the model provider's limit are slice B4; nothing is capped here.)
+* The **message group** is the agent plus its serial scope, which the wake's trigger carries from the agent definition's `serialBy`: `subject` (also the scope of a
+  wake no definition governs) makes the subject the scope; `agent` makes one scope for the whole agent; `key:<name>` makes the scope the value in the trigger's
+  `serialKey` (a channel account). Wakes of one group run one after the other, in order; wakes of different groups run at the same time. A `key:` wake with no
+  `serialKey`, or a `serialBy` that is none of the three, is not a wake and is not sent. The wake records its `scope`. (The total concurrency from the model
+  provider's limit, and the removal of `maxConcurrent` and the deferred sweep, are the rest of slice B4, PPY-a200ec; nothing is capped here.)
 * The **deduplication id** is the wake key. SQS limits an id to 128 characters from a fixed set and a key may be 1000, so both ids are the SHA-256 of their text.
   SQS drops a repeat of the same id for five minutes. After that the run record's own condition drops it: the runner answers `duplicate` and runs nothing.
 
 **What the runner does with a message.** It returns (the queue then deletes the message) only when the wake's run record exists: finished, refused
-(`not_runnable`, `policy_unreadable`), skipped by the policy, or the record of an earlier delivery of the same wake. If the message is not a well-formed wake, or no
+(`not_runnable`, `policy_unreadable`, `no_site_policy`), skipped by the policy, or the record of an earlier delivery of the same wake. If the message is not a well-formed wake, or no
 record could be made (the site refused the start, or the runner died first), it raises, so the message stays and the queue delivers it again.
 
 **Times that come from the runner, not from a guess.** The queue hides a received message for 960 seconds: the Lambda's 900 seconds (which hold the 60
@@ -144,6 +147,17 @@ holds `lambda:InvokeFunction` on the runner any more.
 **Enabling it on a site.** A site has a queue once it is on a release that carries this and has had its second deploy. Wakes for a site without a queue fail to start
 (`startFailed`, with the queue's name). Release order: the runner and monitoring stacks (role statements, consumer, router) go in one quiet window with the sites'
 bumps, as in [releasing](releasing.md); the queue's duplicate drop is shown once on a real site before the queue is used there (PPY-817340 proves the run record's once-only create).
+
+## The Item change feed
+
+A DynamoDB stream on the Item table (switched on with the `agents` stack that reads it, never in a new site's first deploy) invokes the feed function
+(`amplify/agents/item-change-feed.ts`, `amplify/functions/item-change-feed/handler.py`, `src/papyrus_content/item_change_feed.py`; slice B2, PPY-8a374e). For each
+record it normalizes the change (a version created, a stage entered, a checklist step's new state), finds the agents that listen in the site's listener index
+(one document, read by its live version; see [automations](automations.md#the-listener-index-and-the-item-change-feed)), and puts one wake on the site's queue for
+each through `agent_wakes.send_wake`. The key is `<agent>|<lineage>|<version>|<what>`, so a stream record delivered twice makes the same keys and starts nothing
+twice (the queue drops the repeat for five minutes, the run record's condition after that). Whoever wrote the change (the console board, the command line, an agent,
+a person) the record is the same. An agent's own change never wakes that agent, a change nobody listens for sends nothing, and nothing lists a table. A record whose
+wakes cannot all be sent is reported failed and Lambda retries from it. The Item table had no stream and no reader before; it holds one reader now, the feed.
 
 ## Proving the once-only create on a real site
 

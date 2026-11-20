@@ -3,7 +3,7 @@
   "title": "An empty period sends nothing and says so",
   "description": "When a periodic list has no qualifying item and no content a person wrote, nothing is sent: the run ends `nothing` with the reason 'no items reached the list's bar', and Today shows it. A list may instead be set to `emptyPeriod: draft_only`, which creates the draft for a person to fill and sends only if a person adds content and the rung allows. No placeholder issue is ever sent.\n\n**Acceptance criteria**\n- An empty period produces no email.\n- The reason is visible on Today.\n- A person's own content makes a period non-empty.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- empty-period.feature: no qualifying items sends nothing and records why; `draft_only` creates a draft and sends nothing by itself; a person's note makes the issue sendable.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -21,10 +21,25 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6f9733f4-2bd4-40f6-a44b-fd1cf18ef0a1",
+      "author": "home",
+      "text": "Branch feat/PPY-1d451f-empty-period, PR #1675 (stacked on #1674).",
+      "created_at": "2026-11-18T14:15:11.752632Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "5a23b5a3-1dd9-4d19-a24d-e4261b9889d6",
+      "author": "home",
+      "text": "Merged to develop in #1675 (not released). Acceptance met; the list procedure that returns the declaration and supplies notes does not exist yet (follow-up with the announce_list agent).",
+      "created_at": "2026-11-18T16:53:52.466778Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:17.390511Z",
-  "updated_at": "2026-11-16T22:43:49.327853Z",
-  "closed_at": null,
+  "updated_at": "2026-11-18T16:53:52.624125Z",
+  "closed_at": "2026-11-18T16:53:52.624095Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

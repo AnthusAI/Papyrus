@@ -33,15 +33,34 @@ export type ImageOperationName =
   | "guidelines_diff"
   | "guidelines_save"
   | "guidelines_history"
-  | "announcements_list"
-  | "announcements_show"
   | "announcements_dry_run"
   | "announcements_pause"
   | "announcements_resume"
   | "announcements_settings_show"
   | "announcements_settings_set"
   | "announcements_account_status"
+  | "announcements_account_connect"
+  | "announcements_blocked"
+  | "announcements_retry"
+  | "announcements_review_show"
+  | "announcements_review_set"
+  | "announcements_delivery_review_set"
+  | "announcements_draft"
+  | "announcements_candidate_choose"
+  | "announcements_versions"
+  | "announcements_pinned_change"
+  | "announcements_release"
+  | "announcements_unlock"
+  | "announcements_example"
+  | "announcements_preferred"
+  | "announcements_correct"
+  | "announcements_record_manual"
+  | "announcements_withdraw"
+  | "announcements_where"
+  | "announcements_recent"
+  | "announcements_explain"
   | "ratings_set"
+  | "handoffs_request"
 ;
 
 export type ImageErrorCode =
@@ -65,6 +84,7 @@ export type ImageErrorCode =
   | "spend_ceiling_exceeded"
   | "batch_expired"
   | "stale_version"
+  | "locked"
   | "candidate_not_ready"
   | "candidate_closed"
   | "settings_refused"
@@ -862,12 +882,15 @@ export type GuidelinesResolveInput = {
   section?: string;
   /** The language of the text the guidelines are for: its overlays (a variant's base language first) are laid over the shared guidelines. Leave it out for the guidelines every language shares. */
   language?: string;
+  /** The channel the text is for (x, linkedin, email): a rule file scoped to channel/<name> is in the answer only for that channel. */
+  channel?: string;
 };
 
 export type GuidelinesResolveResult = {
   kind: string;
   section?: string;
   language?: string;
+  channel?: string;
   /** False when the publication has no guidelines of this kind yet. */
   found: boolean;
   /** A guideline document of that kind: schemaVersion and the fields the kind allows. */
@@ -976,96 +999,6 @@ export type GuidelinesHistoryResult = {
   })[];
 };
 
-/** List the account's announcements, newest first, optionally one state. */
-export type AnnouncementsListInput = {
-  /** One state of an announcement. */
-  state?: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
-  /** How many to return; 50 when left out. */
-  limit?: number;
-};
-
-export type AnnouncementsListResult = {
-  announcements: ({
-    id: string;
-    accountId?: string;
-    storyLineageId?: string;
-    storyVersionNumber?: number;
-    /** One state of an announcement. */
-    state: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
-    /** The state in plain words, such as Dry run: not sent. */
-    label: string;
-    blockedReason?: string;
-    mode?: string;
-    link?: string;
-    weight?: number;
-    draftedBy?: string;
-    checks?: {
-      name: string;
-      passed: boolean;
-    }[];
-    postId?: string;
-    postedAt?: string;
-    /** Dollars Caducus charged on this announcement so far, as a decimal string. */
-    cost?: string;
-    attempts?: number;
-    error?: string;
-    history?: {
-      at: string;
-      by: string;
-      state: string;
-      note: string;
-    }[];
-    withdrawnBy?: string;
-    createdAt?: string;
-    updatedAt?: string;
-  })[];
-};
-
-/** Show one Story's announcement: its row, its history, and the post text and checks kept in S3. */
-export type AnnouncementsShowInput = {
-  /** The lineage id of the Story. */
-  story: string;
-};
-
-export type AnnouncementsShowResult = {
-  announcement: {
-    id: string;
-    accountId?: string;
-    storyLineageId?: string;
-    storyVersionNumber?: number;
-    /** One state of an announcement. */
-    state: "posting" | "posted" | "failed" | "blocked" | "dry_run" | "withdrawn";
-    /** The state in plain words, such as Dry run: not sent. */
-    label: string;
-    blockedReason?: string;
-    mode?: string;
-    link?: string;
-    weight?: number;
-    draftedBy?: string;
-    checks?: {
-      name: string;
-      passed: boolean;
-    }[];
-    postId?: string;
-    postedAt?: string;
-    /** Dollars Caducus charged on this announcement so far, as a decimal string. */
-    cost?: string;
-    attempts?: number;
-    error?: string;
-    history?: {
-      at: string;
-      by: string;
-      state: string;
-      note: string;
-    }[];
-    withdrawnBy?: string;
-    createdAt?: string;
-    updatedAt?: string;
-  };
-  /** The stored post: text, post, link, weight, model and every check's problems. */
-  document?: Record<string, unknown>;
-};
-
 /** Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything. */
 export type AnnouncementsDryRunInput = {
   /** The lineage id of the Story. */
@@ -1086,7 +1019,7 @@ export type AnnouncementsDryRunResult = {
   sent: boolean;
 };
 
-/** Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused. */
+/** Pause announcements: nothing is posted, and an X Delivery that comes due waits as Blocked: paused. */
 export type AnnouncementsPauseInput = Record<string, unknown>;
 
 export type AnnouncementsPauseResult = {
@@ -1096,7 +1029,7 @@ export type AnnouncementsPauseResult = {
   pauseReason?: string;
 };
 
-/** Resume announcements and announce the Stories that waited. */
+/** Resume announcements and put back the X Deliveries that waited. */
 export type AnnouncementsResumeInput = Record<string, unknown>;
 
 export type AnnouncementsResumeResult = {
@@ -1110,7 +1043,7 @@ export type AnnouncementsSettingsShowInput = Record<string, unknown>;
 export type AnnouncementsSettingsShowResult = {
   settings: {
     mode: "off" | "dry_run" | "on";
-    /** minStars, storyTypes and sections: what is announced. */
+    /** minStars, storyTypes, sections and requireReviewedSource: what is announced. */
     rules?: Record<string, unknown>;
     /** Dollars for each X billing cycle. No default. */
     budget?: number | null;
@@ -1118,8 +1051,20 @@ export type AnnouncementsSettingsShowResult = {
     /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
     prices?: Record<string, unknown>;
     labelConfirmed?: boolean;
+    /** Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing. */
+    spacing?: Record<string, unknown>;
     /** paused, reason (budget, disconnected or manual), detail, by and at. */
     pause?: Record<string, unknown>;
+    editWindows?: {
+      /** The kind of Announcement, such as story_published or roundup. Absent: every kind. */
+      kind?: string;
+      /** The channel, such as x or email. Absent: every channel. */
+      channel?: string;
+      /** Minutes from the Delivery's creation to its release: how long it stays a draft that people edit. */
+      windowMinutes: number;
+      /** Minutes before the release that the Delivery locks for the send job. At most the window; 0 is no separate lock. */
+      lockLeadMinutes?: number;
+    }[];
   };
   /** The X connection's status: connection, handle, accountId and refresh health. Never a secret. */
   connection: Record<string, unknown>;
@@ -1135,6 +1080,8 @@ export type AnnouncementsSettingsSetInput = {
   storyTypes?: string[];
   /** Limit to these sections. */
   sections?: string[];
+  /** On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed. */
+  requireReviewedSource?: boolean;
   /** Dollars for each X billing cycle, such as 10.00. No default. */
   budget?: string;
   /** The day of the month your X billing cycle starts. */
@@ -1143,12 +1090,25 @@ export type AnnouncementsSettingsSetInput = {
   prices?: Record<string, unknown>;
   /** The account shows X's Automated label, managed by a person's account. */
   labelConfirmed?: boolean;
+  /** Minutes between one post and the next on a channel account, by account (<channel>#<account>, such as x#handle). A number sets it, null takes it away; an account that is not named keeps what it has. Empty by default: no spacing. */
+  spacing?: Record<string, unknown>;
+  /** How long a Delivery stays a draft that people edit, and how long before its release it locks, for each kind of Announcement and channel. The narrowest entry that fits wins. This replaces the whole list; an empty list means no window. */
+  editWindows?: {
+    /** The kind of Announcement, such as story_published or roundup. Absent: every kind. */
+    kind?: string;
+    /** The channel, such as x or email. Absent: every channel. */
+    channel?: string;
+    /** Minutes from the Delivery's creation to its release: how long it stays a draft that people edit. */
+    windowMinutes: number;
+    /** Minutes before the release that the Delivery locks for the send job. At most the window; 0 is no separate lock. */
+    lockLeadMinutes?: number;
+  }[];
 };
 
 export type AnnouncementsSettingsSetResult = {
   settings: {
     mode: "off" | "dry_run" | "on";
-    /** minStars, storyTypes and sections: what is announced. */
+    /** minStars, storyTypes, sections and requireReviewedSource: what is announced. */
     rules?: Record<string, unknown>;
     /** Dollars for each X billing cycle. No default. */
     budget?: number | null;
@@ -1156,8 +1116,20 @@ export type AnnouncementsSettingsSetResult = {
     /** X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied. */
     prices?: Record<string, unknown>;
     labelConfirmed?: boolean;
+    /** Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing. */
+    spacing?: Record<string, unknown>;
     /** paused, reason (budget, disconnected or manual), detail, by and at. */
     pause?: Record<string, unknown>;
+    editWindows?: {
+      /** The kind of Announcement, such as story_published or roundup. Absent: every kind. */
+      kind?: string;
+      /** The channel, such as x or email. Absent: every channel. */
+      channel?: string;
+      /** Minutes from the Delivery's creation to its release: how long it stays a draft that people edit. */
+      windowMinutes: number;
+      /** Minutes before the release that the Delivery locks for the send job. At most the window; 0 is no separate lock. */
+      lockLeadMinutes?: number;
+    }[];
   };
   released: Record<string, unknown>[];
 };
@@ -1172,8 +1144,554 @@ export type AnnouncementsAccountStatusResult = {
   accountHandle?: string;
   /** For example $0.60 spent of $10.00 this cycle. */
   standing?: string;
+  /** Our count of the posts this account sent in the current billing cycle, a post later deleted included (X charged for it). X's own count is read beside it on the page. */
+  postCount?: number;
+  suggestion?: {
+    eligibleCount?: number;
+    windowDays?: number;
+    postsPerMonth?: number;
+    dollarsPerMonth?: number;
+    sentence: string;
+  };
   pauseReason?: string;
   pricesAsOf?: string;
+};
+
+/** Print the newsroom page where the X account is connected. Connecting is a browser step (OAuth): nothing is connected from here. */
+export type AnnouncementsAccountConnectInput = Record<string, unknown>;
+
+export type AnnouncementsAccountConnectResult = {
+  /** The address of Administration > Announcements in the newsroom. */
+  url: string;
+  words: string;
+};
+
+/** List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check). */
+export type AnnouncementsBlockedInput = Record<string, unknown>;
+
+export type AnnouncementsBlockedResult = {
+  blocked: {
+    delivery: string;
+    announcementId: string;
+    stories: {
+      lineageId: string;
+    }[];
+    reason: string;
+    words: string;
+    since?: string;
+  }[];
+};
+
+/** Try a failed Delivery again: it goes back to ready, and the next try is the next attempt. The attempts so far stay in its log. */
+export type AnnouncementsRetryInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsRetryResult = {
+  id: string;
+  /** The Delivery's state afterwards: ready. */
+  state: string;
+};
+
+/** Show the publication's announcement review and each override, and what a channel and kind would get. */
+export type AnnouncementsReviewShowInput = {
+  /** Narrow to one channel, such as linkedin. */
+  channel?: string;
+  /** Narrow to one kind of Announcement, such as roundup or story_published. */
+  kind?: string;
+  /** Narrow to one newsletter list. */
+  list?: string;
+};
+
+export type AnnouncementsReviewShowResult = {
+  policyVersion: number;
+  approval?: string | null;
+  rung: string;
+  overrides: Record<string, unknown>[];
+  /** With a channel and kind: the approval, the rung and where it came from. */
+  chosen?: Record<string, unknown> | null;
+};
+
+/** Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards. */
+export type AnnouncementsReviewSetInput = {
+  /** none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it. inherit takes an override away, so that scope follows the next wider one. */
+  approval: "none" | "soft" | "hard" | "inherit";
+  /** Narrow to one channel, such as linkedin. */
+  channel?: string;
+  /** Narrow to one kind of Announcement, such as roundup or story_published. */
+  kind?: string;
+  /** Narrow to one newsletter list. */
+  list?: string;
+  /** Why, in plain words. It is recorded with who and when. */
+  reason: string;
+};
+
+export type AnnouncementsReviewSetResult = {
+  policyVersion: number;
+  approval?: string | null;
+  rung?: string;
+  scope?: Record<string, unknown> | null;
+  changed: boolean;
+};
+
+/** Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change. */
+export type AnnouncementsDeliveryReviewSetInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it. */
+  approval: "none" | "soft" | "hard";
+};
+
+export type AnnouncementsDeliveryReviewSetResult = {
+  id: string;
+  approval: string;
+  approvalPolicy: string;
+  approvedBy?: string | null;
+};
+
+/** Save a Delivery's words as the next version, or keep a text or picture beside the draft as a candidate. */
+export type AnnouncementsDraftInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** The version of the Delivery you read. Refused as stale_version, naming the version that replaced it, when the Delivery has moved on. */
+  replaces?: number;
+  /** The words. A person's save marks the blocks it changed as theirs and pinned; an agent's redraft keeps every pinned block as it is. */
+  text?: string;
+  /** The picture of the version, or of the candidate. */
+  imageKey?: string;
+  /** Keep this text or picture beside the draft as a candidate (nothing goes out differently) instead of saving a version. No replaces is needed. */
+  candidate?: boolean;
+};
+
+export type AnnouncementsDraftResult = {
+  id: string;
+  /** saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft. */
+  status: "saved" | "preferred" | "unchanged" | "dropped" | "candidate";
+  version?: number;
+  replaces?: number | null;
+  reason?: string;
+  /** The candidate's id, when one was kept. */
+  candidate?: string;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  preferredVersion?: number | null;
+  /** Each block's owner (human or machine) and whether it is pinned. */
+  blocks?: Record<string, unknown>[];
+};
+
+/** Choose one candidate as the Delivery's words: a new version. The other candidates are kept. */
+export type AnnouncementsCandidateChooseInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** The candidate's id, such as c1. */
+  candidate: string;
+  /** The version of the Delivery you read. */
+  replaces: number;
+};
+
+export type AnnouncementsCandidateChooseResult = {
+  id: string;
+  /** saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft. */
+  status: "saved" | "preferred" | "unchanged" | "dropped" | "candidate";
+  version?: number;
+  replaces?: number | null;
+  reason?: string;
+  /** The candidate's id, when one was kept. */
+  candidate?: string;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  preferredVersion?: number | null;
+  /** Each block's owner (human or machine) and whether it is pinned. */
+  blocks?: Record<string, unknown>[];
+};
+
+/** List a Delivery's versions and candidates: who saved each, when, what it replaced and which blocks are pinned. With a version or a candidate, its words. */
+export type AnnouncementsVersionsInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** Show the words of this version. */
+  version?: number;
+  /** Show the words of this candidate. */
+  candidate?: string;
+};
+
+export type AnnouncementsVersionsResult = {
+  id: string;
+  version: number;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  lockedAt?: string | null;
+  preferredVersion?: number | null;
+  versions: Record<string, unknown>[];
+  candidates: Record<string, unknown>[];
+  /** The words asked for. */
+  text?: string;
+};
+
+/** Change or unpin a block a person pinned, as the next version. */
+export type AnnouncementsPinnedChangeInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** The version of the Delivery you read. */
+  replaces: number;
+  /** The block, counting from 1. */
+  block: number;
+  /** The block's new words, one paragraph. It stays pinned. */
+  text?: string;
+  /** Unpin the block, so a later redraft may rewrite it. */
+  unpin?: boolean;
+};
+
+export type AnnouncementsPinnedChangeResult = {
+  id: string;
+  /** saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft. */
+  status: "saved" | "preferred" | "unchanged" | "dropped" | "candidate";
+  version?: number;
+  replaces?: number | null;
+  reason?: string;
+  /** The candidate's id, when one was kept. */
+  candidate?: string;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  preferredVersion?: number | null;
+  /** Each block's owner (human or machine) and whether it is pinned. */
+  blocks?: Record<string, unknown>[];
+};
+
+/** Release a Delivery: hand it to its channel now. */
+export type AnnouncementsReleaseInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsReleaseResult = {
+  id: string;
+};
+
+/** Unlock a Delivery after its lock time, so it can be edited again. */
+export type AnnouncementsUnlockInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** When it locks again (UTC), after now and no later than the release. By default the release time. */
+  lockAt?: string;
+  /** A new release time (UTC), when the old one has passed. */
+  releaseAt?: string;
+};
+
+export type AnnouncementsUnlockResult = {
+  id: string;
+  lockAt: string;
+  releaseAt: string;
+  lockedVersion?: number | null;
+};
+
+/** Say how far what a person changed in an announcement should reach, so later drafts can follow it. */
+export type AnnouncementsExampleInput = {
+  /** The Delivery's id: one that went out, or one with a preferred version. */
+  delivery: string;
+  /** How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why, kept with the words in S3 and never in the catalog. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsExampleResult = {
+  id: string;
+  recorded: boolean;
+  exampleState?: string | null;
+  exampleScope?: string | null;
+  machineVersion?: number | null;
+  finalVersion?: number | null;
+  reason?: string | null;
+};
+
+/** Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text. */
+export type AnnouncementsPreferredInput = {
+  /** The Delivery's id: one that went out, or has an attempt open. */
+  delivery: string;
+  /** The version of the Delivery you read. */
+  replaces: number;
+  /** How it should have read. */
+  text: string;
+  /** Also record how far it reaches, in the same step. Leave it out to keep it as a candidate. */
+  scope?: "this_one" | "channel" | "kind" | "publication";
+  /** One line on why. It goes with a scope. */
+  reason?: string;
+};
+
+export type AnnouncementsPreferredResult = {
+  id: string;
+  /** saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft. */
+  status: "saved" | "preferred" | "unchanged" | "dropped" | "candidate";
+  version?: number;
+  replaces?: number | null;
+  reason?: string;
+  /** The candidate's id, when one was kept. */
+  candidate?: string;
+  approvedVersion?: number | null;
+  lockedVersion?: number | null;
+  preferredVersion?: number | null;
+  /** Each block's owner (human or machine) and whether it is pinned. */
+  blocks?: Record<string, unknown>[];
+};
+
+/** Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went. */
+export type AnnouncementsCorrectInput = {
+  /** The id of the Delivery that went and is to be corrected. */
+  delivery: string;
+  /** The corrected public text. It is checked like the text of a new Delivery. */
+  text: string;
+};
+
+export type AnnouncementsCorrectResult = {
+  /** The new Delivery's id. */
+  id: string;
+  /** The new Delivery's generation. */
+  generation: number;
+  /** The id of the Delivery it replaces. */
+  supersedes: string;
+  /** The new Delivery's state. */
+  state: string;
+  /** The review the new Delivery goes under: the one the old Delivery had. */
+  approval: string;
+  /** The checks the new text passed. */
+  checks: {
+    name: string;
+    passed: boolean;
+  }[];
+};
+
+/** Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names that person. */
+export type AnnouncementsRecordManualInput = {
+  /** The Delivery's id. */
+  delivery: string;
+  /** The address of the post, an http or https URL. */
+  url: string;
+};
+
+export type AnnouncementsRecordManualResult = {
+  id: string;
+  state: string;
+  resultUrl: string;
+  /** The attempt that was written: number, at, outcome, by and url. */
+  attempt: Record<string, unknown>;
+};
+
+/** Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted). */
+export type AnnouncementsWithdrawInput = {
+  /** The Delivery's id. */
+  delivery: string;
+};
+
+export type AnnouncementsWithdrawResult = {
+  id: string;
+  /** The Delivery's state afterwards: withdrawn. */
+  state: string;
+  /** Who withdrew it. */
+  withdrawnBy: string;
+  /** What Caducus has charged for the post in all, deletion included, when a post was deleted. */
+  cost?: string | null;
+  /** The Announcement's state afterwards: withdrawn once every Delivery is, cancelled when none had gone. */
+  announcementState: string;
+};
+
+/** Where a Story was announced: each Announcement that announces it, with one line for each live Delivery. */
+export type AnnouncementsWhereInput = {
+  /** The lineage id of the Story. */
+  story: string;
+};
+
+export type AnnouncementsWhereResult = {
+  story: string;
+  announcements: ({
+    id: string;
+    kind: string;
+    state: string;
+    releaseAt: string;
+    trigger?: string | null;
+    createdBy?: string | null;
+    /** The version of the Story the Announcement looked at. */
+    versionLookedAt?: number | null;
+    /** The one open review flag for a blocked draft, once for each Announcement: id, words, mark, reason and ask. */
+    reviewFlag?: Record<string, unknown> | null;
+    /** One line for each live Delivery, in channel order. */
+    deliveries: ({
+      /** The Delivery's id. */
+      id: string;
+      announcementId: string;
+      channel: string;
+      accountId: string;
+      generation?: number;
+      /** The Delivery's state. */
+      state: string;
+      /** The state in words, such as Sent or Blocked: check failed. */
+      words: string;
+      /** The Lucide icon of the state. */
+      mark: string;
+      /** The review in words and a mark: words, mark and approval (none, soft or hard). Null for a Delivery that will not go. */
+      approval?: Record<string, unknown> | null;
+      releaseAt?: string | null;
+      lockAt?: string | null;
+      /** The earliest time it is still waiting for. */
+      dueAt?: string | null;
+      waitingFor?: string | null;
+      nextAttemptAt?: string | null;
+      blockedReason?: string | null;
+      /** How many attempts were opened. */
+      attempts: number;
+      /** The last attempt: number, at, outcome, code, words and mark. */
+      lastAttempt?: Record<string, unknown> | null;
+      resultUrl?: string | null;
+      /** What needs a person's eye: Overdue (due, with no attempt), Outcome unknown (an attempt with no answer yet, until Caducus settles it), or a failed check. */
+      attention: ({
+        kind: "overdue" | "outcome_unknown" | "check_failed";
+        words: string;
+        mark: string;
+        /** When it began, as a UTC time. */
+        since?: string;
+      })[];
+    })[];
+    /** In the list: the Stories it is about, each with lineageId and title. */
+    stories?: Record<string, unknown>[];
+  })[];
+};
+
+/** The Announcements list: Announcements newest first, one line for each live Delivery, and every Delivery that is overdue. */
+export type AnnouncementsRecentInput = {
+  /** The size of a page; 25 when left out. A page never splits Announcements released at the same moment. */
+  limit?: number;
+  /** The next value of the last page: shows the Announcements released before that time. */
+  before?: string;
+};
+
+export type AnnouncementsRecentResult = {
+  announcements: ({
+    id: string;
+    kind: string;
+    state: string;
+    releaseAt: string;
+    trigger?: string | null;
+    createdBy?: string | null;
+    /** The version of the Story the Announcement looked at. */
+    versionLookedAt?: number | null;
+    /** The one open review flag for a blocked draft, once for each Announcement: id, words, mark, reason and ask. */
+    reviewFlag?: Record<string, unknown> | null;
+    /** One line for each live Delivery, in channel order. */
+    deliveries: ({
+      /** The Delivery's id. */
+      id: string;
+      announcementId: string;
+      channel: string;
+      accountId: string;
+      generation?: number;
+      /** The Delivery's state. */
+      state: string;
+      /** The state in words, such as Sent or Blocked: check failed. */
+      words: string;
+      /** The Lucide icon of the state. */
+      mark: string;
+      /** The review in words and a mark: words, mark and approval (none, soft or hard). Null for a Delivery that will not go. */
+      approval?: Record<string, unknown> | null;
+      releaseAt?: string | null;
+      lockAt?: string | null;
+      /** The earliest time it is still waiting for. */
+      dueAt?: string | null;
+      waitingFor?: string | null;
+      nextAttemptAt?: string | null;
+      blockedReason?: string | null;
+      /** How many attempts were opened. */
+      attempts: number;
+      /** The last attempt: number, at, outcome, code, words and mark. */
+      lastAttempt?: Record<string, unknown> | null;
+      resultUrl?: string | null;
+      /** What needs a person's eye: Overdue (due, with no attempt), Outcome unknown (an attempt with no answer yet, until Caducus settles it), or a failed check. */
+      attention: ({
+        kind: "overdue" | "outcome_unknown" | "check_failed";
+        words: string;
+        mark: string;
+        /** When it began, as a UTC time. */
+        since?: string;
+      })[];
+    })[];
+    /** In the list: the Stories it is about, each with lineageId and title. */
+    stories?: Record<string, unknown>[];
+  })[];
+  /** Every Delivery that is due and has no attempt, read from the sparse due index. */
+  overdue: ({
+    /** The Delivery's id. */
+    id: string;
+    announcementId: string;
+    channel: string;
+    accountId: string;
+    generation?: number;
+    /** The Delivery's state. */
+    state: string;
+    /** The state in words, such as Sent or Blocked: check failed. */
+    words: string;
+    /** The Lucide icon of the state. */
+    mark: string;
+    /** The review in words and a mark: words, mark and approval (none, soft or hard). Null for a Delivery that will not go. */
+    approval?: Record<string, unknown> | null;
+    releaseAt?: string | null;
+    lockAt?: string | null;
+    /** The earliest time it is still waiting for. */
+    dueAt?: string | null;
+    waitingFor?: string | null;
+    nextAttemptAt?: string | null;
+    blockedReason?: string | null;
+    /** How many attempts were opened. */
+    attempts: number;
+    /** The last attempt: number, at, outcome, code, words and mark. */
+    lastAttempt?: Record<string, unknown> | null;
+    resultUrl?: string | null;
+    /** What needs a person's eye: Overdue (due, with no attempt), Outcome unknown (an attempt with no answer yet, until Caducus settles it), or a failed check. */
+    attention: ({
+      kind: "overdue" | "outcome_unknown" | "check_failed";
+      words: string;
+      mark: string;
+      /** When it began, as a UTC time. */
+      since?: string;
+    })[];
+  })[];
+  /** Pass as before for the next page; null on the last page. */
+  next: string | null;
+};
+
+/** Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read. Reads the rules; writes nothing. */
+export type AnnouncementsExplainInput = {
+  /** The lineage id of the Story. */
+  story?: string;
+  /** Ask instead about a Delivery: the guideline layers (scope, item, version, hash) and the examples its draft read. */
+  delivery?: string;
+};
+
+export type AnnouncementsExplainResult = {
+  story?: string;
+  title?: string;
+  stars?: number;
+  channels?: {
+    channel: string;
+    announced: boolean;
+    /** The rule: announced, off, not_published, type_not_announced, section_not_announced, below_bar, below_floor, machine_five, story_not_reviewed, no_delivery or would_announce. */
+    rule: string;
+    words: string;
+    delivery?: string;
+  }[];
+  /** The Delivery asked about. */
+  delivery?: string;
+  recorded?: boolean;
+  words?: string;
+  storyVersion?: number | null;
+  model?: string | null;
+  /** Each guideline layer the draft read: scope, itemId, versionNumber, contentHash. */
+  guidelineLayers?: Record<string, unknown>[];
+  /** The examples the draft read, and whether each is still on. */
+  examples?: ({
+    delivery: string;
+    state: string;
+    scope?: string | null;
+  })[];
 };
 
 /** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
@@ -1190,6 +1708,26 @@ export type RatingsSetResult = {
   previous?: number;
   stars: number;
   ratedBy?: string;
+};
+
+/** Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once. */
+export type HandoffsRequestInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** The responsibility asked, as the agent catalogue names it, such as research. */
+  responsibility: string;
+  /** What is needed and why, in plain words. It is the Assignment's brief and what the responsible agent reads. */
+  why: string;
+};
+
+export type HandoffsRequestResult = {
+  assignmentId: string;
+  responsibility: string;
+  story: string;
+  status: string;
+  askedBy: string;
+  /** False when the same ask was already made: nothing new was written and nobody is woken again. */
+  created: boolean;
 };
 
 export interface ImageOperations {
@@ -1223,15 +1761,34 @@ export interface ImageOperations {
   guidelines_diff: { input: GuidelinesDiffInput; result: GuidelinesDiffResult };
   guidelines_save: { input: GuidelinesSaveInput; result: GuidelinesSaveResult };
   guidelines_history: { input: GuidelinesHistoryInput; result: GuidelinesHistoryResult };
-  announcements_list: { input: AnnouncementsListInput; result: AnnouncementsListResult };
-  announcements_show: { input: AnnouncementsShowInput; result: AnnouncementsShowResult };
   announcements_dry_run: { input: AnnouncementsDryRunInput; result: AnnouncementsDryRunResult };
   announcements_pause: { input: AnnouncementsPauseInput; result: AnnouncementsPauseResult };
   announcements_resume: { input: AnnouncementsResumeInput; result: AnnouncementsResumeResult };
   announcements_settings_show: { input: AnnouncementsSettingsShowInput; result: AnnouncementsSettingsShowResult };
   announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
+  announcements_account_connect: { input: AnnouncementsAccountConnectInput; result: AnnouncementsAccountConnectResult };
+  announcements_blocked: { input: AnnouncementsBlockedInput; result: AnnouncementsBlockedResult };
+  announcements_retry: { input: AnnouncementsRetryInput; result: AnnouncementsRetryResult };
+  announcements_review_show: { input: AnnouncementsReviewShowInput; result: AnnouncementsReviewShowResult };
+  announcements_review_set: { input: AnnouncementsReviewSetInput; result: AnnouncementsReviewSetResult };
+  announcements_delivery_review_set: { input: AnnouncementsDeliveryReviewSetInput; result: AnnouncementsDeliveryReviewSetResult };
+  announcements_draft: { input: AnnouncementsDraftInput; result: AnnouncementsDraftResult };
+  announcements_candidate_choose: { input: AnnouncementsCandidateChooseInput; result: AnnouncementsCandidateChooseResult };
+  announcements_versions: { input: AnnouncementsVersionsInput; result: AnnouncementsVersionsResult };
+  announcements_pinned_change: { input: AnnouncementsPinnedChangeInput; result: AnnouncementsPinnedChangeResult };
+  announcements_release: { input: AnnouncementsReleaseInput; result: AnnouncementsReleaseResult };
+  announcements_unlock: { input: AnnouncementsUnlockInput; result: AnnouncementsUnlockResult };
+  announcements_example: { input: AnnouncementsExampleInput; result: AnnouncementsExampleResult };
+  announcements_preferred: { input: AnnouncementsPreferredInput; result: AnnouncementsPreferredResult };
+  announcements_correct: { input: AnnouncementsCorrectInput; result: AnnouncementsCorrectResult };
+  announcements_record_manual: { input: AnnouncementsRecordManualInput; result: AnnouncementsRecordManualResult };
+  announcements_withdraw: { input: AnnouncementsWithdrawInput; result: AnnouncementsWithdrawResult };
+  announcements_where: { input: AnnouncementsWhereInput; result: AnnouncementsWhereResult };
+  announcements_recent: { input: AnnouncementsRecentInput; result: AnnouncementsRecentResult };
+  announcements_explain: { input: AnnouncementsExplainInput; result: AnnouncementsExplainResult };
   ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
+  handoffs_request: { input: HandoffsRequestInput; result: HandoffsRequestResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
@@ -1266,23 +1823,42 @@ export const IMAGE_OPERATIONS = {
   guidelines_diff: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines diff" },
   guidelines_save: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines save" },
   guidelines_history: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "guidelines", command: "papyrus guidelines history" },
-  announcements_list: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements list" },
-  announcements_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements show" },
   announcements_dry_run: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements dry-run" },
   announcements_pause: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements pause" },
   announcements_resume: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements resume" },
   announcements_settings_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements settings show" },
   announcements_settings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements settings set" },
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
+  announcements_account_connect: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account connect" },
+  announcements_blocked: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements blocked" },
+  announcements_retry: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements retry" },
+  announcements_review_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements review show" },
+  announcements_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements review set" },
+  announcements_delivery_review_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements delivery review" },
+  announcements_draft: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements draft" },
+  announcements_candidate_choose: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements candidate choose" },
+  announcements_versions: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements versions" },
+  announcements_pinned_change: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements pinned" },
+  announcements_release: { effect: "write", agentAllowed: true, agentRung: "publish_auto", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements release" },
+  announcements_unlock: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements unlock" },
+  announcements_example: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements example" },
+  announcements_preferred: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements preferred" },
+  announcements_correct: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements correct" },
+  announcements_record_manual: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements record-manual" },
+  announcements_withdraw: { effect: "write", agentAllowed: true, agentRung: "prepare", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements withdraw" },
+  announcements_where: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements where" },
+  announcements_recent: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements recent" },
+  announcements_explain: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements explain" },
   ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
+  handoffs_request: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "handoffs", command: "papyrus handoffs request" },
 } as const;
 
-/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements and ratings have no door yet (the console reads and writes their models directly). */
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements, ratings and handoffs have no door yet (the console reads and writes their models directly). */
 export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;
   effect: "read" | "write" | "spend";
-  group: "images" | "guidelines" | "announcements" | "ratings";
+  group: "images" | "guidelines" | "announcements" | "ratings" | "handoffs";
 }) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(

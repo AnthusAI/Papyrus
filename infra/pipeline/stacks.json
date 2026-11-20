@@ -15,6 +15,7 @@
     },
     {
       "name": "papyrus-monitoring",
+      "hold": "PPY-e713eb: held for the 5.130.0 release window; the runner and the sites switch together (docs/release-5-130-plan.md section 2). Taking this line out is the go.",
       "template": "infra/monitoring/papyrus-monitoring.yaml",
       "paths": [
         "infra/monitoring/",

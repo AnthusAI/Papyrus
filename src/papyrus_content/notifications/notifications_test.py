@@ -15,7 +15,7 @@ from caducus.notify.queues import MemoryQueues
 from caducus.notify.store import MemoryStore
 
 from papyrus_content.notifications import handler as notifications_handler
-from papyrus_content.notifications.events import story_published_detail
+from papyrus_content.list_cadence.alert_text import rule_matches
 from papyrus_content.notifications.pause import alarm_names, handle_alarm
 from papyrus_content.notifications.runtime import Runtime, assemble
 from papyrus_content.notifications.sending import SendingPaused
@@ -35,7 +35,7 @@ class Site:
 
     def __init__(
         self, site_id: str = "alpha", *, rule: Mapping[str, Any] | None = None, readers: int = 1, postal_address: str | None = POSTAL,
-        base_path: str = "",
+        base_path: str = "", lists: tuple[Mapping[str, Any], ...] | None = None, legacy_token_key: bytes | None = None,
     ) -> None:
         self.settings = Settings(
             site_id=site_id,
@@ -46,7 +46,7 @@ class Site:
             configuration_set=f"papyrus-{site_id}",
             item_url_style="html",
             theme=THEME,
-            lists=(
+            lists=lists or (
                 {"id": "stories", "name": "New stories", "description": "", "rule": dict(rule or {}), "approval": "admin"},
                 {"id": "security", "name": "Security", "description": "", "rule": {"sections": ["security"]}, "approval": "admin"},
             ),
@@ -61,12 +61,12 @@ class Site:
             queues=self.queues,
             directory=StaticDirectory([], f"recipient-key-{site_id}"),
             mailer=self.mailer,
-            read_item=self.rows.get,
             clock=self.clock,
             postal_address=lambda: postal_address,
             key_secret=f"recipient-key-{site_id}",
             domains=self.domains,
             unsuppress=self.unsuppressed.append,
+            legacy_token_key=legacy_token_key,
         )
         self.addresses = [f"reader{number}@{site_id}.example.test" for number in range(readers)]
         self.manage: dict[str, str] = {}
@@ -116,16 +116,28 @@ class Site:
 
     @staticmethod
     def announcement(lineage: str) -> dict[str, Any]:
-        return {
-            "task": "story-published",
-            "itemId": lineage,
-            "lineageId": lineage,
-            "eventId": "story.published:" + lineage,
-            "publishedItemId": "published-" + lineage,
-        }
+        return {"lineageId": lineage, "eventId": "story.published:" + lineage}
+
+    def detail(self, lineage: str) -> dict[str, Any] | None:
+        """What an email Delivery's attempt hands Caducus (``announcements/email_channel.py``), built here for the lists whose rule matches the story: the specs
+        of readers and fan-out start from one event. A story no list carries has none."""
+        row = self.rows["published-" + lineage]
+        lists = [entry["id"] for entry in self.settings.lists
+                 if entry.get("kind", "story.published") == "story.published" and rule_matches(entry.get("rule"), section=row.get("section"), tags=[], item_type=row.get("type"))]
+        if not lists:
+            return None
+        facts = {"title": row["title"], "url": f"https://{self.settings.site_id}.example.test/{row['section']}/{row['slug']}.html"}
+        if row.get("deck"):
+            facts["summary"] = row["deck"]
+        return {"schema": 1, "eventId": "story.published:" + lineage, "kind": "story.published", "product": "papyrus", "site": self.settings.site_id,
+                "occurredAt": "2026-11-09T12:00:00Z", "severity": "info", "lists": lists, "facts": facts}
 
     def announce(self, lineage: str) -> dict[str, Any]:
-        return notifications_handler.route(self.runtime, self.announcement(lineage))
+        detail = self.detail(lineage)
+        if detail is None:
+            return {"status": "ignored", "reason": "no_matching_list"}
+        result = self.runtime.router.handle_detail(detail)
+        return {"status": result.outcome, "reason": result.reason, "deliveries": len(result.deliveries)}
 
     def publish(self, title: str, section: str) -> dict[str, Any]:
         return self.announce(self.add_story(title, section))
@@ -152,36 +164,6 @@ class Site:
             assert result == {"batchItemFailures": []}, result
             handled += sum(1 for record in batch["Records"] if "fanout" not in record["body"])
         return handled
-
-
-# -- events ---------------------------------------------------------------------------------------------------------------
-
-
-def test_a_story_becomes_an_event_whose_id_comes_from_the_lineage() -> None:
-    site = Site()
-    lineage = site.add_story("Rates held steady", "news")
-    detail = story_published_detail(
-        site.rows["published-" + lineage], event_id="story.published:" + lineage, settings=site.settings, occurred_at="2026-11-09T12:00:00Z"
-    )
-    assert detail is not None
-    assert detail["eventId"] == "story.published:item-news-rates-held-steady"
-    assert detail["kind"] == "story.published" and detail["product"] == "papyrus" and detail["site"] == "alpha"
-    assert detail["lists"] == ["stories"], "the lists whose rule matches the story"
-    assert detail["facts"] == {"title": "Rates held steady", "url": "https://alpha.example.test/news/rates-held-steady.html"}
-
-
-def test_a_rule_that_does_not_match_raises_no_event() -> None:
-    site = Site(rule={"sections": ["security"]})
-    lineage = site.add_story("Rates held steady", "news")
-    assert story_published_detail(site.rows["published-" + lineage], event_id="story.published:x", settings=site.settings, occurred_at="2026-11-09T12:00:00Z") is None
-
-
-def test_the_deck_becomes_the_summary() -> None:
-    site = Site()
-    lineage = site.add_story("Rates held steady", "news")
-    site.rows["published-" + lineage]["deck"] = "The bank left them alone."
-    detail = story_published_detail(site.rows["published-" + lineage], event_id="story.published:x", settings=site.settings, occurred_at="2026-11-09T12:00:00Z")
-    assert detail is not None and detail["facts"]["summary"] == "The bank left them alone."
 
 
 # -- the function ---------------------------------------------------------------------------------------------------------
@@ -223,33 +205,6 @@ def test_a_story_no_list_matches_queues_nothing() -> None:
     site = Site(rule={"sections": ["security"]})
     assert site.publish("Rates held steady", "news") == {"status": "ignored", "reason": "no_matching_list"}
     assert site.queues.sent == [] and site.deliveries() == []
-
-
-def test_a_story_that_is_no_longer_published_is_ignored() -> None:
-    site = Site()
-    lineage = site.add_story("Rates held steady", "news", status="unpublished")
-    assert site.announce(lineage) == {"status": "ignored", "reason": "not_published"}
-    assert notifications_handler.route(site.runtime, {**Site.announcement("item-gone")}) == {"status": "ignored", "reason": "not_published"}
-
-
-@pytest.mark.parametrize(
-    "event_id", ["", "item-1", "story.published:", "story.published:a b", "story.published:" + "x" * 300, "story.published:other"]
-)
-def test_a_malformed_or_mismatched_event_id_is_refused_without_touching_the_log(event_id: str) -> None:
-    site = Site(readers=0)
-    lineage = site.add_story("Rates held steady", "news")
-    answer = notifications_handler.route(site.runtime, {**Site.announcement(lineage), "eventId": event_id})
-    assert answer == {"status": "ignored", "reason": "bad_event"}
-    assert site.store.items == {}
-
-
-def test_a_non_text_event_id_is_refused() -> None:
-    site = Site()
-    assert notifications_handler.route(site.runtime, {"task": "story-published", "eventId": 5, "lineageId": "x"})["reason"] == "bad_event"
-
-
-def test_unknown_events_do_nothing() -> None:
-    assert notifications_handler.route(Site().runtime, {"task": "something-else"}) == {"status": "ignored", "reason": "unknown_event"}
 
 
 def test_sites_do_not_share_data() -> None:
@@ -341,18 +296,6 @@ def test_a_reader_lifting_a_bounce_also_clears_the_ses_account_suppression() -> 
     notifications_handler.ses_events_with(site.runtime, site.ses_event("Complaint", message_id))
     assert site.act("update_preferences", token=site.manage[site.addresses[0]], lists=["stories"])["body"]["status"] == "saved"
     assert site.unsuppressed == [site.addresses[0]]
-
-
-def test_every_failure_in_caducus_reaches_lambda_so_it_retries() -> None:
-    site = Site()
-    lineage = site.add_story("Rates held steady", "news")
-
-    def explode(_id: str) -> None:
-        raise RuntimeError("content API down")
-
-    site.runtime.read_item = explode
-    with pytest.raises(RuntimeError):
-        site.announce(lineage)
 
 
 # -- sending as the site ---------------------------------------------------------------------------------------------------

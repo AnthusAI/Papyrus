@@ -28,7 +28,7 @@ CORE_RULES = ["Place a third-party image without credit", "Add a credit to a gen
 def _complete(name: str, responsibility: str) -> dict:
     return {
         "schemaVersion": 1, "id": name, "version": 1, "responsibility": responsibility, "procedure": "illustrate_story",
-        "wakes": {"changes": [{"kind": "Item", "change": "ready", "filter": {"step": "illustration"}}], "schedule": {"cron": "0 6 * * *", "timeZone": "America/New_York"}},
+        "wakes": {"changes": [{"kind": "Item", "change": "step_changed", "filter": {"step": "illustration"}}], "schedule": {"cron": "0 6 * * *", "timeZone": "America/New_York"}},
         "serialBy": "subject", "paid": True, "safeToRepeat": False,
         "operations": {"image_search": "observe", "image_apply": "draft"}, "tier": "editorial",
         "template": {
@@ -113,7 +113,14 @@ _BREAKS = {
     "no safe-to-repeat flag": lambda data: data.pop("safeToRepeat"),
     "no procedure key": lambda data: data.pop("procedure"),
     'an unknown field "mood"': lambda data: data.update(mood="cheerful"),
+    "a listen for a change no feed produces": lambda data: data["wakes"].update(changes=[{"kind": "Reference", "change": "ready"}]),
+    "a listen for a change of a kind no feed covers": lambda data: data["wakes"].update(changes=[{"kind": "Story", "change": "created"}]),
 }
+
+
+@given('the definition "{name}" listens for the change "{change}" of "{kind}"')
+def step_listens(context, name, change, kind):
+    _edit(context, name, lambda data: data["wakes"].update(changes=[{"kind": kind, "change": change}]))
 
 
 @given('the definition "{name}" has {problem}')

@@ -11,6 +11,7 @@ import copy
 import re
 from typing import Any
 
+from . import edit_windows
 from .x_account import CONNECTED, AnnouncementError, utc_iso
 
 MODES = ("off", "dry_run", "on")
@@ -25,12 +26,16 @@ DEFAULT_PRICES = {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0
 DEFAULT_SETTINGS: dict[str, Any] = {
     "mode": "off",
     "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None},
-    "rules": {"minStars": MAX_STARS, "storyTypes": list(STORY_TYPES), "sections": []},
+    "rules": {"minStars": MAX_STARS, "storyTypes": list(STORY_TYPES), "sections": [], "requireReviewedSource": False},
     "budget": None,
     # The day of the month the owner's X billing cycle starts (1 to 31): the budget is per cycle, so the spend counter needs to know where a cycle begins.
     "billingCycleDay": None,
     "prices": DEFAULT_PRICES,
     "labelConfirmed": False,
+    # How long a Delivery stays a draft that people edit, and how long before its release it locks, for each kind of Announcement and channel (edit_windows.py). Empty: no window.
+    "editWindows": [],
+    # Post spacing, in minutes, by channel account (``<channel>#<account id>``, as ``records.account_key`` writes it). Empty: no account has spacing, so nothing is held.
+    "spacing": {},
 }
 
 
@@ -64,6 +69,10 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
     sections = rules.get("sections", [])
     if not isinstance(sections, list) or any(not isinstance(item, str) or not item for item in sections):
         raise _fail("sections_invalid", "Sections must be a list of section names.")
+    require_reviewed = rules.get("requireReviewedSource", False)
+    if not isinstance(require_reviewed, bool):
+        raise _fail("require_reviewed_source_invalid", "Reviewed only is on or off.")
+    spacing = _spacing(proposed.get("spacing"))
     budget = proposed.get("budget")
     if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget < 0):
         raise _fail("budget_invalid", "The budget is an amount of money, zero or more, per X billing cycle.")
@@ -78,6 +87,7 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
     if not isinstance(prices.get("asOf"), str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", prices["asOf"]):
         raise _fail("price_date_invalid", "Give the date you copied the prices from X, as year-month-day.")
     label = bool(proposed.get("labelConfirmed"))
+    windows = edit_windows.validate(proposed.get(edit_windows.KEY))
     if mode in ("dry_run", "on") and connection_status != CONNECTED:
         raise _fail("account_needed", "Connect an X account before choosing Dry run or On.")
     if mode == "on":
@@ -87,12 +97,34 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
             raise _fail("budget_needed", "Enter a budget per X billing cycle before turning announcements on.")
     return {
         "mode": mode,
-        "rules": {"minStars": stars, "storyTypes": list(types), "sections": list(sections)},
+        "rules": {"minStars": stars, "storyTypes": list(types), "sections": list(sections), "requireReviewedSource": require_reviewed},
         "budget": budget,
         "billingCycleDay": cycle_day,
         "prices": {name: prices[name] for name in ("createPost", "createPostWithUrl", "deletePost", "readPost", "asOf")},
         "labelConfirmed": label,
+        edit_windows.KEY: windows,
+        "spacing": spacing,
     }
+
+
+def _spacing(value: Any) -> dict[str, int]:
+    """Post spacing by channel account: the minutes between one post and the next on that account. An account with no entry has none; an empty setting means no
+    account has any."""
+    if value in (None, {}):
+        return {}
+    if not isinstance(value, dict):
+        raise _fail("spacing_invalid", "Post spacing is a number of minutes for each channel account.")
+    for account, minutes in value.items():
+        if not isinstance(account, str) or account.count("#") != 1 or not all(account.split("#")):
+            raise _fail("spacing_invalid", f"Name the account as <channel>#<account>, such as x#handle; not {account!r}.")
+        if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 1:
+            raise _fail("spacing_invalid", f"Post spacing for {account} is a whole number of minutes, 1 or more; leave the account out for no spacing.")
+    return dict(value)
+
+
+def spacing_minutes(document: dict[str, Any], channel: str, account_id: str) -> int | None:
+    """The minutes of spacing the owner set for one channel account, or None when there is none."""
+    return (document.get("spacing") or {}).get(f"{channel}#{account_id}")
 
 
 class AnnouncementSettings:

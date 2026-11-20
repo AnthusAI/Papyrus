@@ -37,6 +37,15 @@ Feature: A translation is published as a person's act, with its own gates, and i
     Then the Spanish page's JSON-LD says inLanguage "es-419" and is a translationOfWork of the English page in "en"
     And the Spanish Markdown twin says language "es-419", translation "machine" and the English page it was translated from
 
+  Scenario: An automatic publish of a clean translation is refused and leaves a ready draft
+    Given the translation run for "es-419" has finished
+    When an automation publishes the translation
+    Then publishing is refused as "person-publish-required" naming "publish it by hand"
+    And the translation is still a ready draft
+    And no Spanish page is served
+    When a person publishes the translation
+    Then the translation is published as "story-waymo--es-419" at "es/articles/bajan-los-choques-de-waymo/index.html"
+
   Scenario: A held translation does not publish until a person clears it
     Given the translator writes "varias ciudades" where the English says "12 cities"
     And the repairer keeps the wrong wording

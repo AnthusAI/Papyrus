@@ -114,3 +114,15 @@ Feature: An admin sets an agent's rung with papyrus agents set-rung
   Scenario: An agent the policy does not name stays off
     Given a site where "rate" was set to "observe" with the command
     Then a wake for "improve" starts nothing and says "improve is off"
+
+  Scenario: Every request the policy store sends is one the site's GraphQL schema accepts
+    The fake site API above answers whatever the store sends, so a request AppSync would refuse can pass every scenario here and fail on a real site: an
+    unknown input field was exactly that (the conditions of a create named "id", which no model's condition input has; AppSync's create already refuses an
+    existing key). The requests of a first save, a second save with its conditional update, and a dry run are checked against the schema Amplify
+    generates from amplify/data/schema.ts, with the same transformers a deployment uses: each request must validate, and its variables must fit the input
+    types it declares.
+    Given a site where "rate" was set to "observe" with the command
+    When an admin runs set-rung for "rate" to "draft" because "Its proposals held up" and applies it
+    And an admin runs set-rung for "rate" to "observe" because "Looking again"
+    Then every request the site store sent is accepted by the GraphQL schema Amplify generates from the data schema
+    And the requests include a conditional update, a create and a latest-version query

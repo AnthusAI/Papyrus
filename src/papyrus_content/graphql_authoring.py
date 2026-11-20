@@ -126,6 +126,10 @@ PROCEDURE_RUN_TODAY_FIELDS = (   # one run as Today lists it: no input, output o
     "id tenantId procedureKey runStatus outcome outcomeReason automationId responsibility subjectKind subjectId subjectVersion rung "
     "requestedAt startedAt finishedAt costUsd errorSummary"
 )
+PROCEDURE_RUN_ATTENTION_FIELDS = (   # one run that needs a person: what it was, why, and when it needed attention
+    "id tenantId procedureKey runStatus outcome outcomeReason automationId responsibility subjectKind subjectId requestedAt finishedAt "
+    "errorSummary attentionKey dueAt acknowledgedAt acknowledgedBy"
+)
 PROCEDURE_RUN_COST_FIELDS = "usage costUsd outcome outcomeReason automationId"   # added after the base list: a backend that predates them refuses a query that names them
 AUTOMATION_FIELDS = (
     "id title description enabled trigger procedureKey responsibility definitionId definitionVersion definitionDigest definition definitionRetiredAt inputTemplate limits "
@@ -146,15 +150,11 @@ STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
 )
-ANNOUNCEMENT_FIELDS = (
-    "id accountId accountHandle storyLineageId storyItemId storyVersionNumber channel state blockedReason mode trigger link weight draftedBy checks postId postedAt cost "
-    "attempts round error history withdrawnBy withdrawnAt createdAt updatedAt"
-)
 ANNOUNCEMENT_SPEND_FIELDS = "id accountId cycleStart total updatedAt"
 ANNOUNCEMENT_DECISION_FIELDS = "id tenantId dedupeKey kind state releaseAt createdBy trigger history revision createdAt updatedAt"
 DELIVERY_FIELDS = (
-    "id tenantId announcementId channel accountId accountKey audience mode state blockedReason generation version textKey imageKey contentHash draftedBy checks "
-    "approval approvalPolicy approvedVersion approvedBy approvedAt releaseAt lockAt lockedAt lockedVersion nextAttemptAt waitingFor dueAt dueKey "
+    "id tenantId announcementId channel accountId accountKey audience mode state blockedReason generation version textKey imageKey contentHash versions candidates draftedBy checks "
+    "approval approvalPolicy approvedVersion approvedBy approvedAt releaseAt lockAt lockedAt lockedVersion preferredVersion machineVersion exampleScope exampleState exampleAt exampleKey nextAttemptAt waitingFor dueAt dueKey "
     "resultUrl providerId cost counts attempts supersedes supersededBy history revision createdAt updatedAt"
 )
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
@@ -247,7 +247,6 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "LocalizationRequest": {"field": "listLocalizationRequests", "fields": LOCALIZATION_REQUEST_FIELDS},
     "EntityLabel": {"field": "listEntityLabels", "fields": ENTITY_LABEL_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
-    "Announcement": {"field": "listAnnouncements", "fields": ANNOUNCEMENT_FIELDS},
     "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
     "AnnouncementDecision": {"field": "listAnnouncementDecisions", "fields": ANNOUNCEMENT_DECISION_FIELDS},
     "Delivery": {"field": "listDeliveries", "fields": DELIVERY_FIELDS},
@@ -497,6 +496,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     # A Story's language group: every version of the primary and of each localization, one language with sortEq (item_language.py). Tenant-prefixed.
     # Today (docs/design/always-on-agents-architecture.md section 7.1): the runs of one status inside a time range.
     "procedureRunsByStatus": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_TODAY_FIELDS},
+    # The runs that need a person: failed or outcome unknown, not acknowledged (sparse; run_attention.py). Sorted by when they needed attention.
+    "procedureRunsByAttention": {"field": "listProcedureRunsByAttentionKeyAndDueAt", "partitionKey": "attentionKey", "sortKey": "dueAt", "fields": PROCEDURE_RUN_ATTENTION_FIELDS},
+    # One procedure's runs, newest last, and the definitions of one procedure key (the priming export reads a monitor's runs this way).
+    "procedureRunsByProcedure": {"field": "listProcedureRunsByProcedureAndRequestedAt", "partitionKey": "procedureId", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_FIELDS},
+    "procedureDefinitionsByKey": {"field": "listProcedureDefinitionsByKeyAndUpdatedAt", "partitionKey": "procedureKey", "sortKey": "updatedAt", "fields": PROCEDURE_DEFINITION_FIELDS},
     "itemsByLanguageGroup": {"field": "listItemsByLanguageGroupAndLanguage", "partitionKey": "languageGroupId", "sortKey": "language", "fields": ITEM_FIELDS},
     # The rows of one version-state partition with what `stories languages` needs (every Item row has a version state).
     "itemLanguageFieldsByVersionState": {"field": "listItemsByVersionStateAndUpdatedAt", "partitionKey": "versionState", "fields": ITEM_LANGUAGE_ROW_FIELDS},
@@ -631,11 +635,6 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionType": "ID",
         "fields": STORY_VARIATION_FIELDS,
     },
-    "announcementsByAccountAndCreatedAt": {
-        "field": "listAnnouncementsByAccountAndCreatedAt",
-        "partitionKey": "accountId",
-        "fields": ANNOUNCEMENT_FIELDS,
-    },
     # The Announcement and Delivery records (docs/announcement-records.md). Every read of them is one of these indexes.
     "announcementDecisionsByDedupeKey": {
         "field": "listAnnouncementDecisionsByDedupeKeyAndCreatedAt",
@@ -665,6 +664,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "field": "listDeliveriesByDueKeyAndDueAt",
         "partitionKey": "dueKey",
         "sortKey": "dueAt",
+        "fields": DELIVERY_FIELDS,
+    },
+    "deliveriesByExample": {
+        "field": "listDeliveriesByExampleKeyAndExampleAt",
+        "partitionKey": "exampleKey",
+        "sortKey": "exampleAt",
         "fields": DELIVERY_FIELDS,
     },
     "itemsByParent": {
@@ -782,11 +787,14 @@ query {operation}(${partition_key}: {partition_type}!{sort_variable}, $limit: In
 """
 
 
-def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String") -> str:
+def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String", sort_key: str | None = None) -> str:
     operation = field[0].upper() + field[1:]
+    # `sort_key` bounds the partition by its sort field (a key condition: only the rows asked for are read), so a later page starts where the last one ended.
+    sort_variable = ", $sortBound: ModelStringKeyConditionInput" if sort_key else ""
+    sort_argument = f", {sort_key}: $sortBound" if sort_key else ""
     return f"""
-query {operation}NewestFirst(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
-  {field}({partition_key}: ${partition_key}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
+query {operation}NewestFirst(${partition_key}: {partition_type}!{sort_variable}, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}{sort_argument}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -874,7 +882,6 @@ _UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FI
 _HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
 _SCHEDULE_FIELDS_SUPPORT: dict[str, bool] = {}
 _CONDITION_FAILED = re.compile(r"conditional request failed|ConditionalCheckFailed", re.IGNORECASE)
-TENANT_FIELD_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_FIELD"
 _HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
 
 
@@ -1118,12 +1125,6 @@ class PapyrusGraphQLAuthoringClient:
                 self._note_no_head_stage_key()
         return _HEAD_STAGE_KEY_SUPPORT[self.endpoint]
 
-    def has_tenant_field(self, model_name: str) -> bool:
-        """Whether this site's API has ``tenantId`` on its tenant-owned models: the deploy that adds it sets ``PAPYRUS_TENANT_FIELD`` (1/true).
-        No schema query is made (introspection is not granted to the workers or the router), and unset means off, so a write is never refused
-        for a field the site lacks."""
-        return os.environ.get(TENANT_FIELD_ENVIRONMENT_VARIABLE, "").strip().lower() in {"1", "true", "yes"}
-
     def _note_no_head_stage_key(self) -> None:
         _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = False
         if self.endpoint in _HEAD_STAGE_KEY_NOTICE_SHOWN:
@@ -1171,6 +1172,23 @@ class PapyrusGraphQLAuthoringClient:
             next_token = connection.get("nextToken")
             if not next_token:
                 return self._rows_with_bare_ids(model_name, items)
+
+    def list_row_owners(self, model_name: str, *, page_size: int = SUMMARY_PAGE_SIZE) -> list[dict[str, Any]]:
+        """``id`` and ``tenantId`` of EVERY row of ``model_name``, whatever its tenant: the whole-table read the tenantId backfill makes once
+        (``tenant_field_backfill``), so call it inside a named sweep. Only the two fields travel, so a page is small even for a large table."""
+        request_meter.note_unbounded_list(model_name)
+        field = LIST_DEFINITIONS[model_name]["field"]
+        query = _list_query(field, f"id {TENANT_FIELD}")
+        owners: list[dict[str, Any]] = []
+        next_token = None
+        while True:
+            with request_meter.model(model_name):
+                result = self.graphql(query, {"limit": page_size, "nextToken": next_token})
+            connection = result.get(field) or {}
+            owners.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+            if not next_token:
+                return owners
 
     def _rows_with_bare_ids(self, model_name: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [tenant_row_with_bare_record_id(model_name, self.tenant_id, row) for row in rows]
@@ -1339,16 +1357,20 @@ class PapyrusGraphQLAuthoringClient:
                 break
         return items
 
-    def iterate_newest_first(self, index_name: str, key_value: str, *, page_size: int = 50):
-        """Rows of an index by its sort key, newest first, one page at a time; stop reading and no further page is fetched."""
+    def iterate_newest_first(self, index_name: str, key_value: str, *, page_size: int = 50, sort_before: str | None = None):
+        """Rows of an index by its sort key, newest first, one page at a time; stop reading and no further page is fetched. ``sort_before`` starts below that sort value."""
         index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
+        bounded = sort_before is not None
         query = _newest_first_query(
-            definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String")
+            definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String"), definition["sortKey"] if bounded else None
         )
         next_token = None
         while True:
-            result = self.graphql(query, {definition["partitionKey"]: key_value, "limit": page_size, "nextToken": next_token})
+            variables = {definition["partitionKey"]: key_value, "limit": page_size, "nextToken": next_token}
+            if bounded:
+                variables["sortBound"] = {"lt": sort_before}
+            result = self.graphql(query, variables)
             connection = result.get(definition["field"]) or {}
             for entry in connection.get("items") or []:
                 if entry:
@@ -1459,7 +1481,7 @@ class PapyrusGraphQLAuthoringClient:
         if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
             input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         stamped = tenant_stamped_payload(model_name, self.tenant_id, input_payload)
-        if self.tenant_id and model_name in TENANT_FIELD_MODELS and self.has_tenant_field(model_name):
+        if self.tenant_id and model_name in TENANT_FIELD_MODELS:
             stamped = tenant_field_stamped_payload(model_name, self.tenant_id, stamped)
         return strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, stamped))
 

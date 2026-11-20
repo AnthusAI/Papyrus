@@ -1,0 +1,20 @@
+{
+  "id": "PPY-97e2db77-322f-45f4-91d8-89985a031d7f",
+  "title": "An ideation agent files a batch of invented premises on a schedule",
+  "description": "Requested by Humorus (HUM-e155f8, milestone HUM-b0d999), Ryan 2026-11-18: TheHallucinator.ai wants a daily cycle where one agent comes up with a set of story ideas and another picks the funniest to develop.\n\nToday every idea starts from a Reference: premise-led mode (PPY-10a5e5) still loops over monitor-delivered References. Add an ideation mode that needs no Reference: the agent reads the site's mission, policy, section doctrine, writing guidelines and its recent and in-flight Stories, and files N premise Ideas per run (Idea stage, marked Generated, each with its invented premise and section). The mode and N are site data (ideaRules), not code; the prompt text is site-owned through the guidelines and agent-instructions layers, with the scaffold writing the default. Registered as a core agent definition with a schedule (wakes.schedule) and adopted per site like rate.yaml; it runs at the site's rung and never above propose.\n\nScenario: a site set to invented premises with N=10 gets 10 new Ideas at the scheduled time, none citing a Reference. Scenario: a site in evidence mode is unchanged. Scenario: ideas never repeat a premise already in the site's recent or in-flight Stories.\nStanding rules: no workarounds, fallbacks or shims; Gherkin specs.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-18T13:08:09.895036Z",
+  "updated_at": "2026-11-18T13:08:09.895136Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

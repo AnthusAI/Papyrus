@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "71abbfb3-99c0-4017-898f-70123664e816",
+  "issue_id": "PPY-c9c1653d-9193-46e8-9430-2c32ff1a2ee2",
+  "event_type": "comment_added",
+  "occurred_at": "2026-11-20T05:45:36.608Z",
+  "actor_id": "ryan",
+  "payload": {
+    "comment_id": "44805452-edb9-4a11-9f12-cfefb5c6b2df",
+    "comment_author": "ryan",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "M3 thread"
+    }
+  }
+}

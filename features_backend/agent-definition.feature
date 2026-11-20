@@ -91,6 +91,28 @@ Feature: An agent is one definition file that fills the 11-point template
       | no safe-to-repeat flag                    | safeToRepeat     | missing_line  |
       | no procedure key                          | procedure        | missing_line  |
       | an unknown field "mood"                   | mood             | unknown_key   |
+      | a listen for a change no feed produces    | wakes.changes[0] | unknown_change |
+      | a listen for a change of a kind no feed covers | wakes.changes[0] | unknown_change |
+
+  Scenario Outline: A definition may listen for each change the change feeds produce
+    Given a definitions folder with the complete definition "illustrate-stories" for the responsibility "illustrate"
+    And the definition "illustrate-stories" listens for the change "<change>" of "<kind>"
+    When the definition folders are validated
+    Then the set is accepted
+
+    Examples:
+      | kind                | change          |
+      | Item                | version_created |
+      | Item                | stage_entered   |
+      | Item                | step_changed    |
+      | Reference           | created         |
+      | Reference           | accepted        |
+      | Reference           | rated           |
+      | Reference           | recaptured      |
+      | ReviewRequest       | answered        |
+      | Message             | posted          |
+      | LocalizationRequest | wanted          |
+      | Delivery            | state_changed   |
 
   Scenario: The knowledge responsibility may run as a container
     Given a definitions folder with the complete definition "weekly-knowledge-run" for the responsibility "knowledge"

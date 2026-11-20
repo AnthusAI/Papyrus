@@ -1,12 +1,14 @@
 Feature: Importing a Markus content directory into the CMS
   Files with front matter and Markus bodies become Items; referenced images
-  become MediaAssets. The import is idempotent and never overwrites CMS edits.
+  become MediaAssets. The import is idempotent and never overwrites CMS edits. An imported Story is saved as a draft: nothing but a person publishes it
+  (publish-person-only.feature), so the import publishes only what is not a Story, such as a page.
 
   Scenario: Importing a content directory creates items and media
     Given the fixture content directory
     When I import it
     Then 5 items are created and 1 media file is uploaded
-    And the article "item-articles-hello" is published with the alias "/blog/hello-old"
+    And the article "item-articles-hello" is saved as a draft with the alias "/blog/hello-old"
+    And the page "item-index" is published
 
   Scenario: Importing twice changes nothing
     Given the fixture content directory

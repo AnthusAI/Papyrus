@@ -62,7 +62,7 @@ def test_authored_flag_requires_explicit_kind():
 
 
 def test_authored_companion_keeps_normal_publication_gate():
-    from fake_client import FakeAuthoringClient
+    from procedures.newsroom.tests.fake_client import FakeAuthoringClient
 
     client = FakeAuthoringClient({"Item": [ROW]})
     with (
@@ -79,7 +79,7 @@ def test_authored_companion_keeps_normal_publication_gate():
 
 
 def test_authored_companion_can_publish_after_ordinary_gates():
-    from fake_client import FakeAuthoringClient
+    from procedures.newsroom.tests.fake_client import FakeAuthoringClient
 
     client = FakeAuthoringClient({"Item": [ROW]})
     with (
@@ -98,7 +98,7 @@ def test_authored_companion_can_publish_after_ordinary_gates():
 
 def test_auto_publish_skips_authored_draft_without_request():
     from types import SimpleNamespace
-    from fake_client import FakeAuthoringClient
+    from procedures.newsroom.tests.fake_client import FakeAuthoringClient
     from papyrus_content.localize.auto import request_translations
 
     primary = {
@@ -130,7 +130,7 @@ def test_auto_publish_skips_authored_draft_without_request():
 @pytest.mark.parametrize("failed_step", ["media", "checklist"])
 def test_retry_finishes_partial_import_despite_stale_lineage_index(failed_step):
     from types import SimpleNamespace
-    from fake_client import FakeAuthoringClient
+    from procedures.newsroom.tests.fake_client import FakeAuthoringClient
     from papyrus_content.authored_editions import import_edition
 
     primary = {

@@ -85,7 +85,8 @@ def plans_from(context, table):
         policy = values["policy"] if "policy" in headings else DEFAULT_POLICY
         plans.append(Plan(
             channel=values["channel"], account_id=values["account"], approval=values["approval"], approval_policy=policy,
-            text=values.get("text") or f"Words for {values['channel']}", image_key=values.get("image") or None, lock_at=values.get("lock at") or None,
+            text=values.get("text") or f"Words for {values['channel']}", mode=values.get("mode") or "automatic", state=values.get("state") or "ready", image_key=values.get("image") or None, lock_at=values.get("lock at") or None,
+            audience=tuple(name.strip() for name in values["lists"].split(",")) if values.get("lists") else (),
         ))
     return plans
 
@@ -174,11 +175,11 @@ def fail_next_upload(context):
     original = context.files.put
     state = {"failed": False}
 
-    def put(delivery, text, *, now):
+    def put(delivery, text, *, now, name="v1"):
         if not state["failed"]:
             state["failed"] = True
             raise RuntimeError("connection dropped")
-        original(delivery, text, now=now)
+        original(delivery, text, now=now, name=name)
 
     context.files.put = put
 
@@ -186,6 +187,11 @@ def fail_next_upload(context):
 @then("the call fails")
 def call_fails(context):
     assert context.error is not None, "the call went through"
+
+
+@then("the call went through")
+def call_went_through(context):
+    assert context.error is None, repr(context.error)
 
 
 @then('the call is refused saying "{text:Q}"')
@@ -392,22 +398,22 @@ def announcement_contains_none(context, words):
 
 @then('the Delivery "{channel:Q}" "{account:Q}" has these words in S3 "{words:Q}"')
 def has_words(context, channel, account, words):
-    assert context.files.texts[delivery_row(context, channel, account)["id"]] == words
+    assert context.files.get(delivery_row(context, channel, account)["id"]) == words
 
 
 @then('generation {generation:d} of "{channel:Q}" "{account:Q}" has these words in S3 "{words:Q}"')
 def generation_has_words(context, generation, channel, account, words):
-    assert context.files.texts[delivery_row(context, channel, account, generation)["id"]] == words
+    assert context.files.get(delivery_row(context, channel, account, generation)["id"]) == words
 
 
 @then('the Delivery "{channel:Q}" "{account:Q}" has no words yet')
 def has_no_words(context, channel, account):
-    assert delivery_row(context, channel, account)["id"] not in context.files.texts
+    assert context.files.get(delivery_row(context, channel, account)["id"]) is None
 
 
 @then('the Delivery "{channel:Q}" "{account:Q}" has its words in S3')
 def has_its_words(context, channel, account):
-    assert delivery_row(context, channel, account)["id"] in context.files.texts
+    assert context.files.get(delivery_row(context, channel, account)["id"]) is not None
 
 
 @then('the content hashes of "{first:Q}", "{second:Q}" and "{third:Q}" are all different')
@@ -423,7 +429,7 @@ def row_checked(context, field):
 
 @then('the words of a Delivery are uploaded as role "{role:Q}" for owner kind "{kind:Q}"')
 def upload_shape(context, role, kind):
-    entry = AttachmentFiles(None)._entry("delivery-1", "words", "2026-11-16T14:00:00Z")["attachment"]
+    entry = AttachmentFiles(None)._entry("delivery-1", "words", "2026-11-16T14:00:00Z", "v1")["attachment"]
     assert entry["role"] == role == ROLE and entry["ownerKind"] == kind and entry["mediaType"] == "text/markdown"
     assert role in allowed_roles()
     handler = (REPO_ROOT / "amplify/functions/model-attachment-upload/handler.ts").read_text()
@@ -446,6 +452,36 @@ def correct(context, who, channel, account, words, generation=None, plan_account
     old = delivery_row(context, channel, account, generation)
     plan = Plan(channel=channel, account_id=plan_account or account, approval=old["approval"], approval_policy=old["approvalPolicy"], text=words)
     attempt(context, lambda: context.deliveries.supersede(old, plan, by=who, now=context.now))
+
+
+@step('the Delivery "{channel:Q}" "{account:Q}" has been sent')
+def delivery_sent(context, channel, account):
+    row = delivery_row(context, channel, account)
+    context.deliveries.finish(row, "sent", by="worker", note="sent", now=context.now)
+
+
+@step('generation {generation:d} of "{channel:Q}" "{account:Q}" has been sent')
+def generation_sent(context, generation, channel, account):
+    row = delivery_row(context, channel, account, generation)
+    context.deliveries.finish(row, "sent", by="worker", note="sent", now=context.now)
+
+
+@step('"{who:Q}" has read the Delivery "{channel:Q}" "{account:Q}" before anyone corrects it')
+def read_before(context, who, channel, account):
+    context.copies = getattr(context, "copies", {})
+    context.copies[who] = delivery_row(context, channel, account)
+
+
+@step('"{who:Q}" corrects the Delivery they read with the words "{words:Q}"')
+def corrects_the_copy(context, who, words):
+    old = context.copies[who]
+    plan = Plan(channel=old["channel"], account_id=old["accountId"], approval=old["approval"], approval_policy=old["approvalPolicy"], text=words)
+    attempt(context, lambda: context.deliveries.supersede(old, plan, by=who, now=context.now))
+
+
+@step("the next write of a relation fails as if the connection dropped")
+def fail_next_relation(context):
+    context.backend.fail_next("create", "SemanticRelation")
 
 
 @step('the person "{who:Q}" corrects the Delivery "{channel:Q}" "{account:Q}" with the words "{words:Q}"')

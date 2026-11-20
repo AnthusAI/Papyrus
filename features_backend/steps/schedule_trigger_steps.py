@@ -6,7 +6,6 @@ one message at a time; the site's API answers a second start with the same wake 
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import shutil
 import sys
@@ -32,143 +31,9 @@ from papyrus_content.images.handlers import Caller  # noqa: E402
 from papyrus_content.site_store import SiteStore  # noqa: E402
 from papyrus_content.site_store_test import FakeS3, FakeTable  # noqa: E402
 
-ACCOUNT, REGION = "123456789012", "us-east-1"
-ENDPOINT = "https://abcdefghijklmnopqrstuvwxyz.appsync-api.us-east-1.amazonaws.com/graphql"
-KEY_PARAMETER = "/amplify/shared/app123/OPENAI_API_KEY"
-MONITOR = "hn"
-ADMIN = Caller(kind="person", subject="ada", is_admin=True)
-PROCEDURES = {"rate_items"}
-
-
-class MissingGroup(Exception):
-    response = {"Error": {"Code": "ResourceNotFoundException"}}
-
-
-class FakeScheduler:
-    """The parts of EventBridge Scheduler the reconciler uses: one group of named entries, and a count of what was written."""
-
-    def __init__(self, group):
-        self.group, self.entries, self.writes, self.deployed = group, {}, 0, True
-
-    def _check(self, group):
-        assert group == self.group, f"a schedule outside the site's group: {group}"
-        if not self.deployed:
-            raise MissingGroup()
-
-    def list_schedules(self, GroupName, NamePrefix=None, NextToken=None):
-        self._check(GroupName)
-        assert NextToken is None
-        return {"Schedules": [{"Name": name, "GroupName": GroupName} for name in sorted(self.entries) if name.startswith(NamePrefix or "")]}
-
-    def get_schedule(self, Name, GroupName):
-        self._check(GroupName)
-        return copy.deepcopy(self.entries[Name])
-
-    def create_schedule(self, **entry):
-        self._check(entry["GroupName"])
-        assert entry["Name"] not in self.entries, "created twice"
-        self.writes += 1
-        self.entries[entry["Name"]] = copy.deepcopy(entry)
-
-    def update_schedule(self, **entry):
-        self._check(entry["GroupName"])
-        assert entry["Name"] in self.entries
-        self.writes += 1
-        self.entries[entry["Name"]] = copy.deepcopy(entry)
-
-    def delete_schedule(self, Name, GroupName):
-        self._check(GroupName)
-        self.writes += 1
-        del self.entries[Name]
-
-
-class FakeSqs:
-    def __init__(self, queue_name):
-        self.queue_name = queue_name
-
-    def get_queue_url(self, QueueName):
-        assert QueueName == self.queue_name
-        return {"QueueUrl": f"https://sqs.{REGION}.amazonaws.com/{ACCOUNT}/{QueueName}"}
-
-
-class Message:
-    def __init__(self, body, group):
-        self.body, self.group, self.held = body, group, False
-
-
-class WakeQueue:
-    """A FIFO queue with content-based deduplication: a body already seen inside the window is dropped."""
-
-    def __init__(self):
-        self.messages, self.window, self.deleted = [], set(), []
-
-    def send(self, body, group):
-        identity = hashlib.sha256(body.encode("utf-8")).hexdigest()
-        if identity not in self.window:
-            self.window.add(identity)
-            self.messages.append(Message(body, group))
-
-    def receive(self):
-        message = next(iter(self.messages), None)
-        if message is not None:
-            message.held = True
-        return message
-
-    def delete(self, message):
-        self.messages.remove(message)
-        self.deleted.append(message)
-
-
-class Backend(tpr.NewsroomClient):
-    """The site's API as the start mutation behaves: the run's id comes from the wake key, and a second create is answered as a duplicate."""
-
-    def __init__(self):
-        super().__init__()
-        self.records = {}
-
-    def graphql(self, query, variables):
-        if "startNewsroomProcedureRun" in query:
-            run_id = "run-for-" + variables["wakeKey"]
-            if run_id in self.records:
-                return {"startNewsroomProcedureRun": json.dumps({"ok": True, "duplicate": True, "runId": run_id, "runStatus": "started"})}
-            self.records[run_id] = {"id": run_id, "runStatus": "started", "wakeKey": variables["wakeKey"]}
-            return {"startNewsroomProcedureRun": json.dumps({"ok": True, "duplicate": False, "runId": run_id, "procedureVersionId": "version-1"})}
-        result = super().graphql(query, variables)
-        if "updateProcedureRun" in query:
-            self.records[variables["input"]["id"]].update(variables["input"])
-        return result
-
-
-class Site:
-    """The site's Automation records as the API stores them (JSON fields as strings), its run records and its agent policy document."""
-
-    def __init__(self, site):
-        self.rows, self.s3, self.table = {}, FakeS3(), FakeTable()
-        self.policy = AgentPolicyStore(SiteStore(self.s3, "bucket", self.table, now=lambda: "2026-11-17T00:00:00Z"))
-        self.site = site
-
-    def list_tenant_rows(self, model, fields):
-        return [dict(row) for row in self.rows.values()]
-
-    def get_record(self, model, record_id):
-        return self.rows.get(record_id)
-
-    def create_record(self, model, payload):
-        self.rows[payload["id"]] = dict(payload)
-
-    def update_record(self, model, payload):
-        self.rows[payload["id"]] = {**self.rows[payload["id"]], **payload}
-
-
-class Reader:
-    """The router config of the monitor: the publications an agent may name."""
-
-    def __init__(self, site):
-        known = {"appsyncEndpoint": ENDPOINT, "openaiKeyParameter": KEY_PARAMETER, "tenantId": site, "siteBucket": f"{site}-site-bucket"}
-        self.publications = [{"publicationId": site, "site": f"{site}.example.test", **known}, {"publicationId": "another-site", "site": "another.example.test", **known}]
-
-    def router_config(self, monitor_id):
-        return {"publications": self.publications} if monitor_id == MONITOR else None
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from schedule_fakes import ACCOUNT, ADMIN, ENDPOINT, KEY_PARAMETER, MONITOR, PROCEDURES, REGION, Backend, FakeScheduler, FakeSqs, Reader, Site, WakeQueue  # noqa: E402
 
 
 def patch(context, target, name, value):
@@ -252,7 +117,7 @@ def definition_schedule(context, agent, cron, zone):
 
 @when('the definition of "{agent}" no longer names a schedule')
 def definition_without_schedule(context, agent):
-    write_definition(context, agent, {"changes": [{"kind": "Item", "change": "ready"}]})
+    write_definition(context, agent, {"changes": [{"kind": "Item", "change": "step_changed"}]})
 
 
 @when('the definition of "{agent}" is removed from Git')
@@ -351,7 +216,7 @@ def only_target(context, site):
 
 @then('the entry\'s message group is the group the wake queue gives wakes of "{agent}" about its schedule')
 def message_group(context, agent):
-    expected = agent_wakes.group_id({"agent": agent, "subject": "schedule"})
+    expected = agent_wakes.group_id({"agent": agent, "scope": "schedule"})
     assert entry_of(context, agent)["Target"]["SqsParameters"] == {"MessageGroupId": expected}
 
 
@@ -499,7 +364,8 @@ def tpr_stdout(context):
 
     buffer = io.StringIO()
     code = agents_cli.schedules_command(["--site", context.site_id], buffer, client_factory=lambda: context.api,
-                                        aws_factory=lambda: (context.sqs, context.scheduler), reader_factory=lambda: context.reader)
+                                        aws_factory=lambda: (context.sqs, context.scheduler), reader_factory=lambda: context.reader,
+                                        site_store_factory=lambda client: context.api.site_store)
     assert code == 0, buffer.getvalue()
     return buffer.getvalue()
 

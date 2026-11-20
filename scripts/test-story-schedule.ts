@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ORGANIZER_NAV_GROUPS } from "../lib/newsroom-organizer-nav";
-import { ownZoneTime, resolveWallTime, scheduleFromEntries, scheduleFromFields, scheduleKind, scheduleFromResult, scheduleSentence, scheduleWording, wallTimeOf } from "../lib/story-schedule";
-import { readScheduledRange, SCHEDULE_PAGE_STATES, type ScheduleQueryFetch } from "../lib/story-schedule-query";
+import { NEWER_VERSION_NOTE, UNRATED_NOTE, ownZoneTime, resolveWallTime, scheduleFromEntries, scheduleFromFields, scheduleKind, scheduleFromResult, scheduleSentence, scheduleWording, wallTimeOf } from "../lib/story-schedule";
+import { readPublishedRange, readScheduledRange, SCHEDULE_PAGE_STATES, type PublishedQueryFetch, type ScheduleQueryFetch } from "../lib/story-schedule-query";
 
 const NY = "America/New_York";
 const NOW = new Date("2026-11-12T15:00:00Z");
@@ -25,7 +25,7 @@ test("each state has its words, in the publication's zone", () => {
   assert.equal(scheduleKind(row("publishing", "2026-11-11T14:00:00.000Z"), NOW), "overdue", "and so is one whose publish never finished");
   assert.equal(scheduleWording(row("blocked"), NY, NOW).text, "Superseded: a newer version was saved");
   assert.equal(scheduleSentence({ ...row("scheduled"), by: "Sam" }, NY), "Mon 16 Nov 2026, 4:00 AM ET (New York), by Sam");
-  assert.deepEqual(scheduleFromResult({ scheduledPublishAt: at, scheduledBy: "Sam" }, NOW), { at, state: "scheduled", by: "Sam", scheduledAt: NOW.toISOString() });
+  assert.deepEqual(scheduleFromResult({ scheduledPublishAt: at, scheduledBy: "Sam" }, NOW), { at, state: "scheduled", by: "Sam", scheduledAt: NOW.toISOString(), notes: [], newerVersion: false });
   assert.equal(scheduleFromResult({ scheduledPublishAt: null, scheduledBy: null }), undefined, "a clear leaves no schedule");
 });
 
@@ -57,7 +57,7 @@ test("the publication's time zone comes from the backend's schedule_settings, an
   const off = createContentActionsClient(transport(answer({ ok: true, enabled: false })));
   assert.deepEqual(await off.scheduleZone(), { ok: true, enabled: false, timeZone: null });
   const written = createContentActionsClient(transport(answer({ ok: true, scheduledPublishAt: "2026-11-13T14:00:00.000Z", scheduledBy: "Sam" })));
-  assert.deepEqual(await written.scheduleStory({ itemId: "v1", lineageId: "l1", scheduledPublishAt: "2026-11-13T14:00:00.000Z" }), { ok: true, scheduledPublishAt: "2026-11-13T14:00:00.000Z", scheduledBy: "Sam" });
+  assert.deepEqual(await written.scheduleStory({ itemId: "v1", lineageId: "l1", scheduledPublishAt: "2026-11-13T14:00:00.000Z" }), { ok: true, scheduledPublishAt: "2026-11-13T14:00:00.000Z", scheduledBy: "Sam", notes: [] });
   assert.deepEqual(JSON.parse(sent[sent.length - 1]), { operation: "schedule", arguments: { itemId: "v1", at: "2026-11-13T14:00:00.000Z" } });
   await written.scheduleStory({ itemId: "v1", lineageId: "l1", scheduledPublishAt: null });
   assert.deepEqual(JSON.parse(sent[sent.length - 1]), { operation: "schedule", arguments: { storyLineageId: "l1", clear: true } });
@@ -86,6 +86,25 @@ test("the page reads one query per state on the schedule index, limited to the r
   assert.equal(seen.length, SCHEDULE_PAGE_STATES.length + 1, "and the second page of one state");
 });
 
+test("the page reads the published Stories of the range from the typeStatus and publishedAt index, one query per Story type, and follows every page", async () => {
+  const seen: Record<string, unknown>[] = [];
+  const row = (sourceItemId: string, publishedAt: string, title: string) => ({ sourceItemId, itemLineageId: `lineage-${sourceItemId}`, title, headline: null, slug: sourceItemId, section: "news", publishedAt });
+  const fetch: PublishedQueryFetch = async ({ field, variables, query }) => {
+    seen.push(variables);
+    assert.equal(field, "listPublishedItemsByTypeStatusAndPublishedAt");
+    assert.match(query, /typeStatus: \$typeStatus, publishedAt: \$publishedAt/);
+    assert.deepEqual(variables.publishedAt, { between: ["2026-11-08T05:00:00.000Z", "2026-11-15T05:00:00.000Z"] });
+    if (variables.typeStatus === "article#published" && !variables.nextToken) return { items: [row("b", "2026-11-10T14:00:00.000Z", "Second")], nextToken: "more" };
+    if (variables.typeStatus === "article#published") return { items: [row("a", "2026-11-09T14:00:00.000Z", "First")], nextToken: null };
+    if (variables.typeStatus === "post#published") return { items: [row("c", "2026-11-11T14:00:00.000Z", "Third"), { sourceItemId: "no-time", publishedAt: null }], nextToken: null };
+    return { items: [], nextToken: null };
+  };
+  const rows = await readPublishedRange(fetch, ["article", "post", "article", "page", "doctrine"], "2026-11-08T05:00:00.000Z", "2026-11-15T05:00:00.000Z");
+  assert.deepEqual(rows.map((entry) => [entry.id, entry.title]), [["a", "First"], ["b", "Second"], ["c", "Third"]], "earliest first across types and pages, and a row with no publication time is left out");
+  assert.deepEqual([...new Set(seen.map((variables) => variables.typeStatus))].sort(), ["article#published", "post#published"], "one query per distinct Story type; pages and system types are not asked for");
+  assert.equal(seen.length, 3, "and the second page of one type");
+});
+
 test("the drawer's schedule is what schedule_list says of the Story: the newest scheduled version, with its stored state", async () => {
   const { createContentActionsClient } = await import("../lib/content-actions-client");
   const sent: string[] = [];
@@ -95,7 +114,30 @@ test("the drawer's schedule is what schedule_list says of the Story: the newest 
   const result = await createContentActionsClient(transport).scheduleList({ storyLineageId: "l1" });
   assert.deepEqual(JSON.parse(sent[0]), { operation: "schedule_list", arguments: { storyLineageId: "l1" } });
   assert.equal(result.schedules.length, 2);
-  assert.deepEqual(scheduleFromEntries(result.schedules), { at: "2026-11-20T14:00:00.000Z", state: "scheduled", by: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z" });
-  assert.deepEqual(scheduleFromEntries([entry(2, "blocked", "blocked", "2026-11-13T14:00:00.000Z")]), { at: "2026-11-13T14:00:00.000Z", state: "blocked", by: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z" }, "a schedule that only sits on an older version is the superseded one");
+  assert.deepEqual(scheduleFromEntries(result.schedules), { at: "2026-11-20T14:00:00.000Z", state: "scheduled", by: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z", notes: [], newerVersion: false });
+  assert.deepEqual(scheduleFromEntries([entry(2, "blocked", "blocked", "2026-11-13T14:00:00.000Z")]), { at: "2026-11-13T14:00:00.000Z", state: "blocked", by: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z", notes: [], newerVersion: false }, "a schedule that only sits on an older version is the superseded one");
   assert.equal(scheduleFromEntries([]), undefined);
+});
+
+test("the drawer says a newer version exists as soon as the backend does, and carries the backend's notes about the rating", () => {
+  const flagged = scheduleFromEntries([{ versionNumber: 3, storedState: "scheduled", scheduledPublishAt: "2026-11-20T14:00:00.000Z", scheduledBy: "Sam", scheduledAt: "2026-11-12T01:00:00.000Z", newerVersionExists: true, notes: [UNRATED_NOTE] }]);
+  assert.equal(flagged?.newerVersion, true);
+  assert.equal(scheduleKind(flagged!, NOW), "scheduled", "it is still scheduled: only the backend's run at the time marks it superseded");
+  assert.deepEqual(flagged?.notes, ["Unrated: it will publish but will not be listed or announced until it is rated."]);
+  assert.equal(NEWER_VERSION_NOTE, "A newer version exists than the one scheduled");
+  assert.deepEqual(scheduleFromResult({ scheduledPublishAt: "2026-11-13T14:00:00.000Z", scheduledBy: "Sam", notes: [UNRATED_NOTE] }, NOW)?.notes, [UNRATED_NOTE], "a schedule just saved carries the answer's notes");
+});
+
+test("a suggested time is asked of the backend's schedule_suggest, for the Story being moved, and a publication with no history gets its reason", async () => {
+  const { createContentActionsClient } = await import("../lib/content-actions-client");
+  const sent: string[] = [];
+  const answer = (data: unknown) => async (args: { input: string }) => { sent.push(args.input); return { data: JSON.stringify(data) }; };
+  const transport = (response: ReturnType<typeof answer>) => ({ queries: { deriveMarkus: async () => ({}) }, mutations: new Proxy({ scheduleItem: response }, { get: (target, name) => (target as Record<string, unknown>)[name as string] ?? (async () => ({})) }) }) as never;
+  const suggestion = { at: "2026-11-13T14:00:00Z", local: "2026-11-13T09:00:00-05:00", label: "Fri 13 Nov 2026, 09:00 EST", zone: NY, publications: 10, meanGapHours: 36.2, latestScheduledAt: "2026-11-11T13:00:00Z" };
+  const learned = createContentActionsClient(transport(answer({ ok: true, suggestion, timeZone: NY })));
+  assert.deepEqual(await learned.scheduleSuggest({ storyLineageId: "l1" }), { ok: true, suggestion, reason: null, timeZone: NY });
+  assert.deepEqual(JSON.parse(sent[0]), { operation: "schedule_suggest", arguments: { storyLineageId: "l1" } });
+  const none = createContentActionsClient(transport(answer({ ok: true, suggestion: null, reason: "No suggestion yet: this publication has no publishing history.", timeZone: NY })));
+  assert.deepEqual(await none.scheduleSuggest({}), { ok: true, suggestion: null, reason: "No suggestion yet: this publication has no publishing history.", timeZone: NY });
+  assert.deepEqual(JSON.parse(sent[1]), { operation: "schedule_suggest", arguments: {} });
 });

@@ -204,7 +204,8 @@ The input is the one you give. If you give none, the record's `inputTemplate` is
 placeholder; the TTAB template does (`{sourceIdPrefix}`, `{documentUrl}`), so for TTAB you give the input.
 
 Run now is refused, with the reason and without a row, when the automation is not a monitor automation, is
-disabled, has no router publication for this site, or is at its `maxConcurrent`. Otherwise it:
+disabled, has no router publication for this site, has no `openaiKeyParameter`, `tenantId` or `siteBucket` on that publication (the runner reads the site's agent policy from
+the last two and refuses a wake that does not name them), or is at its `maxConcurrent`. Otherwise it:
 
 1. writes `MANUAL#<automationId>#<timestamp>` in the monitor's partition (`MONITOR#<monitorId>`) of the monitoring table,
    with who started it and the runner request, status `starting`;
@@ -339,7 +340,7 @@ A site's Amplify build runs `papyrus agents apply` right after it registers the 
 role on the operator lane, from the site's checkout. The core definitions are the files in the wheel; a site's own, and its additions to a core one, are in
 the folder `papyrus-site-agents` at the checkout root (a site without it has the core ones only; `--dir` names another folder). Nothing is done by hand.
 
-* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table.
+* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table. The index lists only rows that carry a `tenantId`: every write by a client that has the site's tenant stamps it (`features_backend/automation-tenant-id.feature`), and rows written before that are stamped once by `papyrus content backfill-tenant-id --tenant <id>` (a dry run unless `--apply`; [multi-tenancy](multi-tenancy.md#stamping-tenantid-on-rows-written-without-one)). Until then a definition whose automation exists without a `tenantId` stops the step, naming that command, and nothing is written, because the create it would otherwise try fails on a row that is already there.
 * **Checked first.** Every definition is validated exactly as `papyrus agents validate` does, each named procedure must be registered (a core kind or one
   in the site's `papyrus-site-procedures.json`), and the automation a definition lands on must be its own. Any failure stops the step with a plain error
   naming each problem **before anything is written**, and fails the build. Nothing falls back.
@@ -393,11 +394,107 @@ These are written as templates and code and are not applied until the release th
 * **The role the scheduler assumes** (`papyrus-<site>-agent-scheduler`, in the agents stack): it may send a message to this site's wake queue and do nothing else.
   It may not read or delete a message, touch another site's queue or the dead-letter queue, or call any other service. Only EventBridge Scheduler acting for this
   account may assume it.
-* **What the deploy step needs** (the Amplify build role, which today signs GraphQL requests only): in this account, look up the wake queue's address (`sqs:GetQueueUrl`) on the
+* **What the deploy step needs** (the Amplify build role; for an app-shell `cms` site that is the app's `AmplifyServiceRole`, which carries `AdministratorAccess`, so nothing is added to it; see [the 5.130 plan](release-5-130-plan.md), 1.4): in this account, look up the wake queue's address (`sqs:GetQueueUrl`) on the
   site's wake queue; `scheduler:ListSchedules` (this action takes no resource restriction); `scheduler:GetSchedule`, `CreateSchedule`, `UpdateSchedule` and
   `DeleteSchedule` on the schedules of the site's group only (`schedule/papyrus-<site>-agent-schedules/*`); `iam:PassRole` on the scheduler role only, and only
   to the scheduler service; and the same read of the monitoring table and its parameter that `papyrus automations run` uses, to read the router publication.
   It needs nothing on the queue's messages, and it never creates a group or a role.
+
+## The listener index and the Item change feed
+
+An agent that listens for a change to a Story or its checklist (`wakes.changes` with `kind: Item`) is woken by the Item change feed (slice B2, PPY-8a374e), a
+stream consumer on the Item table in the site's `agents` stack. It must find the agents that listen without listing the Automation table on every change, so
+the deploy writes **the listener index**: `papyrus agents listeners` (the site's build runs it right after `agents schedules`; a person may run it again, with
+`--dry-run` or `--check`). The index is one small site document of kind `listeners` (versioned, its body an S3 object at `tenants/<tenant>/site/listeners/<version>.json`,
+as the agent policy is), derived from the definitions in Git, keyed by the change (`Item/stage_entered`, `Item/version_created`, `Item/step_changed`, `Item/rated`), each entry naming the
+agent, its procedure, whether it is paid, its serial scope and its filter. The same definitions write nothing; a changed set writes the next version; a definition removed
+from Git leaves the index at the next deploy. It holds no rung, pause or budget: the runner checks the policy for every wake, so a deploy still cannot change them.
+
+* **What the deploy step needs:** nothing new for an app-shell `cms` site (its build role has the access the schedule step uses). Any other build role needs
+  `s3:PutObject` and `s3:GetObject` on `tenants/<tenant>/site/listeners/*` in the site's bucket, and the site API's `getSiteDocument`, `getSiteDocumentVersion`,
+  `createSiteDocument`, `createSiteDocumentVersion` and `updateSiteDocument`, as the policy document's writer holds them.
+* **What the feed may do** (its role, in the agents stack): read the Item stream; call `getSiteDocument` on its own site's API and read the listener index's objects of its
+  own tenant; look up and send to its own site's wake queue. It reads no table, receives and deletes no wake, and calls no model.
+* **The feed's changes and what a filter may name.** `version_created` (a new version of an Item that is not a checklist step): `type`, `stage`, `section`, `language`,
+  `versionNumber`, `actorKind`. `stage_entered` (a first version created at a stage, or the stage field changed in place, as a board move does): `type`, `stage`, `from`,
+  `section`, `language`, `actorKind`. `step_changed` (a checklist step got a new state; a note is no change): `step`, `state`, `actorKind`. `rated` (a Story's star rating set,
+  changed or cleared in place, PPY-e3bb2b; its key is `rated.<stars or cleared>.<time>`): `type`, `stage`, `section`, `language`, `stars`, `previousStars`, `actorKind`. A filter is a flat set of these
+  fields; every one must equal the change's field as text.
+* **The wake.** Key `<agent>|<Story lineage>|<version id>|<what>` (`what` is the change; a stage entry names its stage, `stage_entered.<stage>`); the message group is the agent plus
+  the Story, or the agent alone when its definition says `serialBy: agent` (as the announce agent does). The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the wake gate needs (next section). An agent's own change (`automation:<agent>`) never wakes that agent, free or paid.
+* **Who is the writer.** A version's `versionCreatedBy` and a step's recorded actor name an agent as `automation:<id>`. An agent's stage move is recorded on the version
+  (`move_story_stage`); a change of the stage field with no new record of the move is a person's, made in the console board.
+* **Limits of a stream.** A new version created at a different stage from its predecessor is not a stage entry (the stream holds no previous version), and a stage entered
+  again at the same version has the same key, so it starts nothing again.
+
+## The wake gate: the quiet window and the loop guard
+
+Between the Item feed and the queue stands `src/papyrus_content/wake_gate.py` (PPY-67e3cd, PPY-4e7e8b). It reads two things the owner holds in the agent policy document.
+
+* **Paid steps wait for quiet.** A free step goes on the queue at once, on every change. A paid step does not: the change sets or replaces one follow-up timer
+  (`follow_up_timers`, entry `follow-up-<digest of "quiet:<agent>" and the Story>`), due `site.coalescing.windowSeconds` after an agent's change or
+  `site.coalescing.afterPersonSeconds` after a person's. The ruling is 30 minutes to 24 hours and about 5 minutes after a person; a site that has set none starts
+  with 30 and 5 minutes, and the policy refuses a window outside 1800 to 86400 seconds (`AgentPolicyStore.set_value` takes the `coalescing` field; no command-line verb sets it yet). The timer's wake key
+  is `<agent>|<Story>|<due time>|due` and the request carries no version, so the run takes the version current when it fires. A changed window changes only
+  the waits set after it.
+* **The loop guard.** `Item.metadata.botChain.hops` (the Stage Bots' counter, now general) counts the wakes caused by an agent's change since a person last acted on the Story; a
+  person's change clears it and starts the next `round`. At `agents.<responsibility>.loopLimit` (starts at 5) nothing more starts and ONE hard-gate review request, `rr-agent-loop-<story>-<limit>-<round>`, says so.
+* **What the feed's role may do for it:** read the policy's objects, set and clear `follow-up-*` entries in the site's schedule group, read a Story's versions, write the count on its
+  current version and raise the review request (amplify/agents/item-change-feed.ts). Only the Item feed is gated; the other tables' feeds (`change_feeds.py`) send at once.
+* **Limits.** A replaced timer still counts as a wake toward the loop limit, because it is one more agent change on the Story. The count lives on the Story's current version, so a
+  person's save that races the current mark clears the version it made as well.
+
+## The change feeds of the other tables
+
+An agent may also listen for a change to a Reference, a review request, a Message, a translation request, a Delivery or an Assignment that asks a responsibility for work (slices B3 and F1, PPY-9b9e64 and PPY-51f96f). One function in the site's
+`agents` stack, `papyrus-<site>-change-feed`, does for those tables what the Item feed does for Items, with the same normalized change (`table, kind, id, lineage,
+version, change, actorKind, at`), the same listener index, the same wake and the same loop (`src/papyrus_content/change_feeds.py` over `item_change_feed.py`). The
+changes an agent definition may name are one list, `src/papyrus_content/change_vocabulary.py`; a definition that names another is refused when it is read.
+
+| Kind | Change | What it is | What a filter may name | Wake key `<agent>\|<lineage>\|<version>\|<what>` |
+|---|---|---|---|---|
+| `Reference` | `created` | the first version of a Reference was inserted | `corpusId`, `medium`, `section`, `versionNumber`, `actorKind` | `<agent>\|<lineage>\|<row id>\|created` |
+| `Reference` | `accepted` | its curation status became `accepted` (it may also arrive accepted) | the same, `curationStatus`, `reason` | `...\|accepted` |
+| `Reference` | `rated` | its star rating was set or changed | the same, `stars`, `previousStars` | `...\|rated.<stars>` |
+| `Reference` | `recaptured` | its content was captured again: a new retrieval time or content hash on a Reference that had one | the same, `captureState` | `...\|recaptured.<retrieval time or hash>` |
+| `ReviewRequest` | `answered` | an open request was answered | `decision`, `mode`, `reason`, `subjectType`, `steer`, `raisedBy`, `actorKind` | `<agent>\|<subject id>\|<request id>\|answered` |
+| `Message` | `posted` | a comment was posted | `subjectKind` (`Story`, `Reference`, `Delivery`, or `thread`), `subjectId`, `threadKind`, `actorKind` | `<agent>\|<subject id>\|<message id>\|posted` |
+| `LocalizationRequest` | `wanted` | a translation was asked for (a request inserted or put back `wanted`) | `language`, `sourceVersionNumber`, `automationId`, `publish`, `actorKind` | `<agent>\|<Story>\|<source version id>\|wanted.<language>.<asked at>` |
+| `Delivery` | `state_changed` | a Delivery was drafted or changed state | `state`, `from`, `channel`, `accountId`, `announcementId`, `mode`, `approval`, `actorKind` | `<agent>\|<Delivery id>\|<revision>\|state_changed.<state>` |
+| `Assignment` | `created` | a request for a responsibility's work was filed on a Story (`handoffs request`; type `responsibility.<agent>`) | `responsibility`, `story`, `askedBy`, `why`, `actorKind` | `<agent>\|<Assignment id>\|unversioned\|created` |
+| `Assignment` | `reopened` | a closed (completed, canceled or failed) request was put back to `open` | the same | `...\|reopened.<time>` |
+| `Assignment` | `completed` | the responsible agent finished the work | the same | `...\|completed.<time>` |
+
+* **A request between agents is an Assignment** (`src/papyrus_content/agent_assignments.py`, `docs/agent-handoffs.md`). The responsible agent's definition listens for `Assignment/created` and
+  `Assignment/reopened` with `filter: {responsibility: <its own>}`. The wake key is the claim: the agent runs once for one request. `completed` is addressed to the agent that asked
+  (`createdBy`), and to no other; a request a person filed wakes nobody on completion. Other Assignment kinds (research, reindexing) are not changes.
+* **An answer wakes the agent that asked, and no other.** The request's `raisedBy` (`agent:<id>`, `automation:<id>` or the bare id) names it; the answer is a wake for that
+  agent only if its definition listens for `ReviewRequest/answered`. A request a person raised, or one raised by an agent that does not listen, sends nothing.
+* **A Message is placed on its subject.** A comment's thread is anchored on a Story, Reference or Delivery; the feed reads the thread (one point read by id, through
+  `getMessageThread`) only when some agent listens for a posted Message, and the wake is for the listeners whose filter matches the subject. The wake carries the Message's
+  id, never its text (the agent reads it, as a person's steering). A thread with no anchor is its own subject (`subjectKind` `thread`).
+* **What makes a wake new.** `what` carries what made the change different from the last one at that version (the stars, the state a Delivery entered, the time a
+  translation was asked for), so asking again is a new wake and a record delivered twice is the same one. An agent's own change (`automation:<agent>` or `agent:<agent>`) never wakes it.
+* **Streams and readers.** A DynamoDB stream should have at most two readers, so the feed is not added as a third. `ReviewRequest`, `Delivery` and `Assignment` had no stream: the feed is
+  their one reader and switches the stream on, with both images. `Reference` and `LocalizationRequest` have their readers already; with fewer than two the feed reads the
+  stream itself, through a mapping with a filter. A table that has two (the Reference stream with the word index and the home page; the Message stream with the console
+  responder, Slack delivery and the home page) gets the feed behind a reader that stays on the stream: that reader invokes the feed function with its batch and reports what the
+  feed could not finish (`src/papyrus_content/change_feed_relay.py`; the word index, Slack delivery or the home page's thread reader, `amplify/agents/stream-readers.ts`).
+  `npm run test:agents-stack` places the feeds for every combination of readers and proves no table is given a third.
+* **What the feed may do** (its role): read the streams it owns; call `getSiteDocument` and `getMessageThread` on its own site's API; read the listener index's objects of its own
+  tenant; look up and send to its own site's wake queue. It reads no table by scan or list, receives and deletes no wake, and calls no model.
+
+## Runs that need a person (PPY-577310)
+
+A finished run needs a person when its outcome is `failed` or `unknown` and nobody has acknowledged it. Such a run carries `attentionKey` (the constant `attention`, `<tenant>#attention` on a shared stack) and `dueAt` (its finish time); every other run carries neither, so the sparse index `listProcedureRunsByAttentionKeyAndDueAt` holds only what needs a person. `update_cloud_procedure_run_record` writes the two fields in the same update that records the outcome, so every runner path (finished, refused, skipped, wake guard check) is covered. `src/papyrus_content/run_attention.py` is the one module that builds the key, lists the index and acknowledges.
+
+- `papyrus automations attention` lists the runs that need a person, oldest first: one indexed read.
+- `papyrus automations acknowledge --run RUN_ID` (a dry run unless `--apply`) clears both fields and records `acknowledgedBy` and `acknowledgedAt`; the run stays in the history. Acknowledging a run that needs nobody changes nothing and says why.
+- No code path lists the whole `ProcedureRun` table: the procedure list reads each definition's ten latest runs from the procedure index, and the priming export reads a monitor's runs through the definitions of its procedure key and the procedure index.
+- The second index of the design (`automationId` + `requestedAt`, an agent's runs in one query) is added in the release after this one: a deploy adds one index to a table.
+- Release order: the site backend (it carries the fields and the index) before the runner image and the CLI, which write and read them. A runner that writes `attentionKey` to a backend that lacks it is refused.
+
+Specs: `features_backend/run-indexes.feature`.
 
 ## Console
 

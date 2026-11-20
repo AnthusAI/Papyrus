@@ -135,7 +135,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
-    group: Literal["images", "guidelines", "announcements", "ratings"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+    group: Literal["images", "guidelines", "announcements", "ratings", "handoffs"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     def __post_init__(self) -> None:
         # A read names no rung and is allowed from `observe`. Every operation that writes or spends must say its rung: there is no default to forget.
@@ -189,7 +189,9 @@ ERRORS = (
     ErrorCode("provider_busy", "The image provider is busy. Try again shortly.", retryable=True, details="retryAfterSeconds"),
     ErrorCode("spend_ceiling_exceeded", "The site's spending ceiling for a round or a day is reached, so this picture was not made.", details="the ceiling"),
     ErrorCode("batch_expired", "The picture was not ready within the batch window (24 hours). Nothing was charged.", retryable=True),
-    ErrorCode("stale_version", "The Story has a newer version than the one you named. Read it again."),
+    ErrorCode("stale_version", "The Story or the Delivery has a newer version than the one you named. Read it again.",
+              details="for a Delivery, replacedBy names the version that replaced the one you read (number, by, at) and head the newest version"),
+    ErrorCode("locked", "The Delivery is locked for sending, so a late edit is refused until a person unlocks it.", details="lockedAt, lockedVersion"),
     ErrorCode("candidate_not_ready", "The picture is still being made."),
     ErrorCode("candidate_closed", "The picture was already discarded, expired or applied."),
     ErrorCode("settings_refused", "The announcement settings break a rule, so nothing was saved.", details="code names the rule"),
@@ -555,8 +557,9 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "guidelines_resolve", ("resolve",), "Show the effective guidelines for the publication or a section laid over it, and for one language, with where every field came from.", "read",
-        obj({"kind": KIND, "section": SECTION, "language": RESOLVE_LANGUAGE}, ("kind",)),
-        record({"kind": text(), "section": text(), "language": text(), "found": flag("False when the publication has no guidelines of this kind yet."), "document": GUIDELINE_DOCUMENT,
+        obj({"kind": KIND, "section": SECTION, "language": RESOLVE_LANGUAGE,
+             "channel": text("The channel the text is for (x, linkedin, email): a rule file scoped to channel/<name> is in the answer only for that channel.")}, ("kind",)),
+        record({"kind": text(), "section": text(), "language": text(), "channel": text(), "found": flag("False when the publication has no guidelines of this kind yet."), "document": GUIDELINE_DOCUMENT,
                 "fieldSources": {"type": "object", "description": "For every field, the layers it came from: publication, section, language or section-language (with the language)."},
                 "layers": many(record({"scope": choice("publication", "section", "language", "section-language"), "language": text(), "itemId": text(), "slug": text(),
                                        "versionNumber": whole(), "contentHash": text()},
@@ -620,43 +623,24 @@ GUIDELINE_OPERATIONS: tuple[Operation, ...] = (
 OPERATIONS = OPERATIONS + GUIDELINE_OPERATIONS
 
 # --- announcements (PPY-09ee86): the same table serves `papyrus announcements ...`, the MCP tools and the console ----------------------------------------
-STATE = choice("posting", "posted", "failed", "blocked", "dry_run", "withdrawn", description="One state of an announcement.")
 STORY_LINEAGE = text("The lineage id of the Story.")
-ANNOUNCEMENT = record({
-    "id": text(), "accountId": text(), "storyLineageId": text(), "storyVersionNumber": whole(), "state": STATE, "label": text("The state in plain words, such as Dry run: not sent."),
-    "blockedReason": text(), "mode": text(), "link": text(), "weight": whole(minimum=0), "draftedBy": text(), "checks": many(record({"name": text(), "passed": flag()}, ("name", "passed"))),
-    "postId": text(), "postedAt": text(), "cost": {"type": "string", "description": "Dollars Caducus charged on this announcement so far, as a decimal string."},
-    "attempts": whole(minimum=0), "error": {"type": "string"}, "history": many(record({"at": text(), "by": text(), "state": text(), "note": text()}, ("at", "by", "state", "note"))),
-    "withdrawnBy": text(), "createdAt": text(), "updatedAt": text(),
-}, ("id", "state", "label"))
+EDIT_WINDOW = record({"kind": text("The kind of Announcement, such as story_published or roundup. Absent: every kind."), "channel": text("The channel, such as x or email. Absent: every channel."),
+                      "windowMinutes": whole("Minutes from the Delivery's creation to its release: how long it stays a draft that people edit.", minimum=0),
+                      "lockLeadMinutes": whole("Minutes before the release that the Delivery locks for the send job. At most the window; 0 is no separate lock.", minimum=0)}, ("windowMinutes",))
 SETTINGS = record({
-    "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes and sections: what is announced."},
+    "mode": choice("off", "dry_run", "on"), "rules": {"type": "object", "description": "minStars, storyTypes, sections and requireReviewedSource: what is announced."},
     "budget": {"type": ["number", "null"], "description": "Dollars for each X billing cycle. No default."}, "billingCycleDay": {"type": ["integer", "null"]},
     "prices": {"type": "object", "description": "X's price list: createPost, createPostWithUrl, deletePost, readPost in dollars, and asOf, the date it was copied."},
-    "labelConfirmed": flag(), "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
+    "labelConfirmed": flag(), "spacing": {"type": "object", "description": "Minutes between posts on each channel account, by <channel>#<account>. Empty: no spacing."},
+    "pause": {"type": "object", "description": "paused, reason (budget, disconnected or manual), detail, by and at."},
+    "editWindows": many(EDIT_WINDOW),
 }, ("mode",))
-_EX_ROW = {"id": "mom#story-1", "accountId": "mom", "storyLineageId": "story-1", "state": "dry_run", "label": "Dry run: not sent", "mode": "dry_run", "weight": 120, "cost": "0",
-           "attempts": 0, "history": [{"at": "2026-11-13T09:00:00Z", "by": "system:announcements", "state": "dry_run", "note": "Dry run: not sent"}],
-           "createdAt": "2026-11-13T09:00:00Z", "updatedAt": "2026-11-13T09:00:00Z"}
-_EX_SETTINGS = {"mode": "dry_run", "rules": {"minStars": 5, "storyTypes": ["article"], "sections": []}, "budget": 10, "billingCycleDay": 1,
+_EX_SETTINGS = {"mode": "dry_run", "rules": {"minStars": 5, "storyTypes": ["article"], "sections": [], "requireReviewedSource": False}, "budget": 10, "billingCycleDay": 1,
                 "prices": {"createPost": 0.015, "createPostWithUrl": 0.2, "deletePost": 0.01, "readPost": 0.005, "asOf": "2026-11-12"}, "labelConfirmed": True,
+                "editWindows": [{"kind": "story_published", "channel": "x", "windowMinutes": 20, "lockLeadMinutes": 5}],
                 "pause": {"paused": False, "reason": None, "detail": None, "by": None, "at": None}}
 
 ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
-    Operation(
-        "announcements_list", ("list",), "List the account's announcements, newest first, optionally one state.", "read",
-        obj({"state": STATE, "limit": whole("How many to return; 50 when left out.")}),
-        record({"announcements": many(ANNOUNCEMENT)}, ("announcements",)), (),
-        (Example({"state": "dry_run"}, {"announcements": [_EX_ROW]}),), group="announcements",
-        notes="Read from the account's own index, newest first; nothing scans a table. A site with no account yet gets an empty list.",
-    ),
-    Operation(
-        "announcements_show", ("show",), "Show one Story's announcement: its row, its history, and the post text and checks kept in S3.", "read",
-        obj({"story": STORY_LINEAGE}, ("story",)),
-        record({"announcement": ANNOUNCEMENT, "document": {"type": "object", "description": "The stored post: text, post, link, weight, model and every check's problems."}}, ("announcement",)),
-        ("not_found",), (Example({"story": "story-1"}, {"announcement": _EX_ROW, "document": {"text": "A look at secrets.", "weight": 120}}),), positional=("story",), group="announcements",
-        notes="A posting announcement is first brought up to date from Caducus's delivery log.",
-    ),
     Operation(
         "announcements_dry_run", ("dry-run",), "Build the exact post a Story would get (text, link with its UTM tags, length, every check) without sending or recording anything.", "read",
         obj({"story": STORY_LINEAGE}, ("story",)),
@@ -668,7 +652,7 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         notes="Makes one model call to draft the text. Works for any Story, announced or not, in any mode; `eligible` and `reason` say whether the site's rules would announce it.",
     ),
     Operation(
-        "announcements_pause", ("pause",), "Pause announcements: nothing is posted, and eligible Stories wait as Blocked: paused.", "write",
+        "announcements_pause", ("pause",), "Pause announcements: nothing is posted, and an X Delivery that comes due waits as Blocked: paused.", "write",
         obj({}),
         record({"paused": flag(), "pausedBy": text(), "pausedAt": text(), "pauseReason": text()}, ("paused",)), (),
         (Example({}, {"paused": True, "pausedBy": "Ada Admin", "pausedAt": "2026-11-13T10:02:00Z", "pauseReason": "Paused by hand."}),), group="announcements",
@@ -676,7 +660,7 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         agent_rung="propose",
     ),
     Operation(
-        "announcements_resume", ("resume",), "Resume announcements and announce the Stories that waited.", "write",
+        "announcements_resume", ("resume",), "Resume announcements and put back the X Deliveries that waited.", "write",
         obj({}), record({"released": many({"type": "object"}), "paused": flag()}, ("released", "paused")), (),
         (Example({}, {"released": [], "paused": False}),), group="announcements",
         agent_rung=PERSON_ONLY,
@@ -691,25 +675,309 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
              "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
              "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
+             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review "
+                                          "(a person marked the Story's review step done on its current version) is not confirmed."),
              "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
              "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
-             "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account.")}),
+             "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account."),
+             "spacing": {"type": "object", "description": "Minutes between one post and the next on a channel account, by account (<channel>#<account>, such as x#handle). A number sets it, null takes it away; "
+                                                           "an account that is not named keeps what it has. Empty by default: no spacing."},
+             "editWindows": many(EDIT_WINDOW, "How long a Delivery stays a draft that people edit, and how long before its release it locks, for each kind of Announcement and channel. "
+                                                "The narrowest entry that fits wins. This replaces the whole list; an empty list means no window.")}),
         record({"settings": SETTINGS, "released": many({"type": "object"})}, ("settings", "released")), ("settings_refused", "blocked"),
         (Example({"minStars": 5}, {"settings": _EX_SETTINGS, "released": []}),), group="announcements",
-        notes="A person only: it sets what the publication says in public and how much it may spend. There is no approval setting: a draft that passes the automatic checks is posted. "
-              "prices is given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Stories wait on a guard, announces the Stories that waited.",
+        notes="A person only: it sets what the publication says in public and how much it may spend. Human review is not here: it is the announce rung of the agent policy (announcements_review_set). "
+              "prices, spacing and editWindows are given with --input-file. The X account is connected in the browser, never here. Raising the budget, or any change while Deliveries wait on a guard, puts the Deliveries that waited back to ready.",
         agent_rung=PERSON_ONLY, agent_refusal="blocked",
     ),
     Operation(
         "announcements_account_status", ("account", "status"), "Show mode, pause, the cycle's spend against the budget, and the connected account.", "read",
         obj({}), record({"mode": text(), "paused": flag(), "accountId": text(), "accountHandle": text(), "standing": text("For example $0.60 spent of $10.00 this cycle."),
+                         "postCount": whole("Our count of the posts this account sent in the current billing cycle, a post later deleted included (X charged for it). X's own count is read beside it on the page.", minimum=0),
+                         "suggestion": record({"eligibleCount": whole(minimum=0), "windowDays": whole(), "postsPerMonth": {"type": "number"}, "dollarsPerMonth": {"type": "number"}, "sentence": text()},
+                                              ("sentence",)),
                          "pauseReason": text(), "pricesAsOf": text()}, ("mode", "paused")), (),
         (Example({}, {"mode": "dry_run", "paused": False, "accountId": "mom", "standing": "$0.00 spent of $10.00 this cycle"}),), group="announcements",
-        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page. The CLI never accepts a secret.",
+        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page (`announcements account connect` prints the link). The CLI never accepts a secret. "
+              "`suggestion` is the site's own pace over the last 60 days at the link price, shown as a pace and never applied as a limit; it is left out until the prices are entered.",
+    ),
+    Operation(
+        "announcements_account_connect", ("account", "connect"), "Print the newsroom page where the X account is connected. Connecting is a browser step (OAuth): nothing is connected from here.", "read",
+        obj({}), record({"url": text("The address of Administration > Announcements in the newsroom."), "words": text()}, ("url", "words")), ("service_unavailable",),
+        (Example({}, {"url": "https://news.example.test/newsroom/administration/announcements", "words": "Open this page in the newsroom and choose Connect X account. Connecting needs the browser; no secret is ever typed here."}),),
+        group="announcements",
+        notes="The address is built from the console's own address (PAPYRUS_CONSOLE_URL, or the one the signed-in site publishes), never guessed: without one it says so and prints nothing. It reads nothing "
+              "from the site and writes nothing, and no secret is ever accepted by the command line.",
+    ),
+    Operation(
+        "announcements_blocked", ("blocked",), "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).", "read",
+        obj({}), record({"blocked": many(record({"delivery": text(), "announcementId": text(), "stories": many(record({"lineageId": text()}, ("lineageId",))), "reason": text(), "words": text(),
+                                                  "since": text()}, ("delivery", "announcementId", "stories", "reason", "words")))}, ("blocked",)), (),
+        (Example({}, {"blocked": [{"delivery": "announcement-1#x#handle-1#g1", "announcementId": "announcement-1", "stories": [{"lineageId": "slow-water"}], "reason": "paused",
+                                   "words": "Blocked: paused", "since": "2026-11-17T09:00:00Z"}]}),), group="announcements",
+        notes="One entry for each blocked X Delivery of the connected account, newest first, read from the account's Deliveries index. A Story that never qualified is not listed: `explain` says why it did not. "
+              "Resuming (a bigger budget, `resume`, a reconnected account) puts the Deliveries back to ready.",
+    ),
+    Operation(
+        "announcements_retry", ("retry",), "Try a failed Delivery again: it goes back to ready, and the next try is the next attempt. The attempts so far stay in its log.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)),
+        record({"id": text(), "state": text("The Delivery's state afterwards: ready.")}, ("id", "state")), ("not_found", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle-1#g1"}, {"id": "announcement-1#x#handle-1#g1", "state": "ready"}),), positional=("delivery",), group="announcements", agent_rung=PERSON_ONLY,
+        notes="A person only: an agent is told human_required, because a failed post may be failing for a reason a person should read first. Only a failed Delivery is retried; any other state is refused as "
+              "constraint_conflict with the state named. A Delivery whose draft was blocked by a failed check is not retried: change its words or answer its review request.",
     ),
 )
 
 OPERATIONS = OPERATIONS + ANNOUNCEMENT_OPERATIONS
+
+# --- review: the announce rung, its overrides, and what an agent may do with a Delivery (PPY-97c0f2) ---------------------------------------------------------
+_APPROVAL = choice("none", "soft", "hard", description="none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it.")
+_REVIEW_SCOPE = {"channel": text("Narrow to one channel, such as linkedin."), "kind": text("Narrow to one kind of Announcement, such as roundup or story_published."),
+                 "list": text("Narrow to one newsletter list.")}
+_REVIEW_RESULT = record({"policyVersion": whole(minimum=0), "approval": {"type": ["string", "null"]}, "rung": text(), "scope": {"type": ["object", "null"]}, "changed": flag()},
+                        ("policyVersion", "changed"))
+
+_DRAFT_RESULT = record({"id": text(), "status": choice("saved", "preferred", "unchanged", "dropped", "candidate", description="saved: a new version. preferred: saved while an attempt is open, so it never changes that attempt. "
+                                                      "unchanged: the words are the ones you read. dropped: a machine's redraft that the person's newer version outranks. candidate: kept beside the draft."),
+                        "version": whole(), "replaces": {"type": ["integer", "null"]}, "reason": text(), "candidate": text("The candidate's id, when one was kept."),
+                        "approvedVersion": {"type": ["integer", "null"]}, "lockedVersion": {"type": ["integer", "null"]}, "preferredVersion": {"type": ["integer", "null"]},
+                        "blocks": many({"type": "object"}, "Each block's owner (human or machine) and whether it is pinned.")}, ("id", "status"))
+
+REVIEW_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "announcements_review_show", ("review", "show"), "Show the publication's announcement review and each override, and what a channel and kind would get.", "read",
+        obj({"channel": _REVIEW_SCOPE["channel"], "kind": _REVIEW_SCOPE["kind"], "list": _REVIEW_SCOPE["list"]}),
+        record({"policyVersion": whole(minimum=0), "approval": {"type": ["string", "null"]}, "rung": text(), "overrides": many({"type": "object"}),
+                "chosen": {"type": ["object", "null"], "description": "With a channel and kind: the approval, the rung and where it came from."}}, ("policyVersion", "rung", "overrides")), (),
+        (Example({"channel": "linkedin", "kind": "roundup"}, {"policyVersion": 3, "approval": "soft", "rung": "publish_soft", "overrides": [{"scope": {"kind": "roundup"}, "approval": "hard", "rung": "prepare"}],
+                                                              "chosen": {"approval": "hard", "rung": "prepare", "policy": "override: kind roundup (agent policy version 3)"}}),), group="announcements",
+        notes="announcementReview is the rung of the announce responsibility in the site's agent policy: hard is prepare, soft is publish_soft, none is publish_auto. "
+              "Narrowest wins: the publication, then a channel, then an Announcement kind, then a list.",
+    ),
+    Operation(
+        "announcements_review_set", ("review", "set"), "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "write",
+        obj({"approval": choice("none", "soft", "hard", "inherit", description=f"{_APPROVAL['description']} inherit takes an override away, so that scope follows the next wider one."), **_REVIEW_SCOPE,
+             "reason": REASON}, ("approval", "reason")),
+        _REVIEW_RESULT, ("constraint_conflict",),
+        (Example({"approval": "hard", "kind": "roundup", "reason": "Roundups wait for a person."}, {"policyVersion": 4, "approval": "hard", "rung": "prepare", "scope": {"kind": "roundup"}, "changed": True}),),
+        group="announcements", agent_rung=PERSON_ONLY, agent_refusal="blocked",
+        notes="An admin who is a person only; an agent is blocked at every rung. Each change is a new version of the agent policy with who, when and why. An Announcement already planned keeps the review it was "
+              "made under unless an editor changes that one (announcements_delivery_review_set). none is the rung publish_auto, which the ladder's hard floor refuses until the doubt gate exists (PPY-36e7c9).",
+    ),
+    Operation(
+        "announcements_delivery_review_set", ("delivery", "review"), "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "write",
+        obj({"delivery": text("The Delivery's id."), "approval": _APPROVAL}, ("delivery", "approval")),
+        record({"id": text(), "approval": text(), "approvalPolicy": text(), "approvedBy": {"type": ["string", "null"]}}, ("id", "approval", "approvalPolicy")), ("not_found",),
+        (Example({"delivery": "announcement-1#linkedin#page#g1", "approval": "hard"}, {"id": "announcement-1#linkedin#page#g1", "approval": "hard", "approvalPolicy": "set for this Delivery by Ada Admin", "approvedBy": None}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only (an editor or an admin). An agent gets human_required: it may not choose how much review a Delivery gets.",
+    ),
+    Operation(
+        "announcements_draft", ("draft",), "Save a Delivery's words as the next version, or keep a text or picture beside the draft as a candidate.", "write",
+        obj({"delivery": text("The Delivery's id."), "replaces": whole("The version of the Delivery you read. Refused as stale_version, naming the version that replaced it, when the Delivery has moved on."),
+             "text": text("The words. A person's save marks the blocks it changed as theirs and pinned; an agent's redraft keeps every pinned block as it is."),
+             "imageKey": text("The picture of the version, or of the candidate."),
+             "candidate": flag("Keep this text or picture beside the draft as a candidate (nothing goes out differently) instead of saving a version. No replaces is needed.")}, ("delivery",)),
+        _DRAFT_RESULT, ("not_found", "stale_version", "locked", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "replaces": 1, "text": "The tide tables are out."},
+                 {"id": "announcement-1#x#handle#g1", "status": "saved", "version": 2, "replaces": 1, "approvedVersion": None, "lockedVersion": None}),),
+        group="announcements", positional=("delivery",), agent_rung="draft",
+        notes="Every save is a new version and no version is overwritten. A person's edit while an attempt is open does not change that attempt: it is saved as the next version, flagged preferred (status preferred). "
+              "After the lock a late edit is refused (locked) until a person unlocks the Delivery. An agent's redraft that is stale, late or against an attempt in flight is dropped (status dropped, nothing written) because "
+              "the person's version is newer. Sending it is not part of saving: it goes at its release time as its review says.",
+    ),
+    Operation(
+        "announcements_candidate_choose", ("candidate", "choose"), "Choose one candidate as the Delivery's words: a new version. The other candidates are kept.", "write",
+        obj({"delivery": text("The Delivery's id."), "candidate": text("The candidate's id, such as c1."), "replaces": whole("The version of the Delivery you read.")}, ("delivery", "candidate", "replaces")),
+        _DRAFT_RESULT, ("not_found", "stale_version", "locked"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "candidate": "c1", "replaces": 2},
+                 {"id": "announcement-1#x#handle#g1", "status": "saved", "version": 3, "replaces": 2, "approvedVersion": None, "lockedVersion": None}),),
+        group="announcements", positional=("delivery", "candidate"), agent_rung="draft",
+        notes="A save like any other: it names the version it replaces, is refused after the lock, and an agent's choice keeps every pinned block.",
+    ),
+    Operation(
+        "announcements_versions", ("versions",), "List a Delivery's versions and candidates: who saved each, when, what it replaced and which blocks are pinned. With a version or a candidate, its words.", "read",
+        obj({"delivery": text("The Delivery's id."), "version": whole("Show the words of this version."), "candidate": text("Show the words of this candidate.")}, ("delivery",)),
+        record({"id": text(), "version": whole(), "approvedVersion": {"type": ["integer", "null"]}, "lockedVersion": {"type": ["integer", "null"]}, "lockedAt": {"type": ["string", "null"]},
+                "preferredVersion": {"type": ["integer", "null"]}, "versions": many({"type": "object"}), "candidates": many({"type": "object"}), "text": text("The words asked for.")},
+               ("id", "version", "versions", "candidates")), ("not_found",),
+        (Example({"delivery": "announcement-1#x#handle#g1"},
+                 {"id": "announcement-1#x#handle#g1", "version": 2, "approvedVersion": None, "lockedVersion": None, "lockedAt": None, "preferredVersion": None,
+                  "versions": [{"number": 1, "by": "announce", "owner": "machine", "at": "2026-11-16T14:00:00Z", "replaces": None, "blocks": [{"owner": "machine", "pinned": False}]},
+                               {"number": 2, "by": "ellie", "owner": "human", "at": "2026-11-16T14:05:00Z", "replaces": 1, "blocks": [{"owner": "human", "pinned": True}]}],
+                  "candidates": []}),),
+        group="announcements", positional=("delivery",),
+        notes="Read this to know the version to name when you save: a save names the version it replaces.",
+    ),
+    Operation(
+        "announcements_pinned_change", ("pinned",), "Change or unpin a block a person pinned, as the next version.", "write",
+        obj({"delivery": text("The Delivery's id."), "replaces": whole("The version of the Delivery you read."), "block": whole("The block, counting from 1."),
+             "text": text("The block's new words, one paragraph. It stays pinned."), "unpin": flag("Unpin the block, so a later redraft may rewrite it.")}, ("delivery", "replaces", "block")),
+        _DRAFT_RESULT, ("not_found", "stale_version", "locked", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "replaces": 2, "block": 1, "unpin": True},
+                 {"id": "announcement-1#x#handle#g1", "status": "saved", "version": 3, "replaces": 2, "approvedVersion": None, "lockedVersion": None}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY, agent_refusal="blocked",
+        notes="A person only. An agent is blocked at every rung: what a person pinned stays.",
+    ),
+    Operation(
+        "announcements_release", ("release",), "Release a Delivery: hand it to its channel now.", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
+        group="announcements", positional=("delivery",), agent_rung="publish_auto",
+        notes="Under none the policy released it, so an agent at publish_auto may. Under soft or hard an agent is told human_required: a person releases it. A person always may. Built with the channel transport.",
+    ),
+    Operation(
+        "announcements_unlock", ("unlock",), "Unlock a Delivery after its lock time, so it can be edited again.", "write",
+        obj({"delivery": text("The Delivery's id."), "lockAt": text("When it locks again (UTC), after now and no later than the release. By default the release time."),
+             "releaseAt": text("A new release time (UTC), when the old one has passed.")}, ("delivery",)),
+        record({"id": text(), "lockAt": text(), "releaseAt": text(), "lockedVersion": {"type": ["integer", "null"]}}, ("id", "lockAt", "releaseAt")), ("not_found", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "lockAt": "2026-11-17T08:55:00Z"},
+                 {"id": "announcement-1#x#handle#g1", "lockAt": "2026-11-17T08:55:00Z", "releaseAt": "2026-11-17T09:00:00Z", "lockedVersion": None}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only; an agent is told human_required. Unlocking is an event, not a lease: nothing expires, and a Delivery nobody unlocks stays as locked. The version that was approved stays approved; "
+              "an edit makes a new, unapproved version. Refused while an attempt is open (an edit then is saved as a preferred version) and after the Delivery went.",
+    ),
+    Operation(
+        "announcements_example", ("example",), "Say how far what a person changed in an announcement should reach, so later drafts can follow it.", "write",
+        obj({"delivery": text("The Delivery's id: one that went out, or one with a preferred version."),
+             "scope": choice("this_one", "channel", "kind", "publication", description="How far the change reaches: just this one, this channel, this kind of announcement on this channel, or the whole publication. Leave it out to keep the edit as a candidate."),
+             "reason": text("One line on why, kept with the words in S3 and never in the catalog. It goes with a scope.")}, ("delivery",)),
+        record({"id": text(), "recorded": {"type": "boolean"}, "exampleState": {"type": ["string", "null"]}, "exampleScope": {"type": ["string", "null"]}, "machineVersion": {"type": ["integer", "null"]},
+                "finalVersion": {"type": ["integer", "null"]}, "reason": {"type": ["string", "null"]}}, ("id", "recorded")),
+        ("not_found", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "scope": "channel", "reason": "Lead with the place, not the title."},
+                 {"id": "announcement-1#x#handle#g1", "recorded": True, "exampleState": "active", "exampleScope": "channel", "machineVersion": 1, "finalVersion": 2, "reason": None}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only: an edit becomes an example only when a person says so. With no scope the edit is a candidate and changes nothing about any later draft; a scope of this_one also changes nothing. "
+              "Nothing is recorded for a Delivery whose final version has no words a person changed.",
+    ),
+    Operation(
+        "announcements_preferred", ("preferred",), "Save how a Delivery that went out should have read, as a preferred version that is never sent. It teaches; it changes no public text.", "write",
+        obj({"delivery": text("The Delivery's id: one that went out, or has an attempt open."), "replaces": whole("The version of the Delivery you read."), "text": text("How it should have read."),
+             "scope": choice("this_one", "channel", "kind", "publication", description="Also record how far it reaches, in the same step. Leave it out to keep it as a candidate."),
+             "reason": text("One line on why. It goes with a scope.")}, ("delivery", "replaces", "text")),
+        _DRAFT_RESULT, ("not_found", "stale_version", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "replaces": 1, "text": "Slow water has landed.", "scope": "channel"},
+                 {"id": "announcement-1#x#handle#g1", "status": "preferred", "version": 2, "replaces": 1, "approvedVersion": None, "lockedVersion": 1, "preferredVersion": 2}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only. It sends nothing and changes no public text: an email cannot be recalled and a new post costs money and attention. Whether to also correct the public post is a separate choice "
+              "(announcements correct, a superseding Delivery where the channel can delete); teaching and correcting are decided one at a time.",
+    ),
+    Operation(
+        "announcements_correct", ("correct",), "Correct a Delivery that went with a new public text: the next generation, which supersedes the one that went.", "write",
+        obj({"delivery": text("The id of the Delivery that went and is to be corrected."), "text": text("The corrected public text. It is checked like the text of a new Delivery.")}, ("delivery", "text")),
+        record({"id": text("The new Delivery's id."), "generation": {"type": "integer", "description": "The new Delivery's generation."}, "supersedes": text("The id of the Delivery it replaces."),
+                "state": text("The new Delivery's state."), "approval": text("The review the new Delivery goes under: the one the old Delivery had."),
+                "checks": many(obj({"name": text(), "passed": {"type": "boolean"}}, ("name", "passed")), "The checks the new text passed.")}, ("id", "generation", "supersedes", "state", "approval", "checks")),
+        ("not_found", "constraint_conflict", "checks_failed"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "text": "A look at how slow water shapes stone, corrected."},
+                 {"id": "announcement-1#x#handle#g2", "generation": 2, "supersedes": "announcement-1#x#handle#g1", "state": "ready", "approval": "none",
+                  "checks": [{"name": "length", "passed": True}, {"name": "markup", "passed": True}, {"name": "facts", "passed": True}]}),),
+        group="announcements", positional=("delivery",), agent_rung="prepare",
+        notes="An agent follows that Delivery's review value: the correction is made at prepare, and it goes only as its own approval says. Only a Delivery that went is corrected, and only once an "
+              "attempt has an answer: a Delivery that never went is edited, an open attempt is settled first, another person's different correction is a conflict, and a Delivery that "
+              "already has a correction is refused, each as constraint_conflict with the reason in plain words. The text goes through the checks of a new Delivery before anything is "
+              "written; a check that fails is checks_failed and nothing is written. The old post on X is deleted as part of the correction when the site's own X channel makes it, and otherwise when the corrected Delivery is sent; the deletion cost is written on the old Delivery.",
+    ),
+    Operation(
+        "announcements_record_manual", ("record-manual",), "Record the address of a post a person made by hand for a manual Delivery: the Delivery becomes sent and its attempt names that person.", "write",
+        obj({"delivery": text("The Delivery's id."), "url": text("The address of the post, an http or https URL.")}, ("delivery", "url")),
+        record({"id": text(), "state": text(), "resultUrl": text(), "attempt": {"type": "object", "description": "The attempt that was written: number, at, outcome, by and url."}}, ("id", "state", "resultUrl", "attempt")),
+        ("not_found", "constraint_conflict"),
+        (Example({"delivery": "announcement-1#x#handle#g1", "url": "https://example.org/status/1"},
+                 {"id": "announcement-1#x#handle#g1", "state": "sent", "resultUrl": "https://example.org/status/1",
+                  "attempt": {"number": 1, "at": "2026-11-17T09:05:00Z", "outcome": "sent", "by": "Ada Admin", "url": "https://example.org/status/1"}}),),
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
+        notes="A person only, and the attempt names the signed-in person who posted it: an agent is told human_required. Only a manual Delivery that is ready (its words drafted and checked) is recorded, "
+              "once. No channel ever sends a manual Delivery.",
+    ),
+    Operation(
+        "announcements_withdraw", ("withdraw",), "Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted).", "write",
+        obj({"delivery": text("The Delivery's id.")}, ("delivery",)),
+        record({"id": text(), "state": text("The Delivery's state afterwards: withdrawn."), "withdrawnBy": text("Who withdrew it."), "cost": {"type": ["string", "null"], "description": "What Caducus has charged for the post in all, deletion included, when a post was deleted."},
+                "announcementState": text("The Announcement's state afterwards: withdrawn once every Delivery is, cancelled when none had gone.")}, ("id", "state", "withdrawnBy", "announcementState")),
+        ("not_found", "constraint_conflict", "human_required", "service_unavailable"),
+        (Example({"delivery": "announcement-1#x#handle#g1"},
+                 {"id": "announcement-1#x#handle#g1", "state": "withdrawn", "withdrawnBy": "Ada Admin", "cost": "0.210", "announcementState": "withdrawn"}),),
+        group="announcements", positional=("delivery",), agent_rung="prepare",
+        notes="A person always may. An agent may withdraw only when every Story the Announcement is about was retired: otherwise it is told human_required, and nothing is changed. A Delivery that has not "
+              "gone is stopped and nothing public changes. A post on X is deleted (never blocked by a pause or the budget), and the Delivery records who withdrew it and what the post cost. A "
+              "channel that cannot take its message back (a sent email, a post made by hand) is refused as constraint_conflict and the Delivery stays sent: send a correction. Deleting a post "
+              "needs the site's own X channel; the signed-in command line holds none and says service_unavailable for a post that went. A Delivery a correction replaced is not "
+              "withdrawn: its post is deleted with the correction.",
+    ),
+)
+
+OPERATIONS = OPERATIONS + REVIEW_OPERATIONS
+
+# --- the Announcements list, the Story drawer's lines and "why not announced" (PPY-e4ae3a) ---------------------------------------------------------------
+_MARKED = record({"words": text("The words a person reads."), "mark": text("The name of a Lucide icon drawn beside the words; the words always carry the meaning.")}, ("words", "mark"))
+_ATTENTION = record({"kind": choice("overdue", "outcome_unknown", "check_failed"), "words": text(), "mark": text(), "since": text("When it began, as a UTC time.")}, ("kind", "words", "mark"))
+DELIVERY_LINE = record({
+    "id": text("The Delivery's id."), "announcementId": text(), "channel": text(), "accountId": text(), "generation": whole(), "state": text("The Delivery's state."),
+    "words": text("The state in words, such as Sent or Blocked: check failed."), "mark": text("The Lucide icon of the state."),
+    "approval": {"type": ["object", "null"], "description": "The review in words and a mark: words, mark and approval (none, soft or hard). Null for a Delivery that will not go."},
+    "releaseAt": {"type": ["string", "null"]}, "lockAt": {"type": ["string", "null"]}, "dueAt": {"type": ["string", "null"], "description": "The earliest time it is still waiting for."},
+    "waitingFor": {"type": ["string", "null"]}, "nextAttemptAt": {"type": ["string", "null"]}, "blockedReason": {"type": ["string", "null"]},
+    "attempts": whole("How many attempts were opened.", minimum=0), "lastAttempt": {"type": ["object", "null"], "description": "The last attempt: number, at, outcome, code, words and mark."},
+    "resultUrl": {"type": ["string", "null"]},
+    "attention": many(_ATTENTION, "What needs a person's eye: Overdue (due, with no attempt), Outcome unknown (an attempt with no answer yet, until Caducus settles it), "
+                                  "or a failed check."),
+}, ("id", "announcementId", "channel", "accountId", "state", "words", "mark", "attempts", "attention"))
+ANNOUNCEMENT_ENTRY = record({
+    "id": text(), "kind": text(), "state": text(), "releaseAt": text(), "trigger": {"type": ["string", "null"]}, "createdBy": {"type": ["string", "null"]},
+    "versionLookedAt": {"type": ["integer", "null"], "description": "The version of the Story the Announcement looked at."},
+    "reviewFlag": {"type": ["object", "null"], "description": "The one open review flag for a blocked draft, once for each Announcement: id, words, mark, reason and ask."},
+    "deliveries": many(DELIVERY_LINE, "One line for each live Delivery, in channel order."),
+    "stories": many({"type": "object"}, "In the list: the Stories it is about, each with lineageId and title."),
+}, ("id", "kind", "state", "releaseAt", "deliveries"))
+_EX_LINE = {"id": "announcement-1#x#handle-1#g1", "announcementId": "announcement-1", "channel": "x", "accountId": "handle-1", "generation": 1, "state": "ready", "words": "Ready",
+            "mark": "calendar-check", "approval": {"words": "Goes at its lock time unless a person stops it (publication policy)", "mark": "hourglass", "approval": "soft"},
+            "releaseAt": "2026-11-17T09:00:00Z", "lockAt": "2026-11-17T09:00:00Z", "dueAt": "2026-11-17T09:00:00Z", "waitingFor": None, "nextAttemptAt": None, "blockedReason": None,
+            "attempts": 0, "lastAttempt": None, "resultUrl": None, "attention": [{"kind": "overdue", "words": "Overdue", "mark": "clock-alert", "since": "2026-11-17T09:00:00Z"}]}
+_EX_ENTRY = {"id": "announcement-1", "kind": "story_published", "state": "planned", "releaseAt": "2026-11-17T09:00:00Z", "trigger": "story published", "createdBy": "announce",
+             "versionLookedAt": 3, "reviewFlag": None, "deliveries": [_EX_LINE]}
+
+LIST_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "announcements_where", ("where",), "Where a Story was announced: each Announcement that announces it, with one line for each live Delivery.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)), record({"story": text(), "announcements": many(ANNOUNCEMENT_ENTRY)}, ("story", "announcements")), (),
+        (Example({"story": "slow-water"}, {"story": "slow-water", "announcements": [_EX_ENTRY]}),), positional=("story",), group="announcements",
+        notes="Read through the announces relation from the Story's side, then each Announcement's Deliveries from its index; nothing lists a table. A Story that was never announced answers with no "
+              "Announcements. Each line says its state, its review and what needs a person (Overdue, Outcome unknown) in words, with a mark. A blocked draft shows its one review flag once for each Announcement.",
+    ),
+    Operation(
+        "announcements_recent", ("recent",), "The Announcements list: Announcements newest first, one line for each live Delivery, and every Delivery that is overdue.", "read",
+        obj({"limit": whole("The size of a page; 25 when left out. A page never splits Announcements released at the same moment."),
+             "before": text("The next value of the last page: shows the Announcements released before that time.")}),
+        record({"announcements": many(ANNOUNCEMENT_ENTRY), "overdue": many(DELIVERY_LINE, "Every Delivery that is due and has no attempt, read from the sparse due index."),
+                "next": {"type": ["string", "null"], "description": "Pass as before for the next page; null on the last page."}}, ("announcements", "overdue", "next")), (),
+        (Example({}, {"announcements": [_EX_ENTRY], "overdue": [_EX_LINE], "next": None}),), group="announcements",
+        notes="Newest release first from the planned-by-release-time index, one partition for each state; overdue from the due index. Each line says what it waits for, in words and a mark: "
+              "Overdue for a due Delivery with no attempt, Outcome unknown for an attempt left open until Caducus settles it. Nothing is subscribed to.",
+    ),
+    Operation(
+        "announcements_explain", ("explain",), "Why a Story was or was not announced, for each channel, naming the rule; or what a Delivery's draft read. Reads the rules; writes nothing.", "read",
+        obj({"story": STORY_LINEAGE, "delivery": text("Ask instead about a Delivery: the guideline layers (scope, item, version, hash) and the examples its draft read.")}),
+        record({"story": text(), "title": text(), "stars": whole(minimum=0),
+                "channels": many(record({"channel": text(), "announced": flag(), "rule": text("The rule: announced, off, not_published, type_not_announced, section_not_announced, below_bar, "
+                                                                                                 "below_floor, machine_five, story_not_reviewed, no_delivery or would_announce."),
+                                         "words": text(), "delivery": text()}, ("channel", "announced", "rule", "words"))),
+                "delivery": text("The Delivery asked about."), "recorded": flag(), "words": text(), "storyVersion": {"type": ["integer", "null"]}, "model": {"type": ["string", "null"]},
+                "guidelineLayers": many({"type": "object"}, "Each guideline layer the draft read: scope, itemId, versionNumber, contentHash."),
+                "examples": many(record({"delivery": text(), "state": text(), "scope": {"type": ["string", "null"]}}, ("delivery", "state")), "The examples the draft read, and whether each is still on.")}, ()),
+        ("not_found", "invalid_input"),
+        (Example({"story": "slow-water"}, {"story": "slow-water", "title": "Slow water", "stars": 2,
+                                           "channels": [{"channel": "x", "announced": False, "rule": "below_bar", "words": "It has 2 stars, and the bar for announcements is 3 stars."}]}),
+         Example({"delivery": "announcement-1#x#handle#g1"}, {"delivery": "announcement-1#x#handle#g1", "recorded": True, "storyVersion": 3, "model": "gpt-6-luna",
+                                                                "guidelineLayers": [{"scope": "publication", "itemId": "item-1", "versionNumber": 4, "contentHash": "ab12"}],
+                                                                "examples": [{"delivery": "announcement-0#x#handle#g1", "state": "active", "scope": "channel"}],
+                                                                "words": "announcement-1#x#handle#g1 was drafted from version 3 of the Story under 1 guideline layer and 1 example."})),
+        group="announcements",
+        notes="The one question that is not a row: nothing is written for a Story that was not announced. The answer follows the order the announce path runs its rules.",
+    ),
+)
+
+OPERATIONS = OPERATIONS + LIST_OPERATIONS
 
 RATING_OPERATIONS: tuple[Operation, ...] = (
     Operation(
@@ -727,6 +995,25 @@ RATING_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + RATING_OPERATIONS
+
+HANDOFF_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "handoffs_request", ("request",), "Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once.", "write",
+        obj({"story": STORY_LINEAGE, "responsibility": text("The responsibility asked, as the agent catalogue names it, such as research."),
+             "why": text("What is needed and why, in plain words. It is the Assignment's brief and what the responsible agent reads.")}, ("story", "responsibility", "why")),
+        record({"assignmentId": text(), "responsibility": text(), "story": text(), "status": text(), "askedBy": text(), "created": flag("False when the same ask was already made: nothing new was written and nobody is woken again.")},
+               ("assignmentId", "responsibility", "story", "status", "askedBy", "created")),
+        ("not_found", "constraint_conflict"),
+        (Example({"story": "story-1", "responsibility": "research", "why": "Claim 3 cites no source. Find one."},
+                 {"assignmentId": "handoff-3f9a1c5e7b2d4a60", "responsibility": "research", "story": "story-1", "status": "open", "askedBy": "agent:fact_check", "created": True}),),
+        positional=("story",), group="handoffs",
+        notes="An Assignment is the request between responsibilities: never a Message, and never a chat. An agent asking again with the same words gets the Assignment it already made. The responsible agent's own rung "
+              "decides what it may do about it. A person files the same request with the same command; their request is always new. The Assignment closes when the responsible agent's run ends: completed, or failed with one flag for a person.",
+        agent_rung="propose",
+    ),
+)
+
+OPERATIONS = OPERATIONS + HANDOFF_OPERATIONS
 
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}

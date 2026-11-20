@@ -11,7 +11,8 @@ from typing import Any, Callable
 
 from . import budget as budget_module
 from .rules import view
-from .store import AnnouncementStore, now_iso
+from .records import now_iso
+from .spend import SpendLedger
 
 
 def account_id_of(account: Any) -> str:
@@ -19,7 +20,7 @@ def account_id_of(account: Any) -> str:
 
 
 class SpendGuard:
-    def __init__(self, store: AnnouncementStore, settings: Any, now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
+    def __init__(self, store: SpendLedger, settings: Any, now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
         """``settings`` is the settings document's reader (``settings.AnnouncementSettings``)."""
         self.store, self.settings, self.now = store, settings, now
 

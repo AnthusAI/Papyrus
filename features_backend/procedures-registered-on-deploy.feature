@@ -11,7 +11,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
   Scenario: A deploy to a site with nothing registered creates every core procedure
     Given a site backend with no procedures registered
     When the deploy registers the core procedures
-    Then all 15 core kinds are published with a version whose id carries the digest of the packaged source and its metadata
+    Then all 16 core kinds are published with a version whose id carries the digest of the packaged source and its metadata
     And each definition carries the title, category and description from the registry's metadata
     And each version carries the parameter schema and defaults from the registry's metadata
 
@@ -25,7 +25,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
     Given a site backend where the core procedures were registered by an earlier deploy
     And the source of the kind "newsroom.editor" differs from what is published
     When the deploy registers the core procedures
-    Then the kind "newsroom.editor" is reported registered as version 2 and the other 14 are unchanged
+    Then the kind "newsroom.editor" is reported registered as version 2 and the other 15 are unchanged
     And the first version of "newsroom.editor" is archived and the definition points at the new version
 
   Scenario: A procedure registered before kind headers existed moves to a digest version
@@ -38,7 +38,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
     Given a site backend where the core procedures were registered by an earlier deploy
     And the source of the kind "newsroom.editor" differs from what is published
     When the deploy plans the core procedures without applying them
-    Then the kind "newsroom.editor" is reported changed and the other 14 are reported unchanged
+    Then the kind "newsroom.editor" is reported changed and the other 15 are reported unchanged
     And nothing was written to the backend
 
   Scenario: A drift check passes when every published version matches Git
@@ -58,7 +58,7 @@ Feature: A deploy registers every core and site procedure, and a published versi
     Given a site repository that lists the kind "example.ruling-analysis" in its papyrus-site-procedures.json
     When the deploy registers the core procedures and the site's procedures
     Then the kind "example.ruling-analysis" is published under the category "site"
-    And all 15 core kinds are published
+    And all 16 core kinds are published
 
   Scenario: A site kind that takes a core kind's name is refused
     Given a site repository that lists the kind "newsroom.editor" in its papyrus-site-procedures.json

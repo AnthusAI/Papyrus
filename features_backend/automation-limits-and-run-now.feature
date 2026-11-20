@@ -144,6 +144,13 @@ Feature: Automations are enforced, costed and can be run by hand
     When an operator runs the automation now with an input
     Then nothing is started because the automation is at its limit
 
+  Scenario: Run now is refused up front when the router publication names no site policy
+    Given the site has the TTAB automation whose router publication names no site bucket
+    When an operator runs the automation now with an input
+    Then nothing is started because the router publication names no site policy
+    When an operator runs the automation now with an input as a dry run
+    Then nothing is started because the router publication names no site policy
+
   Scenario: Run now can be previewed with a dry run
     Given the site has the TTAB automation
     When an operator runs the automation now with an input as a dry run

@@ -377,6 +377,27 @@ def label_budget_mode(context, amount, mode):
     propose(context, "ryan", mode=mode, labelConfirmed=True, budget=amount)
 
 
+@step("ryan saves the announcement settings requiring reviewed Stories")
+def save_require_reviewed(context):
+    propose(context, "ryan", rules=rules(context, requireReviewedSource=True))
+
+
+@step('ryan saves the announcement settings with reviewed Stories required set to "{value}"')
+def save_require_reviewed_value(context, value):
+    propose(context, "ryan", rules=rules(context, requireReviewedSource=value))
+
+
+@step("reviewed Stories are not required")
+def reviewed_not_required(context):
+    settings = context.answer.get("settings") or context.settings.read()
+    assert settings["rules"].get("requireReviewedSource", False) is False, settings
+
+
+@step("reviewed Stories are required")
+def reviewed_required(context):
+    assert context.settings.read()["rules"]["requireReviewedSource"] is True
+
+
 @step('ryan saves the announcement settings with the story types "{types}"')
 def save_types(context, types):
     propose(context, "ryan", rules=rules(context, storyTypes=types.split(",")))
@@ -417,3 +438,31 @@ def resume(context):
 @step('the pause names "{who}"')
 def pause_names(context, who):
     assert context.settings.read()["pause"]["by"] == who
+
+
+@step('ryan saves post spacing of {minutes:d} minutes for "{account}"')
+def save_spacing(context, minutes, account):
+    propose(context, "ryan", spacing={account: minutes})
+
+
+@step('ellie tries to save post spacing of {minutes:d} minutes for "{account}"')
+def try_save_spacing(context, minutes, account):
+    propose(context, "ellie", spacing={account: minutes})
+
+
+@step("no account has post spacing")
+def no_spacing(context):
+    settings = context.answer.get("settings") or context.settings.read()
+    assert settings["spacing"] == {}, settings
+
+
+@step('the post spacing of "{account}" is {minutes:d} minutes')
+def spacing_is(context, account, minutes):
+    assert context.settings.read()["spacing"][account] == minutes
+
+
+@step('the announcement settings the pipeline reads show the post spacing of "{account}" as {minutes:d} minutes')
+def pipeline_spacing(context, account, minutes):
+    from papyrus_content.announcements import rules as pipeline_rules
+
+    assert pipeline_rules.view(context.settings.read(), {})["spacing"][account] == minutes

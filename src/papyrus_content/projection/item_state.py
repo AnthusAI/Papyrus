@@ -50,7 +50,6 @@ def summary_to_json(summary: ItemSummary) -> dict:
         "language": summary.language,
         "languageGroupId": summary.language_group_id,
         "translationKind": summary.translation_kind,
-        "writtenBy": summary.written_by,
     }
 
 
@@ -72,7 +71,6 @@ def summary_from_json(raw: dict) -> ItemSummary:
         language=raw.get("language"),
         language_group_id=raw.get("languageGroupId"),
         translation_kind=raw.get("translationKind"),
-        written_by=raw.get("writtenBy"),
     )
 
 

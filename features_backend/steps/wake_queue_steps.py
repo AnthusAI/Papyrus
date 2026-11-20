@@ -267,7 +267,7 @@ def holds(context, count):
 def names_wake(context):
     for message in context.queue.messages:
         wake = json.loads(message.body)["wake"]
-        assert set(wake) == {"key", "agent", "subject", "why"} and all(wake.values()), wake
+        assert set(wake) == {"key", "agent", "subject", "why", "scope"} and all(wake.values()), wake
         assert wake["agent"] == "procedure:distinctive.ttab.ruling-analysis" and wake["subject"].startswith("reference-"), wake
         assert wake["why"].startswith("Started by monitor ttab for "), wake
         assert wake_keys.checked(wake["key"]) == wake["key"]

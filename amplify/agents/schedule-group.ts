@@ -1,6 +1,7 @@
 import { Duration, Stack } from "aws-cdk-lib";
 import { Alarm, ComparisonOperator, Metric, TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
 import { Effect, PolicyDocument, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import { CfnScheduleGroup } from "aws-cdk-lib/aws-scheduler";
 import type { Construct } from "constructs";
 import { assertLiteralResourceName, sanitizeAwsName } from "../site-backend-names";
@@ -36,6 +37,38 @@ export function scheduleNames(brandId: string): ScheduleNames {
     group: assertLiteralResourceName("Schedule group name", `${SCHEDULE_GROUP_NAME_PREFIX}${siteId}${SCHEDULE_GROUP_NAME_SUFFIX}`),
     role: assertLiteralResourceName("Scheduler role name", `${SCHEDULE_GROUP_NAME_PREFIX}${siteId}${SCHEDULER_ROLE_NAME_SUFFIX}`),
   };
+}
+
+/**
+ * The follow-up timers' entries (slice C2, src/papyrus_content/follow_up_timers.py) are named `follow-up-` and a digest of the record. The reconciler's own
+ * entries are `agent-...`, so the two never meet.
+ */
+export const FOLLOW_UP_ENTRY_PREFIX = "follow-up-";
+
+/**
+ * Lets a site function set and clear follow-up timers: it may create, update and delete entries named `follow-up-*` in this site's schedule group, and hand the
+ * scheduler role to the scheduler service, and nothing else. It may not touch the reconciler's `agent-*` entries, another site's group, the default group
+ * (scheduled publishing's), or read an entry. The group and the role are named by the site's brand id, so no reference to the `agents` stack is made and the
+ * function's stack does not depend on it. It adds no resource: two statements on the function's own role.
+ */
+export function allowFollowUpTimers(lambda: LambdaFunction, brandId: string): void {
+  const stack = Stack.of(lambda);
+  const names = scheduleNames(brandId);
+  lambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule"],
+      resources: [`arn:${stack.partition}:scheduler:${stack.region}:${stack.account}:schedule/${names.group}/${FOLLOW_UP_ENTRY_PREFIX}*`],
+    }),
+  );
+  lambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["iam:PassRole"],
+      resources: [`arn:${stack.partition}:iam::${stack.account}:role/${names.role}`],
+      conditions: { StringEquals: { "iam:PassedToService": "scheduler.amazonaws.com" } },
+    }),
+  );
 }
 
 /** The group, the role the scheduler assumes and the alarm on a tick that could not be delivered. */

@@ -55,9 +55,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9cce3704-6614-4ffd-884f-2f63da0efa78",
+      "author": "home",
+      "text": "Audit: timeZone set on MoM, scheduling deployed. Announcing cannot start: engine unwired, and OWNER QUESTION for Ryan: does MoM's X account and developer app exist, and is it funded?",
+      "created_at": "2026-11-18T16:59:14.699032Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:39.850997Z",
-  "updated_at": "2026-11-12T18:51:02.928082Z",
+  "updated_at": "2026-11-18T16:59:14.699299Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

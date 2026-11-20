@@ -63,7 +63,7 @@ class Changes:
 
 
 def fingerprint_of(settings: Any, corpus_id: str) -> str:
-    """Everything a stored record depends on besides the row: the corpus, the published fields, the threshold, the summary length and the build."""
+    """Everything a stored record depends on besides the row: the corpus, the published fields, the threshold, the quality floor, the summary length and the build."""
     material = {
         "format": STATE_FORMAT,
         "corpus": corpus_id,
@@ -71,6 +71,7 @@ def fingerprint_of(settings: Any, corpus_id: str) -> str:
         "threshold": settings.references.recommended_threshold,
         "summary": settings.references.summary_characters,
         "public": list(PUBLIC_REFERENCE_FIELDS),
+        **({"floor": settings.floor_stars} if settings.floor_stars is not None else {}),
     }
     return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
 

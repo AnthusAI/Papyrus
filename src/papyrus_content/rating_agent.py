@@ -27,10 +27,11 @@ from typing import Any, Callable, Iterator, Mapping
 from papyrus_content import model_usage
 from papyrus_content.agent_gate import GateRun
 from papyrus_content.agent_gate.run_context import AgentRun, from_environment
+from papyrus_content.agent_definitions.definition import core_definition
+from papyrus_content.agent_policy.tiers import model_for
 from papyrus_content.content_item_lifecycle import is_story_item_type
 from papyrus_content.images.handlers import Caller
 from papyrus_content.item_stars import item_stars
-from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
 
 RESPONSIBILITY = "rate"
 INDEX = "itemsByHeadStageForRating"   # graphql_authoring.INDEX_DEFINITIONS: one row per Story, the published partition, newest first
@@ -38,7 +39,6 @@ PUBLISHED = "published"
 WRITE_OPERATION, GUIDELINES_OPERATION = "ratings_set", "guidelines_resolve"
 MACHINE_STARS = (3, 4)
 FIVE = 5
-MODEL = DEFAULT_SMALL_LLM_MODEL   # the repository's standard cheap model for bulk work; one call per Story
 NOTHING_UNRATED, PROPOSED, RATED = "nothing_unrated", "proposed", "rated"
 
 INSTRUCTIONS = """You rate published Stories for a publication, one at a time, with a star rating that people later rely on to decide what the site features.
@@ -119,20 +119,20 @@ def story_message(row: Mapping[str, Any], guidelines: str) -> str:
     return "\n\n".join(parts)
 
 
-def openai_judge(api_key: str, *, transport: Any = None) -> Callable[[dict[str, Any], str], dict[str, Any]]:
+def openai_judge(api_key: str, model: str, *, tier: str, transport: Any = None) -> Callable[[dict[str, Any], str], dict[str, Any]]:
     """The model call: one Story, one structured answer, through the Responses API. Each call is reported to the run's usage."""
     from papyrus_content.ideas import synthesis
 
     send = transport or synthesis.openai_transport(api_key)
 
     def judge(row: dict[str, Any], guidelines: str) -> dict[str, Any]:
-        payload = {"model": MODEL, "instructions": INSTRUCTIONS, "input": story_message(row, guidelines), "text": {"format": SCHEMA}, "store": False}
+        payload = {"model": model, "instructions": INSTRUCTIONS, "input": story_message(row, guidelines), "text": {"format": SCHEMA}, "store": False}
         try:
             body = send(synthesis.RESPONSES_URL, {"Content-Type": "application/json"}, payload)
         except synthesis.SynthesisError:
             raise ModelFailed("model_failed") from None
-        used = synthesis.usage_of(body, MODEL)
-        model_usage.record({"agent": "rate_items", "model": MODEL, "provider": "openai", "promptTokens": used.input_tokens,
+        used = synthesis.usage_of(body, model)
+        model_usage.record({"agent": "rate_items", "tier": tier, "model": model, "provider": "openai", "promptTokens": used.input_tokens,
                             "completionTokens": used.output_tokens, "cachedTokens": used.cached_input_tokens})
         answer = synthesis.response_text(body)
         if body.get("status") == "incomplete" or not answer:
@@ -153,8 +153,10 @@ def default_services(environ: Mapping[str, str]) -> Services:
     api_key = str(environ.get("OPENAI_API_KEY") or "").strip()
     if not api_key:
         raise RatingError("The run has no model key (OPENAI_API_KEY), so nothing can be judged. The site's key is PPY-6af46b.")
+    run = from_environment(environ)
+    tier = core_definition(RESPONSIBILITY)["tier"]   # the definition names the tier; the site's policy names its model
     client, _ = create_authoring_client()
-    return Services(stories=lambda: published_unrated(client), judge=openai_judge(api_key), execute=execute)
+    return Services(stories=lambda: published_unrated(client), judge=openai_judge(api_key, model_for(run.policy.document, tier), tier=tier), execute=execute)
 
 
 def _read_guidelines(services: Services, caller: Caller) -> str:

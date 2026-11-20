@@ -2,14 +2,16 @@
 
 Every site has one FIFO queue, `papyrus-<site>-agent-wakes.fifo` (amplify/agents/wake-queue.ts). A wake is one message:
 
-    {"wake": {"key", "agent", "subject", "why"}, "request": {...the runner's request, without its wake key...}}
+    {"wake": {"key", "agent", "subject", "why", "scope"}, "request": {...the runner's request, without its wake key...}}
 
 * `key` is the wake key (wake_keys.py): what the wake is about, so the same wake can never run twice.
 * `agent` is the key's owner: the automation, or `procedure:<key>` when no automation governs the start.
 * `subject` is what the wake is about: the record in a change key, `schedule` for a timer, the request id for a person's request.
 * `why` is the trigger's own one-line summary, so a person reading the queue or the run record sees the reason in words.
-* The **message group** is the agent plus its serial scope, and the scope is the subject: two wakes about one subject run one after the other,
-  wakes about different subjects run at the same time (the definition's own `serialBy` is slice B4).
+* The **message group** is the agent plus its serial scope (slice B4, PPY-a200ec). The scope comes from the definition's `serialBy`, which the wake's trigger
+  carries: `subject` (the default for a wake no definition governs) makes the subject the scope, so wakes about one subject run one after the other and wakes
+  about different subjects run at the same time; `agent` makes one scope for the whole agent, so its wakes run one at a time whatever they are about;
+  `key:<name>` makes the scope the value the trigger names in `serialKey` (a channel account, say), and a trigger without one is not a wake.
 * The **deduplication id** is the wake key. SQS limits an id to 128 characters from a fixed set and a key may be 1000, so both ids are the
   SHA-256 digest of their text: the same text is always the same id, and two texts never share one.
 
@@ -27,6 +29,9 @@ from . import wake_keys
 QUEUE_NAME_PREFIX, QUEUE_NAME_SUFFIX = "papyrus-", "-agent-wakes.fifo"
 SITE_ID_CHARACTERS = 40          # what amplify/agents/wake-queue.ts keeps of a brand id: a FIFO queue name is at most 80 characters
 MAX_WHY_CHARACTERS = 500
+SERIAL_SUBJECT, SERIAL_AGENT, SERIAL_KEY_PREFIX = "subject", "agent", "key:"
+AGENT_SCOPE = "*"                # the scope of a whole agent: no subject id is this
+WAKE_FIELDS = ("key", "agent", "subject", "why", "scope")
 SQS_SOURCE = "aws:sqs"
 
 
@@ -50,8 +55,23 @@ def digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def scope_of(trigger: dict, subject: str) -> str:
+    """The serial scope of a wake: what, with the agent, makes its message group (`serialBy` in the trigger; no `serialBy` means `subject`)."""
+    serial = trigger.get("serialBy") or SERIAL_SUBJECT
+    if serial == SERIAL_SUBJECT:
+        return subject
+    if serial == SERIAL_AGENT:
+        return AGENT_SCOPE
+    if isinstance(serial, str) and serial.startswith(SERIAL_KEY_PREFIX) and len(serial) > len(SERIAL_KEY_PREFIX):
+        value = str(trigger.get("serialKey") or "").strip()
+        if not value:
+            raise WakeError(f"a wake serial by {serial!r} needs its trigger to name the {serial[len(SERIAL_KEY_PREFIX):]} (serialKey) it runs one at a time for")
+        return f"{serial[len(SERIAL_KEY_PREFIX):]}={value}"
+    raise WakeError(f"serialBy must be subject, agent or key:<name> (got {serial!r})")
+
+
 def wake_of(request: dict) -> dict[str, str]:
-    """`{key, agent, subject, why}` for a runner request, from its wake key and its trigger's summary."""
+    """`{key, agent, subject, why, scope}` for a runner request, from its wake key, its trigger's summary and its trigger's serial scope."""
     try:
         key = wake_keys.checked(request.get("wakeKey"))
     except wake_keys.InvalidWakeKey as invalid:
@@ -62,11 +82,11 @@ def wake_of(request: dict) -> dict[str, str]:
     why = str(trigger.get("summary") or "").strip()
     if not why:
         raise WakeError(f"wake {key!r} has no reason: its trigger needs a summary that says why it started")
-    return {"key": key, "agent": parts[0], "subject": subject, "why": why[:MAX_WHY_CHARACTERS]}
+    return {"key": key, "agent": parts[0], "subject": subject, "why": why[:MAX_WHY_CHARACTERS], "scope": scope_of(trigger, subject)}
 
 
 def group_id(wake: dict) -> str:
-    return digest(f"{wake['agent']}{wake_keys.SEPARATOR}{wake['subject']}")
+    return digest(f"{wake['agent']}{wake_keys.SEPARATOR}{wake['scope']}")
 
 
 def deduplication_id(wake: dict) -> str:
@@ -117,6 +137,6 @@ def request_from_event(event: Any) -> dict:
     if not isinstance(wake, dict) or not isinstance(request, dict):
         raise WakeError("the wake message needs a wake and a request")
     request = {**request, "wakeKey": wake.get("key")}
-    if wake_of(request) != {name: wake.get(name) for name in ("key", "agent", "subject", "why")} or set(wake) != {"key", "agent", "subject", "why"}:
-        raise WakeError("the wake message's agent, subject or reason does not match its wake key and trigger")
+    if wake_of(request) != {name: wake.get(name) for name in WAKE_FIELDS} or set(wake) != set(WAKE_FIELDS):
+        raise WakeError("the wake message's agent, subject, reason or scope does not match its wake key and trigger")
     return request
