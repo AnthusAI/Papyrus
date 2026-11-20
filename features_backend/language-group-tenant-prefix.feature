@@ -1,4 +1,4 @@
-@backend @languages
+@backend @languages @checklist-gate
 Feature: On a tenant backend, every reader of a language group strips the tenant prefix before it decides what is a translation
   A tenant backend stores each language group with the tenant in front of it: the Story `story-rivers` of the tenant `machines-on-machines` is in the group
   `machines-on-machines#story-rivers`. A Story is a translation when its group, without the prefix, is another lineage than its own. A reader that forgot the
