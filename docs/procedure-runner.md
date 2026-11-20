@@ -126,6 +126,12 @@ leaves out and its second deploy adds. The procedure runner is the queue's consu
 (`not_runnable`, `policy_unreadable`, `no_site_policy`), skipped by the policy, or the record of an earlier delivery of the same wake. If the message is not a well-formed wake, or no
 record could be made (the site refused the start, or the runner died first), it raises, so the message stays and the queue delivers it again.
 
+**Settling an interrupted run (slice A3, `run_settle.py`).** On the message's second delivery (`ApproximateReceiveCount` 2) the runner finds its wake's run record already there. A
+record still `started` with no outcome is a run whose first attempt died. If the wake's trigger carries `safeToRepeat: true` (copied from the agent definition by the change feed), the runner runs it once more under the same key,
+on attempt 2, and the run ends with its own outcome. If the trigger says `false` or says nothing, the runner records `failed` with the outcome `unknown` and the reason `interrupted`, which puts the run on the attention list that
+Today reads, runs nothing, and returns so the queue deletes the message. A record that already has an outcome, or a first delivery, is the `duplicate` answer as before. If settling itself raises, the message stays and its
+third receive goes to the dead-letter queue. A wake that does not come from the change feed (a timer) does not carry `safeToRepeat` yet, so an interrupted timer run is settled `unknown`, never repeated.
+
 **Times that come from the runner, not from a guess.** The queue hides a received message for 960 seconds: the Lambda's 900 seconds (which hold the 60
 seconds the runner keeps at the end to record the outcome) plus that margin once more, so a live run is never delivered to a second runner. A wake is
 delivered at most twice (once to run, once to settle a run that died, slice A3); the third receive moves it to the dead-letter queue. Messages are kept 14 days.

@@ -27,7 +27,7 @@ def _definition(row: dict):
     selector = dict(pair.split("=", 1) for pair in row["filter"].split(",")) if row.get("filter") else {}
     if selector:
         change["filter"] = selector
-    return SimpleNamespace(id=row["agent"], responsibility="r-" + row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
+    return SimpleNamespace(id=row["agent"], responsibility="r-" + row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "safeToRepeat": False, "wakes": {"changes": [change]}})
 
 
 # --- rows ------------------------------------------------------------------------------------------------------------------------------------------
