@@ -3,7 +3,7 @@
   "title": "Learned items with provenance in the newsroom console",
   "description": "Ryan committed (2026-10-21) to building learned items with provenance in the newsroom console. An editor reads, in plain words, everything a Cyclotron learned about the publication. Each item shows the approvals, rejections and notes behind it (e.g. 'From 12 approvals · 1 note'); every suggestion says which items and questions drove it. Editors edit, remove or add items, which go live only after measurement and an editor's promote.\nPlan: https://claude.ai/artifact/Jg1DpixLFcAvnPy7d9RNDE. Design: https://claude.ai/artifact/KzDCSDwgKos3iWjbm1oubz section 6. Tied to Cyclotron milestones M1–M4; the Cyclotron epic is filed on the Cyclotron board by the Cyclotron session. Ends with p.apyr.us documentation (Papyrus rule).",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -36,10 +36,17 @@
       "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-10-22; paused.",
       "created_at": "2026-11-20T13:52:20.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "cdedcbfa-1e77-4fed-8571-694c2a6cd684",
+      "author": "claude",
+      "text": "Back in progress: it has real partial work (some child records shipped and others remain); the earlier pause was wrong.",
+      "created_at": "2026-11-20T14:08:03.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T00:56:11.518146Z",
-  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "updated_at": "2026-11-20T14:08:03.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

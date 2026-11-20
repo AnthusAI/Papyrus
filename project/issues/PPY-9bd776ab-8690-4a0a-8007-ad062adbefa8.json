@@ -3,7 +3,7 @@
   "title": "A Papyrus deployment needs no hand-made cloud resources",
   "description": "Ryan's rule (2026-11-11): nobody creates a cloud resource by hand. Every resource is defined in Git and applied by a pipeline on merge; agents read with the AWS CLI and never create or change. Person-only steps: the one seed apply, registrar name servers, the Google OAuth client, and secret values (CloudFormation cannot create SecureString parameters). Humorus issue: HUM-be87f4 (design draft in its comments). Must not regress the running Anthus deployments: the papyrus-pipeline-approver stack, the AWS_ACCOUNT_ID variable and the role-change approval workflow keep working. New pieces are additive: infra/account/ (account baseline and account stack templates), stack_deploy.py with --config, CloudFormation IMPORT, the reusable workflow account-stacks.yml.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -31,10 +31,17 @@
       "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-11-11; paused.",
       "created_at": "2026-11-20T14:03:43.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "89857f22-e5e8-43a1-bad7-5e62121f07c8",
+      "author": "claude",
+      "text": "Back in progress: it has real partial work (some child records shipped and others remain); the earlier pause was wrong.",
+      "created_at": "2026-11-20T14:08:03.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-11T20:36:48.824244Z",
-  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "updated_at": "2026-11-20T14:08:03.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

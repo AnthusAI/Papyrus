@@ -3,7 +3,7 @@
   "title": "Rating agent at propose: suggested stars a person confirms",
   "description": "At `propose` the agent stores its suggestion beside the record as a machine suggestion (never in the rating field) and raises one grouped soft review per day: 'N ratings suggested, M five-star candidates'. A person confirms, changes or ignores; a person's rating always wins and is never overwritten.\n\n**Acceptance criteria**\n- Suggestions are visible and separate from ratings.\n- One grouped request per day.\n- A person's rating is never changed by the agent.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-suggestions.feature: a suggestion appears beside the item; confirming makes it the person's rating; an item a person rated is skipped; candidates are listed, not rated.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** First agent: rating and curation on one site. Slice code L2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -21,9 +21,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d4d8cce2-0e89-4944-a08f-ef9091ccdb14",
+      "author": "claude",
+      "text": "Back in progress: it is on the always-on agents track (X announcements, ratings suggestions).",
+      "created_at": "2026-11-20T14:08:15.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:13.216240Z",
-  "updated_at": "2026-11-16T22:43:42.601286Z",
+  "updated_at": "2026-11-20T14:08:15.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -3,7 +3,7 @@
   "title": "Votes, ratings and karma",
   "description": "Reader and editor signals on items. Decisions (2026-10-21): an upvote is separate from the 1-5 dimension ratings; karma is needed. The way editor and reader scores combine is an open exploration (see the score combination epic), so this epic stores both signals separately and tallies each.\n\nParent initiative: PPY-77bb3b (milestones 3 and 4). Depends on reader accounts. Pilot: Shipped, voting story ship-b35fa2 (dimensions real, useful, notable, novel are publication data, never code).\n\nChildren: upvote and vote model; dimension ratings with histograms; minimum-n rules and derived values; karma model.\nDefinition of Done: signed-in readers can upvote and rate; tallies are produced per item with editor and reader values separate; karma is computed and shown.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -36,10 +36,17 @@
       "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-10-22; paused.",
       "created_at": "2026-11-20T13:52:20.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "ae4867de-d711-4d7f-9872-22fc6f1c87f5",
+      "author": "claude",
+      "text": "Back in progress: it has real partial work (some child records shipped and others remain); the earlier pause was wrong.",
+      "created_at": "2026-11-20T14:08:03.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.812222Z",
-  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "updated_at": "2026-11-20T14:08:03.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

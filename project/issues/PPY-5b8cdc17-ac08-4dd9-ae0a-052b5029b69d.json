@@ -3,7 +3,7 @@
   "title": "Public submit-a-link",
   "description": "Signed-in readers submit a link to a publication. Decision (2026-10-21): submissions are public immediately; moderation (epic below, optional) acts after the fact unless a publication turns pre-moderation on. Entity extraction runs asynchronously on a worker, never in the request.\n\nParent initiative: PPY-77bb3b (milestones 6 and 7). Depends on: reader accounts epic (sibling). Related: moderation epic (sibling), Biblicus typed-entity extractor blbs-81ec10 (extraction backend), existing reference intake (editor-only today). Pilot: Shipped.\n\nChildren: submit mutation and pending record; asynchronous extraction and entity confirm step; duplicate check, spam and abuse limits; submit form component.\nDefinition of Done: a signed-in reader on a pilot site can submit a link, sees it publicly as pending at once, and the extraction result arrives afterwards without blocking the submit.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -43,10 +43,17 @@
       "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-10-22; paused.",
       "created_at": "2026-11-20T13:52:20.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "eab3e0ba-28fc-4985-813d-5b8f12c24eec",
+      "author": "claude",
+      "text": "Back in progress: it has real partial work (some child records shipped and others remain); the earlier pause was wrong.",
+      "created_at": "2026-11-20T14:08:03.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.041834Z",
-  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "updated_at": "2026-11-20T14:08:03.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

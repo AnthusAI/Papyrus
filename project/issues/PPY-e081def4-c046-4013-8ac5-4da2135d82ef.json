@@ -3,7 +3,7 @@
   "title": "One editorial context for reporting agents and newsroom workers",
   "description": "As a Papyrus reporting or writing agent, I want one current publication-scoped editorial context, so that configurable policy reaches external agents and canned workers without duplicating evolving policy in static skills.\n\nApproved scope: shared resolver/renderer for publication and optional section/story/assignment; structured CLI with explicit live versus local Git source, provenance/revisions, precedence/conflict warnings, truthful missing/unauthorized failures, required policies preserved under budgeting; same resolved content in research/reporting/copywriting workers; reuse Limatus packaged copy-edit skill while retaining explicit human option selection. Reconcile existing Python/GraphQL doctrine lookup rather than building a parallel store. No Cyclotron steering/delegation, infrastructure, credentials, deployment or main promotion.\n\nCurrent evidence: newsroom.py papyrus_build_assignment_agent_context renders doctrine but loses source revision fields, suppresses read failures and mixes live section policy with assignment snapshots; researcher.tac's research harness loads Assignment without resolving doctrine. getAssignmentContext's TypeScript handler still chooses category-based desk doctrine while Python uses NewsroomSection. Existing YAML files are seeds, not proof of current hosted policy.\n\nMilestones: canonical resolve/render/CLI and observable tests; shared worker integration and context-budget behavior; authorized API parity, skills and documentation. Code owner must verify missing/unauthorized behavior, revisions and required-policy preservation, with mocked scoped records and actual CLI local-file tests; live source/model calls are not required. Keep completed implementation reviewable in a draft PR and leave unimplemented acceptance explicit. No merge or deployment authorized.\n",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -53,10 +53,17 @@
       "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-10-20; paused.",
       "created_at": "2026-11-20T13:52:20.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8963018c-12cc-4614-a5b3-964c9062fa0e",
+      "author": "claude",
+      "text": "Back in progress: it has real partial work (an unmerged branch exists); the earlier pause was wrong.",
+      "created_at": "2026-11-20T14:08:03.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-18T18:59:27.140198Z",
-  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "updated_at": "2026-11-20T14:08:03.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

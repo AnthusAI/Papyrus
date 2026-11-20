@@ -3,7 +3,7 @@
   "title": "One content item, one lifecycle",
   "description": "Papyrus currently tracks one piece of content as several record types over its life: a Story while it is chartered and researched, Assignment and packet Message records while it is reported, and one or more Article (or Brief) Items once copywriting starts. A Story can produce more than one Article. Humans and agents both find this hard to follow.\n\nGoal: one content item with one lifecycle. The same record (same identity, same lineage) is created at idea time and carries research, reporting, editor selection, copywriting, copyediting and publication. Work done on it (research runs, reporting runs, copywriting jobs) attaches to the item as work, never as a second kind of content.\n\nThe display name of the content item is publication configuration, not code: a publication can call it a Story, an Article or a Post, and every surface (Newsroom, Board, CLI output, agent skills, pod board) uses that configured noun. Application logic uses one neutral internal name.\n\nDecided by Ryan on 2026-10-17. Board stays read-only for now; status transitions and drag-to-publish (PPY-caf6e5, PPY-86eda3) are deferred.",
   "type": "initiative",
-  "status": "open",
+  "status": "in_progress",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -29,10 +29,17 @@
       "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-10-20; paused.",
       "created_at": "2026-11-20T13:52:20.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9536f50e-16f0-4810-ae60-27b7254cd4de",
+      "author": "claude",
+      "text": "Back in progress: the lifecycle initiative is partly shipped with children open.",
+      "created_at": "2026-11-20T14:08:10.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-17T12:40:06.772683Z",
-  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "updated_at": "2026-11-20T14:08:10.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
