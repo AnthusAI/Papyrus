@@ -1,6 +1,6 @@
 /**
  * Every dedicated site's app shell carries the shared-stack deny and differs from the shell without it by that policy alone
- * (features_backend/shared-stack-bootstrap.feature). Run by scripts/test-infra-shared-stack-deny.ts, in this package's own harness style.
+ * (features_backend/platform/shared-stack-bootstrap.feature). Run by scripts/test-infra-shared-stack-deny.ts, in this package's own harness style.
  *
  *   node --import tsx infra/amplify-app-shell/lib/shared-stack-deny.test.ts           asserts
  *   node --import tsx infra/amplify-app-shell/lib/shared-stack-deny.test.ts --json    prints the facts as JSON

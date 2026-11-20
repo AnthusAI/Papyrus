@@ -1,4 +1,4 @@
-"""Steps for features_backend/knowledge-query-captured-text.feature. Everything is in memory: no AWS, no network, no model."""
+"""Steps for features_backend/knowledge/knowledge-query-captured-text.feature. Everything is in memory: no AWS, no network, no model."""
 
 from __future__ import annotations
 

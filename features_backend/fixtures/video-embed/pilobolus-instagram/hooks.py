@@ -1,6 +1,6 @@
 """A site's own hooks, written the way Pilobolus's are: the site lifts an Instagram ::video line before Markus runs and draws its own embed after.
 
-This is a regression fixture (features_backend/video-embed.feature): Papyrus core must leave this directive alone."""
+This is a regression fixture (features_backend/site/video-embed.feature): Papyrus core must leave this directive alone."""
 import re
 
 LINE = re.compile(r'^::video\{src="(https://www\.instagram\.com/[^"]+)" title="([^"]*)"\}[ \t]*$', re.M)

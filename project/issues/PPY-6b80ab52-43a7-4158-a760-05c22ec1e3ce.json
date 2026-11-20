@@ -3,7 +3,7 @@
   "title": "Refine publication doctrine from explicit Monitoring review rationales",
   "description": "Critical reusable Papyrus feature: private database-driven publication and section guidelines must govern research/writing, classification and copy editing. Publication policy prose and human editorial rationale remain private in local drafts or authenticated database records; public code/tests/issues use synthetic content only.\n\nCurrent: generic source fixes are pushed in draft https://github.com/AnthusAI/Papyrus/pull/382 . Code 0be5761e, permission test 27c667d2 and scoped-update regression 05cdf1dc; delivery/tracker head bbacf15c. 63 focused Python tests and 24 BDD scenarios/98 steps pass locally. Latest CI is running; prior collector head 4a151214 is green. Existing owner provider-secret preparation is preserved. No production policy, grant, deployment or live provider call changed.\n\nExisting authenticated editorial context/pack commands are reused, not duplicated. Effective context carries scoped source revisions and hashes. Classification preflights current records, preserves the learned rubric separately and invalidates stable decisions after policy updates; stale prepared context is refused before transmission. Copy-editing combines doctrine with its separate same-key desk control overrides/additions and propagates it to actual Limatus judgment/rewrite constructors.\n\nAcceptance remains open: verify selected consumer release inclusion, deployed permissions/API/procedure versions, correct authenticated publication/tenant/section scope, guest/reader denial, no other-desk leakage, current-value readback, inherited/additional/overridden rules, update invalidation and sanitized final provider-boundary traces. Use current private records, not seed files or repository assumptions. The proposed two private query reads for the existing editorial-checks function are getEditorialContext and listKnowledgeCorporaByRoleAndName; application requires a scoped reviewed consumer rollout. Production policy writes and live provider tests need exact target/scope and bounded budget approval. No public endpoint, credential creation or auth weakening.\n\nRelated: Monitoring pilot PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25; propagation story PPY-eba9cfd9-d3e1-467f-bbbd-1aa5f1aac362. Do not close on local tests alone.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -53,11 +53,18 @@
       "text": "Update: editorial config is now backend data and core (Papyrus 4.0.0, #393; AWSJSON context fix #397; 5.0.0 rolled out to the four sites). Policies are edited in each site's newsroom Administration and reach editorial checks and the Cyclotron request context by the same resolver (child PPY-eba9cfd9 has the evidence). Remaining: file the real per-publication mission/policy/section policies (TI has seed content imported: 8 sections + mission/policy); run the live model test once a budget is set and CYCLOTRON_ALLOW_LIVE is enabled. No model calls were made in this work.",
       "created_at": "2026-10-21T01:42:43.361318Z",
       "comment_type": "default"
+    },
+    {
+      "id": "aaaaf96e-038b-4ba8-bec2-4b5544d183fe",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: every child record is closed.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T11:19:21.882916Z",
-  "updated_at": "2026-10-21T01:42:43.361359Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "closed_at": "2026-11-20T14:03:43.000000Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",

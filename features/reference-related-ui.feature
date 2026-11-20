@@ -20,7 +20,7 @@ Feature: Editors see and manage what a Reference is related to
   the same text box as everywhere else, and Save, Cancel and Edit say what they do; saving goes through the same decision that accepted the
   link, so the link stays accepted. A reason typed when accepting a suggestion becomes its explanation. A viewer without editor access reads
   the words and has no way to change them. A suggestion has no explanation, and the reason given when rejecting one is never shown as one.
-  The idea writer reads the same words (features_backend/link-explanations-in-packs.feature).
+  The idea writer reads the same words (features_backend/knowledge/link-explanations-in-packs.feature).
 
   Scenario: Concepts and References show with words beside every mark
     Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference

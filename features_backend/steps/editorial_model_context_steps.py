@@ -8,7 +8,7 @@ from papyrus_content.editorial_context import resolve_editorial_context
 from papyrus_content.editorial_model_context import ContextualDecisionModel, CONTEXT_HASHES
 
 
-@given('current synthetic publication doctrine and two independent desks')
+@given('current synthetic publication doctrine and two independent sections')
 def editorial_database(context):
     from procedures.newsroom.tests.test_editorial_context import Records
     context.editorial_database = Records()
@@ -26,7 +26,7 @@ def editorial_database(context):
     context.editorial_model = ContextualDecisionModel(Capture(), resolve)
 
 
-@when('a classification request is prepared for the science desk')
+@when('a classification request is prepared for the science section')
 def prepare_editorial_request(context):
     from decision_flywheel import Item
     from decision_flywheel.classifier_config import ClassifierConfig

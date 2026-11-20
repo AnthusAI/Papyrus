@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { REPO_ROOT, readSchema, type ModelInfo, type OperationInfo, type Rule, type SchemaInfo } from "./lib/schema-reader";
 
 export const CASES_PATH = "features_backend/fixtures/tenant-isolation/cases.json";
-export const FEATURE_PATH = "features_backend/tenant-isolation-adversarial.feature";
+export const FEATURE_PATH = "features_backend/tenancy/tenant-isolation-adversarial.feature";
 export const BEGIN_MARKER = "  # BEGIN GENERATED CASES (scripts/generate-tenant-isolation-cases.ts; do not edit by hand)";
 export const END_MARKER = "  # END GENERATED CASES";
 export const PENDING_TAG = "@isolation-pending";

@@ -33,6 +33,15 @@ class FakeLedgerTable:
                     row[field] = row.get(field, 0) + values[name]
                 row["updatedAt"] = values[":stamp"]
 
+    def update_item(self, Key, UpdateExpression, ExpressionAttributeValues, ReturnValues=None):
+        """The one update the X counter makes: ADD microUsd :cost, calls :one SET updatedAt = :stamp."""
+        assert UpdateExpression == "ADD microUsd :cost, calls :one SET updatedAt = :stamp", UpdateExpression
+        row = self.rows.setdefault((Key["pk"], Key["sk"]), dict(Key))
+        row["microUsd"] = row.get("microUsd", 0) + ExpressionAttributeValues[":cost"]
+        row["calls"] = row.get("calls", 0) + ExpressionAttributeValues[":one"]
+        row["updatedAt"] = ExpressionAttributeValues[":stamp"]
+        return {"Attributes": dict(row)} if ReturnValues == "ALL_NEW" else {}
+
     def get_item(self, Key, ConsistentRead=False):
         row = self.rows.get((Key["pk"], Key["sk"]))
         return {"Item": dict(row)} if row else {}

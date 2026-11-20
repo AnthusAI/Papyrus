@@ -1,4 +1,4 @@
-"""Every Story version knows its language (features_backend/item-language.feature).
+"""Every Story version knows its language (features_backend/translation/item-language.feature).
 
 The client's language rule runs through the real authoring client with a recording transport; the backfill and the group index run on the
 shared in-memory fake. Nothing here reaches a network."""

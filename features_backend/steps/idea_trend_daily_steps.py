@@ -1,4 +1,4 @@
-"""Cited Trends can run daily or on demand (features_backend/idea-trend-daily.feature)."""
+"""Cited Trends can run daily or on demand (features_backend/ideas/idea-trend-daily.feature)."""
 
 from __future__ import annotations
 

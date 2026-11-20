@@ -1,4 +1,4 @@
-"""On a tenant backend a stored language group carries the tenant prefix (features_backend/language-group-tenant-prefix.feature). Stand-in clients; no network."""
+"""On a tenant backend a stored language group carries the tenant prefix (features_backend/tenancy/language-group-tenant-prefix.feature). Stand-in clients; no network."""
 from __future__ import annotations
 
 import sys

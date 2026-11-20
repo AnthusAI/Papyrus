@@ -14,6 +14,26 @@
       "keepPrevious": false
     },
     {
+      "name": "papyrus-dmarc-anth-us",
+      "template": "infra/email/papyrus-dmarc.yaml",
+      "paths": ["infra/email/papyrus-dmarc.yaml", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
+      "capabilities": [],
+      "tags": { "papyrus:site": "operators", "papyrus:feature": "dmarc" },
+      "parameters": { "DomainName": "anth.us", "DmarcPolicy": "none", "ReportAddress": "/papyrus/dmarc/report-address" },
+      "lookups": { "HostedZoneId": { "hostedZone": "anth.us" } },
+      "keepPrevious": false
+    },
+    {
+      "name": "papyrus-dmarc-mail-machines-on-machines",
+      "template": "infra/email/papyrus-dmarc.yaml",
+      "paths": ["infra/email/papyrus-dmarc.yaml", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
+      "capabilities": [],
+      "tags": { "papyrus:site": "machines-on-machines", "papyrus:feature": "dmarc" },
+      "parameters": { "DomainName": "mail.machines-on-machines.anth.us", "DmarcPolicy": "none", "ReportAddress": "/papyrus/dmarc/report-address" },
+      "lookups": { "HostedZoneId": { "hostedZone": "anth.us" } },
+      "keepPrevious": false
+    },
+    {
       "name": "papyrus-monitoring",
       "hold": "PPY-e713eb: held for the 5.130.0 release window; the runner and the sites switch together (docs/release-5-130-plan.md section 2). Taking this line out is the go.",
       "template": "infra/monitoring/papyrus-monitoring.yaml",

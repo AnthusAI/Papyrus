@@ -1,4 +1,4 @@
-"""Steps for features_backend/stories-list-board-parity.feature. The client is an in-memory fake; nothing leaves the process."""
+"""Steps for features_backend/stories/stories-list-board-parity.feature. The client is an in-memory fake; nothing leaves the process."""
 
 from __future__ import annotations
 

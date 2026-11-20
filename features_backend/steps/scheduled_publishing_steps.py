@@ -733,6 +733,3 @@ def _entry_note(context, note) -> None:
     assert _answer_of(world(context))["schedules"][0]["notes"] == [note], world(context).response
 
 
-@then('the scheduling answer carries the note "{note}"')
-def _answer_note(context, note) -> None:
-    assert _answer_of(world(context))["notes"] == [note], world(context).response

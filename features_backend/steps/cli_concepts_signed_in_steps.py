@@ -1,4 +1,4 @@
-"""A signed-in editor manages concepts from the CLI (features_backend/cli-concepts-signed-in.feature).
+"""A signed-in editor manages concepts from the CLI (features_backend/cli/cli-concepts-signed-in.feature).
 
 The CLI half runs the real commands against a stand-in for the site that records every mutation they send. The site's half runs the real code of the
 site's routes in `scripts/test-concept-management.ts`, one named test per step, and the wiki's half runs `procedures/newsroom/tests/test_wiki_concept_addresses.py`.

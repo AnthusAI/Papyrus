@@ -1,4 +1,4 @@
-"""Surfable site (features_backend/surfable-site.feature): thin steps over the helpers of the unit tests."""
+"""Surfable site (features_backend/site/surfable-site.feature): thin steps over the helpers of the unit tests."""
 
 from __future__ import annotations
 

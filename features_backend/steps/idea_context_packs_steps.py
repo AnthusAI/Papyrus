@@ -1,4 +1,4 @@
-"""Context packs and anchor-based suppression (features_backend/idea-context-packs.feature)."""
+"""Context packs and anchor-based suppression (features_backend/ideas/idea-context-packs.feature)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Steps of features_backend/research-run-followups.feature and the scenarios in fact-check.feature and monitoring-research-assignments.feature that came with it.
+"""Steps of features_backend/monitoring/research-run-followups.feature and the scenarios in fact-check.feature and monitoring-research-assignments.feature that came with it.
 They call the same code as procedures/newsroom/tests/test_research_run_followups.py, with invented content."""
 import json
 import os

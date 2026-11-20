@@ -126,6 +126,18 @@ leaves out and its second deploy adds. The procedure runner is the queue's consu
 (`not_runnable`, `policy_unreadable`, `no_site_policy`), skipped by the policy, or the record of an earlier delivery of the same wake. If the message is not a well-formed wake, or no
 record could be made (the site refused the start, or the runner died first), it raises, so the message stays and the queue delivers it again.
 
+**Settling an interrupted run (slice A3, `run_settle.py`).** On the message's second delivery (`ApproximateReceiveCount` 2) the runner finds its wake's run record already there. A
+record still `started` with no outcome is a run whose first attempt died. If the wake's trigger carries `safeToRepeat: true` (copied from the agent definition by the change feed), the runner runs it once more under the same key,
+on attempt 2, and the run ends with its own outcome. If the trigger says `false` or says nothing, the runner records `failed` with the outcome `unknown` and the reason `interrupted`, which puts the run on the attention list that
+Today reads, runs nothing, and returns so the queue deletes the message. A record that already has an outcome, or a first delivery, is the `duplicate` answer as before. If settling itself raises, the message stays and its
+third receive goes to the dead-letter queue. A wake that does not come from the change feed (a timer) does not carry `safeToRepeat` yet, so an interrupted timer run is settled `unknown`, never repeated.
+
+**Continuation (slice A6, `run_continuation.py`).** A unit of work that cannot finish in one run saves its progress on the records it changes and ends `acted` with
+`run_next_wake_at` (a UTC instant) in its output. Before the run's record is written, the runner sets one follow-up timer for that time (`FollowUpTimers.schedule_continuation`; the runner role may create or move
+`follow-up-*` entries in a site's `agent-schedules` group and pass that site's scheduler role, and nothing else of the scheduler). The next run is a wake of its own: key `<owner>|<subject>|<chain's first run id>|c<n>`, the same
+trigger (so the same gate decides it, including the budget), its own run record and cost. A chain may continue `MAXIMUM_CONTINUATIONS` (8) times; the run that asks for a ninth ends `failed` with `continuation_limit_reached`. A
+run whose timer cannot be set ends `failed` with `continuation_not_scheduled`, and a time that is not a UTC instant ends `failed` with `invalid_continuation`.
+
 **Times that come from the runner, not from a guess.** The queue hides a received message for 960 seconds: the Lambda's 900 seconds (which hold the 60
 seconds the runner keeps at the end to record the outcome) plus that margin once more, so a live run is never delivered to a second runner. A wake is
 delivered at most twice (once to run, once to settle a run that died, slice A3); the third receive moves it to the dead-letter queue. Messages are kept 14 days.
@@ -314,6 +326,16 @@ timeout goes with the request), and falls back to starting as described here whe
 
 To run a procedure again for an item, delete its `TRIGGER#` row and invoke the runner with the request
 stored on that row.
+
+## The spend brake and the halt switch
+
+Spend is checked before a run, not only counted after it (`src/papyrus_content/spend_brake.py`). After the site's policy says a run may start and before anything is loaded, the runner asks the spend ledger. A run is refused, recorded as `nothing` with a reason code, and never executed when:
+
+* `halted`: a halt row is set for every site or for this site. This is the kill switch. Set it with `spend_ledger.set_halt(table, tenant_id=None | "<site>", reason=..., by=...)` or by putting an item with `pk = SPEND#HALT#ALL` (or `SPEND#HALT#<site>`), `sk = HALT` and a `reason` into the monitoring table; delete the item (`spend_ledger.clear_halt`) to start runs again.
+* `budget_reached`: the ledger's `ai` total for the site's current cycle is at or over `site.budget.amountUsd` in the agent policy. A site with no budget gets $100 a month (`PROCEDURE_RUNNER_DEFAULT_BUDGET_USD` changes the default), so no site is unlimited.
+* `spend_unreadable`: the ledger cannot be read or the runner has no table. The brake fails closed.
+
+The check is before the run, so a run that starts under the budget can end over it by what was in flight. A site's own pause (`site.paused` in the agent policy) remains the per-site stop that needs no table access.
 
 ## Deploying
 

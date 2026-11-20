@@ -1,4 +1,4 @@
-"""The guideline file form and papyrus guidelines check (features_backend/guidelines-files.feature). Files in a temporary folder; the network is closed."""
+"""The guideline file form and papyrus guidelines check (features_backend/guidelines/guidelines-files.feature). Files in a temporary folder; the network is closed."""
 from __future__ import annotations
 
 import contextlib
@@ -64,13 +64,11 @@ def step_more_avoids(context, name, kind, scope, severity, word):
 
 
 @given('the guideline "{name}" of kind {kind}, scope {scope} and severity {severity} with only prose')
-@given('a guidelines folder with the guideline "{name}" of kind {kind}, scope {scope} and severity {severity} with only prose')
 def step_prose(context, name, kind, scope, severity):
     _write(context, name, _meta(name, kind, scope, severity), "Sound earned, not excited.")
 
 
 @given('the guideline "{name}" of kind {kind}, scope {scope} and severity {severity} with a maxLength of {limit:d}')
-@given('a guidelines folder with the guideline "{name}" of kind {kind}, scope {scope} and severity {severity} with a maxLength of {limit:d}')
 def step_max(context, name, kind, scope, severity, limit):
     _write(context, name, _meta(name, kind, scope, severity, maxLength=limit))
 

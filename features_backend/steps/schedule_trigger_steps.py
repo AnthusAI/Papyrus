@@ -1,4 +1,4 @@
-"""The schedule trigger (features_backend/schedule-trigger.feature). A fake site, a fake EventBridge Scheduler group and a fake FIFO wake queue; no network.
+"""The schedule trigger (features_backend/agents/schedule-trigger.feature). A fake site, a fake EventBridge Scheduler group and a fake FIFO wake queue; no network.
 
 The fakes follow the rules the code relies on and nothing more: the scheduler fills in the scheduled time and puts the entry's message on the target queue with
 the entry's message group; the queue has content-based deduplication (the scheduler sets no deduplication id), drops a repeated body inside its window and gives
@@ -248,7 +248,6 @@ def scheduler_fires(context, when):
 
 
 @then("the wake queue holds {count:d} scheduled message")
-@then("the wake queue holds {count:d} scheduled messages")
 def queue_holds(context, count):
     assert len(context.queue.messages) == count, [message.body for message in context.queue.messages]
 

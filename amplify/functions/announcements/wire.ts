@@ -3,6 +3,7 @@ import type { ITable } from "aws-cdk-lib/aws-dynamodb";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import { ANNOUNCEMENTS_TIMEOUT_SECONDS } from "./resource";
+import { wireSpendLedger } from "./spend-ledger-wire";
 
 /** X's endpoints (docs.x.com, 2026-11-12). The function reads them from its environment; tests point them at a fake server. */
 export const X_ENDPOINTS = {
@@ -20,7 +21,7 @@ export const announcementsParameterPrefix = (siteId: string) => `/papyrus/${site
  * SecureString parameters under the site's announcements path. The tables are written directly with the function's role,
  * so the console reads them only through the function.
  */
-export function wireAnnouncements(backend: any, siteId: string): void {
+export function wireAnnouncements(backend: any, siteId: string, personOnlyClientIds: string[]): void {
   const lambda = backend.announcements.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
   const tables = backend.data.resources.tables as Record<string, ITable>;
@@ -29,10 +30,12 @@ export function wireAnnouncements(backend: any, siteId: string): void {
   settings.grantReadWriteData(lambda);
   connection.grantReadWriteData(lambda);
   lambda.addEnvironment("SITE_ID", siteId);
+  lambda.addEnvironment("PERSON_ONLY_CLIENT_IDS", personOnlyClientIds.join(","));
   lambda.addEnvironment("ANNOUNCEMENT_SETTINGS_TABLE", settings.tableName);
   lambda.addEnvironment("X_CONNECTION_TABLE", connection.tableName);
   lambda.addEnvironment("X_REFRESH_LEASE_SECONDS", String(ANNOUNCEMENTS_TIMEOUT_SECONDS));
   for (const [name, value] of Object.entries(X_ENDPOINTS)) lambda.addEnvironment(name, value);
+  wireSpendLedger(lambda); // the page's budget reads what the account spent from the ledger, through this function
   lambda.addToRolePolicy(
     new PolicyStatement({
       effect: Effect.ALLOW,

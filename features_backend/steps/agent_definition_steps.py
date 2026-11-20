@@ -1,4 +1,4 @@
-"""Agent definition files and papyrus agents validate (features_backend/agent-definition.feature). Files in a temporary folder; the network is closed."""
+"""Agent definition files and papyrus agents validate (features_backend/agents/agent-definition.feature). Files in a temporary folder; the network is closed."""
 from __future__ import annotations
 
 import contextlib
@@ -183,7 +183,6 @@ def step_accepted_plain(context):
 
 
 @then("the set is accepted with {count:d} definition")
-@then("the set is accepted with {count:d} definitions")
 def step_accepted(context, count):
     assert not context.loaded.problems and len(context.loaded.definitions) == count, context.loaded.problems
 
@@ -229,7 +228,7 @@ def step_answer_names(context, name, line, code):
     assert any(p["definition"] == name and p["line"] == line and p["code"] == code for p in problems), problems
 
 
-# The engine's shipped core definitions (features_backend/rating-agent-definition.feature).
+# The engine's shipped core definitions (features_backend/agents/rating-agent-definition.feature).
 def _shipped(name: str) -> dict:
     return _read(agent_definition.CORE_DIRECTORY, name)
 

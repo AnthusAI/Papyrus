@@ -1,6 +1,6 @@
 # Reusable: opens "chore: bump Papyrus to X" on a Papyrus site repository when a newer release exists on both PyPI and npm.
 # A site calls it from a scheduled workflow (see docs/site-hosting.md, "Automated Papyrus bumps"). It opens the pull request and
-# never merges it. Spec: features_backend/consumer-bump-automation.feature.
+# never merges it. Spec: features_backend/platform/consumer-bump-automation.feature.
 #
 # Pull requests and pushes made with GITHUB_TOKEN start no workflow runs, so when `ci-workflow` is given the job dispatches that
 # workflow on the bump branch with workflow_dispatch (the one event GITHUB_TOKEN may start). The checks land on the branch head,

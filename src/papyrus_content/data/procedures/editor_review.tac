@@ -13,7 +13,7 @@
 --
 -- Register (from the site repository, or this one):
 --   papyrus procedures register --file procedures/newsroom/editor_review.tac --key <site>.editor-review --dry-run --json
--- Specs: features_backend/editor-review-stage-bot.feature (the contract and the records) and
+-- Specs: features_backend/agents/editor-review-stage-bot.feature (the contract and the records) and
 -- procedures/newsroom/tests/test_editor_review.py (this file run through Tactus with the model faked)
 
 -- Each toolset is named after its tool because `Tool.get(name)` looks a toolset up by the name it is called with.

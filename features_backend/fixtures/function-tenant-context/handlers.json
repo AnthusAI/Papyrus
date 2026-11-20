@@ -40,6 +40,8 @@
     "ses-inbound-receive": "PPY-0a9b8c",
     "slack-delivery": "PPY-0a9b8c",
     "slack-events": "PPY-0a9b8c",
-    "console-chat-responder": "PPY-0a9b8c"
+    "console-chat-responder": "PPY-0a9b8c",
+    "mcp-oauth": "PPY-2bc3e8",
+    "mcp-tools": "PPY-2bc3e8"
   }
 }

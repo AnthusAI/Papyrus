@@ -825,13 +825,13 @@ and send a draft on its way. The rule is deliberately narrow.
   Nothing in a public file shows the actor.
 * **What an operator can never do.** Approve, decline after review, override the community, or send a proposal to `editor_review`:
   those answer `operator_not_allowed` and write nothing. `moderateReader` stays editors and admins only. Specs:
-  `features_backend/proposals_operator.feature`; tests: `procedures/newsroom/tests/test_proposals.py` (`OperatorTests`).
+  `features_backend/readers/proposals-operator.feature`; tests: `procedures/newsroom/tests/test_proposals.py` (`OperatorTests`).
 * **What an operator may read.** One query, `listStoryDrafts`, read only, with the same caller check as `fileProposal` (an editor or
   admin, or an IAM principal of the function's own account; an identity-pool user and any other account get `not_staff` and an empty
   list). It answers the `story_draft` Proposals (filed before ideas became Items), newest first (at most 500), and **only** `id`, `title`, `summary`, `targets`, `state` and
   `createdAt` of each: never the body, evidence, history (which names the operator), proposer, votes, exclusions or editor log. It is what
   lets an unattended run on a site that has not run `papyrus ideas migrate-proposals` dedupe against its old story drafts and cool down an entity that already anchored one
-  ([idea pipeline](idea-pipeline.md#trend-stories)). Specs: `features_backend/proposals_operator.feature`; tests:
+  ([idea pipeline](idea-pipeline.md#trend-stories)). Specs: `features_backend/readers/proposals-operator.feature`; tests:
   `procedures/newsroom/tests/test_proposals.py` (`OperatorStoryDraftReadTests`).
 * **What a site must deploy.** The `proposal-actions` function and the custom query `listStoryDrafts` (a function resolver open to the `editor`
   and `admin` groups like the mutations) come with every backend that includes this release, plugin or not; deploy it before the image that uses it. The
@@ -891,20 +891,20 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_snapshot.py`: the snapshot math, ranking, URL policy keys, the task against moto,
   reconcile, and the privacy scan; `scripts/test-reader-snapshot-privacy.ts` repeats the scan from TypeScript over the snapshot
   writer's output.
-- `features_backend/reader-steering.feature`: a signed-in reader votes, rates and sees the snapshot after the run.
-- `procedures/newsroom/tests/test_reader_submissions.py` and `features_backend/reader-submissions.feature`: submit, the canonical URL
+- `features_backend/readers/reader-steering.feature`: a signed-in reader votes, rates and sees the snapshot after the run.
+- `procedures/newsroom/tests/test_reader_submissions.py` and `features_backend/references/reader-submissions.feature`: submit, the canonical URL
   parity with reference intake, dedupe, similar, validation, the daily limit, votes and karma, the snapshot file, the review signals
   (with real Humanus rules) and retirement of submissions, against moto.
-- `procedures/newsroom/tests/test_reader_extraction.py` and `features_backend/reader-submission-extraction.feature`: the extraction step with a scripted page and model (matching, held submissions, permanent and passing failures, the time budget, no identity in the model request), the read and confirm actions (own submission only, the identical 404, corrections, limits), and that no public file carries any of it.
+- `procedures/newsroom/tests/test_reader_extraction.py` and `features_backend/references/reader-submission-extraction.feature`: the extraction step with a scripted page and model (matching, held submissions, permanent and passing failures, the time budget, no identity in the model request), the read and confirm actions (own submission only, the identical 404, corrections, limits), and that no public file carries any of it.
 - `procedures/newsroom/tests/test_reader_ai_moderation.py`: the AI step with a stubbed model and the network closed: allow and hide, human override and undo, held content, failures, deadline,
   the key (read from the one parameter, absent from every log, result and row), the prompt file, what the model sees, and the scheduling; `scripts/test-reader-steering-plugin.ts` pins the IAM.
-- `procedures/newsroom/tests/test_reader_moderation.py` and `features_backend/reader-moderation.feature`: reports, every transition, the stale-view guard,
+- `procedures/newsroom/tests/test_reader_moderation.py` and `features_backend/readers/reader-moderation.feature`: reports, every transition, the stale-view guard,
   undo, bans on every write route, promotion, pre-moderation, moderation off, and that hidden content leaves the files; `scripts/test-reader-moderation-panel.ts`:
   the queue, hidden list, log and the escaped rendering of the panel.
-- `procedures/newsroom/tests/test_reader_comments.py`, `test_reader_feedback_export.py` and `features_backend/reader-comments.feature`: comments, threading, the
+- `procedures/newsroom/tests/test_reader_comments.py`, `test_reader_feedback_export.py` and `features_backend/readers/reader-comments.feature`: comments, threading, the
   edit window, delete stubs, rating context, limits, the snapshot files (only changed files written, stale ones emptied), signals,
   retirement and the feedback export, against moto.
-- `procedures/newsroom/tests/test_proposals.py`, `test_proposals_cli.py` and `features_backend/proposals.feature`: filing and validation, every transition, the override rules,
+- `procedures/newsroom/tests/test_proposals.py`, `test_proposals_cli.py` and `features_backend/readers/proposals.feature`: filing and validation, every transition, the override rules,
   the stale-view guard, the staff check, the public files (labels, no private fields, the frozen community result, changed files only, base path), the vote
   adapter and the CLI; the Markus body is checked against a golden fragment rendered with the locked Markus 0.7.0.
 - `scripts/test-reader-write-routes.ts`: the checks every text-carrying route shares (503, 401, 403, 415, 413, 429, pass-through).

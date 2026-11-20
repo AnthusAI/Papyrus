@@ -1,6 +1,6 @@
 /**
  * Synthesizes a backend (all stacks) into a directory without deploying or bundling, like synth-site-backend.mts, and also takes the second argument
- * of `defineSiteBackend` and writes the facts the templates cannot show. Used by features_backend/shared-stack-bootstrap.feature.
+ * of `defineSiteBackend` and writes the facts the templates cannot show. Used by features_backend/platform/shared-stack-bootstrap.feature.
  *
  *   tsx scripts/synth-backend-with-options.mts <out-dir> <backend-json> [options-json]
  *

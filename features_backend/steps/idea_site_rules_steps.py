@@ -1,4 +1,4 @@
-"""A site's idea rules (features_backend/idea-site-rules.feature). The scenarios call the helpers of procedures/newsroom/tests/test_idea_site_rules.py: the
+"""A site's idea rules (features_backend/ideas/idea-site-rules.feature). The scenarios call the helpers of procedures/newsroom/tests/test_idea_site_rules.py: the
 backend, the pages and the model are fakes."""
 
 from __future__ import annotations

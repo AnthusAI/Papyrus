@@ -1,4 +1,4 @@
-"""The image-service door (features_backend/image-door.feature). A fake backend; no network."""
+"""The image-service door (features_backend/stories/image-door.feature). A fake backend; no network."""
 from __future__ import annotations
 
 import json

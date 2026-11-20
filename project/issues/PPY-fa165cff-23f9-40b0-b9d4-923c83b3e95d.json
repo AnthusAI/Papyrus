@@ -3,7 +3,7 @@
   "title": "One spend ledger",
   "description": "Generalise `AnnouncementSpend` into one ledger: a counter per scope and budget cycle (`ai:<site>`, `ai:<site>:<responsibility>`, `x:<account>`), added to atomically when a run or an attempt finishes. Per-run cost stays on the run record. An unpriced model is named and counted as unknown, never as free. The ledger holds numbers only.\n\n**Acceptance criteria**\n- Every paid run adds its cost to the site's cycle once.\n- The X counter keeps working through the same ledger.\n- A run with an unpriced model marks the cycle total as partial.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- spend-ledger.feature: a finished run adds its cost once; a redelivered wake does not add twice; an unpriced model marks the total partial; the X account's cycle total is unchanged by the move.\n\n**Infrastructure as code touched:** Amplify data: the ledger model (generalised from `AnnouncementSpend`).\n\n**Part of:** Spend, budgets and model tiers. Slice code G1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -52,11 +52,37 @@
         "model": "claude-sonnet-5-5",
         "name": "M3 thread"
       }
+    },
+    {
+      "id": "c49d8c7c-27fb-43c5-8b1d-b82ed82f1516",
+      "author": "claude",
+      "text": "Back in progress: on the always-on agents track: the spend ledger part 2 moves the X announcement spend counter onto it.",
+      "created_at": "2026-11-20T14:08:10Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "1b56ca3e-fed3-4847-9d44-053ffb5b827e",
+      "author": "ryan",
+      "text": "Update: the runner role block above is resolved. The runner role change (UpdateItem and TransactWriteItems on the ledger table) shipped in v5.138.0 with part 1 (#1736). Part 2, the X counter on the one ledger, is PR #1745 and stays with the M3.",
+      "created_at": "2026-11-20T18:28:25.793061Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "CLI and MCP thread"
+      }
+    },
+    {
+      "id": "ea16d691-1fc2-40cf-8166-c672a2167991",
+      "author": "ryan",
+      "text": "Both parts merged to develop: the spend ledger (#1736) and the X spend counter on the ledger (#1745, CI green, merged 2026-11-20). Released: part 1 in 5.138.0; part 2 ships in the next Papyrus release. Verified by features_backend/announcements (653 scenarios) and the X queue test reading the one ledger.",
+      "created_at": "2026-11-20T20:03:46.351850Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:07.557587Z",
-  "updated_at": "2026-11-20T05:44:45.862057Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T20:03:46.456927Z",
+  "closed_at": "2026-11-20T20:03:46.456703Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

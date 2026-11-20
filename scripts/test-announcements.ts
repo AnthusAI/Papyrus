@@ -1,6 +1,6 @@
 /**
  * Announcements: the schema, the wiring and the page's plain-words helpers. The function's rules are in
- * features_backend/x-account-connection.feature and announcement-settings.feature; the page is in features/newsroom-announcements.feature.
+ * features_backend/announcements/x-account-connection.feature and announcement-settings.feature; the page is in features/newsroom-announcements.feature.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -69,10 +69,10 @@ const app = new App();
 const stack = new Stack(app, "Data", { env: { account: "123456789012", region: "us-east-1" } });
 const lambda = new Function(stack, "Announcements", { runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: "handler.handler", code: Code.fromInline("x") });
 const table = (id: string) => new Table(stack, id, { partitionKey: { name: "id", type: AttributeType.STRING } });
-wireAnnouncements({ announcements: { resources: { lambda } }, data: { resources: { tables: { AnnouncementSettings: table("S"), XConnection: table("C"), Item: table("I") } } } }, "mom");
+wireAnnouncements({ announcements: { resources: { lambda } }, data: { resources: { tables: { AnnouncementSettings: table("S"), XConnection: table("C"), Item: table("I") } } } }, "mom", ["console-client"]);
 const template = Template.fromStack(stack);
 const variables = Object.values(template.findResources("AWS::Lambda::Function")).map((r) => (r as { Properties: { Environment: { Variables: Record<string, unknown> } } }).Properties.Environment.Variables)[0];
-for (const name of ["SITE_ID", "ANNOUNCEMENT_SETTINGS_TABLE", "X_CONNECTION_TABLE", "X_REFRESH_LEASE_SECONDS", ...Object.keys(X_ENDPOINTS)]) assert.ok(name in variables, `${name} is set`);
+for (const name of ["SITE_ID", "ANNOUNCEMENT_SETTINGS_TABLE", "X_CONNECTION_TABLE", "X_REFRESH_LEASE_SECONDS", "PERSON_ONLY_CLIENT_IDS", ...Object.keys(X_ENDPOINTS)]) assert.ok(name in variables, `${name} is set`);
 assert.equal(variables.X_TOKEN_URL, "https://api.x.com/2/oauth2/token");
 const policy = JSON.stringify(template.findResources("AWS::IAM::Policy"));
 assert.ok(policy.includes("ssm:PutParameter") && policy.includes(`parameter${announcementsParameterPrefix("mom")}/*`), "parameters are limited to the site's announcements path");
@@ -135,7 +135,8 @@ const pageCalls: [AnnouncementOperation, Record<string, unknown>][] = [
   ["announcementsXSaveApp", { clientId: "client-123", clientSecret: "s3cret-value" }], ["announcementsXBegin", { redirectUri: "https://mom.example/cb" }],
   ["announcementsXComplete", { code: "c", state: "s", redirectUri: "https://mom.example/cb" }], ["announcementsXDisconnect", {}],
 ];
-assert.deepEqual(pageCalls.map(([name]) => name).sort(), [...ANNOUNCEMENT_QUERY_OPERATIONS, ...ANNOUNCEMENT_MUTATION_OPERATIONS].sort(), "every operation is a page call");
+const COMMAND_LINE_ONLY: readonly string[] = ["announcementsXSpend"]; // the budget's spend reads, asked by `papyrus announcements` through the function, never by the page
+assert.deepEqual(pageCalls.map(([name]) => name).sort(), [...ANNOUNCEMENT_QUERY_OPERATIONS, ...ANNOUNCEMENT_MUTATION_OPERATIONS].filter((name) => !COMMAND_LINE_ONLY.includes(name)).sort(), "every operation but the command line's is a page call");
 // The function's side (src/papyrus_content/announcements/actions_test.py) feeds this same file to handle_event, so the two sides are
 // held to one contract: the requests the page's calls become on the way to the Lambda.
 const PAGE_REQUESTS = "features_backend/fixtures/announcements-page-requests.json";

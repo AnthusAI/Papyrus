@@ -1,4 +1,4 @@
-"""Automated runs never change an existing concept (features_backend/knowledge-run-concepts.feature)."""
+"""Automated runs never change an existing concept (features_backend/knowledge/knowledge-run-concepts.feature)."""
 
 from __future__ import annotations
 

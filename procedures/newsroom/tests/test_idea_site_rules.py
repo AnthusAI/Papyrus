@@ -1,5 +1,5 @@
 """A site's idea rules (PPY-10a5e5): the minimum count of References, the verdicts that pass, and the premise-led mode. The scenarios of
-features_backend/idea-site-rules.feature call these helpers."""
+features_backend/ideas/idea-site-rules.feature call these helpers."""
 
 from __future__ import annotations
 

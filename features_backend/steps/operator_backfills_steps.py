@@ -1,4 +1,4 @@
-"""Steps for features_backend/operator-backfills.feature. Everything is in memory: no network, no AWS."""
+"""Steps for features_backend/platform/operator-backfills.feature. Everything is in memory: no network, no AWS."""
 from __future__ import annotations
 
 import io

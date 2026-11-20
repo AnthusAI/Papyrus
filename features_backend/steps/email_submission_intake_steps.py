@@ -234,13 +234,6 @@ def email_body_is_inert_private_text(context):
     assert all(item["ttl"] == row["ttl"] for item in details)
 
 
-@then("only that publication is added to the configured destination set")
-def only_publication_authorized(context):
-    rows = context.email_fixture.table.by_prefix("DISC#")
-    assert rows and all(row["emailDestinationPublicationIds"] == ["publication"] for row in rows)
-    assert all("emailAuthorizedPublicationIds" not in row for row in rows)
-
-
 @given("the MIME sender and SES sender headers disagree")
 def sender_headers_disagree(context):
     context.email_fixture.event["Records"][0]["ses"]["mail"]["commonHeaders"]["from"] = ["attacker@example.net"]

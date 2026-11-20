@@ -152,6 +152,7 @@ def open_site(context, site, *, with_queue=True):
     patch(context, graphql_authoring, "PapyrusGraphQLAuthoringClient", lambda *a, **k: context.backend)
     patch(context, pr, "execute_in_child", execute)
     patch(context, pr, "policy_for", policy_for)
+    patch(context, pr, "SpendBrake", lambda table: type("SpendBrakeWithRoom", (), {"stop_for": lambda self, request, decision: None})())
     context.boto3 = FakeBoto3()
     patch_dict(context, sys.modules, {"boto3": context.boto3})
     patch_dict(context, os.environ, {})
@@ -224,7 +225,6 @@ def runner_takes(context):
 
 
 @when("the runner takes and finishes every message")
-@when("the runner takes every message")
 def takes_all(context):
     while context.queue.messages:
         take(context)
@@ -286,7 +286,6 @@ def ran_twice(context):
 
 
 @then("the message is deleted")
-@then("the first message is deleted")
 def is_deleted(context):
     assert context.error is None, context.error
     assert context.taken in context.deleted and context.taken not in context.queue.messages

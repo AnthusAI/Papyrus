@@ -608,7 +608,7 @@ Unknown format names are a build error that lists the known ones.
 Equations are written as TeX, inside Markdown that Markus already understands, and drawn as MathML when the page is built.
 Nothing runs in the reader's browser: no script, no web font, no KaTeX or MathJax. Implementation:
 `src/papyrus_content/markus_renderer/equations.py` (converter: [`latex2mathml`](https://pypi.org/project/latex2mathml/), MIT, pure Python).
-Tests: `procedures/newsroom/tests/test_markus_equations.py`, `features_backend/story-math.feature`.
+Tests: `procedures/newsroom/tests/test_markus_equations.py`, `features_backend/site/story-math.feature`.
 
 | Form | Write | Becomes |
 | --- | --- | --- |

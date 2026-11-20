@@ -3,7 +3,7 @@ import test from "node:test";
 import { contentItemHeadStageKey } from "../lib/content-item-lifecycle";
 import { createLocalPreviewContentItemVersions } from "../lib/local-preview-seed";
 
-// The same rule as head_stage_key in src/papyrus_content/content_item_lifecycle.py (features_backend/story-head-stage-index.feature).
+// The same rule as head_stage_key in src/papyrus_content/content_item_lifecycle.py (features_backend/platform/story-head-stage-index.feature).
 test("the head row of a lineage carries its stage; a superseded row and a row with no stage carry nothing", () => {
   assert.equal(contentItemHeadStageKey({ stage: "copywriting", versionState: "current" }), "copywriting");
   assert.equal(contentItemHeadStageKey({ stage: "reporting", versionState: "draft" }), "reporting", "a story whose only row is a draft is still on the board");

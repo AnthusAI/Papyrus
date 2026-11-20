@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-capture-state.feature. Reuses the curation steps for the world (a site, a Reference, an editor's paste or
+"""Steps for features_backend/references/reference-capture-state.feature. Reuses the curation steps for the world (a site, a Reference, an editor's paste or
 PDF); everything is in memory: no network, no AWS, no model."""
 from __future__ import annotations
 

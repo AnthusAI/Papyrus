@@ -357,7 +357,8 @@ def test_a_docs_only_release_deploys_nothing_and_a_code_change_deploys_the_monit
     assert sd.changed_stacks(config, ["src/papyrus_content/monitoring_router.py"]) == ["papyrus-monitoring", "papyrus-procedure-runner"]   # the runner image holds the same code
     assert sd.changed_stacks(config, ["infra/newsletter/papyrus-newsletter-sending.yaml"]) == ["papyrus-newsletter-sending-operators"]
     assert sd.changed_stacks(config, ["infra/pipeline/allowed-changes.json"]) == [
-        "papyrus-newsletter-sending-operators", "papyrus-monitoring", "papyrus-procedure-runner-repository", "papyrus-procedure-runner", "papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
+        "papyrus-newsletter-sending-operators", "papyrus-dmarc-anth-us", "papyrus-dmarc-mail-machines-on-machines", "papyrus-monitoring", "papyrus-procedure-runner-repository", "papyrus-procedure-runner", "papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
+    assert sd.changed_stacks(config, ["infra/email/papyrus-dmarc.yaml"]) == ["papyrus-dmarc-anth-us", "papyrus-dmarc-mail-machines-on-machines"]
     assert sd.changed_stacks(config, ["infra/shared-stack/papyrus-shared-foundation.yaml"]) == ["papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
 
 
@@ -571,7 +572,7 @@ def test_an_out_of_date_role_is_said_plainly_once_names_the_command_and_stops_no
     sd.plan_stack(ctx, CFG)
     text = "\n".join(ctx.messages)
     assert text.count("### The pipeline roles are out of date") == 1
-    assert "role-stack-deploy" in text and "approves" in text and "::warning::" in text
+    assert "role-stack-deploy" in text and "automatic check" in text and "::warning::" in text
     assert "Resources added" in text and cloud.created == []  # the dry run went on as usual
 
 
@@ -590,7 +591,7 @@ def test_matching_roles_add_no_noise(tmp_path):
 
 def test_a_not_authorized_failure_names_the_approval_workflow():
     hint = sd.bootstrap_hint("User: arn:aws:sts::1:assumed-role/papyrus-stack-deploy-cloudformation is not authorized to perform: cloudwatch:PutCompositeAlarm")
-    assert "role-stack-deploy" in hint and "approves it in GitHub" in hint and "never approves" in hint
+    assert "role-stack-deploy" in hint and "automatic check" in hint and "never works around" in hint
     assert sd.bootstrap_hint("Resource handler returned message: queue name already exists") == ""
 
 
@@ -616,8 +617,8 @@ def test_every_place_that_describes_account_setup_points_at_the_approval_workflo
 @pytest.mark.parametrize("path", ["README.md", "AGENTS.md", "infra/pipeline/README.md"])
 def test_the_main_docs_say_what_to_do_after_any_template_change_and_who_does_what(path):
     text = (ROOT / path).read_text().replace("*", "")
-    assert "papyrus-stack-pipeline.yaml" in text and "any change" in text.lower() and "approve" in text and "new AWS account" in text
-    assert "<12-digit account id>" in text and "create-environment.sh --reviewer" in text
+    assert "papyrus-stack-pipeline.yaml" in text and "any change" in text.lower() and "automatic check" in text and "new AWS account" in text
+    assert "<12-digit account id>" in text and "create-environment.sh" in text and "--reviewer" not in text
 
 
 @pytest.mark.parametrize("path", SETUP_DOCS)
@@ -627,9 +628,9 @@ def test_no_doc_tells_anyone_to_apply_the_pipeline_roles_by_hand_as_the_normal_p
     assert "required-the-role-bootstrap" not in text
 
 
-def test_agents_are_told_to_link_the_approval_and_never_to_approve_or_work_around():
+def test_agents_are_told_to_read_the_run_and_never_to_work_around_a_refusal():
     text = (ROOT / "AGENTS.md").read_text().replace("*", "")
-    assert "Never approve it" in text and "never work around a refusal" in text and "give the reviewer its link" in text
+    assert "never work around a refusal" in text and "allowed-role-changes.json" in text and "Your job: read that run" in text and "approves it" not in text
     assert "The pipeline roles are out of date" in text and "unless the user tells you to" in text
 
 
@@ -890,7 +891,7 @@ def test_the_role_workflow_uses_oidc_with_separate_roles_and_the_exact_change_se
     assert "ref: ${{ github.sha }}" in text  # apply reads the commit that was planned
 
 
-def test_the_environment_script_sets_the_reviewer_and_limits_branches_without_committing_anything_private(tmp_path):
+def test_the_environment_script_sets_no_reviewer_and_limits_branches_without_committing_anything_private(tmp_path):
     log = tmp_path / "gh.log"
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -905,14 +906,13 @@ exit 0
     (bin_dir / "gh").chmod(0o755)
     env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)}
     script = str(PIPELINE / "create-environment.sh")
-    refused = subprocess.run(["bash", script], capture_output=True, text=True, env=env)
-    assert refused.returncode == 2 and "--reviewer" in refused.stderr and not log.exists()
-    done = subprocess.run(["bash", script, "--reviewer", "some-login"], capture_output=True, text=True, env=env)
+    refused = subprocess.run(["bash", script, "--reviewer", "some-login"], capture_output=True, text=True, env=env)
+    assert refused.returncode == 2 and "no --reviewer any more" in refused.stderr and not log.exists()
+    done = subprocess.run(["bash", script], capture_output=True, text=True, env=env)
     calls = log.read_text()
     assert done.returncode == 0, done.stderr
-    assert "users/some-login" in calls and "--method PUT repos/AnthusAI/Papyrus/environments/pipeline-roles" in calls
+    assert "users/" not in calls and "--method PUT repos/AnthusAI/Papyrus/environments/pipeline-roles" in calls
     assert calls.count("--method POST repos/AnthusAI/Papyrus/environments/pipeline-roles/deployment-branch-policies") == 2
-    assert "some-login" not in (PIPELINE / "create-environment.sh").read_text()
 
 
 # --- the plan and the apply -----------------------------------------------------------------------------------------------------------
@@ -941,27 +941,34 @@ class RolesFake(FakeCloud):
         self.stack_deleted = True
 
 
-def _plan(tmp_path, cloud):
+def _every_statement_listed(cloud):
+    live = sd.parse_template(cloud.get_template("papyrus-stack-pipeline")) if cloud.describe_stack("papyrus-stack-pipeline") is not None else {}
+    new = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    return [{"fingerprint": rs.role_statement_fingerprint(line), "reason": "test"} for _, line in rs.role_change_lines(live, new)]
+
+
+def _plan(tmp_path, cloud, allowed_role_changes=None):
     ctx = make(tmp_path, cloud)
     outputs = {}
-    code = rs.plan(ctx, PIPELINE_TEMPLATE, "7-1", lambda k, v: outputs.__setitem__(k, v))
+    listed = _every_statement_listed(cloud) if allowed_role_changes is None else allowed_role_changes
+    code = rs.plan(ctx, PIPELINE_TEMPLATE, "7-1", lambda k, v: outputs.__setitem__(k, v), listed)
     return code, outputs, "\n".join(ctx.messages)
 
 
-def test_a_plan_for_a_new_account_prints_every_change_and_the_iam_view_and_asks_for_approval(tmp_path):
+def test_a_plan_for_a_new_account_prints_every_change_and_the_iam_view_and_goes_ahead_without_asking(tmp_path):
     cloud = RolesFake(stack_status=None, changes=[change("PlanRole", "Add"), change("DeployRole", "Add")])
     code, outputs, text = _plan(tmp_path, cloud)
     assert code == 0 and outputs["needed"] == "true" and outputs["change_set"].startswith("roles-") and outputs["stamp"] == "none"
     assert cloud.role_change_sets[0]["kind"] == "create" and cloud.role_change_sets[0]["role"].endswith(":role/papyrus-pipeline-roles-cloudformation")
-    assert "waiting for approval" in text and "`PlanRole`" in text and "IAM statements that change" in text
-    assert "+ PlanRole / read-only-dry-run" in text and "cloudformation:GetTemplate" in text and "Nothing has been applied" in text
+    assert "passed the automatic check" in text and "`PlanRole`" in text and "IAM statements that change" in text
+    assert "+ PlanRole / read-only-dry-run" in text and "cloudformation:GetTemplate" in text and "executes exactly this change set" in text
     assert not cloud.executed
 
 
 def test_a_plan_with_nothing_to_change_ends_quietly_without_asking_anyone(tmp_path):
     cloud = RolesFake(params={"GitHubRepository": "AnthusAI/Papyrus"}, create_status="FAILED", reason="The submitted information didn't contain changes. Submit different information.")
     code, outputs, text = _plan(tmp_path, cloud)
-    assert code == 0 and outputs == {"needed": "false"} and "No approval is needed" in text and "waiting for approval" not in text
+    assert code == 0 and outputs == {"needed": "false"} and "No approval is needed" in text and "passed the automatic check" not in text
     assert len(cloud.deleted) == 1  # its empty change set is removed
 
 
@@ -971,7 +978,7 @@ def test_a_change_set_with_no_changes_asks_nobody_for_approval(tmp_path):
     cloud = RolesFake(params={"GitHubRepository": "AnthusAI/Papyrus"}, changes=[])
     code, outputs, text = _plan(tmp_path, cloud)
     assert code == 0 and outputs == {"needed": "false"}
-    assert "nothing to do" in text.lower() and "waiting for approval" not in text and "No approval is needed" in text
+    assert "nothing to do" in text.lower() and "passed the automatic check" not in text and "No approval is needed" in text
     assert len(cloud.deleted) == 1 and not cloud.executed   # the empty change set is removed; nothing was executed
 
 
@@ -1274,3 +1281,106 @@ def test_the_shared_stacks_in_the_repo_are_held_and_use_the_shared_roles():
         assert sd.held_reason(stack) and stack["serviceRoleName"] == "papyrus-shared-deploy-cloudformation"
     assert sd.selected(config, None, "shared") == [] and len(sd.selected(config, None, "shared", include_held=True)) == 2
     assert all("group" not in s for s in config["stacks"] if s not in shared)
+
+
+# --- the automatic check that replaced the approval click ------------------------------------------------------------------------------
+
+
+def _template_with(replacement_text, old="cloudformation:DeleteChangeSet"):
+    return sd.parse_template(REPO_PIPELINE.replace(old, replacement_text, 1))
+
+
+def test_the_pipeline_roles_in_the_repo_break_no_hard_rule_and_the_shared_roles_template_neither():
+    assert rs.hard_rule_violations(sd.parse_template(REPO_PIPELINE)) == []
+    assert rs.hard_rule_violations(sd.parse_template((PIPELINE / "papyrus-shared-pipeline-roles.yaml").read_text())) == []
+
+
+@pytest.mark.parametrize("edit,expected", [
+    (("cloudformation:DeleteChangeSet", "iam:*"), "iam:*"),
+    (("cloudformation:DeleteChangeSet", '"*"'), "allows *"),
+    (("cloudformation:DeleteChangeSet", "sts:*"), "sts:*"),
+])
+def test_a_wildcard_over_identity_services_is_a_hard_rule_no_list_can_lift(edit, expected):
+    problems = rs.hard_rule_violations(_template_with(edit[1], edit[0]))
+    assert any(expected in problem for problem in problems)
+    assert rs.role_change_refusal({}, _template_with(edit[1], edit[0]), [], [])  # not even on a first create, and not with every statement listed
+
+
+def test_an_administrator_policy_on_a_pipeline_role_is_a_hard_rule():
+    template = sd.parse_template(REPO_PIPELINE)
+    template["Resources"]["DeployRole"]["Properties"]["ManagedPolicyArns"] = ["arn:aws:iam::aws:policy/AdministratorAccess"]
+    assert any("broad AWS-managed policy" in problem for problem in rs.hard_rule_violations(template))
+
+
+def test_identity_changing_actions_on_every_role_are_a_hard_rule_but_a_papyrus_prefix_is_not():
+    template = sd.parse_template(REPO_PIPELINE)
+    managed = template["Resources"]["ComputeAndIdentityPolicy"]["Properties"]["PolicyDocument"]["Statement"]
+    own_roles = next(statement for statement in managed if statement.get("Sid") == "TheStacksOwnRoles")
+    assert rs.hard_rule_violations(template) == []
+    own_roles["Resource"] = [{"Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"}]
+    assert any("papyrus prefix" in problem for problem in rs.hard_rule_violations(template))
+    own_roles["Resource"] = "*"
+    assert any("papyrus prefix" in problem for problem in rs.hard_rule_violations(template))
+
+
+def test_a_github_trust_must_match_an_exact_subject():
+    template = sd.parse_template(REPO_PIPELINE)
+    condition = template["Resources"]["DeployRole"]["Properties"]["AssumeRolePolicyDocument"]["Statement"][0]["Condition"]
+    condition["StringEquals"]["token.actions.githubusercontent.com:sub"] = "repo:AnthusAI/*:ref:refs/heads/main"
+    assert any("by pattern" in problem for problem in rs.hard_rule_violations(template))
+    del condition["StringEquals"]["token.actions.githubusercontent.com:sub"]
+    assert any("without an exact audience and subject" in problem for problem in rs.hard_rule_violations(template))
+
+
+def test_a_trust_for_everyone_is_a_hard_rule():
+    template = sd.parse_template(REPO_PIPELINE)
+    template["Resources"]["PlanRole"]["Properties"]["AssumeRolePolicyDocument"]["Statement"].append({"Effect": "Allow", "Principal": {"AWS": "*"}, "Action": "sts:AssumeRole"})
+    assert any("trusts everyone" in problem for problem in rs.hard_rule_violations(template))
+
+
+def test_an_added_statement_is_refused_until_its_fingerprint_is_listed():
+    old = sd.parse_template(REPO_PIPELINE)
+    new = sd.parse_template(REPO_PIPELINE.replace("cloudformation:DeleteChangeSet", "cloudformation:DeleteStack", 1))
+    refusal = rs.role_change_refusal(old, new, [], [])
+    assert refusal and "IAM statement not in allowed-role-changes.json" in refusal and "cloudformation:DeleteStack" in refusal
+    listed = [{"fingerprint": rs.role_statement_fingerprint(line), "reason": "test"} for _, line in rs.role_change_lines(old, new)]
+    assert rs.role_change_refusal(old, new, listed, []) is None
+    assert rs.role_change_refusal(old, old, [], []) is None
+
+
+def test_a_removal_or_replacement_not_in_allowed_changes_is_refused_by_the_plan_and_its_change_set_deleted(tmp_path):
+    cloud = RolesFake(params={"GitHubRepository": "AnthusAI/Papyrus"}, changes=[change("PlanRole", "Remove")])
+    with pytest.raises(sd.Stop, match="would be Removed"):
+        _plan(tmp_path, cloud)
+    assert len(cloud.deleted) == 1 and not cloud.executed
+
+
+def test_a_plan_refuses_an_unlisted_statement_and_applies_nothing(tmp_path):
+    cloud = RolesFake(deployed=REPO_PIPELINE.replace("cloudformation:DeleteChangeSet", "cloudformation:DeleteStack", 1), params={"GitHubRepository": "AnthusAI/Papyrus"}, changes=[change("DeployRole", "Modify")])
+    with pytest.raises(sd.Stop, match="IAM statement not in allowed-role-changes.json"):
+        _plan(tmp_path, cloud, allowed_role_changes=[])
+    assert len(cloud.deleted) == 1 and not cloud.executed
+
+
+def test_the_pull_request_check_prints_the_fingerprints_a_change_needs(tmp_path):
+    changed = tmp_path / "papyrus-stack-pipeline.yaml"
+    changed.write_text(REPO_PIPELINE.replace("cloudformation:DeleteChangeSet", "cloudformation:DeleteStack", 1))
+    printed = []
+    assert rs.check(REPO_PIPELINE, changed, [], out=printed.append) == 2
+    assert "fingerprint" in "\n".join(printed) and "cloudformation:DeleteStack" in "\n".join(printed)
+    listed = [{"fingerprint": rs.role_statement_fingerprint(line), "reason": "test"} for _, line in rs.role_change_lines(sd.parse_template(REPO_PIPELINE), sd.parse_template(changed.read_text()))]
+    assert rs.check(REPO_PIPELINE, changed, listed, out=printed.append) == 0
+
+
+def test_the_role_apply_job_has_no_reviewer_gate_text_left_and_the_check_workflow_runs_on_pull_requests():
+    text = ROLES_WORKFLOW.read_text()
+    assert "required reviewers" not in text.lower() and "approves" not in text.lower()
+    check = yaml.safe_load((ROOT / ".github" / "workflows" / "role-change-check.yml").read_text())
+    assert "pull_request" in check[True] and "role_stack.py check --base-ref" in json.dumps(check["jobs"])
+
+
+def test_the_allowed_role_changes_list_is_well_formed_and_every_entry_is_used():
+    entries = json.loads((PIPELINE / "allowed-role-changes.json").read_text())["allowed"]
+    for entry in entries:
+        assert re.fullmatch(r"[0-9a-f]{12}", entry["fingerprint"]) and entry["reason"].strip()
+    assert len({entry["fingerprint"] for entry in entries}) == len(entries)

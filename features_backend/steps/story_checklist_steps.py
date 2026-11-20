@@ -1,4 +1,4 @@
-"""The Story checklist (features_backend/story-checklist.feature). Builds on the Story procedure steps: the same in-memory backend, nothing calls AWS or a model."""
+"""The Story checklist (features_backend/stories/story-checklist.feature). Builds on the Story procedure steps: the same in-memory backend, nothing calls AWS or a model."""
 
 from __future__ import annotations
 
@@ -236,12 +236,6 @@ def publishing_succeeded(context):
     assert client_of(context).get_record("Item", f"{LINEAGE}-v{context.world.version_number}")["status"] == "published"
 
 
-@then('the procedure output has a line "{first}" "{second}" reading "{text}"')
-def line_reading(context, first, second, text):
-    lines = [line.split("\t") for line in context.output.splitlines()]
-    assert any(line[:3] == [first, second, text] for line in lines), context.output
-
-
 @then('the procedure output has an "item" line for "{key}" showing "{state}"')
 def item_line(context, key, state):
     lines = [line.split("\t") for line in context.output.splitlines()]
@@ -302,7 +296,6 @@ def board_lists_story_only(context):
 
 
 @then('the checklist item "{key}" has {count:d} note, the newest by the {kind} "{label}" saying "{text}"')
-@then('the checklist item "{key}" has {count:d} notes, the newest by the {kind} "{label}" saying "{text}"')
 def has_newest_note(context, key, count, kind, label, text):
     notes = item(context, key)["notes"]
     assert len(notes) == count and (notes[-1]["actorKind"], notes[-1]["actorLabel"], notes[-1]["text"]) == (kind, label, text), notes
@@ -364,7 +357,7 @@ def layer_says(context, text):
     assert text in context.layer, context.layer
 
 
-# --- stories next: one answer (features_backend/stories-next-one-answer.feature) -------------------------------------------------
+# --- stories next: one answer (features_backend/stories/stories-next-one-answer.feature) -------------------------------------------------
 
 def output_lines(context) -> list[list[str]]:
     return [line.split("\t") for line in context.output.splitlines()]
@@ -498,7 +491,7 @@ def check_passes(context):
     context.world.check_run = {"id": f"{LINEAGE}-v{context.world.version_number}", "lanes": {"humanus": {"status": "ran"}}, "findings": []}
 
 
-# --- Illustration (features_backend/story-illustration.feature) -------------------------------------------------------------------
+# --- Illustration (features_backend/stories/story-illustration.feature) -------------------------------------------------------------------
 
 COVER = "assets/board/cover.png"
 COVER_DARK = "assets/board/cover.dark.png"
@@ -664,11 +657,6 @@ def revision_of_published(context, stage):
     client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "stage": stage, "headStageKey": stage, "status": "draft", "bodyMarkus": "Revised."})
 
 
-@when('a person marks the step "{key}" done')
-def person_marks_done(context, key):
-    mark(context, key, "done", EDITOR)
-
-
 @when('an agent marks the step "{key}" skipped with the reason "{reason}"')
 def agent_marks_skipped(context, key, reason):
     mark(context, key, "skipped", {"kind": "agent", "label": "AI"}, reason=reason)
@@ -700,7 +688,7 @@ def ui_reads_the_stored_step(context, key, title, position, total):
     assert keys.index(key) + 1 == position, keys
 
 
-# --- Rated (features_backend/story-rated.feature) ---------------------------------------------------------------------------------
+# --- Rated (features_backend/stories/story-rated.feature) ---------------------------------------------------------------------------------
 
 
 @given("the site requires a rating before publishing")

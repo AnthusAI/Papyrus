@@ -143,6 +143,18 @@ Resources:
                 Action: [sqs:GetQueueUrl, sqs:SendMessage]
                 # After a story-stage run the runner puts the next stage's wake on the same site's queue instead of invoking itself (PPY-567bf9). Send and look up only; no dead-letter queue matches.
                 Resource: !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:papyrus-*-agent-wakes.fifo"
+              - Sid: ContinuationTimers
+                Effect: Allow
+                Action: [scheduler:CreateSchedule, scheduler:UpdateSchedule]
+                # A run that cannot finish sets one follow-up timer for its next run (PPY-c023ab): create or move an entry named follow-up-* in a site's agent-schedules group, nothing else of the scheduler.
+                Resource: !Sub "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/papyrus-*-agent-schedules/follow-up-*"
+              - Sid: PassSchedulerRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-*-agent-scheduler"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: scheduler.amazonaws.com
               - Sid: PublicationNewsrooms
                 Effect: Allow
                 Action: appsync:GraphQL

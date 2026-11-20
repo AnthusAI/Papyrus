@@ -24,7 +24,8 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 
 from papyrus_content.agent_policy import AgentPolicyStore  # noqa: E402
 from papyrus_content.announcements import blocked_drafts, budget, learned_examples, lines, operations, post, records, review_handlers  # noqa: E402
-from papyrus_content.announcements import cli as announcements_cli  # noqa: E402
+from papyrus_content.announcements import cli as announcements_cli
+from papyrus_content.images import cli as images_cli  # noqa: E402
 from papyrus_content.announcements.attempts import Attempts, NotReleasable  # noqa: E402
 from papyrus_content.announcements.decisions import Announcements  # noqa: E402
 from papyrus_content.announcements.deliveries import Deliveries, Plan  # noqa: E402
@@ -37,6 +38,7 @@ from papyrus_content.announcements.link_reads import StoryRef  # noqa: E402
 from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles  # noqa: E402
 from papyrus_content.announcements.review_policy import RESPONSIBILITY, RUNG_OF  # noqa: E402
 from papyrus_content.announcements.spend import SpendLedger  # noqa: E402
+from papyrus_content.spend_ledger_test import FakeLedgerTable  # noqa: E402
 from papyrus_content.announcements.withdrawals import Withdrawals  # noqa: E402
 from papyrus_content.announcements.x_account import AnnouncementError  # noqa: E402
 from papyrus_content.announcements.x_announce import XAnnouncer, XServices  # noqa: E402
@@ -88,8 +90,9 @@ def setup(context):
     context.files = MemoryDeliveryFiles(context.backend)
     context.deliveries = Deliveries(context.backend, context.files)
     context.announcements = Announcements(context.backend, context.deliveries)
-    context.ledger = SpendLedger(context.backend)
+    context.ledger = SpendLedger(FakeLedgerTable(), "site")
     context.functions = FakeFunctions(lambda: NOW.timestamp())
+    context.functions.ledger = context.ledger   # what the function reads for the signed-in lane
     context.told = []
     context.control = SpendControl(settings=context.functions, connection=context.functions.status, ledger=context.ledger,
                                    notify=lambda kind, facts: context.told.append((kind, dict(facts))), now=lambda: NOW)
@@ -666,7 +669,6 @@ def _caducus_posts_given(context, amount):
     _caducus_delivers(context, amount)
 
 
-@when('Caducus\'s guard refuses it with "{reason}"')
 @given('Caducus\'s guard refuses it with "{reason}"')
 def _guard_refuses(context, reason):
     _caducus_delivers(context, refusal=reason)
@@ -1277,13 +1279,14 @@ def cli_judge(claim, cited, info=None):
     return {"verdict": "supported", "quotes": [" ".join(cited.values()).split("\n")[0]], "explanation": "", "attribution_lost": False, "claim_is_only_about_source_limits": False}
 
 
-def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind."):
+def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind.", stdin=None, env=None, terminal=None, preflight=None):
     words = shlex.split(line)
     assert words[:2] == ["papyrus", "announcements"], line
     handlers = signed_in_handlers(lambda: context.backend, {"SITE_ORIGIN": ORIGIN, "ITEM_URL_STYLE": "clean"}, llm=lambda system, user, schema: {"text": DEFAULT_DRAFT}, judge=cli_judge,
                                   guidelines_text=guidelines, files=context.files, functions=context.functions)
     out = io.StringIO()
-    status = announcements_cli.command(words[2:], handlers=handlers, environ={"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}, stdout=out)
+    environ = {**({"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}), **(env or {})}
+    status = announcements_cli.command(words[2:], handlers=handlers, environ=environ, stdout=out, stdin=terminal or io.StringIO(stdin if stdin is not None else ""), preflight=preflight)
     context.cli_status, context.cli_answer = status, json.loads(out.getvalue())
     return context.cli_answer
 
@@ -1317,6 +1320,71 @@ def _agent_runs(context, line):
 @when('a person types "{line}" with no writing guidelines')
 def _no_guidelines_cli(context, line):
     run_cli(context, line, guidelines="")
+
+
+@when('a person types "{line}" with the secret "{secret}" on standard input')
+def _person_stdin(context, line, secret):
+    run_cli(context, line, stdin=secret)
+
+
+@when('a person types "{line}" with the secret "{secret}" in the environment')
+def _person_env(context, line, secret):
+    run_cli(context, line, env={"PAPYRUS_X_CLIENT_SECRET": secret})
+
+
+@when('an AI agent types "{line}" with the secret "{secret}" on standard input')
+def _agent_stdin(context, line, secret):
+    run_cli(context, line, agent=True, stdin=secret)
+
+
+@when('a person types "{line}" at a terminal answering the ID "{client_id}" and the secret "{secret}" privately')
+def _person_terminal(context, line, client_id, secret):
+    from unittest import mock
+
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    with mock.patch.object(images_cli, "ask_visible", lambda question: client_id), mock.patch.object(images_cli, "ask_hidden", lambda question: secret):
+        run_cli(context, line, terminal=Terminal())
+
+
+@when('a person types "{line}" at a terminal with no site selected')
+def _person_no_site(context, line):
+    from unittest import mock
+
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    asked = []
+
+    def refuse():
+        raise RuntimeError("No site is selected and there is no amplify_outputs.json.")
+
+    with mock.patch.object(images_cli, "ask_visible", lambda question: asked.append(question) or "id"), mock.patch.object(images_cli, "ask_hidden", lambda question: asked.append(question) or "secret"):
+        run_cli(context, line, terminal=Terminal(), preflight=refuse)
+    context.asked = asked
+
+
+@then("nothing was asked")
+def _nothing_asked(context):
+    assert context.asked == [], context.asked
+
+
+@then('the site saved the X app "{client_id}" with the secret "{secret}"')
+def _app_saved(context, client_id, secret):
+    assert context.functions.saved_app == (client_id, secret), getattr(context.functions, "saved_app", None)
+
+
+@then('the site saved no X app keys')
+def _app_not_saved(context):
+    assert not hasattr(context.functions, "saved_app")
+
+
+@then('the announcement answer does not contain "{text}"')
+def _answer_lacks(context, text):
+    assert text not in json.dumps(context.cli_answer), context.cli_answer
 
 
 @when("a person saves the announcement settings in Dry run at {stars:d} stars with a budget of ${amount}")

@@ -53,7 +53,6 @@ def unsubscribe_list(context, list_id: str) -> None:
 
 
 @when('the subscriber saves preferences choosing "{list_id}"')
-@given('the subscriber saves preferences choosing "{list_id}"')
 def save_preferences(context, list_id: str) -> None:
     context.saved = call(context, "update_preferences", token=token(context), lists=[list_id])
 

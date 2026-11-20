@@ -1,4 +1,4 @@
-"""Steps for features_backend/tenant-key-inventory.feature (PPY-cd5926).
+"""Steps for features_backend/tenancy/tenant-key-inventory.feature (PPY-cd5926).
 
 The scenarios about the check run the real generator (`scripts/generate-tenant-key-inventory.ts --check`) against a copy of the committed
 inventory with one index row changed, or against a copy of the declared classes with one field removed or added. The reading scenario parses

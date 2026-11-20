@@ -1,4 +1,4 @@
-"""The share-picture check (features_backend/lens-check.feature has the narrative). The network is always a fake."""
+"""The share-picture check (features_backend/stories/lens-check.feature has the narrative). The network is always a fake."""
 
 import pytest
 

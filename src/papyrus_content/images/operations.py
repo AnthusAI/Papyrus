@@ -698,7 +698,7 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
                                               ("sentence",)),
                          "pauseReason": text(), "pricesAsOf": text()}, ("mode", "paused")), (),
         (Example({}, {"mode": "dry_run", "paused": False, "accountId": "mom", "standing": "$0.00 spent of $10.00 this cycle"}),), group="announcements",
-        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page (`announcements account connect` prints the link). The CLI never accepts a secret. "
+        notes="Connecting an X account needs the browser (OAuth): the newsroom's Administration > Announcements page (`announcements account connect` prints the link). The app's keys are saved with `announcements account set-app`; the secret is never a flag. "
               "`suggestion` is the site's own pace over the last 60 days at the link price, shown as a pace and never applied as a limit; it is left out until the prices are entered.",
     ),
     Operation(
@@ -707,7 +707,18 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         (Example({}, {"url": "https://news.example.test/newsroom/administration/announcements", "words": "Open this page in the newsroom and choose Connect X account. Connecting needs the browser; no secret is ever typed here."}),),
         group="announcements",
         notes="The address is built from the console's own address (PAPYRUS_CONSOLE_URL, or the one the signed-in site publishes), never guessed: without one it says so and prints nothing. It reads nothing "
-              "from the site and writes nothing, and no secret is ever accepted by the command line.",
+              "from the site and writes nothing.",
+    ),
+    Operation(
+        "announcements_account_set_app", ("account", "set-app"), "Save the X developer app's client ID and client secret: the secret into SSM SecureString and the ID into the connection record, together.", "write",
+        obj({"clientId": text("The OAuth 2.0 client ID of the X app."), "clientSecret": text("The OAuth 2.0 client secret. On the command line it is read from PAPYRUS_X_CLIENT_SECRET or from standard input, never from a flag.")},
+            ("clientId", "clientSecret")),
+        record({"status": record({"connection": text()}, ("connection",)), "saved": flag("True when both the secret and the client ID were saved.")}, ("saved",)), (),
+        (Example({"clientId": "client-id-1", "clientSecret": "client-secret-1"}, {"status": {"connection": "not_connected"}, "saved": True}),), group="announcements",
+        agent_rung=PERSON_ONLY, agent_refusal="blocked",
+        notes="A person only, and an admin of the site. It saves the app keys the console's Save keys button saves, and the answer never carries the secret: a --dry-run shows it as (hidden). "
+              "At a terminal, run it with no flags: it asks for the client ID and the secret (hidden). The secret is never a flag: set PAPYRUS_X_CLIENT_SECRET, or pipe it in (`printf %s \"$SECRET\" | papyrus announcements account set-app --client-id ID`). "
+              "Connecting the account itself is still the browser step (`announcements account connect`).",
     ),
     Operation(
         "announcements_blocked", ("blocked",), "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).", "read",

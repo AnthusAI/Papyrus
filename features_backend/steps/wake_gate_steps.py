@@ -53,7 +53,7 @@ class Records:
 def _definition(row):
     change = {"kind": "Item", "change": row["change"], "filter": dict(pair.split("=", 1) for pair in row["filter"].split(","))}
     return SimpleNamespace(id=row["agent"], responsibility=row["responsibility"],
-                           data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
+                           data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "safeToRepeat": False, "wakes": {"changes": [change]}})
 
 
 def _open(context, site):

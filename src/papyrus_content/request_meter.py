@@ -56,7 +56,7 @@ BUDGETS: dict[str, tuple[int, int]] = {
     "cli:": DEFAULT_BUDGET,
     # The content-actions function, one run per invocation (PPY-3acc8d). A publish and the build of its pages read a fixed number of records
     # whatever the size of the site (the bodies other pages need come from the body cache, not one read per Story); a unit is one Story built.
-    # features_backend/publish-cost.feature and procedures/newsroom/tests/test_publish_cost.py hold them to these numbers.
+    # features_backend/platform/publish-cost.feature and procedures/newsroom/tests/test_publish_cost.py hold them to these numbers.
     "lambda:content-actions:publishItem": (CONTENT_ACTIONS_PUBLISH_BASE, 0),
     "lambda:content-actions:saveItemDraft": (CONTENT_ACTIONS_PUBLISH_BASE, 0),
     "lambda:content-actions:item": (CONTENT_ACTIONS_BUILD_BASE, CONTENT_ACTIONS_PER_BUILD),

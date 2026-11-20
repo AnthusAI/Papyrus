@@ -1,4 +1,4 @@
-"""Overdue (features_backend/overdue.feature): Deliveries in a records backend that reads only indexes, their follow-up timers on a fake scheduler and queue, the runner's
+"""Overdue (features_backend/agents/overdue.feature): Deliveries in a records backend that reads only indexes, their follow-up timers on a fake scheduler and queue, the runner's
 once-only create on the site backend, and Today's own text. No network."""
 from __future__ import annotations
 

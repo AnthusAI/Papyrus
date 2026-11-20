@@ -1,4 +1,4 @@
-"""The Item change feed's normalization and wake requests (the behaviour is in features_backend/item-change-feed.feature)."""
+"""The Item change feed's normalization and wake requests (the behaviour is in features_backend/agents/item-change-feed.feature)."""
 import json
 
 import pytest

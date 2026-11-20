@@ -1785,50 +1785,6 @@ def edition_forum_thread_record(
     }
 
 
-def section_forum_thread_record(
-    *,
-    edition_id: str,
-    section_id: str,
-    section_key: str,
-    section_title: str,
-    run_id: str,
-    now: str,
-    thread_id: str = "",
-    existing: dict[str, Any] | None = None,
-    message_count: int = 1,
-    last_message_id: str = "",
-) -> dict[str, Any]:
-    thread_id = thread_id or f"message-thread-section-forum-{_safe_id(edition_id)}-{_safe_id(section_id)}"
-    existing_metadata = _metadata(existing or {})
-    return {
-        "id": thread_id,
-        "threadKind": "section_forum",
-        "status": "active",
-        "title": f"Section Forum: {section_title}",
-        "summary": "Section-scoped coordination and steering for this edition.",
-        "primaryAnchorKind": "newsroom_section",
-        "primaryAnchorId": section_id,
-        "primaryAnchorLineageId": edition_id,
-        "primaryAnchorKey": f"edition#{edition_id}#section#{section_id}",
-        "createdByLabel": (existing or {}).get("createdByLabel") or "papyrus-editor",
-        "messageCount": max(message_count, 1),
-        "lastMessageId": last_message_id or f"message-forum-{_safe_id(thread_id)}-0001",
-        "lastMessageAt": now,
-        "metadata": {
-            **existing_metadata,
-            "editionId": edition_id,
-            "sectionId": section_id,
-            "sectionKey": section_key,
-            "sectionTitle": section_title,
-            "runId": run_id,
-            "lastKickoffRunId": run_id,
-        },
-        "createdAt": (existing or {}).get("createdAt") or now,
-        "updatedAt": now,
-        "newsroomFeedKey": "messages",
-    }
-
-
 def forum_kickoff_message_record(
     *,
     thread: dict[str, Any],
@@ -1968,17 +1924,6 @@ def _editorial_title_hook(
         return " · ".join(related[:3])
     _ = (why_now, core_sections)
     return ""
-
-
-def _first_editorial_phrase(text: str, *, max_len: int = 44) -> str:
-    cleaned = re.sub(r"[*`_]", "", str(text or "")).strip()
-    if not cleaned:
-        return ""
-    clause = re.split(r"[.!?\n]", cleaned, maxsplit=1)[0].strip()
-    if len(clause) <= max_len:
-        return clause
-    shortened = clause[: max_len - 1].rsplit(" ", 1)[0].strip()
-    return shortened or clause[: max_len - 1].strip()
 
 
 def derive_edition_forum_thread_title(
@@ -3008,22 +2953,6 @@ def append_reporting_dispatch_forum_records(
     if dispatch_forum.get("records"):
         records.extend(dispatch_forum["records"])
     return dispatch_forum
-
-
-def _section_forum_kickoff_body(
-    *,
-    topic: str,
-    section: dict[str, Any],
-    coverage_key: str,
-    steering_window_hours: int = DEFAULT_STEERING_WINDOW_HOURS,
-) -> str:
-    _ = steering_window_hours, section.get("slots"), section.get("dispatchCount")
-    return "\n".join([
-        f"# {section['sectionTitle']}",
-        "",
-        f"Edition theme: **{topic}**",
-        f"Coverage: `{coverage_key}`",
-    ]).strip() + "\n"
 
 
 def _section_planning_role(section: dict[str, Any]) -> str:

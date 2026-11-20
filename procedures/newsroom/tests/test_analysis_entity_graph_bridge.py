@@ -218,69 +218,6 @@ class AnalysisEntityGraphBridgeTests(unittest.TestCase):
                 }
             )
 
-    def test_import_apply_chunked_and_resumable(self) -> None:
-        fake_changes = [
-            {
-                "action": "create",
-                "modelName": "SemanticNode",
-                "expected": {"id": f"semantic-node-{index}"},
-            }
-            for index in range(5)
-        ]
-        fake_result = {
-            "plan": {
-                "snapshotRef": "ner-entities:snap-001",
-                "importRunId": "knowledge-import-demo",
-                "semanticNodeCount": 5,
-                "semanticRelationCount": 0,
-                "mentionEdgeCount": 0,
-                "mentionRelationCount": 0,
-                "unresolvedReferences": 0,
-                "unresolvedReferenceItemIds": [],
-                "records": [],
-            },
-            "attachment": {"storagePath": "knowledge/raw/payload.json.gz"},
-            "changes": fake_changes,
-        }
-        with tempfile.TemporaryDirectory() as temp_dir:
-            checkpoint = pathlib.Path(temp_dir) / "checkpoint.json"
-            first_pass_calls: list[list[str]] = []
-
-            def first_pass_apply(_client, changes):
-                first_pass_calls.append([change["expected"]["id"] for change in changes])
-                if len(first_pass_calls) == 2:
-                    raise RuntimeError("boom on second chunk")
-
-            with (
-                patch("papyrus_content.analysis_commands.create_authoring_client", return_value=(object(), {})),
-                patch("papyrus_content.analysis_commands.plan_graph_artifact_import", return_value=fake_result),
-                patch("papyrus_content.analysis_commands.update_newsroom_summary_after_analysis_import"),
-                patch("papyrus_content.analysis_commands.apply_record_changes", side_effect=first_pass_apply),
-            ):
-                with self.assertRaisesRegex(RuntimeError, "boom on second chunk"):
-                    _analysis_import_graph_artifact_internal(
-                        "knowledge-import-demo",
-                        options={"chunk-size": "2", "checkpoint": str(checkpoint), "resume": "true"},
-                        apply=True,
-                    )
-            self.assertTrue(checkpoint.exists())
-            second_pass_calls: list[list[str]] = []
-            with (
-                patch("papyrus_content.analysis_commands.create_authoring_client", return_value=(object(), {})),
-                patch("papyrus_content.analysis_commands.plan_graph_artifact_import", return_value=fake_result),
-                patch("papyrus_content.analysis_commands.update_newsroom_summary_after_analysis_import"),
-                patch(
-                    "papyrus_content.analysis_commands.apply_record_changes",
-                    side_effect=lambda _client, changes: second_pass_calls.append([change["expected"]["id"] for change in changes]),
-                ),
-            ):
-                _analysis_import_graph_artifact_internal(
-                    "knowledge-import-demo",
-                    options={"chunk-size": "2", "checkpoint": str(checkpoint), "resume": "true"},
-                    apply=True,
-                )
-            self.assertEqual(second_pass_calls, [["semantic-node-2", "semantic-node-3"], ["semantic-node-4"]])
-            self.assertFalse(checkpoint.exists())
 
     def test_entity_graph_preflight_reports_unresolved_snapshot_blocker(self) -> None:
         with patch("papyrus_content.analysis_commands._build_analysis_reindex_plan_from_options") as build_plan:

@@ -1,4 +1,4 @@
-"""An Item's ``deck`` column is the dek of its front matter, by one rule, on every save path (features_backend/item-deck.feature, deploy-item-decks.feature)."""
+"""An Item's ``deck`` column is the dek of its front matter, by one rule, on every save path (features_backend/stories/item-deck.feature, deploy-item-decks.feature)."""
 from __future__ import annotations
 
 import json

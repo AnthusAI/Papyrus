@@ -6,7 +6,7 @@ cyclotron is sure enough, and never against a person's choice.
 
 Code: `src/papyrus_content/site_auto_section.py` (the rules, the phase and the command), the site function's automatic lane in
 `setReferenceSection` (`amplify/functions/category-action/handler.ts`), the calibration pairs in `src/papyrus_content/section_proof.py`.
-Specs: `features_backend/reference-auto-section.feature`, `src/papyrus_content/site_auto_section_test.py`, `scripts/test-reference-section.ts`.
+Specs: `features_backend/references/reference-auto-section.feature`, `src/papyrus_content/site_auto_section_test.py`, `scripts/test-reference-section.ts`.
 
 ## What decides the Section
 

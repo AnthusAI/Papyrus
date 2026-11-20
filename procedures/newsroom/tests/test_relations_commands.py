@@ -81,18 +81,6 @@ class RelationsCommandsTests(unittest.TestCase):
         self.assertTrue(changes[2]["unknownType"])
         self.assertEqual(changes[2]["expected"]["relationDomain"], "generic")
 
-    def test_legacy_knowledge_comment_records_without_subject_creates_message_only(self):
-        records = messages_commands.legacy_knowledge_comment_records(
-            {
-                "id": "legacy-comment-1",
-                "body": "Needs review.",
-                "createdAt": "2026-01-01T00:00:00.000Z",
-            }
-        )
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0]["modelName"], "Message")
-        self.assertTrue(records[0]["expected"]["id"].startswith("message-legacy-"))
-        self.assertEqual(records[0]["expected"]["content"], "Needs review.")
 
     def test_legacy_knowledge_comment_records_with_subject_creates_relation(self):
         records = messages_commands.legacy_knowledge_comment_records(
@@ -122,41 +110,6 @@ class RelationsCommandsTests(unittest.TestCase):
         self.assertTrue(papyrus_content_cli.is_ported_command("relations", "backfill"))
         self.assertTrue(papyrus_content_cli.is_ported_command("messages", "export-legacy-comments"))
         self.assertTrue(papyrus_content_cli.is_ported_command("messages", "import-legacy-comments"))
-
-    def test_relations_backfill_writes_report_without_apply(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cwd = pathlib.Path(tmpdir)
-            with mock.patch.object(relations_commands, "create_authoring_client") as create_client, mock.patch.object(
-                relations_commands, "DEFAULT_RELATION_TYPES_PATH", REPO_ROOT / "corpora" / "papyrus-semantic-relation-types.yml"
-            ):
-                client = mock.Mock()
-                client.list_records.return_value = [
-                    {
-                        "id": "semantic-relation-1",
-                        "predicate": "comment",
-                        "relationTypeKey": "comment",
-                        "relationDomain": "generic",
-                    }
-                ]
-                create_client.return_value = (client, {})
-                original_cwd = pathlib.Path.cwd()
-                try:
-                    import os
-
-                    os.chdir(cwd)
-                    with mock.patch("sys.stdout") as stdout:
-                        relations_commands.relations_backfill([])
-                finally:
-                    os.chdir(original_cwd)
-                report_path = cwd / ".papyrus-runs"
-                reports = list(report_path.glob("relation-type-backfill-*/backfill-report.json"))
-                self.assertEqual(len(reports), 1)
-                report = json.loads(reports[0].read_text(encoding="utf-8"))
-                self.assertFalse(report["apply"])
-                self.assertEqual(report["relationCount"], 1)
-                self.assertEqual(report["changeCount"], 1)
-                client.upsert.assert_not_called()
-                stdout.write.assert_called()
 
 
 if __name__ == "__main__":

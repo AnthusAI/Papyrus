@@ -1,4 +1,4 @@
-"""papyrus stories lens-check and the deterministic lens checks (features_backend/lens-check.feature). Nothing here calls a model or the network: the share picture is a fake."""
+"""papyrus stories lens-check and the deterministic lens checks (features_backend/stories/lens-check.feature). Nothing here calls a model or the network: the share picture is a fake."""
 
 from __future__ import annotations
 

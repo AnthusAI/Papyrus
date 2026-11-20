@@ -256,14 +256,6 @@ def stories_measure(flags: list[str]) -> None:
         print(line)
 
 
-def stories_versions(flags: list[str]) -> None:
-    """papyrus stories versions --story <lineage>"""
-    options = parse_options(flags)
-    client, _ = create_authoring_client()
-    for version in story_versions(client, _required_option(options, "story")):
-        print("\t".join(["stories", "versions", str(version.get("versionNumber")), str(version.get("versionState")), str(version.get("versionCreatedAt") or version.get("updatedAt") or ""), str(version.get("versionCreatedBy") or ""), str(version.get("changeReason") or ""), str(version["id"])]))
-
-
 def stories_pull(flags: list[str]) -> None:
     """papyrus stories pull --story <lineage> --body-file <file> --front-matter-file <file> [--version <N>] [--json]
 
@@ -664,76 +656,83 @@ def stories_agent_note(flags: list[str]) -> None:
     print(f"stories\tagent-note\tsaved\t{result['attachmentId']}")
 
 
-def stories_show(flags: list[str]) -> None:
-    """papyrus stories show --story <lineage> [--bucket day|week|none] [--json]
+def operator_story_show(client, lineage_id: str, bucket: str | None = None) -> dict:
+    from datetime import datetime, timezone
 
-    A scheduled version adds a `schedule` line: its state (scheduled, publishing, blocked or overdue), version, the UTC time and who scheduled it
-    (`papyrus stories schedule-list --story` shows the publication's local time).
-    --json prints only the story, its `related` stories (either end of a link: title, type, stage, published, note) and `unofficialRelations`
-    (item-to-item relations whose name is not the official `see_also`, which the See also block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
-    options = parse_options(flags)
-    lineage_id = _required_option(options, "story")
-    client, _ = create_authoring_client()
-    versions = story_versions(client, lineage_id)
-    latest = current_story_version(client, lineage_id) if versions else {}
-    if options.get("json"):
-        from .story_links import related_references, related_stories, unofficial_item_relations
-
-        print(json.dumps({"ok": True, "story": lineage_id, "title": latest.get("headline") or latest.get("title"), "type": latest.get("type"), "stage": latest.get("stage"),
-                          "related": related_stories(client, lineage_id) if versions else [],
-                          "relatedReferences": related_references(client, lineage_id) if versions else [],
-                          "unofficialRelations": unofficial_item_relations(client, lineage_id) if versions else []}, indent=2))
-        return
-    print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
-    metadata = latest.get("metadata")
-    metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
-    from .quality_ranking import utc_today
+    from .console_links import console_row_lines
+    from .pod_claims import claim_lines
     from .projection.standard.config import DEFAULT_STORY_BUCKET
+    from .quality_ranking import utc_today
+    from .story_agent_notes import story_agent_notes
+    from .story_links import related_references, related_stories, unofficial_item_relations
+    from .story_schedule import BLOCKED, BLOCKED_MESSAGE, OVERDUE, effective_state, scheduled_versions
     from .story_signals import signals
 
-    if versions:
-        print_console_rows("stories", "show", lambda base: story_links(base, lineage_id, latest["id"], f"editor page of the current version (version {latest.get('versionNumber')})"))
-        signal = signals(latest, normalize_string(options.get("bucket")) or DEFAULT_STORY_BUCKET, utc_today())
-        print("\t".join(["stories", "show", "signals", f"type {signal['type']}", f"section {signal['section']}", f"bucket {signal['bucket']}",
-                         f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
+    versions = story_versions(client, lineage_id)
+    latest = current_story_version(client, lineage_id) if versions else {}
+    metadata = latest.get("metadata")
+    metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    result = {"lineageId": lineage_id, "title": latest.get("headline") or latest.get("title"), "type": latest.get("type"), "stage": latest.get("stage"),
+              "currentVersion": latest.get("versionNumber"), "versionCount": len(versions), "hasVersions": bool(versions),
+              "consoleRows": [], "signals": None, "claims": [], "schedule": [], "moves": list(metadata.get(STAGE_MOVES_KEY) or []),
+              "references": story_references(client, lineage_id), "related": [], "relatedReferences": [], "unofficialRelations": [],
+              "messages": story_messages(client, lineage_id), "agentNotes": []}
+    if not versions:
+        return result
+    result["consoleRows"] = console_row_lines("stories", "show", lambda base: story_links(base, lineage_id, latest["id"], f"editor page of the current version (version {latest.get('versionNumber')})"))
+    result["signals"] = signals(latest, bucket or DEFAULT_STORY_BUCKET, utc_today())
+    result["claims"] = list(claim_lines(latest))
+    for row in scheduled_versions(client, lineage_id):
+        state = effective_state(row, datetime.now(timezone.utc))
+        note = BLOCKED_MESSAGE if state == BLOCKED else ("overdue: publish it now or schedule it again" if state == OVERDUE else "")
+        result["schedule"].append({"state": state, "versionNumber": row.get("versionNumber"), "scheduledPublishAt": row.get("scheduledPublishAt"), "scheduledBy": row.get("scheduledBy"), "note": note})
+    result["related"] = related_stories(client, lineage_id)
+    result["relatedReferences"] = related_references(client, lineage_id)
+    result["unofficialRelations"] = unofficial_item_relations(client, lineage_id)
+    result["agentNotes"] = story_agent_notes(client, lineage_id)
+    return result
+
+
+SIGNED_IN_CLIENT_FACTORY = create_authoring_client
+
+
+def stories_show(flags: list[str]) -> None:
+    from .registered_commands import run_registered_command
+
+    run_registered_command("stories:show", flags, create_client=create_authoring_client if create_authoring_client is not SIGNED_IN_CLIENT_FACTORY else None)
+
+
+def story_show_rows(result: dict) -> list[str]:
+    lineage_id = result["lineageId"]
+    rows = ["\t".join(["stories", "show", lineage_id, str(result["title"]), f"stage {result['stage']}", f"current version {result['currentVersion']} of {result['versionCount']}"])]
+    rows += result["consoleRows"]
+    signal = result["signals"]
+    if signal:
+        rows.append("\t".join(["stories", "show", "signals", f"type {signal['type']}", f"section {signal['section']}", f"bucket {signal['bucket']}",
+                               f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
         if signal["source"] == "editor":
-            print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
-        from .pod_claims import claim_lines
-
-        for line in claim_lines(latest):
-            print("\t".join(["stories", "show", "claim", line]))
-        from datetime import datetime, timezone
-
-        from .story_schedule import BLOCKED_MESSAGE, BLOCKED, OVERDUE, effective_state, scheduled_versions
-
-        for row in scheduled_versions(client, lineage_id):
-            state = effective_state(row, datetime.now(timezone.utc))
-            note = BLOCKED_MESSAGE if state == BLOCKED else ("overdue: publish it now or schedule it again" if state == OVERDUE else "")
-            print("\t".join(["stories", "show", "schedule", state, f"version {row.get('versionNumber')}", f"publish at {row.get('scheduledPublishAt')} (UTC)", f"by {row.get('scheduledBy')}", note]))
-    for move in metadata.get(STAGE_MOVES_KEY) or []:
-        print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
-    for reference in story_references(client, lineage_id):
-        print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
-    if versions:
-        from .story_links import related_stories, unofficial_item_relations
-
-        for linked in related_stories(client, lineage_id):
-            print("\t".join(["stories", "show", "related", linked["lineageId"], linked["title"], f"type {linked['type']}", f"stage {linked['stage']}", str(linked.get("note") or "")]))
-        from .story_links import related_references
-
-        for linked in related_references(client, lineage_id):
-            print("\t".join(["stories", "show", "see-also-reference", linked["referenceId"], linked["title"], f"host {linked['host']}", f"status {linked['status']}", str(linked.get("note") or "")]))
-        for odd in unofficial_item_relations(client, lineage_id):
-            print("\t".join(["stories", "show", "unofficial-relation", odd["relationId"], odd["predicate"], odd["otherLineageId"], "seeded type" if odd["knownType"] else "unknown name",
-                             "not shown as a Related story"]))
-    for message in story_messages(client, lineage_id):
+            rows.append("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+    rows += ["\t".join(["stories", "show", "claim", line]) for line in result["claims"]]
+    for row in result["schedule"]:
+        rows.append("\t".join(["stories", "show", "schedule", row["state"], f"version {row['versionNumber']}", f"publish at {row['scheduledPublishAt']} (UTC)", f"by {row['scheduledBy']}", row["note"]]))
+    for move in result["moves"]:
+        rows.append("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
+    for reference in result["references"]:
+        rows.append(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
+    for linked in result["related"]:
+        rows.append("\t".join(["stories", "show", "related", linked["lineageId"], linked["title"], f"type {linked['type']}", f"stage {linked['stage']}", str(linked.get("note") or "")]))
+    for linked in result["relatedReferences"]:
+        rows.append("\t".join(["stories", "show", "see-also-reference", linked["referenceId"], linked["title"], f"host {linked['host']}", f"status {linked['status']}", str(linked.get("note") or "")]))
+    for odd in result["unofficialRelations"]:
+        rows.append("\t".join(["stories", "show", "unofficial-relation", odd["relationId"], odd["predicate"], odd["otherLineageId"], "seeded type" if odd["knownType"] else "unknown name",
+                               "not shown as a Related story"]))
+    for message in result["messages"]:
         summary = " ".join(str(message.get("summary") or message.get("content") or "").split())
-        print("\t".join(["stories", "show", "message", str(message.get("createdAt") or ""), f"{message.get('authorLabel') or message.get('role') or 'unknown'} ({message.get('messageKind') or 'message'})", summary]))
-    from .story_agent_notes import story_agent_notes
-
-    for note in story_agent_notes(client, lineage_id) if versions else []:
+        rows.append("\t".join(["stories", "show", "message", str(message.get("createdAt") or ""), f"{message.get('authorLabel') or message.get('role') or 'unknown'} ({message.get('messageKind') or 'message'})", summary]))
+    for note in result["agentNotes"]:
         summary = " ".join(str(note.get("summary") or note.get("error") or "").split())
-        print("\t".join(["stories", "show", "agent-note", str(note.get("createdAt") or ""), f"AI agent {note.get('agent') or 'unknown'}", summary]))
+        rows.append("\t".join(["stories", "show", "agent-note", str(note.get("createdAt") or ""), f"AI agent {note.get('agent') or 'unknown'}", summary]))
+    return rows
 
 
 def stories_list(flags: list[str]) -> None:
@@ -763,58 +762,29 @@ def stories_list(flags: list[str]) -> None:
     print(f"stories\tlist\t{len(stories)} of {total}")
 
 
-def stories_set_stars(flags: list[str]) -> None:
-    """papyrus stories set-stars --story <lineage> --stars <0-5> [--agent <your name>] [--dry-run]
+def operator_story_next(client, lineage_id: str) -> dict:
+    from .newsroom_process import Procedure, resolve
+    from .story_checklist import progress_text, read_steps, steps_for_display, summary_of
 
-    Sets the editor's rating of a Story (1 to 5; 0 clears it) as the signed-in person, through the newsroom's setItemStars mutation (the one the console
-    calls), which also re-renders the listing pages whose order changed. It does not republish the Story. It writes unless you pass --dry-run. It sets the
-    editor value only; `stories show` also prints the effective rating, which can differ once votes are aggregated."""
-    from .story_signals import set_story_stars, validated_stars
-
-    options = parse_options(flags)
-    apply = resolve_mutation_apply(options, "stories set-stars")
-    lineage_id = _required_option(options, "story")
-    if options.get("stars") is None or options.get("stars") is True:
-        raise ValueError("stories set-stars requires --stars 0 to 5 (0 clears the rating).")
-    stars = validated_stars(options["stars"])
-    client, _ = create_authoring_client()
-    result = set_story_stars(client, lineage_id, stars, apply=apply, agent=normalize_string(options.get("agent")))
-    print("\t".join(["stories", "set-stars", lineage_id, f"previous {result['previous']}", f"stars {result['stars']}", "editor value",
-                     "write" if result["applied"] else "dry-run: nothing sent"]))
-
-
-def stories_next(flags: list[str]) -> None:
-    """papyrus stories next --story <lineage> [--json]
-
-    Read only. One answer about what remains (docs/story-procedure.md). The Story's stored checklist decides each step's state; the records only add a
-    `hint` where they differ. Lines, tab-separated: `status` (complete, ready, blocked or stale; the number still to do; why), a `step` line per step
-    (state done, skipped, not_applicable, not_done or stale), a `version` line per checklist step (the Story version it was recorded against and
-    `current` or `STALE: recorded against vN, story is now vM`), `hint`, the stored `item` and `note` lines and the `checklist progress` line, then
-    a `remaining` line per step still to do (in order), `next` (the first), `skipped` and one `lens` line per review step not current. A review lens
-    or the copy edit recorded done against an earlier version is stale and remains until it is recorded again for the current version."""
-    options = parse_options(flags)
-    lineage_id = _required_option(options, "story")
-    client, _ = create_authoring_client()
     facts = story_facts(client, lineage_id)
-    from .newsroom_process import Procedure, hint_lines, remaining_lines, resolve, status_lines, version_lines
-    from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
-
-    raw = read_steps(client, lineage_id)   # one index read by Story lineage
-    assessment = resolve(assess(facts), raw, facts)   # the stored checklist decides; the records only hint
+    raw = read_steps(client, lineage_id)
+    assessment = resolve(assess(facts), raw, facts)
     procedure = Procedure.from_spec(facts.get("procedureSpec"))
     stored = steps_for_display(raw, lineage_id, procedure)
-    stale_count = len(assessment["stale"])
-    states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}   # the lens steps as resolved, stale included
-    if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
-                          "currentVersion": facts["versionNumber"], "checklist": stored,
-                          "progress": progress_text(summary_of(stored, procedure), stale_count) if stored else None}, indent=2))
-        return
-    print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    lines = (status_lines(assessment) + step_lines(assessment) + version_lines(assessment) + hint_lines(assessment) + checklist_lines(stored, stale_count)
-             + remaining_lines(assessment) + next_lines(assessment) + lens_lines(states, lineage=lineage_id))
-    for line in lines:
-        print(line)
+    states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}
+    return {"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
+            "currentVersion": facts["versionNumber"], "checklist": stored,
+            "progress": progress_text(summary_of(stored, procedure), len(assessment["stale"])) if stored else None}
+
+
+def story_next_rows(result: dict) -> list[str]:
+    from .newsroom_process import hint_lines, remaining_lines, status_lines, version_lines
+    from .story_checklist import checklist_lines
+
+    lineage_id = result["story"]
+    states = {row["key"]: row["state"] for row in result["steps"] if row["source"] == "checklist"}
+    return ([f"stories\tnext\t{lineage_id}\tstage {result['stage']}"] + status_lines(result) + step_lines(result) + version_lines(result) + hint_lines(result)
+            + checklist_lines(result["checklist"], len(result["stale"])) + remaining_lines(result) + next_lines(result) + lens_lines(states, lineage=lineage_id))
 
 
 def stories_step(flags: list[str]) -> None:

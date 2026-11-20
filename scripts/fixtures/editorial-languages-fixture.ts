@@ -1,7 +1,7 @@
 /**
  * An in-memory stand-in for the editorial checks door (lib/editorial-checks-client.ts) for the Administration > Editorial checks browser acceptance. It holds the stored
  * settings, records every save, and answers `describeLanguages` the way the server's one validation would for the inputs the scenarios use: the rules themselves are
- * checked in features_backend/editorial-languages-setting.feature, not here. Nothing leaves the page.
+ * checked in features_backend/translation/editorial-languages-setting.feature, not here. Nothing leaves the page.
  */
 import { DEFAULT_EDITORIAL_SETTINGS, mergeEditorialSettings, type EditorialSettings } from "../../lib/editorial-checks-settings";
 import type { LanguagesDescription } from "../../lib/editorial-languages-form";

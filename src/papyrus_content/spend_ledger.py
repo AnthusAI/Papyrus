@@ -105,5 +105,56 @@ def record_run(table: Any, *, tenant_id: str, responsibility: str | None, run_id
 
 def spent(table: Any, *, tenant_id: str, scope: str, period: str, moment: datetime) -> Spent:
     """What a scope's cycle holds now (zero when nothing was counted)."""
-    item = table.get_item(Key={"pk": partition_key(tenant_id, scope, cycle_start(period, moment)), "sk": TOTAL_SORT_KEY}, ConsistentRead=True).get("Item") or {}
+    return spent_in(table, tenant_id=tenant_id, scope=scope, start=cycle_start(period, moment))
+
+
+def spent_in(table: Any, *, tenant_id: str, scope: str, start: date) -> Spent:
+    """What a scope holds for the cycle that starts on ``start`` (a cycle whose start is not a period's, such as X's billing cycle). Zero when nothing was counted."""
+    item = table.get_item(Key={"pk": partition_key(tenant_id, scope, start), "sk": TOTAL_SORT_KEY}, ConsistentRead=True).get("Item") or {}
     return Spent(int(item.get("microUsd", 0)), int(item.get("calls", 0)), int(item.get("unpricedCalls", 0)))
+
+
+def add_charge(table: Any, *, tenant_id: str, scope: str, start: date, amount: Any, moment: datetime) -> Spent:
+    """Add one charge to a scope for the cycle that starts on ``start``, atomically, and return what the cycle then holds. No marker: Caducus reports each charge once
+    (it holds the delivery's own attempt log), so a charge has no run id to be counted by."""
+    if not tenant_id:
+        raise SpendError("A charge is counted for a site.")
+    try:
+        answer = table.update_item(
+            Key={"pk": partition_key(tenant_id, scope, start), "sk": TOTAL_SORT_KEY},
+            UpdateExpression="ADD microUsd :cost, calls :one SET updatedAt = :stamp",
+            ExpressionAttributeValues={":cost": micro_usd(amount), ":one": 1, ":stamp": moment.astimezone(timezone.utc).isoformat()},
+            ReturnValues="ALL_NEW")
+    except Exception as error:
+        raise SpendError(f"A charge could not be added to the ledger: {error}") from error
+    item = answer.get("Attributes") or {}
+    return Spent(int(item.get("microUsd", 0)), int(item.get("calls", 0)), int(item.get("unpricedCalls", 0)))
+
+
+HALT_PREFIX = f"{KEY_PREFIX}HALT#"
+HALT_SORT_KEY = "HALT"
+EVERY_SITE = "ALL"
+
+
+def halt_key(tenant_id: str | None) -> str:
+    return f"{HALT_PREFIX}{tenant_id or EVERY_SITE}"
+
+
+def halt_reason(table: Any, tenant_id: str | None) -> str | None:
+    """Why runs are halted for this site, or None. A halt row for every site stops every run; a halt row for one site stops that site's."""
+    for key in dict.fromkeys([halt_key(None), halt_key(tenant_id)] if tenant_id else [halt_key(None)]):
+        item = table.get_item(Key={"pk": key, "sk": HALT_SORT_KEY}, ConsistentRead=True).get("Item")
+        if item:
+            return str(item.get("reason") or "no reason was recorded")
+    return None
+
+
+def set_halt(table: Any, *, tenant_id: str | None, reason: str, by: str, moment: datetime) -> None:
+    """The kill switch: from now no run starts for the site (or for every site when ``tenant_id`` is None) until ``clear_halt``."""
+    if not reason.strip() or not by.strip():
+        raise SpendError("A halt says why and who set it.")
+    table.put_item(Item={"pk": halt_key(tenant_id), "sk": HALT_SORT_KEY, "reason": reason.strip(), "by": by.strip(), "at": moment.astimezone(timezone.utc).isoformat()})
+
+
+def clear_halt(table: Any, *, tenant_id: str | None) -> None:
+    table.delete_item(Key={"pk": halt_key(tenant_id), "sk": HALT_SORT_KEY})

@@ -11,10 +11,11 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping, TextIO
 
+from papyrus_content.actor_identity import ACTOR_KIND_VARIABLE, actor_kind
+
 from .cli_generated import COMMANDS
 from .handlers import Caller, Handler, Outcome, error_envelope, execute
 
-ACTOR_KIND_VARIABLE = "PAPYRUS_ACTOR_KIND"   # "agent" for procedures, automations and agent shells; anything else is a person (design section 3.6)
 ERROR_EXIT_CODE = 2
 PICTURE_KEY = "_picture"   # parse() keeps the path --file names here for an operation that uploads a picture; command() replaces it with the attachment id
 
@@ -41,7 +42,7 @@ def usage_for(words: list[str], group: str = "images") -> str | None:
 
 
 def caller_from(environ: Mapping[str, str]) -> Caller:
-    return Caller(kind="agent" if environ.get(ACTOR_KIND_VARIABLE, "").strip().lower() == "agent" else "person")
+    return Caller(kind=actor_kind(environ))
 
 
 class _BadFlags(Exception):
@@ -133,8 +134,28 @@ def signed_in_uploader(path: str, kind: str) -> str:
     return upload_picture(create_authoring_client()[0], path, kind)
 
 
+#: operation -> (input field, environment variable): a secret the command line takes from the environment or standard input, never from a flag
+SECRET_INPUTS = {"announcements_account_set_app": ("clientSecret", "PAPYRUS_X_CLIENT_SECRET")}
+REDACTED = "(hidden)"
+#: operation -> (input field, question): asked at a terminal when the flag is left out
+PROMPTED_INPUTS = {"announcements_account_set_app": ("clientId", "X app client ID: ")}
+
+
+def ask_visible(question: str) -> str:
+    sys.stderr.write(question)
+    sys.stderr.flush()
+    return sys.stdin.readline().strip()
+
+
+def ask_hidden(question: str) -> str:
+    import getpass
+
+    return getpass.getpass(question).strip()
+
+
 def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None,
-            stdout: TextIO | None = None, previews: Mapping[str, str] | None = None, uploader: Callable[[str, str], str] | None = None) -> int:
+            stdout: TextIO | None = None, previews: Mapping[str, str] | None = None, uploader: Callable[[str, str], str] | None = None,
+            stdin: TextIO | None = None, preflight: Callable[[], None] | None = None) -> int:
     """Run ``papyrus <group> <argv>`` and print the JSON envelope. ``handlers``, ``environ`` and ``uploader`` are for tests and later front ends.
 
     ``previews`` maps a write operation to the read operation its ``--dry-run`` runs, so a dry run shows what would change instead of echoing the input.
@@ -159,6 +180,26 @@ def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handl
     except _BadFlags as bad:
         return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": bad.path}))
     caller = caller_from(environ)
+    secret = SECRET_INPUTS.get(spec["op"])
+    if preflight is not None and not dry_run and (secret or spec["op"] in PROMPTED_INPUTS):
+        try:
+            preflight()   # the site and the sign-in, checked before anything is asked: no one types a secret for a command that cannot run
+        except Exception as unavailable:
+            return finish(error_envelope(spec["op"], "service_unavailable", str(unavailable)))
+    source = stdin if stdin is not None else sys.stdin
+    asked = PROMPTED_INPUTS.get(spec["op"])
+    if asked and asked[0] not in arguments and source.isatty():
+        value = ask_visible(asked[1])
+        if value:
+            arguments[asked[0]] = value
+    if secret and secret[0] not in arguments:
+        value = (environ.get(secret[1]) or "").strip()
+        if not value and not source.isatty():
+            value = source.read().strip()
+        if not value and source.isatty():
+            value = ask_hidden("X app client secret (hidden): ")
+        if value:
+            arguments[secret[0]] = value
     picture = arguments.pop(PICTURE_KEY, None)
     if picture is not None:
         if dry_run:
@@ -174,6 +215,8 @@ def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handl
                 arguments[spec["picture"]] = (uploader or signed_in_uploader)(picture, kind)
             except PictureError as bad:
                 return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": "file"}))
+    if dry_run and secret and secret[0] in arguments:
+        arguments = {**arguments, secret[0]: REDACTED}
     if dry_run:
         # Check the input and the caller exactly as a real call would, then stop before the handler: nothing is sent, nothing is spent.
         envelope = execute(spec["op"], arguments, caller, handlers={spec["op"]: _dry_run_handler})

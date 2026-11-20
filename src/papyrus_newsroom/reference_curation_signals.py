@@ -14,7 +14,6 @@ import html
 import json
 import os
 import re
-import sys
 import threading
 import urllib.error
 import urllib.request
@@ -3605,10 +3604,6 @@ def _resolve_reference(semantic: PapyrusSemanticClient, reference_id: str) -> di
         raise
 
 
-def _reference_metadata_attachment_id(reference_id: str) -> str:
-    return f"model-attachment-{_safe_id('reference')}-{_safe_id(reference_id)}-{_safe_id('metadata')}-{_safe_id('metadata')}"
-
-
 def _load_reference_metadata_payload(reference: dict[str, Any]) -> dict[str, Any]:
     reference_id = str(reference.get("id") or "").strip()
     if not reference_id:
@@ -5386,10 +5381,6 @@ def _placeholder_title(value: Any) -> bool:
     }
 
 
-def _placeholder_title_or_subtitle(value: Any) -> bool:
-    return _placeholder_title(value)
-
-
 def _catalog_entries(items_value: Any) -> list[tuple[str, dict[str, Any]]]:
     if isinstance(items_value, list):
         return [(str(index), item) for index, item in enumerate(items_value) if isinstance(item, dict)]
@@ -5585,8 +5576,3 @@ def _number_or_none(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
-
-
-def print_json(payload: dict[str, Any]) -> None:
-    json.dump(payload, sys.stdout, indent=2, sort_keys=True)
-    sys.stdout.write("\n")

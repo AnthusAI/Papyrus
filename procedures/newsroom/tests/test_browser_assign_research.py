@@ -1,5 +1,5 @@
 """A research assignment made in the newsroom (lib/assign-research.ts) must end in the stored shape `papyrus stories assign-research` makes, and the reporting
-agent's context pack and the research run must read it (features_backend/browser-assign-research.feature). The TypeScript test writes what the browser path
+agent's context pack and the research run must read it (features_backend/references/browser-assign-research.feature). The TypeScript test writes what the browser path
 writes to features_backend/fixtures/browser-assign-research.json; this test loads that file into the same fake newsroom the context pack specs use. The
 Assignment model has no metadata or instructions column, so the direction reaches the pack only through the `metadata` ModelAttachment."""
 from __future__ import annotations

@@ -1,5 +1,5 @@
 """Reads for many keys ride in aliased requests, 25 to a request, and return what the one-at-a-time reads return
-(features_backend/batched-reads.feature)."""
+(features_backend/platform/batched-reads.feature)."""
 from __future__ import annotations
 
 import math

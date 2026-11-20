@@ -1,4 +1,4 @@
-"""An editor links a story to related stories (features_backend/story-links.feature).
+"""An editor links a story to related stories (features_backend/stories/story-links.feature).
 
 Runs the real `papyrus stories link-story` and `stories show` commands against `SignedInSite`, a stand-in that refuses what AppSync refuses a
 signed-in token. No network, login or AWS.
@@ -167,7 +167,7 @@ def _flagged(context, name):
     assert [entry["predicate"] for entry in context.shown["unofficialRelations"]] == [name], context.shown
 
 
-# ---- features_backend/link-rerender.feature: the page re-render is a recording stand-in ----
+# ---- features_backend/site/link-rerender.feature: the page re-render is a recording stand-in ----
 
 @given("the page re-render is a recording stand-in")
 def _recording_rerender(context):

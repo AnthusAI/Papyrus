@@ -1,4 +1,4 @@
-"""One correct path that fails clearly (features_backend/no-fallbacks.feature). The GraphQL call is a stand-in."""
+"""One correct path that fails clearly (features_backend/platform/no-fallbacks.feature). The GraphQL call is a stand-in."""
 
 from __future__ import annotations
 

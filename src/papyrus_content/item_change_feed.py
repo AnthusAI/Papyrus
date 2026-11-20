@@ -201,7 +201,7 @@ def wake_request(change: Change, listener: Mapping[str, Any], site: Site) -> dic
         "trigger": {"kind": "event", "event": f"{change.kind.lower()}.{change.change}", "automationId": agent,
                     **({"story": change.lineage} if change.subject is None else {"subject": dict(change.subject)}), "version": change.version,
                     "title": f"{procedure}: {change.change.replace('_', ' ')}"[:200], "summary": _reason(change, agent),
-                    "paid": bool(listener.get("paid")), "serialBy": listener.get("serialBy"), "responsibility": listener.get("responsibility"), "actorKind": change.actor_kind,
+                    "paid": bool(listener.get("paid")), "serialBy": listener.get("serialBy"), "safeToRepeat": bool(listener.get("safeToRepeat")), "responsibility": listener.get("responsibility"), "actorKind": change.actor_kind,
                     "actorLabel": change.actor_label, "at": change.at},
     }
     for name, value in (("tenantId", site.tenant_id), ("siteBucket", site.site_bucket), ("openaiKeyParameter", site.openai_key_parameter)):

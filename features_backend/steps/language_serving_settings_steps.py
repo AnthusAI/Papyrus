@@ -1,4 +1,4 @@
-"""The serving part of the languages setting and slug drafting (features_backend/language-serving-settings.feature). Pure functions; no network."""
+"""The serving part of the languages setting and slug drafting (features_backend/translation/language-serving-settings.feature). Pure functions; no network."""
 
 from __future__ import annotations
 

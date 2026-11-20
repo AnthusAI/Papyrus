@@ -1,6 +1,6 @@
 """A TTAB monitor's table rows and a site backend's records, shaped like the live ones, for the Automation read path.
 
-Used by test_automations.py and features_backend/automation-records.feature. The trigger rows carry the runner
+Used by test_automations.py and features_backend/agents/automation-records.feature. The trigger rows carry the runner
 `request` on purpose (it holds an AppSync endpoint and an SSM parameter name): the history must never return it.
 """
 import json

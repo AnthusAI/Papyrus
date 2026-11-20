@@ -3,7 +3,7 @@
   "title": "Editors register pending sources without direct knowledge-model access",
   "description": "Feature: Publication-scoped pending source intake\nScenario: Authorized editor registers a source\nGiven a validated editor of the deployed publication\nWhen a source URL and rationale are submitted through the supported CLI\nThen a pending immutable Reference and attributable provenance are returned\nAnd generic knowledge models remain read-only\nScenario: Unauthorized or cross-publication intake\nGiven an unauthenticated actor or mismatched publication\nWhen intake is requested\nThen no data is written\nScenario: Repeated canonical source intake\nGiven a source already registered\nWhen its canonical URL is submitted again or concurrently\nThen the same Reference identity is returned without replacement or duplicate provenance\nScenario: Consulted story evidence\nGiven a pending registered Reference and existing unpublished Reporting story\nWhen the editor links the returned record as consulted\nThen the link is readable and prior story versions and Messages are preserved",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -85,11 +85,18 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "a07340af-7f66-4510-a4fc-6ed31e0bc650",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: work shipped on develop (#367); any follow-ups are in the notes above and need their own records.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-19T22:34:19.020547Z",
-  "updated_at": "2026-10-19T22:48:46.455307Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "closed_at": "2026-11-20T14:03:43.000000Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6.1-sol",

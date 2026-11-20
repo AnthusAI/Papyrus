@@ -1,6 +1,6 @@
 # Request meter, request budgets and batched reads
 
-AppSync bills per request, and the bad days came from loops that sent one request per row. The Python GraphQL client therefore counts every request it sends, says who sent it, warns when a process spends more than its input justifies, and sends reads for many rows as one request. Code: `src/papyrus_content/request_meter.py`, `src/papyrus_content/batched_reads.py`, `PapyrusGraphQLAuthoringClient` in `src/papyrus_content/graphql_authoring.py`. Specs: `features_backend/request-meter.feature`, `features_backend/batched-reads.feature`. Design and roadmap (steps 1 and 2): the no-order-N design.
+AppSync bills per request, and the bad days came from loops that sent one request per row. The Python GraphQL client therefore counts every request it sends, says who sent it, warns when a process spends more than its input justifies, and sends reads for many rows as one request. Code: `src/papyrus_content/request_meter.py`, `src/papyrus_content/batched_reads.py`, `PapyrusGraphQLAuthoringClient` in `src/papyrus_content/graphql_authoring.py`. Specs: `features_backend/agents/request-meter.feature`, `features_backend/platform/batched-reads.feature`. Design and roadmap (steps 1 and 2): the no-order-N design.
 
 ## What is counted
 

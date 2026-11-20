@@ -1,4 +1,4 @@
-"""Cadence families (features_backend/cadence-family.feature): the site's notifications function on Caducus's in-memory fakes. Nothing is sent; every address is a placeholder.
+"""Cadence families (features_backend/announcements/cadence-family.feature): the site's notifications function on Caducus's in-memory fakes. Nothing is sent; every address is a placeholder.
 
 The rule is Caducus's (the stock public audience); what these steps prove is Papyrus's part of it: the list settings that name a family, the hook that makes a switch
 wait for the next period start, and the ``audienceAsOf`` a periodic Delivery carries (``announcements/email_channel.py``)."""

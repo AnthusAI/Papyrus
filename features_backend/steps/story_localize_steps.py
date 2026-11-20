@@ -1,4 +1,4 @@
-"""A published Story is translated by one procedure (features_backend/story-localize.feature).
+"""A published Story is translated by one procedure (features_backend/translation/story-localize.feature).
 
 The run goes through `localize.run.localize_story` on the shared in-memory fake backend, with the site's reads (settings, glossary, policies,
 spend history) given as the Machines on Machines starters and the attachments kept in memory. The translator, judge and repairer are scripted;

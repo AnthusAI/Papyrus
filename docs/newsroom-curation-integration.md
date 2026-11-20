@@ -55,7 +55,7 @@ when a curation session supplies example support and the person may review
 (`useReferenceImport` in `components/reference-curation-controls.tsx`); with no
 provider, only "Paste a URL" renders. Editor-facing copy describes adding
 references, never the engine behind it. Leaving an import preview (cancel or
-reject) saves nothing; `features_backend/newsroom_curation.feature` covers that
+reject) saves nothing; `features_backend/monitoring/newsroom-curation.feature` covers that
 and the full preview details and source provenance for a web page.
 
 ## Reproducible local review and dependency boundary

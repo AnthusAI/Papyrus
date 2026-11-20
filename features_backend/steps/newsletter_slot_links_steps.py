@@ -1,4 +1,4 @@
-"""The link rule for a slot's blurb (features_backend/newsletter-slot-links.feature)."""
+"""The link rule for a slot's blurb (features_backend/readers/newsletter-slot-links.feature)."""
 
 from __future__ import annotations
 

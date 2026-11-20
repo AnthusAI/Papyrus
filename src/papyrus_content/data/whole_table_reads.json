@@ -1,6 +1,5 @@
 {
   "scripts/verify_archived_email_submission.py": 1,
-  "src/papyrus/operator/backends/cloud.py": 1,
   "src/papyrus_content/analysis_commands.py": 5,
   "src/papyrus_content/analysis_graph.py": 2,
   "src/papyrus_content/assignment_executors.py": 1,
@@ -44,7 +43,7 @@
   "src/papyrus_content/monitoring_vectors.py": 1,
   "src/papyrus_content/monitoring_web_queries.py": 1,
   "src/papyrus_content/newsletter/roundup.py": 1,
-  "src/papyrus_content/newsroom_commands.py": 28,
+  "src/papyrus_content/newsroom_commands.py": 19,
   "src/papyrus_content/newsroom_context_pack.py": 1,
   "src/papyrus_content/ontology_enrichment.py": 2,
   "src/papyrus_content/priming_export.py": 2,
@@ -75,7 +74,6 @@
   "src/papyrus_content/story_selection.py": 1,
   "src/papyrus_content/story_triggers.py": 1,
   "src/papyrus_content/tenant_adoption.py": 1,
-  "src/papyrus_newsroom/email_submissions.py": 2,
   "src/papyrus_newsroom/newsroom.py": 2,
   "src/papyrus_newsroom/tactus_tools.py": 1
 }

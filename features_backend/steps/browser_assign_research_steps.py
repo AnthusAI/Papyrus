@@ -1,4 +1,4 @@
-"""features_backend/browser-assign-research.feature: the proofs are the functions of procedures/newsroom/tests/test_browser_assign_research.py."""
+"""features_backend/references/browser-assign-research.feature: the proofs are the functions of procedures/newsroom/tests/test_browser_assign_research.py."""
 from __future__ import annotations
 
 import sys

@@ -1,35 +1,21 @@
 """`papyrus references search "agent memory"`: the References page search box, from the command line.
 
-It asks the site's `searchReferences` query (the one the newsroom References page uses) with the `papyrus login` session. Words and meaning run
+It is the operator branch of the shared `references search` handler (see command_registry.py): it asks the site's `searchReferences` query (the one the newsroom References page uses) with the `papyrus login` session. Words and meaning run
 together on the site; the answer is a page of References, rated or not, with how each was matched. Read-only: the only request is that one query. There
 is no AWS lane: this module never imports boto3, reads an AWS profile or falls back to IAM, and every refusal is one line and a non-zero exit.
 """
 from __future__ import annotations
 
-import argparse
 import json
-import os
-import sys
 from typing import Any
 
 from . import signed_in_lane as lane
 from .signed_in_lane import Refusal
 
 SEARCH_QUERY = "query SearchReferences($input: AWSJSON!) { searchReferences(input: $input) }"
-SHOW_CHOICES = ("unrated", "rated", "accepted", "rejected", "all")
+SHOW_CHOICES = ["unrated", "rated", "accepted", "rejected", "all"]
+DEFAULT_PAGE_SIZE = 24
 FIELD_LABELS = {"title": "title", "authors": "author", "sourceUri": "link", "externalItemId": "id"}
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="papyrus references search", add_help=True,
-                                     description="Read-only: find References by words and by meaning through your `papyrus login` session (no AWS credentials)")
-    parser.add_argument("query", nargs="+", help="What to look for, such as: agent memory")
-    parser.add_argument("--site", help="Which signed-in site, such as shipped.anth.us (needed when several are signed in)")
-    parser.add_argument("--show", choices=SHOW_CHOICES, default="all", help="unrated (pending), rated (accepted or rejected), accepted, rejected or all (default)")
-    parser.add_argument("--limit", type=int, default=24, help="How many References per page (1 to 100, default 24)")
-    parser.add_argument("--cursor", help="Continue after this cursor (the `nextCursor` of the previous page)")
-    parser.add_argument("--json", action="store_true", help="Print the raw response")
-    return parser
 
 
 def matched_text(item: dict[str, Any]) -> str:
@@ -64,30 +50,39 @@ def summarize(data: dict[str, Any]) -> str:
     return "\n".join(out)
 
 
-def command(argv: list[str], *, client=None, out=None) -> int:
-    out = out or sys.stdout
-    os.environ["PAPYRUS_GRAPHQL_AUTH"] = "user"   # the signed-in lane only; never IAM
-    try:
-        args = build_parser().parse_args(argv)
-        query = " ".join(args.query).strip()
-        if not query:
-            raise Refusal("Say what to look for: papyrus references search \"agent memory\".")
-        if not 1 <= args.limit <= 100:
-            raise Refusal("--limit must be between 1 and 100.")
-        payload: dict[str, Any] = {"query": query, "show": args.show, "limit": args.limit}
-        if args.cursor:
-            payload["cursor"] = args.cursor
-        client = client or lane.client(args.site)
-        data = lane.fetch(client, SEARCH_QUERY, "searchReferences", {"input": json.dumps(payload)}, noun="Reference search",
-                          forbidden=lambda: Refusal("Refused: searching References is for editors and admins; your signed-in account does not have that access."))
-        lanes = data.get("lanes") or {}
-        if all((lanes.get(name) or {}).get("status") == "failed" for name in ("keyword", "meaning")):
-            raise Refusal("Reference search is unavailable: neither word search nor meaning search could run.")
-        print(json.dumps(data, indent=2, sort_keys=True) if args.json else summarize(data), file=out)
-        return 0
-    except Refusal as refusal:
-        print(str(refusal), file=sys.stderr)
-        return 2
-    except ValueError as error:   # AuthError (signed out, expired, no site configured) is a ValueError
-        print(f"Not signed in or session unusable: {str(error).splitlines()[0]}", file=sys.stderr)
-        return 2
+def operator_reference_search(client, *, query: str, show: str | None, limit: int | None, cursor: str | None) -> dict[str, Any]:
+    text = query.strip()
+    if not text:
+        raise Refusal("Say what to look for: papyrus references search \"agent memory\".")
+    payload: dict[str, Any] = {"query": text, "show": show or "all", "limit": limit or DEFAULT_PAGE_SIZE}
+    if cursor:
+        payload["cursor"] = cursor
+    data = lane.fetch(client, SEARCH_QUERY, "searchReferences", {"input": json.dumps(payload)}, noun="Reference search",
+                      forbidden=lambda: Refusal("Refused: searching References is for editors and admins; your signed-in account does not have that access."))
+    lanes = data.get("lanes") or {}
+    if all((lanes.get(name) or {}).get("status") == "failed" for name in ("keyword", "meaning")):
+        raise Refusal("Reference search is unavailable: neither word search nor meaning search could run.")
+    return data
+
+
+def registry_flags_from_words(argv: list[str]) -> list[str]:
+    """`papyrus references search agent memory --limit 5`: the words before and between the flags are the query."""
+    words: list[str] = []
+    flags: list[str] = []
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        if token.startswith("--"):
+            takes_value = token != "--json" and index + 1 < len(argv) and not argv[index + 1].startswith("--")
+            flags.extend(argv[index:index + 2] if takes_value else [token])
+            index += 2 if takes_value else 1
+        else:
+            words.append(token)
+            index += 1
+    return ["--query", " ".join(words), *flags] if words else flags
+
+
+def command(argv: list[str]) -> int:
+    from .registered_commands import run_registered_command
+
+    return run_registered_command("references:search", registry_flags_from_words(argv))

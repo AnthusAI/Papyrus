@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f937c83a-3fe3-418d-9560-588f195ddf7b",
+  "issue_id": "PPY-1ea28b94-488a-409d-a1b1-7c5d46064328",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-20T19:26:33.942Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "Put a server function in front of agent rung changes",
+    "description": "`papyrus agents set-rung --apply` writes the agent policy document with the admin's own AWS credentials (the admin group's S3 grant in `amplify/agents/admin-policy-grant.ts`, plus SiteDocument writes), so nothing on the server can tell a person from an agent. A rung change is the one thing an agent must never do for itself.\n\n**Change**\n1. A site function `agentPolicySetRung` that checks the token's app client against `PERSON_ONLY_CLIENT_IDS`, the way the announcements function does.\n2. It writes the policy version object and the SiteDocument rows with its own role.\n3. Remove the admin group's S3 grant and its SiteDocument writes for the agents kind.\n4. The CLI calls the mutation instead of writing.\n\n**Acceptance criteria**\n- An agent's client cannot change a rung, by any route.\n- A person's rung change is recorded with who and when, as today.\n- The admin group holds no direct write to the agents policy objects.\n- Every behaviour change ships with narrative Gherkin specs.\n\n**Notes**\n- Part 3 is deploy-time IAM and needs a stack deploy to verify.\n- The person-only check for CLI tokens needs `cliOnFederationClient` and a live login test on the M3.\n- Found by the \"Add spend brake and agent guardrails\" thread (relates to PPY-9376f8, the budget brake).\n\n**Gherkin features needed**\n- agent-rung-change.feature: a person's client changes a rung and it is recorded; an agent's client is refused; the admin group cannot write the policy object directly.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

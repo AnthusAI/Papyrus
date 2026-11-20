@@ -131,8 +131,8 @@ this code. These activation steps remain separate from merging or publishing the
 ## DMARC for the sending domains and its report mailbox (PPY-6bcae9)
 
 `papyrus-dmarc.yaml` publishes the `_dmarc.<domain>` TXT record of one sending domain: `v=DMARC1; p=none; adkim=r; aspf=r; rua=mailto:<report address>`. The release deploys it as one
-stack for each sending domain from `infra/pipeline/stacks.json` (planned: `papyrus-dmarc-anth-us` for `anth.us` and `papyrus-dmarc-mail-machines-on-machines` for
-`mail.machines-on-machines.anth.us`, both looking up the `anth.us` zone). Specs: `features_backend/dmarc-report-record.feature`.
+stack for each sending domain from `infra/pipeline/stacks.json`: `papyrus-dmarc-anth-us` for `anth.us` and `papyrus-dmarc-mail-machines-on-machines` for
+`mail.machines-on-machines.anth.us`, both looking up the `anth.us` zone. Specs: `features_backend/references/dmarc-report-record.feature`.
 
 - **The report address is a deployment parameter, never in Git.** The stack's `ReportAddress` parameter is an `AWS::SSM::Parameter::Value<String>` whose value in `stacks.json` is the
   parameter's NAME, `/papyrus/dmarc/report-address`. CloudFormation reads the address at deploy time (the deploy role already resolves parameters under `/papyrus/`). The mailbox is an
@@ -147,8 +147,8 @@ stack for each sending domain from `infra/pipeline/stacks.json` (planned: `papyr
 
 What remains before a record exists, in order (nothing here is deployed yet):
 
-1. A person approves the `role-stack-deploy` run that applies `papyrus-dmarc-*` to the pipeline roles (`infra/pipeline/papyrus-stack-pipeline.yaml`). A pull request that names a stack the deployed
-   roles do not know fails its dry run until then, so the stacks are a second change.
+1. A person approves the `role-stack-deploy` run that applied `papyrus-dmarc-*` to the pipeline roles (merged in the change before the stacks). A pull request that names a stack the deployed
+   roles do not know fails its dry run until then, so the stacks were a second change.
 2. A person creates the String parameter `/papyrus/dmarc/report-address` once in `papyrus-production`; it holds the mailbox address. Without it the stacks fail at their change set and nothing is half-made.
-3. The change that adds the two stacks to `stacks.json` merges, and the release deploys them.
+3. The release deploys the two stacks.
 4. A first aggregate report arrives and is read; a stricter policy is then proposed as its own change.

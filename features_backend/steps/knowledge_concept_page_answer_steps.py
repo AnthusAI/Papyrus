@@ -1,4 +1,4 @@
-"""Concepts have a public page only when the page answer is yes (features_backend/knowledge-concept-page-answer.feature)."""
+"""Concepts have a public page only when the page answer is yes (features_backend/knowledge/knowledge-concept-page-answer.feature)."""
 
 from __future__ import annotations
 

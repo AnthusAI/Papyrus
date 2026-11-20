@@ -1,4 +1,4 @@
-"""features_backend/entity-label-translation.feature: the label procedure with an in-memory site and a scripted model."""
+"""features_backend/knowledge/entity-label-translation.feature: the label procedure with an in-memory site and a scripted model."""
 from __future__ import annotations
 
 import sys

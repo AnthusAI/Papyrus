@@ -1,4 +1,4 @@
-"""Path segments in each language's own words (features_backend/language-path-segments.feature): the synthetic site of language_serving_steps.py with a
+"""Path segments in each language's own words (features_backend/translation/language-path-segments.feature): the synthetic site of language_serving_steps.py with a
 ``languages.segments`` table. Nothing reaches AWS and no model runs."""
 
 from __future__ import annotations

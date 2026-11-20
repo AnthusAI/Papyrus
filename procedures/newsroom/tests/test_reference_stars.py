@@ -1,4 +1,4 @@
-"""Stars as an editorial signal (PPY-3247f1; features_backend/reference-stars.feature). Backend and model are fakes."""
+"""Stars as an editorial signal (PPY-3247f1; features_backend/references/reference-stars.feature). Backend and model are fakes."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """The router config files in Git (infra/monitoring/router-config) and the custom resource that writes them to the monitoring table.
 
-Nothing here calls AWS. features_backend/monitoring-router-config-in-git.feature tells the same story in prose.
+Nothing here calls AWS. features_backend/monitoring/monitoring-router-config-in-git.feature tells the same story in prose.
 """
 from __future__ import annotations
 

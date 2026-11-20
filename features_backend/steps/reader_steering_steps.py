@@ -199,15 +199,6 @@ def no_identity(context, name: str) -> None:
     assert "person" not in text.lower()
 
 
-@when("{count:d} more readers rate \"{subject}\" \"{dimension}\" {value:d}")
-def more_readers_rate(context, count: int, subject: str, dimension: str, value: int) -> None:
-    backend = ensure_started(context)
-    start = getattr(context, "reader_extra_readers", 0)
-    for number in range(start, start + count):
-        backend.call(subject_for(f"extra-{number}"), "rating", {"subject": subject, "dimension": dimension, "value": value})
-    context.reader_extra_readers = start + count
-
-
 def prospectus_reports(context, record: RetiredSubject) -> None:
     context.reader_retired = [*getattr(context, "reader_retired", []), record]
 
@@ -740,7 +731,7 @@ def ai_saw_no_identity(context) -> None:
     assert not any(secret in text for secret in [*reader_ids, *handles, *[subject_for(name) for name in ("alice", "bob")]]), text
 
 
-# Votes and flags on any subject type (features_backend/reader-subject-votes.feature)
+# Votes and flags on any subject type (features_backend/readers/reader-subject-votes.feature)
 
 SUBJECT_TYPE_WORDS = {"item": "item", "submission": "submission", "story": "story", "proposal": "proposal", "concept": "concept", "person": "person"}
 

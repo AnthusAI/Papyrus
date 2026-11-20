@@ -79,7 +79,7 @@ _ENTRIES = dict([
   _e("references text", "Read the captured text of a Reference (what the newsroom stored), a slice at a time, with its total length and whether the capture was cut.",
      "REFERENCE_ID | --reference REFERENCE_ID [--offset N] [--limit N] [--json]  (default --limit 20000 characters; --limit 0 reads to the end; exits 1 when nothing was captured)", "both", "reads", "find"),
   _e("references search", "Find References by words and meaning, rated or not, accepted or not.",
-     "\"plain words\" [--show unrated|rated|all] [--limit N] [--cursor CURSOR] [--site HOST] [--json]", "editor", "reads", "find"),
+     "\"plain words\" [--show unrated|rated|accepted|rejected|all] [--limit N] [--cursor CURSOR] [--site HOST] [--json]", "editor", "reads", "find"),
   _e("references register", "Register a Reference in the local pod only (a developer's Kanbus pod; it does not touch a site).",
      "[--url URL] [--title TEXT] [--status pending] [--why TEXT] [--story ID] [--corpus-key KEY] [--id ID] [--backend local|cloud]", "operator", "writes", ""),
   # ---- references: file from URLs ---------------------------------------------------------------------------------
@@ -334,6 +334,8 @@ _ENTRIES = dict([
      "[--billing-cycle-day N] [--label-confirmed | --no-label-confirmed] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements account status", "Show mode, pause, the cycle's spend against the budget and the connected account.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements account connect", "Print the newsroom page where the X account is connected. Connecting is a browser step; nothing is connected from here.", "[--input-file PATH]", "editor", "reads", "announcements"),
+  _e("announcements account set-app", "Save the X app's client ID and secret together (a person only; admins save). At a terminal it asks for the ID and the hidden secret; otherwise the secret is read from PAPYRUS_X_CLIENT_SECRET or standard input, never a flag.",
+     "[--client-id ID] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements blocked", "List the Stories that qualified for X and are waiting, each with its reason.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements retry", "Try a failed Delivery again: back to ready, and the next try is the next attempt. A person only.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements review show", "Show the publication's announcement review and each override, and what a channel and kind would get.", "[--channel TEXT] [--kind TEXT] [--list TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
@@ -508,11 +510,24 @@ def _legacy(path: list[str]) -> Usage | None:
   return Usage(" ".join(path), "", text, "unverified", "unknown")
 
 
+def _registered(key: str) -> Usage | None:
+  from papyrus_content.command_registry import GENERATED_CLI_COMMANDS
+  from papyrus_content.registered_commands import usage_line
+
+  for command in GENERATED_CLI_COMMANDS:
+    if f"{command.group} {command.command}" == key:
+      return Usage(key, command.description, usage_line(command), "both", command.writes)
+  return None
+
+
 def usage_for_path(path: list[str]) -> Usage | None:
   """The usage entry of the command named by `path` (`["knowledge", "concepts", "search"]`), or None for a group or an unknown word."""
   key = " ".join(path)
   if key in _ENTRIES:
     return _ENTRIES[key]
+  registered = _registered(key)
+  if registered is not None:
+    return registered
   legacy = _legacy(path)
   if legacy is not None:
     return legacy

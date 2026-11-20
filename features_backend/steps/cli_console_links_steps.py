@@ -1,4 +1,4 @@
-"""Console links (features_backend/cli-console-links.feature), through the real code. The site is an in-memory fake; no network, browser or keychain."""
+"""Console links (features_backend/cli/cli-console-links.feature), through the real code. The site is an in-memory fake; no network, browser or keychain."""
 
 from __future__ import annotations
 

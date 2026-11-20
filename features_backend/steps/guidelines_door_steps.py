@@ -1,4 +1,4 @@
-"""The guidelines door and command line (features_backend/guidelines-door.feature, guidelines-cli.feature). An in-memory backend and files; no network."""
+"""The guidelines door and command line (features_backend/guidelines/guidelines-door.feature, guidelines-cli.feature). An in-memory backend and files; no network."""
 from __future__ import annotations
 
 import contextlib

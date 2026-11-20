@@ -2,7 +2,7 @@
 
 The pipeline tests check dedupe, ledgers, reviews and the run record, not where an idea lands. This double files each idea through the fake client's
 ``fileProposal`` mutation, so those tests can read what was filed from the fake client (``client.proposals`` / ``client.filed``). The real sink, an Item at
-the ``idea`` stage, is tested in ``test_idea_items.py`` and ``features_backend/idea-items.feature``.
+the ``idea`` stage, is tested in ``test_idea_items.py`` and ``features_backend/ideas/idea-items.feature``.
 """
 
 from __future__ import annotations

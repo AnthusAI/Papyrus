@@ -1,4 +1,4 @@
-"""The listener index: derived from definitions, read by its live version (the behaviour is in features_backend/item-change-feed.feature)."""
+"""The listener index: derived from definitions, read by its live version (the behaviour is in features_backend/agents/item-change-feed.feature)."""
 from types import SimpleNamespace
 
 from papyrus_content import agent_listeners as listeners
@@ -7,7 +7,7 @@ from papyrus_content.site_store_test import FakeS3, FakeTable
 
 
 def definition(agent, *changes, paid=False):
-    return SimpleNamespace(id=agent, responsibility="r-" + agent, data={"procedure": f"p.{agent}", "paid": paid, "serialBy": "subject", "wakes": {"changes": list(changes)}})
+    return SimpleNamespace(id=agent, responsibility="r-" + agent, data={"procedure": f"p.{agent}", "paid": paid, "serialBy": "subject", "safeToRepeat": False, "wakes": {"changes": list(changes)}})
 
 
 def store():
@@ -16,7 +16,7 @@ def store():
 
 def test_build_is_keyed_by_change_in_agent_order_and_ignores_schedule_only_agents():
     document = listeners.build([definition("b", {"kind": "Item", "change": "version_created"}), definition("a", {"kind": "Item", "change": "version_created", "filter": {"type": "story"}}),
-                                SimpleNamespace(id="c", responsibility="r-c", data={"procedure": "p.c", "paid": False, "serialBy": "agent", "wakes": {"schedule": {}}})])
+                                SimpleNamespace(id="c", responsibility="r-c", data={"procedure": "p.c", "paid": False, "serialBy": "agent", "safeToRepeat": False, "wakes": {"schedule": {}}})])
     assert [entry["agent"] for entry in document["changes"]["Item/version_created"]] == ["a", "b"] and list(document["changes"]) == ["Item/version_created"]
     assert document["changes"]["Item/version_created"][0]["filter"] == {"type": "story"}
 

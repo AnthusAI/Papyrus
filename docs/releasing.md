@@ -15,6 +15,10 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
 
+## Green tests gate every merge and every package release
+
+No person approves a merge, so the gate is automatic. A repository ruleset (`infra/pipeline/protect-branches.sh`, run once by someone with admin rights) makes `main` and `develop` take changes only through a pull request whose `ts` and `python` checks passed, and refuses force-pushes and deletion. No reviewer is required. A pull request that changes only `project/` is covered by `tests-board-only.yml`, which reports the same two check names. `release.yml` also runs the whole test suite (`tests.yml`, reusing an earlier green run of an identical tree) before it publishes, so a direct push cannot publish red code. The GitHub Actions app is the only bypass, for the release workflow's back-merge of `main` into `develop`.
+
 ## One new index per table per release
 
 DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in every schema source (`amplify/data/schema.ts` and each plugin's and function's `schema.ts`) with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
@@ -23,7 +27,7 @@ DynamoDB creates or deletes one global secondary index per table in one update, 
 - an index keeps its name but changes its keys (add a new index and remove the old one in a later release);
 - a table has more than 20 indexes, the DynamoDB limit per table.
 
-It reports how many index slots each changed table has left, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/gsi-ledger.feature`.
+It reports how many index slots each changed table has left, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/platform/gsi-ledger.feature`.
 
 ### The release budget: how many index creations fit one build
 
@@ -35,11 +39,11 @@ Re-measure after any release that created indexes, once its CloudFormation updat
 
 ## Shared AWS stacks: pipeline roles
 
-A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary and the reviewer approves in GitHub, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" has an approval waiting. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
+A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary, an automatic check (hard rules and an allowed-changes list, no reviewer) either stops it or lets it apply, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" means the `role-stack-deploy` run has not applied yet or was refused by its check; read that run. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-and-the-automatic-check-applies).
 
 ## Pod-loaded, imported and translated Stories publish through their checklist (PPY-473f8f)
 
-Publishing checks the checklist of the lineage being published, so nothing reaches the site without it, whoever or whatever publishes (`publishing.publish_item`, `story_checklist.require_checklist_closed`; specs `features_backend/translation-language-checklist.feature`, `story-checklist.feature`, `pod-load-publish.feature`). The interim rule that only a person's own act could publish these kinds (`publish_by_person.py`, the `by_person` argument and the `person-publish-required` code, #1730) is gone.
+Publishing checks the checklist of the lineage being published, so nothing reaches the site without it, whoever or whatever publishes (`publishing.publish_item`, `story_checklist.require_checklist_closed`; specs `features_backend/translation/translation-language-checklist.feature`, `story-checklist.feature`, `pod-load-publish.feature`). The interim rule that only a person's own act could publish these kinds (`publish_by_person.py`, the `by_person` argument and the `person-publish-required` code, #1730) is gone.
 
 - A Story loaded from a pod (`papyrus pod load`) or imported (`papyrus ops content import-markus`) keeps its readers' review (`review_people`) open. An imported Story's other steps are marked not applicable ("imported from <source>"); a pod-loaded Story has the ordinary checklist. A person reads the Story and ticks the review (with a findings note) before it publishes; the site's procedure decides whether that step is required, and the default procedure requires it. The refusal is `checklist-open`, naming each open step and the command.
 - A translation (`{story}--{language}`) has its own checklist: translate, faithfulness, copy edit, human review, publish. The run, the imported copy or the correction that saves a version records the first three; human review is a person's, required where the site requires the review of readers, and done against one version (an edit afterwards drops it). Rating and the cover are the original's. See [Publishing a translation](story-translation-procedure.md#publishing-a-translation).
@@ -146,7 +150,7 @@ What a deploy cannot show, and a person checks once on a real site after the rel
 
 ## The first agent: rating on Machines on Machines (PPY-d85860)
 
-The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/rating-agent.feature`) is the first
+The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/agents/rating-agent.feature`) is the first
 always-on agent. Once a day it reads the published Stories nobody has rated and, at the rung `observe`, only records what it would rate and why: no rating is written,
 no review request is filed, and a five is only ever listed as a candidate. Nothing below has been run against a live site. Each step says who does it. **Ryan approves the rung;
 an engineer never picks it.**
@@ -181,7 +185,7 @@ papyrus --site machines-on-machines automations runs --id rate
 ```
 
 * `adopt` names the responsibility and sets no rung. Until a rung is set the policy says `off` for `rate`, and a wake is recorded as "Nothing to do (rung_off)", never run.
-* **`papyrus agents set-rung` sets the rung** (slice H3, PPY-e6f31e; spec `features_backend/agent-set-rung.feature`). It is admin-only (an admin who is a person, signed in with
+* **`papyrus agents set-rung` sets the rung** (slice H3, PPY-e6f31e; spec `features_backend/agents/agent-set-rung.feature`). It is admin-only (an admin who is a person, signed in with
   `papyrus login`; an editor is refused and an agent is blocked), always takes `--reason`, and is a dry run unless `--apply`: the dry run prints the agent's policy entry before and
   after and the version it would be, and writes nothing. `--apply` saves a new version of the site's policy document (who, when and why on the version; every older version stays) in
   the site's media bucket at `tenants/<tenant>/site/agents/<version>.json`, through the same site store the runner reads, so the next wake runs under it. It refuses a rung that is not on the
@@ -208,8 +212,8 @@ default, so pushes run only the package smoke checks and publish nothing. Set it
 after the registry setup below is done. Local check: `npm run release:dry-run` with
 `GITHUB_TOKEN` set publishes nothing.
 
-- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow). The stable tag sits on main's merge
-  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version.
+- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow), as a pull request from a `back-merge/vX` branch with auto-merge on. The stable tag sits on main's merge
+  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version. A pull request made with the workflow token does not start the `pull_request` run, so the job dispatches `tests.yml` on the branch (`workflow_dispatch`), which reports `ts` and `python` on the branch tip; the ruleset then lets the auto-merge through. The repository settings "Allow GitHub Actions to create pull requests" and "Allow auto-merge" must be on.
 
 ## Trying a prerelease in a publication
 

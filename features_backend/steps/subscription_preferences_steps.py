@@ -1,4 +1,4 @@
-"""Subscription preferences (features_backend/subscription-preferences.feature): the site's notifications function on Caducus's in-memory fakes. Nothing is sent; every address is a placeholder.
+"""Subscription preferences (features_backend/readers/subscription-preferences.feature): the site's notifications function on Caducus's in-memory fakes. Nothing is sent; every address is a placeholder.
 
 The background, the signup, the cadence choice, the story and summary sends and the one-click unsubscribe reuse the steps of cadence-family.feature. What these steps add is the consent
 side of the preferences page: a list added to the site's settings, a choice that joins a family, the consent wording the page shows, the confirmation, and the evidence stored per family."""

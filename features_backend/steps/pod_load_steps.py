@@ -246,11 +246,6 @@ def no_stories(context):
     assert not _newsroom(context).tables.get("Item"), _newsroom(context).tables.get("Item")
 
 
-@then("the load output says that nothing was published")
-def says_nothing_published(context):
-    assert "nothing was published" in context.output, context.output
-
-
 # ---- Then: what a note became ----------------------------------------------------------------------------------------
 
 @then('the story for the note "{path}" has the {field} "{value}"')
@@ -368,7 +363,7 @@ def output_says(context, text):
     assert text in context.output, context.output
 
 
-# ---- Announcement and Delivery notes as history (features_backend/pod-load-announcements.feature, PPY-e78134) ---------------------------------------------------
+# ---- Announcement and Delivery notes as history (features_backend/announcements/pod-load-announcements.feature, PPY-e78134) ---------------------------------------------------
 
 def _delivery_rows(context, channel):
     rows = [row for row in _newsroom(context).list_records("Delivery") if row["channel"] == channel]

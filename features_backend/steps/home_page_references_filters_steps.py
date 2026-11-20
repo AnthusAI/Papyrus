@@ -1,4 +1,4 @@
-"""Steps for features_backend/home-page-references-filters.feature. Local directories only: no network, no AWS."""
+"""Steps for features_backend/site/home-page-references-filters.feature. Local directories only: no network, no AWS."""
 from __future__ import annotations
 
 import re

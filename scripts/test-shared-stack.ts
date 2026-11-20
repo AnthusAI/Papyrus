@@ -1,5 +1,5 @@
 /**
- * The shared tier's isolation layers, below the full backend synth (features_backend/shared-stack-bootstrap.feature does that):
+ * The shared tier's isolation layers, below the full backend synth (features_backend/platform/shared-stack-bootstrap.feature does that):
  * names, settings, the key / boundary / concurrency pass, the alarms, the deny and its copy in the app shell. PPY-daf673.
  */
 import assert from "node:assert/strict";

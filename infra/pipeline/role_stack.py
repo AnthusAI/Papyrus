@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Plan and apply the papyrus-stack-pipeline stack (the pipeline's own roles) from GitHub, after a person approves (PPY-9d1b3e).
+"""Plan and apply the papyrus-stack-pipeline stack (the pipeline's own roles) from GitHub, with an automatic check instead of an approval click.
 
   plan                                create a change set from the template on this commit, print it (with an IAM view) as a job summary,
-                                      and write `needed=`, `change_set=`, `template_sha=` and `stamp=` to $GITHUB_OUTPUT. No approval needed.
+                                      and write `needed=`, `change_set=`, `template_sha=` and `stamp=` to $GITHUB_OUTPUT. The plan stops, and
+                                      deletes its change set, when the change breaks a hard rule or touches an IAM statement, or removes or
+                                      replaces a resource, that allowed-role-changes.json and allowed-changes.json do not list.
+  check --base-ref REF                no AWS: the same checks between the template at REF and the one in this checkout, for a pull request.
   apply --change-set N --template-sha S --stamp T
-                                      run in the approval-gated environment: refuse if the stack or the template moved since the plan,
-                                      execute that exact change set, poll it, verify the deployed template equals the repository.
+                                      refuse if the stack or the template moved since the plan, execute that exact change set, poll it,
+                                      verify the deployed template equals the repository.
 
-Used by .github/workflows/role-stack-deploy.yml. Tested by procedures/newsroom/tests/test_stack_deploy.py.
+Used by .github/workflows/role-stack-deploy.yml and role-change-check.yml. Tested by procedures/newsroom/tests/test_stack_deploy.py.
 Exit codes: 0 done or nothing to do, 1 failed, 2 a safety check refused.
 """
 from __future__ import annotations
@@ -16,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +29,7 @@ import stack_deploy as sd  # noqa: E402
 
 STACK = sd.PIPELINE_STACK
 CHANGE_PREFIX = "roles-"
+ALLOWED_ROLE_CHANGES_PATH = Path(__file__).resolve().parent / "allowed-role-changes.json"
 SERVICE_ROLE = "papyrus-pipeline-roles-cloudformation"
 
 
@@ -82,6 +87,122 @@ def iam_view(old: dict, new: dict) -> str:
     return "```diff\n" + "\n".join([f"- {line}" for line in removed] + [f"+ {line}" for line in added]) + "\n```"
 
 
+# ------------------------------------------------------------------------------------------------------- the automatic check
+#
+# This replaces the approval click that used to sit on the `apply` job. Two layers, both run before anything is applied:
+#   1. Hard rules: a template that breaks one is refused, and no list can allow it. They keep the pipeline roles from growing into an administrator.
+#   2. Allowed role changes: every IAM statement that would be added or removed must be listed in allowed-role-changes.json by its fingerprint, with a
+#      reason, the same pattern allowed-changes.json uses for a Remove or a Replace. The refusal prints the fingerprints, and the pull request check
+#      (role-change-check.yml) prints them before the merge, so the list is written in the same pull request that changes the template.
+# A change that edits this file or the lists is not stopped by either layer. The outer wall for that is the approver stack, which a person applies
+# and which limits `papyrus-pipeline-roles-cloudformation` to IAM rights on the three pipeline roles and their policies by name.
+
+BROAD_ADMIN_POLICY_NAMES = ("AdministratorAccess", "PowerUserAccess", "IAMFullAccess")
+FORBIDDEN_WILDCARD_ACTIONS = ("*", "*:*", "iam:*", "sts:*", "organizations:*", "account:*")
+IAM_ESCALATION_ACTIONS = {
+    "iam:createrole", "iam:putrolepolicy", "iam:attachrolepolicy", "iam:updateassumerolepolicy", "iam:passrole", "iam:createpolicyversion",
+    "iam:setdefaultpolicyversion", "iam:createaccesskey", "iam:createuser", "iam:attachuserpolicy", "iam:putuserpolicy", "iam:createloginprofile",
+    "iam:updateloginprofile", "iam:addusertogroup", "iam:attachgrouppolicy", "iam:putgrouppolicy", "iam:putrolepermissionsboundary",
+    "iam:deleterolepermissionsboundary",
+}
+UNSCOPED_IAM_RESOURCE = re.compile(r"^(\*|arn:.*:iam::.*:(role|policy|user|group)/\*|arn:.*:iam::\*:.*|arn:.*:iam::[^/]*:\*)$")
+GITHUB_OIDC_SUB_KEY = "token.actions.githubusercontent.com:sub"
+GITHUB_OIDC_AUD_KEY = "token.actions.githubusercontent.com:aud"
+
+
+def _as_list(value) -> list:
+    return value if isinstance(value, list) else [value]
+
+
+def _text(value) -> str:
+    return json.dumps(value, sort_keys=True, default=str)
+
+
+def _resource_strings(resource) -> list[str]:
+    """Each resource as a string; an intrinsic is shown as its Fn::Sub text, so a `*` written inside one is still seen."""
+    found = []
+    for item in _as_list(resource):
+        if isinstance(item, dict):
+            found.append(item["Fn::Sub"] if isinstance(item.get("Fn::Sub"), str) else _text(item))
+        else:
+            found.append(str(item))
+    return found
+
+
+def _principal_values(principal) -> list:
+    return [principal] if not isinstance(principal, dict) else [value for item in principal.values() for value in _as_list(item)]
+
+
+def hard_rule_violations(template: dict) -> list[str]:
+    problems = []
+    for logical, resource in template.get("Resources", {}).items():
+        kind, props = resource.get("Type", ""), resource.get("Properties", {})
+        if kind not in ("AWS::IAM::Role", "AWS::IAM::ManagedPolicy"):
+            continue
+        for arn in props.get("ManagedPolicyArns", []):
+            if any(name in _text(arn) for name in BROAD_ADMIN_POLICY_NAMES):
+                problems.append(f"{logical} attaches a broad AWS-managed policy ({_text(arn)}); the pipeline roles never get an administrator-sized policy")
+        documents = [(f"{logical} / {policy.get('PolicyName')}", policy.get("PolicyDocument", {})) for policy in props.get("Policies", [])]
+        if kind == "AWS::IAM::ManagedPolicy":
+            documents.append((logical, props.get("PolicyDocument", {})))
+        for where, document in documents:
+            for statement in _as_list(document.get("Statement", [])):
+                if statement.get("Effect") != "Allow":
+                    continue
+                actions = [str(action) for action in _as_list(statement.get("Action", []))]
+                label = f"{where} sid {statement.get('Sid', '-')}"
+                for action in actions:
+                    if action.lower() in FORBIDDEN_WILDCARD_ACTIONS:
+                        problems.append(f"{label} allows {action}; a wildcard over a whole service that can change identities is never allowed")
+                escalating = [action for action in actions if action.lower() in IAM_ESCALATION_ACTIONS]
+                unscoped = [text for text in _resource_strings(statement.get("Resource", [])) if UNSCOPED_IAM_RESOURCE.match(text)]
+                if escalating and unscoped:
+                    problems.append(f"{label} allows {', '.join(sorted(escalating))} on {', '.join(unscoped)}; identity changes must name resources by a papyrus prefix")
+        if kind == "AWS::IAM::Role":
+            for statement in _as_list(props.get("AssumeRolePolicyDocument", {}).get("Statement", [])):
+                principal, condition = statement.get("Principal", {}), statement.get("Condition", {})
+                where = f"{logical} (who may assume it)"
+                if "*" in _principal_values(principal):
+                    problems.append(f"{where} trusts everyone (a `*` principal)")
+                if "token.actions.githubusercontent.com" in _text(principal):
+                    exact = condition.get("StringEquals", {})
+                    loose = [operator for operator, keys in condition.items() if operator != "StringEquals" and GITHUB_OIDC_SUB_KEY in keys]
+                    subject = exact.get(GITHUB_OIDC_SUB_KEY)
+                    if GITHUB_OIDC_AUD_KEY not in exact or subject is None:
+                        problems.append(f"{where} trusts GitHub without an exact audience and subject condition")
+                    elif loose or "*" in _text(subject):
+                        problems.append(f"{where} trusts a GitHub subject by pattern; the subject must be matched exactly")
+    return problems
+
+
+def role_statement_fingerprint(line: str) -> str:
+    return hashlib.sha256(line.encode()).hexdigest()[:12]
+
+
+def role_change_lines(old: dict, new: dict) -> list[tuple[str, str]]:
+    """(`+` or `-`, line) for each IAM statement that is added or removed, in the order the IAM view prints them."""
+    before, after = iam_lines(old), iam_lines(new)
+    return [("-", line) for line in sorted(before - after)] + [("+", line) for line in sorted(after - before)]
+
+
+def unlisted_role_changes(old: dict, new: dict, allowed: list[dict]) -> list[str]:
+    listed = {entry["fingerprint"] for entry in allowed}
+    return [f"{sign} {role_statement_fingerprint(line)}  {line}" for sign, line in role_change_lines(old, new) if role_statement_fingerprint(line) not in listed]
+
+
+def role_change_refusal(old: dict, new: dict, allowed_role_changes: list[dict], violations: list[str]) -> str | None:
+    """None when the change may go ahead, else the whole reason in plain words. `old` is empty on a first create, where only the hard rules apply."""
+    reasons = [f"- breaks a hard rule: {problem}" for problem in hard_rule_violations(new)]
+    reasons += [f"- {violation}, and allowed-changes.json does not list it for {STACK}" for violation in violations]
+    if old:
+        reasons += [f"- IAM statement not in allowed-role-changes.json: {line}" for line in unlisted_role_changes(old, new, allowed_role_changes)]
+    if not reasons:
+        return None
+    return ("the change to the pipeline roles is refused by the automatic check, so nothing was applied:\n" + "\n".join(reasons) +
+            "\nTo go ahead on purpose, list each IAM statement above by its fingerprint in infra/pipeline/allowed-role-changes.json "
+            "({\"fingerprint\", \"reason\"}) in the same pull request. A hard rule cannot be listed; it has to be fixed in the template.")
+
+
 # ------------------------------------------------------------------------------------------------------------------ plan
 
 
@@ -100,7 +221,7 @@ def delete_stale(cloud, ctx_out) -> None:
             ctx_out(f"deleted the earlier unexecuted change set {item['ChangeSetName']}")
 
 
-def plan(ctx: sd.Context, template_path: Path, tag: str, outputs) -> int:
+def plan(ctx: sd.Context, template_path: Path, tag: str, outputs, allowed_role_changes: list[dict] | None = None) -> int:
     cloud = ctx.cloud
     stack = cloud.describe_stack(STACK)
     kind, status = sd.classify_stack(stack)  # Stop on a failed or busy stack
@@ -134,15 +255,20 @@ def plan(ctx: sd.Context, template_path: Path, tag: str, outputs) -> int:
         outputs("needed", "false")
         return 0
 
-    _, lines = sd.review_changes(STACK, described.get("Changes", []), [])
-    table = "| Action | Logical id | Type | Replacement |\n| --- | --- | --- | --- |\n" + "\n".join(lines)
+    violations, lines = sd.review_changes(STACK, described.get("Changes", []), ctx.allowed)
     live = sd.parse_template(cloud.get_template(STACK)) if stack is not None else {}
+    listed = sd.load_json(ALLOWED_ROLE_CHANGES_PATH)["allowed"] if allowed_role_changes is None else allowed_role_changes
+    refusal = role_change_refusal(live, new, listed, violations)
+    if refusal:
+        cloud.delete_change_set(STACK, name)
+        raise sd.Stop(refusal)
+    table = "| Action | Logical id | Type | Replacement |\n| --- | --- | --- | --- |\n" + "\n".join(lines)
     ctx.write_summary(
-        f"## Pipeline roles: a change is waiting for approval\n"
+        f"## Pipeline roles: the change passed the automatic check and is being applied\n"
         f"Stack `{STACK}` ({status}, a {kind} change set). Template fingerprint `{sha}`, change set `{name}`.\n\n"
         f"### Every change\n{table}\n\n### IAM statements that change (roles, policies, actions, resources)\n{iam_view(live, new)}\n\n"
-        f"Nothing has been applied. The next job, `apply`, waits for a reviewer to approve the `pipeline-roles` deployment in GitHub, and then "
-        f"executes exactly this change set. Reject the deployment to leave the roles as they are.")
+        f"The check refused nothing: no hard rule is broken, every IAM statement above is listed in allowed-role-changes.json, and every removal or replacement is "
+        f"listed in allowed-changes.json. The next job, `apply`, executes exactly this change set.")
     outputs("needed", "true")
     outputs("change_set", name)
     outputs("template_sha", sha)
@@ -193,6 +319,25 @@ def apply(ctx: sd.Context, template_path: Path, change_set: str, expect_sha: str
     return 0
 
 
+# ------------------------------------------------------------------------------------------------------------ pull request check
+
+
+def check(base_template_text: str, template_path: Path, allowed_role_changes: list[dict], out=print) -> int:
+    """The plan's checks between two templates, with no AWS: for a pull request. Prints the fingerprints a change needs when it is refused."""
+    old, new = sd.parse_template(base_template_text), sd.parse_template(template_path.read_text(encoding="utf-8"))
+    refusal = role_change_refusal(old, new, allowed_role_changes, [])
+    if refusal:
+        out(refusal)
+        return 2
+    out(iam_view(old, new))
+    out("The automatic check passed: no hard rule is broken and every changed IAM statement is listed in allowed-role-changes.json.")
+    return 0
+
+
+def template_at(ref: str) -> str:
+    return subprocess.run(["git", "show", f"{ref}:infra/pipeline/papyrus-stack-pipeline.yaml"], capture_output=True, text=True, check=True).stdout
+
+
 # ------------------------------------------------------------------------------------------------------------ command line
 
 
@@ -200,11 +345,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("plan")
+    pull_request = sub.add_parser("check")
+    pull_request.add_argument("--base-ref", required=True)
     run = sub.add_parser("apply")
     run.add_argument("--change-set", required=True)
     run.add_argument("--template-sha", required=True)
     run.add_argument("--stamp", required=True)
     args = parser.parse_args(argv)
+
+    if args.command == "check":
+        return check(template_at(args.base_ref), sd.PIPELINE_TEMPLATE, sd.load_json(ALLOWED_ROLE_CHANGES_PATH)["allowed"])
 
     cloud = RolesCli(sd.load_json(sd.CONFIG_PATH)["region"])
     expected = os.environ.get("AWS_ACCOUNT_ID", "")
@@ -213,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     tag = f"{os.environ.get('GITHUB_RUN_ID', '0')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-    ctx = sd.Context(cloud, {}, [], tag, summary=Path(summary) if summary else None)
+    ctx = sd.Context(cloud, {}, sd.load_json(sd.ALLOWED_PATH)["allowed"], tag, summary=Path(summary) if summary else None)
     try:
         if args.command == "plan":
             return plan(ctx, sd.PIPELINE_TEMPLATE, tag, sd.github_output)

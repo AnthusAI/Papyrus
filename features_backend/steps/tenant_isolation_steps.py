@@ -1,4 +1,4 @@
-"""Steps for features_backend/tenant-isolation-adversarial.feature (PPY-65e5a9).
+"""Steps for features_backend/tenancy/tenant-isolation-adversarial.feature (PPY-65e5a9).
 
 The scenarios about the generator run the real generator (`scripts/generate-tenant-isolation-cases.ts`) against a copy of the committed case
 table with one case removed, added or changed. The generated outline scenarios need the shared stack with two seeded tenants and are tagged
@@ -172,23 +172,8 @@ def model_operation(context, operation, model):
     raise NotImplementedError(PENDING)
 
 
-@when('the "alpha" session calls {query} at one of "beta\'s" keys')
-def index_call(context, query):
-    raise NotImplementedError(PENDING)
-
-
 @when('the "alpha" session subscribes to {event} on {model} while "beta" writes')
 def subscribes(context, event, model):
-    raise NotImplementedError(PENDING)
-
-
-@when('the "alpha" session calls {operation} with "beta\'s" ids')
-def custom_operation(context, operation):
-    raise NotImplementedError(PENDING)
-
-
-@when('the "alpha" session reaches the {function} function with an event naming "beta"')
-def reaches_function(context, function):
     raise NotImplementedError(PENDING)
 
 

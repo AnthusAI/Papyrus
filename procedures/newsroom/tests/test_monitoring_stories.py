@@ -1,4 +1,4 @@
-"""The daily monitor-stories task of the monitoring router (src/papyrus_content/monitoring_stories.py, features_backend/monitoring-daily-stories.feature).
+"""The daily monitor-stories task of the monitoring router (src/papyrus_content/monitoring_stories.py, features_backend/monitoring/monitoring-daily-stories.feature).
 The model, the pages, the backends and the clock are fakes; nothing here reaches the network."""
 from __future__ import annotations
 

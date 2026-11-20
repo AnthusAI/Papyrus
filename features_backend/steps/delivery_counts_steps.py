@@ -1,4 +1,4 @@
-"""The counts of an email Delivery (features_backend/delivery-counts.feature).
+"""The counts of an email Delivery (features_backend/announcements/delivery-counts.feature).
 
 Caducus runs in memory: its real router, delivery log, public audience and email channel, over its own in-memory store and queue, with the mailer replaced by a
 recorder (``notifications_test.Site``). The Delivery catalog is the records fake of announcement_records_steps.py. Nothing is mailed and nothing reaches AWS.

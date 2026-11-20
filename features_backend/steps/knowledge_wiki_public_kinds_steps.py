@@ -212,11 +212,6 @@ def step_reports(context):
     assert "retire" not in out and "taken down" not in out, out
 
 
-@then('the page for "{title}" is not live')
-def step_not_live(context, title):
-    assert not _live(_scene(context), title)
-
-
 @then('the page for "{title}" is still live')
 def step_still_live(context, title):
     assert _live(_scene(context), title)

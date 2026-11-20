@@ -3,6 +3,9 @@ name: tests
 on:
   # Also called by stack-deploy.yml, so a release's stacks deploy only after these pass on the commit that merged.
   workflow_call:
+  # Started by release.yml's back-merge on the branch it opens a pull request from: a pull request made with the workflow token never starts
+  # the pull_request run, and a dispatch is the one thing that token may start, so `ts` and `python` reach the pull request this way.
+  workflow_dispatch:
   pull_request:
     paths-ignore:
       - "project/**"
@@ -11,9 +14,10 @@ on:
     paths-ignore:
       - "project/**"
 
-# A newer push to the same pull request or branch makes the older run moot.
+# A newer push to the same pull request or branch makes the older run moot. Inside a reusable call github.workflow is the caller's name, so the
+# copy that release.yml and stack-deploy.yml call never cancels, or is cancelled by, the copy this workflow's own push trigger starts.
 concurrency:
-  group: tests-${{ github.ref }}
+  group: tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -97,16 +101,21 @@ jobs:
       - run: npm run test:assignment-data-access
       - run: npm run test:public-forms
       - run: node scripts/test-edge-language-404.mjs
-      # One new index per table per release (features_backend/gsi-ledger.feature): compares every schema source with the last release tag.
+      # One new index per table per release (features_backend/platform/gsi-ledger.feature): compares every schema source with the last release tag.
       - run: npx tsx scripts/check-gsi-ledger.ts
       - run: npm run test:alexa
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - name: Shared chat browser acceptance
         run: npm run test:shared-chat
+      - name: MCP transport, OAuth and Apps
+        run: |
+          npm run test:mcp-integration
+          npx tsx scripts/test-mcp-transport.ts
+          npx tsx scripts/test-mcp-oauth-runtime.ts
+          npx tsx scripts/test-mcp-oauth-browser.ts
+          npx cucumber-js --profile mcpCards
+          npx cucumber-js --profile mcpTransport
+          npx cucumber-js --profile mcpOAuth
 
   # `npm test` as three shards. The file list is the same set of globs package.json's `test` script uses, sorted, and shard N takes every
   # third file starting at N; the three shards together are exactly the files `npm test` would run, none dropped, none repeated.
@@ -128,11 +137,7 @@ jobs:
       - run: npm run build
         working-directory: infra/amplify-app-shell
       # Several of these tests drive a real browser, as they did when Chromium was installed earlier in the one big job.
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - name: Run this shard of npm test
         env:
           SHARD: ${{ matrix.shard }}
@@ -143,7 +148,7 @@ jobs:
               publications/threat_intelligence/tests/test-blog-defense-graph.cjs publications/threat_intelligence/tests/test-pictograms.cjs \
               | grep -v node_modules | LC_ALL=C sort -u)
           echo "$files" | wc -l
-          mine=$(echo "$files" | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
+          mine=$(echo "$files" | python3 infra/pipeline/deal_out_test_files.py --shard "$SHARD" --of "$SHARDS" --seconds infra/pipeline/ts-test-seconds.json)
           echo "$mine"
           node --import tsx --test --test-reporter=spec --test-concurrency=4 $mine
 
@@ -159,7 +164,7 @@ jobs:
           echo "$RESULTS"
           for r in $RESULTS; do [ "$r" = success ] || { echo "a ts job did not succeed: $r"; exit 1; }; done
 
-  # ---- python: guards, unit tests (xdist) and the behave suite in three shards, then one aggregate named `python` ----
+  # ---- python: guards, unit tests (xdist) in two shards and the behave suite in three, then one aggregate named `python` ----
 
   python-checks:
     needs: reuse
@@ -181,38 +186,39 @@ jobs:
       - name: Pending Reference intake handler and concurrency
         run: poetry run pytest -vv procedures/newsroom/tests/test_reference_intake.py
 
+  # The unit tests as two jobs. A test file's path decides its job (conftest.py, `--shard`), so the two together run every file exactly once.
   python-unit:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    name: python-unit (shard ${{ matrix.shard }} of 2)
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/python-deps
+      - uses: ./.github/actions/node-deps
+      - name: MCP private services and domain behavior
+        if: matrix.shard == 0
+        run: |
+          poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py src/papyrus_content/mcp_story_atomic_test.py src/papyrus_content/mcp_story_transaction_test.py src/papyrus_content/mcp_publish_request_test.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
-      #   test_references_commands       PPY-c22e1c (stale assertions)
-      #   test_tavily_research           PPY-c22e1c (stale assertions)
-      #   test_relations_commands        PPY-c22e1c (stale assertions)
-      #   test_analysis_entity_graph_bridge  PPY-c22e1c (stale assertions)
-      #   test_cloud_procedure_execution PPY-c22e1c (stale assertions)
-      #   test_newsroom_tools            PPY-7e2ca6 (needs local poetry/Biblicus/corpora)
-      #   test_papyrus_content           PPY-7e2ca6 (needs local uv/corpora)
       # pytest-xdist: one worker per vCPU.
       - name: Python unit tests
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "2"
         run: |
-          poetry run pytest -q -n auto \
-            --ignore=procedures/newsroom/tests/test_content_cli_live.py \
-            --ignore=procedures/newsroom/tests/test_references_commands.py \
-            --ignore=procedures/newsroom/tests/test_tavily_research.py \
-            --ignore=procedures/newsroom/tests/test_relations_commands.py \
-            --ignore=procedures/newsroom/tests/test_analysis_entity_graph_bridge.py \
-            --ignore=procedures/newsroom/tests/test_cloud_procedure_execution.py \
-            --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
-            --ignore=procedures/newsroom/tests/test_papyrus_content.py
+          poetry run pytest -q -n auto --shard "$SHARD/$SHARDS" \
+            --ignore=procedures/newsroom/tests/test_content_cli_live.py
 
-  # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
   # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
-  # Feature files sorted by name; shard N takes every third file starting at N, so the shards partition features_backend exactly.
+  # Feature files live in one directory per product area (features_backend/README.md). infra/pipeline/behave_side_by_side.py deals them
+  # out to the shards by how long each takes, so no shard holds all the slow ones; the shards partition features_backend exactly.
+  # Inside a shard the files run in one behave process per processor.
   python-behave:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
@@ -231,9 +237,8 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: "3"
         run: |
-          mine=$(ls features_backend/*.feature | LC_ALL=C sort | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
-          echo "$mine"
-          poetry run behave --tags=~@live-agent --exclude 'research-reporting-context' $mine
+          find features_backend -name '*.feature' | LC_ALL=C sort \
+            | poetry run python infra/pipeline/behave_side_by_side.py --shard "$SHARD" --of "$SHARDS" --tags=~@live-agent
 
   python:
     needs: [reuse, python-checks, python-unit, python-behave]

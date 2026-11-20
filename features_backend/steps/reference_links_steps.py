@@ -1,4 +1,4 @@
-"""References linked to References and concepts (features_backend/reference-links.feature). The backend is an in-memory fake."""
+"""References linked to References and concepts (features_backend/references/reference-links.feature). The backend is an in-memory fake."""
 
 from __future__ import annotations
 

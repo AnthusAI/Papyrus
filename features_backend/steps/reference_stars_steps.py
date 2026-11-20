@@ -1,4 +1,4 @@
-"""Editors rate a Reference with stars and the idea pipeline reads the rating (features_backend/reference-stars.feature). Backend and model are fakes."""
+"""Editors rate a Reference with stars and the idea pipeline reads the rating (features_backend/references/reference-stars.feature). Backend and model are fakes."""
 
 from __future__ import annotations
 

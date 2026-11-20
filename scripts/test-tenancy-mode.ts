@@ -36,7 +36,7 @@ const allowed = new Set([
   "scripts/test-tenancy-mode.ts",
   "features_backend/steps/tenancy_mode_steps.py",
   "features_backend/steps/shared_stack_steps.py",
-  "features_backend/tenancy-mode.feature",
+  "features_backend/tenancy/tenancy-mode.feature",
   "docs/multi-tenancy.md",
 ]);
 const hits = execFileSync("git", ["grep", "-l", "PAPYRUS_TENANCY_MODE", "--", "*.ts", "*.tsx", "*.mts", "*.mjs", "*.cjs", "*.py"], { cwd: root, encoding: "utf8" })

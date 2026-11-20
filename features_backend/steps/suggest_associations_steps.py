@@ -1,4 +1,4 @@
-"""Association suggestions (features_backend/suggest-associations.feature). A stand-in site; no network, login, model or AWS."""
+"""Association suggestions (features_backend/knowledge/suggest-associations.feature). A stand-in site; no network, login, model or AWS."""
 from __future__ import annotations
 
 import os

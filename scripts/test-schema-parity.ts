@@ -18,20 +18,20 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   NewsroomSection: ["tenantId"],
 };
 
-// Indexes the References page reads through (features_backend/reference-feed-keys.feature): each must exist, with its sort key, in both files.
+// Indexes the References page reads through (features_backend/references/reference-feed-keys.feature): each must exist, with its sort key, in both files.
 const REQUIRED_INDEXES = [
   'index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction")',
   'index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival")',
   'index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival")',
   'index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival")',
   'index("contentNeededKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByContentNeededAndArrival")',
-  // One row per story (features_backend/story-head-stage-index.feature): only the head row of a lineage carries headStageKey.
+  // One row per story (features_backend/platform/story-head-stage-index.feature): only the head row of a lineage carries headStageKey.
   'index("headStageKey").sortKeys(["updatedAt"]).queryField("listItemsByHeadStageAndUpdatedAt")',
   // The old stage index stays until every reader has moved (docs/plans/story-head-stage-index.md, step 7).
   'index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt")',
   // Scheduled publishing (docs/scheduled-publishing.md): the sparse index of scheduled versions; the Item's tenth, and the only one in its deploy.
   'index("scheduleState").sortKeys(["scheduledPublishAt"]).queryField("listItemsByScheduleStateAndScheduledPublishAt")',
-  // A Story's language group (features_backend/item-language.feature): the primary and its localizations, one language by sort key.
+  // A Story's language group (features_backend/translation/item-language.feature): the primary and its localizations, one language by sort key.
   'index("languageGroupId").sortKeys(["language"]).queryField("listItemsByLanguageGroupAndLanguage")',
 ];
 
@@ -98,7 +98,7 @@ if (missingOperations.length) {
 }
 console.log(`operations: ${deployedOperations.size} in schema.ts, ${typedOperations.size} in resource.ts`);
 
-// Every tenant-owned model carries an optional tenantId (features_backend/tenant-field-everywhere.feature, PPY-94d609); the global identity
+// Every tenant-owned model carries an optional tenantId (features_backend/tenancy/tenant-field-everywhere.feature, PPY-94d609); the global identity
 // models do not. Models declared by a function or plugin schema are shared by both files, so each declaration is read where it lives.
 const TENANT_FIELD_SOURCES = [
   ...SCHEMA_FILES,
@@ -154,7 +154,7 @@ for (const modelName of GLOBAL_IDENTITY_MODELS) {
   }
 }
 console.log(`tenantId: ${TENANT_FIELD_MODELS.length} tenant-owned models checked`);
-// The tenancy models (features_backend/tenant-records.feature, PPY-31c45c): new tables with all their indexes, in both files, and in the
+// The tenancy models (features_backend/tenancy/tenant-records.feature, PPY-31c45c): new tables with all their indexes, in both files, and in the
 // optional "tenancy" group. No existing table gains an index with them.
 const TENANCY_MODELS: Record<string, { fields: string[]; indexes: string[] }> = {
   Tenant: {

@@ -1,4 +1,4 @@
-"""The Item change feed (features_backend/item-change-feed.feature). A fake stream, a fake FIFO queue that follows SQS's rules and the real site store over fakes; no network."""
+"""The Item change feed (features_backend/agents/item-change-feed.feature). A fake stream, a fake FIFO queue that follows SQS's rules and the real site store over fakes; no network."""
 from __future__ import annotations
 
 import json
@@ -24,7 +24,7 @@ def _definition(row: dict):
     filter_ = dict(pair.split("=", 1) for pair in row["filter"].split(",")) if row.get("filter") else {}
     if filter_:
         change["filter"] = filter_
-    return SimpleNamespace(id=row["agent"], responsibility="r-" + row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "wakes": {"changes": [change]}})
+    return SimpleNamespace(id=row["agent"], responsibility="r-" + row["agent"], data={"procedure": row["procedure"], "paid": row["paid"] == "true", "serialBy": "subject", "safeToRepeat": False, "wakes": {"changes": [change]}})
 
 
 _open_index, _deploy = open_index, _deploy_index
@@ -164,11 +164,6 @@ def _rate(context, stars, stage="published", by="ada"):
     deliver(context, ("MODIFY", old, new))
 
 
-@given('the published Story "{story}" is rated {stars:d} stars')
-def already_rated(context, story, stars):
-    context.rating = stars
-
-
 @when('a person rates the published Story "{story}" {stars:d} stars')
 def rates_published(context, story, stars):
     _rate(context, stars)
@@ -236,7 +231,6 @@ def _wakes(context):
     return [json.loads(message.body) for message in context.queue.messages]
 
 
-@then("the queue holds {count:d} wake")
 @then("the queue holds {count:d} wakes")
 def holds(context, count):
     assert len(context.queue.messages) == count, f"{len(context.queue.messages)} wakes: {[w['wake']['key'] for w in _wakes(context)]}"

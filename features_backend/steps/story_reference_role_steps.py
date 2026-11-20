@@ -1,4 +1,4 @@
-"""A signed-in editor marks a Story's consulted source as cited (features_backend/story-reference-role.feature).
+"""A signed-in editor marks a Story's consulted source as cited (features_backend/stories/story-reference-role.feature).
 
 The CLI half runs the real `papyrus stories link-reference` command against `SignedInSite`, a stand-in that refuses what AppSync refuses a
 signed-in token; the route's half runs the site's own code through scripts/story-reference-role-probe.ts. No network, login or AWS.

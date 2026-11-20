@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping, TextIO
 
+from papyrus_content.actor_identity import actor_kind
 from papyrus_content.images import cli as images_cli
 from papyrus_content.images.handlers import Handler, error_envelope
 
@@ -173,7 +174,7 @@ def convert_command(argv: list[str], stdout: TextIO | None, *, client_factory: C
 
         client_factory = lambda: create_authoring_client()[0]   # noqa: E731
     client = client_factory()
-    caller = identify(client, Caller(kind="person"))
+    caller = identify(client, Caller(kind=actor_kind()))
     if apply and not (caller.is_admin and caller.subject):
         return _print(out, error_envelope("guidelines_convert", "not_authorized", "Only an admin who is signed in may convert the guidelines. Nothing was saved.", details={}))
     sections = flags.get("--section") or _site_sections(client)

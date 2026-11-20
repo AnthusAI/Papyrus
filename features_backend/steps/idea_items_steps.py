@@ -1,4 +1,4 @@
-"""Generated story ideas as Items (features_backend/idea-items.feature). The backend is the in-memory fake."""
+"""Generated story ideas as Items (features_backend/ideas/idea-items.feature). The backend is the in-memory fake."""
 
 from __future__ import annotations
 

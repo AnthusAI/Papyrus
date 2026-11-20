@@ -1,4 +1,4 @@
-"""Checks drawn from writing guidelines (features_backend/guidelines-derived-policies.feature). An in-memory backend and files; no network."""
+"""Checks drawn from writing guidelines (features_backend/guidelines/guidelines-derived-policies.feature). An in-memory backend and files; no network."""
 from __future__ import annotations
 
 import copy
@@ -115,7 +115,6 @@ def step_exists_scoped(context, key, scope, source):
 
 
 @then('that check detects the word "{word}"')
-@then('the publication check "avoid-lexicon" still detects the word "{word}"')
 def step_detects(context, word):
     assert word in words_of(check(context, PUBLICATION_ID)), check(context, PUBLICATION_ID)
 

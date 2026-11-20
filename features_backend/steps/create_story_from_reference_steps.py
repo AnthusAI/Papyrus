@@ -1,4 +1,4 @@
-"""An editor creates a Story from any Reference in one tap (features_backend/create-story-from-reference.feature). The backend is a fake."""
+"""An editor creates a Story from any Reference in one tap (features_backend/references/create-story-from-reference.feature). The backend is a fake."""
 
 from __future__ import annotations
 
@@ -177,7 +177,6 @@ def _is_untyped(context):
 
 
 @then("the Story is a {item_type}")
-@then("the Story is an {item_type}")
 def _is_type(context, item_type):
     assert story(held(context))["type"] == item_type
 

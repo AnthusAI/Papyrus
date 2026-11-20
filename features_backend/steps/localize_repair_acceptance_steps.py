@@ -1,4 +1,4 @@
-"""features_backend/localize-repair-acceptance.feature: when a polished block is accepted."""
+"""features_backend/translation/localize-repair-acceptance.feature: when a polished block is accepted."""
 
 from __future__ import annotations
 

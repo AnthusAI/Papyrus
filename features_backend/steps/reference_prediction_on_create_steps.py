@@ -1,4 +1,4 @@
-"""features_backend/reference-prediction-on-create.feature. Fakes only; procedures/newsroom/tests/test_reference_prediction_queue.py shares them."""
+"""features_backend/references/reference-prediction-on-create.feature. Fakes only; procedures/newsroom/tests/test_reference_prediction_queue.py shares them."""
 from __future__ import annotations
 
 import json

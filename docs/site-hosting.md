@@ -307,7 +307,7 @@ The uv cache is kept under `.uv-cache/` and listed in the spec's cache paths.
 GitHub Actions in a publication repo reaches AWS with GitHub OIDC: no AWS
 access keys or tokens are stored anywhere. Two pieces:
 
-0. **Shared-stack pipeline roles, once per AWS account** (a person runs the one-time setup, `infra/pipeline/bootstrap.sh --approver-only`, which can also create the account's GitHub OIDC provider with `--create-oidc-provider`; later changes to the roles are merged, planned and approved in GitHub by the `role-stack-deploy` workflow, never run by hand). Required before any shared stack deploys: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github). If you use that, the provider below is already handled for the account.
+0. **Shared-stack pipeline roles, once per AWS account** (a person runs the one-time setup, `infra/pipeline/bootstrap.sh --approver-only`, which can also create the account's GitHub OIDC provider with `--create-oidc-provider`; later changes to the roles are merged, planned, checked automatically and applied in GitHub by the `role-stack-deploy` workflow, never run by hand). Required before any shared stack deploys: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-and-the-automatic-check-applies). If you use that, the provider below is already handled for the account.
 1. **Account-level provider, once per AWS account** (`GithubOidcProviderStack`
    in `@anthusai/papyrus/infra`). Run `aws iam list-open-id-connect-providers`
    first. If `token.actions.githubusercontent.com` is listed (account
@@ -552,7 +552,7 @@ Every site bump is merged to `develop` and ships in that site's release, which i
 1. **Classify.** The release workflow appends one line to every release's notes, `Affects sites: yes` or `Affects sites: no`, from `procedures/release/classify_release.py classify`. A release affects sites when it changes a path that ships in the npm package or the standard projector: `app/`, `components/`, `lib/`, `renderers/`, `amplify/` (not tests, fixtures or seeds), `packages/`, `infra/amplify-app-shell/`, `scripts/videoml/`, `src/papyrus_content/` and `middleware.ts`. A release that changes only the Python CLI, newsroom libraries, docs or board does not. A release with no marker is treated as affecting sites.
 2. **Batch.** A site bumps at most once per planned bump, straight to the newest release, and only when at least one release since its pin affects sites. Save `gh release list -R AnthusAI/Papyrus --json tagName,body,isPrerelease` as JSON (rename `isPrerelease` to `prerelease`), then run `python3 procedures/release/classify_release.py plan-bump --current <pinned version> --releases-json <file>`. It prints `bump_needed`, the `target` version and the site-affecting releases.
 
-Spec: `features_backend/release-classification.feature`.
+Spec: `features_backend/platform/release-classification.feature`.
 
 ## Authoring role and the CLI
 
@@ -783,6 +783,14 @@ A projected page, a section base or a `homePage` segment that starts with one of
    the template never writes Route 53 records, so MX stays untouched.
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
+
+## Scoping the Amplify build role
+
+Every site's production build has run as `AdministratorAccess` (`infra/amplify-app-shell/lib/amplify-app-shell.ts`). The site setting `cms.buildRole` in `infra/site.json` chooses: `"administrator"` (the default; nothing changes for a site that does not set it) or `"scoped"`. A scoped build role is AWS's `AmplifyBackendDeployFullAccess`, plus the grants this site's build commands use (its own `/papyrus/<siteId>/*` parameters, its wake queue, schedule group and scheduler role, its authoring statements) and an explicit deny on every IAM action and `sts:AssumeRole` for `papyrus-pipeline-*`, `papyrus-stack-*` and `papyrus-shared-*` roles and every CloudFormation action on the `papyrus-stack-pipeline` and `papyrus-pipeline-approver` stacks. Moving back is changing the value to `"administrator"` and letting the next build deploy the app shell.
+
+**What scoping does not do.** The backend deploy (`ampx pipeline-deploy`) and `papyrus-infra deploy` go through the account's CDK bootstrap roles (`cdk-hnb659fds-*`), whose CloudFormation execution role decides what a deployed template may create. If that role is `AdministratorAccess`, a build can still reach administrator-sized effects through it. Scoping the build role removes the direct reach (another site's tables and secrets, the pipeline roles); narrowing the execution role is the next, separate step.
+
+**Rollout, one site at a time, Machines on Machines first.** The site's own repository sets `cms.buildRole` to `"scoped"` on its `develop`, and the next release deploys the app shell, which swaps the role's policies. Watch the first build after it with `papyrus-infra amplify job-log --app-id <id> --latest-failed`; an `AccessDenied` names the missing action. Add the action to `scopedBuildRoleStatements` in `lib/build-role.ts` (named by the site's resources, never `*` over identity services), release, and rebuild. Only after Machines on Machines has built green on both `main` and `staging` does the next site move.
 
 ## Which account `papyrus-infra` targets
 
@@ -1280,7 +1288,7 @@ Every projection that writes a site bucket (`project`, `project_all`, `project_l
 
 - Table: `papyrus-projection-locks` (one per account, created by the cloud knowledge run stack). Partition key `publication` (string) is the site bucket name (`PAPYRUS_SITE_BUCKET` or `--bucket`). Attributes: `owner`, `acquiredAt` (ISO), `expiresAt` (epoch seconds, also the DynamoDB TTL attribute), `purpose`.
 - Discovery: env `PAPYRUS_PROJECTION_LOCK_TABLE`, else the SSM String parameter `/papyrus/projection-lock/table-name`. Neither found means no lease and projection runs as before. A parameter that exists but cannot be read (access denied) fails loudly.
-- The key depends on the tenancy mode (`papyrus_content.projection.lease.lease_key`, which asks `is_shared_stack()`). A dedicated stack keys the lease by the bucket name, whether or not a tenant id is set, so a site that already runs with one keeps its key. A shared stack keys it `<bucket>#<tenant>`, so tenants in one bucket project at the same time and queue only behind their own projections; a projection there with no tenant (`PAPYRUS_TENANT_ID`) is refused with `ProjectionTenantRequired` before any lease is taken. The table and its `publication` hash key are unchanged. Spec: `features_backend/tenant-fair-projection.feature`.
+- The key depends on the tenancy mode (`papyrus_content.projection.lease.lease_key`, which asks `is_shared_stack()`). A dedicated stack keys the lease by the bucket name, whether or not a tenant id is set, so a site that already runs with one keeps its key. A shared stack keys it `<bucket>#<tenant>`, so tenants in one bucket project at the same time and queue only behind their own projections; a projection there with no tenant (`PAPYRUS_TENANT_ID`) is refused with `ProjectionTenantRequired` before any lease is taken. The table and its `publication` hash key are unchanged. Spec: `features_backend/tenancy/tenant-fair-projection.feature`.
 - Acquire is a conditional put (no item, or `expiresAt` in the past), so a crashed holder blocks nobody for more than the 30 minute TTL. Release and renew only touch an item the caller owns; long writes renew halfway through the TTL.
 - A held lease is retried with exponential backoff and jitter (1, 2, 4, 8, then 15 seconds) for `PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS` (default 120; the scheduled cloud run sets a longer wait). Then the projection raises `ProjectionLeaseHeld`. In the content-actions Lambda that becomes a failed projection task (Lambda retry, then the dead letter queue), and a publish-time projection schedules the same retry.
 - `PAPYRUS_PROJECTION_LEASE_PURPOSE` labels the holder (for example `cloud-run projection`).
@@ -1293,7 +1301,7 @@ AppSync gives a Lambda resolver about 30 seconds, so a `publishItem` that waits 
 - A request for a story whose job is still queued joins it (that build reads the data when it starts); so does a request for the version a running build is building. A job untouched for 15 minutes is treated as gone.
 - A build waits at most 10 seconds for the lease. If it is held, the story stays queued and the task fails, so Lambda retries it once a minute later. Whoever holds the lease (a build, the item-pages follow-up, `project --all`, the deploy render) builds the queue before letting go, or schedules a `drain` task when it finishes; a retry whose job is already done does nothing.
 - The item-pages follow-up is one job too (`__item-pages__`): while one is queued, further publishes do not schedule another.
-- What one publish costs no longer grows with the site: the bodies that `llms-full.txt`, a section's introduction and the item-pages follow-up need come from `_papyrus/bodies.json.gz` (kept per published version, written under the lease), not from two AppSync reads per Story; the published summaries are read in pages of 1,000. Pages rendered again with the bytes the bucket already holds are not named for the edge purge (and are written again only when their inputs digest changed). Spec: `features_backend/publish-cost.feature`, `features_backend/publish-jobs.feature`.
+- What one publish costs no longer grows with the site: the bodies that `llms-full.txt`, a section's introduction and the item-pages follow-up need come from `_papyrus/bodies.json.gz` (kept per published version, written under the lease), not from two AppSync reads per Story; the published summaries are read in pages of 1,000. Pages rendered again with the bytes the bucket already holds are not named for the edge purge (and are written again only when their inputs digest changed). Spec: `features_backend/platform/publish-cost.feature`, `features_backend/stories/publish-jobs.feature`.
 
 The error reads: `Projection lease for <bucket> is held by <owner> (<purpose>) until <time>; waited <n>s. Another projection of this publication is running. Retry when it finishes; if its holder crashed, the lease expires by itself. To clear it now: aws dynamodb delete-item --table-name <table> --key '{"publication":{"S":"<bucket>"}}'`. On a shared stack the key is `<bucket>#<tenant>`.
 
@@ -1426,7 +1434,7 @@ manage link's token never reaches Google. A value that looks like an address, a 
 set. An event for arriving on a page (`subscribe_confirmed`, `preferences_changed`, `unsubscribe`) is not sent when the page is
 reloaded or reached with the back button, so a reload does not count twice. `issue_open` is never sent: an open needs a tracking
 pixel, which the email renderer forbids, and Apple Mail privacy makes it meaningless; clicks to the archive are measured by the archive
-page's own page view with the UTM on the link. Specs: `features_backend/notifications-analytics.feature`.
+page's own page view with the UTM on the link. Specs: `features_backend/readers/notifications-analytics.feature`.
 - **Documentation sites.** `DocsSiteConfig.ga_measurement_id` (CLI `--ga-measurement-id`) turns all of this on for the docs
   builder with the shipped consent defaults, a "Cookie settings" footer link, and a banner privacy link to
   `privacy_policy_url` (CLI `--privacy-url`, default `https://anth.us/privacy/`).  Point `contact_url` at `https://anth.us/engage/?solution=<Product>&cta=<location>` and the footer's Contact us link reports `cta_click`. Empty keeps analytics off.

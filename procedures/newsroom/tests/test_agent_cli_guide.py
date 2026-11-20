@@ -1,4 +1,4 @@
-"""The agent CLI guide cannot drift from the CLI (features_backend/agent-cli-guide.feature).
+"""The agent CLI guide cannot drift from the CLI (features_backend/cli/agent-cli-guide.feature).
 
 Every fenced `papyrus ...` command in docs/agent-cli-guide.md must name a command in the CLI's route table, and every `--flag` it uses must
 appear in that command's `--help` usage. Every route must print real usage for `--help`. A recipe for a pull request that has not merged is

@@ -40,6 +40,7 @@ export type ImageOperationName =
   | "announcements_settings_set"
   | "announcements_account_status"
   | "announcements_account_connect"
+  | "announcements_account_set_app"
   | "announcements_blocked"
   | "announcements_retry"
   | "announcements_review_show"
@@ -1166,6 +1167,22 @@ export type AnnouncementsAccountConnectResult = {
   words: string;
 };
 
+/** Save the X developer app's client ID and client secret: the secret into SSM SecureString and the ID into the connection record, together. */
+export type AnnouncementsAccountSetAppInput = {
+  /** The OAuth 2.0 client ID of the X app. */
+  clientId: string;
+  /** The OAuth 2.0 client secret. On the command line it is read from PAPYRUS_X_CLIENT_SECRET or from standard input, never from a flag. */
+  clientSecret: string;
+};
+
+export type AnnouncementsAccountSetAppResult = {
+  status?: {
+    connection: string;
+  };
+  /** True when both the secret and the client ID were saved. */
+  saved: boolean;
+};
+
 /** List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check). */
 export type AnnouncementsBlockedInput = Record<string, unknown>;
 
@@ -1768,6 +1785,7 @@ export interface ImageOperations {
   announcements_settings_set: { input: AnnouncementsSettingsSetInput; result: AnnouncementsSettingsSetResult };
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
   announcements_account_connect: { input: AnnouncementsAccountConnectInput; result: AnnouncementsAccountConnectResult };
+  announcements_account_set_app: { input: AnnouncementsAccountSetAppInput; result: AnnouncementsAccountSetAppResult };
   announcements_blocked: { input: AnnouncementsBlockedInput; result: AnnouncementsBlockedResult };
   announcements_retry: { input: AnnouncementsRetryInput; result: AnnouncementsRetryResult };
   announcements_review_show: { input: AnnouncementsReviewShowInput; result: AnnouncementsReviewShowResult };
@@ -1830,6 +1848,7 @@ export const IMAGE_OPERATIONS = {
   announcements_settings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements settings set" },
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
   announcements_account_connect: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account connect" },
+  announcements_account_set_app: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements account set-app" },
   announcements_blocked: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements blocked" },
   announcements_retry: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements retry" },
   announcements_review_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements review show" },

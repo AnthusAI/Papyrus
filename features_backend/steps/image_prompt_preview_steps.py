@@ -1,4 +1,4 @@
-"""The prompt preview (features_backend/image-prompt-preview.feature). An in-memory backend; no provider, no network."""
+"""The prompt preview (features_backend/stories/image-prompt-preview.feature). An in-memory backend; no provider, no network."""
 from __future__ import annotations
 
 import sys

@@ -19,12 +19,14 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import agent_wakes, request_meter, run_outcomes, spend_ledger, wake_keys
+from . import agent_wakes, request_meter, run_continuation, run_outcomes, run_settle, spend_ledger, wake_keys
 from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
 from .agent_policy import Gate, PolicyGate, PolicyNotLocated, PolicyUnreadable, UnlocatedPolicy
+from .agent_policy.run_gate import RunDecision
+from .spend_brake import SpendBrake
 from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
@@ -279,13 +281,20 @@ def handoff_of(request: dict) -> dict[str, str] | None:
 
 def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
-                          run_started: Callable[[str], None] | None = None) -> dict:
+                          run_started: Callable[[str], None] | None = None, receive_count: int = 1,
+                          schedule_continuation: Callable[[dict, str, str], None] | None = None, spend_brake: Any = None) -> dict:
     request = validate_request(request)
     started = start_run_record(client, request)   # the record exists, `started`, before any procedure is loaded
     run_id = started["runId"]
-    if started["duplicate"]:   # this wake already has its run: nothing more happens for it
-        return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
-                "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
+    attempt = 1
+    if started["duplicate"]:   # this wake already has its run: nothing more happens for it, unless the queue says the first attempt died
+        existing_run = client.get_record(run_settle.RUN_MODEL, run_id) if receive_count >= run_settle.SETTLING_RECEIPT else None
+        if not run_settle.first_attempt_died(existing_run, receive_count):
+            return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
+                    "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
+        if not run_settle.safe_to_repeat(request):
+            return run_settle.record_unknown(client, run_id, existing_run, request, now=now)
+        attempt = run_settle.REPEAT_ATTEMPT
     try:
         decision = policy.decide(request)   # the site's policy is read here, before anything is loaded or run
     except PolicyUnreadable as error:
@@ -296,6 +305,10 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         raise not_started from error
     if not decision.start:
         return skip_run(client, run_id, request, decision, now=now)
+    stop = spend_brake.stop_for(request, decision) if spend_brake is not None else None
+    if stop is not None:
+        print(json.dumps({"spendBrake": stop.reason_code, "tenantId": request.get("tenantId"), "runId": run_id, "wakeKey": request.get("wakeKey")}))
+        return skip_run(client, run_id, request, RunDecision(False, decision.responsibility, decision.rung, decision.policy_version, stop.reason_code, stop.reason), now=now)
     started_at = now()
     handoff = handoff_of(request) if decision.state is not None else None   # an agent's run for an Assignment another responsibility filed (PPY-51f96f)
     if handoff:
@@ -339,13 +352,14 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         ended = run_outcomes.finished_outcome(False, None, f"The run asked for {', '.join(gate.blocked)}, which no agent may do.") | {"outcomeReason": run_end.GATE_BLOCKED}
     else:
         ended = run_outcomes.finished_outcome(bool(outcome.get("success")), {**output, **gate.declaration} if gate and gate.declaration else output, outcome.get("error"))
+    ended = continue_or_fail(ended, output, request, run_id, schedule_continuation)
     succeeded = ended["runStatus"] == "completed"
     usage, cost_usd = usage_record(outcome)
     trigger = request.get("trigger") or {}
     record = {
         "id": run_id, "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
         "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
-        "startedAt": started_at, "finishedAt": now(), "attempt": 1,
+        "startedAt": started_at, "finishedAt": now(), "attempt": attempt,
         "resultSummary": summarize_output(output, outcome.get("seconds", 0)) if succeeded else None,
         "errorSummary": None if succeeded else ended["error"][:MAX_SUMMARY_CHARACTERS],
         "output": output if succeeded or gate is not None else None,   # a run the gate stopped keeps its answers
@@ -368,6 +382,38 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
             "seconds": outcome.get("seconds"),
             "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
             "output": output if succeeded or gate is not None else None}
+
+
+def continue_or_fail(ended: dict, output: Any, request: dict, run_id: str, schedule_continuation: Callable[[dict, str, str], None] | None) -> dict:
+    """A finished run that asked for a continuation has its timer set before its record is written. A run that asked for one it cannot have is `failed`."""
+    if ended["outcome"] != "acted":
+        return ended
+    try:
+        due_at = run_continuation.requested_time(output)
+        if due_at is None:
+            return ended
+        following = run_continuation.next_request(request, run_id, due_at)
+        if schedule_continuation is None:
+            raise run_continuation.ContinuationError(run_continuation.NOT_SCHEDULED, "this runner has no timer service to continue the run with")
+        try:
+            schedule_continuation(following, due_at, run_id)
+        except Exception as error:
+            raise run_continuation.ContinuationError(run_continuation.NOT_SCHEDULED, f"the continuation could not be scheduled: {error}") from error
+    except run_continuation.ContinuationError as refused:
+        return run_outcomes.finished_outcome(False, None, str(refused)) | {"outcomeReason": refused.reason}
+    return ended
+
+
+def continuation_scheduler(request: dict, context: Any) -> Callable[[dict, str, str], None]:
+    """The runner's way to set a continuation's timer, built when a run asks for one: the account and partition come from the function's own ARN."""
+    from .follow_up_timers import FollowUpTimers
+
+    def schedule(following: dict, due_at: str, run_id: str) -> None:
+        arn_parts = context.invoked_function_arn.split(":")
+        timers = FollowUpTimers.for_site(request["publicationId"], account=arn_parts[4], region=arn_parts[3], partition=arn_parts[1])
+        timers.schedule_continuation(following, due_at=due_at, record_id=run_id)
+
+    return schedule
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
@@ -439,7 +485,9 @@ def handler(event, context):
         result = run_procedure_request(request, client=client, policy=policy, execute=execute_in_child,
                                        seconds_available=seconds_available,
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
-                                       run_started=lambda run_id: record_trigger_run(table, trigger, run_id))
+                                       run_started=lambda run_id: record_trigger_run(table, trigger, run_id),
+                                       receive_count=agent_wakes.receive_count(event),
+                                       schedule_continuation=continuation_scheduler(request, context), spend_brake=SpendBrake(table))
     except ProcedureNotRunnable as error:
         result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
                   "error": str(error)}
@@ -452,8 +500,8 @@ def handler(event, context):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
     record_spend(table, result)   # after the trigger row, so a ledger error never leaves a finished run's row looking unfinished
-    if result.get("skipped"):
-        return result   # the policy started nothing: no story is advanced and no stage trigger fires for a run that did not happen
+    if result.get("skipped") or result.get("settled"):
+        return result   # the policy started nothing, or the run was settled unknown: no run happened: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
         finish_story_stage_run(table, trigger, result)
     if table is not None:

@@ -1,4 +1,4 @@
-"""features_backend/concept-alias-remove.feature: the patch the command writes, over a concept row."""
+"""features_backend/knowledge/concept-alias-remove.feature: the patch the command writes, over a concept row."""
 from __future__ import annotations
 
 import sys

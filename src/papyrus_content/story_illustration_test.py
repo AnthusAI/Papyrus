@@ -1,4 +1,4 @@
-"""The evidence behind the checklist step ``illustration`` (features_backend/story-illustration.feature has the end to end scenarios)."""
+"""The evidence behind the checklist step ``illustration`` (features_backend/stories/story-illustration.feature has the end to end scenarios)."""
 
 import pytest
 

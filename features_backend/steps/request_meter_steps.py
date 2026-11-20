@@ -1,4 +1,4 @@
-"""The request meter and the batched reads (features_backend/request-meter.feature, features_backend/batched-reads.feature). The backend is a fake."""
+"""The request meter and the batched reads (features_backend/agents/request-meter.feature, features_backend/platform/batched-reads.feature). The backend is a fake."""
 from __future__ import annotations
 
 import contextlib

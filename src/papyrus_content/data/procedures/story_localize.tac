@@ -14,7 +14,7 @@
 --
 -- Register (from the site repository, or this one):
 --   papyrus procedures register --file procedures/newsroom/story_localize.tac --key <site>.story-localize --dry-run --json
--- Specs: features_backend/story-localize.feature and procedures/newsroom/tests/test_story_localize.py (this file through Tactus, models faked).
+-- Specs: features_backend/translation/story-localize.feature and procedures/newsroom/tests/test_story_localize.py (this file through Tactus, models faked).
 
 Toolset "papyrus_localize_story" {
     type = "plugin",
