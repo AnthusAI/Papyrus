@@ -3,6 +3,9 @@ name: tests
 on:
   # Also called by stack-deploy.yml, so a release's stacks deploy only after these pass on the commit that merged.
   workflow_call:
+  # Started by release.yml's back-merge on the branch it opens a pull request from: a pull request made with the workflow token never starts
+  # the pull_request run, and a dispatch is the one thing that token may start, so `ts` and `python` reach the pull request this way.
+  workflow_dispatch:
   pull_request:
     paths-ignore:
       - "project/**"

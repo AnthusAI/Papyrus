@@ -212,8 +212,8 @@ default, so pushes run only the package smoke checks and publish nothing. Set it
 after the registry setup below is done. Local check: `npm run release:dry-run` with
 `GITHUB_TOKEN` set publishes nothing.
 
-- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow). The stable tag sits on main's merge
-  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version.
+- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow), as a pull request from a `back-merge/vX` branch with auto-merge on. The stable tag sits on main's merge
+  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version. A pull request made with the workflow token does not start the `pull_request` run, so the job dispatches `tests.yml` on the branch (`workflow_dispatch`), which reports `ts` and `python` on the branch tip; the ruleset then lets the auto-merge through. The repository settings "Allow GitHub Actions to create pull requests" and "Allow auto-merge" must be on.
 
 ## Trying a prerelease in a publication
 

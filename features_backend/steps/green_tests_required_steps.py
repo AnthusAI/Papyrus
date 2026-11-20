@@ -83,9 +83,34 @@ def ruleset_refuses_force_push_and_deletion(context):
     assert {'non_fast_forward', 'deletion'} <= set(context.rules_by_type)
 
 
-@then('only the GitHub Actions app may bypass it')
-def ruleset_bypass_is_actions_app_only(context):
-    assert [(actor['actor_type'], actor['actor_id']) for actor in context.ruleset['bypass_actors']] == [('Integration', 15368)]
+@then('nobody may bypass it')
+def ruleset_has_no_bypass(context):
+    assert context.ruleset['bypass_actors'] == []
+
+
+@when('its back-merge job is read')
+def back_merge_job_read(context):
+    job = context.workflow['jobs']['back-merge']
+    context.back_merge_script = '\n'.join(step.get('run', '') for step in job['steps'])
+
+
+@then('it pushes a back-merge branch and opens a pull request into develop instead of pushing develop')
+def back_merge_opens_pull_request(context):
+    script = context.back_merge_script
+    assert 'git push origin "$branch"' in script and 'gh pr create --base develop' in script
+    assert 'HEAD:develop' not in script
+
+
+@then('it dispatches the tests workflow on that branch and turns on auto-merge')
+def back_merge_dispatches_tests(context):
+    script = context.back_merge_script
+    assert 'gh workflow run tests.yml --ref "$branch"' in script and '--auto' in script
+
+
+@then('tests.yml can be started by a dispatch')
+def tests_can_be_dispatched(context):
+    triggers = _workflow('tests.yml')
+    assert 'workflow_dispatch' in (triggers.get(True) or triggers.get('on'))
 
 
 @given('the workflow tests-board-only.yml')

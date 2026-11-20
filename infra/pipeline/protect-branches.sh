@@ -8,14 +8,14 @@
 #   - the checks `ts` and `python` of tests.yml must have passed on the pull request's tip (a skipped check, which is how a reused green run
 #     reports, passes; a pull request that changes only the board is covered by tests-board-only.yml)
 #   - no force-push, no deletion
-#   - the GitHub Actions app may push: release.yml's back-merge of main into develop is a direct push of an already tested merge
+#   - nobody bypasses it: release.yml's back-merge of main into develop is a pull request from a back-merge/vX branch, tests dispatched on it, auto-merge on.
+#     That needs the repository settings "Allow GitHub Actions to create pull requests" and "Allow auto-merge" (both set by the person who runs this script).
 # The release workflow runs the same tests before it publishes (release.yml, job `tests`), so a direct push that slips past still publishes nothing red.
 # Needs admin rights on the repository and the gh CLI (gh auth login). Safe to run again: it updates the ruleset of the same name.
 set -u
 
 REPO="AnthusAI/Papyrus"
 RULESET_NAME="main-and-develop-need-green-tests"
-GITHUB_ACTIONS_APP_ID=15368
 DRY_RUN=0
 
 refuse() { printf 'REFUSED: %s\n' "$*" >&2; exit 2; }
@@ -38,7 +38,7 @@ BODY="$(cat <<JSON
   "target": "branch",
   "enforcement": "active",
   "conditions": {"ref_name": {"include": ["refs/heads/main", "refs/heads/develop"], "exclude": []}},
-  "bypass_actors": [{"actor_id": $GITHUB_ACTIONS_APP_ID, "actor_type": "Integration", "bypass_mode": "always"}],
+  "bypass_actors": [],
   "rules": [
     {"type": "deletion"},
     {"type": "non_fast_forward"},
