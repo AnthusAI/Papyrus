@@ -6,10 +6,12 @@ import { ADMIN_AGENT_POLICY_KEY_PATTERN } from "../../agents/admin-policy-grant"
 /**
  * Environment and least-privilege IAM for the agent-policy function: read and write on the two site document tables, get and put on the agent policy objects of the
  * media bucket (no delete, so every version stays), and the person-only app clients it checks the token against.
+ * A first (bootstrap) deploy leaves the tenancy models out, so with no site document tables there is nothing to wire and the function is not yet callable.
  */
 export function wireAgentPolicy(backend: any, bucketName: string, bucketArn: string, personOnlyClientIds: string[], tenantId: string): void {
   const lambda = backend.agentPolicy.resources.lambda as LambdaFunction;
   const tables = backend.data.resources.tables as Record<string, ITable>;
+  if (tables.SiteDocument === undefined || tables.SiteDocumentVersion === undefined) return;
   for (const table of [tables.SiteDocument, tables.SiteDocumentVersion]) table.grantReadWriteData(lambda);
   lambda.addToRolePolicy(
     new PolicyStatement({ effect: Effect.ALLOW, actions: ["dynamodb:DescribeTable"], resources: [tables.SiteDocumentVersion.tableArn] }),
