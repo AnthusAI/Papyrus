@@ -55,7 +55,6 @@ from .assignments_commands import (
     assignments_events,
     assignments_for_object,
     assignments_intake_proposals,
-    assignments_list,
     assignments_orphan_research_packets,
     assignments_process_queue,
     assignments_release,
@@ -347,8 +346,6 @@ PORTED_COMMANDS = GENERATED_CLI_ROUTES | frozenset(
         "references:queue-enrichment",
         "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
-        "assignments:list",
-        "assignments:show",
         "assignments:create-research",
         "assignments:create-reporting",
         "assignments:run-research",
@@ -851,12 +848,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_retire_citation_stubs(flags)
     elif route == "references:backfill-corpus-storage-paths":
         references_backfill_corpus_storage_paths(flags)
-    elif route == "assignments:list":
-        assignments_list(flags)
-    elif route == "assignments:show":
-        from .assignments_commands import assignments_show
-
-        assignments_show(flags)
     elif route == "assignments:create-research":
         assignments_create_research(flags)
     elif route == "assignments:create-reporting":

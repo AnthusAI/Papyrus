@@ -14,6 +14,7 @@ from fake_client import FakeAuthoringClient  # noqa: E402
 
 from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content import assignments_commands, story_commands  # noqa: E402
+from papyrus_content.registered_commands import run_registered_command  # noqa: E402
 from papyrus_content.operator_errors import OperatorError  # noqa: E402
 
 LINEAGE = "story-gap"
@@ -138,13 +139,13 @@ def direction_none(context):
 @when("a person shows the Assignment")
 def show(context):
     out = io.StringIO()
-    patches = [mock.patch.object(assignments_commands, "create_authoring_client", return_value=(context.client, {}))]
+    patches = [mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(context.client, {}))]
     if context.attachment_text is not None:
         patches.append(mock.patch("papyrus_content.assignments.download_attachment_buffer", lambda client, attachment: context.attachment_text.encode()))
     with contextlib.ExitStack() as stack, contextlib.redirect_stdout(out):
         for patch in patches:
             stack.enter_context(patch)
-        assignments_commands.assignments_show(["--assignment", "as-1"])
+        run_registered_command("assignments:show", ["--assignment", "as-1"])
     context.rows = [line.split("\t") for line in out.getvalue().splitlines()]
 
 
