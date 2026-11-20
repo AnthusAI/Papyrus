@@ -863,7 +863,7 @@ async function agentSetItemStars(event: Parameters<AgentItemStarsHandler>[0]) {
   const stars = normalizeReferenceStars(event.arguments.stars);
   const client = await getDataClient();
   const item = await getRequiredRecord(client.models.Item, itemId, "Item");
-  const tenant = (process.env.PAPYRUS_TENANT_ID ?? "").trim() || null;
+  const tenant = currentTenantContext().tenantId ?? null;
   if ((normalizeOptionalString(item.tenantId) ?? null) !== tenant) throw new Error("Story is outside this site's scope.");
   if (!isStoryItemType(normalizeOptionalString(item.type) ?? "")) throw new Error("Only Stories can be rated.");
   if (item.lineageId !== lineageId || item.versionState !== "current" || item.updatedAt !== updatedAt || (item.starRevision ?? null) !== starRevision)

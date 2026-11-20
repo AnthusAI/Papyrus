@@ -115,7 +115,7 @@ async function main() {
   const agent = (expectedStarRevision: string | null, count = 4) => handler({ info: { fieldName: "agentSetItemStars" }, identity: editor,
     arguments: { itemId: "story-v2", lineageId: "story", stars: count, expectedUpdatedAt: "2026-11-01T10:00:00Z", expectedStarRevision } });
   await assert.rejects(handler({ info: { fieldName: "agentSetItemStars" }, identity: {},
-    arguments: { itemId: "story-v2", lineageId: "story", stars: 4, expectedUpdatedAt: "2026-11-01T10:00:00Z" } }), /cannot rate Stories/);
+    arguments: { itemId: "story-v2", lineageId: "story", stars: 4, expectedUpdatedAt: "2026-11-01T10:00:00Z" } }), /cannot rate Stories|neither a user pool identity nor an IAM identity/);
   await agent(null);
   assert.equal(rows.get("story-v2")!.starRatedBy, "agent:fixture-editor");
   assert.ok(rows.get("story-v2")!.starRevision);
