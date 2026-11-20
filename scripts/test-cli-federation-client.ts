@@ -9,12 +9,12 @@ import { CLI_LOOPBACK_CALLBACK } from "../lib/cli-loopback-callback";
 const redirectUrls = ["http://localhost:3000/", "https://newsroom.example.test/", "https://newsroom.example.test/newsroom"];
 const identity = { amplifyAppId: "app", brandId: "x", productionAppId: "" } as Parameters<typeof resolveSiteBackendFeatureFlags>[2];
 
-function synthesize(extraCallbackUrls?: readonly string[], refreshTokenValidityDays?: number) {
+function synthesize(extraCallbackUrls?: readonly string[]) {
   const app = new App();
   const authStack = new Stack(app, "Auth", { env: { account: "111111111111", region: "us-east-1" } });
   const userPool = new UserPool(authStack, "UserPool");
   new UserPoolIdentityProviderGoogle(authStack, "Google", { userPool, clientId: "google-client", clientSecretValue: SecretValue.unsafePlainText("google-secret") });
-  addProspectusGoogleOnlyClient(authStack, userPool, redirectUrls, extraCallbackUrls, refreshTokenValidityDays);
+  addProspectusGoogleOnlyClient(authStack, userPool, redirectUrls, extraCallbackUrls);
   return Template.fromStack(authStack);
 }
 
@@ -96,15 +96,14 @@ const behaviours: Record<string, () => void> = {
     assert.throws(() => cliFederationClientCallbackUrls(true, {}), /PAPYRUS_SITE_ORIGIN/);
     assert.throws(() => cliFederationClientCallbackUrls(true, { PAPYRUS_SITE_ORIGIN: "http://insecure.example.test" }), /plain https origin/);
   },
-  sessions_last_seven_days_only_when_moved() {
-    const off = clientOf(synthesize()).Properties;
-    assert.equal(off.RefreshTokenValidity, 60, "off: exactly as registered with Prospectus today");
-    assert.equal((off.TokenValidityUnits as Record<string, string>).RefreshToken, "minutes");
-    const on = clientOf(synthesize([CLI_LOOPBACK_CALLBACK], CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS)).Properties;
-    assert.equal(on.RefreshTokenValidity, 7);
-    assert.deepEqual(on.TokenValidityUnits, { AccessToken: "minutes", IdToken: "minutes", RefreshToken: "days" });
-    assert.equal(on.AccessTokenValidity, 60);
-    assert.equal(on.IdTokenValidity, 60);
+  sessions_last_seven_days_whether_or_not_the_cli_has_moved() {
+    for (const properties of [clientOf(synthesize()).Properties, clientOf(synthesize([CLI_LOOPBACK_CALLBACK])).Properties]) {
+      assert.equal(properties.RefreshTokenValidity, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS);
+      assert.equal(properties.RefreshTokenValidity, 7);
+      assert.deepEqual(properties.TokenValidityUnits, { AccessToken: "minutes", IdToken: "minutes", RefreshToken: "days" });
+      assert.equal(properties.AccessTokenValidity, 60);
+      assert.equal(properties.IdTokenValidity, 60);
+    }
   },
   console_origin_is_used_when_set() {
     const environment = { PAPYRUS_SITE_ORIGIN: "https://shipped.example.test", PAPYRUS_CONSOLE_ORIGIN: "https://newsroom.shipped.example.test" };
