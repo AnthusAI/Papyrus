@@ -150,6 +150,16 @@ class FollowUpTimers:
         return request["wakeKey"]
 
 
+    def schedule_continuation(self, request: Mapping[str, Any], *, due_at: str, record_id: str) -> str:
+        """Set the one timer for a continuation of a run (slice A6): ``record_id`` is the run that asked, and ``request`` is the next run's request with its own key."""
+        parse_utc(due_at)
+        wake = agent_wakes.wake_of(dict(request))
+        target = {"Arn": self.queue_arn, "RoleArn": self.role_arn, "Input": agent_wakes.message_body(dict(request)),
+                  "SqsParameters": {"MessageGroupId": agent_wakes.group_id(wake)}}
+        self.schedules.set(entry_name("continuation", record_id), due_at, target, description=f"Continues {wake['agent']} from run {record_id} at {due_at}")
+        return str(request["wakeKey"])
+
+
 # --- the run's first check -----------------------------------------------------------------------------------------------------
 
 
