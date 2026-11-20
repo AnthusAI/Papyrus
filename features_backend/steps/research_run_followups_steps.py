@@ -32,7 +32,7 @@ def stop_patch(context, patcher):
 
 # --- the temporary directory ----------------------------------------------------------------------------------------------------
 
-@given("a code directory that cannot be written")
+@given("a code directory that cannot be written and PAPYRUS_RUNS_DIR naming a writable directory")
 def step_unwritable(context):
     base = Path(tempfile.mkdtemp())
     root = base / "code"
@@ -42,7 +42,7 @@ def step_unwritable(context):
     context.followups = SimpleNamespace(base=base, root=root)
     context.add_cleanup(lambda: (root.chmod(stat.S_IRWXU), shutil.rmtree(base, ignore_errors=True)))
     stop_patch(context, mock.patch.object(aw, "PAPYRUS_ROOT", root))
-    stop_patch(context, mock.patch.object(aw.tempfile, "gettempdir", lambda: str(base / "temporary")))
+    stop_patch(context, mock.patch.dict(os.environ, {"PAPYRUS_RUNS_DIR": str(base / "temporary")}))
 
 
 @when("the sources of a research packet are taken in")
@@ -56,7 +56,7 @@ def step_take_in_dir(context):
         context.followups.result = aw.intake_research_packet_proposals(client, {"assignment": "assignment-1", "corpus-key": "example", "dry-run": True})
 
 
-@then("the catalog was written under the temporary directory")
+@then("the catalog was written under the configured run directory")
 def step_catalog_dir(context):
     path = context.followups.result["catalogPath"]
     assert path.startswith(str(context.followups.base / "temporary")) and Path(path).is_file(), path

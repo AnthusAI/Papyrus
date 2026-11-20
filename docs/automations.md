@@ -13,13 +13,14 @@ describes that, links to it, controls it, costs it and shows what it did.
 |---|---|
 | `monitor` triggers | Live, because the monitoring router already runs them. The router's `procedureTriggers` entry still says what starts and with what input; the record mirrors it and now governs it (below). |
 | `event` trigger "story enters a stage" | **Live from the command line and the runner** (below, "Story-state triggers"). |
-| `schedule`, `manual` triggers, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
+| `schedule` trigger | **Live** (below, "The schedule trigger"). The time and zone come from the agent's registered definition; the record names the router publication that gives each tick the site's endpoint, model key and policy location (`config.monitorId` and `config.publicationId`, both or neither, set with `papyrus automations update`). The console and the command line show the time and zone in words, not "not yet supported". Its input is static. |
+| `manual` trigger, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
 | `enabled` | **Real for monitor automations.** The router reads the record before each start. A disabled automation starts nothing, and the trigger row says `skipped` with the reason "automation disabled". |
 | `limits.timeoutSeconds` | **Enforced.** It goes to the runner with the request and becomes the procedure's deadline, capped at 840 s (the runner Lambda's 15 minutes less its recording margin). |
 | `limits.maxConcurrent` | **Optional; unset means no limit, as before.** When set, a new start at the limit is **deferred**, not dropped: the trigger row says `deferred` with the reason ("deferred: concurrency limit: 1 running, at most 1 at a time") and the router starts it on a later run when there is room. |
 | `limits.budgetUsdPerRun` | **Advisory.** A run is never stopped for it. The history compares each run's recorded cost with it and flags a run over it. |
 | Cost per run | **Recorded** (below). |
-| Run now | **Live** for monitor automations, from the command line and the console. |
+| Run now | **Live** for monitor automations and for schedule automations that name a router publication, from the command line and the console. |
 
 The monitoring router, the procedure runner and the registered procedure still own the starting. The router's
 `CONFIG#router` entry stays the source of truth for what starts; the record is read for whether it may and with
@@ -39,6 +40,10 @@ mismatched record can never stop Distinctive's TTAB analysis:
 
 Two records for the same trigger: the one with the lowest id governs.
 
+The router's rule above only decides whether the router *sends* the request. The procedure runner then reads the site's agent policy
+before it starts the run ([procedure runner](procedure-runner.md)), and starts nothing for an automation that has not been adopted
+or whose responsibility is `off` or paused. See "Adopting an automation" below.
+
 ### How a run counts as "running" for `maxConcurrent`
 
 A run counts while its row says `starting`, `started` or `running` and it began less than its timeout plus two
@@ -55,6 +60,12 @@ How a deferred item is retried:
   the item and the row moves to `starting`, then `started` (with `retriedAt`), and the runner takes it from there. If the
   automation is full, the rest keep waiting. If the automation was disabled meanwhile the row becomes `skipped`. If the
   record has gone, the item starts as before. A retry that fails to start is recorded `startFailed`.
+* Every retry builds the item's wake key from the row (the automation, or the procedure when none governed it; the
+  Reference id; a new Reference), the form the first start used, and ignores any key stored on the row. A row deferred
+  before wake keys existed therefore starts like any other, and a retry is the same wake as the first attempt, so it
+  can never start a second run. A row without the data for a key (no Reference id) is recorded `startFailed` with the
+  reason and counted in `procedureStartFailed`; it is not guessed at. Before and after a release, read the count of
+  `deferred`, `starting` and `startFailed` trigger rows per site.
 * Retries happen as often as the router runs (every 15 minutes), one per free slot per run at most.
 * Setting the limit: `papyrus automations update --id distinctive.ttab --max-concurrent 4`. Clear it with
   `--max-concurrent none`. A record created before this change was given `maxConcurrent: 1` by the old default; if you
@@ -132,11 +143,18 @@ reached" is raised once. Raise `maxHops` on the automation to let the bots conti
 the `startFailed` rewrite, the router-config read and the `STAGE#` prefix query; `UpdateItem` on the run rows was already there), and
 `lambda:InvokeFunction` on `papyrus-procedure-runner` itself, to start the next stage. The existing `appsync:GraphQL` grant on every
 Query and Mutation field of the Distinctive API already covers `listAutomations`, `getAutomation`, the Item fields, Messages and
-review-request mutations; no other API is needed. What remains is the operator's: rebuild the image (`infra/procedures/build_image.sh`)
+review-request mutations; no other API is needed. What remains is the operator's: rebuild the image (the release (it builds the image from `infra/procedures/build_image.py`))
 and update the `papyrus-procedure-runner` stack with the new `ImageUri` (see docs/procedure-runner.md, "Deploying").
 
 **Not built yet:** the per-story budget cap from recorded cost (`botChain.costUsd` is reserved), a group lock, firing from the
 console board, and a sweeper that retries `deferred` starts without a new delivery.
+
+## Translating on publish
+
+A site's translation procedure (`procedures/newsroom/story_localize.tac`) is started by an automation in two more ways: `papyrus stories localize --story ... --automation ID`
+and, for a site that turned on `languages.auto`, by the site's dispatcher when a Story is published ([translating on publish](story-translation-procedure.md#translating-on-publish)).
+Both use the same "Run now" code, so the automation's `enabled`, timeout and `maxConcurrent` apply; an automation at its limit leaves the request `wanted` and
+the dispatcher starts it when a run ends. The procedure's inputs are snake_case, as every procedure input name must be (`^[a-z_][a-z0-9_]*$`).
 
 ## Cost
 
@@ -171,10 +189,13 @@ but no model call stores only `toolsUsed` (no cost). `automations runs` prints `
 
 ## Run now
 
+Each Run now carries its own wake key, `<automation id>|manual|<request id>` with a fresh request id, so it never collides with a
+scheduled or changed-record run of the same automation (`docs/procedure-runner.md`).
+
 * Command line: `papyrus automations run --id distinctive.ttab --input '{"proceeding":"97752244","opinion_url":"https://..."}'`
   (`--dry-run` checks everything and starts nothing; `--json`). It needs the same things `runs` needs (AWS
   credentials that can read the monitoring table through the SSM parameter) plus `dynamodb:PutItem` on it and
-  `lambda:InvokeFunction` on `papyrus-procedure-runner` (override with `PAPYRUS_PROCEDURE_RUNNER_FUNCTION`).
+  `sqs:GetQueueUrl` and `sqs:SendMessage` on the site's wake queue, `papyrus-<site>-agent-wakes.fifo`.
 * Console: a **Run now** button on the automation, for editors and admins. It does not start on the first click: a
   confirm step says what will run, that it calls a model and counts against the limit, and asks for the input of this
   run. The mutation is `runAutomation(automationId, input)`; it is served by the `papyrus-automation-view` function.
@@ -183,11 +204,12 @@ The input is the one you give. If you give none, the record's `inputTemplate` is
 placeholder; the TTAB template does (`{sourceIdPrefix}`, `{documentUrl}`), so for TTAB you give the input.
 
 Run now is refused, with the reason and without a row, when the automation is not a monitor automation, is
-disabled, has no router publication for this site, or is at its `maxConcurrent`. Otherwise it:
+disabled, has no router publication for this site, has no `openaiKeyParameter`, `tenantId` or `siteBucket` on that publication (the runner reads the site's agent policy from
+the last two and refuses a wake that does not name them), or is at its `maxConcurrent`. Otherwise it:
 
 1. writes `MANUAL#<automationId>#<timestamp>` in the monitor's partition (`MONITOR#<monitorId>`) of the monitoring table,
    with who started it and the runner request, status `starting`;
-2. invokes `papyrus-procedure-runner` asynchronously with the automation's `procedureKey`, the input, the router
+2. puts a wake on the site's wake queue (the runner consumes it) with the automation's `procedureKey`, the input, the router
    publication's endpoint and key parameter, and `timeoutSeconds`; if that fails the row says `startFailed`;
 3. the runner sets the row `running` with the `runId` as soon as the run exists, and its outcome at the end.
 
@@ -222,6 +244,16 @@ read, the rest of the history still shows.
 procedure, and say one of: linked, differs (the input template is not the same), not linked (no trigger for
 this procedure, the router does not deliver to the publication, or the monitor has no router configuration).
 It reads and compares only. Fixing a difference means editing whichever side is wrong.
+
+## Where the router config lives
+
+Everything an automation needs from the router (the publication's `appsyncEndpoint`, and the `openaiKeyParameter` that names the
+SSM parameter holding the site's model key) comes from the router publication the automation names. Run now, Stage Bots, translate on publish
+(`papyrus stories localize --automation`) and a monitor's `procedureTriggers` all read it, and all refuse to start with "the router publication has no openaiKeyParameter"
+when the entry lacks it. The router config is not hand-written data. It is the file `infra/monitoring/router-config/<monitorId>.json` in this repository (for an automation on
+the default monitor, `hn.json`), applied to the monitoring table by the stack deploy ([router config in Git](monitoring-cloud.md#router-config-in-git)).
+To let a site's automations start: add `"openaiKeyParameter": "/amplify/shared/<amplifyAppId>/OPENAI_API_KEY"` to its publication entry, open a pull request, and merge; the release writes it.
+A site's own checkout never writes it.
 
 ## Run history
 
@@ -260,6 +292,7 @@ papyrus automations run --id distinctive.ttab --input '{"proceeding":"97752244",
 papyrus automations create --id distinctive.ttab --title "Analyze new TTAB rulings" \
   --monitor ttab --publication distinctive --procedure distinctive.ttab.ruling-analysis \
   --input '{"proceeding":"{sourceIdPrefix}","opinion_url":"{documentUrl}"}' [--dry-run]
+papyrus automations adopt --id distinctive.ttab --responsibility KEY [--dry-run] [--json]
 papyrus automations update --id distinctive.ttab [--enabled false] [--title T] [--input JSON] \
   [--timeout-seconds N] [--max-concurrent N] [--budget-usd N] [--dry-run]
 ```
@@ -271,6 +304,209 @@ line on this lane: `run --dry-run`, and `runs --limit` above the site's default 
 lane (`PAPYRUS_GRAPHQL_AUTH=iam`, with credentials that can read the monitoring table through the SSM parameter
 `/papyrus/monitoring/table-name` and invoke the procedure runner) for those. `create` and `update` use the authoring client
 on either lane.
+
+## Adopting an automation
+
+An automation carries an optional `responsibility`: the one standing responsibility of the agent catalog it fills (`rate`, `translate`,
+`announce` and so on). It is set only by `papyrus automations adopt`, by an admin who is a person, and is never inferred from the
+procedure or the trigger. Adopting writes nothing else: it never sets a rung and never starts or stops a run.
+
+```bash
+papyrus automations adopt --id distinctive.ttab --responsibility KEY --dry-run
+papyrus automations adopt --id distinctive.ttab --responsibility KEY
+```
+
+The runner starts a run only for an adopted automation whose responsibility the site's agent policy raises above `off` and has not
+paused. Otherwise the run is recorded as "Nothing to do" with the reason `not_adopted`, `rung_off` or `paused` (shown by
+`papyrus automations runs`), with the policy version and rung it was decided under. An adopted automation is not changed to another
+responsibility by a second `adopt`. The steps for a site are in [releasing](releasing.md#enforcing-the-agent-policy-on-a-site).
+
+## The registered copy of an agent definition
+
+An agent's definition file lives in Git ([always-on agents](design/always-on-agents-architecture.md#31-what-an-agent-definition-is)). The site's backend holds the
+**registered copy** on the agent's Automation record, in four fields: `definitionId`, `definitionVersion`, `definitionDigest` and `definition` (the
+definition as registered). The runner and Today read the record, never the file in Git at run time.
+
+* The digest is SHA-256 of the canonical JSON of the effective definition (a core definition with what the site added to it), so the order of fields
+  never changes it.
+* The first registration is version 1. Registering the same digest again changes nothing and writes nothing. A changed digest writes the next version.
+* Registering writes those four fields and nothing else: not `enabled`, the trigger, the adopted `responsibility` or the agent policy document, so it
+  never sets a rung, a pause or a budget. It needs an Automation that exists, adopted as the definition's own responsibility or not yet adopted.
+* The release calls `agent_definitions.registered.register` for each definition (`papyrus agents apply`, below).
+
+### Applying the definitions: the deploy does it
+
+A site's Amplify build runs `papyrus agents apply` right after it registers the procedures (`infra/amplify-app-shell/lib/build-specs.ts`), as the build
+role on the operator lane, from the site's checkout. The core definitions are the files in the wheel; a site's own, and its additions to a core one, are in
+the folder `papyrus-site-agents` at the checkout root (a site without it has the core ones only; `--dir` names another folder). Nothing is done by hand.
+
+* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table. The index lists only rows that carry a `tenantId`: every write by a client that has the site's tenant stamps it (`features_backend/automation-tenant-id.feature`), and rows written before that are stamped once by `papyrus content backfill-tenant-id --tenant <id>` (a dry run unless `--apply`; [multi-tenancy](multi-tenancy.md#stamping-tenantid-on-rows-written-without-one)). Until then a definition whose automation exists without a `tenantId` stops the step, naming that command, and nothing is written, because the create it would otherwise try fails on a row that is already there.
+* **Checked first.** Every definition is validated exactly as `papyrus agents validate` does, each named procedure must be registered (a core kind or one
+  in the site's `papyrus-site-procedures.json`), and the automation a definition lands on must be its own. Any failure stops the step with a plain error
+  naming each problem **before anything is written**, and fails the build. Nothing falls back.
+* **One automation per definition, named for it.** A site with none gets one, created **disabled**, with the definition's procedure and a trigger kind
+  (`schedule` or `event`); what wakes the agent is in the registered definition. Then `register` writes the registered copy: the same digest writes
+  nothing, a changed digest writes the next version.
+* **Retired, not deleted.** A record whose definition is gone from Git is disabled and marked `definitionRetiredAt`. It names no schedule
+  (`registered_schedules` lists only live registered definitions, which is what the schedule trigger keeps an entry for), and its registered copy and
+  version stay as history. A definition that returns clears the mark and does not switch the record on.
+* **Never the policy.** Applying does not touch the agent policy document, so a deploy cannot set a rung, lift a pause or change a budget; a new agent
+  arrives at `off`, and the policy says so until an admin sets a rung.
+* **Applying and adopting divide the work.** Applying registers the definition and never names the responsibility the record fills: adopting is an
+  authorization by an admin who is a person (`papyrus automations adopt`) and stays so. Until it is done the runner records `not_adopted`; after it, and
+  until a rung is set, `rung_off`. Either way nothing starts.
+* **Safe to run again.** A part-way failure is healed by the next run. `--dry-run` reads the site and says what would change; `--check` does the same and
+  exits 2 on any difference from Git.
+
+The permissions are those of the procedure step: signed GraphQL requests to the site's API (it lists, reads, creates and updates `Automation` records).
+No new IAM permission is needed.
+
+## The schedule trigger
+
+An agent runs on a clock that comes from its definition (slice C1, PPY-2a53cd). A definition may name `wakes.schedule`: a cron expression of five fields and a
+time zone. `papyrus agents apply` registers it on the agent's automation; `papyrus agents schedules --site <brand id>` makes the site's EventBridge
+Scheduler group agree with the registered definitions. The site's Amplify build runs it right after `agents apply` (`infra/amplify-app-shell/lib/build-specs.ts`),
+and a person may run it again at any time. Nothing polls and nothing is made by hand.
+
+* **One entry for each live agent.** Live means: a registered definition with a schedule, not retired, on a record that is switched on. The entry is named
+  `agent-<id>` (a long id keeps the start and a digest of the whole), lives in the group `papyrus-<site>-agent-schedules` and has one target, the site's
+  wake queue. Its message is a wake whose key is `<agent>|schedule|<scheduled time>`: the scheduler fills in the time the entry was scheduled for, so a tick
+  delivered twice is one wake and one run (`wake_keys.py`; the queue drops the repeat inside five minutes, and the run record's own condition after).
+* **A timer does nothing else.** The tick only puts a wake on the queue. The runner then reads the site's policy, the pause and the definition again, as for a
+  wake raised by a change; a paused agent's tick is consumed and recorded as nothing started, with the reason `paused`.
+* **Time zones.** The entry carries the local cron expression and the zone's name, never an offset from UTC, so the scheduler keeps the local time across a clock
+  change. The five-field cron is translated to the scheduler's six (`cron.py`): the day of the week is renumbered (Sunday is 1), and a schedule that names
+  both a day of the month and a day of the week is refused when the definition is checked, because cron runs on either and the scheduler on both.
+* **A new agent has no entry until a person switches it on.** `agents apply` creates the automation disabled. To make it tick, link it to the router publication
+  that carries the site's endpoint, model key and policy location (`papyrus automations update <id> --monitor <monitor> --publication <publication>`; the
+  publication must name `tenantId` and `siteBucket`, or the runner would refuse every tick) and enable it (`--enabled true`), then run `papyrus agents schedules`
+  (the next deploy does it too). Switching an agent off, retiring its definition or removing its schedule removes its entry the same way.
+* **No schedule that a definition does not name.** An entry whose name starts `agent-` and that no live agent names is deleted. Entries with other names (the
+  one-shot follow-up helper's, slice C2) are never touched. Everything is checked before anything is written, one message names every problem, and a second
+  run with nothing changed writes nothing. `--dry-run` says what would change; `--check` also exits 2 on any difference.
+* **The first deploy.** The group is in the site's `agents` stack, which a new site's first deploy leaves out (`amplify/agents/stack.ts`). Until the second
+  deploy the step says there is no schedule group yet and finishes when no agent needs one; with an agent that needs one it stops and says so.
+
+### What the scheduler's role may do, and what the deploy step needs
+
+These are written as templates and code and are not applied until the release that carries them (and, for the build role, until a person grants them).
+
+* **The role the scheduler assumes** (`papyrus-<site>-agent-scheduler`, in the agents stack): it may send a message to this site's wake queue and do nothing else.
+  It may not read or delete a message, touch another site's queue or the dead-letter queue, or call any other service. Only EventBridge Scheduler acting for this
+  account may assume it.
+* **What the deploy step needs** (the Amplify build role; for an app-shell `cms` site that is the app's `AmplifyServiceRole`, which carries `AdministratorAccess`, so nothing is added to it; see [the 5.130 plan](release-5-130-plan.md), 1.4): in this account, look up the wake queue's address (`sqs:GetQueueUrl`) on the
+  site's wake queue; `scheduler:ListSchedules` (this action takes no resource restriction); `scheduler:GetSchedule`, `CreateSchedule`, `UpdateSchedule` and
+  `DeleteSchedule` on the schedules of the site's group only (`schedule/papyrus-<site>-agent-schedules/*`); `iam:PassRole` on the scheduler role only, and only
+  to the scheduler service; and the same read of the monitoring table and its parameter that `papyrus automations run` uses, to read the router publication.
+  It needs nothing on the queue's messages, and it never creates a group or a role.
+
+## The listener index and the Item change feed
+
+An agent that listens for a change to a Story or its checklist (`wakes.changes` with `kind: Item`) is woken by the Item change feed (slice B2, PPY-8a374e), a
+stream consumer on the Item table in the site's `agents` stack. It must find the agents that listen without listing the Automation table on every change, so
+the deploy writes **the listener index**: `papyrus agents listeners` (the site's build runs it right after `agents schedules`; a person may run it again, with
+`--dry-run` or `--check`). The index is one small site document of kind `listeners` (versioned, its body an S3 object at `tenants/<tenant>/site/listeners/<version>.json`,
+as the agent policy is), derived from the definitions in Git, keyed by the change (`Item/stage_entered`, `Item/version_created`, `Item/step_changed`, `Item/rated`), each entry naming the
+agent, its procedure, whether it is paid, its serial scope and its filter. The same definitions write nothing; a changed set writes the next version; a definition removed
+from Git leaves the index at the next deploy. It holds no rung, pause or budget: the runner checks the policy for every wake, so a deploy still cannot change them.
+
+* **What the deploy step needs:** nothing new for an app-shell `cms` site (its build role has the access the schedule step uses). Any other build role needs
+  `s3:PutObject` and `s3:GetObject` on `tenants/<tenant>/site/listeners/*` in the site's bucket, and the site API's `getSiteDocument`, `getSiteDocumentVersion`,
+  `createSiteDocument`, `createSiteDocumentVersion` and `updateSiteDocument`, as the policy document's writer holds them.
+* **What the feed may do** (its role, in the agents stack): read the Item stream; call `getSiteDocument` on its own site's API and read the listener index's objects of its
+  own tenant; look up and send to its own site's wake queue. It reads no table, receives and deletes no wake, and calls no model.
+* **The feed's changes and what a filter may name.** `version_created` (a new version of an Item that is not a checklist step): `type`, `stage`, `section`, `language`,
+  `versionNumber`, `actorKind`. `stage_entered` (a first version created at a stage, or the stage field changed in place, as a board move does): `type`, `stage`, `from`,
+  `section`, `language`, `actorKind`. `step_changed` (a checklist step got a new state; a note is no change): `step`, `state`, `actorKind`. `rated` (a Story's star rating set,
+  changed or cleared in place, PPY-e3bb2b; its key is `rated.<stars or cleared>.<time>`): `type`, `stage`, `section`, `language`, `stars`, `previousStars`, `actorKind`. A filter is a flat set of these
+  fields; every one must equal the change's field as text.
+* **The wake.** Key `<agent>|<Story lineage>|<version id>|<what>` (`what` is the change; a stage entry names its stage, `stage_entered.<stage>`); the message group is the agent plus
+  the Story, or the agent alone when its definition says `serialBy: agent` (as the announce agent does). The request's trigger carries `paid`, `serialBy`, `actorKind`, `actorLabel`, `at` and the change, which is all the wake gate needs (next section). An agent's own change (`automation:<agent>`) never wakes that agent, free or paid.
+* **Who is the writer.** A version's `versionCreatedBy` and a step's recorded actor name an agent as `automation:<id>`. An agent's stage move is recorded on the version
+  (`move_story_stage`); a change of the stage field with no new record of the move is a person's, made in the console board.
+* **Limits of a stream.** A new version created at a different stage from its predecessor is not a stage entry (the stream holds no previous version), and a stage entered
+  again at the same version has the same key, so it starts nothing again.
+
+## The wake gate: the quiet window and the loop guard
+
+Between the Item feed and the queue stands `src/papyrus_content/wake_gate.py` (PPY-67e3cd, PPY-4e7e8b). It reads two things the owner holds in the agent policy document.
+
+* **Paid steps wait for quiet.** A free step goes on the queue at once, on every change. A paid step does not: the change sets or replaces one follow-up timer
+  (`follow_up_timers`, entry `follow-up-<digest of "quiet:<agent>" and the Story>`), due `site.coalescing.windowSeconds` after an agent's change or
+  `site.coalescing.afterPersonSeconds` after a person's. The ruling is 30 minutes to 24 hours and about 5 minutes after a person; a site that has set none starts
+  with 30 and 5 minutes, and the policy refuses a window outside 1800 to 86400 seconds (`AgentPolicyStore.set_value` takes the `coalescing` field; no command-line verb sets it yet). The timer's wake key
+  is `<agent>|<Story>|<due time>|due` and the request carries no version, so the run takes the version current when it fires. A changed window changes only
+  the waits set after it.
+* **The loop guard.** `Item.metadata.botChain.hops` (the Stage Bots' counter, now general) counts the wakes caused by an agent's change since a person last acted on the Story; a
+  person's change clears it and starts the next `round`. At `agents.<responsibility>.loopLimit` (starts at 5) nothing more starts and ONE hard-gate review request, `rr-agent-loop-<story>-<limit>-<round>`, says so.
+* **What the feed's role may do for it:** read the policy's objects, set and clear `follow-up-*` entries in the site's schedule group, read a Story's versions, write the count on its
+  current version and raise the review request (amplify/agents/item-change-feed.ts). Only the Item feed is gated; the other tables' feeds (`change_feeds.py`) send at once.
+* **Limits.** A replaced timer still counts as a wake toward the loop limit, because it is one more agent change on the Story. The count lives on the Story's current version, so a
+  person's save that races the current mark clears the version it made as well.
+
+## The change feeds of the other tables
+
+An agent may also listen for a change to a Reference, a review request, a Message, a translation request, a Delivery or an Assignment that asks a responsibility for work (slices B3 and F1, PPY-9b9e64 and PPY-51f96f). One function in the site's
+`agents` stack, `papyrus-<site>-change-feed`, does for those tables what the Item feed does for Items, with the same normalized change (`table, kind, id, lineage,
+version, change, actorKind, at`), the same listener index, the same wake and the same loop (`src/papyrus_content/change_feeds.py` over `item_change_feed.py`). The
+changes an agent definition may name are one list, `src/papyrus_content/change_vocabulary.py`; a definition that names another is refused when it is read.
+
+| Kind | Change | What it is | What a filter may name | Wake key `<agent>\|<lineage>\|<version>\|<what>` |
+|---|---|---|---|---|
+| `Reference` | `created` | the first version of a Reference was inserted | `corpusId`, `medium`, `section`, `versionNumber`, `actorKind` | `<agent>\|<lineage>\|<row id>\|created` |
+| `Reference` | `accepted` | its curation status became `accepted` (it may also arrive accepted) | the same, `curationStatus`, `reason` | `...\|accepted` |
+| `Reference` | `rated` | its star rating was set or changed | the same, `stars`, `previousStars` | `...\|rated.<stars>` |
+| `Reference` | `recaptured` | its content was captured again: a new retrieval time or content hash on a Reference that had one | the same, `captureState` | `...\|recaptured.<retrieval time or hash>` |
+| `ReviewRequest` | `answered` | an open request was answered | `decision`, `mode`, `reason`, `subjectType`, `steer`, `raisedBy`, `actorKind` | `<agent>\|<subject id>\|<request id>\|answered` |
+| `Message` | `posted` | a comment was posted | `subjectKind` (`Story`, `Reference`, `Delivery`, or `thread`), `subjectId`, `threadKind`, `actorKind` | `<agent>\|<subject id>\|<message id>\|posted` |
+| `LocalizationRequest` | `wanted` | a translation was asked for (a request inserted or put back `wanted`) | `language`, `sourceVersionNumber`, `automationId`, `publish`, `actorKind` | `<agent>\|<Story>\|<source version id>\|wanted.<language>.<asked at>` |
+| `Delivery` | `state_changed` | a Delivery was drafted or changed state | `state`, `from`, `channel`, `accountId`, `announcementId`, `mode`, `approval`, `actorKind` | `<agent>\|<Delivery id>\|<revision>\|state_changed.<state>` |
+| `Assignment` | `created` | a request for a responsibility's work was filed on a Story (`handoffs request`; type `responsibility.<agent>`) | `responsibility`, `story`, `askedBy`, `why`, `actorKind` | `<agent>\|<Assignment id>\|unversioned\|created` |
+| `Assignment` | `reopened` | a closed (completed, canceled or failed) request was put back to `open` | the same | `...\|reopened.<time>` |
+| `Assignment` | `completed` | the responsible agent finished the work | the same | `...\|completed.<time>` |
+
+* **A request between agents is an Assignment** (`src/papyrus_content/agent_assignments.py`, `docs/agent-handoffs.md`). The responsible agent's definition listens for `Assignment/created` and
+  `Assignment/reopened` with `filter: {responsibility: <its own>}`. The wake key is the claim: the agent runs once for one request. `completed` is addressed to the agent that asked
+  (`createdBy`), and to no other; a request a person filed wakes nobody on completion. Other Assignment kinds (research, reindexing) are not changes.
+* **An answer wakes the agent that asked, and no other.** The request's `raisedBy` (`agent:<id>`, `automation:<id>` or the bare id) names it; the answer is a wake for that
+  agent only if its definition listens for `ReviewRequest/answered`. A request a person raised, or one raised by an agent that does not listen, sends nothing.
+* **A Message is placed on its subject.** A comment's thread is anchored on a Story, Reference or Delivery; the feed reads the thread (one point read by id, through
+  `getMessageThread`) only when some agent listens for a posted Message, and the wake is for the listeners whose filter matches the subject. The wake carries the Message's
+  id, never its text (the agent reads it, as a person's steering). A thread with no anchor is its own subject (`subjectKind` `thread`).
+* **What makes a wake new.** `what` carries what made the change different from the last one at that version (the stars, the state a Delivery entered, the time a
+  translation was asked for), so asking again is a new wake and a record delivered twice is the same one. An agent's own change (`automation:<agent>` or `agent:<agent>`) never wakes it.
+* **Streams and readers.** A DynamoDB stream should have at most two readers, so the feed is not added as a third. `ReviewRequest`, `Delivery` and `Assignment` had no stream: the feed is
+  their one reader and switches the stream on, with both images. `Reference` and `LocalizationRequest` have their readers already; with fewer than two the feed reads the
+  stream itself, through a mapping with a filter. A table that has two (the Reference stream with the word index and the home page; the Message stream with the console
+  responder, Slack delivery and the home page) gets the feed behind a reader that stays on the stream: that reader invokes the feed function with its batch and reports what the
+  feed could not finish (`src/papyrus_content/change_feed_relay.py`; the word index, Slack delivery or the home page's thread reader, `amplify/agents/stream-readers.ts`).
+  `npm run test:agents-stack` places the feeds for every combination of readers and proves no table is given a third.
+* **What the feed may do** (its role): read the streams it owns; call `getSiteDocument` and `getMessageThread` on its own site's API; read the listener index's objects of its own
+  tenant; look up and send to its own site's wake queue. It reads no table by scan or list, receives and deletes no wake, and calls no model.
+
+## Overdue: anything due and untouched (PPY-70cd6a)
+
+A lost timer is never silent. Every record that waits keeps a named due time in a sparse due index (a Delivery's `dueKey` + `dueAt`); its timer puts one wake on the queue at that time and the run moves the time on or clears it. A record still in its due index after the queue's own limits are used up has no wake in flight and was not run: it is **Overdue**. "Long enough" is not a number chosen here: the runner's whole possible length (900 s plus the 60 s it keeps for recording) times the two deliveries the queue allows, 1,920 s, read from `amplify/agents/wake-queue.ts` (`src/papyrus_content/overdue.py`; `overdue_test.py` and the feature hold the two sides together).
+
+- **Today** lists each overdue record first, under "Needs attention", as `⏰ Overdue: Delivery ID was due TIME (what it waited for) and nothing ran` (the console draws a Lucide alarm clock beside the word). One index query per kind of waiting record.
+- **The hygiene agent's daily wake** calls `overdue.recover`: for each overdue record it sends the record's wake again with the key its own timer would have used (`DeliveryTimers.wake_request`, the same function the timer uses), and raises one flag for the record and the due time it missed. A repeat inside the queue's deduplication window is dropped by the queue; a repeat after it is answered `duplicate` by the runner's once-only create, so the work is done once. Recovery does no work itself.
+- **One flag for each overdue record**, not one for each check: the flag is a review request in mode `flag` whose id is made from the record and the due time, and raising an id that exists returns the existing request. A record that misses a later time is a new flag.
+- **A record that ran late** has a new due time or none, so it leaves the index and is no longer Overdue.
+- Only Deliveries have a due index today. A kind of record that waits adds its source to `overdue.py` when its own due index exists (review request deadlines, PPY-9b8e59). The operations hygiene agent itself is PPY-50445c; until it exists nothing calls `recover` on a schedule.
+
+Specs: `features_backend/overdue.feature`.
+
+## Runs that need a person (PPY-577310)
+
+A finished run needs a person when its outcome is `failed` or `unknown` and nobody has acknowledged it. Such a run carries `attentionKey` (the constant `attention`, `<tenant>#attention` on a shared stack) and `dueAt` (its finish time); every other run carries neither, so the sparse index `listProcedureRunsByAttentionKeyAndDueAt` holds only what needs a person. `update_cloud_procedure_run_record` writes the two fields in the same update that records the outcome, so every runner path (finished, refused, skipped, wake guard check) is covered. `src/papyrus_content/run_attention.py` is the one module that builds the key, lists the index and acknowledges.
+
+- `papyrus automations attention` lists the runs that need a person, oldest first: one indexed read.
+- `papyrus automations acknowledge --run RUN_ID` (a dry run unless `--apply`) clears both fields and records `acknowledgedBy` and `acknowledgedAt`; the run stays in the history. Acknowledging a run that needs nobody changes nothing and says why.
+- No code path lists the whole `ProcedureRun` table: the procedure list reads each definition's ten latest runs from the procedure index, and the priming export reads a monitor's runs through the definitions of its procedure key and the procedure index.
+- The second index of the design (`automationId` + `requestedAt`, an agent's runs in one query) is added in the release after this one: a deploy adds one index to a table.
+- Release order: the site backend (it carries the fields and the index) before the runner image and the CLI, which write and read them. A runner that writes `attentionKey` to a backend that lacks it is refused.
+
+Specs: `features_backend/run-indexes.feature`.
 
 ## Console
 
@@ -295,6 +531,30 @@ through `automationOverview` and acts through `runAutomation`, both served by th
   `papyrus-procedure-runner`. The router's role may read `listAutomations` of Distinctive's API
   (`RouterAutomationReadPolicy`) and needs `dynamodb:UpdateItem` on the table (below).
 
+## Today
+
+Today answers "what did the system do today?" in one place: the **Today** section of the newsroom home (the Notification Center, below the cards) and
+`papyrus today`. Both read the site's `todayOverview` query (`src/papyrus_content/today.py`, served by the same function as `automationOverview`), so
+they show the same lines. It is read only.
+
+For one day (the viewer's own day on the page, `--day` and `--time-zone` on the command; default today, UTC on the command line) it shows:
+
+- **Needs attention**, first: the records that are Overdue (see Overdue, above), each as `⏰ Overdue` and its words.
+- **What ran**, one line per responsibility (a run's `responsibility`; a run without one is counted under its automation, and one with neither under its
+  procedure): how many runs ended `✓ Did it`, `– Nothing to do`, `? Asked`, `✗ Failed` and `! Outcome unknown`, each as its mark and its words, with the
+  cost. A run that has no outcome is counted in words too: `… Not finished yet` (queued or running) and `Recorded before outcomes`.
+- **The reasons.** A line that has nothing-to-do runs lists their reason codes (`2 not_rated, 1 under_channel_bar`); asked, failed and unknown runs list theirs.
+  Nothing to do is how an editor sees an agent is alive and why it held back.
+- **Did not run.** Each registered automation that started nothing in the day, with why: `Disabled`, `not yet supported` (nothing starts that kind) or
+  `Nothing woke it today`.
+- **Cost.** The sum of the runs' recorded costs. A run that recorded no cost is counted as `cost unknown for N runs`, never as free.
+- **Each line opens the runs.** On the page a line expands to the day's runs (outcome, reason, cost, run id) and links to the Automation page; on the
+  command line it prints `papyrus automations runs --id ID`, and `--runs` lists every run of the day.
+
+Every read is an index. The day's runs are one key-condition query per run status (`queued`, `started`, `running`, `completed`, `failed`, `notRunnable`; `RUN_STATUSES`
+in `today.py`) on the `ProcedureRun` status index (`runStatus` + `requestedAt`), so only the rows requested inside the day are read. The agents are read through
+the Automation `tenantId` index. Nothing lists a whole table. The page refreshes when the tab is focused and every five minutes; it uses no subscription.
+
 ## Setting up the TTAB automation for Distinctive
 
 Distinctive's record (`distinctive.ttab`) exists already. Releasing this change involves, in this order:
@@ -305,7 +565,7 @@ Distinctive's record (`distinctive.ttab`) exists already. Releasing this change 
    `maxConcurrent: 1` (the slice 1 default). With this change that would run TTAB decisions one at a time, deferring the
    rest to later router runs. If that is not wanted, run `papyrus automations update --id distinctive.ttab --max-concurrent none`
    (today's behaviour: no limit).
-3. **Build and deploy the runner image** (`infra/procedures/build_image.sh`, then the `papyrus-procedure-runner`
+3. **Build and deploy the runner image** (the release (it builds the image from `infra/procedures/build_image.py`), then the `papyrus-procedure-runner`
    stack). It must come after step 1, or runs are recorded without their cost. It needs nothing else changed in the stack.
 4. **Deploy the router** (`papyrus-monitoring`): a new router zip, and the changed template with
    `RouterAutomationReadPolicy` (one read field) and `dynamodb:UpdateItem` on the table for the router role. This step waits

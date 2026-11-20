@@ -4,8 +4,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from .env import PAPYRUS_ROOT, resolve_corpora_file
 
 DEFAULT_PUBLICATION_DOCTRINE_PATH = resolve_corpora_file("corpora/example-publication-doctrine.yml")
@@ -25,10 +23,21 @@ DOCTRINE_DEFINITION_BY_KIND = {
     },
 }
 
+# The third kind of doctrine is optional: a publication without it gets a warning wherever images are made, never a refusal. It is kept out of
+# DOCTRINE_DEFINITION_BY_KIND, whose kinds are all required and seeded together (project/wiki/image-toolchain.md section 5.1).
+VISUAL_STYLE_DEFINITION = {
+    "slug": "editorial-doctrine-visual-style",
+    "id": "item-editorial-doctrine-visual-style-v1",
+    "lineageId": "item-editorial-doctrine-visual-style",
+    "title": "Visual Style",
+}
+
 _publication_doctrine_seed_cache: dict[str, dict[str, Any]] = {}
 
 
 def load_publication_doctrine_seed(filepath: str | Path | None = None) -> dict[str, Any]:
+    import yaml   # only the seed import needs it, so the standalone functions that read doctrine bundle without PyYAML
+
     resolved = str(Path(filepath or DEFAULT_PUBLICATION_DOCTRINE_PATH).resolve())
     if resolved in _publication_doctrine_seed_cache:
         return _publication_doctrine_seed_cache[resolved]

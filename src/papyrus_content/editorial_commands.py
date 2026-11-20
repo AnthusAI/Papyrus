@@ -1,18 +1,23 @@
 """`papyrus editorial`: the site's editorial policies, checked by Humanus from the command line.
 
-    papyrus editorial pack [--section KEY] [--output FILE]
+    papyrus editorial pack [--section KEY] [--language TAG] [--output FILE]
     papyrus editorial import --profile publications/<pub>/style-profile.yml [--replace]
-    papyrus editorial check --draft FILE [--section KEY] [--pack FILE] [--output FILE]
-    papyrus editorial suggest --draft FILE (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--pack FILE]
+    papyrus editorial check --draft FILE [--story LINEAGE] [--section KEY] [--language TAG] [--pack FILE] [--output FILE]
+    papyrus editorial suggest --draft FILE [--story LINEAGE] (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--language TAG] [--pack FILE]
     papyrus editorial policies list | import-starter NAME | ensure-defaults
     papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
-    papyrus editorial policies export --file PACK [--pack-id ID] [--pack-version V]
+    papyrus editorial policies export --file PACK [--language TAG] [--pack-id ID] [--pack-version V]
+    papyrus editorial languages [--enable TAGS] [--disable TAGS] [--set-public TAGS] [--set-prefix TAG=PREFIX ...] [--set-slug TAG=POLICY ...] [--set-segment TAG:SEGMENT=TRANSLATED ...] [--auto on|off] [--auto-automation ID] [--auto-publish on|off] [--dry-run] [--json]
     papyrus editorial check-version --item VERSION_ID [--json]
     papyrus editorial check-drafts [--limit N] [--dry-run]
 
 Policies and settings come from the site (EditorialPolicy / EditorialCheckSettings,
 read with the authoring role) unless `--pack` names a Humanus policy-pack file.
 The newsroom's article editor runs the same checks; this is for agents and scripts.
+
+A draft is checked in its language: `--language`, or the site's primary language (the
+editorial settings' `languages.primary`), which is the language every Story is written in
+until the multilingual plan's Story language field exists (`editorial_languages`).
 """
 
 from __future__ import annotations
@@ -31,15 +36,23 @@ from .editorial_checks import (
     PUBLICATION_SCOPE,
     GraphQLEditorialStore,
     Services,
+    check_draft,
     check_editorial,
-    compose_pack,
     ensure_default_policies,
     import_starter_pack,
-    policy_record_id,
+    plan_default_policies,
+    policy_identity,
+    put_languages,
     record_from_policy,
     settings_from,
     suggest_rewrite,
 )
+from .editorial_languages import ANY_LANGUAGE, canonical, primary_language, site_language
+from .editorial_languages import registers_for
+from .language_serving import checked_serving, describe_serving, edit_enabled, edit_serving
+
+STORY_HELP = "The story (lineage id or slug) this draft revises, so its own saved versions are not compared as other stories by the cross-story boilerplate check."
+LANGUAGE_HELP = "Language of the draft (en, es-419, zh-Hans ...). Default: the site's primary language, the language its Stories are written in."
 
 
 class PackFileStore:
@@ -54,8 +67,10 @@ class PackFileStore:
             import yaml
 
             payload = yaml.safe_load(text)
-        self._records = [record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"file:{path.name}") for policy in payload["policies"]]
+        self._records = [record_from_policy(policy, scope=PUBLICATION_SCOPE, language=pack.language, source=f"file:{path.name}") for policy in payload["policies"]]
         self._guidance = pack.guidance or ""
+        # The file's language is the only language it can check; a language-neutral file checks text in any language the caller names.
+        self._languages = None if pack.language == ANY_LANGUAGE else {"primary": pack.language, "enabled": [pack.language]}
 
     def list_policies(self) -> list[dict[str, Any]]:
         return self._records
@@ -71,7 +86,7 @@ class PackFileStore:
                              warnings=['Explicit file policy; not current hosted doctrine.'])
 
     def get_settings(self) -> dict[str, Any] | None:
-        return {"settings": {"guidance": self._guidance}}
+        return {"settings": {"guidance": self._guidance, **({"languages": self._languages} if self._languages else {})}}
 
     def list_feedback(self) -> list[dict[str, Any]]:
         return []
@@ -104,29 +119,35 @@ def _read_draft(path: str) -> str:
     return draft.read_text(encoding="utf-8")
 
 
+def _language(args: argparse.Namespace, settings: dict[str, Any]) -> str:
+    return args.language or primary_language(settings)
+
+
 def editorial_pack(flags: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog="papyrus editorial pack", description="Print the site's policy pack for a desk.")
+    parser = argparse.ArgumentParser(prog="papyrus editorial pack", description="Print the site's policy pack for a section and language.")
     parser.add_argument("--section", default=None, help="Desk key whose policies replace publication policies with the same key.")
+    parser.add_argument("--language", default=None, help="The language of the text the pack checks. Default: the site's primary language.")
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     store = GraphQLEditorialStore()
     from .editorial_model_context import editing_pack
-    _emit(editing_pack(store, args.section, settings_from(store)), args.output)
+    settings = settings_from(store)
+    _emit(editing_pack(store, args.section, settings, site_language(_language(args, settings), settings)), args.output)
 
 
 def import_style_profile(store, profile: Path, *, replace: bool) -> dict[str, int]:
     """Add a style profile's controls to the store as publication policies."""
-    existing = {policy_record_id(r["policyKey"], r["scope"]): r for r in store.list_policies()}
+    existing = {policy_identity(r): r for r in store.list_policies()}
     pack = humanus.policy_pack_from_style_profile(profile)
     counts = {"created": 0, "replaced": 0, "skipped": 0}
     for policy in pack["policies"]:
-        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"style-profile:{pack['packId']}")
-        current = existing.get(record["id"])
+        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, language=pack["language"], source=f"style-profile:{pack['packId']}")
+        current = existing.get(policy_identity(record))
         if current is None:
             store.create_policy(record)
             counts["created"] += 1
         elif replace:
-            store.update_policy({**record, "version": int(current.get("version") or 1) + 1})
+            store.update_policy({**record, "id": current["id"], "version": int(current.get("version") or 1) + 1})
             counts["replaced"] += 1
         else:
             counts["skipped"] += 1
@@ -136,7 +157,8 @@ def import_style_profile(store, profile: Path, *, replace: bool) -> dict[str, in
 def editorial_import(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog="papyrus editorial import",
-        description="Add a style profile's controls to the site as editorial policies (scope: publication).",
+        description="Add a style profile's controls to the site as editorial policies (scope: publication). To keep the checks in step with the writing guidelines "
+                    "instead, save them with `papyrus guidelines save --kind writing`.",
     )
     parser.add_argument("--profile", required=True, help="Style profile YAML/JSON, e.g. publications/anthus/style-profile.yml")
     parser.add_argument("--replace", action="store_true", help="Overwrite policies that already exist with the same key.")
@@ -148,12 +170,15 @@ def editorial_import(flags: list[str]) -> None:
 def editorial_check(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="papyrus editorial check", description="Check a draft against the site's editorial policies.")
     parser.add_argument("--draft", required=True, help="Markus/Markdown body to check (read-only).")
+    parser.add_argument("--story", default=None, help=STORY_HELP)
     parser.add_argument("--section", default=None, help="Desk key, for desk policies.")
-    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies.")
+    parser.add_argument("--language", default=None, help=LANGUAGE_HELP)
+    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies. A policy file has no stories, so the cross-story boilerplate check cannot run; the output's notRun list says so.")
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     services = Services(store=_store(args.pack))
-    _emit(check_editorial({"body": _read_draft(args.draft), "format": "markus", "section": args.section}, services), args.output)
+    language = _language(args, settings_from(services.store))
+    _emit(check_draft({"body": _read_draft(args.draft), "format": "markus", "section": args.section, "language": language}, services, story=args.story), args.output)
 
 
 def editorial_suggest(flags: list[str]) -> None:
@@ -166,15 +191,18 @@ def editorial_suggest(flags: list[str]) -> None:
     target.add_argument("--finding-id", help="A finding id from `papyrus editorial check` on the same draft.")
     target.add_argument("--select", help="Exact text of the draft to rewrite.")
     parser.add_argument("--note", default=None, help="Editor note, e.g. 'shorter'.")
+    parser.add_argument("--story", default=None, help=STORY_HELP)
     parser.add_argument("--section", default=None)
+    parser.add_argument("--language", default=None, help=LANGUAGE_HELP)
     parser.add_argument("--pack", default=None)
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     body = _read_draft(args.draft)
     services = Services(store=_store(args.pack))
-    arguments: dict[str, Any] = {"body": body, "format": "markus", "section": args.section, "note": args.note}
+    language = _language(args, settings_from(services.store))
+    arguments: dict[str, Any] = {"body": body, "format": "markus", "section": args.section, "language": language, "note": args.note}
     if args.finding_id:
-        result = check_editorial({"body": body, "format": "markus", "section": args.section}, services)
+        result = check_draft({"body": body, "format": "markus", "section": args.section, "language": language}, services, story=args.story)
         finding = next((f for f in result["findings"] if f["id"] == args.finding_id), None)
         if finding is None:
             raise ValueError(f"No finding {args.finding_id} in this draft; run `papyrus editorial check` again.")
@@ -191,14 +219,211 @@ def editorial_suggest(flags: list[str]) -> None:
         raise ValueError(str(error)) from error
 
 
+def _tag_values(pairs: list[str], flag: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for pair in pairs:
+        tag, separator, value = pair.partition("=")
+        if not separator or not tag.strip():
+            raise ValueError(f"{flag} takes TAG=VALUE (for example {flag} es-419=es); an empty VALUE returns the language to its default.")
+        values[tag.strip()] = value.strip()
+    return values
+
+
+def format_languages(languages: dict[str, Any]) -> list[str]:
+    """One line per enabled language: whether it is public, its URL prefix and its slug policy, each marked when it is the default."""
+    description = describe_serving(languages)
+    if not description["ok"]:
+        return [f"The languages setting is refused: {description['message']}"]
+    lines = [f"primary\t{description['primary']}", "language\tpublic\tprefix\tslug policy"]
+    for row in description["languages"]:
+        if row["primary"]:
+            lines.append(f"{row['tag']}\tpublic (the primary: always)\t/ (root)\t-")
+            continue
+        custom_prefix = row["prefix"] != row["defaultPrefix"]
+        custom_slug = row["slugPolicy"] != row["defaultSlugPolicy"]
+        lines.append(
+            f"{row['tag']}\t{'public' if row['public'] else 'not public (written, translated and checked; no page)'}"
+            f"\t/{row['prefix']}/{'' if custom_prefix else ' (default)'}\t{row['slugPolicy']}{'' if custom_slug else ' (default)'}"
+        )
+    for row in description["languages"]:
+        for english, translated in sorted(row.get("segments", {}).items()):
+            lines.append(f"segment\t{row['tag']}\t/{english}/ -> /{translated}/")
+    auto = description.get("auto")
+    lines.append("translate on publish\toff" if auto is None else
+                 f"translate on publish\ton, automation {auto['automation']}, {'publishes clean translations' if auto['publish'] else 'saves them for a person to publish'}")
+    return lines
+
+
+def _segment_values(entries: list[str]) -> dict[str, dict[str, str]]:
+    found: dict[str, dict[str, str]] = {}
+    for entry in entries:
+        head, equals, value = entry.partition("=")
+        tag, colon, segment = head.partition(":")
+        if not equals or not colon or not tag or not segment:
+            raise ValueError(f"--set-segment takes TAG:SEGMENT=TRANSLATED, not {entry!r}.")
+        found.setdefault(tag, {})[segment] = value
+    return found
+
+
+def editorial_languages(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog="papyrus editorial languages",
+        description="Show how the site serves its languages, or change it: which enabled languages are public (the primary always is), each language's URL "
+                    "prefix and each language's slug policy. Writes unless --dry-run. The same rules as the console form, checked before anything is saved.",
+    )
+    parser.add_argument("--enable", default=None, metavar="TAGS",
+                        help="Comma-separated BCP 47 tags (es-419, zh-Hans) the site starts writing in. Each must be a language Humanus has a pack for. The language is enabled, never public "
+                             "(--set-public does that), and its starter policy packs are imported. Enabling an enabled language changes nothing but still brings any starter pack not yet imported.")
+    parser.add_argument("--disable", default=None, metavar="TAGS",
+                        help="Comma-separated languages the site stops writing in; takes their public flag, prefix, slug policy and segments with them. Refused for the primary language and for "
+                             "a language that has translations.")
+    parser.add_argument("--set-public", default=None, metavar="TAGS", help="Comma-separated languages the public site serves, besides the primary (which always is). An empty list makes only the primary public.")
+    parser.add_argument("--set-prefix", action="append", default=[], metavar="TAG=PREFIX", help="URL prefix of one language (repeat for several). TAG= returns it to the default, its base subtag.")
+    parser.add_argument("--set-slug", action="append", default=[], metavar="TAG=POLICY", help="Slug policy of one language: translated, characters, pinyin or primary. TAG= returns it to the default.")
+    parser.add_argument("--set-segment", action="append", default=[], metavar="TAG:SEGMENT=TRANSLATED",
+                        help="The path segment of a section, type or page in one language, for example es-419:articles=articulos or zh-Hans:security=安全 (repeat for several). "
+                             "TAG:SEGMENT= returns it to the English segment.")
+    parser.add_argument("--auto", choices=("on", "off"), default=None,
+                        help="Translate every Story into every enabled language when it is published or republished (docs/story-translation-procedure.md). Off by default.")
+    parser.add_argument("--auto-automation", default=None, metavar="ID", help="The Automation that runs the registered translation procedure (papyrus automations list); needed to turn --auto on.")
+    parser.add_argument("--auto-publish", choices=("on", "off"), default=None,
+                        help="Publish the translations a run saved cleanly (default on). A held translation is never published until a person answers its review request.")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would change; write nothing.")
+    parser.add_argument("--json", action="store_true", help="Print the resulting settings as JSON.")
+    args = parser.parse_args(flags)
+    store = GraphQLEditorialStore()
+    before = settings_from(store)["languages"]
+    checked_serving(before)   # a stored setting that breaks a rule is said first; edits are checked on top of it
+    auto_edit = {key: value for key, value in (("enabled", None if args.auto is None else args.auto == "on"), ("automation", args.auto_automation),
+                                                ("publish", None if args.auto_publish is None else args.auto_publish == "on")) if value is not None}
+    enable = _tags(args.enable, "--enable")
+    disable = _tags(args.disable, "--disable")
+    listing = args.set_public is not None or args.set_prefix or args.set_slug or args.set_segment or auto_edit
+    editing = bool(listing or enable or disable)
+    after = before
+    if enable or disable:
+        after = edit_enabled(after, enable=enable, disable=disable)
+        removed = [tag for tag in site_languages_of(before) if tag not in site_languages_of(after)]
+        if removed:
+            refuse_translated(removed, translation_counts(removed))
+    if listing:
+        after = edit_serving(
+            after,
+            public=None if args.set_public is None else [tag.strip() for tag in args.set_public.split(",") if tag.strip()],
+            prefixes=_tag_values(args.set_prefix, "--set-prefix") or None,
+            slugs=_tag_values(args.set_slug, "--set-slug") or None,
+            segments=_segment_values(args.set_segment) or None,
+            auto=auto_edit or None,
+        )
+    packs = plan_default_policies(store, after) if enable else {}
+    added = [tag for tag in site_languages_of(after) if tag not in site_languages_of(before)]
+    due = {name: step for name, step in packs.items() if not step["alreadyApplied"]}
+    notice = sys.stderr if args.json else sys.stdout
+    if args.json:
+        _emit({"languages": after, "serving": describe_serving(after), "written": bool(editing and not args.dry_run and (after != before or due)),
+               "enabled": added, "disabled": [tag for tag in site_languages_of(before) if tag not in site_languages_of(after)],
+               "starterPacks": packs, "next": next_commands(added)}, None)
+    else:
+        for line in format_languages(after):
+            print(line)
+    if not editing:
+        return
+    removed = [tag for tag in site_languages_of(before) if tag not in site_languages_of(after)]
+    nothing = after == before and not due
+    if not nothing and not args.dry_run:
+        if after != before:
+            put_languages(store, after)
+        if enable:
+            ensure_default_policies(store)
+    verb = "Would" if args.dry_run else "Did"
+    for tag in added:
+        print(f"{verb} enable {tag}: written, translated and checked, not public (no page until --set-public {tag}).", file=notice)
+    for tag in removed:
+        print(f"{verb} disable {tag}: its public flag, prefix, slug policy and segments go with it; its policies stay.", file=notice)
+    for name, step in due.items():
+        print(f"{verb} import the starter pack {name}: {step['policies']} policies not on the site yet.", file=notice)
+    if nothing:
+        print("Nothing to change: the setting already says this.", file=notice)
+    elif args.dry_run:
+        print("Dry run: nothing was written.", file=notice)
+    else:
+        print("Saved. The next projection serves the languages as above.", file=notice)
+    if added and not args.dry_run:
+        print("Next:", file=notice)
+        for line in next_commands(added):
+            print(f"  {line}", file=notice)
+    elif added:
+        print("After it is written, the next steps are:", file=notice)
+        for line in next_commands(added):
+            print(f"  {line}", file=notice)
+
+
+def _tags(value: str | None, flag: str) -> list[str]:
+    """The tags of a comma-separated flag value; a flag with no tag in it is refused."""
+    if value is None:
+        return []
+    tags = [tag.strip() for tag in value.split(",") if tag.strip()]
+    if not tags:
+        raise ValueError(f"{flag} takes language tags such as es-419 or zh-Hans, separated by commas.")
+    return tags
+
+
+def site_languages_of(languages: dict[str, Any]) -> list[str]:
+    """The enabled languages of a ``languages`` object, in Humanus's spelling."""
+    return [canonical(tag) for tag in languages.get("enabled") or []]
+
+
+def translation_counts(tags: list[str]) -> dict[str, int]:
+    """How many Stories the site holds as translations into each of ``tags``: the translations' own rows (language group other than their lineage),
+    read through the version-state index, the same read ``papyrus stories languages`` makes. Only asked before a language is disabled."""
+    from .graphql_authoring import create_authoring_client
+    from .item_language import LANGUAGE_FIELD, localization_original
+    from .item_language_backfill import read_rows
+
+    client, _ = create_authoring_client()
+    tenant = getattr(client, "tenant_id", None)
+    lineages: dict[str, set[str]] = {tag: set() for tag in tags}
+    for row in read_rows(client):
+        language = row.get(LANGUAGE_FIELD)
+        if language and canonical(language) in lineages and localization_original(row, tenant):
+            lineages[canonical(language)].add(str(row.get("lineageId") or row["id"]))
+    return {tag: len(found) for tag, found in lineages.items()}
+
+
+def refuse_translated(tags: list[str], counts: dict[str, int]) -> None:
+    held = {tag: counts.get(tag, 0) for tag in tags if counts.get(tag, 0)}
+    if held:
+        what = "; ".join(f"{tag} has {count} translated {'Story' if count == 1 else 'Stories'}" for tag, count in held.items())
+        raise ValueError(f"Not disabled: {what}. Taking a language out of the site's languages would leave those translations with a language the site does not write in, "
+                         "and a published one without its page. Nothing was changed.")
+
+
+def next_commands(tags: list[str]) -> list[str]:
+    """What an editor does after enabling ``tags``: the language's guidelines, the translation, and going public."""
+    lines: list[str] = []
+    for tag in tags:
+        register = registers_for(tag)
+        starter = Path(__file__).parent / "data" / "glossary" / f"{tag}.json"
+        lines.append(f"papyrus guidelines save --kind writing --language {tag} --file OVERLAY.json   # {tag} tone, words to prefer and avoid"
+                     + (f", and register ({' or '.join(register)})" if register else "") + "; the translator and the judge both read it")
+        lines.append(f"papyrus guidelines save --kind glossary --language {tag} --file "
+                     + (str(starter) if starter.exists() else "GLOSSARY.json")
+                     + f" --reason \"Starter glossary\" --expected-current-version-id none")
+        lines.append(f"papyrus stories localize --story LINEAGE --language {tag} --dry-run   # the plan for one Story")
+        lines.append(f"papyrus editorial languages --set-public {tag}   # when its interface strings are complete and translations are ready for readers")
+    return lines
+
+
 def editorial_policies_pack(store, args: argparse.Namespace) -> None:
     if args.publication and store.publication_key() != args.publication:
         raise ValueError(f"This site's publication is not {args.publication}; nothing was changed.")
     path = Path(args.file).resolve()
     if args.action == "export":
-        pack, left_out = policy_pack.export_pack(store, pack_id=args.pack_id, pack_version=args.pack_version)
+        language = args.language or primary_language(settings_from(store))
+        pack, left_out = policy_pack.export_pack(store, pack_id=args.pack_id, pack_version=args.pack_version, language=language)
         policy_pack.write_pack(path, pack)
-        print(f"Exported {len(pack['policies'])} policies to {path}" + (f" ({left_out} desk policies left out: a pack has no desk scope)" if left_out else ""))
+        print(f"Exported {len(pack['policies'])} {pack['language']} policies to {path}"
+              + (f" ({left_out} left out: a pack has one language and no section scope)" if left_out else ""))
         return
     payload = policy_pack.load_pack_payload(path)
     steps = policy_pack.plan_policies(store, payload, actor=args.actor or policy_pack.DEFAULT_ACTOR)
@@ -216,8 +441,8 @@ def editorial_policies(flags: list[str]) -> None:
     listing = subcommands.add_parser("list", help="The site's policies: key, scope, severity, enabled, source.")
     listing.add_argument("--json", action="store_true")
     starter = subcommands.add_parser("import-starter", help="Add a Humanus starter pack's policies that the site does not have yet.")
-    starter.add_argument("name", help="ai-writing-tells, plain-language or asd-ste100")
-    subcommands.add_parser("ensure-defaults", help="Import the default starter packs once (what a deploy does).")
+    starter.add_argument("name", help="A starter pack Humanus ships: ai-writing-tells, plain-language, asd-ste100, typography-es, ai-writing-tells-zh-hans ...")
+    subcommands.add_parser("ensure-defaults", help="Write the language of older policies, then import the starter packs of every enabled language once (what a deploy does).")
     add = subcommands.add_parser("add", help="Create or version policies (with classifier questions) from a policy-pack-v1 file.")
     add.add_argument("--file", required=True, help="Humanus policy-pack-v1 file (JSON or YAML).")
     add.add_argument("--dry-run", action="store_true", help="Print the plan; write nothing.")
@@ -225,6 +450,8 @@ def editorial_policies(flags: list[str]) -> None:
     add.add_argument("--actor", default=None, help=f"Who ran this, recorded in each policy's source (default {policy_pack.DEFAULT_ACTOR}).")
     export = subcommands.add_parser("export", help="Write the site's publication policies as a policy-pack-v1 file.")
     export.add_argument("--file", required=True, help="Output file (.json, .yml or .yaml).")
+    export.add_argument("--language", default=None, help="The pack's language: its policies written for exactly this language (or * for the neutral ones). "
+                                                         "Default: the site's primary language.")
     export.add_argument("--pack-id", default="site-policies")
     export.add_argument("--pack-version", default=None, help="Default: the highest policy version.")
     export.add_argument("--publication", default=None, help="Refuse unless the site's publication key is this.")
@@ -233,12 +460,12 @@ def editorial_policies(flags: list[str]) -> None:
     if args.action in ("add", "export"):
         editorial_policies_pack(store, args)
     elif args.action == "list":
-        rows = sorted(store.list_policies(), key=lambda row: (row["scope"], row["policyKey"]))
+        rows = sorted(store.list_policies(), key=lambda row: (row["scope"], row.get("language") or "", row["policyKey"]))
         if args.json:
-            _emit([{key: row.get(key) for key in ("policyKey", "scope", "severity", "enabled", "source", "version")} for row in rows], None)
+            _emit([{key: row.get(key) for key in ("policyKey", "scope", "language", "severity", "enabled", "source", "version")} for row in rows], None)
             return
         for row in rows:
-            print(f"{row['scope']}\t{row['policyKey']}\t{row['severity']}\t{'enabled' if row.get('enabled') else 'disabled'}\t{row.get('source')}")
+            print(f"{row['scope']}\t{row.get('language')}\t{row['policyKey']}\t{row['severity']}\t{'enabled' if row.get('enabled') else 'disabled'}\t{row.get('source')}")
         print(f"{len(rows)} policies")
     elif args.action == "import-starter":
         counts = import_starter_pack({"name": args.name}, Services(store=store))
@@ -328,6 +555,22 @@ def format_findings(findings: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def sync_checklist_of_version(item_id: str) -> None:
+    """A finished check is evidence for the Story's copy-edit step: bring its checklist up to date once. Never fails the check."""
+    try:
+        from .graphql_authoring import create_authoring_client
+        from .story_checklist import sync_quietly
+
+        client, _ = create_authoring_client()
+        item = client.get_record("Item", item_id)
+        if item is not None:
+            sync_quietly(client, item.get("lineageId") or item_id)
+    except Exception as error:  # noqa: BLE001
+        import sys
+
+        print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
+
+
 def editorial_check_version(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="papyrus editorial check-version", description="Check one saved version of a story, store the result with it and print every finding.")
     parser.add_argument("--item", required=True, help="Item version id, e.g. <lineage>-v2.")
@@ -336,6 +579,7 @@ def editorial_check_version(flags: list[str]) -> None:
     summary = request_item_check(args.item)
     run = read_item_check_run(args.item) or {}
     findings = run.get("findings") or []
+    sync_checklist_of_version(args.item)
     if args.json:
         _emit({"summary": summary, "findings": findings}, None)
         return

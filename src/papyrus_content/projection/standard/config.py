@@ -14,19 +14,21 @@ from __future__ import annotations
 import datetime as dt
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from ...home_page.ordering import BUCKETS
+from ...quality_ranking import BUCKETS
+from ...markus_renderer.video import PROVIDERS as EMBED_PROVIDERS, VideoRendering
 from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
 from .select import Selection, selection_from_mapping
+from ...quality_floor import QualitySettings, quality_settings_from_mapping
 from ...story_types import story_types_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds", "brandPack", "layout", "quality",
 )
 NO_BUCKET = "none"
 #: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
@@ -36,6 +38,27 @@ URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
 FEED_FORMATS = ("rss", "atom")
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-_/]*$")
+
+
+def embeds_from_mapping(value: object) -> VideoRendering:
+    """The ``embeds`` key: ``{"providers": ["youtube", "vimeo"]}``. The providers whose ``::video`` plays; none by default, and with none the feature is not there at all.
+
+    A site that never mentions ``embeds``, or lists no provider, is exactly as it was: core does not read ``::video``. With a provider listed, a ``::video`` of
+    a provider that is known but not listed shows as a plain linked credit line.
+
+    A video is the provider's standard iframe, so the provider is contacted when the page loads (YouTube through youtube-nocookie.com)."""
+    if value is None:
+        return VideoRendering()
+    if not isinstance(value, Mapping):
+        raise ValueError('embeds must be an object such as {"providers": ["youtube"]}')
+    _only(value, {"providers"}, "embeds")
+    providers = value.get("providers", [])
+    if not isinstance(providers, list) or not all(isinstance(name, str) for name in providers):
+        raise ValueError(f"embeds.providers must be a list of provider names from {list(EMBED_PROVIDERS)}; it is empty (nothing plays) by default")
+    unknown = [name for name in providers if name not in EMBED_PROVIDERS]
+    if unknown:
+        raise ValueError(f"embeds.providers names unsupported provider(s) {', '.join(map(repr, unknown))}; allowed: {', '.join(EMBED_PROVIDERS)}")
+    return VideoRendering(providers=tuple(dict.fromkeys(providers)))
 
 
 def _only(mapping: Mapping, allowed: tuple[str, ...] | set[str], where: str) -> None:
@@ -88,6 +111,14 @@ class SiteIdentity:
     author: str = ""
     date_format: str = ""             # strftime pattern for the dates the core components print ("%B %d, %Y"); empty: ISO dates
     lede_field: str = ""              # front matter field whose text is printed as the article's lede (standfirst) under its title
+    notice_label: str = ""            # a short label ("Satire") and sentence about the whole publication, said on every page, Markdown twin, feed entry and in the structured data
+    notice_text: str = ""
+    notice_prominence: str = "normal"  # "quiet": only the sentence, small and muted at the lowest contrast that passes WCAG AA (the label stays in the machine-readable markers); "normal": label and sentence
+    notice_placement: str = "inline"  # "inline": one small line under the masthead; "fixed-footer": a slim bar fixed to the bottom of the viewport
+    date_locale: str = ""             # a language edition: the language tag whose long date format (CLDR) the dates print in; empty: the primary language, which uses date_format
+    language_switcher_placement: str = "masthead"   # "masthead": in the masthead after the navigation; "footer": a line above the footer; "none": no switcher (page.language_switcher is empty; the site may draw its own from page.alternates)
+    language_switcher_prominence: str = "normal"    # "quiet": the Languages icon and the current language's name in muted text, no fill; "normal": a filled control
+    alternate_names: tuple[str, ...] = ()   # the site's name in its other public languages (and the primary's, on an edition): schema.org alternateName, so search engines join the editions
 
 
 @dataclass(frozen=True)
@@ -198,6 +229,9 @@ class CustomPage:
     image: str | None = None          # the page's share image, a site path
     image_alt: str = ""               # og:image:alt / twitter:image:alt
     social_title: str = ""            # og:title / twitter:title when it differs from ``title``
+    title_key: str = ""               # the interface string that is the page's title in a language that renders it (default ``page.<id>.title``); a section page uses its section's label
+    description_key: str = ""         # likewise for the description (default ``page.<id>.description``)
+    languages: str = "primary"        # "localize": every public language that has the page's file (``<source stem>.<tag>.md``) renders it under its prefix (docs/plans/edition-authored-pages.md)
 
 
 @dataclass(frozen=True)
@@ -400,6 +434,12 @@ class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
     base_path: str = ""     # urls.basePath without slashes: every generated key and URL lives under it ("" is the root)
+    #: Set only on a language edition (``editions.py``), never in projection.json: the language's URL prefix. Its pages live under
+    #: ``<basePath>/<prefix>/``; the site's assets stay under the base path, shared by every language.
+    language_prefix: str = ""
+    #: Set only on a language edition: ``(English path, translated path)`` of each section, type and page whose segments the language translates
+    #: (``languages.segments``). The edition redirects every page under the English path to the same page under the translated one.
+    moved_paths: tuple[tuple[str, str], ...] = ()
     sections: tuple[SectionConfig, ...] = ()
     collections: tuple[CollectionConfig, ...] = ()
     not_found: NotFoundSettings = field(default_factory=NotFoundSettings)
@@ -437,9 +477,13 @@ class StandardSettings:
     forms: tuple[FormSpec, ...] = ()
     agents: AgentSettings = field(default_factory=AgentSettings)
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
+    single_column: bool = False       # layout.column "single": one readable column on every page; the home page has no heading echo or intro under the masthead
     mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
+    embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: the providers whose ``::video`` plays (default none: ``::video`` is not core's)
     wiki: WikiSettings = field(default_factory=WikiSettings)
     home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
+    quality: QualitySettings = field(default_factory=QualitySettings)   # the ``quality`` key: the lowest star rating an item may have to be public (quality_floor.py); no key, no floor
+    brand_pack: str = ""   # the ``brandPack`` key: a JSON brand pack in the static directory; the projection links the shared publication theme and writes the pack's small stylesheet (brand.py)
 
     @property
     def sectioned(self) -> bool:
@@ -609,9 +653,33 @@ def _check_groups(groups) -> None:
                 raise ValueError(f"urls.types.{group.item_type}.base {group.base!r} is already the base of {other.name!r}")
 
 
+def _single_column(layout) -> bool:
+    layout = dict(layout or {})
+    _only(layout, {"column"}, "layout")
+    column = layout.get("column", "default")
+    if column not in ("default", "single"):
+        raise ValueError('layout.column must be "default" or "single"')
+    return column == "single"
+
+
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     site = raw["site"]
-    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField"}, "site")
+    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField", "notice", "languageSwitcher"}, "site")
+    notice = site.get("notice") or {}
+    if notice:
+        _only(notice, {"label", "text", "placement", "prominence"}, "site.notice")
+        if notice.get("prominence", "normal") not in ("normal", "quiet"):
+            raise ValueError('site.notice.prominence must be "normal" or "quiet"')
+        if notice.get("placement", "inline") not in ("inline", "fixed-footer"):
+            raise ValueError('site.notice.placement must be "inline" or "fixed-footer"')
+        if not (_text(notice, "label") and _text(notice, "text")):
+            raise ValueError("site.notice needs both a label and a text")
+    switcher = site.get("languageSwitcher") or {}
+    _only(switcher, {"placement", "prominence"}, "site.languageSwitcher")
+    if switcher.get("prominence", "normal") not in ("normal", "quiet"):
+        raise ValueError('site.languageSwitcher.prominence must be "normal" or "quiet"')
+    if switcher.get("placement", "masthead") not in ("masthead", "footer", "none"):
+        raise ValueError('site.languageSwitcher.placement must be "masthead", "footer" or "none"')
     name = _text(site, "name")
     if not name:
         raise ValueError("site.name is required")
@@ -626,6 +694,12 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         author=_text(site, "author"),
         date_format=_text(site, "dateFormat"),
         lede_field=_text(site, "ledeField"),
+        notice_label=_text(notice, "label"),
+        notice_text=_text(notice, "text"),
+        notice_placement=str(notice.get("placement", "inline")),
+        notice_prominence=str(notice.get("prominence", "normal")),
+        language_switcher_placement=str(switcher.get("placement", "masthead")),
+        language_switcher_prominence=str(switcher.get("prominence", "normal")),
     )
     if identity.date_format:
         try:
@@ -826,7 +900,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     )
     custom = []
     for entry in raw.get("pages") or ():
-        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form", "source", "image", "imageAlt", "socialTitle"}, "pages")
+        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form", "source", "image", "imageAlt", "socialTitle", "languages", "titleKey", "descriptionKey"}, "pages")
+        if entry.get("languages", "primary") not in ("primary", "localize"):
+            raise ValueError(f"pages.{entry.get('id')}.languages must be \"primary\" or \"localize\"")
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
@@ -841,6 +917,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 image=str(entry["image"]) if entry.get("image") else None,
                 image_alt=str(entry.get("imageAlt", "")),
                 social_title=str(entry.get("socialTitle", "")),
+                languages=str(entry.get("languages", "primary")),
+                title_key=str(entry.get("titleKey", "")),
+                description_key=str(entry.get("descriptionKey", "")),
             )
         )
     components = dict(raw.get("components") or {})
@@ -953,6 +1032,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if wiki.suggest_form is not None and wiki.suggest_form not in known_forms:
         raise ValueError(f"wiki.suggestForm names an unknown form {wiki.suggest_form!r}")
     home_page = home_page_settings_from_mapping(raw["homePage"]) if raw.get("homePage") is not None else None
+    quality = quality_settings_from_mapping(raw["quality"]) if raw.get("quality") is not None else QualitySettings()
+    if home_page is not None:
+        home_page = replace(home_page, floor_stars=quality.floor_stars)   # the snapshot task reads the floor from its own settings
     _check_section_fronts(sections, home_page)
     return StandardSettings(
         identity=identity,
@@ -1002,7 +1084,11 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         forms=tuple(forms),
         agents=agents,
         page_actions=page_actions,
+        single_column=_single_column(raw.get("layout")),
         mermaid=bool(mermaid_raw.get("enabled", True)),
+        embeds=embeds_from_mapping(raw.get("embeds")),
         wiki=wiki,
         home_page=home_page,
+        quality=quality,
+        brand_pack=_text(raw, "brandPack"),
     )

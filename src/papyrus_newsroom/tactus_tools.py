@@ -76,6 +76,26 @@ def papyrus_curate_reference(reference_id: str, force: bool = False) -> dict:
     return curate_reference_by_id(reference_id, force=force)
 
 
+def papyrus_rate_items() -> dict:
+    """One day's rating work for the site: read the published Stories nobody has rated, decide three stars, four stars or a five-star candidate for each, and,
+    only at a rung the site's policy allows, write the threes and fours through the gate. Never writes a five. Returns the counts, each proposal with its reason,
+    the five-star candidates for a person, and the gate's answers."""
+
+    from papyrus_content.rating_agent import rate_items
+
+    return rate_items()
+
+
+def papyrus_announce_story(story: str, version: str, change: str, what: str = "", stage: str = "") -> dict:
+    """The announce agent's run for one wake: a Story's page went live (stage_entered into published) or its rating changed (rated). Re-reads the Story as it is now and
+    decides from the records, never from the wake: one Announcement and one email Delivery for the Story at a rung the site's policy allows, once however many wakes
+    arrive. At observe it writes nothing. Never sends. Returns the Story, the lists that carry it and what was decided."""
+
+    from papyrus_content.list_cadence.story_wake import announce_story
+
+    return announce_story(story, version, change, what, stage)
+
+
 def papyrus_create_story(title: str, section: str, author_label: str, stage: str = "reporting", summary: str = "", based_on_references: str = "") -> dict:
     """Create a story (a new item lineage) in a section at the idea, assignment or reporting stage.
     Pass the Reference ids the story is based on, comma separated, in based_on_references: each is linked to the story.
@@ -123,6 +143,94 @@ def papyrus_link_story_reference(story: str, reference: str, role: str, author_l
 
     client, _ = create_authoring_client()
     return link_reference_to_story(client, story, reference, role=role, actor=author_label, note=note or None, citation_key=citation_key or None)
+
+
+def papyrus_link_stories(story: str, see_also_stories: Any, author_label: str, note: str = "", see_also_references: Any = None) -> dict:
+    """Link a story to other stories for its See also block: pass the story (lineage id or slug) and see_also_stories (a list, or comma separated), each a lineage id or slug.
+    There is no relation to choose. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone.
+    Returns one row per target with its title, type, stage, outcome (write or exists) and a warning when it is not published yet.
+    see_also_references (optional, a list or comma separated) are Reference ids to "read this source too"; each must exist and be accepted, or nothing is written.
+    After a write that created a link, the published stories whose page changed are re-rendered at once with no purge: `rerendered` lists them (lineageId, status ok or failed, purged false);
+    a failure is a warning in `rerenderWarnings`, never an error. The change shows on the site within about five minutes."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.story_links import link_reference_set, link_story_set, resolve_link_references, resolve_link_targets, resolve_story
+
+    targets = see_also_stories.split(",") if isinstance(see_also_stories, str) else list(see_also_stories or [])
+    reference_ids = see_also_references.split(",") if isinstance(see_also_references, str) else list(see_also_references or [])
+    client, _ = create_authoring_client()
+    if targets:
+        resolved, others = resolve_link_targets(client, story, targets)
+    else:
+        if not reference_ids:
+            raise ValueError("At least one related story or Reference is required.")
+        resolved, others = resolve_story(client, story), []
+    references = resolve_link_references(client, reference_ids)
+    from papyrus_content.story_rerender import rerender_after_write, tool_result
+
+    lineage = resolved.get("lineageId") or resolved["id"]
+    links = link_story_set(client, resolved, others, actor=author_label, provenance="derived", note=note or None)
+    reference_links = link_reference_set(client, resolved, references, actor=author_label, provenance="derived", note=note or None)
+    wrote = [row for row in links if row["outcome"] == "write"]
+    changed = [lineage, *(row["lineageId"] for row in wrote)] if wrote or any(row["outcome"] == "write" for row in reference_links) else []
+    return {"story": lineage, "links": links, "referenceLinks": reference_links, **tool_result(rerender_after_write(client, changed))}
+
+
+def papyrus_link_concepts(target_kind: str, target: str, concepts: Any, author_label: str, note: str = "") -> dict:
+    """Tag a story or a Reference with existing accepted concepts. target_kind is "story" or "reference"; target is the story (lineage id or slug) or the Reference id; concepts is a list
+    (or comma separated) of exact node keys, hashtags, names or aliases. A concept is never created and never guessed: an unknown name is an error that lists the closest accepted
+    concepts, an ambiguous one lists its node keys. A tag that already exists (also the older related_to, or a mention) is left alone, and a tag a person rejected stays rejected.
+    There is no field for a relation or a state. Returns one row per concept with its outcome and whether it has a public wiki page (a warning says when it does not).
+    A story whose tag was newly written is re-rendered at once with no purge (`rerendered`; a failure is in `rerenderWarnings`, never an error); a Reference has no public page, so nothing is re-rendered."""
+
+    from papyrus_content.concept_tags import tag_with_concepts
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    names = concepts.split(",") if isinstance(concepts, str) else list(concepts or [])
+    client, _ = create_authoring_client()
+    result = tag_with_concepts(client, target_kind, target, names, actor=author_label, provenance="derived", note=note or None)
+    if target_kind != "story":
+        return result
+    from papyrus_content.story_rerender import rerender_after_write, tool_result
+
+    wrote = any(row["outcome"] == "write" for row in result["concepts"])
+    return {**result, **tool_result(rerender_after_write(client, [result["target"]] if wrote else []))}
+
+
+def papyrus_suggest_links(story: str, kinds: Any = None, limit: int = 5) -> dict:
+    """Read only. Ranked related articles, posts and accepted References for a story, computed from its concepts and the concepts related to them (no model call). kinds is a list (or comma
+    separated) of articles, posts, references. Each candidate has a score, the shared concepts, the path ('direct' or 'via A, then B') and the exact link command. Already linked content is
+    left out. Judge the short list, then link the good ones with papyrus_link_story and papyrus_link_story_reference."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.link_suggestions import suggest_links
+
+    names = kinds.split(",") if isinstance(kinds, str) else list(kinds or [])
+    client, _ = create_authoring_client()
+    return suggest_links(client, story, kinds=tuple(name.strip() for name in names if name.strip()) or ("articles", "posts", "references"), limit=int(limit or 5))
+
+
+def papyrus_related_concepts(concept: str, limit: int = 15) -> dict:
+    """Read only. The concepts near a concept (an exact node key, hashtag, name or alias of an accepted concept): editor-confirmed links with their explanation, aliases, and concepts that
+    co-occur on the same stories and References (count, lift, strength)."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.link_suggestions import related_concepts
+
+    client, _ = create_authoring_client()
+    return related_concepts(client, concept, limit=int(limit or 15))
+
+
+def papyrus_search_concepts(query: str = "", list_all: bool = False, limit: int = 10) -> dict:
+    """Read only. Finds accepted concepts by meaning for free text (one embedding, concept vectors only); an exact or prefix name match comes first. The order is relevance, never popularity.
+    Each result has the node key, reason, similarity, whether it has a public wiki page, counts of stories and References that carry it (information only) and a duplicate flag. Set list_all
+    to list every accepted concept alphabetically. It says so, with the rebuild command, when the concept index is empty or stale."""
+
+    from papyrus_content.concept_search import default_provider, search_concepts
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    return search_concepts(client, None if list_all else default_provider(), query or None, limit=int(limit or 10), list_all=bool(list_all))
 
 
 def papyrus_find_or_register_source(url: str, title: str, corpus: str, author_label: str, media_type: str = "text/html", rationale: str = "") -> dict:
@@ -339,3 +447,20 @@ def papyrus_record_editor_review(story: str, version: str, review: dict, model: 
     check = _check_result({"id": version, "lineageId": story}, stored) if stored is not None else None
     return record_review(client, story, version, review, model=model, context_hash=context_hash, check=check,
                          at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+
+
+def papyrus_localize_story(story: str, language: str, ceiling_usd: float = 0.0, source_version: int = 0, automation_id: str = "", procedure_key: str = "") -> dict:
+    """Translate the published version of a Story into one language (papyrus.story.localize): translate the changed blocks, check every block
+    against the source (parity rules and the bilingual judge) and with the language's copy-edit policies, repair until the findings stop
+    shrinking, and save the result as an unpublished version of the Story's localization (lineage <story>--<language>), author AI. Never
+    publishes. Returns {story, language, version, hold, reason, outcome, published, rounds, revertedBlocks, costUsd, sourceCharacters, findings,
+    runKey}; hold is true when a faithfulness error remains (a flag review request says which). ceiling_usd > 0 caps this run's spend;
+    source_version names the source version the run was started for (0: the published one). automation_id (the automation that started the run) or procedure_key (the registered procedure) names where the earlier runs' cost is read for the prediction. A run with no translation request, or one
+    for an older source than the request names, stops before any model call."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.localize.run import localize_story
+
+    client, _ = create_authoring_client()
+    return localize_story(client, story=story, language=language, ceiling_usd=ceiling_usd or None, source_version=source_version or None,
+                          automation_id=automation_id or None, procedure_key=procedure_key or None)

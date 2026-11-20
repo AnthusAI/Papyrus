@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a438d010-40d6-406e-9292-8c599c4b5954",
+  "title": "M2 Chatticus chat core published as reusable packages",
+  "description": "In the Chatticus repository: publish the chat core so other systems depend on it instead of copying it: the turn and SSE stream protocol, the durable turn runner and agent loop, and the client chat components with brand tokens. Versioned releases with a changelog; Papyrus pins exact versions like it pins its own packages. Work tracked in Chatticus's Kanbus, linked from here.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:14:25.387319Z",
+  "updated_at": "2026-10-21T12:14:25.387347Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

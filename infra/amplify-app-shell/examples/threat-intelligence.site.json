@@ -21,7 +21,11 @@
     "applyCognitoDomainPrefix": true,
     "environment": {
       "PAPYRUS_EDITION_SLUG": "current",
-      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://threat-intelligence.anth.us/,https://threat-intelligence-staging.anth.us/"
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://threat-intelligence.anth.us/,https://threat-intelligence-staging.anth.us/",
+      "PAPYRUS_ENABLE_CONSOLE_RESPONDER": "false",
+      "PAPYRUS_ENABLE_SLACK": "false",
+      "PAPYRUS_ENABLE_INBOUND_EMAIL": "false",
+      "PAPYRUS_ENABLE_STORAGE_BACKUPS": "false"
     }
   },
   "github": {

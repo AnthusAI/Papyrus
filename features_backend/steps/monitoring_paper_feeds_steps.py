@@ -57,6 +57,16 @@ def step_atom(context):
     feed_monitor(context, tf.ATOM_FEED)
 
 
+@given("a feed monitor for the METR RSS feed")
+def step_metr(context):
+    feed_monitor(context, tf.METR_FEED)
+
+
+@given("the feed holds a blog post, a note, an evaluation, a post that links to a paper and a post that links to a page on the site")
+def step_metr_body(context):
+    context.feed_body = tf.read("metr-rss.xml")
+
+
 @given("a feed monitor whose address is on a host outside the allowed list")
 def step_outside(context):
     feed_monitor(context, "https://papers.example.test/rss.xml", tf.read("arxiv-ai-rss.xml"))
@@ -147,6 +157,32 @@ def step_waits(context):
 def step_unversioned(context):
     row = feed_discoveries(context)["2611_03558"]
     assert row["canonicalUrl"] == "https://arxiv.org/abs/2611.03558" and row["details"]["abstract"].startswith("We consider")
+
+
+@then("five items are recorded and the pass is complete")
+def step_five(context):
+    assert context.result["status"] == "complete" and context.result["new"] == 5, context.result
+    assert len(feed_discoveries(context)) == 5
+
+
+@then("each item's canonical URL is the feed entry's link, even when the link is on another site or not under blog")
+def step_metr_urls(context):
+    urls = {r["canonicalUrl"] for r in feed_discoveries(context).values()}
+    assert urls == {"https://metr.org/blog/2026-11-05-rd-section-anthropic-risk-report-august-2026-review/",
+                    "https://metr.org/notes/2026-09-27-implementing-a-basic-blocking-action-monitor/",
+                    "https://metr.org/evaluations/gpt-5-1-codex-max-report/",
+                    "https://arxiv.org/abs/2503.17354", "https://metr.org/fsp"}
+
+
+@then("each item carries its title, publication date and the post's content as its abstract")
+def step_metr_details(context):
+    for row in feed_discoveries(context).values():
+        assert row["details"]["title"] and row["details"]["publishedAt"] and "abstract" in row["details"], row
+
+
+@then("an item's source id comes from the entry's guid")
+def step_metr_ids(context):
+    assert all(sid.startswith("https___metr_org_blog_") or sid.startswith("https___metr_org_notes_") for sid in feed_discoveries(context))
 
 
 @then("the new papers and the cross-listed paper are recorded")
@@ -276,10 +312,30 @@ def step_stack_template(context):
     context.template_blocks = {match.group(1): match.group(0) for match in re.finditer(r"^  (\w+Schedule):\n(?:(?:    .*|)\n)*", text, re.M)}
 
 
-@then("papers-arxiv-ai, papers-arxiv-security and papers-huggingface each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor")
+@then("papers-arxiv-ai, papers-arxiv-security, papers-huggingface and feed-metr each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor")
 def step_paper_schedules(context):
-    for name, monitor_id in (("PapersArxivAi", "papers-arxiv-ai"), ("PapersArxivSecurity", "papers-arxiv-security"), ("PapersHuggingface", "papers-huggingface")):
+    for name, monitor_id in (("PapersArxivAi", "papers-arxiv-ai"), ("PapersArxivSecurity", "papers-arxiv-security"), ("PapersHuggingface", "papers-huggingface"), ("FeedMetr", "feed-metr")):
         collect, route = context.template_blocks[f"{name}CollectSchedule"], context.template_blocks[f"{name}RouteSchedule"]
         assert "rate(6 hours)" in collect and "CollectorFunction.Arn" in collect and f'"monitorId":"{monitor_id}"' in collect
         assert re.search(r"cron\(\d+ \* \* \* \? \*\)", route) and "RouterFunction.Arn" in route and f'"monitorId":"{monitor_id}"' in route
 
+
+
+@then("no paper monitor routes in the same minute as another monitor")
+def step_distinct_minutes(context):
+    hourly = {name: re.search(r"cron\((\d+) \* \* \* \? \*\)", block) for name, block in context.template_blocks.items() if "RouterFunction.Arn" in block}
+    minutes = {name: match.group(1) for name, match in hourly.items() if match}
+    for paper in ("PapersArxivAi", "PapersArxivSecurity", "PapersHuggingface", "FeedMetr"):
+        others = [m for name, m in minutes.items() if name != f"{paper}RouteSchedule"]
+        assert minutes[f"{paper}RouteSchedule"] not in others, paper
+
+
+@given("the feed holds a post whose content is far longer than the abstract limit")
+def step_long_post(context):
+    context.feed_body = tf.long_metr_feed()
+
+
+@then("the stored abstract is cut at the limit")
+def step_cut(context):
+    row = next(r for r in feed_discoveries(context).values() if r["canonicalUrl"] == "https://metr.org/blog/long/")
+    assert len(row["details"]["abstract"]) == 20_000

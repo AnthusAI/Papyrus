@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "02eddc94-fb2c-4392-8e0c-350780524386",
+  "issue_id": "PPY-25a4fd64-6910-4aee-9254-c611406de2f0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T03:39:29.043Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus CLI under uvx: botocore reads a stale SSO token cache file the aws CLI no longer writes (TokenRetrievalError)",
+    "description": "Symptom: papyrus --auth iam ... run through uvx fails with botocore.exceptions.TokenRetrievalError: Error when retrieving token from sso: Token has expired and refresh failed, while aws sts get-caller-identity works with the same profile (sso-session Endymion).\n\nCause (checked 2026-11-15, aws-cli 2.38.1, botocore 1.44.3 in the uvx env; not a missing botocore[crt], not a version too old for sso-session): botocore reads the token cache file named sha1(session name) (~/.aws/sso/cache/31dfcec5...json for Endymion). The aws CLI now refreshes and writes its token to a different cache file (db921f1e..., written 21:56 while the botocore-keyed file was last written 20:41). botocore's file therefore holds an access token that expired and a refresh token the identity service rejects (InvalidGrantException: Invalid refresh token provided), so every refresh fails.\n\nWorkarounds on a machine: export short-lived credentials from the aws CLI for the shell (aws configure export-credentials --profile P --format env, then unset AWS_PROFILE), or set credential_process = aws configure export-credentials --profile P in the profile.\n\nPossible fix in Papyrus: when the signed-in lane is not used and AWS_PROFILE names an sso-session profile, build credentials from aws configure export-credentials (one subprocess) when botocore's SSO provider fails, or document credential_process in docs for operators. Decide with the operator-lane owner; no code change made.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -31,7 +31,7 @@ LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
 # The table has no registry of monitors and the view may not Scan, so the monitors it can look at are
 # named here (override with PAPYRUS_MONITORING_MONITOR_IDS, comma separated). A new monitor is added here.
-MONITOR_IDS = ("hn", "ttab", "huggingface", "papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface", "p-apyr-us-email")
+MONITOR_IDS = ("hn", "ttab", "huggingface", "papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface", "feed-metr", "p-apyr-us-email")
 EMAIL_MONITOR_ID_ENV = "PAPYRUS_EMAIL_MONITOR_ID"
 MONITOR_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 EDITOR_GROUPS = STAFF_GROUPS

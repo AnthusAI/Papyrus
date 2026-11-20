@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "a59d1b89-d1ed-45f3-8c45-4bdfd516f680",
+  "issue_id": "PPY-bd73b259-340d-4e2b-ad05-31ada3010a74",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:26.258Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rewrite docs/multi-tenancy.md from 'scoping, not authorisation' to how isolation works now",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-02227e22-29ee-45dd-93aa-1e2bfc1b1b49",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d1d38ab6-2a04-41ee-aeb4-a695676ff56c",
+  "issue_id": "PPY-33e62287-4154-4ad7-aa64-ab2ad1d03c1e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:42:25.045Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Infrastructure as code and the shared tier",
+    "description": "Everything the standard needs is in templates applied by the release: queues, dead-letter queues, alarms, the schedule group and its role, change feed mappings, indexes. Nothing is created by hand, including the procedure runner, which today is updated with a hand-run change set. Done when a new site gets working agents from its deploy alone and the shared tier runs the same design with the tenant in every key.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

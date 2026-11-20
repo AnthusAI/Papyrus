@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "a01bc37e-7fd3-4fea-a894-8ee918eac93c",
+  "issue_id": "PPY-3aa10fde-ea1d-437c-b0f5-6fb8e38630b0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:22.206Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Starter template: default site settings, brand pack, pages and clearly labelled sample content",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

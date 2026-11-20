@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "bf7e98fe-7a49-44f0-b880-1ad41e31d853",
+  "issue_id": "PPY-48659296-6f90-4549-85f6-4599a2e31371",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:27.023Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M5 Threat Intelligence runs on the shared stack (earliest point for TI)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

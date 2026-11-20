@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "fc87e7d4-e1aa-470b-9374-8351d0ccf200",
+  "issue_id": "PPY-7bc5b7b2-bb65-4763-9007-b69856124955",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:23.756Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Standard layout slice: brand pack JSON schema and validator, Python with TypeScript-shared vectors (first slice of PPY-88a883)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-31efef9d-7906-42d8-a6c5-b071ca5814d9",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

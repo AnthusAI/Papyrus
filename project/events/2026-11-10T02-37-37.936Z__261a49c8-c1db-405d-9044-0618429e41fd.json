@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "261a49c8-c1db-405d-9044-0618429e41fd",
+  "issue_id": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T02:37:37.936Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One row per story in the stage indexes (head-stage index)",
+    "description": "A story is stored as one Item row per version, and a saved version keeps the stage it was written in, so the stage index (listItemsByStageAndUpdatedAt) holds superseded versions: on Machines on Machines 456 of the 580 rows in the Published partition are superseded, and 26 board cards showed an old version (10 published stories in Copywriting). Design: docs/plans/story-head-stage-index.md. Recommendation: a sparse headStageKey attribute plus one new GSI (listItemsByHeadStageAndUpdatedAt) that only the head row of a lineage carries, set and cleared in the writes that already flip versionState (no extra writes per save). PR #1361 (versionState ne superseded filter) is the stop-gap. Each child marked deploy:backend needs Ryan's approval to deploy, per site. Ryan decides on the design before any implementation.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "data-model",
+      "needs-ryan-decision"
+    ]
+  }
+}

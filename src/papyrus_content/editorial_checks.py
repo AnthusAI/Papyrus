@@ -2,9 +2,11 @@
 
 Papyrus owns the policies (``EditorialPolicy``), the settings
 (``EditorialCheckSettings``) and the editors' decisions (``EditorialFeedback``).
-For each request a Humanus policy pack is composed from the stored policies --
-publication policies plus the article's desk policies, where a desk policy
-replaces a publication policy with the same key -- and Humanus is called.
+For each request a Humanus policy pack is composed from the stored policies for
+the text's language -- the language-neutral policies and the language's own,
+publication policies plus the article's section policies, where a section policy
+replaces a publication policy with the same key -- and Humanus is called with
+that language (``editorial_languages``; PPY-d0132d).
 
 The site's editorial-checks function (core to every Papyrus backend) routes its GraphQL fields through
 ``handle``; the ``papyrus editorial`` CLI uses the same operations.
@@ -22,6 +24,19 @@ from typing import Any, Callable, Protocol
 import humanus
 from humanus.packs import builtin_pack, list_builtin_packs
 
+from .tenancy import is_shared_stack, tenant_bare_record_id, tenant_scoped_value
+from .tenant_knowledge_keys import corpus_key_of, is_corpus_id, own_corpora
+from .editorial_languages import (
+    DEFAULT_LANGUAGES,
+    canonical,
+    languages_served,
+    primary_language,
+    site_language,
+    site_languages,
+    starter_packs_for,
+    story_language,
+)
+
 LOGGER = logging.getLogger(__name__)
 
 PUBLICATION_SCOPE = "publication"
@@ -37,9 +52,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "guidance": "",
     "publishWarning": True,
     "checkWhileTyping": True,
+    "languages": DEFAULT_LANGUAGES,
 }
-DEFAULT_STARTER_PACKS = ("ai-writing-tells",)
-POLICY_FIELDS = ("policyKey", "scope", "version", "title", "guidance", "severity", "enabled", "detectors", "examples", "rewriteGuidance", "source")
+POLICY_FIELDS = ("policyKey", "scope", "language", "version", "title", "guidance", "severity", "enabled", "detectors", "examples", "rewriteGuidance", "source")
 
 
 class EditorialStore(Protocol):
@@ -68,6 +83,14 @@ class Services:
     generator: Any = _DEFAULT
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
     last_check_request: dict[str, Any] | None = field(default=None, init=False)
+    # The site's Prospectus usage sender (papyrus_cost_usage.SiteUsage); None records nothing.
+    usage: Any = None
+
+    def checked(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Reports the Jev classifier tokens a Humanus check used, then returns the result unchanged."""
+        if self.usage is not None:
+            self.usage.record_humanus_check(result)
+        return result
 
     def humanus_kwargs(self, name: str) -> dict[str, Any]:
         value = getattr(self, name)
@@ -161,11 +184,14 @@ def policy_from_record(record: dict[str, Any]) -> dict[str, Any]:
     return policy
 
 
-def record_from_policy(policy: dict[str, Any], *, scope: str, source: str, version: int = 1) -> dict[str, Any]:
+def record_from_policy(policy: dict[str, Any], *, scope: str, language: str, source: str, version: int = 1) -> dict[str, Any]:
+    """A Humanus policy as a stored EditorialPolicy written for ``language`` (a tag, or ``*`` for a language-neutral policy)."""
+    language = canonical(language)
     return {
-        "id": policy_record_id(policy["id"], scope),
+        "id": policy_record_id(policy["id"], scope, language),
         "policyKey": policy["id"],
         "scope": scope,
+        "language": language,
         "version": version,
         "title": policy["title"],
         "guidance": policy["guidance"],
@@ -178,16 +204,50 @@ def record_from_policy(policy: dict[str, Any], *, scope: str, source: str, versi
     }
 
 
-def policy_record_id(policy_key: str, scope: str) -> str:
-    return f"{scope}#{policy_key}"
+def policy_record_id(policy_key: str, scope: str, language: str) -> str:
+    """The id of a new policy record. Two languages may use the same key (``quotation-marks`` in Spanish and in Chinese), so the id names the language.
+
+    Records saved before policies had a language keep their ids; nothing reads a policy by a computed id, only by :func:`policy_identity`."""
+    return f"{scope}#{language}#{policy_key}"
+
+
+class PolicyLanguageMissing(ValueError):
+    """A stored policy names no language: it predates PPY-d0132d and the deploy's language backfill has not written it yet."""
+
+
+def policy_language(record: dict[str, Any]) -> str:
+    """The language a stored policy is written for. Never guessed: a record without one is refused until the backfill writes it."""
+    language = record.get("language")
+    if not language:
+        raise PolicyLanguageMissing(
+            f"Editorial policy {record.get('id') or record.get('policyKey')} names no language. A deploy writes the language of every older policy; "
+            "run `papyrus editorial policies ensure-defaults` to write it now."
+        )
+    return str(language)
+
+
+def policy_identity(record: dict[str, Any]) -> tuple[str, str, str]:
+    """What makes a policy the same policy: its scope, its language and its key."""
+    return (record["scope"], policy_language(record), record["policyKey"])
 
 
 def settings_from(store: EditorialStore) -> dict[str, Any]:
-    stored = store.get_settings()
+    return settings_from_row(store.get_settings())
+
+
+def settings_from_row(stored: dict[str, Any] | None) -> dict[str, Any]:
+    """The settings of a stored ``EditorialCheckSettings`` row (or None) over the defaults: what every reader of the settings sees."""
     values = _json((stored or {}).get("settings"), {})
     settings = {**DEFAULT_SETTINGS, **values}
     settings["lanes"] = {**DEFAULT_SETTINGS["lanes"], **values.get("lanes", {})}
     return settings
+
+
+def put_languages(store: EditorialStore, languages: dict[str, Any]) -> None:
+    """Store a new ``languages`` setting and keep every other stored setting exactly as it is (only what the row holds, never the defaults)."""
+    row = store.get_settings()
+    stored = _json((row or {}).get("settings"), {})
+    store.put_settings({**stored, "languages": languages}, exists=row is not None)
 
 
 class EditorialChecksDisabled(ValueError):
@@ -202,23 +262,38 @@ def running_settings(store: EditorialStore) -> dict[str, Any]:
     return settings
 
 
-def compose_pack(records: list[dict[str, Any]], section: str | None, settings: dict[str, Any]) -> dict[str, Any]:
-    """Publication policies, replaced key by key by the section's own policies."""
-    chosen: dict[str, dict[str, Any]] = {}
+def compose_pack(records: list[dict[str, Any]], section: str | None, settings: dict[str, Any], language: str) -> dict[str, Any]:
+    """The pack for text in ``language``: the language-neutral policies and the language's own (a variant's and its base language's).
+
+    Policies of any other language are left out, so English phrase rules never run on Chinese text and Chinese rules never on English. Where two
+    policies share a key, a section's replaces the publication's, and within one scope the more specific language wins (``es-419`` over ``es``
+    over ``*``)."""
+    served = languages_served(language)
+    rank = {tag: index for index, tag in enumerate(served)}
+    chosen: dict[str, tuple[tuple[int, int], dict[str, Any]]] = {}
     for record in records:
-        if record.get("scope") == PUBLICATION_SCOPE:
-            chosen.setdefault(record["policyKey"], record)
-    for record in records:
-        if section and record.get("scope") == section:
-            chosen[record["policyKey"]] = record
-    policies = [policy_from_record(chosen[key]) for key in sorted(chosen)]
-    # The fingerprint covers what is checked, not only which policies exist: a policy edited or added without a version
-    # bump, or the pack guidance, still changes it. A stored check is reused only under an identical pack version.
-    fingerprint = hashlib.sha256(json.dumps({"policies": policies, "guidance": settings.get("guidance") or ""}, sort_keys=True, default=str).encode()).hexdigest()[:12]
+        scope = record.get("scope")
+        if scope != PUBLICATION_SCOPE and not (section and scope == section):
+            continue
+        written_for = canonical(policy_language(record))
+        if written_for not in rank:
+            continue
+        order = (0 if scope == PUBLICATION_SCOPE else 1, rank[written_for])
+        current = chosen.get(record["policyKey"])
+        if current is None or order > current[0]:
+            chosen[record["policyKey"]] = (order, record)
+    policies = [policy_from_record(chosen[key][1]) for key in sorted(chosen)]
+    # The fingerprint covers what is checked and how it is read, not only which policies exist: a policy edited or added without a version
+    # bump, the language, the version of Humanus's language pack (how Humanus splits and matches that language's text), or the pack guidance,
+    # still changes it. A stored check is reused only under an identical pack version.
+    reading = {"language": served[-1], "languagePack": humanus.resolve_language(served[-1]).version}
+    fingerprint = hashlib.sha256(json.dumps({**reading, "policies": policies, "guidance": settings.get("guidance") or ""},
+                                            sort_keys=True, default=str).encode()).hexdigest()[:12]
     pack: dict[str, Any] = {
         "schemaVersion": 1,
         "packId": "papyrus",
-        "version": f"{section or PUBLICATION_SCOPE}-{fingerprint}",
+        "version": f"{served[-1]}-{section or PUBLICATION_SCOPE}-{fingerprint}",
+        "language": served[-1],
         "policies": policies,
     }
     if settings.get("guidance"):
@@ -234,12 +309,19 @@ def skipped_judgments(missing_doctrine: list[str]) -> dict[str, Any]:
     return {"status": "skipped", "reason": f"this publication has no {' or '.join(missing_doctrine)} yet"}
 
 
+def requested_language(arguments: dict[str, Any], settings: dict[str, Any]) -> str:
+    """The language a request's text is written in, as the site writes it (``es`` means the site's Spanish variant). Required: never assumed."""
+    if not arguments.get("language"):
+        raise ValueError("Say which language the text is written in (language: en, es-419, zh-Hans ...); it is never assumed.")
+    return site_language(str(arguments["language"]), settings)
+
+
 def check_editorial(arguments: dict[str, Any], services: Services, prepared: tuple[dict[str, Any], dict[str, Any], dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Check text against the pack for its section. ``prepared`` is the (settings, pack, context) the caller already built."""
+    """Check text in ``arguments["language"]`` against the pack for its language and section. ``prepared`` is the (settings, pack, context) the caller already built."""
     from .editorial_model_context import editing_pack_and_context
     if prepared is None:
         settings = running_settings(services.store)
-        pack, context = editing_pack_and_context(services.store, arguments.get("section"), settings)
+        pack, context = editing_pack_and_context(services.store, arguments.get("section"), settings, requested_language(arguments, settings))
     else:
         settings, pack, context = prepared
     # Judgments apply the mission and policy; rule checks do not need them, so they still run (PPY-2c4b56).
@@ -270,12 +352,12 @@ def check_editorial(arguments: dict[str, Any], services: Services, prepared: tup
         classifier["examples"] = examples
     request = {
         "schemaVersion": 1,
-        "content": {"format": arguments.get("format") or "markus", "text": arguments["body"]},
+        "content": {"format": arguments.get("format") or "markus", "text": arguments["body"], "language": pack["language"]},
         "pack": pack,
         "options": {"lanes": lanes, "classifier": classifier},
     }
     services.last_check_request = request
-    result = mark_whole_story_findings(humanus.check(request, **services.humanus_kwargs("decision_model")))
+    result = mark_whole_story_findings(services.checked(humanus.check(request, **services.humanus_kwargs("decision_model"))))
     if skip_judgments:
         result["lanes"]["classifier"] = skipped_judgments(missing_doctrine)
     # No NewsroomSection for the stored value: the section's own mission and policy could not be applied. Say so (PPY-2c4b56).
@@ -303,10 +385,11 @@ def mark_whole_story_findings(result: dict[str, Any]) -> dict[str, Any]:
 def suggest_rewrite(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     from .editorial_model_context import editing_pack
     settings = running_settings(services.store)
+    pack = editing_pack(services.store, arguments.get("section"), settings, requested_language(arguments, settings))
     request: dict[str, Any] = {
         "schemaVersion": 1,
-        "content": {"format": arguments.get("format") or "markus", "text": arguments["body"]},
-        "pack": editing_pack(services.store, arguments.get("section"), settings),
+        "content": {"format": arguments.get("format") or "markus", "text": arguments["body"], "language": pack["language"]},
+        "pack": pack,
         "options": {"model": settings["rewriteModel"], "count": 3},
     }
     if arguments.get("note"):
@@ -330,24 +413,36 @@ def draft_questions(arguments: dict[str, Any], services: Services) -> dict[str, 
 
 
 def try_policy(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
+    """Try a draft policy on sample text in ``arguments["language"]``, the language the policy is being written for."""
     settings = settings_from(services.store)
     policy = _json(arguments["policy"], {})
+    language = requested_language(arguments, settings)
     request = {
         "schemaVersion": 1,
-        "content": {"format": arguments.get("format") or "markus", "text": arguments["text"]},
-        "pack": {"schemaVersion": 1, "packId": "papyrus-try", "version": "draft", "policies": [policy]},
+        "content": {"format": arguments.get("format") or "markus", "text": arguments["text"], "language": language},
+        "pack": {"schemaVersion": 1, "packId": "papyrus-try", "version": "draft", "language": language, "policies": [policy]},
         "options": {"classifier": {"model": settings["classifierModel"], "deadlineSeconds": settings["deadlineSeconds"]}},
     }
-    return mark_whole_story_findings(humanus.check(request, **services.humanus_kwargs("decision_model")))
+    return mark_whole_story_findings(services.checked(humanus.check(request, **services.humanus_kwargs("decision_model"))))
+
+
+def describe_languages(arguments: dict[str, Any], _services: Services) -> dict[str, Any]:
+    """The ``languages`` setting as the console form holds it, checked by the one validation (``language_serving.describe_serving``): every enabled
+    language's effective and default prefix, public flag and slug policy, or the message naming the rule it breaks. Reads and writes nothing."""
+    from .language_serving import describe_serving
+
+    return describe_serving(_json(arguments["languages"], None))
 
 
 def import_starter_pack(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
+    """Add a starter pack's policies the site does not have yet, each written for the pack's language."""
     name = arguments["name"]
-    existing = {policy_record_id(r["policyKey"], r["scope"]) for r in services.store.list_policies()}
+    pack = builtin_pack(name)
+    existing = {policy_identity(r) for r in services.store.list_policies()}
     created = skipped = 0
-    for policy in builtin_pack(name)["policies"]:
-        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"starter:{name}")
-        if record["id"] in existing:
+    for policy in pack["policies"]:
+        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, language=pack["language"], source=f"starter:{name}")
+        if policy_identity(record) in existing:
             skipped += 1
             continue
         services.store.create_policy(record)
@@ -357,6 +452,7 @@ def import_starter_pack(arguments: dict[str, Any], services: Services) -> dict[s
 
 def list_starter_packs(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     """The starter packs the installed Humanus ships, read at run time so new packs appear without a Papyrus change."""
+    defaults = {name for language in site_languages(settings_from(services.store))["enabled"] for name in starter_packs_for(language)}
     imported: dict[str, int] = {}
     for record in services.store.list_policies():
         source = str(record.get("source") or "")
@@ -374,7 +470,7 @@ def list_starter_packs(arguments: dict[str, Any], services: Services) -> dict[st
             "guidance": pack.get("guidance"),
             "policyCount": len(policies),
             "importedCount": imported.get(name, 0),
-            "isDefault": name in DEFAULT_STARTER_PACKS,
+            "isDefault": name in defaults,
             "policies": [
                 {
                     "id": policy["id"],
@@ -389,14 +485,48 @@ def list_starter_packs(arguments: dict[str, Any], services: Services) -> dict[st
     return {"humanusVersion": getattr(humanus, "__version__", None), "packs": packs}
 
 
-def ensure_default_policies(store: EditorialStore, packs: tuple[str, ...] = DEFAULT_STARTER_PACKS) -> dict[str, Any]:
-    """A publication starts with working policies: each default starter pack is imported once.
+def default_starter_packs(settings: dict[str, Any]) -> tuple[str, ...]:
+    """The starter packs of every language the site writes in (``editorial_languages.DEFAULT_STARTER_PACKS``)."""
+    return tuple(dict.fromkeys(name for language in site_languages(settings)["enabled"] for name in starter_packs_for(language)))
 
-    The packs applied are recorded in the stored settings (``defaultStarterPacks``), so a policy an admin later edits,
-    disables or deletes is never added back. Policies that already exist with the same key are left alone.
+
+def older_policy_language(record: dict[str, Any], primary: str) -> str:
+    """The language a policy saved before policies had one was written for: its starter pack's language, else the site's primary language.
+
+    Before PPY-d0132d every site wrote in one language and every policy was written in it; only a starter pack names its own."""
+    source = str(record.get("source") or "")
+    if source.startswith("starter:") and source.removeprefix("starter:") in list_builtin_packs():
+        return canonical(builtin_pack(source.removeprefix("starter:"))["language"])
+    return primary
+
+
+def ensure_policy_languages(store: EditorialStore) -> int:
+    """Write the language of every policy saved before policies had one (the deploy runs this once per site; later runs find nothing).
+
+    The language is written into the record, so no reader ever guesses it. The record keeps its id and version: what it checks is unchanged."""
+    primary = primary_language(settings_from(store))
+    written = 0
+    for record in store.list_policies():
+        if record.get("language"):
+            continue
+        store.update_policy({**record, "language": older_policy_language(record, primary)})
+        written += 1
+    return written
+
+
+def ensure_default_policies(store: EditorialStore, packs: tuple[str, ...] | None = None) -> dict[str, Any]:
+    """A publication starts with working policies in every language it writes: each default starter pack is imported once.
+
+    ``packs`` defaults to the starter packs of the site's enabled languages, so enabling Chinese or Spanish in the settings brings that
+    language's starter rules on the next deploy (or ``papyrus editorial policies ensure-defaults``). The packs applied are recorded in the stored
+    settings (``defaultStarterPacks``), so a policy an admin later edits, disables or deletes is never added back. Policies that already exist with
+    the same scope, language and key are left alone. Older policies without a language get theirs written first.
     """
+    languages_written = ensure_policy_languages(store)
     stored = store.get_settings()
     values = _json((stored or {}).get("settings"), {})
+    if packs is None:
+        packs = default_starter_packs({**DEFAULT_SETTINGS, **values})
     applied = list(values.get("defaultStarterPacks") or [])
     results: dict[str, Any] = {}
     for name in packs:
@@ -407,7 +537,25 @@ def ensure_default_policies(store: EditorialStore, packs: tuple[str, ...] = DEFA
         applied.append(name)
     if applied != list(values.get("defaultStarterPacks") or []):
         store.put_settings({**values, "defaultStarterPacks": applied}, exists=stored is not None)
-    return {"packs": results, "defaultStarterPacks": applied}
+    return {"packs": results, "defaultStarterPacks": applied, "policyLanguagesWritten": languages_written}
+
+
+def plan_default_policies(store: EditorialStore, languages: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """What :func:`ensure_default_policies` would do for a site whose ``languages`` setting is ``languages``, writing nothing: for each default starter
+    pack of its enabled languages, ``{"alreadyApplied": True}`` or ``{"alreadyApplied": False, "policies": N}`` (the policies it would add)."""
+    stored = store.get_settings()
+    applied = list(_json((stored or {}).get("settings"), {}).get("defaultStarterPacks") or [])
+    primary = primary_language(settings_from(store))
+    existing = {policy_identity({**record, "language": record.get("language") or older_policy_language(record, primary)}) for record in store.list_policies()}
+    plan: dict[str, dict[str, Any]] = {}
+    for name in default_starter_packs({**DEFAULT_SETTINGS, "languages": languages}):
+        if name in applied:
+            plan[name] = {"alreadyApplied": True}
+            continue
+        pack = builtin_pack(name)
+        records = (record_from_policy(policy, scope=PUBLICATION_SCOPE, language=pack["language"], source=f"starter:{name}") for policy in pack["policies"])
+        plan[name] = {"alreadyApplied": False, "policies": sum(policy_identity(record) not in existing for record in records)}
+    return plan
 
 
 FINDING_SUMMARY_FIELDS = ("id", "policyId", "severity", "status", "message", "excerpt", "probability")
@@ -488,24 +636,51 @@ def reusable_check_run(item: dict[str, Any], services: Services, *, pack_version
     return None
 
 
-def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any]], services: Services, segments: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """``findings`` with this version's cross-story boilerplate findings, computed now against the site's other stories.
+NO_STORIES_NOT_RUN = {"check": "cross-story-boilerplate", "reason": "a policy file has no stories to compare with"}
+
+
+def has_story_corpus(services: Services) -> bool:
+    """Whether the store can list the site's stories, which the cross-story boilerplate check compares a text with."""
+    return getattr(services.store, "list_story_versions", None) is not None
+
+
+def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any]], services: Services, segments: list[dict[str, Any]] | None = None, *, story: str | None = None) -> list[dict[str, Any]]:
+    """``findings`` with this text's cross-story boilerplate findings, computed now against the site's other stories.
 
     These depend on the other stories, not only on this version's content, so they are never reused from an earlier
-    check. A store without ``list_story_versions`` (a policy file) has no corpus and adds none.
+    check. A store without ``list_story_versions`` (a policy file) has no corpus and adds none. A saved version is
+    left out of the comparison by its lineage; a draft file names the story it revises with ``story`` (a lineage id or
+    a slug), which is refused when the site has no such story. A draft that names none is compared with every story.
     """
     from . import cross_story_boilerplate as boilerplate
 
     kept = [finding for finding in findings if finding.get("policyId") != boilerplate.POLICY_ID]
-    list_versions = getattr(services.store, "list_story_versions", None)
-    if list_versions is None:
+    if not has_story_corpus(services):
         return kept
+    stories = boilerplate.latest_stories(services.store.list_story_versions())
     lineage_id = item.get("lineageId") or item["id"]
-    others = [story for story in boilerplate.latest_stories(list_versions()) if story.lineage_id != lineage_id]
+    if story is not None:
+        named = next((candidate for candidate in stories if story in (candidate.lineage_id, candidate.slug)), None)
+        if named is None:
+            raise ValueError(f"No story found for {story!r} (give a lineage id or a slug).")
+        lineage_id = named.lineage_id
+    others = [candidate for candidate in stories if candidate.lineage_id != lineage_id]
     if not others:
         return kept
     index = boilerplate.ShingleIndex(others)
     return kept + boilerplate.cross_story_findings(item.get("bodyMarkus") or "", lineage_id, index, segments)
+
+
+def check_draft(arguments: dict[str, Any], services: Services, *, story: str | None = None) -> dict[str, Any]:
+    """Check draft text the way a saved version is checked: the Humanus lanes, then the cross-story boilerplate check.
+
+    ``arguments`` are those of ``check_editorial``; ``story`` names the story the draft revises, so its own saved
+    versions are not counted as other stories. ``papyrus editorial check|suggest --draft`` use this.
+    """
+    result = check_editorial(arguments, services)
+    item = {"id": "draft", "bodyMarkus": arguments["body"]}
+    findings = with_cross_story_findings(item, result.get("findings") or [], services, result.get("segments"), story=story)
+    return {**result, "findings": findings, "notRun": [] if has_story_corpus(services) else [NO_STORIES_NOT_RUN]}
 
 
 def _counts(findings: list[dict[str, Any]]) -> dict[str, int]:
@@ -529,7 +704,7 @@ def check_item_version(arguments: dict[str, Any], services: Services) -> dict[st
         settings = running_settings(services.store)
     except EditorialChecksDisabled:
         return {"itemId": item["id"], "skipped": "disabled"}
-    pack, context = editing_pack_and_context(services.store, item.get("section"), settings)
+    pack, context = editing_pack_and_context(services.store, item.get("section"), settings, story_language(item, settings))
     reusable = reusable_check_run(item, services, pack_version=pack["version"], lanes=settings["lanes"])
     if reusable is not None:
         stored = _awsjson_document(reusable.get("findings")) or []
@@ -547,7 +722,8 @@ def check_item_version(arguments: dict[str, Any], services: Services) -> dict[st
             })
         return {**{key: reusable.get(key) for key in CHECK_SUMMARY_KEYS}, **counts, "itemId": item["id"], "lanes": lanes,
                 "skipped": "unchanged", "reused": True, "reusedFrom": reusable.get("itemId") or reusable.get("id")}
-    result = check_editorial({"body": item.get("bodyMarkus") or "", "format": "markus", "section": item.get("section")}, services, prepared=(settings, pack, context))
+    result = check_editorial({"body": item.get("bodyMarkus") or "", "format": "markus", "section": item.get("section"), "language": pack["language"]},
+                             services, prepared=(settings, pack, context))
     result = {**result, "findings": with_cross_story_findings(item, result.get("findings") or [], services, result.get("segments"))}
     record = check_run_record(item, result, services.now())
     if services.last_check_request:
@@ -590,6 +766,7 @@ OPERATIONS: dict[str, Callable[[dict[str, Any], Services], dict[str, Any]]] = {
     "recalibrateEditorialPolicies": recalibrate,
     "checkItemVersion": check_item_version,
     "listEditorialStarterPacks": list_starter_packs,
+    "describeEditorialLanguages": describe_languages,
 }
 
 
@@ -612,22 +789,30 @@ def handle(field_name: str, arguments: dict[str, Any], services: Services) -> di
         raise ValueError(f"Unknown editorial-checks operation {field_name}")
     try:
         return operation(arguments, services)
-    except humanus.ContractValidationError as error:
+    except (humanus.ContractValidationError, humanus.UnsupportedLanguageError) as error:
         raise ValueError(str(error)) from error
 
 
 # --- GraphQL store ----------------------------------------------------------------
 
-_POLICY_SELECTION = "id policyKey scope version title guidance severity enabled detectors examples rewriteGuidance source"
+_POLICY_SELECTION = "id tenantId policyKey scope language version title guidance severity enabled detectors examples rewriteGuidance source"
 LIST_POLICIES = f"query ListEditorialPolicies($nextToken: String) {{ listEditorialPolicies(limit: 500, nextToken: $nextToken) {{ items {{ {_POLICY_SELECTION} }} nextToken }} }}"
-GET_SETTINGS = "query GetEditorialCheckSettings($id: ID!) { getEditorialCheckSettings(id: $id) { id settings } }"
+LIST_POLICIES_BY_TENANT = (
+    "query ListEditorialPoliciesByTenant($tenantId: String!, $nextToken: String) { "
+    f"listEditorialPoliciesByTenant(tenantId: $tenantId, limit: 500, nextToken: $nextToken) {{ items {{ {_POLICY_SELECTION} }} nextToken }} }}"
+)
+GET_SETTINGS = "query GetEditorialCheckSettings($id: ID!) { getEditorialCheckSettings(id: $id) { id tenantId settings } }"
 LIST_FEEDBACK = "query ListEditorialFeedbacks($nextToken: String) { listEditorialFeedbacks(limit: 1000, nextToken: $nextToken) { items { policyId detectorId lane probability decision text } nextToken } }"
+LIST_FEEDBACK_BY_TENANT = (
+    "query ListEditorialFeedbackByTenant($tenantId: String!, $nextToken: String) { "
+    "listEditorialFeedbackByTenant(tenantId: $tenantId, limit: 1000, nextToken: $nextToken) { items { policyId detectorId lane probability decision text } nextToken } }"
+)
 CREATE_POLICY = "mutation CreateEditorialPolicy($input: CreateEditorialPolicyInput!) { createEditorialPolicy(input: $input) { id } }"
 UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInput!) { updateEditorialPolicy(input: $input) { id } }"
-GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id lineageId versionNumber section contentHash bodyMarkus } }"
-LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id lineageId versionNumber versionState slug bodyMarkus } nextToken } }"
-GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id } }"
-_CHECK_RUN_SELECTION = "id itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
+GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id tenantId lineageId versionNumber section contentHash bodyMarkus language languageGroupId } }"
+LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id tenantId lineageId versionNumber versionState type stage slug bodyMarkus } nextToken } }"
+GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id tenantId } }"
+_CHECK_RUN_SELECTION = "id tenantId itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
 GET_CHECK_RUN_RECORD = f"query GetEditorialCheckRunRecord($id: ID!) {{ getEditorialCheckRun(id: $id) {{ {_CHECK_RUN_SELECTION} }} }}"
 LIST_CHECK_RUNS_BY_LINEAGE = (
     "query ListEditorialCheckRunsByLineage($lineageId: String!, $limit: Int) { "
@@ -640,7 +825,11 @@ UPDATE_SETTINGS = "mutation UpdateEditorialCheckSettings($input: UpdateEditorial
 
 
 class GraphQLEditorialStore:
-    """The editorial models through AppSync, signed the Papyrus way (IAM for functions and the CLI)."""
+    """The editorial models through AppSync, signed the Papyrus way (IAM for functions and the CLI).
+
+    On a SHARED stack the store acts for ``tenant_id`` alone: policies and feedback are listed through the tenant's own index, a row of another
+    tenant is never returned (a foreign item or check run answers as absent), the policy and settings ids carry the tenant, and every write
+    stamps it."""
 
     def __init__(self, execute: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None,
                  tenant_id: str | None = None) -> None:
@@ -650,18 +839,38 @@ class GraphQLEditorialStore:
             execute = execute_graphql
         self._execute = execute
         self._tenant_id = tenant_id   # the calling client's tenant; without one, the environment's or the signed-in site's
+        self._shared_tenant = tenant_id if tenant_id and is_shared_stack() else None
 
-    def _list(self, query: str, field_name: str) -> list[dict[str, Any]]:
+    def _list(self, query: str, field_name: str, variables: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         token = None
         while True:
-            page = self._execute(query, {"nextToken": token})[field_name]
+            page = self._execute(query, {**(variables or {}), "nextToken": token})[field_name]
             items.extend(page["items"])
             token = page.get("nextToken")
             if not token:
                 return items
 
+    def _own(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
+        """A row of this store's tenant, or None for a missing row and for another tenant's (shared stack only)."""
+        if row is None or self._shared_tenant is None or row.get("tenantId") == self._shared_tenant:
+            return row
+        return None
+
+    def _stored_id(self, record_id: str) -> str:
+        return tenant_scoped_value(self._shared_tenant, record_id) if self._shared_tenant else record_id
+
+    def _bare(self, row: dict[str, Any]) -> dict[str, Any]:
+        if self._shared_tenant is None or not isinstance(row.get("id"), str):
+            return row
+        return {**row, "id": tenant_bare_record_id(self._shared_tenant, row["id"])}
+
+    def _stamped(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {**payload, "id": self._stored_id(payload["id"]), "tenantId": self._shared_tenant} if self._shared_tenant else payload
+
     def list_policies(self) -> list[dict[str, Any]]:
+        if self._shared_tenant:
+            return [self._bare(row) for row in self._list(LIST_POLICIES_BY_TENANT, "listEditorialPoliciesByTenant", {"tenantId": self._shared_tenant})]
         return self._list(LIST_POLICIES, "listEditorialPolicies")
 
     def publication_key(self) -> str:
@@ -671,42 +880,51 @@ class GraphQLEditorialStore:
             items { id name role } nextToken
           }
         }'''
-        rows = self._list(query, 'listKnowledgeCorporaByRoleAndName')
+        rows = own_corpora(self._list(query, 'listKnowledgeCorporaByRoleAndName'), self._shared_tenant)
         if (len(rows) != 1 or rows[0].get('role') != 'canonical'
-                or not str(rows[0].get('id', '')).startswith('knowledge-corpus-')):
+                or not is_corpus_id(str(rows[0].get('id', '')))):
             raise ValueError('Exactly one verified publication is required for editorial context')
-        return rows[0]['id'].removeprefix('knowledge-corpus-')
+        return corpus_key_of(rows[0]['id'])
 
     def get_editorial_context(self, section: str | None) -> dict[str, Any]:
         from .editorial_model_context import checked_context
         from .tenancy import configured_tenant_id
         publication = self.publication_key()
         # Optional doctrine: a publication without a mission still gets its rule checks (PPY-2c4b56).
-        result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID) {
-          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, optionalPublicationDoctrine: true)
-        }''', {'publicationKey': publication, 'sectionId': section})['getEditorialContext']
+        # A site's own backend names no tenant: the argument is sent only for a shared-stack tenant, so the query stays valid on a backend that
+        # predates the argument (GraphQL refuses an argument the schema does not declare, even as null).
+        variables = {'publicationKey': publication, 'sectionId': section}
+        declared, passed = "", ""
+        if self._shared_tenant:
+            variables['tenantId'] = self._shared_tenant
+            declared, passed = ", $tenantId: String", ", tenantId: $tenantId"
+        result = self._execute(f'''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID{declared}) {{
+          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId{passed}, optionalPublicationDoctrine: true)
+        }}''', variables)['getEditorialContext']
         pack = checked_context(_awsjson_document(result), publication=publication, section=section)
         if (pack['publication'].get('tenantId') or None) != (self._tenant_id or configured_tenant_id() or None):
             raise ValueError('Editorial context tenant mismatch')
         return pack
 
     def get_settings(self) -> dict[str, Any] | None:
-        return self._execute(GET_SETTINGS, {"id": SETTINGS_ID})["getEditorialCheckSettings"]
+        return self._own(self._execute(GET_SETTINGS, {"id": self._stored_id(SETTINGS_ID)})["getEditorialCheckSettings"])
 
     def list_feedback(self) -> list[dict[str, Any]]:
+        if self._shared_tenant:
+            return self._list(LIST_FEEDBACK_BY_TENANT, "listEditorialFeedbackByTenant", {"tenantId": self._shared_tenant})
         return self._list(LIST_FEEDBACK, "listEditorialFeedbacks")
 
     def create_policy(self, record: dict[str, Any]) -> None:
-        self._execute(CREATE_POLICY, {"input": policy_input(record)})
+        self._execute(CREATE_POLICY, {"input": self._stamped(policy_input(record))})
 
     def update_policy(self, record: dict[str, Any]) -> None:
-        self._execute(UPDATE_POLICY, {"input": policy_input(record)})
+        self._execute(UPDATE_POLICY, {"input": self._stamped(policy_input(record))})
 
     def put_settings(self, values: dict[str, Any], *, exists: bool) -> None:
-        self._execute(UPDATE_SETTINGS if exists else CREATE_SETTINGS, {"input": {"id": SETTINGS_ID, "settings": json.dumps(values)}})
+        self._execute(UPDATE_SETTINGS if exists else CREATE_SETTINGS, {"input": self._stamped({"id": SETTINGS_ID, "settings": json.dumps(values)})})
 
     def get_item(self, item_id: str) -> dict[str, Any] | None:
-        return self._execute(GET_ITEM, {"id": item_id})["getItem"]
+        return self._own(self._execute(GET_ITEM, {"id": item_id})["getItem"])
 
     def list_story_versions(self) -> list[dict[str, Any]]:
         """The site's current and draft item versions, with their bodies, for the cross-story boilerplate check."""
@@ -715,22 +933,27 @@ class GraphQLEditorialStore:
             token = None
             while True:
                 page = self._execute(LIST_STORY_VERSIONS, {"versionState": state, "nextToken": token})["listItemsByVersionStateAndUpdatedAt"]
-                rows.extend(page["items"])
+                rows.extend(row for row in page["items"] if row.get("type") != "sub-task" and self._own(row) is not None)   # a checklist step has no text to compare
                 token = page.get("nextToken")
                 if not token:
                     break
         return rows
 
     def get_check_run(self, item_id: str) -> dict[str, Any] | None:
-        return self._execute(GET_CHECK_RUN_RECORD, {"id": item_id})["getEditorialCheckRun"]
+        return self._own(self._execute(GET_CHECK_RUN_RECORD, {"id": item_id})["getEditorialCheckRun"])
 
     def list_check_runs_by_lineage(self, lineage_id: str, limit: int) -> list[dict[str, Any]]:
-        return self._execute(LIST_CHECK_RUNS_BY_LINEAGE, {"lineageId": lineage_id, "limit": limit})["listEditorialCheckRunsByLineage"]["items"]
+        rows = self._execute(LIST_CHECK_RUNS_BY_LINEAGE, {"lineageId": lineage_id, "limit": limit})["listEditorialCheckRunsByLineage"]["items"]
+        return [row for row in rows if self._own(row) is not None]
 
     def put_check_run(self, record: dict[str, Any]) -> None:
-        exists = self._execute(GET_CHECK_RUN, {"id": record["id"]})["getEditorialCheckRun"] is not None
+        current = self._execute(GET_CHECK_RUN, {"id": record["id"]})["getEditorialCheckRun"]
+        if current is not None and self._own(current) is None:
+            raise ValueError(f"Check run {record['id']} does not exist in tenant {self._shared_tenant}.")
         payload = {**record, "findings": json.dumps(record["findings"]), "lanes": json.dumps(record["lanes"]) if record.get("lanes") is not None else None}
-        self._execute(UPDATE_CHECK_RUN if exists else CREATE_CHECK_RUN, {"input": payload})
+        if self._shared_tenant:
+            payload["tenantId"] = self._shared_tenant
+        self._execute(UPDATE_CHECK_RUN if current is not None else CREATE_CHECK_RUN, {"input": payload})
 
 
 def policy_input(record: dict[str, Any]) -> dict[str, Any]:

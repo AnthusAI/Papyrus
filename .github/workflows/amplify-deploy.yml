@@ -60,10 +60,14 @@ on:
         type: string
         default: us-east-1
       timeout-minutes:
-        description: How long to wait for the Amplify job
+        description: >-
+          How long the whole deploy job may run. The default is 135: the app shell sets Amplify's build timeout (_BUILD_TIMEOUT)
+          to at most 120 minutes (cms.buildTimeoutMinutes), plus 5 minutes for the job to start, plus 10 minutes for the steps
+          around the wait (OIDC login, the summary). The wait itself ends 10 minutes before this limit, so the wait ends a slow
+          job, not this timeout. Keep it above the site's build timeout plus 15.
         required: false
         type: number
-        default: 60
+        default: 135
 
 permissions:
   id-token: write
@@ -72,7 +76,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # GitHub expressions have no arithmetic, so the input is the job's whole limit and the script ends its wait 10 minutes earlier.
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - name: Work out the app and the role
         id: target
@@ -117,7 +122,7 @@ jobs:
         run: |
           set -euo pipefail
           subject="$(printf '%s' "${COMMIT_MESSAGE:-deploy ${COMMIT_ID}}" | head -n 1 | cut -c1-200)"
-          deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+          deadline=$(( $(date +%s) + (TIMEOUT_MINUTES - 10) * 60 ))
           # Amplify allows one running and one pending job per branch: an earlier merge's job may still
           # be running, so wait and retry instead of failing on LimitExceededException.
           while :; do

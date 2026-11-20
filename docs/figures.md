@@ -1,0 +1,100 @@
+# Figures
+
+A figure is a diagram, chart or editorial illustration for a Story, drawn as one SVG source and rendered to a light picture and a dark picture. This page says what belongs to Papyrus, what belongs to a site, how to render and check a figure, and what is not built yet. The agent workflow is the [figures skill](../.agents/skills/figures/SKILL.md); command recipes are in [agent-cli-guide.md](agent-cli-guide.md) (`papyrus guide figures`). Story PPY-74ef89 tracks the whole feature; this covers its first two slices.
+
+## Papyrus owns the rules, the site owns the design system
+
+| Belongs to Papyrus (the same for every site) | Belongs to a site (its *design system*) |
+| --- | --- |
+| The rules: `papyrus figures rules` (`src/papyrus_content/data/figures/rules.md`, or the site's own, see below). They name roles, never colors or fonts. | `mapping.json`: the role names (`ground`, `inset`, `ink`, `focal` ...), type roles (`head`, `label` ...) and canvas sizes. |
+| The shape library: `papyrus figures primitives` (glyphs, arrowhead, hatch and dot patterns). | The tokens: every color has a light and a dark value; type styles. Inline in `mapping.json` (`"tokens"`) or in a file it names (`"tokens_file"`). |
+| The checks and the renderer (`src/papyrus_content/figures/`). | The font files it names, which are embedded in the picture. |
+| | Worked examples: `examples/NAME/figure.svg` and `figure.json`. |
+
+A site with no design system uses `--neutral-default` (unbranded grays and the machine's own sans-serif, no logos) and says so, or asks for one. Nobody invents a brand.
+
+## Light and dark are both mandatory
+
+Every figure ships in a light picture and a dark picture. One source, drawn with color roles, resolves to both, so the two share one geometry and one aspect ratio. `papyrus figures render` has no one-theme mode, measures each theme separately and fails the figure on a problem in either. A design system that gives a color no dark value is refused when it is loaded. `stories save-version` warns when a figure is saved with only a light picture, and refuses it when the site's `requireDarkFigures` setting is on.
+
+## Rendering
+
+```sh
+papyrus figures render ./search-nobody-sees --out ./pictures                              # the signed-in site's stored design system
+papyrus figures render ./search-nobody-sees --design-system ./design-system --out ./pictures   # a folder overrides it
+```
+
+The figure folder holds `figure.svg` (colors as `{role}`, type as `t-<role>` classes, `<!--primitives-->` after `<desc>`) and `figure.json` (audience, what it shows, what it adds, the surrounding text, alt, caption, label kind, layout; `credit` only for a real source such as `Source: <name>.`, since our own figures carry no credit; `approved_by` is optional metadata). The source is checked first. Then, for each theme, the SVG is put in a page with the design system's fonts embedded as data, laid out in headless Chromium (Playwright; Chrome works when no Chromium is installed), and **measured**: text size on a phone, text at the margin or hanging over the edge of the shape behind it, contrast of each label against what is really under it, overlapping labels, line weight. The picture is a screenshot at the design system's `export_scale` (2) times the canvas, with transparent corners. On success it writes `SLUG.png`, `SLUG.dark.png` and `SLUG.figure.json`; the last marks the pictures as a figure for `save-version`.
+
+Output is `SLUG: PROBLEM: ...` lines (the figure fails and the command exits 1), `SLUG: note: ...` advice, and `SLUG: ok` or `SLUG: FAILED`. `--json` prints the same as data, which is what a hosted renderer will return. `--check-only` writes nothing. The checks cannot judge whether a figure makes sense; you look at both pictures. No person's approval is required and our own figures carry no credit; a site opts in to a recorded cover approval with `illustrationRequireApprovalCredit`.
+
+Rendering needs `pip install playwright` and a Chromium (`playwright install chromium`) or Google Chrome. Only this command imports Playwright.
+
+With neither `--design-system` nor `--neutral-default`, `render` reads the design system the signed-in site stores and prints a `figures: using the site's stored design system ... version N` line on stderr. A folder given with `--design-system` overrides it. If the site stores none, or cannot be read, the command stops and says why; it never falls back to the neutral default or to a made-up style.
+
+## The design system as backend data
+
+A site's design system is one more guideline document (kind `design-system`), stored the way mission, policy and the other guidelines are (guidelines as data, epic PPY-2a2a8a, `src/papyrus_content/guidelines/`). The database holds one catalog row per version (`Item`, type `doctrine`, slug `editorial-doctrine-design-system`, with `tenantSlug` on a tenant site): the version, who saved it, when, why and a content hash. Its `bodyMarkus` and `metadata` stay empty. The content is in S3, attached to that version as ModelAttachments:
+
+- one JSON **document** (role `doctrine_document`) holding every text file of the design system verbatim, by path (`mapping.json`, the tokens file, each example's `figure.svg` and `figure.json`), the site's figure settings, and each font's hash and size; and
+- one **asset** (role `doctrine_asset`) for each font file.
+
+The content hash covers the fonts through their hashes, and a font that does not match its hash is refused when read. No new table, index or subscription is used: a read is a query on the slug index, a query on the attachment owner index and the downloads. Saving a design system that gives a color no dark value, names a missing font, or has an unknown setting is refused and stores nothing; an unchanged folder makes no new version; every change is a new version and the old ones stay readable.
+
+```sh
+papyrus design-system show [--version N] [--json]      # version, roles, fonts, examples, settings, or that the site has none
+papyrus design-system pull ./design-system             # write the stored files back as a folder
+papyrus design-system push ./design-system --reason "..."   # publish a folder as the next version (--dry-run previews)
+```
+
+The site's repository stays the place where the design system is edited, and runs `push` as part of its deploy. A folder is `mapping.json`, its tokens file, the fonts it names, `examples/NAME/figure.svg` + `figure.json`, and an optional `settings.json`. A folder with no `settings.json` keeps the site's current settings; `{"requireDarkFigures": false}` turns the setting off. The editorial context (`papyrus editorial context`) carries a short pointer to the design system, built from the catalog row alone, so an agent knows it exists and how to read it.
+
+The site settings are `requireDarkFigures`, `publishRequiresRating` (off unless set: then a Story must have an editor's star rating before it publishes or republishes; see [the Rated step](story-procedure.md#the-rated-step)), and `illustrationRequiredTypes` (a list of Story types whose checklist needs an approved cover before publishing, `["article"]` when unset; see [the Illustration step](story-procedure.md#the-illustration-step)), for example `{"requireDarkFigures": true, "illustrationRequiredTypes": ["article", "post"]}`. A stored cover closes that step with no approval needed, and where `requireDarkFigures` is on a figure's dark picture must be stored too.
+
+## Saving into a Story
+
+`papyrus figures directive FOLDER` prints the `::image{}` line. Put the pictures and the sidecar in a folder and `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures --reason "..."`. The `.dark.png` next to `SLUG.png` is paired automatically. A picture with a `SLUG.figure.json` beside it is a figure; if its dark picture is missing, `save-version` prints `figure-light-only ... WARNING: ...` and still saves. The save is refused instead, before anything is uploaded, when the site's `requireDarkFigures` setting is on, or when `--require-dark-figures` or `PAPYRUS_REQUIRE_DARK_FIGURES=1` is given. The flag and the variable are overrides: `PAPYRUS_REQUIRE_DARK_FIGURES=0` saves a light-only figure even where the site refuses it. The setting is read (one index query and one download) only when a figure has no dark picture and nothing overrides it; if it cannot be read, the save stops and says so rather than guessing. An ordinary photograph with no dark picture is never warned about.
+
+## Figures in other languages
+
+A translation of a Story is its own Story (`STORY--LANGUAGE`), so the pictures it shows are the ones its own body and front matter name. **By default they are the original's pictures, with the alt text and caption translated** (the translation procedure translates every `alt`, `caption` and `title` attribute and the front matter `imageAlt`). That is complete; nothing waits for, asks for or is blocked by a localized picture.
+
+**A language variant is optional.** It is a stored picture (a light and a dark file, with renditions, saved like any other picture) that the translation's `::image{}` line and cover (`image`, `imageDark`) point at instead of the original's. Because the page, the cards and listings, the social preview, the Markdown copy, the feeds and the sitemap already read the translation's own body and front matter, none of them knows or needs to know that variants exist. The link to the original is recorded in the translation's front matter:
+
+```yaml
+imageVariants:
+- from: assets/the-story/hazard.png          # the original's stored picture
+  fromDark: assets/the-story/hazard.dark.png
+  src: assets/the-story--es/hazard-es.png    # the variant, stored with the translation
+  srcDark: assets/the-story--es/hazard-es.dark.png
+  language: es
+```
+
+A re-translation puts the variants back (the run works on the original's picture names, so Humanus's directive check compares like with like, and saves the variants again), so a localized figure is never lost when the source changes.
+
+**Advice, not a gate.** `papyrus figures render` records in `SLUG.figure.json`, and `save-version --images` stores with the picture, whether the figure holds words (`embeddedText`, `textLabels`, counted from the SVG's `<text>` elements) and prints an `embedded text` note. The translation procedure reads those records and lists the source's figures and cover that hold words and have no variant in that language: `imagesWithText` in its output and `localization.imagesWithText` on the translation version. An editor may then choose to localize one; nothing holds, fails or waits. A raster picture with no figure record (a photograph, or a figure saved before records were kept) is not reported: Papyrus does not guess at words in pixels.
+
+```sh
+papyrus figures localize ./figures/hazard --story STORY --language es-419 --out ./figures          # translate the labels, alt and caption; render light and dark
+papyrus figures localize ./figures/hazard --story STORY --language es-419 --save --reason "Spanish labels"   # and store it as the translation's variant
+papyrus figures variant --story STORY --language es-419 --original assets/the-story/hazard.png --light hazard-es.png --dark hazard-es.dark.png --reason "..."   # the manual path: any picture, rasters included
+```
+
+`localize` translates only the `<text>` content (the rest of the SVG is untouched), the alt text and the caption, with the Story's glossary and register notes and the same Humanus checks as the Story's translation (the language's copy-edit pack on each label, the bilingual judge on each pair); the findings are printed as notes. It then renders the language's figure folder (`SLUG-LANGUAGE`, `figure.json` carrying `localizedFrom`) with the usual figure checks, so a label that no longer fits, overlaps another or loses contrast fails there and the figure's source can be adjusted. It writes to the translation only, and only with `--save`. The figure's folder is the source of truth for its SVG (the backend stores pictures, not figure sources), so `localize` takes the folder. A figure with no text says so and does nothing.
+
+**Draw for no translation first** (the figure rules, section 8): numbers, symbols and universal icons; words moved into the caption or the body; text-free compositions; and, when words are unavoidable, a word or two per label as separate `<text>` lines with room to grow.
+
+## The loading seam
+
+`papyrus_content.figures.design_system.DesignSystemSource` has three methods: `read_text(name)`, `read_bytes(name)` and `list_examples()`, all by a path relative to the design system's root. `DirectorySource` is the only source today (`--design-system DIR`). `DirectorySource` reads a folder (`--design-system DIR`); `BackendSource` (`papyrus_content.figures.records`) answers the same three methods from the stored document and fonts, fetching and checking a font only when it is asked for. `load_design_system(source)` validates whatever it returns (roles, tokens, a dark value for every color) and nothing else changes.
+
+## Not built yet
+
+- A language variant of a raster picture is a manual upload (`figures variant`); Papyrus does not detect words in pixels.
+- Hosted rendering for an agent with no browser (the next slice): it will take a figure's source and a site's stored design system and return both pictures and any problems.
+- Moving Machines on Machines onto this and removing its copies of the rules, primitives, mapping and renderer.
+- The p.apyr.us documentation page.
+
+## A site's own figure rules
+
+The general rules above are the default. A site that draws by different rules saves its own with `papyrus guidelines save --kind figure-rules --file rules.yml --reason "..." --expected-current-version-id none`, where the file is `{schemaVersion: 1, bodyMarkus: "<the complete text>"}`. The site's text replaces the general rules for that site (nothing is merged), is versioned like the other guidelines, and is what `papyrus figures rules` prints for that site. If the site cannot be read the command fails (it never prints the general rules in its place); `papyrus figures rules --packaged` prints the general rules.

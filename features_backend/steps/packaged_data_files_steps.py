@@ -159,12 +159,17 @@ sys.meta_path.insert(0, Block())
 sys.path.insert(0, sys.argv[1])
 spec = importlib.util.spec_from_file_location("content_actions_handler", sys.argv[2])
 spec.loader.exec_module(importlib.util.module_from_spec(spec))
-from papyrus_content.graphql_http import authoring_credentials_available, graphql_request_headers
-from papyrus_content.operator_errors import credential_recovery_guidance
-assert authoring_credentials_available()
-credential_recovery_guidance()
-headers = graphql_request_headers(endpoint="https://example.appsync-api.us-east-1.amazonaws.com/graphql", body=b"{}")
-print(json.dumps({"headers": sorted(headers), "imported": sorted(m for m in sys.modules if m.split(".")[0] == "cli_login")}))
+from papyrus_content.graphql_http import graphql_request_headers, require_lane_ready
+from papyrus_content.operator_errors import OperatorError, credential_recovery_guidance
+imported = lambda: sorted(m for m in sys.modules if m.split(".")[0] == "cli_login")
+try:
+    require_lane_ready()
+    credential_recovery_guidance()
+    headers = graphql_request_headers(endpoint="https://example.appsync-api.us-east-1.amazonaws.com/graphql", body=b"{}")
+except OperatorError as error:
+    print(json.dumps({"refused": str(error), "imported": imported()}))
+else:
+    print(json.dumps({"headers": sorted(headers), "imported": imported()}))
 '''
 
 
@@ -180,6 +185,11 @@ def step_without_cli_login(context):
         "AWS_REGION": "us-east-1",
         "AWS_DEFAULT_REGION": "us-east-1",
     }
+
+
+@given("it names the operator lane in its environment, as every site function does")
+def step_names_operator_lane(context):
+    context.lambda_env["PAPYRUS_GRAPHQL_AUTH"] = "iam"
 
 
 @when("it imports the content-actions handler and signs a GraphQL request with IAM")
@@ -199,6 +209,12 @@ def step_sign_without_cli_login(context):
 @then("the request carries an IAM signature")
 def step_iam_signature(context):
     assert "Authorization" in context.lambda_result["headers"], context.lambda_result
+
+
+@then("it refuses with the message that names papyrus login and papyrus --auth iam")
+def step_lambda_refusal(context):
+    refused = context.lambda_result.get("refused", "")
+    assert "papyrus login <site>" in refused and "papyrus --auth iam" in refused, context.lambda_result
 
 
 @then("cli_login was never imported")

@@ -346,6 +346,26 @@ def twin(text: str, values: Mapping[str, str], source: str) -> str:
     return head + re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() + "\n"
 
 
+def twin_omissions(body: str) -> list[dict]:
+    """What the Markdown twin leaves out of a body (front matter already removed): ``[{"kind", "line", "lines", "text"}]``.
+
+    ``kind`` is ``include`` (a generated listing or component, not a knowledge block or a home-page component) or ``raw`` (a ``::raw`` region, from its
+    opening line to ``::endraw``). ``line`` is the first line (1 is the body's first), ``lines`` how many lines are left out."""
+    omitted: list[dict] = []
+    region: dict | None = None
+    for number, (line, name, attributes, _inside) in enumerate(_directives(body), start=1):
+        if name == "raw":
+            region = {"kind": "raw", "line": number, "lines": 1, "text": line.strip()}
+        elif name in ("rawline", "endraw") and region is not None:
+            region["lines"] += 1
+            if name == "endraw":
+                omitted.append(region)
+                region = None
+        elif name == "include" and not _kept_include(attributes):
+            omitted.append({"kind": "include", "line": number, "lines": 1, "text": line.strip()})
+    return omitted
+
+
 ISLAND_MOUNT = re.compile(
     r'<(?P<tag>div|span)(?P<attributes>(?=[^>]*\bclass="papyrus-island")[^>]*\bdata-island="(?P<name>[^"]+)"[^>]*)>'
     r'(?:<p class="papyrus-island-summary">[^<]*</p>)?</(?P=tag)>'

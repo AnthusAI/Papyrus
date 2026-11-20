@@ -1,0 +1,40 @@
+{
+  "id": "PPY-f30ad5e5-e8ec-407e-b5ee-afbf6433ff14",
+  "title": "One command scaffolds a new site and its newsroom data",
+  "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-dc9f71.\n\n`papyrus site init` creates a site folder that builds and passes its tests, with no AWS identifier in any file, and works inside a monorepo that already holds a deployment. A newsroom scaffold writes agent instructions, the Story procedure, image rules and starter policies as editable records, with profiles (news, satire). A scaffold diff shows where a site differs from current defaults and changes nothing. The scaffold defaults become the only editorial opinion in Papyrus code.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2d56a792-ee0d-4907-8641-35e9f847cf34",
+      "author": "home",
+      "text": "From Humorus, 2026-11-13 (first real site brought up through the account pipeline). Scaffold must account for: (1) The Amplify console 'Connect repository' wizard replaces the branch: it wiped every branch environment variable (tenant id, Cognito prefix, redirect URLs, ...), turned auto-build ON and started a build (job 1) that ran with no variables. CloudFormation cannot see this drift, so re-running the stack changes nothing; it had to be re-applied by changing a stack input. The scaffold's connect-the-repository instructions must say: the wizard resets the branch, expect the variables to be re-applied by a stack update, and auto-build must go back to false (deploys start from GitHub Actions). Better: the app-shell stack should own and re-assert branch settings. (2) A new site's infra/site.json must write the four PAPYRUS_ENABLE_* flags (console responder defaults ON and needs a container image; that failed the first auto-build). (3) The email block is now mandatory in 5.104+. (4) The first build needs the two-pass bootstrap; the pipeline's first-build workflow does it.",
+      "created_at": "2026-11-13T21:33:20.901216Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "63378604-a08f-4019-9d81-85b1e24c366e",
+      "author": "home",
+      "text": "Plan note: slice 6 of docs/plans/shared-publication-front-end.md, after slices 1 to 5, so the scaffold writes settings, a brand pack and a publication block for the standard front end (the Humorus site moves onto it in slice 4 by hand first, which is the rehearsal for this command).",
+      "created_at": "2026-11-15T16:26:55.000Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T17:15:59.230297Z",
+  "updated_at": "2026-11-15T16:26:55.000Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

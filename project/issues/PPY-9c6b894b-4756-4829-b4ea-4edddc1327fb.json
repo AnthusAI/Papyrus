@@ -1,0 +1,37 @@
+{
+  "id": "PPY-9c6b894b-4756-4829-b4ea-4edddc1327fb",
+  "title": "Channel guidelines (channel/x, channel/linkedin, channel/email) and the draft editor",
+  "description": "A guideline folder may be scoped to a channel (channel/x, channel/linkedin, channel/email) so each network has its own craft rules: hook, length, links, tags, tone, image shape. The drafter and the checker both read them. One working surface per channel in the newsroom shows the draft the way the channel will show it (X length and card, LinkedIn fold and line breaks, email preview) next to the checks that apply; agents use the same operations through the CLI. The Announcements list shows each Delivery's state, edit window, who last edited it, and whether any human has touched it, in words and marks, never colour alone.\n\n**Acceptance criteria**\n- Gherkin: Layering (channel/x rules reach the X drafter; a section adds and never loosens).\n- New Gherkin features: Channel preview shows the channel's own rendering; Draft editor saves a version and runs the checks; CLI parity with the newsroom editor.\n- Effort is visible in the list: state, window, last editor, human-touched flag, with words and marks.\n- Lucide icons only; one Accept/Reject vocabulary.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Section 13 additions (2026-11-16, always-on agent review; changes C, F)**\n- Draft saves from the editor and CLI name the version they replace; a stale save is refused naming the replaced version (behaviour in PPY-e8ec54).\n- The drafter reads what the account already said (change F): before drafting, read that account's recent sent Deliveries through the account index, so posts do not repeat a hook or phrase. It reads back to the previous Delivery about the same Stories or concepts, or the last issue for a newsletter; no fixed number. Pointer read, not a new store.\n**Acceptance criteria (added)**\n- Gherkin: a draft does not repeat the hook or phrase of the account's previous sent Delivery on the same Story or concept.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9c2ea0f4-7e60-4f61-9bbf-fd56051bc2e5",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "646d06c9-f213-477f-91eb-42a86a97f076",
+      "author": "home",
+      "text": "lead8: Layering merged in #1729: a rule file scoped to channel/<name> reaches the drafter for that channel (guidelines resolve --channel), adds and never loosens. NOT built (left open): the newsroom channel preview and draft editor UI (TypeScript, needs a browser check), the Announcements list columns (state, window, last editor, human-touched flag), CLI-parity spec for the editor, and the drafter reading the account's previous sent Deliveries (change F). Draft saves already name the version they replace (PPY-e8ec54).",
+      "created_at": "2026-11-19T13:38:37.189032Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T21:48:36.351073Z",
+  "updated_at": "2026-11-19T13:38:37.189257Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
+from .console_links import print_console_rows, story_links
+from .audience_lenses import lens_lines, lens_payload, lens_step_states
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
-from .options import normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
+from .options import normalize_positive_integer, normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
 from .story_reporting import (
     STAGE_MOVES_KEY,
     STORY_MESSAGE_KINDS,
@@ -24,6 +27,7 @@ from .story_reporting import (
     repair_story_versions,
     save_story_version,
     story_messages,
+    utc_now_iso,
     story_references,
     story_versions,
 )
@@ -66,12 +70,32 @@ def _version_author(options: dict, apply: bool, client) -> str:
     return author
 
 
+def _site_requires_dark_figures(client) -> bool:
+    """The site's ``requireDarkFigures`` setting (kept with its design system). Read only when a figure has no dark picture and nothing overrides it."""
+    from .figures.records import site_requires_dark_figures
+
+    try:
+        return site_requires_dark_figures(client)
+    except Exception as error:  # noqa: BLE001 - say why instead of saving a light-only figure on a guess
+        raise ValueError(
+            f"Could not read the site's requireDarkFigures setting ({error}). Set PAPYRUS_REQUIRE_DARK_FIGURES=1 to refuse light-only figures or "
+            "PAPYRUS_REQUIRE_DARK_FIGURES=0 to allow them, and run the command again."
+        ) from error
+
+
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> [--author-label <name>] [--stage <stage> | --advance] [--outline] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>]]
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> [--author-label <name>] [--stage <stage> | --advance] [--outline] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>] [--require-dark-figures]]
+
+    A figure (a picture with a ``<name>.figure.json`` beside it, written by ``papyrus figures render``) saved with no dark picture prints
+    a ``figure-light-only`` warning; the site's ``requireDarkFigures`` setting (``papyrus design-system``), --require-dark-figures or PAPYRUS_REQUIRE_DARK_FIGURES=1 refuses
+    it instead, before anything is written. The flag and the variable are overrides: PAPYRUS_REQUIRE_DARK_FIGURES=0 saves a light-only figure even where the site refuses it.
 
     Signed in, the version records the person who signed in (the label the session holds) as its author, as `link-reference` does;
     --author-label is ignored there (the backend does not verify a name, so the CLI never lets one be made up). On the IAM lane
     (an operator's AWS credentials) --author-label is required and is recorded as given.
+
+    The output also prints the version's measurements and how much it changed from the version it replaces (the same rows as `stories measure`),
+    and stores them with the version (metadata.measurements). They are guidance from Humanus, never a limit. The version's language (its saved row) is required.
 
     --images <dir> uploads every local picture the body uses (::image{src=...} and ![](...) whose path resolves under
     <dir>), plus a matching <name>.dark.<ext> or srcDark file, as the newsroom editor's "Insert image" would: the same
@@ -81,7 +105,8 @@ def stories_save_version(flags: list[str]) -> None:
     plan and writes nothing. Re-running is idempotent: a file whose content is already stored for the story keeps its exact
     srcPath, so the S3 key and the body reference do not change; a name that holds different content gets -2, -3 (never
     overwritten). MediaAsset rows are keyed by story VERSION (media-<version id>-<hash of srcPath>, as the editor and
-    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. The path is
+    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. A save without --images carries forward, from the earlier
+    versions, every stored picture the new body and front matter name: each image's src and srcDark and the front matter image keys (and their ...Dark twins). The path is
     media/assets/<slug>/<file> with the slug the story has when the file is first stored (a story without a slug has
     draft-unsectioned-<hash>, exactly what the editor uses). It does NOT move: publishing, set-slug and a later section
     change never rewrite media keys or body references (the body keeps the stored srcPath), so the path is stable after
@@ -111,16 +136,20 @@ def stories_save_version(flags: list[str]) -> None:
     next_number = int(latest.get("versionNumber") or 1) + 1
     image_plan = None
     if images_dir:
-        from .story_images import plan_story_images
-
-        from .story_images import existing_assets
+        from .story_images import REQUIRE_DARK_FIGURES_VARIABLE, dark_figures_required, existing_assets, light_only_figure_error, plan_story_images
 
         stored = [
             row for version in story_versions(client, lineage_id)
             for row in client.list_by_index("mediaAssetsByItemAndSortKey", version["id"])
         ]
-        image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], existing=existing_assets(stored))
+        image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], existing=existing_assets(stored), front_matter=front_matter)
         body = image_plan.body
+        if image_plan.light_only_figures:
+            refuse, why = dark_figures_required(bool(options.get("require-dark-figures")), os.environ.get(REQUIRE_DARK_FIGURES_VARIABLE), lambda: _site_requires_dark_figures(client))
+            if refuse:
+                raise ValueError(light_only_figure_error(image_plan, why))
+        if image_plan.front_matter is not None:
+            front_matter = image_plan.front_matter
     header = f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t"
     plan_output: list[str] = []
     if image_plan is not None:
@@ -133,6 +162,10 @@ def stories_save_version(flags: list[str]) -> None:
         for line in plan_output:
             print(line)
         return
+    from .item_language import item_language
+    from .story_measure import measurement_rows, story_measurements
+
+    measurements = story_measurements(body, front_matter, item_language(latest), latest.get("bodyMarkus") or "", int(latest.get("versionNumber") or 1))
     stage = normalize_string(options.get("stage"))
     if options.get("advance"):
         if stage:
@@ -146,12 +179,15 @@ def stories_save_version(flags: list[str]) -> None:
         upload_output = [f"stories\tsave-version\timage-{outcome}\t{image.storage_path}" for image, outcome in upload_planned_images(image_plan, store)]
     record = save_story_version(
         client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage,
-        media_rows=image_plan.media_rows if image_plan is not None else None,
+        media_rows=image_plan.media_rows if image_plan is not None else None, measurements=measurements,
     )
     print(header + "write")
     for line in [*plan_output, *upload_output]:
         print(line)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    for line in measurement_rows("stories", "save-version", f"{lineage_id}\tversion {next_number}", measurements):
+        print(line)
+    print_console_rows("stories", "save-version", lambda base: story_links(base, lineage_id, record["id"], f"editor page of the version just saved (version {next_number})"))
     if options.get("outline"):
         mark_story_outline(client, record, actor=author)
         print(f"stories\tsave-version\toutline\t{record['id']}")
@@ -166,12 +202,105 @@ def stories_save_version(flags: list[str]) -> None:
     print_reminder(client, lineage_id)
 
 
+def stories_measure(flags: list[str]) -> None:
+    """papyrus stories measure [--story <lineage>] [--body-file <file>] [--front-matter-file <file>] [--language <tag>] [--json]
+
+    Plain measurements of a story's text, computed by Humanus (Papyrus counts nothing itself): size (words, or characters in Simplified Chinese; reading
+    time), structure (sections, longest paragraph and sentence, the headline, dek and blurb), sourcing (links and citations per 500 units, the share of
+    paragraphs with none) and the change from another version (units added, removed and rewritten, the share changed). Read only, and guidance only:
+    no limit is applied and nothing is refused.
+
+    --story alone measures the story's current saved version and its change from the version before it. --body-file measures a draft before it is
+    saved (with --story, its change from the story's current version, its headline, dek and blurb and its language from the story unless
+    --front-matter-file and --language say otherwise). A draft with no --story needs --language, because text is never read as a guessed language.
+    """
+    options = parse_options(flags)
+    story = normalize_string(options.get("story"))
+    body = _text_from_option_or_file(options, "body", "body-file")
+    front_matter = _text_from_option_or_file(options, "front-matter", "front-matter-file")
+    language = normalize_string(options.get("language"))
+    if not story and body is None:
+        raise ValueError("Give --story (a saved story) or --body-file (a draft).")
+    if not story and not language:
+        raise ValueError("--language is required for a draft with no --story (a BCP 47 tag such as en, es-419 or zh-Hans).")
+    from .item_language import item_language
+    from .story_measure import measurement_rows, story_measurements
+
+    previous_body = previous_number = None
+    label = "draft"
+    if story:
+        client, _ = create_authoring_client()
+        versions = story_versions(client, story)
+        latest = current_story_version(client, story)
+        language = language or item_language(latest)
+        if body is None:
+            earlier = [row for row in versions if int(row.get("versionNumber") or 0) < int(latest.get("versionNumber") or 0)]
+            previous = earlier[0] if earlier else None
+            body = latest.get("bodyMarkus") or ""
+            label = f"version {latest.get('versionNumber')}"
+        else:
+            previous, label = latest, f"draft of {story}"
+        if front_matter is None:
+            metadata = latest.get("metadata")
+            front_matter = (json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})).get("frontMatterYaml")
+        if previous is not None:
+            previous_body, previous_number = previous.get("bodyMarkus") or "", int(previous.get("versionNumber") or 1)
+        label = f"{story}\t{label}"
+    else:
+        label = f"draft\t{language}"
+    measurements = story_measurements(body, front_matter, language, previous_body, previous_number)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": story, **measurements}, indent=2, ensure_ascii=False))
+        return
+    for line in measurement_rows("stories", "measure", label, measurements):
+        print(line)
+
+
 def stories_versions(flags: list[str]) -> None:
     """papyrus stories versions --story <lineage>"""
     options = parse_options(flags)
     client, _ = create_authoring_client()
     for version in story_versions(client, _required_option(options, "story")):
         print("\t".join(["stories", "versions", str(version.get("versionNumber")), str(version.get("versionState")), str(version.get("versionCreatedAt") or version.get("updatedAt") or ""), str(version.get("versionCreatedBy") or ""), str(version.get("changeReason") or ""), str(version["id"])]))
+
+
+def stories_pull(flags: list[str]) -> None:
+    """papyrus stories pull --story <lineage> --body-file <file> --front-matter-file <file> [--version <N>] [--json]
+
+    Read only: writes the two local files and nothing to the Story. They hold the stored text of the current version (the one `stories show` calls
+    current), or with --version N of that exact immutable version, exactly as `stories save-version --body-file --front-matter-file` takes them back.
+    A picture path in the body or front matter is the stored path, which a save without --images keeps. Saving the pulled files unchanged still
+    makes a new version, whose text equals the one pulled: save-version never skips a save. A Story with no stored front matter gets an empty file.
+    An unknown story or version is an error and no file is written."""
+    options = parse_options(flags)
+    lineage_id = _required_option(options, "story")
+    body_file = _required_option(options, "body-file")
+    front_matter_file = _required_option(options, "front-matter-file")
+    client, _ = create_authoring_client()
+    wanted = normalize_string(options.get("version"))
+    if wanted:
+        if not wanted.isdigit() or int(wanted) < 1:
+            raise ValueError(f"--version must be a version number such as 2, not {wanted!r}.")
+        versions = story_versions(client, lineage_id)
+        if not versions:
+            raise ValueError(f"No story found for lineage {lineage_id}.")
+        record = next((row for row in versions if int(row.get("versionNumber") or 0) == int(wanted)), None)
+        if record is None:
+            have = ", ".join(str(row.get("versionNumber")) for row in versions)
+            raise ValueError(f"Story {lineage_id} has no version {wanted} (it has {have}). `papyrus stories versions --story {lineage_id}` lists them.")
+    else:
+        record = current_story_version(client, lineage_id)
+    metadata = record.get("metadata")
+    front_matter = (json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})).get("frontMatterYaml") or ""
+    body = record.get("bodyMarkus") or ""
+    for path, text in ((body_file, body), (front_matter_file, front_matter)):
+        with open(path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": lineage_id, "version": record.get("versionNumber"), "id": record["id"], "state": record.get("versionState"),
+                          "bodyFile": body_file, "frontMatterFile": front_matter_file}, indent=2))
+        return
+    print(f"stories\tpull\t{lineage_id}\tversion {record.get('versionNumber')}\t{record['id']}\t{record.get('versionState')}\tbody {body_file}\tfront matter {front_matter_file}")
 
 
 def stories_repair_versions(flags: list[str]) -> None:
@@ -189,17 +318,105 @@ def stories_repair_versions(flags: list[str]) -> None:
     print(f"stories\trepair-versions\t{lineage_id}\t{len(updates)} record(s) {'updated' if apply else 'would change (dry run)'}")
 
 
+def stories_head_index(flags: list[str]) -> None:
+    """papyrus stories head-index [--apply] [--dry-run] [--stage <stage> ...] [--rate <writes per second>]
+
+    Fills in, and checks, the head stage key on the site's story rows (docs/plans/story-head-stage-index.md): only the head row of each story
+    carries headStageKey, so the head stage index holds one row per story. Reads the old stage index once, stage by stage, picks each story's head
+    (the row marked current, else the one not superseded; the newest when a muddled story has several), sets the key on the head where it is
+    missing or wrong and removes it from any other row that is not superseded. A superseded row is never written. Only rows that differ are
+    written, each with its own updatedAt (no card jumps to the top of its column), at most --rate a second (default 5).
+
+    A DRY RUN unless --apply: it prints one line per row it would change, the muddled stories to fix with `stories repair-versions`, and a summary
+    (stories, heads to set, keys to remove, already right, muddled, no head, superseded with key). A dry run that reports 0 heads to set and 0 keys
+    to remove is the health check. Run it again after --apply: it writes nothing. On a site whose data API has no headStageKey yet the dry run
+    counts every head as needing it and --apply refuses (it needs the deploy that adds the head stage index)."""
+    from .story_head_index import DEFAULT_RATE, run_head_index
+
+    options = parse_options(flags)
+    apply = parse_boolean_option(options.get("apply"), default=False, label="--apply")
+    if apply and parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run"):
+        raise ValueError("Pass --apply or --dry-run, not both.")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    stages = tuple(parse_repeated_option(flags, "stage")) or None
+    client, _ = create_authoring_client()
+    run_head_index(client, apply=apply, stages=stages, rate=rate)
+
+
+def stories_languages(flags: list[str]) -> None:
+    """papyrus stories languages [--dry-run] [--rate <writes per second>]
+
+    Writes the language and the language group on every Item row written before those fields existed (src/papyrus_content/item_language.py,
+    docs/plans/multilingual-publishing.md): each such row is a primary-language row, so it gets the site's primary language (its editorial check
+    settings' languages.primary) and its own lineage as its language group. Reads the version-state index once, state by state (no table scan),
+    writes only rows that lack a field, each with its own updatedAt, at most --rate a second (default 5), and never changes a language a row has.
+
+    Writes by default; --dry-run prints one line per row it would write and a summary (rows read, rows to write, already right). A run that reports
+    0 rows to write is the health check; a second run writes nothing."""
+    from .item_language_backfill import DEFAULT_RATE, run_languages
+
+    options = parse_options(flags)
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    client, _ = create_authoring_client()
+    run_languages(client, primary=client.primary_language(), dry_run=dry_run, rate=rate)
+
+
+def stories_decks(flags: list[str]) -> None:
+    """papyrus stories decks [--dry-run] [--rate <writes per second>]
+
+    Brings the `deck` column of every Item and published row to the dek its own front matter holds (`dek`, else `deck`, `standfirst`, `description`:
+    src/papyrus_content/item_front_matter.py). Rows saved before the column was derived from `dek` can serve an older dek. Reads the version-state index
+    once (no table scan) and each published row by its id, writes only the derived `deck` of rows that differ (never front matter), each with its own
+    updatedAt, at most --rate a second (default 5). A row with no front matter is left alone.
+
+    Writes by default; --dry-run prints one line per row it would write and a summary (rows read, rows to write, already right). A second run writes nothing."""
+    from .item_deck_backfill import DEFAULT_RATE, run_decks
+
+    options = parse_options(flags)
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    rate = float(options.get("rate") or DEFAULT_RATE)
+    if rate <= 0 or rate > 25:
+        raise ValueError("--rate must be more than 0 and at most 25 writes a second.")
+    client, _ = create_authoring_client()
+    run_decks(client, dry_run=dry_run, rate=rate)
+
+
+def stories_backfill_published_dates(flags: list[str]) -> None:
+    """papyrus stories backfill-published-dates [--apply] [--rate <writes per second>]
+
+    Gives every published Story the dates it now means (docs/site-hosting.md, "Published and updated dates"): `publishedAt` = the Story's first publication and
+    `versionPublishedAt` / `versionPublishedBy` = when and by whom the served version went live, derived only from what its versions recorded. A Story whose first
+    publication cannot be derived (a version was taken down, or no version recorded a publish) is printed as an `unclear` line for a person to decide and its
+    `publishedAt` is left alone. A DRY RUN unless --apply: it prints one `set` line per row it would change, the `unclear` lines, and a summary (stories, rows to write,
+    already right, unclear). --apply writes only rows that differ, keeps each row's own updatedAt, and writes at most --rate a second (default 5); a second run
+    writes nothing. It needs the deploy that adds the two fields to Item and PublishedItem."""
+    from .story_published_dates import DEFAULT_RATE, run_backfill_published_dates
+
+    options = parse_options(flags)
+    apply = parse_boolean_option(options.get("apply"), default=False, label="--apply")
+    if apply and parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run"):
+        raise ValueError("Pass --apply or --dry-run, not both.")
+    client, _ = create_authoring_client()
+    run_backfill_published_dates(client, apply=apply, rate=float(options.get("rate") or DEFAULT_RATE))
+
+
 def stories_repair_image_paths(flags: list[str]) -> None:
     """papyrus stories repair-image-paths --story <lineage> [--write] [--bucket <bucket>] [--identity-pool-id <id>]
 
     Brings the pictures of a story saved with `save-version --images` before the one-key rule (a tenant site stored them at
     media/<tenant>/assets/<slug>/<file>) to media/assets/<slug>/<file>, the key the renditions are made and looked up under.
-    Objects are copied inside the bucket, not uploaded again, and the story's MediaAsset rows are pointed at the new keys; the old
-    objects stay. Dry run unless --write is given (the usual --dry-run default does not apply: this command only plans until told).
+    Objects are copied inside the bucket, not uploaded again (a row whose object is already at media/<srcPath> is only re-pointed), and the story's
+    MediaAsset and PublishedMediaAsset rows are pointed at the new keys; objects are never deleted. Dry run unless --write is given (the usual --dry-run default does not apply: this command only plans until told).
     Writing to the bucket needs the same access `save-version --images` does (the editor's temporary credentials when signed in).
     The copies make the bucket announce new objects, which is what makes the renditions; `papyrus ops content renditions --source
     assets/<slug>/<file>` asks for them again."""
-    from .story_image_repair import apply_image_path_repair, plan_image_path_repair, plan_lines, story_media_rows
+    from .story_image_repair import apply_image_path_repair, plan_image_path_repair, plan_lines, story_media_rows, story_published_media_rows
+    from .story_images import open_media_store
 
     options = parse_options(flags)
     if options.get("apply") is not None or options.get("dry-run") is not None:
@@ -207,18 +424,25 @@ def stories_repair_image_paths(flags: list[str]) -> None:
     write = parse_boolean_option(options.get("write"), default=False, label="--write")
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
-    plan = plan_image_path_repair(story_media_rows(client, lineage_id))
+    store = None
+    try:
+        store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
+    except Exception as error:   # a plan can still be printed without the bucket; --write cannot
+        if write:
+            raise
+        print(f"stories\trepair-image-paths\t{lineage_id}\tnote\tthe bucket was not checked: {error}")
+    plan = plan_image_path_repair(
+        story_media_rows(client, lineage_id), story_published_media_rows(client, lineage_id), exists=store.exists if store else None
+    )
     for line in plan_lines(lineage_id, plan):
         print(line)
     if not plan.needed:
         print(f"stories\trepair-image-paths\t{lineage_id}\tnothing to repair\t{plan.already_canonical} picture row(s) already at media/<srcPath>")
         return
     if not write:
-        print(f"stories\trepair-image-paths\t{lineage_id}\tdry run\t{len(plan.copies)} object(s) to copy, {len(plan.row_updates)} row(s) to update; pass --write to do it")
+        copies = len(plan.copies) - len(plan.repoint_only)
+        print(f"stories\trepair-image-paths\t{lineage_id}\tdry run\t{copies} object(s) to copy, {len(plan.row_updates)} media row(s) and {len(plan.published_row_updates)} published media row(s) to update; pass --write to do it")
         return
-    from .story_images import open_media_store
-
-    store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
     results = apply_image_path_repair(client, store, plan)
     for kind, subject, outcome in results:
         print(f"stories\trepair-image-paths\t{lineage_id}\t{kind}-{outcome}\t{subject}")
@@ -262,6 +486,91 @@ def stories_link_reference(flags: list[str]) -> None:
     print(f"stories\tlink-reference\t{lineage_id}\t{reference_id}\t{role}\twrite")
     print(f"stories\tlink-reference\t{result['outcome']}\t{result['relationId']}")
     print_reminder(client, lineage_id)
+
+
+def stories_link_story(flags: list[str]) -> None:
+    """papyrus stories link-story --story <lineage|slug> (--to <lineage|slug> [--to ...] | --reference <reference id> [--reference ...]) [--note <text>] [--author-label <name>] [--no-rerender] [--dry-run] [--json]
+
+    Links a story to one or more other stories (an article to related articles, a larger story to several posts) for its See also block. There is
+    one relation, `see_also`, and it cannot be chosen: no relation name is accepted (`--relation see_also` is tolerated, anything else is refused).
+    Every story must exist and none may be the story itself; all are checked before anything is written. The link is symmetric, so one that exists in
+    either direction is reported as `exists` and nothing is written (safe to repeat). A line per target gives its title, type and stage; a target that
+    is not published yet gets a warning on stderr, because the public See also block shows published stories only. Signed in, the link records the
+    person who signed in (--author-label is ignored); on the IAM lane --author-label is required. The `write` line prints only after the link was
+    saved. Links are only created: removing one is not a command yet (docs/story-reporting.md).
+
+    ``--reference REFERENCE_ID`` (repeatable, with or without --to) links the story to an accepted Reference with the same `see_also` ("read this source too";
+    directional, story to Reference). Every Reference must exist and be accepted, or nothing at all is written: only accepted References are shown on the
+    page, and there is no override. A line per Reference gives its title, host and curation status.
+
+    After a real write that created a link, the published stories whose page changed (both ends of a story link, the story of a Reference link) are re-rendered
+    at once with no purge (`rerender  LINEAGE  no purge  ok`; visible within about five minutes). A failure is a warning, never a failed command; --no-rerender skips it."""
+    from .operator_errors import OperatorError
+    from .story_links import STORY_LINK_RELATION, check_official_relation, link_story_set, resolve_link_targets
+    from .user_auth_mode import user_auth_requested
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories link-story")
+    story_ref = _required_option(options, "story")
+    reference_ids = parse_repeated_option(flags, "reference")
+    if not parse_repeated_option(flags, "to") and not reference_ids:
+        raise ValueError("--to or --reference is required (repeat either to link several).")
+    check_official_relation(options.get("relation"))
+    as_json = bool(options.get("json"))
+    as_person = user_auth_requested()
+    label = normalize_string(options.get("author-label"))
+    if not as_person and not label:
+        raise ValueError("--author-label is required on the IAM lane, where there is no sign-in to name the author.")
+    client, _ = create_authoring_client()
+    from .story_links import link_reference_set, resolve_link_references
+
+    if parse_repeated_option(flags, "to"):
+        story, others = resolve_link_targets(client, story_ref, parse_repeated_option(flags, "to"))
+    else:
+        from .story_links import resolve_story
+
+        story, others = resolve_story(client, story_ref), []
+    references = resolve_link_references(client, reference_ids)   # all checked before anything is written
+    lineage_id = story.get("lineageId") or story["id"]
+    author = None
+    if apply:
+        if as_person:
+            if label:
+                print("stories\tlink-story\twarning\t--author-label is ignored: the link records the person who signed in.", file=sys.stderr)
+            from .cli_user_auth import signed_in_label
+
+            author = signed_in_label(client.endpoint)
+            if not author:
+                raise OperatorError("The link was not saved: the signed-in session names no one. Run `papyrus whoami` to check it.")
+        else:
+            author = label
+
+    def show(row: dict) -> None:
+        if as_json:
+            return
+        print("\t".join(["stories", "link-story", lineage_id, row["lineageId"], STORY_LINK_RELATION, row["title"], f"type {row['type']}", f"stage {row['stage']}", row["outcome"]]))
+        if row.get("warning"):
+            print(f"stories\tlink-story\twarning\t{row['warning']}", file=sys.stderr)
+
+    def show_reference(row: dict) -> None:
+        if as_json:
+            return
+        print("\t".join(["stories", "link-story", lineage_id, row["referenceId"], STORY_LINK_RELATION, row["title"], f"host {row['host']}", f"status {row['status']}", row["outcome"]]))
+        if row.get("warning"):
+            print(f"stories\tlink-story\twarning\t{row['warning']}", file=sys.stderr)
+
+    note = normalize_string(options.get("note"))
+    rows = link_story_set(client, story, others, actor=author, note=note, apply=apply, on_row=show)
+    reference_rows = link_reference_set(client, story, references, actor=author, note=note, apply=apply, on_row=show_reference)
+    from .story_rerender import announce, progress_line, rerender_after_write
+
+    wrote = [row for row in rows if row["outcome"] == "write"]
+    changed = [lineage_id, *(row["lineageId"] for row in wrote)] if wrote or any(row["outcome"] == "write" for row in reference_rows) else []
+    done = rerender_after_write(client, changed, enabled=apply and not parse_boolean_option(options.get("no-rerender"), default=False, label="--no-rerender"), progress=progress_line)
+    if as_json:
+        print(json.dumps({"ok": True, "story": lineage_id, "dryRun": not apply, "links": rows, "referenceLinks": reference_rows, "rerendered": done["rerendered"]}, indent=2))
+    announce(done, quiet=as_json)
+
 
 
 def _one_line(error: BaseException) -> str:
@@ -356,19 +665,67 @@ def stories_agent_note(flags: list[str]) -> None:
 
 
 def stories_show(flags: list[str]) -> None:
-    """papyrus stories show --story <lineage>"""
+    """papyrus stories show --story <lineage> [--bucket day|week|none] [--json]
+
+    A scheduled version adds a `schedule` line: its state (scheduled, publishing, blocked or overdue), version, the UTC time and who scheduled it
+    (`papyrus stories schedule-list --story` shows the publication's local time).
+    --json prints only the story, its `related` stories (either end of a link: title, type, stage, published, note) and `unofficialRelations`
+    (item-to-item relations whose name is not the official `see_also`, which the See also block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     versions = story_versions(client, lineage_id)
     latest = current_story_version(client, lineage_id) if versions else {}
+    if options.get("json"):
+        from .story_links import related_references, related_stories, unofficial_item_relations
+
+        print(json.dumps({"ok": True, "story": lineage_id, "title": latest.get("headline") or latest.get("title"), "type": latest.get("type"), "stage": latest.get("stage"),
+                          "related": related_stories(client, lineage_id) if versions else [],
+                          "relatedReferences": related_references(client, lineage_id) if versions else [],
+                          "unofficialRelations": unofficial_item_relations(client, lineage_id) if versions else []}, indent=2))
+        return
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
     metadata = latest.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    from .quality_ranking import utc_today
+    from .projection.standard.config import DEFAULT_STORY_BUCKET
+    from .story_signals import signals
+
+    if versions:
+        print_console_rows("stories", "show", lambda base: story_links(base, lineage_id, latest["id"], f"editor page of the current version (version {latest.get('versionNumber')})"))
+        signal = signals(latest, normalize_string(options.get("bucket")) or DEFAULT_STORY_BUCKET, utc_today())
+        print("\t".join(["stories", "show", "signals", f"type {signal['type']}", f"section {signal['section']}", f"bucket {signal['bucket']}",
+                         f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
+        if signal["source"] == "editor":
+            print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+        from .pod_claims import claim_lines
+
+        for line in claim_lines(latest):
+            print("\t".join(["stories", "show", "claim", line]))
+        from datetime import datetime, timezone
+
+        from .story_schedule import BLOCKED_MESSAGE, BLOCKED, OVERDUE, effective_state, scheduled_versions
+
+        for row in scheduled_versions(client, lineage_id):
+            state = effective_state(row, datetime.now(timezone.utc))
+            note = BLOCKED_MESSAGE if state == BLOCKED else ("overdue: publish it now or schedule it again" if state == OVERDUE else "")
+            print("\t".join(["stories", "show", "schedule", state, f"version {row.get('versionNumber')}", f"publish at {row.get('scheduledPublishAt')} (UTC)", f"by {row.get('scheduledBy')}", note]))
     for move in metadata.get(STAGE_MOVES_KEY) or []:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
+    if versions:
+        from .story_links import related_stories, unofficial_item_relations
+
+        for linked in related_stories(client, lineage_id):
+            print("\t".join(["stories", "show", "related", linked["lineageId"], linked["title"], f"type {linked['type']}", f"stage {linked['stage']}", str(linked.get("note") or "")]))
+        from .story_links import related_references
+
+        for linked in related_references(client, lineage_id):
+            print("\t".join(["stories", "show", "see-also-reference", linked["referenceId"], linked["title"], f"host {linked['host']}", f"status {linked['status']}", str(linked.get("note") or "")]))
+        for odd in unofficial_item_relations(client, lineage_id):
+            print("\t".join(["stories", "show", "unofficial-relation", odd["relationId"], odd["predicate"], odd["otherLineageId"], "seeded type" if odd["knownType"] else "unknown name",
+                             "not shown as a Related story"]))
     for message in story_messages(client, lineage_id):
         summary = " ".join(str(message.get("summary") or message.get("content") or "").split())
         print("\t".join(["stories", "show", "message", str(message.get("createdAt") or ""), f"{message.get('authorLabel') or message.get('role') or 'unknown'} ({message.get('messageKind') or 'message'})", summary]))
@@ -380,54 +737,183 @@ def stories_show(flags: list[str]) -> None:
 
 
 def stories_list(flags: list[str]) -> None:
-    """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--limit N]
+    """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--type article|post] [--stars N | --min-stars N | --max-stars N]
+    [--sort updated|stars|rank] [--bucket day|week|none] [--limit N]
 
-    Read only. One line per Story (its lineage id, the id `stories show --story` takes), newest change first. Without --stage it lists
-    every board stage except spiked and held."""
-    from .content_item_lifecycle import CONTENT_ITEM_STAGES, SYSTEM_ITEM_TYPES, require_content_item_stage
-    from .editorial_context import find_section
+    Read only. Every Story of the stage (or of every board stage), one line each, whether it is still a draft or already published: the same Stories the Stories
+    board shows (a replaced, superseded version is never a Story of its own). The last line is `stories list N of TOTAL`: --limit N (default 50) prints the
+    first N, so a TOTAL above N means more exist; raise --limit to see them. One line per Story: stories, list, lineage id (the id `stories show --story` takes), stage, section, title, then the signals the layouts use:
+    stars (the effective quality rating, 0 unrated), source (editor|none), votes, bucket (the rolling window, week:0 is the last seven days), type, words,
+    published (last-published date). Without --stage it lists every board stage except spiked and held. --sort updated (default) is newest change first;
+    --sort stars is rated high to low, unrated last; --sort rank is what the Articles and Posts page shows first (newest bucket first, rated Stories first
+    inside it): it uses the projection's own ranking code with the site's default bucket, or --bucket. --stars 0 finds unrated Stories; --min-stars and
+    --max-stars match rated Stories only. Ratings are private newsroom data."""
+    from .story_signals import list_stories, optional_stars
 
     options = parse_options(flags)
-    stage = normalize_string(options.get("stage"))
-    if stage:
-        require_content_item_stage(stage)
-    stages = [stage] if stage else [name for name in CONTENT_ITEM_STAGES if name not in ("held", "spiked")]
     limit = int(normalize_string(options.get("limit")) or 50)
     client, _ = create_authoring_client()
-    section_id = None
-    if normalize_string(options.get("section")):
-        section = find_section(client, str(options["section"]))
-        if not section:
-            raise ValueError(f"Unknown NewsroomSection {options['section']}.")
-        section_id = section["id"]
-    rows = []
-    for name in stages:
-        rows += client.list_by_index("itemsByStage", name)
-    rows = [row for row in rows if row.get("versionState", "current") == "current" and row.get("type") not in SYSTEM_ITEM_TYPES
-            and (section_id is None or row.get("section") == section_id)]
-    found = client.get_records_by_id("Item", [row["id"] for row in rows])
-    stories = [found[row["id"]] for row in rows if row["id"] in found]
-    stories.sort(key=lambda story: str(story.get("updatedAt") or ""), reverse=True)
-    for story in stories[:max(limit, 1)]:
-        print("\t".join(["stories", "list", str(story.get("lineageId") or story["id"]), str(story.get("stage") or ""),
-                         str(story.get("section") or ""), str(story.get("headline") or story.get("title") or "")]))
-    print(f"stories\tlist\t{min(len(stories), max(limit, 1))} of {len(stories)}")
+    stories, total = list_stories(
+        client, stage=normalize_string(options.get("stage")), section=normalize_string(options.get("section")), story_type=normalize_string(options.get("type")),
+        stars=optional_stars(options, "stars"), min_stars=optional_stars(options, "min-stars"), max_stars=optional_stars(options, "max-stars"),
+        sort=normalize_string(options.get("sort")) or "updated", bucket=normalize_string(options.get("bucket")), limit=limit)
+    for story in stories:
+        print("\t".join(["stories", "list", str(story["lineageId"]), story["stage"], story["section"], story["title"], str(story["stars"]), story["source"],
+                         str(story["votes"]), story["bucket"], story["type"], str(story["words"]), story["published"]]))
+    print(f"stories\tlist\t{len(stories)} of {total}")
+
+
+def stories_set_stars(flags: list[str]) -> None:
+    """papyrus stories set-stars --story <lineage> --stars <0-5> [--agent <your name>] [--dry-run]
+
+    Sets the editor's rating of a Story (1 to 5; 0 clears it) as the signed-in person, through the newsroom's setItemStars mutation (the one the console
+    calls), which also re-renders the listing pages whose order changed. It does not republish the Story. It writes unless you pass --dry-run. It sets the
+    editor value only; `stories show` also prints the effective rating, which can differ once votes are aggregated."""
+    from .story_signals import set_story_stars, validated_stars
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories set-stars")
+    lineage_id = _required_option(options, "story")
+    if options.get("stars") is None or options.get("stars") is True:
+        raise ValueError("stories set-stars requires --stars 0 to 5 (0 clears the rating).")
+    stars = validated_stars(options["stars"])
+    client, _ = create_authoring_client()
+    result = set_story_stars(client, lineage_id, stars, apply=apply, agent=normalize_string(options.get("agent")))
+    print("\t".join(["stories", "set-stars", lineage_id, f"previous {result['previous']}", f"stars {result['stars']}", "editor value",
+                     "write" if result["applied"] else "dry-run: nothing sent"]))
 
 
 def stories_next(flags: list[str]) -> None:
     """papyrus stories next --story <lineage> [--json]
 
-    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md)."""
+    Read only. One answer about what remains (docs/story-procedure.md). The Story's stored checklist decides each step's state; the records only add a
+    `hint` where they differ. Lines, tab-separated: `status` (complete, ready, blocked or stale; the number still to do; why), a `step` line per step
+    (state done, skipped, not_applicable, not_done or stale), a `version` line per checklist step (the Story version it was recorded against and
+    `current` or `STALE: recorded against vN, story is now vM`), `hint`, the stored `item` and `note` lines and the `checklist progress` line, then
+    a `remaining` line per step still to do (in order), `next` (the first), `skipped` and one `lens` line per review step not current. A review lens
+    or the copy edit recorded done against an earlier version is stale and remains until it is recorded again for the current version."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
-    assessment = assess(story_facts(client, lineage_id))
+    facts = story_facts(client, lineage_id)
+    from .newsroom_process import Procedure, hint_lines, remaining_lines, resolve, status_lines, version_lines
+    from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
+
+    raw = read_steps(client, lineage_id)   # one index read by Story lineage
+    assessment = resolve(assess(facts), raw, facts)   # the stored checklist decides; the records only hint
+    procedure = Procedure.from_spec(facts.get("procedureSpec"))
+    stored = steps_for_display(raw, lineage_id, procedure)
+    stale_count = len(assessment["stale"])
+    states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}   # the lens steps as resolved, stale included
     if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
+                          "currentVersion": facts["versionNumber"], "checklist": stored,
+                          "progress": progress_text(summary_of(stored, procedure), stale_count) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    for line in step_lines(assessment) + next_lines(assessment):
+    lines = (status_lines(assessment) + step_lines(assessment) + version_lines(assessment) + hint_lines(assessment) + checklist_lines(stored, stale_count)
+             + remaining_lines(assessment) + next_lines(assessment) + lens_lines(states, lineage=lineage_id))
+    for line in lines:
         print(line)
+
+
+def stories_step(flags: list[str]) -> None:
+    """papyrus stories step --story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]
+
+    Marks one step of the Story's checklist and records who did it and when. A skipped or not-applicable step needs --reason; a review step needs --note
+    (the findings) to be done; only a person reopens a step (--state open). With --note and no --state it adds a note to the step and changes nothing
+    else: notes accumulate (who, when, text), can be added to any step in any state, and are never edited or deleted. The change records the Story version it was made against;
+    a done review or copy edit reads STALE in `stories next` once the Story has a newer version, until you record it again. --agent NAME says an agent made the change; without it the actor is a person."""
+    from .story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories step")
+    lineage_id = _required_option(options, "story")
+    key = _required_option(options, "step")
+    state = normalize_string(options.get("state"))
+    if state is None and not normalize_string(options.get("note")):
+        raise ValueError("--state is required (or --note alone, to add a note without changing the state).")
+    agent = normalize_string(options.get("agent"))
+    actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": agent or normalize_string(options.get("actor-label")) or "papyrus-cli"}
+    if not apply:
+        print(f"stories\tstep\t{lineage_id}\t{key}\t{state or 'note'}\tdry run")
+        return
+    client, _ = create_authoring_client()
+    if state is None:   # a note on its own: the step's state, reason and findings stay as they are
+        from .story_checklist import add_note
+
+        try:
+            row = add_note(client, lineage_id, key, normalize_string(options.get("note")) or "", actor=actor)
+        except ChecklistError as error:
+            raise ValueError(str(error)) from error
+        print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\tnote\twrite\t{len(row['notes'])} notes")
+        return
+    try:
+        row = set_step(client, lineage_id, key, state, actor=actor, reason=normalize_string(options.get("reason")),
+                       note=normalize_string(options.get("note")), evidence=normalize_string(options.get("evidence")))
+    except ChecklistError as error:
+        raise ValueError(str(error)) from error
+    print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\t{row['state']}\twrite")
+
+
+def stories_checklist_backfill(flags: list[str]) -> None:
+    """papyrus stories checklist-backfill [--dry-run] [--stage STAGE ...] [--page-size N]
+
+    The one-time sweep that gives every existing Story a checklist, published ones included (docs/story-procedure.md). Steps are marked done where a
+    record proves them (including the publish step of a published Story) and left open otherwise; the four review lenses start open. A Story that
+    already has a full checklist is left alone, so running it again is safe. Paged by stage, newest first. With --dry-run nothing is written and the
+    counts say what would be."""
+    from .story_checklist import backfill
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories checklist-backfill")
+    stages = tuple(parse_repeated_option(flags, "stage")) or None
+    client, _ = create_authoring_client()
+    from . import request_meter
+
+    with request_meter.sweep("stories-checklist-backfill"):   # a declared sweep: every Story, one stage at a time, in pages
+        counts = backfill(client, apply=apply, stages=stages, page_size=int(options.get("page-size") or 50))
+    print(f"stories\tchecklist-backfill\t{'write' if apply else 'dry run'}\t" + "\t".join(f"{name} {value}" for name, value in counts.items()))
+
+def stories_lens_check(flags: list[str]) -> None:
+    """papyrus stories lens-check --story <lineage> [--lens people|agents|search|social] [--static <web directory>] [--no-network] [--json]
+
+    Read only; it writes nothing. Runs the checks of the four review lenses that code can run on the Story's current version and prints each finding
+    with its state (Looks fine, Needs a look, Problem, Could not check), plain words and where to look. Four problems must be fixed before a lens
+    step can close as done: an image with no alt text, a third-party image with no credit, a video with no title or no credit and a Markdown copy that differs from the source.
+    --static names the site's web directory (it holds projection.json; default PAPYRUS_SITE_STATIC_DIR); without it the checks that need the site's
+    settings say they could not be checked (docs/four-lens-review.md). The social lens fetches the planned share picture (status, type, format, size);
+    --no-network skips that fetch and the check reports the picture as not verified."""
+    from .audience_lenses import LENS_VERSION, STATE_LABELS
+    from .lens_evidence import blockers, load_site, not_run, run_checks, story_from_row, summarize
+    from .story_reporting import current_story_version
+    from .story_types import SITE_STATIC_DIRECTORY_ENV
+
+    options = parse_options(flags)
+    lineage_id = _required_option(options, "story")
+    lens = normalize_string(options.get("lens"))
+    static = normalize_string(options.get("static")) or os.environ.get(SITE_STATIC_DIRECTORY_ENV, "").strip() or None
+    client, _ = create_authoring_client()
+    story = story_from_row(current_story_version(client, lineage_id))
+    site = load_site(static)
+    from .share_image_check import fetch_over_http
+
+    findings = run_checks(story, site, lens=lens, fetch_image=None if options.get("no-network") else fetch_over_http)
+    counts, problems, skipped = summarize(findings), blockers(findings), not_run(lens)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": lineage_id, "versionId": story.version_id, "versionNumber": story.version_number, "lensVersion": LENS_VERSION,
+                          "siteSettingsRead": site is not None, "findings": findings, "counts": counts, "problems": [row["check"] for row in problems], "notRun": skipped}, indent=2))
+        return
+    print(f"stories\tlens-check\t{lineage_id}\tversion {story.version_number}\t{story.version_id}\tlens definition {LENS_VERSION}")
+    labels = dict(STATE_LABELS)
+    labels["not_applicable"] = "Not applicable"
+    for row in findings:
+        print("\t".join(["finding", row["step"], row["check"], labels[row["state"]], row["severity"] or "n/a", row["message"]]))
+    for step, found in counts.items():
+        print("\t".join(["summary", step, *(f"{label}: {found.get(state, 0)}" for state, label in STATE_LABELS)]))
+    for row in problems:
+        print("\t".join(["blocked", row["step"], row["check"], "fix this before the step can close as done", row["message"]]))
+    print(f"notrun\t{len(skipped)} checks were not run (they need a model, the rest of the site or a person): " + ", ".join(row["check"] for row in skipped))
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -508,8 +994,55 @@ def stories_set_slug(flags: list[str]) -> None:
         print(f"stories\tset-slug\tprojection\t{json.dumps(outcome)}")
 
 
+def chosen_story_type(options: dict[str, Any], *, static_directory: Path | None = None) -> str | None:
+    """The ``--type`` of a command, checked: a lowercase Story type name that is not a system type, and, when the site's own list is known (a ``projection.json`` in
+    ``PAPYRUS_SITE_STATIC_DIR`` or in ``./web``), one of the types the site offers. With no list the name is accepted with a note, never guessed."""
+    from .story_types import SITE_STATIC_DIRECTORY_ENV, read_projection_settings, require_story_type, story_types_from_mapping
+
+    raw = normalize_string(options.get("type"))
+    if not raw:
+        return None
+    name = require_story_type(raw, "--type")
+    directory = static_directory
+    if directory is None:
+        configured = (os.environ.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
+        directory = Path(configured) if configured else (Path("web") if Path("web/projection.json").is_file() else None)
+    offered = story_types_from_mapping(read_projection_settings(directory)).offered if directory is not None else ()
+    if offered and name not in offered:
+        raise ValueError(f"--type {name!r} is not one of this site's Story types ({', '.join(offered)}).")
+    if not offered:
+        print(f"stories\ttype\tnote\t{name} was not checked against the site's list of types (run from the site checkout or set {SITE_STATIC_DIRECTORY_ENV})")
+    return name
+
+
+def stories_set_type(flags: list[str]) -> None:
+    """papyrus stories set-type --story <lineage|slug> --type <article|post|...> [--dry-run]
+
+    Changes the type of a story that is not published yet (a draft, idea or in review). A published story is refused: its page lives at an address that
+    depends on its type, so that change is not made from the CLI."""
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories set-type")
+    story = _required_option(options, "story")
+    new_type = chosen_story_type({**options, "type": _required_option(options, "type")})
+    client, _ = create_authoring_client()
+    lineage_id = story
+    if not story_versions(client, lineage_id):
+        raise ValueError(f"No story found for {story}. Give the story's lineage id (see papyrus stories list).")
+    if published_story_version(client, lineage_id) is not None:
+        raise ValueError("That story is published, so its type cannot be changed here: its page address depends on the type. Take it down first (stories withdraw) or ask for the change in the newsroom.")
+    latest = current_story_version(client, lineage_id)
+    if latest.get("type") == new_type:
+        print(f"stories\tset-type\tunchanged\t{lineage_id}\t{new_type}")
+        return
+    print(f"stories\tset-type\t{lineage_id}\t{latest.get('type')} -> {new_type}\t{'write' if apply else 'dry run'}")
+    if not apply:
+        return
+    client.update_record("Item", {"id": latest["id"], "type": new_type, "typeStatus": f"{new_type}#{latest.get('status') or 'draft'}", "updatedAt": utc_now_iso()})
+    print(f"stories\tset-type\tdone\t{latest['id']}\t{new_type}")
+
+
 def stories_create(flags: list[str]) -> None:
-    """papyrus stories create --title <text> [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--reference <reference id> ...] [--with-assignment]
+    """papyrus stories create --title <text> [--type article|post|...] [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--reference <reference id> ...] [--with-assignment]
 
     Each ``--reference`` is the Reference the story is based on: it is linked ``based_on`` (docs/reference-curation-pipeline.md)."""
     options = parse_options(flags)
@@ -522,28 +1055,61 @@ def stories_create(flags: list[str]) -> None:
     section_key = normalize_string(options.get("section"))
     summary = normalize_string(options.get("summary")) or title
     actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
+    story_type = chosen_story_type(options)
     if not apply:
-        print(f"stories\tcreate\t{title}\tstage {stage}\tdry run")
+        print(f"stories\tcreate\t{title}\tstage {stage}\ttype {story_type or 'site default'}\tdry run")
+        if reference_ids:
+            print(f"stories\tcreate\tbased on\t{len(reference_ids)} reference(s) would be attached: {', '.join(reference_ids)}")
         if options.get("with-assignment"):
-            print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
+            print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened (the Story's --type is not the Assignment's type)")
         return
     client, _ = create_authoring_client()
-    item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor)
+    item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor, item_type=story_type)
     lineage_id = item["lineageId"]
-    print(f"stories\tcreate\t{title}\tstage {stage}\twrite")
+    print(f"stories\tcreate\t{title}\tstage {stage}\ttype {item.get('type')}\twrite")
+    if item.get("type") == "untyped":
+        print("stories\tcreate\twarning\tthis story has no type and cannot be published until it has one: run papyrus stories set-type --story <lineage> --type post|article")
     print(f"stories\tcreate\tcreated\t{item['id']}")
     print(f"stories\tcreate\tlineage\t{lineage_id}")
+    print_console_rows("stories", "create", lambda base: story_links(base, lineage_id, item["id"], "editor page of the first version"))
+    attached, unattached = [], []
     for reference_id in reference_ids:
-        linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor)
+        # The story record is passed in: the lineage index is eventually consistent and may not show a story created a moment ago.
+        try:
+            linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor, story=item)
+        except Exception as error:  # noqa: BLE001 - one bad Reference must not drop the others or the assignment
+            unattached.append((reference_id, str(error).splitlines()[0] if str(error) else type(error).__name__))
+            print(f"stories\tcreate\tnot attached\t{reference_id}\t{unattached[-1][1]}")
+            continue
+        attached.append(linked["referenceLineageId"])
         print(f"stories\tcreate\tbased on\t{linked['referenceLineageId']}")
     from .story_triggers import deliver_from_environment
 
     deliver_from_environment(client, lineage_id)   # a story created at a stage has entered it
+    failure = None
     if options.get("with-assignment"):
         from .assignments_workflow import create_reporting_assignment
 
-        create_reporting_assignment(client, {**options, "content-item": lineage_id, "summary": summary})
+        # The Story's --type (article, post) is not the Assignment's type: this command only opens a reporting.candidate.
+        assignment_options = {k: v for k, v in options.items() if k != "type"}
+        try:
+            create_reporting_assignment(client, {**assignment_options, "type": "reporting.candidate", "content-item": lineage_id, "summary": summary})
+        except Exception as error:  # noqa: BLE001 - the Story and its References already exist; say so and exit non-zero
+            failure = str(error).splitlines()[0] if str(error) else type(error).__name__
     print_reminder(client, lineage_id)
+    if failure is not None or unattached:
+        parts = [f"Story created (lineage {lineage_id}), references attached: {len(attached)}"]
+        if unattached:
+            parts.append("not attached: " + "; ".join(f"{ref} ({why})" for ref, why in unattached))
+        if failure is not None:
+            parts.append(f"assignment NOT created: {failure}")
+        print("stories\tcreate\tsummary\t" + ", ".join(parts), file=sys.stderr)
+        if failure is not None:
+            print(f"stories\tcreate\tretry\tpapyrus assignments create-reporting --title {json.dumps(title)} --content-item {lineage_id}"
+                  + (f" --section {section_key}" if section_key else ""), file=sys.stderr)
+        if unattached:
+            print(f"stories\tcreate\tretry\tpapyrus stories link-reference --story {lineage_id} --reference <id>", file=sys.stderr)
+        raise SystemExit(1)
 
 
 PUBLISHED_STAGE_WARNING = (
@@ -555,8 +1121,9 @@ PUBLISHED_STAGE_WARNING = (
 def stories_move(flags: list[str]) -> None:
     """papyrus stories move --story <lineage> --stage <stage> [--reason <text>] [--author-label <name>]
 
-    Only the board stage changes. With --stage published it prints a warning on stderr: no page is published;
-    `papyrus ops content publish` does that."""
+    Only the board stage changes (board-only). With --stage published it prints a warning on stderr: no page is published;
+    `papyrus ops content publish` does that. Likewise --stage spiked takes no page down: a published Story stays live.
+    To take a published Story's page down, run `papyrus stories withdraw`; `stories restore` brings it back."""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories move")
     lineage_id = _required_option(options, "story")
@@ -583,10 +1150,63 @@ def stories_move(flags: list[str]) -> None:
         from .story_triggers import deliver_from_environment
 
         deliver_from_environment(client, lineage_id)
-    assessment = reminder_assessment(client, lineage_id)
+    assessment = reminder_assessment(client, lineage_id, sync_checklist=True)
     if assessment is not None and result["changed"] and _moved_forward(result):
         warn_skipped(assessment)
     print_next_lines(assessment)
+
+
+def _withdrawal_options(flags: list[str], label: str) -> tuple[dict, bool]:
+    from .page_refresh.cli import _explicit
+
+    options = parse_options(_explicit(flags))
+    return options, resolve_mutation_apply(options, label)
+
+
+def _run_withdrawal(flags: list[str], label: str, function) -> None:
+    from .story_withdrawal import render_lines
+
+    options, apply = _withdrawal_options(flags, label)
+    lineage_id = _required_option(options, "story")
+    allowed = normalize_string(options.get("force-paths"))
+    if allowed and (not allowed.isdigit() or int(allowed) < 1):
+        raise ValueError("--force-paths needs a whole number of paths you accept for this one call, for example --force-paths 40.")
+    client, claims = create_authoring_client()
+    actor = normalize_string(options.get("author-label")) or normalize_string((claims or {}).get("sub")) or "papyrus-cli"
+    extra = {"reason": normalize_string(options.get("reason"))} if label == "stories withdraw" else {}
+    result = function(
+        client, lineage_id, actor=actor, dry_run=not apply, run=parse_boolean_option(options.get("run"), default=False, label="--run"),
+        force_paths=int(allowed) if allowed else None, **extra,
+    )
+    for line in render_lines(result):
+        print(line)
+    if result["status"] == "refused":
+        raise SystemExit(2)
+    if result.get("ok") is False:
+        raise SystemExit(1)
+
+
+def stories_withdraw(flags: list[str]) -> None:
+    """papyrus stories withdraw --story <lineage> [--reason <text>] [--author-label <name>] [--run] [--force-paths N] [--dry-run]
+
+    Takes a published Story down safely. It prints the exact plan first (the Story page and Markdown twin, every index page that lists it, the
+    invalidation paths with their count and cost), refuses above the 25-path cap unless --force-paths N, and with more than 5 paths is a dry
+    run until you repeat it with --run. Then it unpublishes the Story, has the site project the pages away, moves the board stage to spiked,
+    records who withdrew it and why on the Story, and purges exactly the planned paths. Withdrawing a withdrawn Story only says so.
+    The old address then shows the site's 404 page. `papyrus stories restore` brings the Story back."""
+    from .story_withdrawal import withdraw_story
+
+    _run_withdrawal(flags, "stories withdraw", withdraw_story)
+
+
+def stories_restore(flags: list[str]) -> None:
+    """papyrus stories restore --story <lineage> [--author-label <name>] [--run] [--force-paths N] [--dry-run]
+
+    Republishes the version `stories withdraw` took down, puts the stage back to published, clears the withdrawal record, projects the
+    pages again and purges the same kind of exact plan. Refuses when nothing was withdrawn."""
+    from .story_withdrawal import restore_story
+
+    _run_withdrawal(flags, "stories restore", restore_story)
 
 
 def _moved_forward(result: dict) -> bool:
@@ -658,3 +1278,297 @@ def stories_fire_triggers(flags: list[str]) -> None:
 
     client, _ = create_authoring_client()
     deliver_from_environment(client, _required_option(options, "story"))
+
+
+def stories_localize_all(options: dict) -> None:
+    """``papyrus stories localize --all``: the whole-site backfill (``localize/backfill.py``). One tab-separated row per Story and language, then a totals row."""
+    from .editorial_checks import GraphQLEditorialStore, settings_from
+    from .editorial_languages import site_language
+    from .language_serving import serving_languages
+    from . import request_meter
+    from .localize import backfill
+    from .localize.record import collect
+    from .localize.start import default_procedure_key, openai_key, run_from_cli
+    from .projection_trigger import item_task, trigger_projection
+    from .site_selection import host_for
+    from .user_auth_mode import iam_requested
+
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    publish_clean = parse_boolean_option(options.get("publish-clean"), default=False, label="--publish-clean")
+    as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
+    every_language = parse_boolean_option(options.get("all-languages"), default=False, label="--all-languages")
+    if options.get("story"):
+        raise ValueError("--all translates every Story; to translate one, leave --all out.")
+    if bool(every_language) == bool(normalize_string(options.get("language"))):
+        raise ValueError("--all needs exactly one of --language TAG and --all-languages.")
+    ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
+    concurrency = normalize_positive_integer(options.get("concurrency"), "--concurrency") or backfill.DEFAULT_CONCURRENCY
+    automation = normalize_string(options.get("automation"))
+    window = backfill.UpdatedWindow.parse(options.get("updated-since"), options.get("updated-before"))
+    client, _ = create_authoring_client()
+    settings = settings_from(GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
+    serving = serving_languages(settings)
+    languages = [tag for tag in serving.enabled if tag != serving.primary] if every_language else [site_language(options["language"], settings)]
+    if not languages:
+        raise ValueError(f"The site writes only in {serving.primary}: there is no language to translate into.")
+    if serving.primary in languages:
+        raise ValueError(f"{serving.primary} is the site's primary language; Stories are written in it.")
+    procedure = normalize_string(options.get("procedure"))
+    if not automation:
+        procedure = procedure or default_procedure_key(host_for(client.endpoint))
+    jobs = backfill.survey(client, settings, languages, window=window)
+    if window is not None and not jobs:
+        if as_json:
+            print(json.dumps({"dryRun": dry_run, "languages": languages, "updated": window.describe(), "undated": window.undated, "rows": [], "message": window.empty_message()}, ensure_ascii=False))
+        else:
+            print("\t".join(["stories", "localize", "none", window.empty_message()]))
+        return
+    todo = [job for job in jobs if job.status == backfill.PLANNED]
+    request_meter.add_units(len(todo))   # each Story and language still to do is a unit of work the request budget allows for
+    summary: dict = {}
+    if dry_run:
+        procedure = procedure or (backfill_procedure_of(client, automation) if automation else None)
+        summary = backfill.plan_cost(client, jobs, procedure_key=procedure, ceiling_usd=ceiling, collect=collect)
+    elif todo or publish_clean:
+        if not iam_requested() and (publish_clean or not automation):
+            raise ValueError("This runs or publishes as the operator: use `papyrus --auth iam` (AWS credentials for the site)."
+                             + (" To only queue the runs for the site's runner, name it with --automation." if not automation else ""))
+        project = lambda worker, version_id, published_id: trigger_projection(item_task(version_id, unpublished=False, published_item_id=published_id))  # noqa: E731
+        if automation:
+            backfill.queue_all(client, jobs, automation_id=automation, publish=publish_clean)
+            if publish_clean:
+                backfill.publish_saved(client, jobs, settings, project=project)
+        else:
+            backfill.run_all(client, jobs, client_factory=lambda: create_authoring_client()[0], run=run_from_cli, settings=settings,
+                             publish_clean_results=publish_clean, concurrency=concurrency, ceiling_usd=ceiling, procedure_key=procedure,
+                             key=openai_key(options.get("openai-key-parameter")), project=project)
+    if as_json:
+        print(json.dumps({"dryRun": dry_run, "languages": languages, **({"updated": window.describe(), "undated": window.undated} if window else {}), "rows": [job.row() for job in jobs], **summary}, ensure_ascii=False))
+    else:
+        if window is not None:
+            print("\t".join(["stories", "localize", "window", f"Stories updated {window.describe()}" + (f"; {window.undated} with no publish time left out" if window.undated else "")]))
+        for line in backfill.table(jobs):
+            print("\t".join(["stories", "localize", line]))
+        if dry_run:
+            print("\t".join(["stories", "localize", "plan", f"{len(todo)} to do, predicted ${summary['predictedUsd']:.4f}"
+                            + (f", {summary['withoutPrediction']} with no measured run of their language to predict from" if summary["withoutPrediction"] else "")]))
+    failed = [job for job in jobs if job.status == backfill.FAILED]
+    if failed:
+        raise ValueError(f"{len(failed)} of {len(jobs)} translations failed. Run the same command again: it does only what remains, and a failed run continues from its finished stages.")
+
+
+def backfill_procedure_of(client, automation_id: str) -> str | None:
+    from .localize.record import automation_procedure_key
+
+    return automation_procedure_key(client, automation_id)
+
+
+def stories_correct_translation(flags: list[str]) -> None:
+    """papyrus stories correct-translation --story LINEAGE --language TAG --edits-file FILE --edited-by PERSON --reason TEXT [--approved-by PERSON] [--publish [--verify]] [--dry-run] [--json]
+
+    Saves a person's correction of a translation as a new version of ``<story>--<language>``. FILE is JSON: ``[{"from": "old wording", "to": "new wording"}]``
+    (add ``"every": true`` to change every occurrence; otherwise the old wording must occur exactly once). Each block an edit changes becomes the person's:
+    owner human, pinned, so a later translation run keeps it exactly. The provenance of the new version records who edited (--edited-by, also the version's
+    author), who applied it (the signed-in session), the reason, each changed block before and after and, when given, who approved it (--approved-by).
+    The approver is metadata only: it is never written into the page. A correction never changes a link target, a credit or another fixed part of a block.
+
+    Writes by default; --dry-run prints each changed block before and after and writes nothing. --publish then publishes the new version exactly as
+    ``papyrus ops content publish --id VERSION_ID`` does (a held translation still needs its review request answered); --verify, with --publish, waits for
+    the public page. Without --publish the version stays a draft. See docs/story-translation-procedure.md, "A person's correction"."""
+    from .localize.correct import correct_translation, edits_from
+
+    options = parse_options(flags)
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    edits_file = _required_option(options, "edits-file")
+    edited_by = _required_option(options, "edited-by")
+    reason = _required_option(options, "reason")
+    approved_by = normalize_string(options.get("approved-by"))
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    publish = parse_boolean_option(options.get("publish"), default=False, label="--publish")
+    verify = parse_boolean_option(options.get("verify"), default=False, label="--verify")
+    as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
+    if verify and not publish:
+        raise ValueError("--verify waits for the public page, so it goes with --publish.")
+    if publish and dry_run:
+        raise ValueError("--publish and --dry-run together would publish nothing; drop one.")
+    edits = edits_from(json.loads(Path(edits_file).read_text(encoding="utf-8")))
+    client, claims = create_authoring_client()
+    applied_by = normalize_string((claims or {}).get("sub")) or "papyrus-cli"
+    correction = correct_translation(client, story=story, language=language, edits=edits, edited_by=edited_by, applied_by=applied_by, reason=reason,
+                                     approved_by=approved_by, apply=not dry_run)
+    record = correction.record
+    if as_json:
+        print(json.dumps({"dryRun": dry_run, "lineage": correction.lineage, "changed": correction.changed, "versionId": record["id"] if record else None,
+                          "published": False}, ensure_ascii=False))
+    else:
+        for item in correction.changed:
+            print("\t".join(["stories", "correct-translation", correction.lineage, f"block {item['block']}", item["kind"], "before", item["before"]]))
+            print("\t".join(["stories", "correct-translation", correction.lineage, f"block {item['block']}", item["kind"], "after", item["after"]]))
+        print("\t".join(["stories", "correct-translation", correction.lineage, "dry run" if dry_run else f"saved {record['id']}", f"{len(correction.changed)} block(s) pinned to {edited_by}"]))
+    if publish and record:
+        from .publish_commands import content_publish
+
+        content_publish(["--id", record["id"], *(["--verify"] if verify else []), *(["--json"] if as_json else [])])
+
+
+def stories_import_translation(flags: list[str]) -> None:
+    """papyrus stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]
+
+    Attaches finished copy, written separately by people or other agents, as the translation of a published Story. It saves the copy as the next version of
+    ``<story>--<language>`` the way the translation procedure saves one (unpublished, paired with the English version it translates, the original's
+    pictures carried, its address drafted by the language's slug policy), with the writer as its author and a provenance that says the copy was written,
+    not machine-generated. The version's front matter gets ``author: NAME`` (--written-by) and, only with --drafting-by-ai (bots helped write the copy),
+    ``drafting: {by: AI}``, in place of the English's; the site's standard byline reads from those two keys ("By NAME", or "By various bots and NAME") and is
+    translated into the page's language like every byline. The page of an imported translation says nothing of who translated it, only where the original is. Every block is the writer's: owner human, pinned, so a later translation run keeps the copy exactly.
+
+    FILE is the body in Markdown. The front matter is YAML with the Story's own reader-facing texts (title, dek or deck, and blurb and imageAlt when the
+    English has them), in its own file or as a leading --- block of the body file. The copy must have the English's blocks in the same order (blocks are
+    separated by blank lines), the same link targets, web addresses, citations, credits and figure settings, and the English's code blocks and rules; a copy
+    that does not line up, or changes one of those, is refused and nothing is saved. No model is called: the parity and glossary rules and the language's
+    copy-edit policies check each block and the whole body. An error-severity faithfulness finding holds the version (a flag review request a person
+    answers before it publishes), exactly as it holds a machine translation; other findings are printed as advice.
+
+    The Story must be published, in a language the site writes in, and not itself a translation. The command also writes the Story's translation request
+    finished, so ``papyrus stories localize --all`` counts the language up to date. It never publishes: use ``papyrus ops content publish --id VERSION_ID``.
+
+    Writes by default; --dry-run prints the alignment and the findings and writes nothing. See docs/story-translation-procedure.md, "Finished copy"."""
+    from .localize.import_copy import import_translation
+
+    options = parse_options(flags)
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    body_file = _required_option(options, "body-file")
+    front_matter_file = normalize_string(options.get("front-matter-file"))
+    written_by = _required_option(options, "written-by")
+    reason = _required_option(options, "reason")
+    drafting_by_ai = parse_boolean_option(options.get("drafting-by-ai"), default=False, label="--drafting-by-ai")
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
+
+    def read(path: str, flag: str) -> str:
+        if not Path(path).is_file():
+            raise ValueError(f"{flag} {path} is not a file.")
+        return Path(path).read_text(encoding="utf-8")
+
+    body = read(body_file, "--body-file")
+    front_matter = read(front_matter_file, "--front-matter-file") if front_matter_file else None
+    client, claims = create_authoring_client()
+    applied_by = normalize_string((claims or {}).get("sub")) or "papyrus-cli"
+    done = import_translation(client, story=story, language=language, body=body, front_matter=front_matter, written_by=written_by, applied_by=applied_by,
+                              reason=reason, drafting_by_ai=drafting_by_ai, apply=not dry_run)
+    record = done.record
+    if as_json:
+        print(json.dumps({"dryRun": dry_run, "lineage": done.lineage, "language": done.language, "blocks": done.pairs, "findings": done.findings,
+                          "held": done.held, "reason": done.reason, "reviewRequest": done.review_request, "replaces": done.replaces,
+                          "unchanged": done.unchanged, "versionId": record["id"] if record else None, "published": False}, ensure_ascii=False))
+        return
+    row = lambda *cells: print("\t".join(["stories", "import-translation", done.lineage, *cells]))  # noqa: E731
+    for pair in done.pairs:
+        row(f"block {pair['block']}", pair["kind"], "aligned", pair["english"].replace("\n", " ")[:80], "->", pair["copy"].replace("\n", " ")[:80])
+    for finding in done.findings:
+        row(f"block {finding['block']}" if finding["block"] else "body", finding["kind"], f"{finding['severity']} {finding['category']}", finding["policy"],
+            finding["message"], finding["excerpt"])
+    if done.replaces:
+        row("replaces", f"version {done.replaces['versionNumber']}", f"{done.replaces['translation']} copy, {done.replaces['status']}", "kept in the version history")
+    status = "held: flag review request " + str(done.review_request) + " (" + done.reason + ")" if done.held else "no error findings"
+    if dry_run:
+        row("dry run", f"{len(done.pairs)} block(s) aligned", status)
+    else:
+        row("unchanged" if done.unchanged else f"saved {record['id']}", f"{len(done.pairs)} block(s) pinned to {written_by}", status)
+
+
+def stories_localize(flags: list[str]) -> None:
+    """papyrus stories localize --story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run] [--json]
+
+    Asks for a translation of a published Story into one language (the Story translation procedure, papyrus.story.localize): writes the
+    desired-state record for the Story and language (LocalizationRequest: the newest published source version), then runs the site's registered
+    ``story_localize`` procedure for it. The run translates only the blocks whose source changed, checks every block against the English, polishes
+    until the findings stop shrinking and saves the result as an unpublished version of <story>--<language>; it never publishes.
+
+    Without --automation the run happens here, through the procedure runner's own code (a ProcedureRun records its status, usage and cost; the engine
+    records the outcome on the request): it needs the operator lane (``papyrus --auth iam``), the procedure registered under --procedure (default
+    SITE.story-localize), and the model key in OPENAI_API_KEY or --openai-key-parameter. With --automation ID the site's runner starts it instead.
+    Either way the procedure's earlier runs give the cost prediction.
+
+    Writes by default; --dry-run prints the plan (blocks to translate, glossary terms the translator will be given, the predicted cost from this
+    language's measured runs) and writes nothing.
+
+    Whole site: ``papyrus stories localize --all (--language TAG | --all-languages) [--publish-clean] [--dry-run] [--concurrency N] [--ceiling-usd N]
+    [--updated-since DATE|7d|1w] [--updated-before DATE|7d|1w] [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--json]`` finds every published primary-language Story with no up-to-date
+    translation in the language (or in every enabled language) and runs them all, printing one row per Story and language (saved, held, failed,
+    up to date, cost). ``--updated-since`` / ``--updated-before`` (an ISO date or datetime in UTC, or a duration such as 7d, 36h, 1w before now) keep only the
+    Stories whose current published version was published in the range (inclusive start, exclusive end), for every mode including ``--publish-clean``.
+    See ``localize/backfill.py``."""
+    from .localize.desired_state import want
+    from .localize.record import collect
+    from .story_reporting import published_story_version
+
+    options = parse_options(flags)
+    if parse_boolean_option(options.get("all"), default=False, label="--all"):
+        return stories_localize_all(options)
+    if options.get("updated-since") or options.get("updated-before"):
+        raise ValueError("--updated-since and --updated-before narrow --all; to translate one Story, name it with --story.")
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
+    automation = options.get("automation") or None
+    procedure = options.get("procedure") or None
+    client, _ = create_authoring_client()
+    if not dry_run and not automation:
+        from .localize.start import default_procedure_key, openai_key
+        from .site_selection import host_for
+
+        from .user_auth_mode import iam_requested
+
+        if not iam_requested():
+            raise ValueError("A run started here executes the procedure in a child process that signs as the operator: use `papyrus --auth iam` "
+                             "(AWS credentials for the site), or start it through an automation with --automation.")
+        procedure = procedure or default_procedure_key(host_for(client.endpoint))
+        key = openai_key(options.get("openai-key-parameter"))
+    request = collect(client, story=story, language=language, judge=None, procedure_version="plan", ceiling_usd=ceiling,
+                      automation_id=automation, procedure_key=procedure)
+    from .localize.plan import plan_of
+
+    plan = plan_of(request, story=story)
+    if dry_run:
+        print("\t".join(["stories", "localize", "plan", json.dumps(plan, ensure_ascii=False)]))
+        return
+    source = published_story_version(client, story)
+    record = want(client, source=source, language=request.language, requested_by="cli")
+    if not automation:
+        from .localize.start import run_from_cli
+
+        result = run_from_cli(client, story=story, language=request.language, ceiling_usd=ceiling, procedure_key=procedure, key=key)
+        print("\t".join(["stories", "localize", "ran", record["id"], f"source v{record['sourceVersionNumber']}", "run", str(result.get("runId")),
+                         str(result.get("runStatus")), f"cost ${result.get('costUsd')}", json.dumps(result.get("output") or {}, ensure_ascii=False)]))
+        if result.get("runStatus") != "completed":
+            raise ValueError(f"The translation is requested ({record['id']}), but the run {result.get('runId')} failed: {result.get('error')}. "
+                             "Run the same command again: a failed run continues from its finished stages.")
+        return
+    from .automations_signed_in import RUN_MUTATION
+
+    answer = client.graphql(RUN_MUTATION, {"automationId": automation, "input": json.dumps({"story": story, "language": request.language,
+                                                                                               "ceiling_usd": ceiling or 0})})
+    started = answer.get("runAutomation")
+    started = json.loads(started) if isinstance(started, str) else (started or {})
+    if started.get("state") != "started":
+        raise ValueError(f"The translation is requested ({record['id']}), but the automation {automation} did not start: "
+                         f"{started.get('reason') or started.get('state') or 'no answer'}. Start it again with the same command.")
+    print("\t".join(["stories", "localize", "requested", record["id"], f"source v{record['sourceVersionNumber']}", "run", str(started.get("key"))]))
+
+
+def stories_import_edition(flags: list[str]) -> None:
+    """Save independent original-language copy; no translation or publication."""
+    from .authored_editions import import_edition
+    options = parse_options(flags)
+    arguments = {name.replace("-", "_"): _required_option(options, name)
+                 for name in ("story", "language", "written-by", "author-kind", "reason")}
+    body = Path(_required_option(options, "body-file")).read_text(encoding="utf-8")
+    front = Path(_required_option(options, "front-matter-file")).read_text(encoding="utf-8")
+    client, claims = create_authoring_client()
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    result = import_edition(client, **arguments, body=body, front_matter=front,
+                            applied_by=normalize_string((claims or {}).get("sub")) or "papyrus-cli", apply=not dry_run)
+    print(json.dumps({**result, "dryRun": dry_run}, ensure_ascii=False))

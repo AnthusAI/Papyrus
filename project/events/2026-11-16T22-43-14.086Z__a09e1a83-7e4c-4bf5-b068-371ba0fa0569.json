@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "a09e1a83-7e4c-4bf5-b068-371ba0fa0569",
+  "issue_id": "PPY-ad70873b-3a5b-4509-9cc2-06d5a85bcdc0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:14.086Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Intake and capture as an agent",
+    "description": "Reference capture, summary and (for papers) citation extraction run today as a procedure the router starts per new Reference. Give it a definition; wake it from the Reference change feed; keep its rules (never change curation status, never overwrite a person's text). Automatic acceptance becomes this responsibility's highest rung, with its learned threshold unchanged.\n\n**Acceptance criteria**\n- A new Reference is captured and summarised once.\n- Acceptance happens only at the rung that allows it.\n- Behaviour on Distinctive and the Hacker News sites is unchanged.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- intake-agent.feature: a new pending Reference is captured once; a person's pasted text is kept; at a low rung nothing is accepted; at the top rung acceptance follows the learned threshold.\n\n**Infrastructure as code touched:** Monitoring stack: router sends wakes.\n\n**Part of:** Every other responsibility as an agent. Slice code M1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

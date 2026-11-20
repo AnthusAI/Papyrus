@@ -1,0 +1,44 @@
+schemaVersion: 1
+record: Illustration
+title: Illustration
+summary: >-
+  The Illustration step of a Story: a picture is needed, candidates are made, one is chosen, and it is placed with alt text and its credit. When the step runs unattended the
+  agent makes one image; when a person is choosing it may make several. A generated image carries no credit; a third-party image is always credited. The step cannot close
+  with missing alt text or a missing third-party credit.
+stages:
+  - id: needed
+    title: Needed
+    mover: engine
+    person: never
+    text: A Story of a type the site requires a cover for (the design setting illustrationRequiredTypes, articles by default) needs a picture before it can be published.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: A Story that needs a picture stays at the Illustration step until the evidence proves one; the step shows as open and an open step with no run is Overdue.
+  - id: candidates
+    title: Candidates made
+    mover: illustrate
+    person: never
+    text: Unattended, the agent makes one image. When a person is choosing it may make several. A request for a figure from another agent is an Assignment.
+    nobodyActs:
+      kind: moves_on
+      text: The candidates wait to be chosen; a person chooses at the rung prepare, and above it the agent chooses the one it made.
+  - id: chosen
+    title: Chosen
+    mover: illustrate
+    person: by_policy
+    rung: publish_soft
+    text: Below the rung publish_soft a person chooses the picture; above it the agent that made the candidate chooses it.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: Candidates nobody chose stay candidates. Nothing is chosen, discarded or placed by itself below the rung.
+  - id: placed
+    title: Placed
+    mover: illustrate
+    person: never
+    text: The step closes only when the records prove the cover. Alt text must describe the picture, and a generated cover has no credit line. A third-party picture must keep its own credit line; without one the step stays open.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: A cover with missing alt text, or a third-party picture with no credit, keeps the step open and says why.

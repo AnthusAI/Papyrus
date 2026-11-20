@@ -1,0 +1,39 @@
+{
+  "id": "PPY-63d31b49-17d9-495c-b224-4b4a7cd2fdda",
+  "title": "Policy resume() on an unnamed agent is a silent no-op",
+  "description": "**Problem.** In the policy package, `resume()` on an agent the policy document does not name changes a throwaway dict and reports nothing. That is a silent no-op: the caller believes the agent was resumed.\n\n**Change.** `resume()` on an agent the document does not name raises a clear error (or returns an explicit result the caller must handle), and the operator command shows it. No catch-and-continue.\n\n**Acceptance criteria**\n- `resume()` of an unnamed agent fails loudly with the agent's name.\n- `resume()` of a paused agent clears the pause and the change is stored.\n- The same behaviour shows through the command or runner path a site uses.\n\n**Gherkin features needed**\n- agent-policy-resume.feature: 'resuming an agent the policy does not name is refused'; 'resuming a paused agent clears the pause'.\n\n**Dependencies:** relates PPY-51ea61 (closed) and the runner-reads-policy task (PPY-c8175e); the two touch the same package, so do them in order, policy-read first.\n\n**Report:** papyrus-track-report-1.md, section 2 (Silent catch-and-continue).",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-c8175e05-51a3-474e-aa93-2b33d6a312cf",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "42c458a0-a487-4997-8da8-e414e9c87dc8",
+      "author": "home",
+      "text": "Merged to develop in #1635 (merge commit): resume() of an unnamed agent raises invalid_input naming it; nothing written. Gherkin: agent-policy-resume.feature. No operator command exists yet (H3, PPY-e6f31e), so the error will show through it when it lands. Not released.",
+      "created_at": "2026-11-17T02:04:42.346335Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-17T01:17:40.438785Z",
+  "updated_at": "2026-11-17T02:04:42.469156Z",
+  "closed_at": "2026-11-17T02:04:42.469137Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

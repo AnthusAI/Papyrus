@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
+from .content_item_lifecycle import without_sub_tasks
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
@@ -39,7 +39,7 @@ from .options import (
     parse_options,
     resolve_mutation_apply,
 )
-from .records import apply_record_changes, build_record_changes, build_record_changes_tolerating_optional_models
+from .records import apply_record_changes, build_record_changes
 from .reference_policy import normalize_reference_curation_status
 from .publication import publication_corpus_key
 
@@ -60,18 +60,18 @@ ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_ASSIGNMENT_TYPES = ("research.*", "repo
 
 
 def writable_run_dir(run_id: str) -> Path:
-    """The directory for one run's files: under the repository's ``.papyrus-runs``, or under the system temporary directory when that place cannot be written
-    (a Lambda's code directory is read-only), so a run that has nothing to do with the disk never dies on it."""
-    preferred = PAPYRUS_ROOT / ".papyrus-runs" / run_id
+    """The directory for one run's files: ``PAPYRUS_RUNS_DIR`` when the environment sets it (a Lambda sets it to a directory under /tmp,
+    because its code directory is read-only), else the repository's ``.papyrus-runs``. A directory that cannot be written is an error."""
+    configured = str(os.environ.get("PAPYRUS_RUNS_DIR") or "").strip()
+    base = Path(configured) if configured else PAPYRUS_ROOT / ".papyrus-runs"
+    run_dir = base / run_id
     try:
-        preferred.mkdir(parents=True, exist_ok=True)
-        if os.access(preferred, os.W_OK):
-            return preferred
-    except OSError:
-        pass
-    fallback = Path(tempfile.gettempdir()) / ".papyrus-runs" / run_id
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+        run_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise OSError(f"Cannot create the run directory {run_dir}: {error}. Set PAPYRUS_RUNS_DIR to a writable directory.") from error
+    if not os.access(run_dir, os.W_OK):
+        raise OSError(f"The run directory {run_dir} is not writable. Set PAPYRUS_RUNS_DIR to a writable directory.")
+    return run_dir
 
 
 def normalize_research_mode(value: Any) -> str:
@@ -138,6 +138,22 @@ def run_papyrus_cli_json(args: list[str]) -> dict[str, Any]:
     if completed.returncode != 0:
         raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "papyrus command failed")
     return json.loads(completed.stdout)
+
+
+def _checklist_for_new_content_item(client, new_content_item_version: dict[str, Any] | None) -> None:
+    """An Assignment that mints a new Story also makes the Story's checklist (every path that makes a Story does)."""
+    if new_content_item_version:
+        from .story_checklist import ensure_for_new_story
+
+        ensure_for_new_story(client, new_content_item_version["lineageId"])
+
+
+def _sync_checklist_of_assignment(client, assignment: dict[str, Any]) -> None:
+    """A research packet is evidence for its Story's research step: bring the checklist up to date once."""
+    if assignment.get("itemLineageId"):
+        from .story_checklist import sync_checklist
+
+        sync_checklist(client, assignment["itemLineageId"], write_summary=False)   # this runs under the research worker role: no Item writes
 
 
 def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:
@@ -286,6 +302,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         print(f"assignments\tcreate-research\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,
@@ -421,6 +438,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         print(f"assignments\tcreate-reporting\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,
@@ -1017,6 +1035,7 @@ def apply_research_packet(client: PapyrusGraphQLAuthoringClient, options: dict[s
         print("assignments\tapply-research-packet\tapply\tskipped\tuse --dry-run to preview without writes")
         return result
     apply_record_changes(client, changes)
+    _sync_checklist_of_assignment(client, assignment)
     update_newsroom_summary_after_research_packet_creates(
         client,
         changes,
@@ -1173,6 +1192,7 @@ def apply_reporting_packet(client: PapyrusGraphQLAuthoringClient, options: dict[
         print("assignments\tapply-reporting-packet\tapply\tskipped\tuse --dry-run to preview without writes")
         return result
     apply_record_changes(client, changes)
+    _sync_checklist_of_assignment(client, assignment)
     update_newsroom_summary_after_research_packet_creates(
         client,
         changes,
@@ -2383,7 +2403,7 @@ def backfill_section_indexes(client: PapyrusGraphQLAuthoringClient, options: dic
 
 def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
     apply = resolve_mutation_apply(options, "assignments backfill-content-items")
-    items = client.list_records("Item")
+    items = without_sub_tasks(client.list_records("Item"))
     lineage_id_by_item_id = {item["id"]: item.get("lineageId") or item["id"] for item in items if item.get("id")}
     assignments = client.list_records("Assignment")
     reporting_assignments = [
@@ -2442,7 +2462,7 @@ def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[
 
 def demote_undrafted_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
     apply = resolve_mutation_apply(options, "assignments demote-undrafted-content-items")
-    items = client.list_records("Item")
+    items = without_sub_tasks(client.list_records("Item"))
     reporting_assignments = [
         assignment
         for assignment in client.list_records("Assignment")
@@ -2498,14 +2518,14 @@ def list_assignments_for_object(client: PapyrusGraphQLAuthoringClient, options: 
     state_key = f"{kind}#{lineage}#current"
     relations = [
         relation
-        for relation in client.list_records("SemanticRelation")
+        for relation in client.list_semantic_relations_by_object_state(state_key)   # the object-state index: this object's relations only
         if relation.get("relationState") == "current"
         and relation.get("objectStateKey") == state_key
         and relation.get("subjectKind") == "assignment"
         and (relation.get("relationTypeKey") or relation.get("predicate")) == "requests_work_on"
     ]
     assignment_ids = {relation["subjectId"] for relation in relations}
-    assignments = [row for row in client.list_records("Assignment") if row.get("id") in assignment_ids]
+    assignments = list(client.get_records_by_id("Assignment", sorted(assignment_ids)).values())
     assignments.sort(key=assignment_sort_key)
     for assignment in assignments:
         print(f"{assignment.get('status')}\t{assignment.get('id')}\t{assignment.get('assignmentTypeKey')}\t{assignment.get('title')}")
@@ -2627,7 +2647,7 @@ def review_reporting_packet(
         actor_sub=auth_claims.get("sub"),
         semantic_relations=relations,
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments review-reporting-packet")
     if apply:
         apply_record_changes(client, changes)
@@ -2686,7 +2706,7 @@ def run_copywriting_assignment(
         actor_label=actor_label,
         actor_sub=auth_claims.get("sub"),
     )
-    changes = build_record_changes_tolerating_optional_models(client, plan["records"])
+    changes = build_record_changes(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments run-copywriting")
     from .story_from_reference import check_body_against_references, current_reference
     from .story_reporting import BASED_ON, link_reference_to_story

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from papyrus_content.env import load_dotenv
-from papyrus_content.graphql_http import authoring_credentials_available
+from papyrus_content.graphql_http import require_lane_ready
 
 from ..config import OperatorConfig, resolve_default_corpus_key
 from ..errors import OperatorError
@@ -30,12 +30,10 @@ class CloudBackend(OperatorBackend):
     load_dotenv()
     if self._fixture_root():
       return
-    if not authoring_credentials_available():
-      raise OperatorError(
-        "No AWS credentials for cloud authoring. Set AWS_PROFILE to a profile that can assume the "
-        "papyrus-authoring role (for example: aws sso login --profile <profile>).",
-        exit_code=2,
-      )
+    try:
+      require_lane_ready()
+    except ValueError as error:   # the operator lane was named and has no AWS credentials
+      raise OperatorError(str(error), exit_code=2) from None
 
   def list_references(
     self,
@@ -85,11 +83,12 @@ class CloudBackend(OperatorBackend):
   def _require_known_corpus(self, corpus_key: str) -> None:
     """An empty list is only an empty corpus when the corpus exists; a key that names nothing is an error, not an empty table."""
     from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.tenant_knowledge_keys import corpus_id_for_key, corpus_key_of, own_corpora
 
     client, _ = create_authoring_client()
-    if client.get_record("KnowledgeCorpus", f"knowledge-corpus-{corpus_key}"):
+    if client.get_record("KnowledgeCorpus", corpus_id_for_key(corpus_key)):
       return
-    served = [str(row.get("id") or "").removeprefix("knowledge-corpus-") for row in client.list_by_index("knowledgeCorporaByRoleAndName", "canonical")]
+    served = [corpus_key_of(str(row.get("id") or "")) for row in own_corpora(client.list_by_index("knowledgeCorporaByRoleAndName", "canonical"))]
     hint = f" This site serves {', '.join(served)}." if served else ""
     raise OperatorError(f"Unknown corpus {corpus_key}: no such KnowledgeCorpus.{hint} Pass --corpus-key <key>, or omit it to use the site's own corpus.")
 
@@ -106,12 +105,13 @@ class CloudBackend(OperatorBackend):
     self._ensure_auth()
     from papyrus_content.graphql_authoring import create_authoring_client
     from papyrus_content.story_reporting import current_reference
+    from papyrus_content.tenant_knowledge_keys import corpus_key_of
 
     client, _ = create_authoring_client()
     record = current_reference(client, reference_id)
     if record is None:
       raise OperatorError(f"Reference not found: {reference_id}. Pass an id or lineage id that `papyrus stories show` or `references list` prints.")
-    record_corpus = str(record.get("corpusId") or "").removeprefix("knowledge-corpus-")
+    record_corpus = corpus_key_of(str(record.get("corpusId") or ""))
     if corpus_key and record_corpus != corpus_key:
       raise OperatorError(f"Reference {reference_id} is in corpus {record_corpus or 'none'}, not {corpus_key}.")
     return _reference_row(record, record_corpus)

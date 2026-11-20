@@ -1,0 +1,52 @@
+{
+  "id": "PPY-2f9b223c-2e69-4f1d-83ef-019f15778b29",
+  "title": "Preferences: choose a cadence; consent is never assumed",
+  "description": "The reader's preferences page shows each family as one choice (every new item, daily summary, off) and each newsletter as a tick. Changing cadence inside a family the reader already consented to needs no new confirmation; joining a new family or newsletter does. A reader is never enrolled in a list by a migration or a new feature: a new list starts empty. Consent evidence (wording, time, form) is stored per family.\n\n**Acceptance criteria**\n- A new list has no members until readers choose it.\n- Switching cadence keeps consent; a new family asks for it.\n- Unsubscribe from one message removes that list only; 'unsubscribe from everything' removes all.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- subscription-preferences.feature: a new daily list starts empty; a weekly subscriber is not added to it; switching every-item to daily needs no new opt-in; joining a new family sends a confirmation; one-click unsubscribe is honoured before the next send.\n\n**Infrastructure as code touched:** Caducus and the notifications plugin pages.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N7 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-a19b9ddc-3e7a-49fe-a6f6-648c8cbb73a0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "1f45d471-f5e1-402f-acd0-29442a9c7d76",
+      "author": "home",
+      "text": "Branch feat/PPY-2f9b22-subscription-preferences; PR opened against develop (see PR for acceptance table).",
+      "created_at": "2026-11-19T05:13:08.745002Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "db11a92f-1ce1-4867-bfa9-cb26039d0d23",
+      "author": "home",
+      "text": "PR #1703 (branch feat/PPY-2f9b22-subscription-preferences).",
+      "created_at": "2026-11-19T05:13:34.074612Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "7b8ab101-46af-4edb-be9e-aa454c6dc1de",
+      "author": "home",
+      "text": "Merged to develop in PR #1703 (cadence choice per family; a new family asks for consent by confirmation mail, never assumed).",
+      "created_at": "2026-11-19T07:24:29.314864Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:43:18.302984Z",
+  "updated_at": "2026-11-19T07:24:30.378686Z",
+  "closed_at": "2026-11-19T07:24:30.378392Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -123,6 +123,8 @@ def test_an_exclude_decision_is_recorded_too_with_a_low_probability(world):
 
 def test_the_decision_input_is_the_title_and_address_only_with_no_page_fetch_and_no_summary_model(world):
     world.ask()
+    for row in lane_rows(world.table):
+        row["predictFor"].pop("enrich")   # a request queued before enrichment existed
     world.drain(enricher=object())   # an enricher that would explode if it were used
     (post,) = world.cyclotron.posts()
     values = post[2]["payload"]["item"]["values"]
@@ -233,6 +235,27 @@ def test_a_catalog_import_of_many_is_one_row_each_and_the_router_works_through_t
     assert not lane_rows(world.table)
 
 
+def test_the_pass_reads_the_references_and_relations_of_its_requests_in_batches_and_decides_the_same(world):
+    rows = [reference_row(f"reference-import-{n}-v1", sourceUri=f"https://example.org/p{n}", title=f"Paper {n}") for n in range(30)]
+    for row in rows:
+        world.client.rows[("Reference", row["id"])] = row
+    batches = []
+
+    def get_many(model, ids):
+        batches.append(("get_many", model, len(ids)))
+        return {record_id: dict(world.client.rows[(model, record_id)]) for record_id in ids if (model, record_id) in world.client.rows}
+
+    def index_many(index, keys):
+        batches.append(("index_many", index, len(keys)))
+        return {key: world.client.list_by_index(index, key) for key in keys}
+
+    world.client.get_many, world.client.index_many = get_many, index_many
+    world.ask([request_of(row) for row in rows])
+    world.drain(time_left=lambda: 1e9)
+    assert batches == [("get_many", "Reference", 30), ("index_many", "semanticRelationsBySubjectState", 30)]
+    assert all(reference(world, row["id"]).get("predictedAcceptProbability") is not None for row in rows)
+
+
 def test_the_router_stops_at_its_time_budget_and_the_rest_wait_in_the_lane(world):
     rows = [reference_row(f"reference-import-{n}-v1", sourceUri=f"https://example.org/p{n}", title=f"Paper {n}") for n in range(4)]
     for row in rows:
@@ -270,7 +293,7 @@ def test_the_lambda_that_creates_the_reference_queues_it_and_reports_a_failure_i
     arguments = {"items": [{"source_uri": URL, "title": "Typed by the editor", "ingestion_rationale": "r"}]}
     env = {"PAPYRUS_GRAPHQL_ENDPOINT": ENDPOINT_ANTH}
     ok = queue.queue_after_intake(created, arguments, env=env, store=world.queue_store)
-    assert ok == {"requested": 2, "ok": True, "queued": 2, "alreadyQueued": 0}   # the new Reference and the one that arrived already voted; not the reused one
+    assert ok == {"requested": 2, "ok": True, "queued": 2, "alreadyQueued": 0, "videos": 0}   # the new Reference and the one that arrived already voted; not the reused one
     row = next(row for row in lane_rows(world.table) if row["predictFor"]["referenceId"] == "reference-user-intake-aaa-v1")
     assert row["title"] == "Typed by the editor"
     broken = queue.queue_after_intake(created, arguments, env={"PAPYRUS_GRAPHQL_ENDPOINT": "https://zzz.appsync-api.us-east-1.amazonaws.com/graphql"}, store=world.queue_store)
@@ -389,6 +412,24 @@ def test_the_by_hand_command_reads_the_prediction_index_once_and_queues_only_tho
     assert client.asked == [("referencesByFeedStateAndPrediction", unrated), ("referencesByFeedStateAndPrediction", rated)] * 2
     assert sorted(row["predictFor"]["referenceId"] for row in lane_rows(operator.table)) == ["reference-a-v1", "reference-d-v1"]   # an accepted one too
     commands.references_queue_predictions(["--site", "anth-us"])   # again: nothing new is queued, nothing breaks
+    assert len(lane_rows(operator.table)) == 2
+
+
+def test_the_enrichment_backfill_queues_enrich_only_requests_for_uncaptured_references_and_is_idempotent(operator, monkeypatch, capsys):
+    from papyrus_content import references_commands as commands
+    unrated = f"{CORPUS}#unrated"
+    rows = [reference_row("reference-a-v1", sourceUri="https://example.org/a", feedStateKey=unrated),
+            reference_row("reference-b-v1", sourceUri="https://example.org/b", feedStateKey=unrated, captureState="full"),
+            reference_row("reference-c-v1", sourceUri="https://www.youtube.com/watch?v=dQw4w9WgXcQ", feedStateKey=unrated, predictedAcceptProbability=0.4)]
+    monkeypatch.setattr(commands, "create_authoring_client", lambda: (Listing(rows), {}))
+    commands.references_queue_enrichment(["--site", "anth-us", "--dry-run"])
+    out = capsys.readouterr().out
+    assert "needing-enrichment\t2\tdry-run" in out and "1 video needs a local run" in out and not lane_rows(operator.table)
+    commands.references_queue_enrichment(["--site", "anth-us"])
+    assert "enrichment\trequested\t2" in capsys.readouterr().out
+    assert sorted(row["predictFor"]["referenceId"] for row in lane_rows(operator.table)) == ["reference-a-v1", "reference-c-v1"]
+    assert all(row["predictFor"]["enrichOnly"] for row in lane_rows(operator.table))
+    commands.references_queue_enrichment(["--site", "anth-us"])
     assert len(lane_rows(operator.table)) == 2
 
 

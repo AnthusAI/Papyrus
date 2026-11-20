@@ -103,12 +103,18 @@ def counts(context, items: int, media: int) -> None:
     assert context.report.media_uploaded == media, context.report.media_uploaded
 
 
-@then("the article \"{item_id}\" is published with the alias \"{alias}\"")
-def published_with_alias(context, item_id: str, alias: str) -> None:
+@then("the article \"{item_id}\" is saved as a draft with the alias \"{alias}\"")
+def draft_with_alias(context, item_id: str, alias: str) -> None:
     item = context.client.get_record("Item", item_id)
-    assert item["status"] == "published"
-    assert context.client.get_record("PublishedItem", "published-" + item_id) is not None
+    assert item["status"] == "draft"
+    assert context.client.get_record("PublishedItem", "published-" + item_id) is None
     assert item["aliases"] == [alias], item["aliases"]
+
+
+@then("the page \"{item_id}\" is published")
+def page_published(context, item_id: str) -> None:
+    assert context.client.get_record("Item", item_id)["status"] == "published"
+    assert context.client.get_record("PublishedItem", "published-" + item_id) is not None
 
 
 @then("everything is unchanged")

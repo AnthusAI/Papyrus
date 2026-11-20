@@ -1,0 +1,33 @@
+{
+  "id": "PPY-8195a4e2-c9b0-4c9c-963e-871a6c6a3b09",
+  "title": "Anth.us knowledge base as a private pod",
+  "description": "Anth.us stays a cloud newsroom. Its knowledge-base repository (46 story folders) becomes a private typed pod that may feed the newsroom: type the finished articles, then first feed into the Anth.us newsroom after the Pilobolus load. Once a record is edited in the newsroom the newsroom owns it. Permanent ids live on the owner's own address.\n\n**Acceptance criteria**\n- The pod passes pod check and loads privately; nothing is published by the load.\n- First feed into the Anth.us newsroom runs after the Pilobolus wiki load.\n- Uses Gherkin features from slices 12 and 13.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-50a7f594-a703-476f-af89-1d013cbfbaa6",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "b4c412dc-59c3-438a-a3c6-b38e20e36ee9",
+      "author": "home",
+      "text": "lead8: not started. The work is in another repository (the Anth.us knowledge base, 46 story folders at ~/Projects/anthus-semantic-knowledge-base), not in Papyrus, so it is outside this worktree's scope; and its acceptance needs a load into the live Anth.us newsroom after the Pilobolus wiki load, which is a live step. What Papyrus now provides for it: papyrus pod check/load for typed notes (merged), and the Announcement/Delivery notes load as history (PR #1723). Question for Ryan: should the typing of the 46 folders be done by an agent in that repository (a pod needs permanent ids and typed front matter per note, committed there), and may the first private load into Anth.us run once the Pilobolus load is done?",
+      "created_at": "2026-11-19T11:58:05.397319Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T21:48:38.975488Z",
+  "updated_at": "2026-11-19T11:58:05.398005Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

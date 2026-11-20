@@ -2,10 +2,13 @@
 
 ``select`` names one of three orderings of the snapshot's References (``recent`` and ``confident`` take accepted ones, ``recommended``
 takes the ones not yet accepted). ``confident`` and ``recommended`` use the shared order, an editor's rating and then the Cyclotron's confidence
-(``home_page/ordering.py``); ``recent`` is newest accepted first. ``bucket="day"`` or ``bucket="week"`` puts the newest bucket first and the shared
+(``quality_ranking.py``); ``recent`` is newest accepted first. ``bucket="day"`` or ``bucket="week"`` puts the newest bucket first and the shared
 order inside each bucket, on any selection. A bucket is a ROLLING window counted back from the UTC day of the render (``as_of``), as for Stories. Several includes on one page share a :class:`~.page_ledger.PageLedger`: the first component to
 place a Reference keeps it, and a later one refills up to its ``count`` from its own ordering. ``count`` defaults to
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
+
+``minStars="3"`` keeps out the References an editor rated below that many stars (a Reference nobody rated stays in); it filters before ``count``,
+the page ledger and paging, so excluded References take no slot and no page.
 
 ``medium="video"`` keeps only the References whose medium is video (a videos block or page): accepted ones with ``select="recent"``. The cards
 show the video's own thumbnail (a copy in the site's storage, published as ``image``; never an address on the platform) and link out to the source (no per-card "Video" label: every card is one); nothing is embedded and no third-party
@@ -15,12 +18,14 @@ script is loaded.
 from __future__ import annotations
 
 import re
+from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from datetime import date
 from typing import Any
 
 from ...home_page.export import clip_summary
-from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records
+from ...home_page.ordering import order_in_buckets, order_public_records
+from ...quality_ranking import BUCKETS, utc_today, valid_stars
 from ...home_page.settings import HomePageSettings
 from ...reference_medium import MEDIUMS
 from . import home_page_components as parts
@@ -33,14 +38,15 @@ LEAD_CLASS = "papyrus-has-lead"   # a counted list whose first card is the best,
 REFERENCES_LEAD_CLASS = "home-page-has-lead"
 IMAGES = ("none", "any")
 THREADS_KIND = "threads"
-THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty"}
+THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty", "section"}
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
-ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
+ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "notMedium", "minStars", "notSection", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
 LIST_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
+MIN_STARS_CHOICES = ("2", "3", "4", "5")
 DEFAULT_COUNT = 6
 LEDGER_PREFIX = "reference:"
 NOT_CONFIGURED = "homePage is not configured in projection.json"
@@ -67,6 +73,12 @@ def check(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include references bucket must be one of {', '.join(BUCKETS)}, got {attributes['bucket']!r}")
     if "medium" in attributes and attributes["medium"] not in MEDIUMS:
         raise ValueError(f"{source}: ::include references medium must be one of {', '.join(MEDIUMS)}, got {attributes['medium']!r}")
+    if "notMedium" in attributes and attributes["notMedium"] not in MEDIUMS:
+        raise ValueError(f"{source}: ::include references notMedium must be one of {', '.join(MEDIUMS)}, got {attributes['notMedium']!r}")
+    if attributes.get("medium") and attributes.get("notMedium"):
+        raise ValueError(f"{source}: ::include references cannot use medium and notMedium together")
+    if "minStars" in attributes and str(attributes["minStars"]) not in MIN_STARS_CHOICES:
+        raise ValueError(f"{source}: ::include references minStars must be one of {', '.join(MIN_STARS_CHOICES)}, got {attributes['minStars']!r}")
     if attributes.get("card", "tile") not in CARDS:
         raise ValueError(f"{source}: ::include references card must be one of {', '.join(CARDS)}, got {attributes['card']!r}")
     if "more" in attributes and not safe_href(attributes["more"]):
@@ -103,9 +115,31 @@ def _text(record: Mapping, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
+ORDERED_CACHE_SIZE = 256
+_ordered_cache: "OrderedDict[tuple, tuple[list, list[Mapping]]]" = OrderedDict()
+
+
 def ordered(records: list[Mapping], selection: str, bucket: str | None = None, as_of: date | None = None) -> list[Mapping]:
     """The records of one selection in its order. ``recent`` is newest accepted first (then newest arrival, then key); ``confident`` and ``recommended``
-    are the shared order of ``home_page/ordering.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each."""
+    are the shared order of ``quality_ranking.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each.
+
+    One render of a site asks for the same order hundreds of times (every page, Markdown twin, digest and paged list that shows References), and each
+    sort of a large snapshot is costly (7,000 References: about 40 ms). The order of one snapshot document is therefore worked out once per selection,
+    bucket and day, and a copy handed out (PPY-3acc8d). The cache holds the document's list itself, so a new snapshot is a new entry."""
+    day = (as_of or utc_today()) if bucket else as_of
+    key = (id(records), len(records), selection, bucket, day)
+    found = _ordered_cache.get(key)
+    if found is not None and found[0] is records:
+        _ordered_cache.move_to_end(key)
+        return list(found[1])
+    result = _ordered(records, selection, bucket, day)
+    _ordered_cache[key] = (records, result)
+    while len(_ordered_cache) > ORDERED_CACHE_SIZE:
+        _ordered_cache.popitem(last=False)
+    return list(result)
+
+
+def _ordered(records: list[Mapping], selection: str, bucket: str | None = None, as_of: date | None = None) -> list[Mapping]:
     wanted = "recommended" if selection == "recommended" else "accepted"
     chosen = [record for record in records if isinstance(record, Mapping) and record.get("status") == wanted and record.get("key")]
     if bucket:
@@ -123,18 +157,51 @@ def _in_section(record: Mapping, section: str, labels: Mapping[str, str]) -> boo
     return _text(record, "section").casefold() in wanted
 
 
+def _section_values(value: str) -> list[str]:
+    return [part.strip() for part in str(value).split("|") if part.strip()]
+
+
+def _in_any_section(record: Mapping, value: str, labels: Mapping[str, str]) -> bool:
+    return any(_in_section(record, section, labels) for section in _section_values(value))
+
+
 def candidates_of(document: Mapping | None, attributes: Mapping, section_labels: Mapping[str, str] | None = None, as_of: date | None = None) -> list[Mapping[str, Any]]:
-    """Every Reference an include's selection could place, in the order it places them: no ledger, no count."""
+    """Every Reference an include's selection could place, in the order it places them: no ledger, no count. Worked out once per snapshot document,
+    selection, filter and day, like :func:`ordered`; the caller gets its own copy."""
     records = (document or {}).get("references") or []
+    bucket = attributes.get("bucket")
+    labels = section_labels or {}
+    day = (as_of or utc_today()) if bucket else as_of
+    key = ("candidates", id(records), len(records), attributes["select"], bucket, day, attributes.get("medium"), attributes.get("image"), attributes.get("minStars"),
+           attributes.get("section"), labels.get(attributes.get("section") or "", ""))
+    found = _ordered_cache.get(key)
+    if found is not None and found[0] is records:
+        _ordered_cache.move_to_end(key)
+        return list(found[1])
+    result = _candidates(records, attributes, labels, as_of)
+    _ordered_cache[key] = (records, result)
+    while len(_ordered_cache) > ORDERED_CACHE_SIZE:
+        _ordered_cache.popitem(last=False)
+    return list(result)
+
+
+def _candidates(records: list, attributes: Mapping, section_labels: Mapping[str, str], as_of: date | None) -> list[Mapping[str, Any]]:
     candidates = ordered(records, attributes["select"], attributes.get("bucket"), as_of)
     if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches
         candidates = [record for record in candidates if record.get("medium") == attributes["medium"]]
+    if attributes.get("minStars"):   # an editor's rating below the minimum keeps a Reference out; one nobody rated passes
+        minimum = int(attributes["minStars"])
+        candidates = [record for record in candidates if valid_stars(record.get("stars")) is None or valid_stars(record.get("stars")) >= minimum]
     if attributes.get("image") == "none":   # only the References with no picture: text-only cards
         candidates = [record for record in candidates if not _text(record, "image")]
     elif attributes.get("image") == "any":   # only the References with a picture
         candidates = [record for record in candidates if _text(record, "image")]
+    if attributes.get("notMedium"):   # a record with no `medium` field passes
+        candidates = [record for record in candidates if record.get("medium") != attributes["notMedium"]]
     if attributes.get("section"):
-        candidates = [record for record in candidates if _in_section(record, attributes["section"], section_labels or {})]
+        candidates = [record for record in candidates if _in_any_section(record, attributes["section"], section_labels or {})]
+    if attributes.get("notSection"):   # a record with no section, or a section not listed, passes
+        candidates = [record for record in candidates if not (_text(record, "section") and _in_any_section(record, attributes["notSection"], section_labels or {}))]
     return candidates
 
 
@@ -290,9 +357,10 @@ def render_threads_markdown(
     ledger: PageLedger,
     settings: HomePageSettings,
     thread_href: Callable[[str], str] | None = None,
+    section_labels: Mapping[str, str] | None = None,
 ) -> str:
     """What :func:`render_threads` places, for the Markdown twin: one list item per conversation, its title linked to its page when the site has one."""
-    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
+    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings), section_labels)
     if not chosen:
         return attributes.get("empty", "")
     lines = [f"## {attributes['heading']}", ""] if attributes.get("heading") else []
@@ -317,9 +385,13 @@ def check_threads(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include threads layout must be one of {', '.join(THREAD_LAYOUTS)}, got {attributes['layout']!r}")
 
 
-def select_threads(document: Mapping | None, attributes: Mapping, ledger: PageLedger, default_count: int = DEFAULT_COUNT) -> list[Mapping[str, Any]]:
-    """The threads one include places: most recently active first, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
+def select_threads(
+    document: Mapping | None, attributes: Mapping, ledger: PageLedger, default_count: int = DEFAULT_COUNT, section_labels: Mapping[str, str] | None = None,
+) -> list[Mapping[str, Any]]:
+    """The threads one include places: with ``section``, only that section's; most recently active first, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
     candidates = [thread for thread in (document or {}).get("threads") or [] if isinstance(thread, Mapping) and thread.get("key")]
+    if attributes.get("section"):
+        candidates = [thread for thread in candidates if _in_section(thread, attributes["section"], section_labels or {})]
     candidates.sort(key=lambda thread: _text(thread, "key"))
     candidates.sort(key=lambda thread: _text(thread, "lastAt"), reverse=True)
     count = int(attributes["count"]) if "count" in attributes else default_count
@@ -332,9 +404,12 @@ def select_threads(document: Mapping | None, attributes: Mapping, ledger: PageLe
     return chosen
 
 
-def render_threads(attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings, thread_href: Callable[[str], str] | None = None) -> str:
+def render_threads(
+    attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings, thread_href: Callable[[str], str] | None = None,
+    section_labels: Mapping[str, str] | None = None,
+) -> str:
     ledger.home_page_used = True
-    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
+    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings), section_labels)
     empty = attributes.get("empty", "")
     if not chosen:
         return f'<p class="home-page-empty">{esc(empty)}</p>' if empty else ""

@@ -11,6 +11,7 @@ TESTS = Path(__file__).resolve().parents[2] / "procedures" / "newsroom" / "tests
 sys.path.insert(0, str(TESTS))
 import automation_fixture as fx  # noqa: E402
 from fake_client import FakeAuthoringClient  # noqa: E402
+from papyrus_content.agent_policy import PersonStart
 from papyrus_content import automation_view, automations as au, procedure_runner as pr  # noqa: E402
 from test_automation_gate import AUTOMATION, PROCEDURE, SiteClient, automation as automation_row, sweep, trigger_rows  # noqa: E402
 from test_monitoring_ttab import NOW  # noqa: E402
@@ -63,6 +64,13 @@ def disabled(context):
 @given("the site has the TTAB automation")
 def enabled(context):
     with_limits(context)
+
+
+@given("the site has the TTAB automation whose router publication names no site bucket")
+def without_site_bucket(context):
+    with_limits(context)
+    for config in (row for key, row in context.run_table.rows.items() if key[1] == "CONFIG#router"):
+        config["publications"][0].pop("siteBucket")
 
 
 @given("the site has the TTAB automation with a timeout of {seconds:d} seconds and room for {count:d} at a time")
@@ -256,9 +264,9 @@ CALL = {"agent": "analyst", "model": "gpt-6-luna", "provider": "openai", "prompt
 def record_run(context, client, calls):
     context.newsroom = client
     context.outcome = pr.run_procedure_request(
-        {"appsyncEndpoint": "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql", "procedureKey": PROCEDURE,
+        {"appsyncEndpoint": "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql", "procedureKey": PROCEDURE, "wakeKey": "distinctive.ttab|manual|request-1",
          "input": {"proceeding": "1", "opinion_url": "https://x/a.pdf"}},
-        client=client, execute=lambda *a, **k: {"success": True, "output": {"title": "x"}, "seconds": 3, "usage": calls},
+        policy=PersonStart(), client=client, execute=lambda *a, **k: {"success": True, "output": {"title": "x"}, "seconds": 3, "usage": calls},
         seconds_available=900, environment={})
 
 
@@ -337,7 +345,7 @@ def costed_runs(context):
 
 def overview(context, identity, account=ACCOUNT):
     context.refused = False
-    result = automation_view.handle({"info": {"fieldName": "automationOverview"}, "identity": identity, "arguments": {}},
+    result = automation_view.handle({"fieldName": "automationOverview", "identity": identity, "arguments": {}},
                                     env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT}, reader_factory=lambda: context.reader,
                                     client_factory=lambda: context.client, now=1_792_756_800.0, account_id=account)
     context.refused = result.get("error") == "forbidden"
@@ -424,6 +432,12 @@ def input_needed(context):
     assert context.error and "give the input for this run" in context.error and context.invoked == [] and context.run_table.puts == []
 
 
+@then("nothing is started because the router publication names no site policy")
+def refused_no_site_policy(context):
+    assert context.error and "no siteBucket for the site's agent policy" in context.error and "the runner would refuse the run" in context.error
+    assert context.invoked == [] and context.run_table.puts == []
+
+
 @then("nothing is started because the automation is disabled")
 def refused_disabled(context):
     assert context.error and "is disabled" in context.error and context.invoked == []
@@ -441,7 +455,7 @@ def dry(context):
 
 def console(context, identity, field="runAutomation"):
     return automation_view.handle(
-        {"info": {"fieldName": field}, "identity": identity, "arguments": {"automationId": "distinctive.ttab", "input": json.dumps(INPUT)}},
+        {"fieldName": field, "identity": identity, "arguments": {"automationId": "distinctive.ttab", "input": json.dumps(INPUT)}},
         env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT}, client_factory=lambda: context.client, reader_factory=lambda: context.reader,
         table_factory=lambda: context.run_table, invoker=context.invoked.append, now=1_792_832_400.0, account_id=ACCOUNT)
 
@@ -479,7 +493,7 @@ def operator_reads(context):
 @when("an identity-pool user or a role from another account reads the overview")
 def others_read(context):
     context.denied = [
-        automation_view.handle({"identity": identity, "arguments": {}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT},
+        automation_view.handle({"fieldName": "automationOverview", "identity": identity, "arguments": {}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT},
                                client_factory=lambda: context.client, account_id=ACCOUNT)
         for identity in ({"accountId": ACCOUNT, "userArn": f"arn:aws:sts::{ACCOUNT}:assumed-role/auth/x", "cognitoIdentityId": "us-east-1:abc"},
                          {"accountId": "999999999999", "userArn": "arn:aws:sts::999999999999:assumed-role/other/x"})]

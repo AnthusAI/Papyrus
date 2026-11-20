@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus account stack: the public Route 53 hosted zone for a site's domain. The zone was
+  made by hand before the pipeline existed and is adopted by import, never
+  replaced. DeletionPolicy Retain means deleting this stack never deletes the
+  zone, so the name servers the registrar holds cannot be lost.
+
+Parameters:
+  DomainName:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+  ZoneComment:
+    Type: String
+    Default: ""
+    Description: The zone comment. For an adopted zone this must equal the live comment.
+
+Resources:
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Ref ZoneComment
+
+Outputs:
+  HostedZoneId:
+    Description: Read by later stacks (certificate, SES) through fromStackOutput.
+    Value: !Ref HostedZone
+  NameServers:
+    Description: The four name servers the registrar must hold. They must not change.
+    Value: !Join [",", !GetAtt HostedZone.NameServers]

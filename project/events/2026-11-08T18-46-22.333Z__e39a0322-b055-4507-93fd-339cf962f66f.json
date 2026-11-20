@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "e39a0322-b055-4507-93fd-339cf962f66f",
+  "issue_id": "PPY-810f4265-7fec-4513-8b1c-73849b443750",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:22.333Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "First-run onboarding in the newsroom: name, logo, colours, fonts, sections, subdomain",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

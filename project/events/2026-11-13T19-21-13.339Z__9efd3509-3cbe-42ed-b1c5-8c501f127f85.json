@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "9efd3509-3cbe-42ed-b1c5-8c501f127f85",
+  "issue_id": "PPY-daf67362-ce52-43f0-98f7-8558ff1affd9",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-13T19:21:13.339Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Stand up the shared stack: one backend deployed in shared tenancy mode, in its own AWS account",
+        "to": "Stand up the shared stack: one backend in shared tenancy mode, as pipeline-made stacks inside the Papyrus production account"
+      }
+    }
+  }
+}

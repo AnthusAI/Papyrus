@@ -14,7 +14,7 @@ from papyrus_content import automations as au  # noqa: E402
 def overview_for(context, groups, endpoint=None):
     context.refused = False
     result = automation_view.handle(
-        {"identity": {"groups": groups}, "arguments": {}},
+        {"fieldName": "automationOverview", "identity": {"groups": groups}, "arguments": {}},
         env={"PAPYRUS_GRAPHQL_ENDPOINT": endpoint or fx.SITE_ENDPOINT},
         reader_factory=lambda: context.reader, client_factory=lambda: context.client, now=1_792_756_800.0)
     if result.get("error") == "forbidden":
@@ -83,7 +83,7 @@ def create_monitor(context, automation_id, monitor, publication, procedure):
 @when('an operator creates a "{kind}" automation "{automation_id}" running "{procedure}"')
 def create_other_kind(context, kind, automation_id, procedure):
     context.created = au.create_automation(context.client, {
-        "id": automation_id, "title": "Weekly digest", "trigger": {"kind": kind, "config": {"cron": "0 9 * * 1"}},
+        "id": automation_id, "title": "Weekly digest", "trigger": {"kind": kind, "config": {}},
         "procedureKey": procedure}, actor="operator")
     context.automation_id = automation_id
     context.reader = au.MonitoringReader(fx.FakeMonitoringTable())
@@ -135,6 +135,16 @@ def stored_enabled(context):
 @then("the automation is a supported monitor automation")
 def supported(context):
     assert context.created["supported"] is True and context.created["trigger"]["kind"] == "monitor"
+
+
+@then("the automation is a supported schedule automation")
+def supported_schedule(context):
+    assert context.created["supported"] is True and context.created["supportNote"] is None and context.created["trigger"]["kind"] == "schedule"
+
+
+@then("Run now is not offered because it names no router publication yet")
+def no_run_now(context):
+    assert context.created["runNow"] == {"available": False, "reason": "not linked to a router publication", "needsInput": False, "inputNames": []}
 
 
 @then("the automation is stored")

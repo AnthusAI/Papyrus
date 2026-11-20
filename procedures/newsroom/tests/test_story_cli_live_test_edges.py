@@ -79,7 +79,7 @@ class CreateTests(unittest.TestCase):
         client = fresh_client()
         out, _err, failure = run(story_commands.stories_create, client, "--title", "x", "--dry-run")
         self.assertIsNone(failure)
-        self.assertEqual(out.strip(), "stories\tcreate\tx\tstage idea\tdry run")
+        self.assertEqual(out.strip(), "stories\tcreate\tx\tstage idea\ttype site default\tdry run")
         self.assertEqual(client.write_calls(), [])
 
 

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-31efef9d-7906-42d8-a6c5-b071ca5814d9",
+  "title": "Core card set, publication layout and brand pack",
+  "description": "Why: MoM's cards and layout live in about 940 lines of web/hooks.py and mom_components.py. A second consumer (Threat Intelligence) needs them without copying. Promote one implementation of the cards, the \"publication\" layout preset and the brand pack format into core. Promote only what Threat Intelligence also needs; MoM's experiments stay in hooks until a second consumer wants them.\nDone when: MoM runs on the preset plus a brand pack with hooks reduced to ornaments. Ends with a p.apyr.us reference page for the brand pack.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3abf9c45-b64d-4589-bb2f-b10474bd7199",
+      "author": "home",
+      "text": "Slice plan: slice 1 delivers one card component with variants (story, reference, thread, term) replacing core markus-card/home-page-* and MoM mom-* cards; slice 2 delivers the publication layout preset with named ornament slots (masthead-mark, page-top-art, section-band, rail-end, card-art) and moves the language switcher/banner into core; slice 3 reduces MoM hooks to ornaments. MoM stays ornament-only for sticker, spine, loop band, halftone, placeholder-art compositions, ads, forum. Real size today is about 3,000 lines of Python (hooks.py 2243, mom_components.py 743) plus about 5,000 lines of CSS, not 940. Inventory: docs/plans/shared-publication-front-end.md.",
+      "created_at": "2026-11-15T16:26:55.000Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-07T21:42:25.199209Z",
+  "updated_at": "2026-11-15T16:26:55.000Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

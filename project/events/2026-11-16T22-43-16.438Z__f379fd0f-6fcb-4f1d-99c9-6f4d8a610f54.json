@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f379fd0f-6fcb-4f1d-99c9-6f4d8a610f54",
+  "issue_id": "PPY-4d74d9e4-2ae2-48b2-a298-b2aab6fc5c7e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:16.438Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A list carries its cadence, time, time zone and rule as data",
+    "description": "Every subscription list (a Caducus public-audience list) gets settings in the site's data: `cadence` (`each`: a message for every new item; `daily`; `weekly`), `sendAt` and `timeZone` for the periodic ones, the rule (sections, types, tags, a minimum star rating never under three), `requireReviewedSource`, the working document (`story`, an issue Story that is published to the archive, or `delivery`, no archive page), the template, and optionally its own rung. A periodic list is a scheduled agent wake (the schedule trigger); an every-item list is woken by the page-is-live and rating-changed changes. All of them create an Announcement (model `AnnouncementDecision`) and an email Delivery. Nothing about a cadence is in code.\n\n**Acceptance criteria**\n- A new list with a cadence and time needs no code or deploy.\n- A list's minimum rating cannot be set under three.\n- Each cadence produces Announcements and Deliveries of the same shape.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- list-cadence.feature: a weekly list wakes at its local time; a daily list wakes daily; an every-item list reacts to a publish; a rule under three stars is refused; changing the time changes the next send only.\n\n**Infrastructure as code touched:** Schedule entries come from the list settings through the schedule reconciler.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

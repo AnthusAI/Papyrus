@@ -1,0 +1,36 @@
+{
+  "id": "PPY-6b084fe1-4eb2-4c1a-a2f8-2b2d611cf8f5",
+  "title": "Reader writes take the tenant from the site the reader is on, never from the browser",
+  "description": "Outcome: What must be true: a vote, rating, comment, flag or submission is recorded for the tenant whose host served the page. The reader API (CMS routes /api/reader/* then the reader-actions function) resolves the tenant from the request's Origin/Host through TenantDomain, refuses an Origin that is not an active tenant host, and ignores any tenant named in the body. Reader rows carry the tenant (PPY-ef2c57); per-reader rate counters are per tenant.\n\nTouches (verified at origin/develop 23fabe1d): app/api/reader/*, amplify/plugins/reader-steering/function, TenantDomain lookup, docs/reader-steering.md.\n\nAcceptance (Gherkin feature file: features_backend/reader-writes-tenant-from-host.feature):\nScenario: A vote is recorded for the site it was cast on\n    Given a reader on \"alpha.apyr.us\"\n    When the browser sends a vote whose body names \"beta\"\n    Then the vote is recorded for \"alpha\" only\n\nDependencies: blocked by PPY-ef2c57, PPY-3bbbf9. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-57f6d2.\n\nTesting: Behave; adversarial suite reader cases.\nRollout: Shared stack, when reader features are enabled for tenants (M7).\nRisk and mitigation: Risk: Origin can be absent from some requests. Mitigation: refuse writes without a matching Origin, as today's Origin check does.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ef2c5747-a0ad-461a-8d3c-175c394553a4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3bbbf9e2-2ddf-4c10-b19e-e7b65f36f5a3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-57f6d29b-f3bc-47e6-8efb-d88fd2e4bbbb",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:25.257644Z",
+  "updated_at": "2026-11-08T18:47:10.792421Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -30,7 +30,7 @@ def test_a_monitor_automation_is_valid_and_defaults_are_filled_in():
     assert built["trigger"] == MONITOR and built["createdBy"] == "a" and built["updatedAt"] == "2026-10-23T00:00:00Z"
 
 
-@pytest.mark.parametrize("kind", ["schedule", "event", "manual"])
+@pytest.mark.parametrize("kind", ["event", "manual"])
 def test_the_other_kinds_are_stored_and_marked_not_yet_supported(kind):
     built = au.build_record({**FIELDS, "trigger": {"kind": kind, "config": {"anything": 1}}, "inputTemplate": {"x": "{whatever}"}}, actor="a")
     shown = au.read_record(au.stored_payload(built))
@@ -111,8 +111,12 @@ def test_run_now_is_offered_only_for_an_enabled_monitor_automation_and_says_when
     literal = au.read_record(fx.automation_row(inputTemplate=json.dumps({"corpus": "knowledge-corpus-example"})))
     assert literal["runNow"]["needsInput"] is False
     assert au.read_record(fx.automation_row(enabled=False))["runNow"]["reason"] == "disabled"
-    schedule = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "schedule", "config": {}})))
-    assert schedule["runNow"] == {"available": False, "reason": "not yet supported", "needsInput": False, "inputNames": []}
+    manual = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "manual", "config": {}})))
+    assert manual["runNow"] == {"available": False, "reason": "not yet supported", "needsInput": False, "inputNames": []}
+    unlinked = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "schedule", "config": {}})))
+    assert unlinked["runNow"] == {"available": False, "reason": "not linked to a router publication", "needsInput": False, "inputNames": []}
+    linked = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "schedule", "config": {"monitorId": "ttab", "publicationId": "distinctive"}})))
+    assert linked["runNow"]["available"] is True
 
 
 # --- the router link --------------------------------------------------------------------------------------
@@ -312,7 +316,7 @@ def test_without_a_monitoring_table_the_history_is_empty_with_a_reason():
 
 
 def test_an_unsupported_kind_has_no_history():
-    shown = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "schedule", "config": {}})))
+    shown = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "manual", "config": {}})))
     result = au.automation_history(shown, reader=reader(), client=fx.site_client())
     assert result["runs"] == [] and result["notice"] == "not yet supported"
 
@@ -342,7 +346,7 @@ def test_the_overview_lists_automations_with_their_last_run_sorted_by_title():
     assert overview["state"] == "ready" and overview["asOf"] == "2026-10-23T12:00:00Z" and overview["monitoring"] == "ready"
     assert [a["title"] for a in overview["automations"]] == ["Analyze new TTAB rulings", "Weekly digest"]
     assert overview["automations"][0]["lastRun"]["status"] == "started"
-    assert overview["automations"][1]["supported"] is False and overview["automations"][1]["runs"] == []
+    assert overview["automations"][1]["supported"] is True and overview["automations"][1]["runs"] == []
 
 
 def test_the_overview_can_select_one_automation_and_can_be_empty():
@@ -365,7 +369,7 @@ def test_records_still_list_when_the_monitoring_table_cannot_be_read():
 
 def handle(groups=("editor",), arguments=None, reader_factory=None, client_factory=None):
     return automation_view.handle(
-        {"identity": {"groups": list(groups)}, "arguments": arguments or {}},
+        {"fieldName": "automationOverview", "identity": {"groups": list(groups)}, "arguments": arguments or {}},
         env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.SITE_ENDPOINT}, reader_factory=reader_factory or (lambda: reader()),
         client_factory=client_factory or (lambda: fx.site_client()), now=1_792_756_800.0)
 
@@ -384,7 +388,7 @@ def test_editors_and_admins_read_the_overview_scoped_to_their_site(group):
 
 
 def test_a_site_that_is_not_the_routers_publication_sees_no_runs():
-    result = automation_view.handle({"identity": {"groups": ["editor"]}, "arguments": {}},
+    result = automation_view.handle({"fieldName": "automationOverview", "identity": {"groups": ["editor"]}, "arguments": {}},
                                     env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.OTHER_ENDPOINT}, reader_factory=lambda: reader(),
                                     client_factory=lambda: fx.site_client())
     assert result["automations"][0]["runs"] == [] and result["automations"][0]["notice"] == "other_publication"
@@ -586,3 +590,56 @@ def test_runs_prints_stage_runs_with_tools_and_marks_deleted_stories(cli):
     assert "story-gone (story deleted)" in out and "story-a (story deleted)" not in out
     assert "tools: papyrus_fetch_pdf_text x2, papyrus_story_version x1" in out and "tools: none recorded" in out
     assert "cost\t$0.0100 total across 1 run with a recorded cost (1 of 2 listed runs; an estimate)" in out
+
+
+# --- the schedule trigger (PPY-2a53cd) -------------------------------------------------------------------
+
+
+SCHEDULED = {"wakes": {"schedule": {"cron": "0 6 * * *", "timeZone": "America/New_York"}}}
+
+
+def schedule_row(**fields):
+    return fx.automation_row(trigger=json.dumps({"kind": "schedule", "config": {"monitorId": "ttab", "publicationId": "distinctive"}}),
+                             definition=json.dumps(SCHEDULED), definitionId="a.weekly", definitionVersion=1, definitionDigest="sha256:x", inputTemplate="{}", **fields)
+
+
+def test_a_schedule_automation_is_supported_and_says_when_it_starts():
+    shown = au.read_record(schedule_row())
+    assert shown["supported"] is True and shown["supportNote"] is None
+    assert shown["schedule"] == {"cron": "0 6 * * *", "timeZone": "America/New_York"}
+    assert shown["enabledNote"] == "a disabled automation has no schedule entry, so nothing wakes it"
+    link = au.router_link(shown, None)
+    assert link["state"] == "schedule" and "0 6 * * * in America/New_York" in link["text"] and "no router publication" not in link["text"]
+
+
+def test_a_schedule_automation_that_is_not_linked_or_has_lost_its_schedule_says_so():
+    unlinked = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "schedule", "config": {}}), definition=json.dumps(SCHEDULED)))
+    assert "names no router publication yet, so it has no schedule entry" in au.router_link(unlinked, None)["text"]
+    retired = au.read_record(schedule_row(definitionRetiredAt="2026-11-17T00:00:00Z"))
+    assert retired["schedule"] is None and "names none" in au.router_link(retired, None)["text"]
+
+
+def test_a_schedule_trigger_names_its_router_publication_with_both_parts_or_neither():
+    assert au.validate_trigger({"kind": "schedule", "config": {}}) == {"kind": "schedule", "config": {}}
+    assert au.validate_trigger({"kind": "schedule", "config": {"monitorId": "ttab", "publicationId": "distinctive", "cron": "x"}}) == \
+        {"kind": "schedule", "config": {"monitorId": "ttab", "publicationId": "distinctive"}}
+    with pytest.raises(AutomationError, match="both config.monitorId"):
+        au.validate_trigger({"kind": "schedule", "config": {"monitorId": "ttab"}})
+
+
+def test_a_schedule_automations_input_is_static():
+    with pytest.raises(AutomationError, match="a schedule automation's input is static"):
+        au.build_record({**FIELDS, "trigger": {"kind": "schedule", "config": {}}, "inputTemplate": {"x": "{sourceId}"}}, actor="a")
+
+
+def test_a_schedule_automations_runs_are_the_procedure_runs_that_name_it():
+    class Runs:
+        def recent_procedure_runs(self, procedure_key, limit):
+            return [{"id": "run-2", "runStatus": "completed", "automationId": "a.other", "startedAt": "2026-11-17T12:00:00Z"},
+                    {"id": "run-1", "runStatus": "completed", "outcome": "nothing", "outcomeReason": "paused", "automationId": "distinctive.ttab", "startedAt": "2026-11-17T11:00:00Z"}]
+
+    shown = au.read_record(schedule_row())
+    history = au.automation_history(shown, reader=None, client=Runs())
+    assert [run["runId"] for run in history["runs"]] == ["run-1"] and history["runs"][0]["origin"] == "schedule"
+    assert history["lastRun"]["runId"] == "run-1" and [run["runId"] for run in history["outsideRuns"]] == ["run-2"]
+    assert history["notice"] is None and history["link"]["state"] == "schedule"

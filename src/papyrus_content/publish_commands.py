@@ -19,6 +19,18 @@ from .projection_trigger import (
     trigger_projection,
     trigger_projection_as_user,
 )
+from .publish_stages import (
+    DEFAULT_VERIFY_SECONDS,
+    EXIT_CHECKLIST_OPEN,
+    EXIT_OK,
+    EXIT_SAVE_FAILED,
+    exit_code_of,
+    invalidated_stage,
+    projected_stage,
+    settle_late_projection,
+    verdict_for,
+    verified_stage,
+)
 from .publishing import DryRunClient, PublishError, publish_item, unpublish_item
 from .rebuild_trigger import (
     DEFAULT_READER_BRANCH,
@@ -99,6 +111,22 @@ def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: b
     return triggers
 
 
+def _verify_seconds(options: dict[str, Any]) -> float:
+    raw = normalize_string(options.get("verify-seconds"))
+    return float(raw) if raw and raw.replace(".", "", 1).isdigit() else float(DEFAULT_VERIFY_SECONDS)
+
+
+def _stage_lines(stages: dict[str, dict[str, Any]]) -> list[str]:
+    saved, projected, invalidated, verified = stages["saved"], stages["projected"], stages["invalidated"], stages["verified"]
+    pages = len(projected.get("pages") or [])
+    lines = [f"  saved: ok (published version {saved.get('versionNumber')})"]
+    lines.append(f"  projected: {projected['status']}" + (f", {pages} pages written" if pages else "") + (f" ({projected['error']})" if projected.get("error") else ""))
+    lines.append(f"  cache invalidated: {invalidated['status']}" + (f", {len(invalidated.get('paths') or [])} paths" if invalidated.get("paths") else "")
+                 + (f", {len(invalidated['skippedPaths'])} NOT purged" if invalidated.get("skippedPaths") else ""))
+    lines.append(f"  publicly verified: {verified['status']}" + (f" ({verified['reason']})" if verified.get("reason") else ""))
+    return lines
+
+
 def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublished: bool = False) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, label)
@@ -120,17 +148,38 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
             "code": error.code,
             "message": error.message,
             "errors": [entry.to_dict() for entry in error.errors],
+            **error.details,   # checklist-open: "openSteps": [{"key", "label"}]
         }
-        print(json.dumps(payload, indent=2) if options.get("json") else f"{label} failed [{error.code}]: {error.message}")
-        raise SystemExit(1)
+        exit_code = EXIT_CHECKLIST_OPEN if error.code == "checklist-open" else EXIT_SAVE_FAILED
+        payload.update({"stage": "saved", "exitCode": exit_code})
+        if options.get("json"):
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"{label} failed [{error.code}]: {error.message}")
+            for step in error.details.get("openSteps") or []:
+                print(f"  open step: {step['key']}: {step['label']}")
+        raise SystemExit(exit_code)
     planned = [] if apply else target.planned
     triggers: dict[str, Any] = {}
     if apply and (result.changed or projection_enabled() or projection_unknown()):
         triggers = run_site_triggers(client, options, result, unpublished=unpublished)
     projection = triggers.get("projection") or {}
-    page_failed = projection.get("ok") is False
+    stages: dict[str, dict[str, Any]] = {"saved": {"status": "ok", "changed": result.changed, "versionNumber": result.version_number, "dryRun": not apply}}
+    verify = bool(options.get("verify")) and apply and not unpublished
+    if apply:
+        stages["projected"] = projected_stage(projection)
+        stages["invalidated"] = invalidated_stage(projection)
+        stages["verified"] = (
+            verified_stage(projection, result.version_number, wait=verify, seconds=_verify_seconds(options))
+            if not unpublished and projection.get("ok") is not False
+            else {"status": "not-checked", "reason": "unpublish, or the page was not built"}
+        )
+        settle_late_projection(stages)
+        exit_code, failed_stage = exit_code_of(stages, verify=verify)
+    else:
+        exit_code, failed_stage = EXIT_OK, "ok"
     payload = {
-        "ok": not page_failed,
+        "ok": exit_code == EXIT_OK,
         "dryRun": not apply,
         "changed": result.changed,
         "itemId": result.item_id,
@@ -139,19 +188,35 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
         "planned": planned,
         **triggers,
     }
+    if apply:
+        payload.update({"stages": stages, "exitCode": exit_code, "failedStage": failed_stage, "verdict": verdict_for(stages)})
     failure = None
-    if page_failed:
+    if exit_code != EXIT_OK:
         retry = retry_command(result.item_id, unpublished=unpublished)
-        failure = (
-            f"{label} FAILED to project the page: the data is {'unpublished' if unpublished else 'published'} but the page "
-            f"is not {'removed' if unpublished else 'live'} ({projection.get('error') or 'unknown error'}). "
-            f"Retry with: {retry}"
-        )
-        payload.update({"dataPublished": not unpublished, "pagePublished": False, "retry": retry, "message": failure})
+        payload.update({"dataPublished": not unpublished, "pagePublished": stages["projected"]["status"] == "ok", "retry": retry})
+        verb = "unpublished" if unpublished else "published"
+        if failed_stage == "projection-failed":
+            failure = (
+                f"{label} FAILED to project the page: the data is {verb} but the page "
+                f"is not {'removed' if unpublished else 'live'} ({stages['projected'].get('error') or 'unknown error'}). Retry with: {retry}"
+            )
+        elif failed_stage == "projection-running":
+            failure = (
+                f"{label} STILL RUNNING: the data is {verb} and the server has not yet confirmed the page ({stages['projected'].get('error') or 'no answer yet'}). "
+                f"This is not a failure. Check with: {retry} --verify (running it again changes nothing already done)"
+            )
+        elif failed_stage == "invalidation-failed":
+            failure = (
+                f"{label}: the page is written but the edge cache was NOT fully purged ({stages['invalidated']['status']}: "
+                f"{stages['invalidated'].get('reason') or 'no reason given'}). The old page can show until it expires. Not a write failure."
+            )
+        else:
+            failure = f"{label}: the page is written and purged but the public URL still shows an older version after waiting ({stages['verified'].get('expectedVersion')} expected)."
+        payload["message"] = failure
     if options.get("json"):
         print(json.dumps(payload, indent=2))
         if failure:
-            raise SystemExit(1)
+            raise SystemExit(exit_code)
         return
     state = "changed" if result.changed else "unchanged"
     print(f"{label}: {result.item_id} {state} (published version {result.version_number})")
@@ -162,13 +227,60 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
             print(f"  {SKIP_LINE}")
         else:
             print(f"  {key}: {json.dumps(outcome)}")
+    if apply:
+        for line in _stage_lines(stages):
+            print(line)
     if failure:
         print(failure, file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(exit_code)
 
 
 def content_publish(flags: list[str]) -> None:
+    ids = [flags[index + 1] for index, flag in enumerate(flags[:-1]) if flag == "--id"]
+    if len(ids) > 1 or "--batch" in flags:
+        _publish_batch([flag for flag in flags if flag != "--batch"], ids)
+        return
     _run(flags, "content publish", publish_item)
+
+
+def _publish_batch(flags: list[str], ids: list[str]) -> None:
+    """Publish several saved versions with ONE page build (the signed-in lane): every version is saved, each Story's build is queued without being started, and the site
+    is asked once to build the queue in one invocation under one hold of the projection lease, then the lane waits for each job. A backfill of translations
+    therefore never takes the lease once per Story against a deploy."""
+    from .projection_trigger import drain_publish_queue, projection_timeout_seconds, queue_publish_as_user, wait_for_job
+    from .user_auth_mode import user_auth_requested
+
+    if not ids:
+        raise ValueError("Pass the versions to publish as --id LINEAGE-vN, once for each.")
+    if not user_auth_requested():
+        raise ValueError("A batch publish is the signed-in lane's: run `papyrus login`, and ask without --auth iam.")
+    options = parse_options([flag for index, flag in enumerate(flags) if flag != "--id" and not (index and flags[index - 1] == "--id")])
+    apply = resolve_mutation_apply(options, "content publish")
+    client, claims = create_authoring_client()
+    actor = normalize_string((claims or {}).get("sub")) or DEFAULT_ACTOR
+    target = client if apply else DryRunClient(client)
+    saved: list[Any] = []
+    for item_id in ids:
+        refuse_placeholder_slug(client, item_id)
+        saved.append(publish_item(target, item_id, actor=actor))
+    if not apply:
+        for result in saved:
+            print(f"content publish (batch, dry run): {result.item_id} {'changed' if result.changed else 'unchanged'}")
+        print(f"  would queue {sum(1 for r in saved if r.changed)} page builds and ask for one drain")
+        return
+    queued = [(result, queue_publish_as_user(client, result.item_id)) for result in saved if result.changed]
+    failures = [(result, answer) for result, answer in queued if answer.get("ok") is False or not (answer.get("projection") or {}).get("jobId")]
+    drained = drain_publish_queue(client) if queued else {"ok": True, "scheduled": False}
+    outcomes = []
+    for result, answer in queued:
+        outcomes.append((result, wait_for_job(client, result.item_id, answer["projection"], seconds=projection_timeout_seconds(), retry=retry_command(result.item_id, unpublished=False))))
+    for result in saved:
+        print(f"content publish: {result.item_id} {'changed' if result.changed else 'unchanged'} (published version {result.version_number})")
+    for result, outcome in outcomes:
+        print(f"  {result.item_id}: {outcome.get('status')}" + (f" ({outcome['error']})" if outcome.get("error") else ""))
+    print(f"  one drain for {len(queued)} page builds: {json.dumps(drained)}")
+    if failures or any(outcome.get("ok") is False for _result, outcome in outcomes) or drained.get("ok") is False:
+        raise SystemExit(1)
 
 
 def content_unpublish(flags: list[str]) -> None:

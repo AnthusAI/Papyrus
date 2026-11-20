@@ -127,3 +127,28 @@ asynchronous retries; the durable monitor receipt and discovery IDs make retries
 
 No production resources, DNS, security policies or email were changed while implementing
 this code. These activation steps remain separate from merging or publishing the engine.
+
+## DMARC for the sending domains and its report mailbox (PPY-6bcae9)
+
+`papyrus-dmarc.yaml` publishes the `_dmarc.<domain>` TXT record of one sending domain: `v=DMARC1; p=none; adkim=r; aspf=r; rua=mailto:<report address>`. The release deploys it as one
+stack for each sending domain from `infra/pipeline/stacks.json` (planned: `papyrus-dmarc-anth-us` for `anth.us` and `papyrus-dmarc-mail-machines-on-machines` for
+`mail.machines-on-machines.anth.us`, both looking up the `anth.us` zone). Specs: `features_backend/dmarc-report-record.feature`.
+
+- **The report address is a deployment parameter, never in Git.** The stack's `ReportAddress` parameter is an `AWS::SSM::Parameter::Value<String>` whose value in `stacks.json` is the
+  parameter's NAME, `/papyrus/dmarc/report-address`. CloudFormation reads the address at deploy time (the deploy role already resolves parameters under `/papyrus/`). The mailbox is an
+  existing one on the `anth.us` domain. Specs and fixtures use the placeholder `dmarc-reports@example.test`.
+- **No external-destination record.** The mailbox is on the same organisational domain as both sending domains (RFC 7489 section 7.1). A mailbox on another domain needs a TXT record
+  `<sending domain>._report._dmarc.<that domain>` in that domain's zone, which is a change to this template.
+- **The policy starts at `none`** (report only). Moving to `quarantine`, then `reject`, is its own reviewed change to the `DmarcPolicy` value in `stacks.json`, made when the reports show SPF
+  and DKIM aligned for every legitimate sender.
+- **What this does not cover.** `notify.anth.us` already publishes its own `_dmarc` record from the `papyrus-newsletter-sending-operators` stack, with no report address; that record
+  overrides the `anth.us` one for its mail, so its reports need that stack's record changed (a separate, reviewed change, because the record changes owner or gains a parameter).
+  The account `ses` stack's DMARC record has no report address either.
+
+What remains before a record exists, in order (nothing here is deployed yet):
+
+1. A person approves the `role-stack-deploy` run that applies `papyrus-dmarc-*` to the pipeline roles (`infra/pipeline/papyrus-stack-pipeline.yaml`). A pull request that names a stack the deployed
+   roles do not know fails its dry run until then, so the stacks are a second change.
+2. A person creates the String parameter `/papyrus/dmarc/report-address` once in `papyrus-production`; it holds the mailbox address. Without it the stacks fail at their change set and nothing is half-made.
+3. The change that adds the two stacks to `stacks.json` merges, and the release deploys them.
+4. A first aggregate report arrives and is read; a stricter policy is then proposed as its own change.

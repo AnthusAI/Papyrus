@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { hashtagsInMessageText } from "../../../lib/message-hashtags";
 import { conceptKeysForHashtag } from "../../../lib/wiki";
+import { REFERENCE_LINK_FEED_KEY, globalKey } from "../../../lib/tenant-knowledge-keys";
+import { currentTenantContext } from "../shared/tenant-context";
 
 export const MESSAGE_CONCEPT_EDGE_KIND = "message.concept";
-export const MESSAGE_CONCEPT_FEED_KEY = "reference-links";
+export const MESSAGE_CONCEPT_FEED_KEY = REFERENCE_LINK_FEED_KEY;
 
 export type AcceptedConceptNode = { id: string; lineageId?: string | null; versionNumber?: number | null; nodeKey: string };
 
@@ -95,7 +97,7 @@ export async function linkMessageHashtags(
         reviewRecommended: false,
         importedAt: input.now,
         updatedAt: input.now,
-        newsroomFeedKey: MESSAGE_CONCEPT_FEED_KEY,
+        newsroomFeedKey: globalKey(MESSAGE_CONCEPT_FEED_KEY, currentTenantContext().tenantId),
         metadata: JSON.stringify(metadata),
       },
       existing !== null,

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "b46be568-2caf-4d45-b1f4-40a38f77adb3",
+  "issue_id": "PPY-fa165cff-23f9-40b0-b9d4-923c83b3e95d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:07.557Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One spend ledger",
+    "description": "Generalise `AnnouncementSpend` into one ledger: a counter per scope and budget cycle (`ai:<site>`, `ai:<site>:<responsibility>`, `x:<account>`), added to atomically when a run or an attempt finishes. Per-run cost stays on the run record. An unpriced model is named and counted as unknown, never as free. The ledger holds numbers only.\n\n**Acceptance criteria**\n- Every paid run adds its cost to the site's cycle once.\n- The X counter keeps working through the same ledger.\n- A run with an unpriced model marks the cycle total as partial.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- spend-ledger.feature: a finished run adds its cost once; a redelivered wake does not add twice; an unpriced model marks the total partial; the X account's cycle total is unchanged by the move.\n\n**Infrastructure as code touched:** Amplify data: the ledger model (generalised from `AnnouncementSpend`).\n\n**Part of:** Spend, budgets and model tiers. Slice code G1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6505b3d6-bc1e-4d66-9c9d-3b80ea70a43b",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

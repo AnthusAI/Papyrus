@@ -7,6 +7,7 @@ import {
   deriveSiteGlobalResourceNames,
   deriveStorageBackupVaultName,
   planInboundEmailSes,
+  assertFeaturePrerequisites,
   resolveSiteBackendFeatureFlags,
   sanitizeAwsName,
   type SiteBackendIdentity,
@@ -150,8 +151,20 @@ assert.equal(defaultsNewSite.inboundEmail, false);
 assert.equal(defaultsNewSite.storageBackups, false);
 assert.equal(defaultsNewSite.slack, false);
 const defaultsLegacy = resolveSiteBackendFeatureFlags(undefined, {}, legacyMain);
-assert.equal(defaultsLegacy.inboundEmail, true);
-assert.equal(defaultsLegacy.storageBackups, true);
+for (const defaults of [defaultsNewSite, defaultsLegacy]) {
+  assert.deepEqual(defaults, { consoleResponder: false, inboundEmail: false, slack: false, storageBackups: false, cliRemoteLogin: false, cliOnFederationClient: false },
+    "every optional feature is off when nothing says otherwise, for every site");
+}
+assert.equal(resolveSiteBackendFeatureFlags(undefined, { PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true" }, newSiteMain).consoleResponder, true, "and on when the site says so");
+
+// A feature that is on without what it needs fails, naming the flag and what is missing.
+const on = (extra: Partial<Record<string, boolean>>) => ({ ...defaultsNewSite, ...extra });
+assert.throws(() => assertFeaturePrerequisites(on({ consoleResponder: true }), {}), /PAPYRUS_ENABLE_CONSOLE_RESPONDER is on but PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI is not set/);
+assert.doesNotThrow(() => assertFeaturePrerequisites(on({ consoleResponder: true }), { PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI: "r/x:1" }));
+assert.doesNotThrow(() => assertFeaturePrerequisites(on({ inboundEmail: true }), {}), "inbound email is checked once, by resolveInboundEmailSettings");
+assert.doesNotThrow(() => assertFeaturePrerequisites(defaultsNewSite, {}), "a feature that is off needs nothing");
+assert.doesNotThrow(() => assertFeaturePrerequisites(on({ slack: true, storageBackups: true }), {}));
+assert.throws(() => assertFeaturePrerequisites(resolveSiteBackendFeatureFlags({ consoleResponder: true }, {}, newSiteMain), {}), /PAPYRUS_ENABLE_CONSOLE_RESPONDER/, "a features entry in papyrus.config.ts is held to the same rule");
 assert.equal(defaultsNewSite.cliRemoteLogin, false, "remote CLI login is off by default");
 assert.equal(defaultsLegacy.cliRemoteLogin, false, "and off even for the legacy production pipeline");
 

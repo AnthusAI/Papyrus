@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ac3002bc-561c-4555-af7d-0cd463b098c4",
+  "issue_id": "PPY-6cdef042-2da2-4769-80d2-449378b8e8b1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-12T17:36:12.066Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Revision history setting per publication, and the Machines on Machines rollout after a preview on real data",
+    "description": "Part of the publication transparency epic. Design: docs/plans/revision-history-and-published-dates.md (story 6).\n\nDepends on: 2, 5. Includes the preview on MoM with real data before release.\n\n```gherkin\nFeature: A publication chooses to show revision history\n  Scenario: Off unless turned on\n    Given a publication that has not turned on revision history\n    Then its pages show dates but no revision history\n\n  Scenario: Machines on Machines shows it\n    Given Machines on Machines with revision history turned on\n    When a reader opens a revised article, post or wiki page\n    Then it has the closed revision history\n```\n\nOpen question: none.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-156614d5-c0b6-4f4e-a1c5-70873a94b1b3",
+    "labels": []
+  }
+}

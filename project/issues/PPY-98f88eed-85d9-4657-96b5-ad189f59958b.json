@@ -1,0 +1,42 @@
+{
+  "id": "PPY-98f88eed-85d9-4657-96b5-ad189f59958b",
+  "title": "Translation as an agent",
+  "description": "Translation on publish runs from a stream on `LocalizationRequest` into a dispatcher that invokes the runner. Give it a definition; wake it from the feed; its rung replaces `languages.auto`. Whole-site translation becomes many wakes, one per Story and language, never one long run. Holds stay holds.\n\n**Acceptance criteria**\n- A publish translates into each configured language once.\n- Whole-site translation is cut per Story and language.\n- The dispatcher's direct invocation is deleted.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- translation-agent.feature: a publish wants and starts one run per language; a held translation flags once; whole-site translation queues one wake per Story and language.\n\n**Infrastructure as code touched:** Site backend: localization dispatcher replaced by the feed.\n\n**Part of:** Every other responsibility as an agent. Slice code M4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-11b33b19-565a-48e3-ad90-d72a156e8104",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9b9e64dc-cb45-42ee-b370-705145d0b444",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8e74bb3b-a6d9-488a-acd2-9b1fd8d93c8b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-21b8c535-7857-4e64-9ddc-5d5ce042132e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:14.890319Z",
+  "updated_at": "2026-11-16T22:46:11.800441Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

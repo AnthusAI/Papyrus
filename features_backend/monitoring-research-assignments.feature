@@ -95,7 +95,7 @@ Feature: The router runs the research assignments editors give Stories, with nob
     And a backend <tenancy> that answers like a small real one
     When one assignment is run on the real client with its transport replaced, taking in a cited source, linking it to the Story and curating it
     Then every field it asked for is granted to the research worker's role on any publication API
-    And the grant has no publish field, no updateItem and nothing that changes a Story's text
+    And the grant has no publish field and no updateItem or deleteItem: it may only create Items, such as a checklist step
     And the router role has gained no policy
 
     Examples:

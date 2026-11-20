@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "d226763d-e87d-4403-b894-37917f04a63b",
+  "issue_id": "PPY-624dab11-ec1f-4d8f-9169-c020378d6277",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:09.558Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The procedure runner deploys through the release pipeline",
+    "description": "The `papyrus-procedure-runner` stack is updated today by a hand-run change set, against the rule that nothing is created by hand. Add it to the release pipeline's stack list (`infra/pipeline/stacks.json`) with its allowed-changes entry, so a release builds the image, makes the change set, checks it and executes it, as it does for the monitoring stack. Any role change it needs follows the pipeline-roles approval path.\n\n**Acceptance criteria**\n- A release that changes the runner updates the stack with no hand step.\n- A pull request touching it prints the dry run.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- (infrastructure; covered by the pipeline's own checks) pipeline dry run lists the runner stack; a Remove or Replace not on the allowed list stops the run.\n\n**Infrastructure as code touched:** `infra/pipeline/stacks.json`, `infra/pipeline/allowed-changes.json`, `infra/procedures/papyrus-procedure-runner.yaml`. Pipeline-roles change needs approval after merge.\n\n**Part of:** Infrastructure as code and the shared tier. Slice code I1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-33e62287-4154-4ad7-aa64-ab2ad1d03c1e",
+    "labels": [
+      "always-on-agents",
+      "first-week"
+    ]
+  }
+}

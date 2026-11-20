@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "e549b8ae-d2dc-470b-8862-eb99bc0bee49",
+  "issue_id": "PPY-67e3cd15-99c0-4aab-9916-845d52118af0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:02.729Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Coalescing window: wait for quiet before paid work",
+    "description": "A burst of edits must not start ten paid runs. For a step marked paid, a change does not wake the agent at once; it sets or replaces one follow-up timer for that subject and step, due when the subject has been quiet for the site's window. The window is site data (Ryan's ruling: 30 minutes to 24 hours, about 5 minutes after a person's own action). Free steps wake at once. The pending wake's key leaves out the version; when it fires, the run takes the version that is current then. One pending timer per subject and step, never a sweep.\n\n**Acceptance criteria**\n- Ten quick edits to one Story start one paid run.\n- A person's edit uses the short window.\n- A free check runs at once on every save.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- coalescing-window.feature: ten saves in a minute start one fact check; the run uses the last version; a person's edit shortens the wait; a free step runs on each save; changing the window changes only later waits.\n\n**Infrastructure as code touched:** None beyond the follow-up timer (C2). The window is a field in the agent policy document.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-cd706fba-2516-4e3d-8df1-5b16e61c7ef7",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

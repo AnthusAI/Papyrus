@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0cfda5b6-5695-4ad2-bb24-92b3bb9d0faa",
+  "issue_id": "PPY-f1c77412-5048-49a6-8a7c-7667895a440c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:12.147Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The Idea lifecycle runs itself",
+    "description": "Ideas are Items at the `idea` stage. Lifecycle: generated, selected (by an editor, or by the selecting agent at its rung, which must be picky), assigned for research, or spiked with a reason. An idea nobody selects stays an idea; ideas are never auto-spiked for age. The selecting agent compares ideas with the section's mission and recent Stories and takes at most what the site's policy allows.\n\n**Acceptance criteria**\n- An idea moves forward only by a person or an agent whose rung allows selection.\n- An unselected idea stays and is counted, never silently removed.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- idea-lifecycle.feature: at `propose` the agent recommends ideas and selects none; at a higher rung it selects and assigns research; a spiked idea records why.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Lifecycles that run themselves: Reference, Idea, Translation, Illustration. Slice code K2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-462d6ecc-1198-4e24-9709-c950df248026",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

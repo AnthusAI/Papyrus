@@ -69,3 +69,9 @@ Feature: An editor finds a stock cover image for a Story, four at a time
     When its pages are built
     Then the article page's figure has the credit directly under the picture
     And no card, listing, feed or data file carries the credit or the cover record
+
+  Scenario: Changing the cover records the person only as metadata, never in a credit
+    Given a Story whose title and summary are about offshore wind
+    When a signed-in editor named "Ryan Porter" accepts a picture as the cover
+    Then the body and the credit under the picture never name who approved or picked it
+    And the person is recorded once, in the cover record of the front matter

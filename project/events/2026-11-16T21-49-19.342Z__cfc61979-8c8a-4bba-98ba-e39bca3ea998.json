@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cfc61979-8c8a-4bba-98ba-e39bca3ea998",
+  "issue_id": "PPY-97c0f202-01bd-4851-9593-1ddcb32c8773",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T21:49:19.342Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Per-publication announcement review policy",
+    "description": "Human review is a per-publication setting, not a rule. Add announcementReview (none = fully automatic, soft = a person may edit or stop before lock time, silence lets it go, hard = a person must release) to publication settings; it sets the default approval for new Announcements. Overrides, narrowest wins: publication, then channel (e.g. LinkedIn hard while X is none), then Announcement kind (e.g. roundups hard, story posts none); each optional. Separate source rule requireReviewedSource (default off): when on, an Announcement is created only for a Story a person has reviewed (human review stamp on its current version); a Story edited after review loses the stamp and returns the Announcement to waiting. Both are data, changeable any time, and apply to Announcements created afterwards; a planned one keeps its policy unless an editor changes that one. Every Announcement records approvalPolicy and where it came from, so the list can say sent automatically by publication policy or released by a person. Defaults: new publications soft with requireReviewedSource off; Machines on Machines hard for roundups and requireReviewedSource on; other sites keep today's behaviour and nothing changes on any site in this slice. Floors no setting lowers: three-star floor, and a machine never supplies a five.\n\n**Acceptance criteria**\n- Gherkin, one scenario per combination: fully automatic publication (none everywhere, requireReviewedSource off: first person to see it is a reader); soft (edit or stop before lock, silence releases); hard (waits for a person); MoM-style reviewed-only (requireReviewedSource on, roundups hard: unreviewed Story creates no Announcement; edit after review returns it to waiting); channel override beats publication; kind override beats channel; narrowest wins; policy change affects only later Announcements; per-Announcement editor change; approvalPolicy and source recorded on each Announcement.\n- Gherkin: three-star floor and no machine five hold under every policy.\n- Settings are data with no code defaults beyond those listed; no site's behaviour changes in this slice.\n- Announcements list shows the policy in words and marks, never colour alone.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md section 2.2. X feed stays OFF. No real email addresses.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

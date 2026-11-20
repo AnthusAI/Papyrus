@@ -10,6 +10,7 @@ from papyrus_content.ideas.monitor_stories import has_based_on_story
 from papyrus_content.story_from_reference import create_story_from_reference, story_rows
 from papyrus_content.story_reporting import stories_based_on_reference, story_references
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+from papyrus_content.content_item_lifecycle import without_sub_tasks
 
 NOW = "2026-11-02T12:00:00Z"
 URL = "https://blog.example.com/clef-decision-models"
@@ -102,7 +103,7 @@ def test_tapping_again_offers_the_existing_story_and_makes_no_duplicate():
     first = create(client)
     again = create(client)
     assert again["created"] is False and [row["itemId"] for row in again["existing"]] == [first["itemId"]]
-    assert len(client.tables["Item"]) == 1 and len(client.tables["SemanticRelation"]) == 1
+    assert len(without_sub_tasks(client.tables["Item"].values())) == 1 and len(client.tables["SemanticRelation"]) == 1
 
 
 def test_creating_another_on_purpose_makes_a_second_story_with_its_own_address():

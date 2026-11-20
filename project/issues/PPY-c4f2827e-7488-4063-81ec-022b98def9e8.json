@@ -1,0 +1,26 @@
+{
+  "id": "PPY-c4f2827e-7488-4063-81ec-022b98def9e8",
+  "title": "Core language switcher in the standard front end",
+  "description": "Draw page.alternates (language.name) as a core switcher, on by default when a site has more than one public language; placement is a site setting like site.notice; offers untranslated listings. Machines on Machines moves from its hook switcher to it.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "multilingual"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-16T12:00:35.462984Z",
+  "updated_at": "2026-11-16T12:00:35.463733Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "id": "PPY-d8586012-d064-4024-aaf2-77f9f1db2734",
+  "title": "Rating agent at observe on Machines on Machines",
+  "description": "The first agent. Definition: responsibility `rate`, tier `bulk`, a daily schedule and no change triggers yet, serial scope `agent`, safe to repeat. Each day it reads, by index, published Stories and accepted References with no rating, and for each decides three stars (the default), four (clearly better), or 'five-star candidate' (never a rating). At `observe` it writes nothing but its run record, which lists what it would rate and why. Machines on Machines is the site because the rating policy was decided for it and it has a backlog of unrated published Stories.\n\n**Acceptance criteria**\n- It runs once a day by its schedule and ends `acted` or `nothing`.\n- At `observe` no rating changes.\n- It never proposes five as a rating.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-agent.feature: the daily run lists unrated items with a proposed three or four; a strong item is listed as a five-star candidate; a day with nothing unrated ends `nothing`; no rating is written at `observe`.\n\n**Infrastructure as code touched:** None beyond the standard.\n\n**Part of:** First agent: rating and curation on one site. Slice code L1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-24b2acd6-5718-411c-aeb1-953fd7db1b56",
+  "labels": [
+    "always-on-agents",
+    "first-week"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-70c6e83d-5edc-4d18-802d-d582af9838da",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2a53cd96-5316-4b1c-9bd7-bf9317c1f73e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-6af46b37-6444-400d-a6aa-43ac4923211b",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-c8175e05-51a3-474e-aa93-2b33d6a312cf",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-c630d304-c6a8-4b27-8fdb-5ef529ccf9ac",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fba04651-9800-4e64-afbd-8102f6c9f904",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-df3e7454-0e2c-4a57-8781-9650df1714e2",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "6ad8e730-9d92-4457-9b70-9b4dfad22948",
+      "author": "home",
+      "text": "Built and merged to develop: PR #1651 (merge 77cf3ba28). The first agent, rate, runs the procedure rate_items daily; at observe it records what it would rate and why and writes nothing; a five is only ever a candidate for a person; the write goes through the one gate (new operation ratings_set, rung draft), so raising the rung is a policy change. Specs: features_backend/rating-agent.feature (20 scenarios). Not done: accepted References are not read (no index lists the ones with no stars); nothing has been adopted, no rung set, nothing run on a live site. The first run is blocked on papyrus agents set-rung (PPY-e6f31e, not built), the siteBucket on Machines on Machines' router publication, and the model key (PPY-6af46b). Exact steps: docs/releasing.md, 'The first agent: rating on Machines on Machines'.",
+      "created_at": "2026-11-17T08:09:03.666547Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "9dab344b-833d-4ccd-952a-dd0f114994e5",
+      "author": "home",
+      "text": "2026-11-17 MoM rating agent first-run steps (5.130.0 CLI, signed-in lane). Step 1 head-index: dry run reported 26 keys to set (doc says apply first); applied; re-run dry shows 0 to set, 719 already right, 1 no-head (a zh-Hans translation Story with every row superseded; suggests papyrus stories repair-versions, not run). Step 2 adopt rate dry run + real: ok. Step 3 set-rung observe dry run ok (policy v0 -> v1); --apply FAILED, NOT AccessDenied: 'GraphQL request failed: The variables input contains a field that is not defined for input object type ModelSiteDocumentVersionConditionInput'. Likely CLI/site-store bug: create sends condition {id: {attributeExists: false}} but SiteDocumentVersion is keyed by documentId+version, no id field (compare src/papyrus_content/agent_policy/catalogue.py line 31). Nothing written (policy still v0). Steps 4-5 not run; rung is unset so they would only record rung_off. Needs a fix and release before retry.",
+      "created_at": "2026-11-17T16:27:06.244428Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "d61d4818-2de6-4604-9ba3-5fe91bcb9383",
+      "author": "home",
+      "text": "2026-11-17 MoM rating agent resume with 5.130.2 CLI. set-rung observe dry run then --apply: OK (policy v0 -> v1, rate=observe, reason recorded). automations update --id rate --monitor hn --publication machines-on-machines --enabled true: OK, rate now enabled; show reports schedule 30 3 * * * America/New_York 'from its definition'. agents schedules dry run AND real both FAILED: botocore LoginRefreshRequired (AWS session expired); the command is operator lane (AWS credentials / --auth iam), not the signed-in lane, so I did not use AWS creds to write; needs Ryan or coordinator to aws login and run it. automations run --id rate --input {} : started (manual run requested), but 2+ minutes later automations runs --id rate still lists 0 runs and show says no runs; no failed-closed record seen yet. No story updated after the run (newest published update 15:56Z), so no ratings appear written. Open: schedules step; why the manual run left no run record.",
+      "created_at": "2026-11-17T17:43:46.057773Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "1c60fa13-578f-42dc-abff-9fcf14c45ef4",
+      "author": "home",
+      "text": "2026-11-17, Machines on Machines moved to Papyrus 5.130.3. Release: Papyrus PR #1668 (develop to main); tag v5.130.3, PyPI and npm verified (npm took about 6 minutes to show the version after a clean 202 publish, same as 5.130.2); stack-deploy run green, monitoring stack untouched and still held. MoM: bump PR #321 to develop, release PR #322 to main, amplify.yml regenerated with print-buildspec. Before the main merge, the Automation tenantId backfill ran as a dry run (2 rows: story-localize and rate, both unstamped), then --apply wrote 2 tenantId fields; a second dry run showed 0 pending, 2 already stamped, and agents apply --check then saw rate as unchanged. Main deploy 1 (Amplify job 140) FAILED at agents schedules: the router publication machines-on-machines names no siteBucket, so rate cannot be scheduled; nothing was written, frontend did not run, and the live site stayed on the previous build. Decision: rate stays disabled while its publication has no siteBucket, so automations update --id rate --enabled false was applied and verified (rate disabled, definition unchanged per agents apply --check). Retry (job 141) SUCCEEDED: agents apply unchanged, agents schedules ok with nothing to create, frontend build ran, deploy and verify succeeded. Public pages and /newsroom return 200; the agent schedule group is empty, so no agent-rate schedule exists. Re-enabling rate waits on lifting the papyrus-monitoring hold (siteBucket). Follow-up filed: PPY-df6d88, whether agents schedules should fail the whole build over one agent's missing config.",
+      "created_at": "2026-11-17T21:13:51.642415Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:43:12.953918Z",
+  "updated_at": "2026-11-17T21:13:51.642679Z",
+  "closed_at": "2026-11-17T08:09:03.970580Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

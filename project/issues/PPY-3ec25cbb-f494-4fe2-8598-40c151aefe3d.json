@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3ec25cbb-f494-4fe2-8598-40c151aefe3d",
+  "title": "Papyrus images CLI: papyrus images ..., generated from the shared operations",
+  "description": "The papyrus images command group, with one command per shared image operation, generated from the single operation table so it cannot drift from the MCP tools and the skill. Same names, arguments, JSON results and errors as the MCP tools. Design: project/wiki/image-toolchain.md (section 3). The operation table itself is built under PPY-011174.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T18:38:52.658148Z",
+  "updated_at": "2026-11-07T18:38:52.658185Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

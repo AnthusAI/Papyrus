@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "25efc034-670d-4d6e-ad7d-26485cbc7350",
+  "issue_id": "PPY-f98e057c-e44f-4b2c-ae61-f22e8aabee92",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:32:23.266Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cost accounting part 1: tag every resource with anthus:app, anthus:account, anthus:deployment and fail CI on an untagged one",
+    "description": "(being written)",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

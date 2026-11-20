@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bfe75176-34c8-4b32-965d-fae98cfd98bc",
+  "issue_id": "PPY-c0e9bdca-0dc6-400f-855d-1b4a3aa8df1a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-18T12:24:35.126Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Automation-path translation refuses with a tenant-prefixed lineage: 'is itself a translation of machines-on-machines#<lineage>'",
+    "description": "Seen 2026-11-16: the automation path refused a source Story as a translation because the lineage id carries the tenant prefix (machines-on-machines#<lineage>) and the translation check compares it against unprefixed ids. Compare after stripping the tenant prefix, or compare through one id helper, then add a Gherkin scenario.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "PPY-c630d304-c6a8-4b27-8fdb-5ef529ccf9ac",
+  "title": "Run outcomes follow-up: asked and nothing come from real paths; rung and responsibility are written",
+  "description": "**Problem.** PPY-f58445 (closed) gave every run an outcome word, but `asked` is only set if a procedure declares it: the real review-request path still ends `acted`. No shipped procedure declares `nothing`. `responsibility` and `rung` are fields that nothing writes. Closed early; filed here, not reopened.\n\n**Change.** `asked` comes from the review-request path (the code that files a review request), not from a procedure's own word. `nothing` is produced by a real procedure path that finds nothing to do and records a reason. `rung` is written (shared with the runner-reads-policy task; this task owns the outcome side).\n\n**Acceptance criteria**\n- A run that files a review request ends `asked`, set by the review-request code.\n- At least one shipped procedure ends `nothing` with a reason when it has nothing to do (the rating procedure will use it).\n- `responsibility` and `rung` are written on every run record (with the policy-read task).\n- The Today/console outcome display is covered by the icon task, not here.\n- Alternatively the `asked` line is made an explicit acceptance line of PPY-611397 (E2), which already says 'the run ends asked'; whichever is chosen is written on both tasks.\n\n**Gherkin features needed**\n- run-outcome-paths.feature: 'a run that files a review request ends asked'; 'a procedure with nothing to do ends nothing with a reason'; 'a run records its responsibility and rung'. Through the runner entry point.\n\n**Dependencies:** blocks PPY-d85860 (rating agent must declare `acted` or `nothing`). Relates PPY-f58445, PPY-611397.\n\n**Report:** papyrus-track-report-1.md, section 1 (#1625 row; follow-up 2).",
+  "type": "task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-865e8323-0e33-42e8-ada4-f24d5a67c231",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f58445df-45cb-4f2f-9b20-e5d1cf03730e",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "2af15442-a1e5-43f3-aaee-2526f5b654c4",
+      "author": "home",
+      "text": "Merged in PR 1645 (merge commit, all checks passed). The Reference curation procedure ends nothing with already_curated or in_progress. A run that names gate_operations is settled by the gate on the run's policy: human_required files one hard-gate review request through the review-request code and ends asked; a blocked operation ends failed gate_blocked. GateRun.record() is stored under output.gate with the review request id. Rung, responsibility and policy version were already written by 1638 and are asserted on every outcome in features_backend/run-outcome-paths.feature, driven through run_procedure_request with real Tactus. Not done: no shipped procedure names gate_operations yet (the rating agent will); console display is the icon task.",
+      "created_at": "2026-11-17T04:30:42.430634Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-17T01:17:21.289403Z",
+  "updated_at": "2026-11-17T04:30:42.603869Z",
+  "closed_at": "2026-11-17T04:30:42.603824Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

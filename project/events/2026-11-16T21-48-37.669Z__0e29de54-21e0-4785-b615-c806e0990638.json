@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0e29de54-21e0-4785-b615-c806e0990638",
+  "issue_id": "PPY-e4ae3a35-ca8f-48c4-9703-5107bad47fc8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T21:48:37.669Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Story drawer and Announcements list",
+    "description": "One Announcement with one line per Delivery in the Story drawer, read through the announces relation with no table listing, and an Announcements list. State is shown with marks and words, never colour alone.\n\n**Acceptance criteria**\n- Gherkin: A Story shows where it was announced (one line per Delivery, read through the relation, no table listing).\n- Lucide icons only; no borders (flat fills, rounded rectangles); colourblind-safe.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

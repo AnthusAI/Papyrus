@@ -286,7 +286,7 @@ def config_for_endpoint(endpoint: str) -> AuthConfig:
     if not matches:
         raise AuthError(f'No signed-in Papyrus site uses GraphQL endpoint {endpoint}. Signed in: '+', '.join(site_host(site) for site in sites)
                         +'. Run `papyrus login <site>` for the site that owns this endpoint, '
-                        'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for it instead.')
+                        'or, for a job that runs as its own AWS role, declare the operator lane with `papyrus --auth iam` (PAPYRUS_GRAPHQL_AUTH=iam).')
     return matches[0]
 
 
@@ -471,7 +471,7 @@ class SiteSession:
     def headers(self, endpoint):
         if endpoint != self.config.graphql_endpoint:
             raise AuthError('GraphQL endpoint does not match the signed-in publication; log in to the site that owns it, '
-                            'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for this endpoint instead.')
+                            'or, for a job that runs as its own AWS role, declare the operator lane with `papyrus --auth iam` (PAPYRUS_GRAPHQL_AUTH=iam).')
         return self._session.headers(endpoint)
 
     def status(self):
@@ -503,8 +503,14 @@ def signed_in_label(endpoint: str) -> str | None:
 
 
 def selected_headers(endpoint):
+    """The signed-in person's headers for this endpoint (None off the signed-in lane). Never signed in anywhere is the one-line
+    refusal that names `papyrus login <site>` and `papyrus --auth iam`, whichever path asked (PPY-5f119a)."""
+    from .operator_errors import OperatorError
+    from .user_auth_mode import NOT_SIGNED_IN, signed_in_anywhere
     if not user_auth_requested():
         return None
+    if not signed_in_anywhere():
+        raise OperatorError(NOT_SIGNED_IN)
     return session_for(config_for_endpoint(endpoint)).headers(endpoint)
 
 

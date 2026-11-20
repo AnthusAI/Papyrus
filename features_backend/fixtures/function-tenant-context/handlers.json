@@ -1,0 +1,45 @@
+{
+  "note": "Every function directory (scripts/generate-tenant-isolation-cases.ts readFunctions) is moved, exempt (it has no caller to take a tenant from, and says why) or pending. A pending function names the board sub-task of PPY-7dc463 that moves it, and the list only shrinks: a function leaves it in the PR that moves it.",
+  "moved": [
+    "assignment-action",
+    "category-action",
+    "content-actions",
+    "editorial-checks",
+    "newsroom-summary"
+  ],
+  "exempt": {
+    "tenant-claims": "The Cognito pre-token-generation trigger (PPY-0bb0fd) is what mints the caller's tenant claims at sign-in: it has no caller whose claims it could take a tenant from, and reads the membership rows of the user signing in.",
+    "localization-dispatch": "A DynamoDB stream consumer of the LocalizationRequest table that a dedicated stack alone deploys (amplify/site-backend.ts wires it only when tenancy is not shared): its records carry no caller, and a shared stack has no dispatcher to name a tenant for.",
+    "entity-label-sync": "A DynamoDB stream consumer of the SemanticNode table that a dedicated stack alone deploys (amplify/site-backend.ts wires it only when tenancy is not shared): its records carry no caller, and a shared stack has no writer to name a tenant for.",
+    "item-change-feed": "A DynamoDB stream consumer of the Item table that a dedicated stack alone deploys, and only when the site names its tenant (amplify/site-backend.ts wires it only when tenancy is not shared): its records carry no caller, it acts for the one tenant its stack names (PAPYRUS_TENANT_ID), and it skips a row of any other tenant before reading or sending anything.",
+    "change-feed": "A DynamoDB stream consumer of the Reference, ReviewRequest, Message, LocalizationRequest and Delivery tables (or a function a stream reader of one of them hands its batch to) that a dedicated stack alone deploys, and only when the site names its tenant (amplify/site-backend.ts wires it only when tenancy is not shared): its records carry no caller, it acts for the one tenant its stack names (PAPYRUS_TENANT_ID), and it skips a row of any other tenant before reading or sending anything."
+  },
+  "pending": {
+    "procedure-action": "PPY-26d90f",
+    "manage-user-role": "PPY-26d90f",
+    "model-attachment-upload": "PPY-26d90f",
+    "public-forms": "PPY-26d90f",
+    "reader-settings": "PPY-26d90f",
+    "proposal-actions": "PPY-7e3a20",
+    "knowledge-query": "PPY-7e3a20",
+    "monitoring-view": "PPY-7e3a20",
+    "automation-view": "PPY-7e3a20",
+    "image-service": "PPY-7e3a20",
+    "announcements": "PPY-7e3a20",
+    "reference-word-index": "PPY-7e3a20",
+    "renditions": "PPY-7e3a20",
+    "reader-steering/function": "PPY-01360c",
+    "home-page/function": "PPY-01360c",
+    "newsletter/function": "PPY-01360c",
+    "newsletter/ops": "PPY-01360c",
+    "notifications/function": "PPY-01360c",
+    "signup/function": "PPY-01360c",
+    "alexa/function": "PPY-01360c",
+    "cli-login-pages": "PPY-01360c",
+    "email-submission-processor": "PPY-0a9b8c",
+    "ses-inbound-receive": "PPY-0a9b8c",
+    "slack-delivery": "PPY-0a9b8c",
+    "slack-events": "PPY-0a9b8c",
+    "console-chat-responder": "PPY-0a9b8c"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "PPY-b6d5ad64-4e50-4ecb-9679-d45265d7d9eb",
+  "title": "Today v2: waiting for you, overdue, outcome unknown, due today",
+  "description": "Put first the things that need a person: open hard gates and questions, Overdue records, runs with Outcome unknown, failures not yet acknowledged, and invariant alerts. Then what is due today (schedules, releases, lock times). Read from the attention and due indexes. Each item has its one action beside it (answer, settle, acknowledge, wake now).\n\n**Acceptance criteria**\n- The top of Today is the list of things only a person can move.\n- Acknowledging a failure removes it.\n- Due times show in the site's time zone.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- today-attention.feature: a hard gate shows under Waiting for you; an overdue Delivery shows Overdue; an unknown run shows with a Settle action; acknowledging clears a failure; due items are in local time.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Human surface: Today, poke-in operations and explanations. Slice code H2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-76781314-e642-4b7a-a69a-c5e24bf8f469",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-5bcf425e-0395-48a2-921f-8783b283dc60",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-70cd6ad4-6995-4823-9f19-520cb044af0b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2d2e5572-035c-4d8c-a826-84bdbb9db1cf",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e2d276f6-57df-4294-b8b4-15ae8f22cddf",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:08.648918Z",
+  "updated_at": "2026-11-16T22:46:12.450989Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

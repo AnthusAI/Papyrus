@@ -7,6 +7,7 @@
  */
 process.env.AWS_BRANCH = "main";
 process.env.AWS_APP_ID = "dtestapp0001";
+process.env.PAPYRUS_SITE_ID = "dtestsite";
 process.env.CDK_CONTEXT_JSON = JSON.stringify({
   "aws:cdk:bundling-stacks": [],
   "amplify-backend-namespace": "dtestapp0001",
@@ -74,7 +75,7 @@ async function main() {
     dataSources < resolvers / 2,
     `${dataSources} data sources for ${resolvers} resolvers: Lambda fields must share one data source per function`,
   );
-  console.log(`FunctionDirectiveStack: ${resources.length} resources, ${resolvers} resolvers, ${dataSources} data sources`);
+  console.log(`FunctionDirectiveStack: ${resources.length} resources, ${resolvers} resolvers, ${dataSources} data sources; ${CLOUDFORMATION_STACK_LIMIT - resources.length} below the limit of ${CLOUDFORMATION_STACK_LIMIT}, ${FUNCTION_DIRECTIVE_STACK_BUDGET - resources.length} below the budget`);
 }
 
 main().then(

@@ -92,7 +92,7 @@ the section. Papyrus lists no story types. Three Item types are not stories, the
 `src/papyrus_content/content_item_lifecycle.py`; `scripts/test-story-types.ts` and `procedures/newsroom/tests/test_story_types.py` keep the two equal),
 and **every other type is a story type**, so a site's own new type (`guide`, `case_study`, the type its newsletter issues use) needs no engine change.
 Nothing else is special: a newsletter issue is an ordinary Story of whatever `issueType` the site's roundup list names, and the brief is not a type (see below).
-The Stories board's queries (`loadNewsroomContentItemStagePage` and `loadNewsroomPublishedContentItemVersions`) filter with `type ne` for each system type and never
+The Stories board's queries (`loadNewsroomContentItemStagePage` and `loadNewsroomContentItemsChangedSince`) filter with `type ne` for each system type and never
 count those; a stage query filters after DynamoDB reads a page, so a column keeps reading until it has a page of stories (`lib/story-stage-paging.ts`). The idea
 context and the duplicate cut use `is_story_item_type`, the same rule.
 
@@ -129,6 +129,11 @@ the page) sets or changes it. The type is not locked after creation; it follows 
 - **Publishing** a version of another type moves the live page to the address of the new type (`urls.types`); the projection leaves a redirect from the old address
   (the redirect store of the site), and the publish result says `typeChangedFrom`. The editor shows both addresses before that happens. Publishing a version whose
   type has no page would remove the live page, so the editor turns Publish off in that case (unpublish is the explicit way).
+
+**Retired** (`retired`, not a board column). `papyrus stories retire --story X --redirect-to Y` unpublishes X and moves its head version to this stage, the stage a
+machine write that was undone also uses (`machine_writes.RETIRED_STAGE`; `CONTENT_ITEM_STAGES` is unchanged). X keeps every version and records `metadata.retiredInto`
+(the lineage it redirects to); the projection redirects every address X was served at, including the ones before a type change (`typeChangedFrom`), to Y's current
+address, and follows Y when it moves. `--undo` publishes the retired version again. See [story reporting](story-reporting.md#retiring-a-story-and-redirecting-its-address-stories-retire).
 
 **A type with no public URL.** A page is built for a Story only when its section is declared in `urls.sections`, or its type has a `urls.types` entry, or it has
 no section and its type is projected at all (`article`, `page`, and the types in `listings.types` or `urls.types`). A Story of any other type, or in a section
@@ -252,7 +257,7 @@ A schema change: it needs the site backend deployed.
 The rating is private, but it orders the public listings. Listing includes, the featured slot, the home page's list, a section's listing page (`/articles/`),
 a collection page (`/posts/`) and tag pages put the newest bucket first and, inside a bucket, five, four and three stars first, then Stories nobody rated, then
 two and one stars; equal Stories keep their newest-first order. The order of ratings is the one References follow, and the code is shared (`rank_in_buckets` in
-`src/papyrus_content/home_page/ordering.py`; the Story side is `projection/standard/story_order.py`). **A Story bucket is a rolling window** (Ryan, 2026-11-04:
+`src/papyrus_content/quality_ranking.py`, [the algorithm](quality-ranking.md); the Story side is `projection/standard/story_order.py`). **A Story bucket is a rolling window** (Ryan, 2026-11-04:
 "rolling last seven days for the week"): counted back from the UTC day of the projection, `week` (the default of `listings.bucket`) is the last seven days, the
 seven before that, and so on; `day` is the last day, the day before, and so on; `none` is the old newest-first list. An include can say `bucket="day|week|none"`.
 A Reference's bucket rolls the same way (Ryan, 2026-11-05; see [Home page](home-page.md#time-buckets)). The feeds, the sitemap and `llms.txt` stay in date order.

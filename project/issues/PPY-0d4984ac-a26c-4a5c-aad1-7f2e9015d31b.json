@@ -3,7 +3,7 @@
   "title": "Procedure header declares its kind; validate registry against headers (S)",
   "description": "Only email_submission_processor.tac declares '-- papyrus-procedure-kind: …'. Kinds and filenames disagree elsewhere (newsroom.reporting.context → reporter.tac; newsroom.research.explorer → research_explorer.tac), and nothing checks that a registered kind points at the right procedure.\n\nFix:\n- Every procedure's first line declares its kind.\n- At load and in CI, check that each registry entry's file declares the same kind.\n- Check that no two files declare the same kind.\n- Check that every CLI command in requiredCliProcedures resolves.\n\nAcceptance: a CI check that fails on any mismatch, with unit tests for each failure case.",
   "type": "chore",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,10 +12,18 @@
     "size-S"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9a50857b-12ac-4630-8d50-bb1e64542e7e",
+      "author": "home",
+      "text": "Built and merged to develop (PR #1643). Every procedure file declares its kind on its first line (14 files; kinds newsroom.copywriter, newsroom.editor and newsroom.researcher were coined, the other 11 existed). papyrus-required-procedures.json gained a procedures map (kind to file). papyrus_content/procedure_registry.py reports: a file with no kind, two files with one kind, a registry entry whose file is missing or declares another kind, a file the registry does not list, and a CLI command whose kind has no entry. python -m papyrus_content.procedure_registry is a CI step in python-checks, and procedures seed-required runs it first and reads file paths from the registry (the hardcoded dict is gone). Specs: features_backend/procedure-registry.feature (10 scenarios), procedure_registry_test.py (18 tests). Not done: nothing in scope; moving the files into the wheel is PPY-e95a0c (PR #1646).",
+      "created_at": "2026-11-17T04:25:01.465078Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T05:52:51.859112Z",
-  "updated_at": "2026-10-23T06:07:34.334849Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T04:25:01.633330Z",
+  "closed_at": "2026-11-17T04:25:01.633208Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

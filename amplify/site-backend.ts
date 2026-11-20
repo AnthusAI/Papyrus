@@ -13,11 +13,12 @@ import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-
 import { resolveSitePublication } from "./publication/default-publication";
 import { REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS, addReprojectOnDeploy, reprojectDeployToken } from "./publication/reproject-on-deploy";
 import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
+import { addScheduledPublishing, MAXIMUM_SITE_ID_LENGTH } from "./publication/scheduled-publishing";
 import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { assertValidMonitoringConfig, assertValidPublicationConfig } from "./site-backend-config";
+import { assertValidAgentsConfig, assertValidMonitoringConfig, assertValidPublicationConfig, assertValidTenancyConfig, resolveTenancyMode, tenancyFunctionEnvironment } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import {
   revalidateDistributionEnvironment,
@@ -25,6 +26,13 @@ import {
   validateRevalidateDistributionIds,
 } from "./revalidate-invalidation-settings";
 import { enablePointInTimeRecoveryOnDataTables } from "./data-table-recovery";
+import { applySiteBackendCostTags, sharedStackCostAttribution, siteCostAttribution, wireSiteUsageSender } from "./cost-attribution";
+import { addSharedStackAlarms } from "./shared-stack/alarms";
+import { addSharedStackDeny, isModelDataStack } from "./shared-stack/deny";
+import { isInfrastructureConstructId } from "./shared-stack/inline-policy";
+import { applySharedStackIsolation } from "./shared-stack/isolation";
+import { sharedTierPlan } from "./shared-stack/names";
+import { sharedStackSettings } from "./shared-stack/settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
@@ -35,10 +43,22 @@ import { addMcpTools, mcpBrowserOptions, readerPublication } from "./mcp-tools/r
 import { storyPublicationRequestsAvailable, wireMcpStoryTables } from "./mcp-tools/story-availability";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
+import { agentPieces } from "./agents/pieces";
+import { enableItemStream } from "./agents/item-change-feed";
+import { allowChangeFeedRelay, enableFeedStreams } from "./agents/change-feeds";
+import { planFeeds, type FeedTable, type StreamReaderId } from "./agents/stream-readers";
+import { ADMIN_AGENT_POLICY_GRANT_STACK_NAME, ADMIN_AGENT_POLICY_GROUP, addAdminAgentPolicyGrant } from "./agents/admin-policy-grant";
+import { addAgentsStack } from "./agents/stack";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
+import { imageService } from "./functions/image-service/resource";
+import { wireImageService } from "./functions/image-service/wire";
 import { wireAutomationView } from "./functions/automation-view/wire";
+import { wireEntityLabelSync } from "./functions/entity-label-sync/wire";
+import { wireLocalizationDispatch } from "./functions/localization-dispatch/wire";
+import { announcements } from "./functions/announcements/resource";
+import { wireAnnouncements } from "./functions/announcements/wire";
 import { proposalActions } from "./functions/proposal-actions/resource";
 import { wireProposalActions } from "./functions/proposal-actions/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
@@ -54,6 +74,8 @@ import { contentActions, setSiteFilesForContentActionsBundle } from "./functions
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
 import { wireReferenceWordIndex } from "./functions/reference-word-index/wire";
 import { manageUserRole } from "./functions/manage-user-role/resource";
+import { tenantClaims } from "./functions/tenant-claims/resource";
+import { applyTenantSessionClaims } from "./auth/tenant-session-claims";
 import { modelAttachmentUpload } from "./functions/model-attachment-upload/resource";
 import { newsroomSummary } from "./functions/newsroom-summary/resource";
 import { derivePublicFormOrigins } from "./functions/public-forms/origins";
@@ -66,25 +88,38 @@ import { sesInboundReceive } from "./functions/ses-inbound-receive/resource";
 import { slackDelivery } from "./functions/slack-delivery/resource";
 import { slackEvents } from "./functions/slack-events/resource";
 import { addInboundEmailSesIntake } from "./inbound-email/ses-intake";
+import { inboundDnsRecordName, resolveInboundEmailSettings } from "./inbound-email/settings";
 import { InboundEmailStack } from "./inbound-email/stack";
 import {
   deriveKnowledgeVectorIndexName,
   deriveReceiptRuleName,
   deriveReceiptRuleSetName,
   deriveStorageBackupVaultName,
-  isLegacyProductionPipeline,
   planInboundEmailSes,
+  assertFeaturePrerequisites,
   resolveSiteBackendFeatureFlags,
+  sanitizeAwsName,
   type SiteBackendIdentity,
 } from "./site-backend-names";
 import { addStorageBackups } from "./storage-backups/construct";
 import { storage } from "./storage/resource";
 import type { PapyrusSite } from "../lib/define-site";
+import { connectToSiteApi } from "./site-api-access";
 
-export function defineSiteBackend(papyrusSite: PapyrusSite) {
+export type DefineSiteBackendOptions = {
+  /**
+   * Add the deny on the shared tier's resources to every dedicated role (default true). Only the synth test that proves the deny is
+   * the whole difference turns it off, to get the template without it.
+   */
+  dedicatedSharedStackDeny?: boolean;
+};
+
+export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteBackendOptions = {}) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
   // the default brand id namespaces account-global resources.
   const site = { brandId: papyrusSite.defaultBrand, ...papyrusSite.backend };
+  // Prospectus cost accounting: on when `papyrus-infra backend-deploy` asks for a cost tag wave (PAPYRUS_COST_TAG_WAVE).
+  // Null, from a plain `ampx pipeline-deploy`, leaves the backend untouched. A shared stack is always tagged (see below).
   const knowledgeVectorDimension = 1536;
   const knowledgeEmbeddingModel = "text-embedding-3-small";
 
@@ -104,9 +139,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     amplifyBranch,
     productionAppId,
   };
-  const isAmplifyProductionPipeline = isLegacyProductionPipeline(siteBackendIdentity);
   const knowledgeVectorIndexName = deriveKnowledgeVectorIndexName(siteBackendIdentity);
   const featureFlags = resolveSiteBackendFeatureFlags(site.features, process.env, siteBackendIdentity);
+  assertFeaturePrerequisites(featureFlags, process.env);
   const enableInboundEmail = featureFlags.inboundEmail;
   const enableSlackAgent = featureFlags.slack;
   const enableStorageBackups = featureFlags.storageBackups;
@@ -120,10 +155,22 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
   if (publication !== undefined) assertValidPublicationConfig(publication);
   assertValidMonitoringConfig(site.monitoring);
+  assertValidAgentsConfig(site.agents);
+  assertValidTenancyConfig(site.tenancy);
+  const tenancyMode = resolveTenancyMode(site.tenancy);
+  // A shared stack is one of two fixed tiers (docs/shared-stack.md). Its settings (reserved concurrency, alarm thresholds) come from
+  // amplify/shared-stack/settings.json, and a tier whose numbers are not measured yet refuses to synthesise.
+  const sharedTier = tenancyMode === "shared" ? sharedTierPlan(site.tenancy!.tier!) : undefined;
+  const sharedSettings = sharedTier ? sharedStackSettings(sharedTier.tier) : undefined;
+  const costAttribution = sharedTier ? sharedStackCostAttribution(sharedTier) : siteCostAttribution();
+  if (sharedTier && (publication?.projector !== undefined || publication?.staticDir !== undefined)) {
+    throw new Error("A shared stack serves many sites, so its publication cannot name one site's projector or static directory.");
+  }
   const emailMonitorId = site.monitoring?.emailMonitorId ?? "hn";
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
-  setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
+  // The shared stack bundles no site's files: its configuration comes from the site store, one site per tenant.
+  setSiteFilesForContentActionsBundle(sharedTier ? [] : publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
   const plugins = resolvePlugins(site.plugins, { staticDir: publication?.staticDir });
   const pluginDefinitions = Object.assign({}, ...plugins.map(({ plugin }) => plugin.schemaDefinitions()));
   const pluginFunctions: Record<never, never> = Object.assign({}, ...plugins.map(({ plugin }) => plugin.functions()));
@@ -138,12 +185,14 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const cliFederationCallbackUrls = cliFederationClientCallbackUrls(featureFlags.cliOnFederationClient, process.env);
   const backend = defineBackend({
     ...pluginFunctions,
+    announcements,
     assignmentAction,
     automationView,
     auth: defineSiteAuth(authConfig, cliRemoteLoginPlan ? [cliRemoteLoginPlan.callbackUri] : []),
     categoryAction,
     contentActions,
     editorialChecks,
+    imageService,
     data: defineSiteData(pluginDefinitions, resolveExcludedModelGroups(site.excludeModelGroups, process.env)),
     knowledgeQuery,
     manageUserRole,
@@ -159,7 +208,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackEvents,
     slackDelivery,
     storage,
+    tenantClaims,
   });
+
+  // Tenancy mode reaches every function; dedicated adds nothing, so an existing site's template is unchanged.
+  for (const resource of Object.values(backend) as Array<{ resources?: { lambda?: unknown }; addEnvironment?: unknown }>) {
+    const lambda = resource?.resources?.lambda;
+    if (!(lambda instanceof LambdaFunction)) continue;
+    for (const [name, value] of Object.entries(tenancyFunctionEnvironment(tenancyMode))) lambda.addEnvironment(name, value);
+  }
 
   enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
@@ -171,6 +228,14 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     backend.data.resources.graphqlApi.node.scope as Construct,
     Object.keys(backend.data.resources.tables),
     site.resolverWaveSize ?? DEFAULT_RESOLVER_WAVE_SIZE,
+  );
+
+  // Session role claims (PPY-0bb0fd): the pre-token trigger moves to event version 2 on the Essentials plan and reads the two
+  // tenancy models when the `tenancy` model group is deployed. Dark: no authorization rule reads the claims yet.
+  applyTenantSessionClaims(
+    backend.auth.resources.cfnResources.cfnUserPool,
+    backend.tenantClaims.resources.lambda,
+    "TenantMembership" in backend.data.resources.tables && "TenantSelection" in backend.data.resources.tables,
   );
 
   const requestedCognitoDomainPrefix = (authConfig.cognitoDomainPrefix ?? "").trim();
@@ -233,25 +298,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const projectRoot = resolve(amplifyBackendDir, "..");
   const enableConsoleResponder = featureFlags.consoleResponder;
 
-  if (
-    enableConsoleResponder
-    && !process.env.PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI?.trim()
-    && !process.env.PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD?.trim()
-    && !isAmplifyProductionPipeline
-  ) {
-    process.env.PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD = "true";
-  }
-  const inboundEmailDomain = (process.env.PAPYRUS_INBOUND_EMAIL_DOMAIN ?? "p.apyr.us").trim().toLowerCase();
   const inboundEmailLocalParts = (process.env.PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS ?? "submissions,suggestions")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
-  const inboundEmailCorpusKey = (process.env.PAPYRUS_INBOUND_EMAIL_CORPUS_KEY ?? "AI-ML-research").trim();
-  const inboundDnsZoneId = (process.env.PAPYRUS_ROUTE53_HOSTED_ZONE_ID ?? "Z10285921B1G7MVRV06W9").trim();
-  const inboundDnsZoneName = (process.env.PAPYRUS_ROUTE53_HOSTED_ZONE_NAME ?? "apyr.us").trim().replace(/\.$/, "");
-  const inboundDnsRecordName = inboundEmailDomain.endsWith(`.${inboundDnsZoneName}`)
-    ? inboundEmailDomain.slice(0, -(inboundDnsZoneName.length + 1))
-    : inboundEmailDomain;
+  const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
+  // Undefined while the site has inbound email off; when it is on, a missing setting stops the synth here.
+  const inbound = enableInboundEmail
+    ? resolveInboundEmailSettings(process.env, { manageDomainIdentity: inboundSesPlan.manageDomainIdentity })
+    : undefined;
 
   let slackEventsUrl: string | undefined;
 
@@ -304,7 +359,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
           resources: ["*"],
         }),
       );
-      backend.slackEvents.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+      connectToSiteApi(backend.slackEvents, graphqlEndpoint);
       backend.slackEvents.addEnvironment(
         "PAPYRUS_CONSOLE_RESPONSE_TARGET",
         (process.env.PAPYRUS_CONSOLE_RESPONSE_TARGET ?? "cloud").trim() || "cloud",
@@ -317,7 +372,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         backend.slackEvents.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", amplifySsmEnvConfig);
         backend.slackDelivery.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", amplifySsmEnvConfig);
       }
-      backend.slackDelivery.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+      connectToSiteApi(backend.slackDelivery, graphqlEndpoint);
       backend.slackDelivery.addEnvironment(
         "PAPYRUS_CONSOLE_RESPONSE_TARGET",
         (process.env.PAPYRUS_CONSOLE_RESPONSE_TARGET ?? "cloud").trim() || "cloud",
@@ -490,7 +545,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (backendTenantId !== "") {
     // editorialChecks too: it compares the site's editorial context (a tenant's publication) with its own tenant and refuses a mismatch,
     // so without the variable every check after a save-version on a tenant site fails with "Editorial context tenant mismatch" (PPY-49303f).
-    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda]) {
+    // tenantClaims: a dedicated stack's fixed tenant is the one its session claims name (PPY-0bb0fd).
+    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda, backend.tenantClaims.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
   }
@@ -521,10 +577,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     "PAPYRUS_USER_POOL_ISSUER",
     `https://cognito-idp.${Stack.of(contentActionsLambda).region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`,
   );
-  contentActionsLambda.addEnvironment(
-    "PAPYRUS_GRAPHQL_ENDPOINT",
-    backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
-  );
+  connectToSiteApi(contentActionsLambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl);
   wireEmailReferenceIntake(contentActionsLambda, emailMonitorId);
   contentActionsLambda.addToRolePolicy(
     new PolicyStatement({
@@ -566,6 +619,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (s3ProjectionPublication !== undefined) {
     addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
     addProjectionLeaseAccess(contentActionsLambda);
+    if (publication?.timeZone !== undefined) {
+      addScheduledPublishing(contentActionsLambda, { siteId: sanitizeAwsName(siteBackendIdentity.brandId, MAXIMUM_SITE_ID_LENGTH), timeZone: publication.timeZone });
+    }
     // Rating a Story asks content-actions (one asynchronous call) to re-render the listings whose order the rating changed.
     const categoryActionLambda = backend.categoryAction.resources.lambda as LambdaFunction;
     contentActionsLambda.grantInvoke(categoryActionLambda);
@@ -623,7 +679,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     grantNewsroomReadWrite(backend.sesInboundReceive.resources.lambda as LambdaFunction);
   }
 
-  if (enableInboundEmail) {
+  if (inbound) {
     if (!backend.sesInboundReceive || !backend.emailSubmissionProcessor) {
       throw new Error("Inbound email is enabled but sesInboundReceive/emailSubmissionProcessor were not registered.");
     }
@@ -632,6 +688,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     const receiveLambda = inboundReceive.resources.lambda as LambdaFunction;
     const processorLambda = inboundProcessor.resources.lambda as LambdaFunction;
     const graphqlEndpoint = backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl;
+    const inboundEmailDomain = inbound.domain;
+    const inboundEmailCorpusKey = inbound.corpusKey;
     const inboundRecipients = inboundEmailLocalParts.map((localPart) => `${localPart}@${inboundEmailDomain}`);
 
     inboundReceive.addEnvironment(
@@ -641,7 +699,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     inboundReceive.addEnvironment("PAPYRUS_INBOUND_EMAIL_DOMAIN", inboundEmailDomain);
     inboundReceive.addEnvironment("PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS", inboundEmailLocalParts.join(","));
     inboundReceive.addEnvironment("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY", inboundEmailCorpusKey);
-    inboundReceive.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+    connectToSiteApi(inboundReceive, graphqlEndpoint);
 
     inboundProcessor.addEnvironment("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY", inboundEmailCorpusKey);
     inboundProcessor.addEnvironment("PAPYRUS_INBOUND_EMAIL_DOMAIN", inboundEmailDomain);
@@ -650,8 +708,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       "PAPYRUS_INBOUND_FEEDBACK_FROM_EMAIL",
       `Papyrus Submissions <submissions@${inboundEmailDomain}>`,
     );
-    inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", "https://p.apyr.us");
-    inboundProcessor.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+    inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", inbound.publicSiteBaseUrl);
+    connectToSiteApi(inboundProcessor, graphqlEndpoint);
 
     receiveLambda.addToRolePolicy(
       new PolicyStatement({
@@ -712,7 +770,6 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
     // SES allows one active receipt rule set per account and region, so a non-legacy site
     // creates its own brand-named rule set and never activates it here.
-    const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
     if (inboundSesPlan.createReceiptRules) {
       addInboundEmailSesIntake(storageStack, {
         storageBucket,
@@ -721,12 +778,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         existingRuleSetName: site.inboundEmailSes?.existingReceiptRuleSetName,
         ruleName: deriveReceiptRuleName(siteBackendIdentity),
         activateRuleSet: inboundSesPlan.activateReceiptRuleSet,
-        domainIdentity: inboundSesPlan.manageDomainIdentity
+        domainIdentity: inbound.dnsZone
           ? {
               domain: inboundEmailDomain,
-              hostedZoneId: inboundDnsZoneId,
-              hostedZoneName: inboundDnsZoneName,
-              recordName: inboundDnsRecordName,
+              hostedZoneId: inbound.dnsZone.id,
+              hostedZoneName: inbound.dnsZone.name,
+              recordName: inboundDnsRecordName(inboundEmailDomain, inbound.dnsZone.name),
             }
           : undefined,
       });
@@ -787,10 +844,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const knowledgeQueryLambda = backend.knowledgeQuery.resources.lambda as LambdaFunction;
   backend.knowledgeQuery.addEnvironment("OPENAI_API_KEY", secret("OPENAI_API_KEY"));
   knowledgeQueryLambda.addEnvironment("PAPYRUS_STORAGE_BUCKET_NAME", storageBucket.bucketName);
-  knowledgeQueryLambda.addEnvironment(
-    "PAPYRUS_GRAPHQL_ENDPOINT",
-    backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
-  );
+  connectToSiteApi(knowledgeQueryLambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl);
   knowledgeQueryLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_ARN", knowledgeVectorIndex.attrIndexArn);
   knowledgeQueryLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_NAME", knowledgeVectorIndexName);
   knowledgeQueryLambda.addEnvironment("PAPYRUS_EMBEDDING_MODEL", knowledgeEmbeddingModel);
@@ -863,12 +917,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
         : null,
-      inboundEmail: enableInboundEmail
+      inboundEmail: inbound
         ? {
-            domain: inboundEmailDomain,
+            domain: inbound.domain,
             localParts: inboundEmailLocalParts,
-            addresses: inboundEmailLocalParts.map((localPart) => `${localPart}@${inboundEmailDomain}`),
-            corpusKey: inboundEmailCorpusKey,
+            addresses: inboundEmailLocalParts.map((localPart) => `${localPart}@${inbound.domain}`),
+            corpusKey: inbound.corpusKey,
           }
         : null,
       referenceWordIndex: { tableName: referenceWordIndex.tableName },
@@ -896,10 +950,133 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     },
   });
   wireEditorialChecks(backend);
+  // The functions that call models report their tokens to the site's Prospectus usage queue.
+  if (costAttribution && !sharedTier) {
+    const editorialChecksLambda = backend.editorialChecks.resources.lambda as LambdaFunction;
+    wireSiteUsageSender(editorialChecksLambda, costAttribution);
+    wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
+    // Every resource in every backend stack carries the anthus: cost tags (Prospectus reads cost by them), in waves that
+    // each fit one CloudFormation operation; the usage senders' stacks change in the first pass, so they go first.
+    applySiteBackendCostTags(backend.stack, costAttribution, [Stack.of(editorialChecksLambda), Stack.of(knowledgeQueryLambda)]);
+  }
+  // The shared stack reports usage per tenant through Prospectus later (kanbus-f45f7f); until then its resources are only tagged.
+  if (costAttribution && sharedTier) applySiteBackendCostTags(backend.stack, costAttribution);
   wireMonitoringView(backend, emailMonitorId);
-  wireAutomationView(backend);
+  wireAutomationView(backend, siteBackendIdentity.brandId);
+  // Translate on publish (languages.auto): a stream consumer on the LocalizationRequest records. A shared stack's rows carry a tenant it does not act for.
+  if (tenancyMode !== "shared") wireLocalizationDispatch(backend, contentActionsLambda, siteBackendIdentity.brandId);
+  // The names of concepts in each language: a stream consumer on the SemanticNode records writes every concept's primary-language label rows.
+  if (tenancyMode !== "shared") wireEntityLabelSync(backend);
+  wireImageService(backend);
   wireProposalActions(backend);
+  // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
+  wireAnnouncements(backend, siteBackendIdentity.brandId);
+  // Every always-on agent resource is in the one `agents` stack, which the first deploy of a new site leaves out (amplify/agents/stack.ts).
+  // The Item change feed (slice B2) reads the Item table's stream, so the stream is switched on with the stack that reads it, never in the first deploy. A dedicated site
+  // with a tenant id only: a shared stack's rows carry tenants it does not act for, and the listener index is one site's document.
+  const bootstrapStage = isBootstrapStage(process.env);
+  const feedsRun = tenancyMode !== "shared" && backendTenantId !== "" && !bootstrapStage;
+  const itemStreamArn = feedsRun ? enableItemStream(backend) : undefined;
+  // The change feeds of the other tables (slice B3) follow the same rule, and no table gets a third stream reader: the readers that exist on each stream are counted
+  // here (amplify/agents/stream-readers.ts), a table with fewer than two gets a feed of its own, and one with two gets the feed behind a reader that stays on the stream.
+  const homePagePlugin = plugins.find(({ plugin }) => plugin.manifest.name === "home-page");
+  const streamReaders: StreamReaderId[] = [
+    "reference-word-index",
+    ...(homePagePlugin ? (["home-page-references"] as const) : []),
+    ...(homePagePlugin && (homePagePlugin.config as { threads?: boolean }).threads ? (["home-page-threads"] as const) : []),
+    ...(enableConsoleResponder ? (["console-responder"] as const) : []),
+    ...(enableSlackAgent ? (["slack-delivery"] as const) : []),
+    ...(tenancyMode !== "shared" && backend.data.resources.tables.LocalizationRequest ? (["localization-dispatch"] as const) : []),
+  ];
+  const feedStreams = feedsRun ? enableFeedStreams(backend) : undefined;
+  const feedPlacements = planFeeds(streamReaders);
+  addAgentsStack(
+    (name) => backend.createStack(name),
+    agentPieces(siteBackendIdentity.brandId, {
+      itemChangeFeed:
+        itemStreamArn === undefined
+          ? undefined
+          : {
+              streamArn: itemStreamArn,
+              graphqlUrl: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string,
+              apiId: backend.data.resources.graphqlApi.apiId as string,
+              tenantId: backendTenantId,
+              bucketName: storageBucket.bucketName,
+              bucketArn: storageBucket.bucketArn,
+              openAiKeyParameter: site.agents?.openAiKeyParameter,
+            },
+      changeFeeds:
+        feedStreams === undefined
+          ? undefined
+          : {
+              streams: feedStreams,
+              placements: feedPlacements,
+              graphqlUrl: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string,
+              apiId: backend.data.resources.graphqlApi.apiId as string,
+              tenantId: backendTenantId,
+              bucketName: storageBucket.bucketName,
+              bucketArn: storageBucket.bucketArn,
+              openAiKeyParameter: site.agents?.openAiKeyParameter,
+            },
+    }),
+    bootstrapStage,
+  );
+  // The signed-in admin may put and get the agent policy document's versions (`papyrus agents set-rung --apply`). A dedicated site only: the grant names every
+  // tenant's prefix, which a shared stack's admin must not hold.
+  if (tenancyMode !== "shared") {
+    addAdminAgentPolicyGrant(
+      backend.createStack(ADMIN_AGENT_POLICY_GRANT_STACK_NAME),
+      backend.auth.resources.groups[ADMIN_AGENT_POLICY_GROUP].role,
+      storageBucket.bucketArn,
+    );
+  }
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
+  if (feedStreams !== undefined) {
+    // The readers that carry a feed pass their batches to it: they may invoke the one function, and it is named in their settings. No resource is added.
+    const carriers: Record<StreamReaderId, LambdaFunction | undefined> = {
+      "reference-word-index": referenceWordIndex.consumer,
+      "slack-delivery": enableSlackAgent ? (backend.slackDelivery.resources.lambda as LambdaFunction) : undefined,
+      "home-page-threads": homePagePlugin ? ((backend as any).homePageTrigger?.resources.lambda as LambdaFunction | undefined) : undefined,
+      "home-page-references": undefined,
+      "console-responder": undefined,
+      "localization-dispatch": undefined,
+    };
+    const relayed = new Map<LambdaFunction, string[]>();
+    for (const table of Object.keys(feedPlacements) as FeedTable[]) {
+      const placement = feedPlacements[table];
+      const streamArn = feedStreams[table];
+      if (placement.mode !== "behind" || streamArn === undefined) continue;
+      const carrier = carriers[placement.reader];
+      if (carrier === undefined) throw new Error(`The ${table} change feed sits behind ${placement.reader}, which this backend does not have.`);
+      relayed.set(carrier, [...(relayed.get(carrier) ?? []), streamArn]);
+    }
+    for (const [carrier, streamArns] of relayed) allowChangeFeedRelay(carrier, siteBackendIdentity.brandId, streamArns);
+  }
+
+  if (tenancyMode === "shared") {
+    // The loop at the top reaches the functions Amplify defines. A shared stack also has functions that wires and plugins make with `new Function`
+    // (the console chat responder, the reference word index consumer, the public forms handler); each must know it is shared.
+    for (const node of backend.stack.node.findAll()) {
+      if (!(node instanceof LambdaFunction) || isInfrastructureConstructId(node.node.id)) continue;
+      for (const [name, value] of Object.entries(tenancyFunctionEnvironment(tenancyMode))) node.addEnvironment(name, value);
+    }
+  }
+  if (sharedTier && sharedSettings) {
+    // Layers 2, 3 and 5 of the shared tier's isolation (the key, the boundary, reserved concurrency, alarms); the foundation stack holds the key and the boundary policy.
+    const isolation = applySharedStackIsolation(backend, sharedTier, sharedSettings);
+    const alarmsStack = backend.createStack("shared-alarms");
+    addSharedStackAlarms(alarmsStack, sharedTier, sharedSettings, {
+      functions: isolation.functionTargets,
+      appSyncApiId: backend.data.resources.graphqlApi.apiId,
+      tableNames: Object.values(backend.data.resources.tables).map((table) => table.tableName),
+      projectionDeadLetterQueueName: s3ProjectionPublication?.deadLetterQueue.queueName,
+      distributionId: s3ProjectionPublication?.distributionId,
+    });
+  } else if (options.dedicatedSharedStackDeny !== false) {
+    // A dedicated site's roles may not touch the shared tier. Roles of the per-model data stacks are left alone (see addSharedStackDeny).
+    const modelNames = new Set(Object.keys(backend.data.resources.tables));
+    addSharedStackDeny(backend.stack, (stack) => isModelDataStack(stack, modelNames));
+  }
 
   return backend;
 }

@@ -20,7 +20,7 @@ An answer is `approve`, `acknowledge` (a flag only: nothing was approved, the ed
 | Field | Meaning |
 |---|---|
 | `id` | `rr-<hex>`, or one the caller chooses (raising the same id twice returns the first: idempotent). |
-| `subject` | `{type, id}`: `story`, `proposal`, `reference`, `automation_run`, `cyclotron_decision` or `batch`. |
+| `subject` | `{type, id}`: `story`, `proposal`, `reference`, `automation_run`, `cyclotron_decision`, `batch` or `delivery` (an announcement Delivery that was not sent). |
 | `mode`, `reason`, `ask` | The mode, why (the headline), and what is asked. |
 | `raisedBy`, `raisedAt` | The automation, procedure or AI step, and when. |
 | `deadline` | Soft reviews only, and only when the caller passes one. Empty means no expiry. |

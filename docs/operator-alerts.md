@@ -35,7 +35,7 @@ When the old SNS email is removed later (PPY-f66e91), exactly these two stay. Th
 
 Nothing is deployed by the pull request, and nobody runs these by hand (PPY-b8cc79). The pull request's `stack-deploy` dry run prints what each stack would change; a person reads that before merging. The release to `main` then builds the zips, deploys the operator sending stack first and `papyrus-monitoring` second, in one run, through GitHub OIDC (`infra/pipeline/README.md`). The run stops without executing if anything would be Removed or Replaced that `infra/pipeline/allowed-changes.json` does not list, or if a stack is in a failed state. Steps 1 to 3 below are what that run does; read them as the description of its work, and as the manual fallback only if the pipeline is unavailable and Ryan says so.
 
-0. **Before anything.** Merge Caducus PR 7 (the handlers this needs), then set `infra/monitoring/caducus-requirement.txt` to the merge commit (or a release tag) and commit that. Until PyPI works the pin is a Git commit; the file's own comments say how to change it.
+0. **Before anything.** Merge Caducus PR 7 (the handlers this needs), then set `infra/monitoring/caducus-requirement.txt` to the release (`caducus==X.Y.Z`) and commit that.
 1. **Build and upload the zip** (the build needs `git` and network for `pip wheel`):
    `python3 infra/monitoring/build.py --operator --upload "$CODE_BUCKET"` prints `CodeKey papyrus-monitoring/operator-<sha256>.zip`. Same pin and catalog give the same hash, so re-running changes nothing.
 2. **Stack `papyrus-newsletter-sending-operators`** (identity, DKIM, MAIL FROM, DMARC under notify.anth.us, configuration set `papyrus-operators`, delivery events to the default bus). Command in `infra/newsletter/README.md`; run it with `--no-execute-changeset` first. It must exist before step 3: the functions send as this identity. The release moves on to step 3 straight away; it does not wait for verification. Check with `aws sesv2 get-email-identity --email-identity notify.anth.us --query '[VerifiedForSendingStatus,DkimAttributes.Status,MailFromAttributes.MailFromDomainStatus]' --output text` to read `True SUCCESS SUCCESS` (minutes, up to about 30).
@@ -89,7 +89,7 @@ The same by hand: `aws cloudwatch set-alarm-state --alarm-name papyrus-notify-te
 
 - **Dead-letter queues.** `papyrus-operator-ingest-dlq` and `papyrus-operator-email-dlq` hold what failed five times for 14 days. Read the function's log group (`/aws/lambda/papyrus-operator-*`), fix the cause, then redrive: `aws sqs start-message-move-task --source-arn <dlq arn>`. Nothing alarms on these queues in this slice (dead-letter alarms are M2), so check them after any failure the dead-man reports.
 - **A message looks wrong or is missing.** Find the incident or delivery in table `papyrus-operator-alerts` (`INCIDENT#...`, `EVENT#...` rows). Addresses are never logged or stored.
-- **Pin to PyPI later.** Replace the single requirement line in `infra/monitoring/caducus-requirement.txt` with `caducus==X.Y.Z`. Nothing else changes.
+- **The Caducus pin.** The single requirement line in `infra/monitoring/caducus-requirement.txt` is a PyPI release (`caducus==0.4.0`). To move it, change that line to the new release. Nothing else changes.
 - **Deleted site stacks.** An Amplify alarm whose stack was deleted stops existing; add a line here if one is left behind.
 - **Prospectus.** `prospectus-cli-broker-*` alarms now reach the operator; tell the Prospectus session.
 

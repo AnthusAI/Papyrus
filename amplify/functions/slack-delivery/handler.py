@@ -107,6 +107,11 @@ def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
             )
             failures.append({"itemIdentifier": sequence, "error": str(error)})
 
+    # Where the Message stream already has two readers the change feed is not a third: this reader passes it the batch and reports what the feed could not do
+    # (papyrus_content.change_feed_relay; PPY-9b9e64).
+    from papyrus_content.change_feed_relay import relay
+
+    failures.extend(relay(event))
     if failures:
         return {"batchItemFailures": failures}
     return {"ok": True, "results": results}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "00594e21-b977-400f-9881-0b0b28f0889e",
+  "issue_id": "PPY-40443baa-fee3-4b94-811c-569f70a62024",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T18:50:47.209Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reporter personas: named voices per section, optional per site",
+    "description": "Ryan 2026-11-17, from a design-partner meeting. An optional feature: a site defines named reporter personas (name, short public bio, persistent instructions, voice notes), links each section to the personas allowed to report for it, and every Story carries one persona through research, drafting, revisions and its announcement. Sites with one voice (Machines on Machines, Anthus) leave it off and see nothing.\n\nDesign (agreed with Ryan): a persona is backend data delivered as one more add-only layer of the context pack (build_context_pack in src/papyrus_content/newsroom_context_pack.py). It is not a new agent and not a new procedure: existing Tactus procedures run as the persona. The persona sits on top of the site's writing guidelines and policies and never replaces them.\n\nReuse: the guidelines store (versioned documents, publication and section scope); the byline policy (PPY-804b7b) pen-names mode, which personas supersede (each pen name becomes a persona); the voice_examples layer for recent work; byline rendering and JSON-LD Person; the Administration panel pattern.\n\nSelection (Ryan's plan): the editor picks the persona from the section's list when assigning a Story; automated assignments rotate through that list.\n\nOut of scope for now: a separate X account per persona; persona author pages (a later story).\n\nFirst user: TheHallucinator.ai (Humorus). Standing rules: no workarounds, fallbacks or shims; Gherkin specs with every behaviour.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+    "labels": []
+  }
+}

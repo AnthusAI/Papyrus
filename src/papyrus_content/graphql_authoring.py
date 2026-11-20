@@ -1,16 +1,28 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import re
+import random
+import sys
+import time
 import http.client
 import urllib.parse
 from typing import Any, Callable
 
+from . import request_meter
+from .content_item_lifecycle import HEAD_STAGE_KEY_FIELD
+from .item_language import with_item_language
 from .env import graphql_endpoint, graphql_timeout_seconds, site_tenant_id
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
-from .operator_errors import GraphQLRequestError, credential_recovery_guidance
+from .operator_errors import GraphQLRequestError, GraphQLTimeoutError, credential_recovery_guidance
 from .tenancy import (
+    TENANT_FIELD,
+    TENANT_ID_ENVIRONMENT_VARIABLE,
+    is_shared_stack,
+    TENANT_LISTING_QUERIES,
     TENANT_MODELS,
     TenantError,
     row_belongs_to_tenant,
@@ -20,6 +32,8 @@ from .tenancy import (
     tenant_scoped_index,
     tenant_scoped_record_id,
     tenant_scoped_value,
+    TENANT_FIELD_MODELS,
+    tenant_field_stamped_payload,
     tenant_stamped_payload,
     validate_tenant_id,
 )
@@ -62,7 +76,7 @@ REFERENCE_FIELDS = (
     f"{VERSION_FIELDS} id corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 "
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
-    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
+    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationSectionUpdatedAt curationSectionUpdatedBy curationSectionActorKind curationSectionReason curationSectionDecisionRelationId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
     "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState captureReason contentNeededKey medium evidenceLevel playlistUrl mediumFeedKey thumbnailPath publicFeedKey publicOrderKey cardImage cardSummary cardSiteName cardPageTitle updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
@@ -94,7 +108,7 @@ MESSAGE_FIELDS = (
 MESSAGE_THREAD_FIELDS = (
     "id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey "
     "createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest "
-    "activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey"
+    "activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey sectionId"
 )
 PROCEDURE_DEFINITION_FIELDS = (
     "id procedureKey title category description enabled enabledStatus currentVersionId createdBy createdAt "
@@ -108,17 +122,40 @@ PROCEDURE_RUN_FIELDS = (
     "id procedureId procedureKey procedureVersionId procedureVersionNumber assignmentId runStatus requestedBy "
     "requestedAt startedAt finishedAt input normalizedInput resultSummary errorSummary output error attempt newsroomFeedKey"
 )
-PROCEDURE_RUN_COST_FIELDS = "usage costUsd"   # added after the base list: a backend that predates them refuses a query that names them
+PROCEDURE_RUN_TODAY_FIELDS = (   # one run as Today lists it: no input, output or usage, which hold whole bodies
+    "id tenantId procedureKey runStatus outcome outcomeReason automationId responsibility subjectKind subjectId subjectVersion rung "
+    "requestedAt startedAt finishedAt costUsd errorSummary"
+)
+PROCEDURE_RUN_ATTENTION_FIELDS = (   # one run that needs a person: what it was, why, and when it needed attention
+    "id tenantId procedureKey runStatus outcome outcomeReason automationId responsibility subjectKind subjectId requestedAt finishedAt "
+    "errorSummary attentionKey dueAt acknowledgedAt acknowledgedBy"
+)
+PROCEDURE_RUN_COST_FIELDS = "usage costUsd outcome outcomeReason automationId"   # added after the base list: a backend that predates them refuses a query that names them
 AUTOMATION_FIELDS = (
-    "id title description enabled trigger procedureKey inputTemplate limits createdBy createdAt updatedBy updatedAt"
+    "id title description enabled trigger procedureKey responsibility definitionId definitionVersion definitionDigest definition definitionRetiredAt inputTemplate limits "
+    "createdBy createdAt updatedBy updatedAt"
 )
 REVIEW_REQUEST_FIELDS = (
     "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
 )
 REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
+LOCALIZATION_REQUEST_FIELDS = (
+    "id tenantId languageGroupId language sourceVersionId sourceVersionNumber sourceContentHash state requestedBy requestedAt runKey reason automationId publish updatedAt"
+)
+ENTITY_LABEL_FIELDS = (
+    "id tenantId entityKind entityId entityKey language role text textLanguage nameKey sortKey description equivalence origin pinned reviewedBy reviewedAt "
+    "sourceContentHash syncState workKey slug provenanceId createdAt updatedAt"
+)
 STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
+)
+ANNOUNCEMENT_SPEND_FIELDS = "id accountId cycleStart total updatedAt"
+ANNOUNCEMENT_DECISION_FIELDS = "id tenantId dedupeKey kind state releaseAt createdBy trigger history revision createdAt updatedAt"
+DELIVERY_FIELDS = (
+    "id tenantId announcementId channel accountId accountKey audience mode state blockedReason generation version textKey imageKey contentHash versions candidates draftedBy checks "
+    "approval approvalPolicy approvedVersion approvedBy approvedAt releaseAt lockAt lockedAt lockedVersion preferredVersion machineVersion exampleScope exampleState exampleAt exampleKey nextAttemptAt waitingFor dueAt dueKey "
+    "resultUrl providerId cost counts attempts supersedes supersededBy history revision createdAt updatedAt"
 )
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 EDITORIAL_CHECK_SETTINGS_FIELDS = "id settings"
@@ -152,14 +189,16 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
 )
 ITEM_FIELDS = (
     f"{VERSION_FIELDS} id tenantId tenantSlug type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy"
+    "byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy parentLineageId "
+    "language languageGroupId sourceLineageId sourceVersionNumber sourceContentHash syncState"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
-    "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
+    "title headline deck body byline dateline publishedAt versionPublishedAt versionPublishedBy editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata language languageGroupId"
 )
+SUMMARY_PAGE_SIZE = 1000
 PUBLISHED_ITEM_SUMMARY_FIELDS = (
-    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
+    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt versionPublishedAt versionPublishedBy metadata language languageGroupId"
 )
 MEDIA_ASSET_FIELDS = (
     "id itemId tenantId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
@@ -176,6 +215,8 @@ SEMANTIC_NODE_FIELDS = (
     "description aliases authorityScore authorityRank acceptedReferenceMentionCount distinctSourceKindCount relationCount pageAnswer "
     "status importRunId createdAt updatedAt newsroomFeedKey"
 )
+# The nodes that name a language need the deploy that adds SemanticNode.language; the other readers of a node do not select it.
+SEMANTIC_NODE_LANGUAGE_FIELDS = f"{SEMANTIC_NODE_FIELDS} language"
 KNOWLEDGE_ARTIFACT_FIELDS = (
     "id corpusId artifactKind artifactId snapshotId displayName createdAt importRunId"
 )
@@ -203,7 +244,12 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "Automation": {"field": "listAutomations", "fields": AUTOMATION_FIELDS},
     "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
+    "LocalizationRequest": {"field": "listLocalizationRequests", "fields": LOCALIZATION_REQUEST_FIELDS},
+    "EntityLabel": {"field": "listEntityLabels", "fields": ENTITY_LABEL_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
+    "AnnouncementSpend": {"field": "listAnnouncementSpends", "fields": ANNOUNCEMENT_SPEND_FIELDS},
+    "AnnouncementDecision": {"field": "listAnnouncementDecisions", "fields": ANNOUNCEMENT_DECISION_FIELDS},
+    "Delivery": {"field": "listDeliveries", "fields": DELIVERY_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "EditorialCheckSettings": {"field": "listEditorialCheckSettings", "fields": EDITORIAL_CHECK_SETTINGS_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
@@ -428,9 +474,38 @@ PUBLISHED_STORY_LIST_FIELDS = (
 )
 
 STORY_SECTION_LINK_FIELDS = "id tenantId lineageId versionState stage status type section sectionStatus"
+#: A version with its schedule (docs/scheduled-publishing.md). Kept out of ITEM_FIELDS: a site that has not had the deploy that adds the fields would refuse every Item read.
+SCHEDULE_ROW_FIELDS = (
+    "id tenantId lineageId versionNumber versionState status stage type slug title headline updatedAt "
+    "scheduledPublishAt scheduledBy scheduledAt scheduleState scheduleName"
+)
+HEAD_INDEX_ROW_FIELDS = "id tenantId lineageId versionNumber versionState versionCreatedAt stage type updatedAt"
+ITEM_DECK_ROW_FIELDS = "id tenantId lineageId versionNumber versionState type updatedAt deck metadata"
+ITEM_LANGUAGE_ROW_FIELDS = "id tenantId lineageId versionNumber versionState type updatedAt language languageGroupId"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
+    # One row per story: only the head row of a lineage carries headStageKey (docs/plans/story-head-stage-index.md). Tenant-prefixed (tenancy.py).
+    "itemsByHeadStage": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey", "fields": STORY_SECTION_LINK_FIELDS},
+    # The published head rows with what the rating agent judges and whether a person rated them (src/papyrus_content/rating_agent.py). Same partition as itemsByHeadStage.
+    "itemsByHeadStageForRating": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey",
+                                  "fields": "id tenantId lineageId versionState stage status type section title headline deck bodyMarkus sourceLineageId starRating starRatedBy updatedAt"},
+    # The rows of one old stage partition with what `stories head-index` needs to pick each lineage's head (the WithKey form once the site has it).
+    "itemHeadFieldsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": HEAD_INDEX_ROW_FIELDS},
+    "itemHeadFieldsWithKeyByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": f"{HEAD_INDEX_ROW_FIELDS} headStageKey"},
+    # A Story's language group: every version of the primary and of each localization, one language with sortEq (item_language.py). Tenant-prefixed.
+    # Today (docs/design/always-on-agents-architecture.md section 7.1): the runs of one status inside a time range.
+    "procedureRunsByStatus": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_TODAY_FIELDS},
+    # The runs that need a person: failed or outcome unknown, not acknowledged (sparse; run_attention.py). Sorted by when they needed attention.
+    "procedureRunsByAttention": {"field": "listProcedureRunsByAttentionKeyAndDueAt", "partitionKey": "attentionKey", "sortKey": "dueAt", "fields": PROCEDURE_RUN_ATTENTION_FIELDS},
+    # One procedure's runs, newest last, and the definitions of one procedure key (the priming export reads a monitor's runs this way).
+    "procedureRunsByProcedure": {"field": "listProcedureRunsByProcedureAndRequestedAt", "partitionKey": "procedureId", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_FIELDS},
+    "procedureDefinitionsByKey": {"field": "listProcedureDefinitionsByKeyAndUpdatedAt", "partitionKey": "procedureKey", "sortKey": "updatedAt", "fields": PROCEDURE_DEFINITION_FIELDS},
+    "itemsByLanguageGroup": {"field": "listItemsByLanguageGroupAndLanguage", "partitionKey": "languageGroupId", "sortKey": "language", "fields": ITEM_FIELDS},
+    # The rows of one version-state partition with what `stories languages` needs (every Item row has a version state).
+    "itemLanguageFieldsByVersionState": {"field": "listItemsByVersionStateAndUpdatedAt", "partitionKey": "versionState", "fields": ITEM_LANGUAGE_ROW_FIELDS},
+    # The rows of one version-state partition with what `stories decks` needs: the stored deck and the front matter it derives from.
+    "itemDeckFieldsByVersionState": {"field": "listItemsByVersionStateAndUpdatedAt", "partitionKey": "versionState", "fields": ITEM_DECK_ROW_FIELDS},
     "itemsBySectionStatus": {"field": "listItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": STORY_SECTION_LINK_FIELDS},
     "messageThreadsByAnchor": {"field": "listMessageThreadsByAnchorAndUpdatedAt", "partitionKey": "primaryAnchorKey", "fields": MESSAGE_THREAD_FIELDS},
     "publishedItemsBySectionStatus": {"field": "listPublishedItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": PUBLISHED_STORY_LIST_FIELDS},
@@ -442,6 +517,13 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": MESSAGE_FIELDS,
     },
     "knowledgeCorporaByRoleAndName": {"field": "listKnowledgeCorporaByRoleAndName", "partitionKey": "role", "fields": KNOWLEDGE_CORPUS_FIELDS},
+    # The names of concepts (src/papyrus_content/entity_labels): every name of one concept, the concepts with one name in one language, the labels that need work.
+    "entityLabelsByEntity": {"field": "listEntityLabelsByEntityAndSortKey", "partitionKey": "entityKey", "fields": ENTITY_LABEL_FIELDS},
+    "entityLabelsByName": {"field": "listEntityLabelsByNameKey", "partitionKey": "nameKey", "fields": ENTITY_LABEL_FIELDS},
+    "entityLabelsByWork": {"field": "listEntityLabelsByWorkKeyAndUpdatedAt", "partitionKey": "workKey", "fields": ENTITY_LABEL_FIELDS},
+    "semanticNodesByLineage": {"field": "listSemanticNodesByLineageAndVersion", "partitionKey": "lineageId", "partitionType": "ID", "fields": SEMANTIC_NODE_LANGUAGE_FIELDS},
+    "semanticNodesByNodeKey": {"field": "listSemanticNodesByNodeKeyAndVersion", "partitionKey": "nodeKey", "fields": SEMANTIC_NODE_FIELDS},
+    "localizationRequestsByState": {"field": "listLocalizationRequestsByStateAndRequestedAt", "partitionKey": "state", "fields": LOCALIZATION_REQUEST_FIELDS},
     "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
     "itemByTenantSlug": {"field": "itemByTenantSlug", "partitionKey": "tenantSlug", "fields": ITEM_FIELDS},
     "itemsByLineageAndVersion": {
@@ -449,6 +531,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "lineageId",
         "partitionType": "ID",
         "fields": ITEM_FIELDS,
+    },
+    "itemScheduleByLineage": {
+        "field": "listItemsByLineageAndVersion",
+        "partitionKey": "lineageId",
+        "partitionType": "ID",
+        "fields": SCHEDULE_ROW_FIELDS,
     },
     "assignmentsByItemLineageAndCreatedAt": {
         "field": "listAssignmentsByItemLineageAndCreatedAt",
@@ -487,6 +575,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": ASSIGNMENT_EVENT_FIELDS,
         "partitionType": "ID",
     },
+    "newsroomSectionsByEnabledStatus": {   # the sections of one state ("enabled" or "disabled"): a small partition, read without scanning the table
+        "field": "listNewsroomSectionsByEnabledStatusAndSortOrder",
+        "partitionKey": "enabledStatus",
+        "fields": NEWSROOM_SECTION_FIELDS,
+    },
     "referencesByLineageAndVersion": {
         "field": "listReferencesByLineageAndVersion",
         "partitionKey": "lineageId",
@@ -501,6 +594,13 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "referencesByFeedStateAndArrival": {
         "field": "listReferencesByFeedStateAndArrival",
         "partitionKey": "feedStateKey",
+        "fields": REFERENCE_FIELDS,
+    },
+    "referencesByCorpusAndExternalItem": {
+        "field": "listReferencesByCorpusAndExternalItem",
+        "partitionKey": "corpusId",
+        "partitionType": "ID",
+        "sortKey": "externalItemId",
         "fields": REFERENCE_FIELDS,
     },
     "referencesByMediumFeedAndArrival": {
@@ -518,9 +618,15 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "curationStatusKey",
         "fields": REFERENCE_FIELDS,
     },
+    "publishedItemsByTypeStatus": {
+        "field": "listPublishedItemsByTypeStatusAndPublishedAt",
+        "partitionKey": "typeStatus",
+        "fields": "id itemLineageId slug title type status metadata",
+    },
     "semanticRelationsByObjectState": {
         "field": "listSemanticRelationsByObjectState",
         "partitionKey": "objectStateKey",
+        "sortKey": "predicate",
         "fields": SEMANTIC_RELATION_FIELDS,
     },
     "storyVariationsByStoryAndNumber": {
@@ -528,6 +634,49 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "storyLineageId",
         "partitionType": "ID",
         "fields": STORY_VARIATION_FIELDS,
+    },
+    # The Announcement and Delivery records (docs/announcement-records.md). Every read of them is one of these indexes.
+    "announcementDecisionsByDedupeKey": {
+        "field": "listAnnouncementDecisionsByDedupeKeyAndCreatedAt",
+        "partitionKey": "dedupeKey",
+        "sortKey": "createdAt",
+        "fields": ANNOUNCEMENT_DECISION_FIELDS,
+    },
+    "announcementDecisionsByState": {
+        "field": "listAnnouncementDecisionsByStateAndReleaseAt",
+        "partitionKey": "state",
+        "sortKey": "releaseAt",
+        "fields": ANNOUNCEMENT_DECISION_FIELDS,
+    },
+    "deliveriesByAnnouncement": {
+        "field": "listDeliveriesByAnnouncementAndCreatedAt",
+        "partitionKey": "announcementId",
+        "sortKey": "createdAt",
+        "fields": DELIVERY_FIELDS,
+    },
+    "deliveriesByAccount": {
+        "field": "listDeliveriesByAccountKeyAndCreatedAt",
+        "partitionKey": "accountKey",
+        "sortKey": "createdAt",
+        "fields": DELIVERY_FIELDS,
+    },
+    "deliveriesByDue": {
+        "field": "listDeliveriesByDueKeyAndDueAt",
+        "partitionKey": "dueKey",
+        "sortKey": "dueAt",
+        "fields": DELIVERY_FIELDS,
+    },
+    "deliveriesByExample": {
+        "field": "listDeliveriesByExampleKeyAndExampleAt",
+        "partitionKey": "exampleKey",
+        "sortKey": "exampleAt",
+        "fields": DELIVERY_FIELDS,
+    },
+    "itemsByParent": {
+        "field": "listItemsByParentAndOrder",
+        "partitionKey": "parentLineageId",
+        "partitionType": "ID",
+        "fields": ITEM_FIELDS,
     },
     "semanticRelationsByNewsroomFeedAndCreatedAt": {
         "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",
@@ -609,6 +758,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": KNOWLEDGE_RAW_PAYLOAD_FIELDS,
         "partitionType": "ID",
     },
+    "referenceAttachmentsByReferenceVersionAndSortKey": {
+        "field": "listReferenceAttachmentsByReferenceVersionAndSortKey",
+        "partitionKey": "referenceVersionKey",
+        "fields": REFERENCE_ATTACHMENT_FIELDS,
+    },
     "referenceAttachmentsByReferenceLineageAndSortKey": {
         "field": "listReferenceAttachmentsByReferenceLineageAndSortKey",
         "partitionKey": "referenceLineageId",
@@ -618,11 +772,14 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
 }
 
 
-def _index_query(field: str, partition_key: str, fields: str, partition_type: str = "String") -> str:
+def _index_query(field: str, partition_key: str, fields: str, partition_type: str = "String", sort_key: str | None = None) -> str:
     operation = field[0].upper() + field[1:]
+    # `sort_key` narrows the partition to the rows whose sort field equals one value (a key condition, not a filter: only those rows are read).
+    sort_variable = ", $sortEq: ModelStringKeyConditionInput" if sort_key else ""
+    sort_argument = f", {sort_key}: $sortEq" if sort_key else ""
     return f"""
-query {operation}(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
-  {field}({partition_key}: ${partition_key}, limit: $limit, nextToken: $nextToken) {{
+query {operation}(${partition_key}: {partition_type}!{sort_variable}, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}{sort_argument}, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -630,11 +787,14 @@ query {operation}(${partition_key}: {partition_type}!, $limit: Int, $nextToken: 
 """
 
 
-def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String") -> str:
+def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String", sort_key: str | None = None) -> str:
     operation = field[0].upper() + field[1:]
+    # `sort_key` bounds the partition by its sort field (a key condition: only the rows asked for are read), so a later page starts where the last one ended.
+    sort_variable = ", $sortBound: ModelStringKeyConditionInput" if sort_key else ""
+    sort_argument = f", {sort_key}: $sortBound" if sort_key else ""
     return f"""
-query {operation}NewestFirst(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
-  {field}({partition_key}: ${partition_key}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
+query {operation}NewestFirst(${partition_key}: {partition_type}!{sort_variable}, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}{sort_argument}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -661,6 +821,23 @@ query {operation}($id: ID!) {{
   {field}(id: $id) {{ {fields} }}
 }}
 """
+
+
+# AppSync bills per request, so reads for many keys ride in one request as aliased fields (the same size as components/news-desk-taxonomy-client.ts).
+ALIAS_BATCH_SIZE = 25
+
+
+def _aliased_get_query(field: str, fields: str, count: int) -> str:
+    variables = ", ".join(f"$k{index}: ID!" for index in range(count))
+    selections = "\n  ".join(f"r{index}: {field}(id: $k{index}) {{ {fields} }}" for index in range(count))
+    return f"query BatchGet{field.removeprefix('get')}({variables}) {{\n  {selections}\n}}"
+
+
+def _aliased_index_query(field: str, partition_key: str, partition_type: str, fields: str, count: int, limit: int) -> str:
+    variables = ", ".join(f"$k{index}: {partition_type}!" for index in range(count))
+    selections = "\n  ".join(
+        f"r{index}: {field}({partition_key}: $k{index}, limit: {int(limit)}) {{ items {{ {fields} }} nextToken }}" for index in range(count))
+    return f"query BatchIndex{field[0].upper() + field[1:]}({variables}) {{\n  {selections}\n}}"
 
 
 def _model_mutations(model_name: str) -> dict[str, str]:
@@ -698,10 +875,42 @@ MEDIUM_REFERENCE_FIELDS = ("medium", "evidenceLevel", "playlistUrl", "mediumFeed
 _UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERENCE_FIELDS) + r")'")
 
 
+# The head stage key (docs/plans/story-head-stage-index.md) is newer than some deployed sites, and one CLI install serves them all: a site whose Item
+# type has no headStageKey is written without it. Checked once per endpoint per process (graphql_type_field_names), and a write the schema refuses
+# anyway is sent again without it (a validation error means it never ran).
+_UNDEFINED_HEAD_STAGE_KEY_INPUT = re.compile(r"field name '" + HEAD_STAGE_KEY_FIELD + r"'")
+_HEAD_STAGE_KEY_SUPPORT: dict[str, bool] = {}
+_SCHEDULE_FIELDS_SUPPORT: dict[str, bool] = {}
+_CONDITION_FAILED = re.compile(r"conditional request failed|ConditionalCheckFailed", re.IGNORECASE)
+_HEAD_STAGE_KEY_NOTICE_SHOWN: set[str] = set()
+
+
+def _without_head_stage_key(variables: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not variables or not isinstance(variables.get("input"), dict) or HEAD_STAGE_KEY_FIELD not in variables["input"]:
+        return variables
+    return {**variables, "input": {key: value for key, value in variables["input"].items() if key != HEAD_STAGE_KEY_FIELD}}
+
+
 def _without_medium_fields(variables: dict[str, Any] | None) -> dict[str, Any] | None:
     if not variables or not isinstance(variables.get("input"), dict):
         return variables
     return {**variables, "input": {key: value for key, value in variables["input"].items() if key not in MEDIUM_REFERENCE_FIELDS}}
+
+
+#: A read (a ``query``) changes nothing, so it is sent again, with a growing pause, when the failure is the network's or the data store's and not the request's:
+#: a reset connection, a timeout, a throttled or briefly unavailable service, or an answer whose only errors are the store's own transient ones (AppSync
+#: reports a DynamoDB client timeout inside a 200 answer). A rejected request (validation, credentials, authorization) is never repeated. A mutation is
+#: never repeated by this rule: it may already have run.
+READ_ATTEMPTS = 5
+READ_BACKOFF_SECONDS = 0.5   # the pause before the second attempt; it doubles each time (to a ceiling of 8 seconds) and is spread by random jitter
+TRANSIENT_STATUS_CODES = (408, 429, 500, 502, 503, 504)
+TRANSIENT_ERROR_TYPES = ("DynamoDB:SdkClientException", "DynamoDB:ProvisionedThroughputExceededException", "DynamoDB:ThrottlingException",
+                         "DynamoDB:InternalServerError")
+
+
+def _only_transient_errors(errors: list[Any]) -> bool:
+    """Whether every error of an answer is one of the data store's transient kinds (so the same read may succeed a moment later)."""
+    return bool(errors) and all(isinstance(entry, dict) and entry.get("errorType") in TRANSIENT_ERROR_TYPES for entry in errors)
 
 
 class PapyrusGraphQLAuthoringClient:
@@ -742,6 +951,9 @@ class PapyrusGraphQLAuthoringClient:
         try:
             return self._send_graphql(query, variables)
         except GraphQLRequestError as error:
+            if _UNDEFINED_HEAD_STAGE_KEY_INPUT.search(str(error)) and _without_head_stage_key(variables) is not variables:
+                self._note_no_head_stage_key()   # the request never ran (a validation error), so sending it again cannot repeat a write
+                return self.graphql(query, _without_head_stage_key(variables))
             if not getattr(self, "_schema_lacks_medium_fields", False) and _UNDEFINED_MEDIUM_INPUT.search(str(error)):
                 self._schema_lacks_medium_fields = True   # the request never ran (a validation error), so sending it again cannot repeat a write
                 return self.graphql(query, variables)
@@ -754,13 +966,16 @@ class PapyrusGraphQLAuthoringClient:
     def _send_graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
         headers = self._request_headers(payload)
+        aliases = len(re.findall(r"^\s*r\d+:", query, re.MULTILINE)) if query.lstrip().startswith(("query BatchGet", "query BatchIndex")) else 0
         body: dict[str, Any] | None = None
         last_error: Exception | None = None
         from .user_auth_mode import user_auth_requested
         # An uncertain user-authenticated mutation must not be submitted again.
-        attempts = 1 if user_auth_requested() else 2
+        is_read = query.lstrip().startswith("query")
+        attempts = READ_ATTEMPTS if is_read else (1 if user_auth_requested() else 2)
         for attempt in range(attempts):
             try:
+                request_meter.record_request(query, aliases=aliases)
                 connection = self._connection or self._open_connection()
                 connection.request("POST", self._endpoint_path, body=payload, headers=headers)
                 response = connection.getresponse()
@@ -771,6 +986,11 @@ class PapyrusGraphQLAuthoringClient:
                         message = f"{message}\n{credential_recovery_guidance()}"
                     raise GraphQLRequestError(message, status_code=response.status)
                 body = json.loads(response_body)
+                if is_read and attempt < attempts - 1 and _only_transient_errors(body.get("errors") or []):
+                    last_error = GraphQLRequestError("GraphQL request failed: " + "; ".join(str(entry.get("message") or entry) for entry in body["errors"]))
+                    body = None
+                    self._pause_before_retry(attempt)
+                    continue
                 break
             except (TimeoutError, OSError, http.client.HTTPException, json.JSONDecodeError, RuntimeError) as error:
                 last_error = error
@@ -778,7 +998,13 @@ class PapyrusGraphQLAuthoringClient:
                 if attempt == attempts - 1:
                     if isinstance(error, GraphQLRequestError):
                         raise
+                    if isinstance(error, TimeoutError):
+                        raise GraphQLTimeoutError(f"GraphQL request failed: {error}") from error
                     raise GraphQLRequestError(f"GraphQL request failed: {error}") from error
+                if is_read:
+                    if isinstance(error, GraphQLRequestError) and error.status_code not in TRANSIENT_STATUS_CODES:
+                        raise   # the request itself was refused: sending it again cannot change the answer
+                    self._pause_before_retry(attempt)
                 continue
         if body is None:
             raise GraphQLRequestError(f"GraphQL request failed: {last_error}")
@@ -791,6 +1017,22 @@ class PapyrusGraphQLAuthoringClient:
         if not isinstance(data, dict):
             raise GraphQLRequestError("GraphQL response did not include data.")
         return data
+
+    def _pause_before_retry(self, attempt: int) -> None:
+        """The wait before attempt ``attempt + 2`` of a read: exponential, with jitter so many workers do not come back together."""
+        time.sleep(min(READ_BACKOFF_SECONDS * 2 ** attempt, 8.0) * (0.5 + random.random()))
+
+    @contextlib.contextmanager
+    def long_call(self, seconds: float):
+        """Wait up to ``seconds`` (never less than the client's own timeout) for the answers inside the block, e.g. a page-building mutation."""
+        previous = self.timeout_seconds
+        self.timeout_seconds = max(previous, seconds)
+        self._reset_connection()
+        try:
+            yield
+        finally:
+            self.timeout_seconds = previous
+            self._reset_connection()
 
     def _open_connection(self) -> http.client.HTTPSConnection:
         connection = http.client.HTTPSConnection(
@@ -871,19 +1113,82 @@ class PapyrusGraphQLAuthoringClient:
         fields = graphql_type.get("fields") or []
         return sorted(str(field.get("name")) for field in fields if field.get("name"))
 
-    def list_records(self, model_name: str) -> list[dict[str, Any]]:
+    def has_head_stage_key(self) -> bool:
+        """Whether this site's Item type has ``headStageKey`` (the deploy that adds the head stage index). Asked once per endpoint per process; a
+        site that cannot be asked is assumed to have it, and a write it refuses is sent again without the field."""
+        if self.endpoint not in _HEAD_STAGE_KEY_SUPPORT:
+            try:
+                _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = HEAD_STAGE_KEY_FIELD in self.graphql_type_field_names("Item")
+            except Exception:   # noqa: BLE001 - a site that cannot answer (introspection off, a stand-in transport) is assumed to have it
+                _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = True
+            if not _HEAD_STAGE_KEY_SUPPORT[self.endpoint]:
+                self._note_no_head_stage_key()
+        return _HEAD_STAGE_KEY_SUPPORT[self.endpoint]
+
+    def _note_no_head_stage_key(self) -> None:
+        _HEAD_STAGE_KEY_SUPPORT[self.endpoint] = False
+        if self.endpoint in _HEAD_STAGE_KEY_NOTICE_SHOWN:
+            return
+        _HEAD_STAGE_KEY_NOTICE_SHOWN.add(self.endpoint)
+        host = self._parsed_endpoint.netloc or self.endpoint
+        print(f"papyrus: the data API at {host} has no {HEAD_STAGE_KEY_FIELD} yet (the deploy that adds the head stage index); stories are written "
+              "without it. After that deploy, `papyrus stories head-index --apply` fills it in.", file=sys.stderr)
+
+    def list_records(self, model_name: str, *, page_size: int = 100) -> list[dict[str, Any]]:
+        """EVERY row of the model: a whole-table read that costs one request per ``page_size`` rows (100). Outside a named sweep (`request_meter.sweep`)
+        it is logged and counted as an unbounded list; read through an index (`list_by_index`, `index_many`) instead."""
+        request_meter.note_unbounded_list(model_name)
         definition = LIST_DEFINITIONS[model_name]
         query = _list_query(definition["field"], definition["fields"])
         items: list[dict[str, Any]] = []
         next_token = None
         while True:
-            result = self.graphql(query, {"limit": 100, "nextToken": next_token})
+            with request_meter.model(model_name):
+                result = self.graphql(query, {"limit": page_size, "nextToken": next_token})
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
             next_token = connection.get("nextToken")
             if not next_token:
                 break
         return self._rows_with_bare_ids(model_name, rows_for_tenant(model_name, self.tenant_id, items))
+
+    def list_tenant_rows(self, model_name: str, fields: str, *, page_size: int = 100) -> list[dict[str, Any]]:
+        """Every row of ``model_name`` that belongs to this client's tenant, read through the model's ``tenantId`` index: one Query, followed page
+        by page, never a whole-table read. What export, deletion and usage read (PPY-1ce06f). The index holds only rows that carry a ``tenantId``,
+        so the list is complete once the tenantId backfill (PPY-8f9462) has stamped every row."""
+        if not self.tenant_id:
+            raise TenantError(f"Listing a tenant's {model_name} rows needs a tenant (--tenant or {TENANT_ID_ENVIRONMENT_VARIABLE}).")
+        if model_name not in TENANT_LISTING_QUERIES:
+            raise TenantError(f"{model_name} has no tenantId index (see docs/tenant-key-inventory.md for how its rows are listed by tenant).")
+        field = TENANT_LISTING_QUERIES[model_name]
+        query = _index_query(field, TENANT_FIELD, fields)
+        items: list[dict[str, Any]] = []
+        next_token = None
+        while True:
+            with request_meter.model(model_name):
+                result = self.graphql(query, {TENANT_FIELD: self.tenant_id, "limit": page_size, "nextToken": next_token})
+            connection = result.get(field) or {}
+            items.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+            if not next_token:
+                return self._rows_with_bare_ids(model_name, items)
+
+    def list_row_owners(self, model_name: str, *, page_size: int = SUMMARY_PAGE_SIZE) -> list[dict[str, Any]]:
+        """``id`` and ``tenantId`` of EVERY row of ``model_name``, whatever its tenant: the whole-table read the tenantId backfill makes once
+        (``tenant_field_backfill``), so call it inside a named sweep. Only the two fields travel, so a page is small even for a large table."""
+        request_meter.note_unbounded_list(model_name)
+        field = LIST_DEFINITIONS[model_name]["field"]
+        query = _list_query(field, f"id {TENANT_FIELD}")
+        owners: list[dict[str, Any]] = []
+        next_token = None
+        while True:
+            with request_meter.model(model_name):
+                result = self.graphql(query, {"limit": page_size, "nextToken": next_token})
+            connection = result.get(field) or {}
+            owners.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+            if not next_token:
+                return owners
 
     def _rows_with_bare_ids(self, model_name: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [tenant_row_with_bare_record_id(model_name, self.tenant_id, row) for row in rows]
@@ -892,12 +1197,16 @@ class PapyrusGraphQLAuthoringClient:
         return tenant_scoped_record_id(model_name, self.tenant_id, record_id)
 
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
-        return rows_for_tenant("PublishedItem", self.tenant_id, self.list_records("PublishedItemSummary"))
+        """The listing fields of every published row (no body): what every projection reads. Pages of 1,000 rows (a summary is a few KB, well inside
+        a DynamoDB page of 1 MB), so a site of a few hundred Stories costs one request (PPY-3acc8d)."""
+        rows = self.list_records("PublishedItemSummary", page_size=SUMMARY_PAGE_SIZE)
+        return rows_for_tenant("PublishedItem", self.tenant_id, rows)
 
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]
         query = _get_query(definition["field"], definition["fields"])
-        result = self.graphql(query, {"id": self._stored_record_id(model_name, record_id)})
+        with request_meter.model(model_name):
+            result = self.graphql(query, {"id": self._stored_record_id(model_name, record_id)})
         row = result.get(definition["field"])
         if not row_belongs_to_tenant(model_name, self.tenant_id, row):
             return None
@@ -942,6 +1251,8 @@ class PapyrusGraphQLAuthoringClient:
     def update_record_unscoped(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for update: {model_name}")
+        if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
+            input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         self.graphql(MUTATIONS[model_name]["update"], {"input": input_payload})
 
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -950,38 +1261,95 @@ class PapyrusGraphQLAuthoringClient:
             return {}
         if model_name not in LIST_DEFINITIONS:
             raise ValueError(f"Unsupported model for get_records_by_id: {model_name}")
-        # Point lookups avoid scanning entire tables (e.g. thousands of References).
-        if len(unique_ids) <= 100 and model_name in GET_DEFINITIONS:
-            resolved: dict[str, dict[str, Any]] = {}
-            for record_id in unique_ids:
-                row = self.get_record(model_name, record_id)
-                if row:
-                    resolved[record_id] = row
-            return resolved
-        rows = self.list_records(model_name)
+        # Point lookups, 25 to a request: never a read of the whole table (a table of thousands of References).
+        if model_name in GET_DEFINITIONS:
+            return self.get_many(model_name, unique_ids)
+        rows = self.list_records(model_name)   # a model with no get query: the only way left, and an unbounded list
         by_id = {row["id"]: row for row in rows if row.get("id")}
         return {record_id: by_id[record_id] for record_id in unique_ids if record_id in by_id}
 
-    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    def get_many(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """`get_record` for many ids with the same result (`{id: row}`, a missing or foreign-tenant row left out), 25 ids to one request."""
+        definition = GET_DEFINITIONS[model_name]
+        unique_ids = [record_id for record_id in dict.fromkeys(record_ids) if record_id]
+        resolved: dict[str, dict[str, Any]] = {}
+        for offset in range(0, len(unique_ids), ALIAS_BATCH_SIZE):
+            chunk = unique_ids[offset:offset + ALIAS_BATCH_SIZE]
+            query = _aliased_get_query(definition["field"], definition["fields"], len(chunk))
+            with request_meter.model(model_name):
+                result = self.graphql(query, {f"k{index}": self._stored_record_id(model_name, record_id) for index, record_id in enumerate(chunk)})
+            for index, record_id in enumerate(chunk):
+                row = result.get(f"r{index}")
+                if row and row_belongs_to_tenant(model_name, self.tenant_id, row):
+                    resolved[record_id] = tenant_row_with_bare_record_id(model_name, self.tenant_id, row)
+        return resolved
+
+    def index_many(self, index_name: str, key_values: list[str], *, limit: int = 100) -> dict[str, list[dict[str, Any]]]:
+        """`list_by_index` for many partition keys with the same rows for each (`{key: rows}`), 25 keys to one request. A key with more
+        than one page is finished on its own, so every key's list is complete."""
+        unique_keys = [key for key in dict.fromkeys(key_values) if key]
+        scoped_name = tenant_scoped_index(self.tenant_id, index_name, "")[0]   # the tenant's own index may be a different one
+        definition = INDEX_DEFINITIONS[scoped_name]
+        partition_type = definition.get("partitionType", "String")
+        results: dict[str, list[dict[str, Any]]] = {}
+        for offset in range(0, len(unique_keys), ALIAS_BATCH_SIZE):
+            chunk = unique_keys[offset:offset + ALIAS_BATCH_SIZE]
+            scoped = [tenant_scoped_index(self.tenant_id, index_name, key)[1] for key in chunk]
+            query = _aliased_index_query(definition["field"], definition["partitionKey"], partition_type, definition["fields"], len(chunk), limit)
+            result = self.graphql(query, {f"k{index}": value for index, value in enumerate(scoped)})
+            for index, key in enumerate(chunk):
+                connection = result.get(f"r{index}") or {}
+                rows = [entry for entry in connection.get("items") or [] if entry]
+                token = connection.get("nextToken")
+                if token:
+                    rows.extend(self._index_pages_after(index_name, key, token, limit=limit))
+                results[key] = rows
+        return results
+
+    def _index_pages_after(self, index_name: str, key_value: str, next_token: str, *, limit: int) -> list[dict[str, Any]]:
         index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
+        query = _index_query(definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String"))
+        rows: list[dict[str, Any]] = []
+        while next_token:
+            result = self.graphql(query, {definition["partitionKey"]: key_value, "limit": limit, "nextToken": next_token})
+            connection = result.get(definition["field"]) or {}
+            rows.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+        return rows
+
+    def list_by_index(
+        self, index_name: str, key_value: str, *, limit: int = 100, sort_eq: str | None = None, sort_condition: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        """Every row of one index partition. ``sort_eq`` (for an index whose definition names a ``sortKey``) keeps only the rows with that sort value;
+        ``sort_condition`` keeps the rows whose sort value meets one key condition (``{"le": value}``, ``{"between": [low, high]}``): a key condition, so only
+        those rows are read."""
+        index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
+        definition = INDEX_DEFINITIONS[index_name]
+        if sort_eq is not None and sort_condition is not None:
+            raise ValueError("Name the sort value with sort_eq or sort_condition, not both.")
+        condition = {"eq": sort_eq} if sort_eq is not None else sort_condition
+        sort_key = definition.get("sortKey") if condition is not None else None
+        if condition is not None and not sort_key:
+            raise ValueError(f"Index {index_name} has no sort key to match.")
         query = _index_query(
             definition["field"],
             definition["partitionKey"],
             definition["fields"],
             definition.get("partitionType", "String"),
+            sort_key,
         )
         items: list[dict[str, Any]] = []
         next_token = None
         while True:
-            result = self.graphql(
-                query,
-                {
-                    definition["partitionKey"]: key_value,
-                    "limit": limit,
-                    "nextToken": next_token,
-                },
-            )
+            variables = {
+                definition["partitionKey"]: key_value,
+                "limit": limit,
+                "nextToken": next_token,
+            }
+            if sort_key:
+                variables["sortEq"] = condition
+            result = self.graphql(query, variables)
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
             next_token = connection.get("nextToken")
@@ -989,16 +1357,20 @@ class PapyrusGraphQLAuthoringClient:
                 break
         return items
 
-    def iterate_newest_first(self, index_name: str, key_value: str, *, page_size: int = 50):
-        """Rows of an index by its sort key, newest first, one page at a time; stop reading and no further page is fetched."""
+    def iterate_newest_first(self, index_name: str, key_value: str, *, page_size: int = 50, sort_before: str | None = None):
+        """Rows of an index by its sort key, newest first, one page at a time; stop reading and no further page is fetched. ``sort_before`` starts below that sort value."""
         index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
+        bounded = sort_before is not None
         query = _newest_first_query(
-            definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String")
+            definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String"), definition["sortKey"] if bounded else None
         )
         next_token = None
         while True:
-            result = self.graphql(query, {definition["partitionKey"]: key_value, "limit": page_size, "nextToken": next_token})
+            variables = {definition["partitionKey"]: key_value, "limit": page_size, "nextToken": next_token}
+            if bounded:
+                variables["sortBound"] = {"lt": sort_before}
+            result = self.graphql(query, variables)
             connection = result.get(definition["field"]) or {}
             for entry in connection.get("items") or []:
                 if entry:
@@ -1049,6 +1421,30 @@ class PapyrusGraphQLAuthoringClient:
         self._require_row_in_tenant(model_name, record_id)
         self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": self._stored_record_id(model_name, record_id)}})
 
+    def delete_lineage_row(self, model_name: str, record_id: str, lineage_id: str) -> bool:
+        """Delete one row that a lineage's own index partition listed, whether or not it carries this client's ``tenantId``. True when it deleted
+        the row, False when the row is already gone.
+
+        ``delete_record`` refuses a row it cannot read as the tenant's, and a row written before tenant stamping (or by a writer that did not stamp it)
+        has no ``tenantId``: the index lists it, the tenant-checked read cannot see it, and the delete failed with "does not exist in tenant". The row
+        is the lineage's all the same: its ``itemLineageId`` names the lineage whose publish is pruning it, and a lineage id belongs to one tenant. So
+        this reads the row unscoped and deletes it when it is unstamped or this tenant's and names this lineage; a row of another tenant, or of
+        another lineage, is refused. A row that is already gone (an index that lags a delete, or an overlapping publish of the same lineage) is the
+        state the caller wanted, so it is not an error."""
+        if model_name not in MUTATIONS:
+            raise ValueError(f"Unsupported model for delete: {model_name}")
+        stored_id = self._stored_record_id(model_name, record_id)
+        row = self.get_record_unscoped(model_name, stored_id)
+        if row is None:
+            return False
+        owner = row.get("tenantId")
+        if owner and owner != self.tenant_id:
+            raise TenantError(f"{model_name} {record_id} belongs to tenant {owner}, not {self.tenant_id}.")
+        if row.get("itemLineageId") != lineage_id:
+            raise TenantError(f"{model_name} {record_id} belongs to lineage {row.get('itemLineageId')}, not {lineage_id}.")
+        self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": stored_id}})
+        return True
+
     def safe_list_records(self, model_name: str) -> list[dict[str, Any]]:
         try:
             return self.list_records(model_name)
@@ -1076,24 +1472,50 @@ class PapyrusGraphQLAuthoringClient:
         return result.get("updateNewsroomSummary") or {}
 
     def _require_row_in_tenant(self, model_name: str, record_id: str) -> None:
-        if not self.tenant_id or model_name not in TENANT_MODELS:
+        if not self.tenant_id or not (model_name in TENANT_MODELS or (model_name in TENANT_FIELD_MODELS and is_shared_stack())):
             return
         if self.get_record(model_name, record_id) is None:
             raise TenantError(f"{model_name} {record_id} does not exist in tenant {self.tenant_id}.")
 
     def _prepared_payload(self, model_name: str, input_payload: dict[str, Any]) -> dict[str, Any]:
+        if model_name == "Item" and HEAD_STAGE_KEY_FIELD in input_payload and not self.has_head_stage_key():
+            input_payload = {key: value for key, value in input_payload.items() if key != HEAD_STAGE_KEY_FIELD}
         stamped = tenant_stamped_payload(model_name, self.tenant_id, input_payload)
+        if self.tenant_id and model_name in TENANT_FIELD_MODELS:
+            stamped = tenant_field_stamped_payload(model_name, self.tenant_id, stamped)
         return strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, stamped))
+
+    def primary_language(self) -> str:
+        """The site's primary language (its editorial check settings' ``languages.primary``), read once per client. Every Item a writer creates
+        without a language is written in it (``item_language``)."""
+        if getattr(self, "_primary_language", None) is None:
+            from .editorial_checks import GraphQLEditorialStore, settings_from
+            from .editorial_languages import primary_language
+
+            self._primary_language = primary_language(settings_from(GraphQLEditorialStore(execute=self.graphql, tenant_id=self.tenant_id)))
+        return self._primary_language
+
+    def _language_source(self, payload: dict[str, Any], current: dict[str, Any] | None) -> dict[str, Any] | None:
+        """The stored row an Item write takes its language from when the payload names none: the row it replaces, else the version it follows
+        (``previousVersionId``), so every version of a lineage is written in the language of the one before it (``item_language.with_item_language``).
+        Read only when the payload names no language, so a writer that carries the language forward costs no read."""
+        if payload.get("language") or (current or {}).get("language") or not payload.get("previousVersionId"):
+            return current
+        return self.get_record("Item", payload["previousVersionId"]) or current
 
     def create_record(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for create: {model_name}")
+        if model_name == "Item":
+            input_payload = with_item_language(input_payload, self._language_source(input_payload, None), self.primary_language())
         prepared = self._prepared_payload(model_name, input_payload)
         self.graphql(MUTATIONS[model_name]["create"], {"input": prepared})
 
     def upsert(self, model_name: str, input_payload: dict[str, Any]) -> str:
         prepared = self._prepared_payload(model_name, input_payload)
         current = self.get_record(model_name, prepared["id"])
+        if model_name == "Item":
+            prepared = self._prepared_payload(model_name, with_item_language(input_payload, self._language_source(input_payload, current), self.primary_language()))
         mutation = MUTATIONS[model_name]["update" if current else "create"]
         self.graphql(mutation, {"input": prepared})
         return "updated" if current else "created"
@@ -1104,6 +1526,55 @@ class PapyrusGraphQLAuthoringClient:
         self._require_row_in_tenant(model_name, input_payload["id"])
         prepared = self._prepared_payload(model_name, input_payload)
         self.graphql(MUTATIONS[model_name]["update"], {"input": prepared})
+
+    def update_record_if(self, model_name: str, input_payload: dict[str, Any], condition: dict[str, Any]) -> bool:
+        """Update a row only when ``condition`` (an Amplify ``Model<Name>ConditionInput``) holds on the stored row, in one conditional write. False when the
+        condition failed, so another writer got there first; any other failure raises."""
+        if model_name not in MUTATIONS:
+            raise ValueError(f"Unsupported model for update: {model_name}")
+        self._require_row_in_tenant(model_name, input_payload["id"])
+        prepared = self._prepared_payload(model_name, input_payload)
+        mutation = (f"mutation Update{model_name}If($input: Update{model_name}Input!, $condition: Model{model_name}ConditionInput) "
+                    f"{{ update{model_name}(input: $input, condition: $condition) {{ id }} }}")
+        try:
+            self.graphql(mutation, {"input": prepared, "condition": condition})
+        except Exception as error:   # noqa: BLE001 - only a failed condition is an answer; anything else is the caller's to see
+            if _CONDITION_FAILED.search(str(error)):
+                return False
+            raise
+        return True
+
+    def list_schedule(self, state: str, start: str | None = None, end: str | None = None) -> list[dict[str, Any]]:
+        """The versions in one schedule state whose ``scheduledPublishAt`` is within ``start``..``end`` (either may be None), read from the sparse
+        ``scheduleState`` index: only scheduled versions are in it, so this never reads the table."""
+        if start and end:
+            condition, variables = "{between: $range}", {"range": [start, end]}
+        elif start:
+            condition, variables = "{ge: $at}", {"at": start}
+        elif end:
+            condition, variables = "{le: $at}", {"at": end}
+        else:
+            condition, variables = "", {}
+        declared = "".join(f", ${name}: {kind}" for name, kind in (("range", "[String]"), ("at", "String")) if name in variables)
+        sort = f", scheduledPublishAt: {condition}" if condition else ""
+        query = (f"query Schedule($state: String!{declared}, $limit: Int, $nextToken: String) {{ listItemsByScheduleStateAndScheduledPublishAt("
+                 f"scheduleState: $state{sort}, limit: $limit, nextToken: $nextToken) {{ items {{ {SCHEDULE_ROW_FIELDS} }} nextToken }} }}")
+        rows: list[dict[str, Any]] = []
+        next_token = None
+        while True:
+            result = self.graphql(query, {"state": state, **variables, "limit": 100, "nextToken": next_token})
+            connection = result.get("listItemsByScheduleStateAndScheduledPublishAt") or {}
+            rows.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+            if not next_token:
+                break
+        return rows_for_tenant("Item", self.tenant_id, rows)
+
+    def has_schedule_fields(self) -> bool:
+        """Whether this site's Item type has the schedule fields (the deploy that adds scheduled publishing). Asked once per endpoint per process."""
+        if self.endpoint not in _SCHEDULE_FIELDS_SUPPORT:
+            _SCHEDULE_FIELDS_SUPPORT[self.endpoint] = "scheduleState" in self.graphql_type_field_names("Item")
+        return _SCHEDULE_FIELDS_SUPPORT[self.endpoint]
 
     def create_model_attachment_upload(self, attachment: dict[str, Any]) -> dict[str, Any]:
         result = self.graphql(

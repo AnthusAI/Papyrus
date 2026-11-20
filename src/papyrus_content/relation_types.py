@@ -70,6 +70,7 @@ def normalize_semantic_relation_type_seed(entry: dict[str, Any], index: int, fil
         "isDirectional": bool(entry.get("isDirectional", True)),
         "isSymmetric": bool(entry.get("isSymmetric")),
         "isTransitive": bool(entry.get("isTransitive")),
+        "pod": bool(entry.get("pod")),
         "contextPackTags": normalize_string_array(entry.get("contextPackTags")),
         "createdAt": entry.get("createdAt") if isinstance(entry.get("createdAt"), str) else None,
         "metadata": entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {},
@@ -86,6 +87,16 @@ def load_semantic_relation_type_seeds(filepath: str | Path | None = None) -> lis
         for index, entry in enumerate(parsed["relationTypes"])
         if isinstance(entry, dict)
     ]
+
+
+def load_vocabulary_namespace(filepath: str | Path | None = None) -> str:
+    """The address the Papyrus pod vocabulary is published at, as the relation-types file declares it."""
+    path = Path(filepath) if filepath else DEFAULT_RELATION_TYPES_PATH
+    parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
+    namespace = parsed.get("vocabularyNamespace") if isinstance(parsed, dict) else None
+    if not isinstance(namespace, str) or not namespace:
+        raise ValueError(f"The relation-types file {path} does not name its vocabularyNamespace.")
+    return namespace
 
 
 @lru_cache(maxsize=4)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import io
 import json
 import shlex
@@ -84,6 +86,8 @@ def read_check_run(context):
 def patched(context) -> ExitStack:
     stack = ExitStack()
     current, client = world(context), client_of(context)
+    # These commands run as an operator does (`--author-label AI`), so the operator lane is named, as `papyrus --auth iam` names it.
+    stack.enter_context(patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}))
     stack.enter_context(patch.object(story_commands, "create_authoring_client", lambda: (client, None)))
     stack.enter_context(patch("papyrus_content.graphql_authoring.create_authoring_client", lambda: (client, None)))
     stack.enter_context(patch("papyrus_content.editorial_commands.read_item_check_run", read_check_run(context)))
@@ -222,6 +226,8 @@ def run_command(context, command, flags):
         "stories link-reference": story_commands.stories_link_reference,
         "stories assign-research": story_commands.stories_assign_research,
         "stories create": story_commands.stories_create,
+        "stories step": story_commands.stories_step,
+        "stories checklist-backfill": story_commands.stories_checklist_backfill,
     }
     out, err = io.StringIO(), io.StringIO()
     context.succeeded, context.error = True, None

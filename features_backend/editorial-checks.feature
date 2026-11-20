@@ -368,6 +368,39 @@ Feature: Editorial checks
     When the saved version of the story "this-article" with "She said \"we run this for clients at scale and we keep the source open so every client owns the whole thing\" twice." is checked
     Then the story "this-article" has no stored "cross-story-boilerplate" finding
 
+  # Agents check a draft before they save it. The draft check runs the same checks a saved version gets, so they do not
+  # have to save an extra version just to learn that a closing paragraph is boilerplate.
+  Scenario: A draft that repeats another story's closing is flagged by the command-line check
+    Given the site has a current story "other-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that ends with the standard closing
+    Then the printed check result has a "cross-story-boilerplate" finding naming "other-article"
+
+  Scenario: The draft check gives the same boilerplate finding a saved version gets
+    Given the site has a current story "other-article" that ends with the standard closing
+    When the saved version of the story "this-article" ends with the standard closing and is checked
+    And an operator runs papyrus editorial check on a draft that ends with the standard closing
+    Then the printed check result has the same "cross-story-boilerplate" finding as the stored check of "this-article"
+
+  Scenario: A draft that revises a story does not match that story's own saved version
+    Given the site has a current story "this-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that ends with the standard closing and revises "this-article"
+    Then the printed check result has no "cross-story-boilerplate" finding
+
+  Scenario: A draft check against a policy file says the boilerplate check did not run
+    Given a policy-pack file whose policy "no-hype" flags "game-changing"
+    When an operator runs papyrus editorial check on a draft saying "This is game-changing."
+    Then the printed check result lists "cross-story-boilerplate" as not run because "a policy file has no stories to compare with"
+
+  Scenario: A draft check against the site has nothing left unrun
+    Given the site has a current story "other-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that ends with the standard closing
+    Then the printed check result lists no checks as not run
+
+  Scenario: Naming a story the site does not have is refused
+    Given the site has a current story "other-article" that ends with the standard closing
+    When an operator runs papyrus editorial check on a draft that revises "no-such-story"
+    Then the draft check is refused with "No story found for 'no-such-story'"
+
   Scenario: Fewer shared words than the copy guard's run are not flagged
     Given the site has a current story "other-article" that says "We run this for clients at scale."
     When the saved version of the story "this-article" with "We run this for clients at scale." is checked

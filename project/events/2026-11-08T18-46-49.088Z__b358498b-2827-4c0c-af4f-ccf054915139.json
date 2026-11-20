@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "b358498b-2827-4c0c-af4f-ccf054915139",
+  "issue_id": "PPY-f7ce7774-4c44-4b37-bd33-442ccca41f89",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:49.088Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Every release that will reach the shared stack deploys to the staging shared stack first (PPY-1192d3), runs the adversarial suite (PPY-29f730), the golden renders and the call-count tests, and is blocked on any failure. The result is recorded on the release PR.\n\nTouches (verified at origin/develop 23fabe1d): CI workflows, docs/releasing.md.\n\nAcceptance (Gherkin feature file: features_backend/shared-release-gate.feature):\nScenario: A failing isolation case blocks the release\n    Given the staging shared stack runs a release candidate\n    When one adversarial case fails\n    Then the release to the shared stack is blocked and the failing case is named\n\nDependencies: blocked by PPY-29f730, PPY-daf673. Blocks PPY-e51189. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-1192d3.\n\nTesting: It is the test gate.\nRollout: CI.\nRisk and mitigation: Risk: the gate slows releases. Mitigation: the suite runs in parallel and only on releases that reach the shared stack.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

@@ -167,7 +167,7 @@ def _assignment_reminder(client, assignment_id: str, apply: bool):
 
         print(f"next\tnot computed\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
         return None
-    return reminder_assessment(client, lineage) if lineage else None
+    return reminder_assessment(client, lineage, sync_checklist=True) if lineage else None
 
 
 def assignments_intake_proposals(flags: list[str]) -> None:

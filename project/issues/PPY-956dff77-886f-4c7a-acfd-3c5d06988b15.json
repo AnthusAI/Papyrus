@@ -10,9 +10,17 @@
   "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "17342c78-9a48-492c-96ca-19e6d8e769f4",
+      "author": "home",
+      "text": "Ryan 2026-11-07: the picker must be built on the shared image operations (epic PPY-011174), not its own calls. Overlaps PPY-a52989; see project/wiki/image-toolchain.md section 8. The image-source interface in PPY-a36ac3 moves behind the shared image_search operation (build step 4, PPY-8553c6).",
+      "created_at": "2026-11-07T18:39:21.972075Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-05T12:11:11.467618Z",
-  "updated_at": "2026-11-05T12:11:11.467648Z",
+  "updated_at": "2026-11-07T18:39:21.972312Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

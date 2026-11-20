@@ -1,0 +1,32 @@
+{
+  "id": "PPY-b99fc0e8-3ca4-41f2-bf2e-24b6a8b7d5cd",
+  "title": "tenantId required on the shared stack (stage 3, breaking data contract)",
+  "description": "Outcome: After every row on the shared stack has a tenant, make tenantId required on every tenant model of the shared schema, so a writer that forgets it fails loudly instead of creating an invisible row. Dedicated stacks follow after their adoption.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts and the function/plugin schema files (tenantId .required() behind the tenancy mode), scripts/test-schema-parity.ts.\n\nAcceptance (Gherkin feature file: features_backend/tenant-field-required.feature):\nScenario: A write without a tenant fails on the shared stack\n    Given the shared stack\n    When a client creates a Message with no tenantId\n    Then AppSync rejects the input\n\nDependencies: blocked by PPY-8f9462, PPY-bdc4ee. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Schema parity; Behave in staging.\nRollout: Shared stack only; after adopt-tenant-data reports zero tenant-less rows.\nRisk and mitigation: Risk: a rarely-used writer breaks in production. Mitigation: staging runs every scheduled job for a week with the requirement on before production.\n\nReleasable on its own: no (needs the backfill).\nDynamoDB index: none.\nAppSync authorisation: unchanged (input validation).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-8f9462c3-2ffd-4e71-8044-cadcc254586f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-bdc4ee0b-6e4e-48c5-ab83-cb91f203cefa",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:20.898022Z",
+  "updated_at": "2026-11-08T18:46:58.122088Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

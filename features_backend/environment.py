@@ -3,12 +3,17 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
+import sys
+import tempfile
 from pathlib import Path
 
 REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
 CYCLOTRON_MODULE = "decision_flywheel"
 OPERATOR_TAG = "operator"
 WORK_IN_PROGRESS_TAG = "wip"
+SANDBOX_TAG = "sandbox"
+ISOLATION_PENDING_TAG = "isolation-pending"
+CHECKLIST_GATE_TAG = "checklist-gate"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPERATOR_FIXTURE_ROOT = REPO_ROOT / "features_backend" / "fixtures" / "operator-cli"
 
@@ -25,7 +30,48 @@ def after_all(context):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def _fake_client_modules():
+    """The shared in-memory fake, under every name the step files import it by (`fake_client`, `procedures.newsroom.tests.fake_client`)."""
+    return [module for name, module in list(sys.modules.items()) if name.endswith("fake_client") and hasattr(module, "head_stage_key_violations")]
+
+
+def _check_head_stage_keys(scenario) -> None:
+    """After every backend scenario: each story lineage written through the shared fake has at most one head row, and it carries its stage
+    (features_backend/story-head-stage-index.feature). A writer that sets a stage or a version state without the head stage key fails here."""
+    problems = []
+    for module in _fake_client_modules():
+        for client in module.INSTANCES:
+            problems += module.head_stage_key_violations(client)
+        module.INSTANCES.clear()
+    if problems and scenario.status != "failed":
+        raise AssertionError("head stage key invariant broken in '" + scenario.name + "':\n  " + "\n  ".join(problems))
+
+
+# Variables that choose a GraphQL lane or a signed-in site. A developer's machine often has a real `papyrus login` session in
+# ~/.config/papyrus and a lane in the shell; CI has neither. Every scenario starts like CI: signed out, in an empty sign-in
+# directory, with no lane named (the signed-in lane is the default). A scenario that wants a lane or a session sets it (PPY-5f119a).
+SIGN_IN_ENVIRONMENT = ("PAPYRUS_GRAPHQL_AUTH", "PAPYRUS_CLI_AUTH_CONFIG", "PAPYRUS_SITE", "PAPYRUS_CLI_STATE_DIR")
+
+
+def _start_signed_out(context):
+    context.sign_in_saved = {name: os.environ.pop(name, None) for name in SIGN_IN_ENVIRONMENT}
+    context.sign_in_state_dir = tempfile.mkdtemp(prefix="papyrus-behave-state-")
+    os.environ["PAPYRUS_CLI_STATE_DIR"] = context.sign_in_state_dir
+
+
+def _restore_sign_in(context):
+    shutil.rmtree(getattr(context, "sign_in_state_dir", ""), ignore_errors=True)
+    for name, value in getattr(context, "sign_in_saved", {}).items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
 def before_scenario(context, scenario):
+    _start_signed_out(context)
+    for module in _fake_client_modules():
+        module.INSTANCES.clear()
     from papyrus_content import cli_user_auth
 
     context.real_site_enrolls = cli_user_auth.site_enrolls
@@ -33,8 +79,20 @@ def before_scenario(context, scenario):
     from papyrus_content import multi_search_research
 
     multi_search_research.fetch_source = lambda url: None     # no scenario reaches the network; one that reads pages passes its own reader
+    if CHECKLIST_GATE_TAG not in scenario.effective_tags:
+        # Publishing refuses while a required checklist step is open (docs/story-procedure.md). Scenarios about something else publish Stories freely;
+        # only the features tagged @checklist-gate exercise the rule, with the real checklist.
+        from unittest import mock
+
+        mock.patch("papyrus_content.story_checklist.require_checklist_closed", lambda client, item: None).start()
     if WORK_IN_PROGRESS_TAG in scenario.effective_tags:
         scenario.skip("work in progress: waits for a task that has not landed")
+        return
+    if SANDBOX_TAG in scenario.effective_tags:
+        scenario.skip("needs an ampx sandbox with Google test users: run by hand (spikes/tenant-claims-1/README.md)")
+        return
+    if ISOLATION_PENDING_TAG in scenario.effective_tags:
+        scenario.skip("pending: needs the shared stack with two seeded tenants (features_backend/tenant-isolation-adversarial.feature)")
         return
     if REQUIRES_CYCLOTRON_TAG in scenario.effective_tags and importlib.util.find_spec(CYCLOTRON_MODULE) is None:
         scenario.skip("decision_flywheel not installed (poetry install --with cyclotron)")
@@ -51,6 +109,14 @@ def before_scenario(context, scenario):
 def after_scenario(context, scenario):
     from unittest import mock
 
+    try:
+        _check_head_stage_keys(scenario)
+    finally:
+        _after_scenario_cleanup(context, scenario, mock)
+
+
+def _after_scenario_cleanup(context, scenario, mock):
+
     from papyrus_content import cli_user_auth
 
     mock.patch.stopall()   # patches a scenario started and did not stop (the router's idea sink double)
@@ -65,3 +131,4 @@ def after_scenario(context, scenario):
             context.graphql_stub_endpoint = None
         os.environ.clear()
         os.environ.update(context.env)
+    _restore_sign_in(context)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from papyrus_content.graphql_authoring import GET_DEFINITIONS, INDEX_DEFINITIONS, LIST_DEFINITIONS, MUTATIONS
+from papyrus_content.graphql_authoring import CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION, GET_DEFINITIONS, INDEX_DEFINITIONS, LIST_DEFINITIONS, MUTATIONS
 
 GRAPHQL_ROOT = re.compile(r"^\s*(query|mutation)\b[^{]*\{\s*(\w+)", re.S)
 
@@ -21,6 +21,7 @@ class FieldRecorder:
     def __init__(self, inner: Any) -> None:
         self.inner = inner
         self.fields: set[tuple[str, str]] = set()
+        self.unbounded: list[str] = []   # the models read whole (every row, page after page): a step must not do this
 
     def __getattr__(self, name: str) -> Any:
         if name == "inner" or (name.startswith("__") and name.endswith("__")):
@@ -37,7 +38,15 @@ class FieldRecorder:
 
     def note(self, name: str, arguments: tuple[Any, ...]) -> None:
         if name == "list_records":
+            self.unbounded.append(arguments[0])
             self.fields.add(("Query", LIST_DEFINITIONS[arguments[0]]["field"]))
+        elif name == "list_published_item_summaries":
+            self.unbounded.append("PublishedItemSummary")
+            self.fields.add(("Query", LIST_DEFINITIONS["PublishedItem"]["field"]))
+        elif name == "get_records_by_id":
+            self.fields.add(("Query", GET_DEFINITIONS[arguments[0]]["field"]))
+        elif name == "iterate_newest_first":
+            self.fields.add(("Query", INDEX_DEFINITIONS[arguments[0]]["field"]))
         elif name == "get_record":
             self.fields.add(("Query", GET_DEFINITIONS[arguments[0]]["field"]))
         elif name == "list_by_index":
@@ -53,5 +62,7 @@ class FieldRecorder:
             self.fields.add(("Query", INDEX_DEFINITIONS["semanticRelationsByObjectState"]["field"]))
         elif name == "list_reference_attachments_by_lineage":
             self.fields.add(("Query", INDEX_DEFINITIONS["referenceAttachmentsByReferenceLineageAndSortKey"]["field"]))
+        elif name == "create_model_attachment_download":
+            self.fields.add(root_of(CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION))
         elif name == "graphql":
             self.fields.add(root_of(arguments[0]))

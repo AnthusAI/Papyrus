@@ -11,7 +11,12 @@ Feature: Saving a story version with the pictures its text uses
   A rejection names the file and nothing is saved. "--dry-run" prints what would be uploaded (file, media id, stored
   path, size and dark pairing) and writes nothing at all. Running the same command again does not add media rows or
   stored files twice: a picture already stored for the story keeps its exact path, even if the story's address has since
-  changed, and a name holding different content is numbered (-2), never overwritten. Pictures never move when the story
+  changed, and a name holding different content is numbered (-2), never overwritten. The pictures named by the front
+  matter (image, cover, ogImage, thumbnail and their Night counterparts) follow the body: a bare file name from the
+  folder is uploaded and replaced by its stored path, and a stored path that the body's pictures have since been
+  numbered away from (chart.png became chart-2.png) is moved to the new path, so the card and the social image name
+  the file that was just uploaded and published, never an older one. Web addresses and renditions are left alone.
+  Pictures never move when the story
   is published or given a real address; a story with only a generated draft address uses it, as the editor does. The command works for both kinds of sign-in: an operator using AWS credentials, and a signed-in
   editor or admin, whose upload uses temporary credentials from the site's identity pool instead.
 
@@ -146,3 +151,39 @@ Feature: Saving a story version with the pictures its text uses
     When the story is saved with the folder of pictures
     Then the save is rejected naming "identity pool"
     And the story still has only its first version
+
+  Scenario: A card picture named by a bare file name in the front matter is uploaded and points at the stored path
+    Given the folder holds "chart.png" at 800 by 400 pixels and "cover.png" at 800 by 450 pixels
+    And the new text is an image line for "chart.png"
+    And the front matter names the card picture "cover.png"
+    When the story is saved with the folder of pictures
+    Then the saved front matter has the card picture "assets/hello/cover.png"
+    And the new version has media rows for "assets/hello/chart.png" and "assets/hello/cover.png"
+    And the stored files are "media/assets/hello/chart.png" and "media/assets/hello/cover.png"
+
+  Scenario: A card picture holding the old stored path follows a picture that was numbered
+    Given the folder holds "chart.png" at 800 by 400 pixels and "chart.dark.png" at 800 by 400 pixels
+    And the new text is an image line for "chart.png"
+    And the front matter names the card pair "assets/hello/chart.png" and "assets/hello/chart.dark.png"
+    When the story is saved with the folder of pictures
+    And the picture "chart.png" is replaced by a different one at 600 by 300 pixels
+    And the picture "chart.dark.png" is replaced by a different one at 600 by 300 pixels
+    And the story is saved again with the same text and the same folder
+    Then the saved text points at "assets/hello/chart-2.png" with srcDark "assets/hello/chart.dark-2.png"
+    And the saved front matter has the card pair "assets/hello/chart-2.png" and "assets/hello/chart.dark-2.png"
+
+  Scenario: A card picture that is a web address or a rendition is left alone
+    Given the folder holds "chart.png" at 800 by 400 pixels
+    And the new text is an image line for "chart.png"
+    And the front matter names the card picture "/assets/responsive/assets/hello/chart-1024.png"
+    When the story is saved with the folder of pictures
+    Then the saved front matter has the card picture "/assets/responsive/assets/hello/chart-1024.png"
+
+  Scenario: A card picture with a leading slash keeps it
+    Given the folder holds "chart.png" at 800 by 400 pixels
+    And the new text is an image line for "chart.png"
+    And the front matter names the card picture "/assets/hello/chart.png"
+    When the story is saved with the folder of pictures
+    And the picture "chart.png" is replaced by a different one at 600 by 300 pixels
+    And the story is saved again with the same text and the same folder
+    Then the saved front matter has the card picture "/assets/hello/chart-2.png"

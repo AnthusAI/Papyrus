@@ -1,4 +1,31 @@
 export const TENANT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_ID";
+export const TENANCY_MODE_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANCY_MODE";
+
+/** The only reader of PAPYRUS_TENANCY_MODE in TypeScript. Unset or anything but "shared" means a dedicated stack. */
+export function isSharedStack(environment: Record<string, string | undefined> = process.env): boolean {
+  return environment[TENANCY_MODE_ENVIRONMENT_VARIABLE]?.trim().toLowerCase() === "shared";
+}
+
+
+/** Models whose rows carry a `tenantId` and tenant-shaped keys (twin of TENANT_MODELS in src/papyrus_content/tenancy.py; scripts/test-function-tenant-context.ts checks both against the schema). */
+export const TENANT_MODELS: ReadonlySet<string> = new Set([
+  "Item", "PublishedItem", "MediaAsset", "PublishedMediaAsset", "NewsroomSection",
+]);
+
+/** Models that carry an optional `tenantId` and nothing else tenant-shaped (twin of TENANT_FIELD_MODELS in tenancy.py). */
+export const TENANT_FIELD_MODELS: ReadonlySet<string> = new Set([
+  "UserRoleAssignment", "Assignment", "AssignmentEvent", "ProcedureDefinition", "ProcedureVersion", "ProcedureRun",
+  "Automation", "ReviewRequest", "ReviewReadMark", "StoryVariation", "ReviewRecipientRule", "KnowledgeCorpus",
+  "KnowledgeImportRun", "KnowledgeRawPayload", "CurationDelegationRecord", "KnowledgeArtifact", "CategorySet", "Category",
+  "CategoryKeyword", "LexicalSteeringRule", "SteeringProposal", "SteeringDecision", "Reference", "ReferenceAttachment",
+  "SemanticNode", "Message", "MessageThread", "ModelAttachment", "SemanticRelationType", "SemanticRelation", "Tag", "ItemTag",
+  "Edition", "EditionItem", "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory",
+  "EditorialPolicy", "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile",
+  "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction",
+  "SignupEntry", "LocalizationRequest", "EntityLabel",
+  "AnnouncementDecision", "Delivery",
+]);
+
 const TENANT_KEY_SEPARATOR = "#";
 const TENANT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -9,7 +36,7 @@ export function validateTenantId(tenantId: string): string {
   return tenantId;
 }
 
-export function tenantIdFromEnvironment(environment: NodeJS.ProcessEnv = process.env): string | undefined {
+export function tenantIdFromEnvironment(environment: Record<string, string | undefined> = process.env): string | undefined {
   const configured = environment[TENANT_ID_ENVIRONMENT_VARIABLE]?.trim();
   return configured ? validateTenantId(configured) : undefined;
 }

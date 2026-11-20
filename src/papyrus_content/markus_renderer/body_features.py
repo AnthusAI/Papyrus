@@ -1,6 +1,6 @@
 """What a site's pages can contain, as one value that save and publish both read.
 
-A Story body may use the Papyrus vocabulary that is lowered before Markus runs: ``::image{...}`` and the citation markup
+A Story body may use the Papyrus vocabulary that is lowered before Markus runs: ``::image{...}``, ``::video{...}`` and the citation markup
 (``[@key]``, ``::citations``). Whether a site renders them is a setting of its ``projection.json`` (``images``,
 ``citations``; both are on unless the site turns them off). ``derive_body`` validates a body at save, and the projector
 renders it at publish; both read these features, so a body one accepts the other accepts.
@@ -35,6 +35,8 @@ class BodyFeatures:
     #: The site declared ``images`` as an object, so its plain Markdown images are made responsive too: every page then
     #: needs the media store, not only a page with ::image.
     plain_images_upgraded: bool = False
+    #: ``embeds.enabled`` of the site: a ``::video`` is always accepted, but only a site with embeds on shows a player.
+    video_embeds: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -42,6 +44,7 @@ class BodyFeatures:
             "citations": self.citations,
             "imagesUnavailable": self.images_unavailable,
             "plainImagesUpgraded": self.plain_images_upgraded,
+            "videoEmbeds": self.video_embeds,
         }
 
     @classmethod
@@ -54,6 +57,7 @@ class BodyFeatures:
             citations=value.get("citations") is not False,
             images_unavailable=unavailable if isinstance(unavailable, str) and unavailable else None,
             plain_images_upgraded=value.get("plainImagesUpgraded") is True,
+            video_embeds=value.get("videoEmbeds") is True,
         )
 
 

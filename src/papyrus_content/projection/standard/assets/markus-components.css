@@ -120,8 +120,51 @@
 .markus-newsletter-list { display: flex; gap: .6rem; align-items: flex-start; margin: .6rem 0; padding: .6rem .8rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: var(--papyrus-radius, .5rem); }
 .markus-newsletter-list input { flex: none; width: 1.1rem; height: 1.1rem; margin-top: .2rem; accent-color: var(--papyrus-button-bg, currentColor); }
 .markus-newsletter-notice { padding: .5rem .75rem; border-left: 4px solid var(--papyrus-button-bg, currentColor); background: var(--papyrus-band-muted-bg, transparent); font-weight: 600; }
+/* The notifications plugin's reader pages (PPY-f361ee): flat fills and rounded rectangles, no outlines. State is a word and a Lucide mark, never colour alone. Both themes: fills mix the text colour into the page. */
+.markus-notifications-page [hidden] { display: none; }
+.markus-notifications-form { max-width: 36rem; margin: 1.5rem 0; }
+papyrus-notifications { display: block; max-width: 36rem; margin: 1.5rem 0; }
+.markus-notifications-label { display: block; margin: 0 0 .4rem; font-weight: 600; }
+.markus-notifications-input { box-sizing: border-box; width: 100%; padding: .7rem .9rem; border: 0; border-radius: var(--papyrus-radius, .5rem); background: color-mix(in srgb, currentColor 9%, transparent); color: inherit; font: inherit; }
+.markus-notifications-lists { margin: 1rem 0; }
+.markus-notifications-list { margin: .6rem 0; }
+.markus-notifications-list p { margin: .3rem .9rem 0; font-size: .9375rem; }
+.markus-notifications-family { display: flex; flex-direction: column; gap: .35rem; }
+.markus-notifications-family .markus-notifications-family-label { margin: 0 0 .1rem; font-weight: 600; }
+.markus-notifications-toggle { display: flex; align-items: center; gap: .6rem; box-sizing: border-box; width: 100%; padding: .75rem .9rem; border: 0; border-radius: var(--papyrus-radius, .5rem); background: color-mix(in srgb, currentColor 9%, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.markus-notifications-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--papyrus-button-bg, currentColor) 28%, transparent); }
+.markus-notifications-name { flex: 1; font-weight: 600; }
+.markus-notifications-state { font-weight: 700; min-width: 2rem; text-align: right; }
+.markus-notifications-mark, .markus-notifications-icon { flex: none; display: inline-flex; vertical-align: middle; }
+.markus-notifications-button { display: inline-flex; align-items: center; gap: .5rem; }
+.markus-notifications-status, .markus-notifications-notice, .markus-notifications-back { display: flex; align-items: flex-start; gap: .5rem; }
+.markus-notifications-status, .markus-notifications-notice { padding: .6rem .8rem; border-radius: var(--papyrus-radius, .5rem); background: color-mix(in srgb, currentColor 9%, transparent); font-weight: 600; }
+.markus-notifications-status:empty { display: none; }
+.markus-notifications-consent { font-size: .9375rem; }
+.markus-notifications-toggle:focus-visible, .markus-notifications-input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 /* Equations (PPY-e1de14): MathML written while the page is built. Colour is inherited, so both themes work; no rules or borders. */
 .papyrus-math { margin: 1.25rem 0; overflow-x: auto; }
 .papyrus-math math { font-size: 1.15em; }
 /* The generic `math` family can resolve to a text font with no OpenType MATH table: the large sum sign then comes out text-sized and its limits touch it, and \mid shrinks. Ask for real math fonts that ship with the system first (no web fonts). */
 math { color: inherit; font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Libertinus Math", "Noto Sans Math", "Asana Math", math; }
+/* Language switcher (components.language_switcher): a details whose summary shows the Languages icon and the current language's own name, and whose list holds the page's
+   languages. The current language is marked by a check mark and aria-current, never by colour alone. No borders. */
+.markus-language-switcher { position: relative; flex: none; }
+.markus-language-details > summary { list-style: none; }
+.markus-language-details > summary::-webkit-details-marker { display: none; }
+.markus-language-trigger { display: inline-flex; align-items: center; gap: .5rem; box-sizing: border-box; min-height: 2.75rem; padding: 0 1rem; border-radius: 999px; background: var(--papyrus-band-muted-bg, #eee); color: var(--papyrus-ink, #000); font-weight: 700; cursor: pointer; user-select: none; }
+.markus-language-icon { width: 1.25rem; height: 1.25rem; flex: none; }
+.markus-language-trigger .markus-language-icon[data-icon="chevron-down"] { width: 1rem; height: 1rem; }
+.markus-language-details[open] > .markus-language-trigger { background: var(--papyrus-button-bg, #000); color: var(--papyrus-button-ink, #fff); }
+.markus-language-details[open] .markus-language-icon[data-icon="chevron-down"] { transform: rotate(180deg); }
+.markus-language-list { position: absolute; top: calc(100% + .5rem); right: 0; z-index: 40; display: flex; flex-direction: column; gap: .25rem; box-sizing: border-box; min-width: 12rem; margin: 0; padding: .5rem; list-style: none; border-radius: .75rem; background: var(--papyrus-band-bg, #f5f5f5); color: var(--papyrus-ink, #000); }
+.markus-language-option { display: flex; align-items: center; justify-content: space-between; gap: 1rem; box-sizing: border-box; min-height: 2.75rem; padding: 0 1rem; border-radius: .5rem; background: var(--papyrus-band-muted-bg, #eee); color: inherit; font-weight: 700; text-decoration: none; }
+.markus-language-option:hover { background: var(--papyrus-button-bg, #000); color: var(--papyrus-button-ink, #fff); }
+.markus-language-option[aria-current="true"] { background: var(--papyrus-ink, #000); color: var(--papyrus-bg, #fff); }
+.markus-language-switcher-quiet .markus-language-trigger { min-height: 2.25rem; padding: 0 .5rem; background: none; color: var(--papyrus-rule, inherit); font-weight: 400; font-size: .8125rem; }
+.markus-language-switcher-quiet .markus-language-icon { width: 1rem; height: 1rem; }
+.markus-language-switcher-quiet .markus-language-details[open] > .markus-language-trigger { background: var(--papyrus-band-muted-bg, #eee); color: var(--papyrus-ink, #000); }
+.markus-language-footer { display: flex; justify-content: flex-end; padding: .5rem var(--papyrus-space-gutter, 1rem); }
+.markus-site-masthead .markus-language-switcher { margin-left: auto; align-self: center; }
+@media (prefers-reduced-motion: reduce) { .markus-language-details[open] .markus-language-icon[data-icon="chevron-down"] { transform: none; } }
+@media (forced-colors: active) { .markus-language-option[aria-current="true"] { outline: 3px solid CanvasText; } }

@@ -16,7 +16,7 @@ COPY infra/knowledge-run/constraints.txt /tmp/constraints.txt
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.14.1"
 ARG BIBLICUS_VERSION=1.16.1
 RUN pip install -c /tmp/constraints.txt \
-        "biblicus[topic-modeling]==${BIBLICUS_VERSION}" boto3 awscrt \
+        "biblicus[topic-modeling]==${BIBLICUS_VERSION}" boto3 awscrt requests \
     && rm -rf /root/.cache
 
 # The models come before the Papyrus source, so a code change rebuilds only the last small layer.

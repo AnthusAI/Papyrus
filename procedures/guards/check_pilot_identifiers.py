@@ -27,8 +27,10 @@ ALLOWED_PATH_PATTERNS = tuple(
     for pattern in (
         r"^corpora/",
         r"^src/papyrus_content/data/corpora/",  # the shipped copy of the corpora/ defaults
+        r"^src/papyrus_content/data/procedures/",  # the shipped procedures; procedures/newsroom/<name>.tac links to each and is counted there against its baseline
         r"^publications/",
         r"^config/",
+        r"^infra/monitoring/router-config/",  # the router config files are deployment configuration (publication ids)
         r"^infra/shared-chat-runtime/cdk/[^/]+\.template\.json$",  # synthesized deployment configuration, not application logic
         r"^docs/",
         r"^project/",

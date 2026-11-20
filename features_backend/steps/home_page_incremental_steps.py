@@ -83,7 +83,7 @@ def many_changes(context) -> None:
     client.rows["reference-6-v1"].update({"curationStatus": "rejected", "curationStatusKey": f"{helpers.CORPUS}#rejected"})
     client.rows["reference-8-v1"].update({"feedStateKey": None, "curationStatus": "archived"})
     client.rows["reference-9-v1"]["starRating"] = 2
-    client.rows["reference-9-v1"]["curationSectionId"] = "record-004"
+    client.rows["reference-9-v1"]["curationSectionId"] = helpers.STORED_SECTION
     old = client.rows["reference-12-v1"]
     newer = {**old, "id": "reference-12-v2", "versionNumber": 2, "title": "Version two"}
     old["versionState"] = "superseded"
@@ -319,3 +319,28 @@ def full_because_build_changed(context) -> None:
 @then("the snapshot file no longer lists the Reference nobody had predicted")
 def file_lacks_after_full_read(context) -> None:
     assert helpers.public_key("reference-5") not in listed_keys(context)
+
+
+def published_sections(context) -> dict:
+    return {record["title"]: record.get("section") for record in json.loads(context.site.writer.get(REFERENCES_KEY))["references"]}
+
+
+@then('the full read published the title "{title}" for the Reference tagged with the stored section id "publication#slug"')
+def full_read_names_section(context, title: str) -> None:
+    published = published_sections(context)
+    assert published["Reference number 3"] == title, published["Reference number 3"]
+    assert published["Reference number 6"] is None
+
+
+@when("an editor tags one Reference with that stored section id and another with an id that names no section, and the run reads them again")
+def tag_two(context) -> None:
+    context.client.rows["reference-9-v1"]["curationSectionId"] = helpers.STORED_SECTION
+    context.client.rows["reference-12-v1"]["curationSectionId"] = "example-publication#no-such-section"
+    read_again(context, ["reference-9-v1", "reference-12-v1"])
+
+
+@then('the tagged Reference publishes the title "{title}" and the other publishes no section')
+def tagged_publishes_title(context, title: str) -> None:
+    published = published_sections(context)
+    assert published["Reference number 9"] == title, published["Reference number 9"]
+    assert published["Reference number 12"] is None

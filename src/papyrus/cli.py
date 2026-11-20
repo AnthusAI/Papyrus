@@ -54,21 +54,46 @@ def _operator_groups_with_help() -> set[str]:
     return {"references", "assignments", "knowledge"}
 
 
-def _consume_site_flag(args: list[str]) -> list[str]:
-    """A leading `--site <host>` (or `--site=<host>`) chooses the signed-in site for the whole command by setting PAPYRUS_SITE.
+def _leading_flag(args: list[str], name: str) -> tuple[str, list[str]] | None:
+    """`--name value` or `--name=value` at the front of `args`: (value, the rest), or None."""
+    if not args or not (args[0] == name or args[0].startswith(name+"=")):
+        return None
+    if args[0] == name:
+        return (args[1] if len(args) > 1 else ""), args[2:]
+    return args[0].partition("=")[2], args[1:]
 
-    Only the leading position is read, so it can never collide with the `--site` that several commands take after their own
-    name (a host, a publication key, a bucket's site), and those keep their meaning."""
-    if not args or not (args[0] == "--site" or args[0].startswith("--site=")):
+
+def _consume_leading_flags(args: list[str]) -> list[str]:
+    """Leading `--site <host>` and `--auth <lane>`, in either order, apply to the whole command.
+
+    `--site` chooses the signed-in site (PAPYRUS_SITE). `--auth` names the GraphQL lane (PAPYRUS_GRAPHQL_AUTH): the signed-in
+    lane is the default, and `--auth iam` is how a job that runs as its own AWS role declares the operator lane. Only the leading
+    position is read, so neither collides with the `--site` or `--auth` that several commands take after their own name."""
+    while True:
+        site = _leading_flag(args, "--site")
+        if site is not None:
+            value, args = site
+            if not value.strip() or value.startswith("-"):
+                raise OperatorError("--site requires a signed-in site such as shipped.anth.us, before the command: papyrus --site <site> <group> <command>.")
+            os.environ[SITE_ENVIRONMENT_VARIABLE] = value.strip()
+            continue
+        auth = _leading_flag(args, "--auth")
+        if auth is not None:
+            value, args = auth
+            _set_lane(value.strip().lower())
+            continue
         return args
-    if args[0] == "--site":
-        value, rest = (args[1] if len(args) > 1 else ""), args[2:]
-    else:
-        value, rest = args[0].partition("=")[2], args[1:]
-    if not value.strip() or value.startswith("-"):
-        raise OperatorError("--site requires a signed-in site such as shipped.anth.us, before the command: papyrus --site <site> <group> <command>.")
-    os.environ[SITE_ENVIRONMENT_VARIABLE] = value.strip()
-    return rest
+
+
+def _set_lane(lane: str) -> None:
+    from papyrus_content.user_auth_mode import LANE_VARIABLE, LANES
+
+    if lane not in LANES:
+        raise OperatorError("--auth requires a lane before the command: papyrus --auth iam <group> <command> (iam, user or guest).")
+    already = os.environ.get(LANE_VARIABLE, "").strip().lower()
+    if already and already != lane:
+        raise OperatorError(f"--auth {lane} and {LANE_VARIABLE}={already} name different lanes. Unset {LANE_VARIABLE}, or drop --auth, so only one of them speaks.")
+    os.environ[LANE_VARIABLE] = lane
 
 
 def _consume_global_flags(args: list[str]) -> tuple[list[str], list[str]]:
@@ -116,6 +141,9 @@ def _map_procedures(command: str, flags: list[str]) -> int:
     if command == "register":
         _delegate_content("newsroom", "register-procedure", flags)
         return 0
+    if command == "check-wake-guard":
+        _delegate_content("newsroom", "check-wake-guard", flags)
+        return 0
     if command == "execute-tactus":
         return _delegate_newsroom(["execute-tactus", *flags])
     if command == "policy":
@@ -152,7 +180,7 @@ def _map_references(command: str, flags: list[str]) -> int:
     if command == "capture-thumbnails":
         from papyrus_content.references_thumbnails import command as thumbnails_command
         return thumbnails_command(flags)
-    if command in {"list", "show", "register"}:
+    if command in {"list", "show", "text", "register"}:
         return dispatch_operator_command("references", command, flags)
     newsroom_reference_commands = {
         "curate-recent",
@@ -201,7 +229,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
         return 0
     if command in {"entities", "clusters", "relations"}:
         allowed = {
-            "entities": "list, accept, reject, rename, alias, describe, accept-description, page, link, retype or registry",
+            "entities": "list, accept, reject, rename, alias, describe, accept-description, page, link, retype, add, merge, duplicates or registry",
             "clusters": "list, accept, name or reject",
             "relations": "list, accept or reject",
         }[command]
@@ -302,15 +330,28 @@ def main(argv: list[str] | None = None) -> int:
 
     site_selection.install()
     try:
-        return run_with_operator_error_handling(lambda: _run_with_arguments(argv))
+        return run_with_operator_error_handling(lambda: _run_printing_usage_on_error(argv))
     finally:
         site_selection.uninstall()
+
+
+def _run_printing_usage_on_error(argv: list[str] | None) -> int:
+    """Run the command; when it fails for missing or wrong arguments, print its usage ahead of the error (a bare command shows its usage)."""
+    from papyrus.operator.help_dispatch import _USAGE_SHOWN, print_usage_for_error
+
+    _USAGE_SHOWN.clear()
+    args = list(argv if argv is not None else sys.argv[1:])
+    try:
+        return _run_with_arguments(args)
+    except ValueError as error:
+        print_usage_for_error(args, error)
+        raise
 
 
 def _run_with_arguments(argv: list[str] | None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     allow_cross_root, args = _consume_cross_root_override(args)
-    args = _consume_site_flag(args)
+    args = _consume_leading_flags(args)
     args, global_flags = _consume_global_flags(args)
 
     if not args or args == ["--help"] or (len(args) == 1 and args[0] in {"--help", "-h"}):
@@ -320,15 +361,36 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     help_status = answer_help(args)
     if help_status is not None:
         return help_status
+    from papyrus.operator.help_dispatch import bare_invocation_error, print_usage_for_error
+
+    if bare_invocation_error(args):
+        # A command that cannot work without arguments, run with none: show how to use it, then let it report its own specific error.
+        print_usage_for_error(args, ValueError("requires arguments"), force=True)
     if args[0] == "--version":
         from papyrus import __version__
 
         print(__version__)
         return 0
 
+    if args[0] == "guide":
+        from papyrus_content.agent_guide import guide_command
+        guide_command(args[1:])
+        return 0
+
     if args[0] == "doctor":
         from papyrus_content.cli_doctor import run as doctor_run
         return doctor_run(args[1:])
+
+    if args[0] == "today":
+        from papyrus_content.options import parse_boolean_option, parse_options
+        from papyrus_content.today import command as today_command
+        flags = [*global_flags, *args[1:]]
+        options = parse_options(flags)
+        return today_command(options, as_json=parse_boolean_option(options.get("json"), False, "--json"))
+
+    if args[0] == "links":
+        from papyrus_content.console_links import links_command
+        return links_command(args[1:])
 
     if args[0] in {"login", "logout", "whoami", "auth"}:
         from papyrus_content.cli_user_auth import command as auth_command
@@ -340,6 +402,60 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     if group == "monitors":
         from papyrus_content.monitoring_commands import command as monitor_command
         return monitor_command(args[1:])
+    if group == "images":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.images.cli import command as images_command
+        return images_command(args[1:])
+    if group == "guidelines":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.guidelines.cli import command as guidelines_command
+        return guidelines_command(args[1:])
+    if group == "agents":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.agent_definitions.cli import command as agents_command
+        return agents_command(args[1:])
+    if group == "announcements":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.announcements.cli import command as announcements_command
+        return announcements_command(args[1:])
+    if group == "ratings":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.rating_cli import command as ratings_command
+        return ratings_command(args[1:])
+    if group == "handoffs":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.handoff_cli import command as handoffs_command
+        return handoffs_command(args[1:])
+    if group == "pod":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus.pod.cli import command as pod_command
+        return pod_command(args[1:])
+    if group == "figures":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.figures.cli import command as figures_command
+        return figures_command(args[1:])
+    if group == "design-system":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.figures.design_system_cli import command as design_system_command
+        return design_system_command(args[1:])
     command = args[1] if len(args) > 1 else None
     flags = [*global_flags, *(args[2:] if len(args) > 2 else [])]
 

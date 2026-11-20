@@ -1,0 +1,46 @@
+{
+  "id": "PPY-611397a2-389c-4a13-acec-b13f3ab5cff8",
+  "title": "One gate: each operation names the rung it needs",
+  "description": "The operation table (one table behind the CLI, MCP and newsroom) gains, for an agent actor, the lowest rung that allows each operation, and for each a plain rule for doubt. One gate, on the server, receives the operation, the agent and the run, reads the policy once, and answers `allowed`, `blocked` (never for an agent) or `human_required` (a person must do or approve it). On `human_required` the engine raises the review request and the run ends `asked`. The gate is the only way an agent reaches a write. A person's own action is never gated by an agent's rung.\n\n**Acceptance criteria**\n- An agent at `propose` asking to write a draft gets `human_required` or `blocked` as the table says, and the write does not happen.\n- Raising the rung allows the same call with no code change.\n- Every gate answer is on the run record.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- operation-gate.feature: the same call is refused at a low rung and allowed at a higher one; a blocked operation is blocked at every rung; `human_required` raises one review request and ends the run `asked`; a person's action is not gated; the answer is recorded.\n\n**Infrastructure as code touched:** The gate function and its role; operation table data.\n\n**Part of:** Authorization: the autonomy ladder as configuration. Slice code E2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-077760e7-30f6-4d52-96ef-c2ad5d5d62f7",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e068351c-82c7-421b-93d2-75014dcec23e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "1791881f-adfc-4487-85a7-1c3de8544f29",
+      "author": "home",
+      "text": "Merged in PR 1637. agent_rung and agent_refusal on the operation table; agent_gate (decide, GateRun); D1 validator reads the table; operation-gate.feature. Not done: E4 floors; E3 (gate as the only path, runner role).",
+      "created_at": "2026-11-17T01:43:18.556707Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:43:05.325640Z",
+  "updated_at": "2026-11-17T01:43:18.756484Z",
+  "closed_at": "2026-11-17T01:43:18.756264Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

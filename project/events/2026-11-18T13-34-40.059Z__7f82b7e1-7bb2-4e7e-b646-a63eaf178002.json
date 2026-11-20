@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7f82b7e1-7bb2-4e7e-b646-a63eaf178002",
+  "issue_id": "PPY-15050c47-b59b-4ba0-a961-893afcb5b891",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-18T13:34:40.059Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom talk from Slack becomes agent context",
+    "description": "Ryan 2026-11-18, for Humorus: editors talk in Slack about what they think is funny, and that talk should flow into the agents' context when it is relevant, using standard reusable Papyrus features (not a Humorus special case). Planning only; nothing scheduled.\n\nDesign:\n1. A Slack channel monitor: a new monitor kind beside feed, web-search and Hugging Face. It uses the site's Slack connection (the existing Slack connector, PPY-0e7d05; connect flow PPY-cc015c), reads only channels an editor has explicitly connected and the bot was invited to, on a schedule with a cursor, and files each thread as a newsroom Message thread (kind newsroom_talk), not a Reference. Edits and deletions in Slack update or withdraw the copy.\n2. A context-pack layer: newsroom_talk, for the ideation, selection, copywriter and editor profiles. It includes recent threads chosen by relevance to the task (vector and concept match, newest first, within the pack budget), never the whole channel, and nothing when no thread is relevant.\n3. A curator agent: periodically reads new threads and proposes changes to the site's guidelines (for satire, the humour rubric) as a review request a person accepts or rejects. Durable taste ends up in guidelines; recent talk stays in the layer.\nOut of scope: posting agent replies into Slack (that is the chat responder), DMs, private channels the bot was not invited to.\nStanding rules: no workarounds, fallbacks or shims; Gherkin specs; Slack tokens in SSM SecureString.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": []
+  }
+}

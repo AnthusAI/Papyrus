@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f19a9e0f-121e-4153-9db8-5b0998f60157",
+  "issue_id": "PPY-e4e87148-0c5a-4c7f-b668-4423634f22b7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:24.942Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Acceptance: rendered sizes do not change when the scaler is retired",
+    "description": "What: before deleting tools/scale_css.py capture computed sizes (font-size, line-height, spacing, image box) for every role at 375, 820 and 1440 px in light and dark on Machines on Machines; after the switch to native tokens the same capture must match exactly. The capture becomes a permanent golden test.\nWhy: this is the proof that rebuilding at final size is a refactor, not a redesign.\nAcceptance:\nScenario: Native tokens reproduce the scaled sizes\n  Given the captured computed sizes from the scaled stylesheet\n  When MoM builds on native tokens with the scaler removed\n  Then every captured size is identical at 375, 820 and 1440 px\nScenario: The scaler is gone\n  Given the repository after the change\n  Then no scale tool and no scaled stylesheet remain",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2a44b217-dae4-4d20-9792-cb51a3a1017e",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

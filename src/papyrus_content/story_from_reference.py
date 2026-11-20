@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 
 import yaml
 
+from .content_item_lifecycle import without_sub_tasks
 from .link_exploration import canonical_url
 from .publishing import ItemFields, item_id_for, save_item
 from .record_helpers import slugify
@@ -251,6 +252,10 @@ def create_story_from_references(
         )
         existing = client.get_record("Item", story_id)
     lineage_id = existing.get("lineageId") or story_id
+    if created:
+        from .story_checklist import ensure_for_new_story
+
+        ensure_for_new_story(client, lineage_id)   # every path that makes a Story makes its checklist
     linked = []
     for row in rows:
         result = link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now)
@@ -382,7 +387,7 @@ def plan_reference_links(client: Any, *, role: str | None = None) -> list[dict[s
         if key:
             by_key.setdefault(key, reference)
     plan = []
-    for item in _current_versions(client.list_records("Item")):
+    for item in _current_versions(without_sub_tasks(client.list_records("Item"))):
         matches = [(by_key[key], address) for key, address in item_urls(item).items() if key in by_key]
         if not matches:
             continue

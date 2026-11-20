@@ -1,5 +1,7 @@
 # Shared stacks deploy from the release (PPY-b8cc79)
 
+> **Deployment accounts.** A deployment repository in another organisation or a client's account uses the account pipeline instead of `bootstrap.sh`: [docs/account-pipeline.md](../../docs/account-pipeline.md) (epic PPY-9bd776). Nothing on this page changes for the Anthus accounts.
+
 `papyrus-monitoring` and `papyrus-newsletter-sending-operators` are deployed by `.github/workflows/stack-deploy.yml`. Nobody creates or executes a change set for them by hand.
 
 | File | What it is |
@@ -36,9 +38,12 @@
 - **A rollback that is refused for a permission**: the service role is changed only through `role-stack-deploy`. The release deploys the templates on `main`, so a template fix reaches AWS only with a release; a re-run of a failed run deploys the commit that run was for.
 - **Order after a fix to both**: merge the fix, approve the `role-stack-deploy` run if it asks, remove any leftover resource the summary names, then release (or re-run the release on `main`).
 
+## The shared-tier stacks (PPY-daf673)
+
+`papyrus-shared-staging-foundation` and `papyrus-shared-prod-foundation` are in `stacks.json` with `"group": "shared"`, their own service role (`papyrus-shared-deploy-cloudformation`) and, in the workflow, their own plan and deploy roles (`papyrus-shared-plan-github`, `papyrus-shared-deploy-github`), which reach only stacks named `papyrus-shared-*`. A stack with a `hold` is planned on every pull request (the summary says **HELD**) and never created or changed; taking the `hold` out in a reviewed pull request is the go. What they create and what must be said go to first: [docs/shared-stack.md](../../docs/shared-stack.md).
+
 ## What does not fit
 
-- `papyrus-procedure-runner` takes `ImageUri`, a container image built and pushed elsewhere. The shape (zip builds that feed content-hash keys) does not apply, so it is not in `stacks.json`. It would fit once the image build is a pipeline step.
 - Edge stacks and per-site newsletter stacks are not in scope. The same file could carry them.
 - `papyrus-monitoring`'s `CodeBucket` is read from the live stack, and the template bucket for every stack comes from there. On a new account, before that stack exists, the CDK bootstrap bucket name is used (see "A new account, in order").
 
@@ -98,7 +103,7 @@ infra/pipeline/create-environment.sh --reviewer <github login>
 4. **SES.** The operators stack creates the sending identity; an account new to SES starts in the sandbox, and moving out is a request to AWS that a person makes.
 5. **Plan and approve, then merge and release.** The first `role-stack-deploy` run (after merging, or `workflow_dispatch` from `develop`) creates the pipeline roles once a person approves. The release then creates `papyrus-newsletter-sending-operators`, then `papyrus-monitoring`. Every parameter without a default is supplied by `stacks.json` or the build. This first-create path (bucket by name, `CREATE` change set) is covered by unit tests against a fake CloudFormation; it has not been rehearsed on a real empty account.
 
-Not solved: nothing creates the CDK bootstrap or the hosted zone; both are account facts a person provides. The approver setup is also a person's step by design: the workflow cannot create the roles it runs as. Also, `papyrus-procedure-runner`, edge and per-site newsletter stacks are still outside the pipeline (see above).
+Not solved: nothing creates the CDK bootstrap or the hosted zone; both are account facts a person provides. The approver setup is also a person's step by design: the workflow cannot create the roles it runs as. Edge and per-site newsletter stacks are still outside the pipeline (see above). The procedure runner is inside it: its image is a build step (`kind: image`) and only the release changes its stack.
 
 ## The roles, in plain words
 

@@ -100,16 +100,16 @@ def classification_model(model, client, steering, sections=()):
     return ContextualDecisionModel(model, resolve)
 
 
-def editing_pack(store, section, settings):
-    return editing_pack_and_context(store, section, settings)[0]
+def editing_pack(store, section, settings, language):
+    return editing_pack_and_context(store, section, settings, language)[0]
 
 
-def editing_pack_and_context(store, section, settings):
-    """The pack Humanus checks with, and the context it was built from (which says what publication doctrine is missing)."""
+def editing_pack_and_context(store, section, settings, language):
+    """The pack Humanus checks text in ``language`` with, and the context it was built from (which says what publication doctrine is missing)."""
     from .editorial_checks import compose_pack
     context = checked_context(store.get_editorial_context(section), section=section,
                               mode=getattr(store, 'context_mode', 'cloud'))
-    pack = deepcopy(compose_pack(store.list_policies(), section, settings))
+    pack = deepcopy(compose_pack(store.list_policies(), section, settings, language))
     pack['version'] += '-' + context['contextHash']
     pack['guidance'] = context['text'] + '\n' + pack.get('guidance', '')
     for policy in pack['policies']:

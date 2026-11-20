@@ -61,10 +61,21 @@ export type CmsConfig = {
   cognitoDomainPrefix: string;
   applyCognitoDomainPrefix?: boolean;
   buildComputeType?: "STANDARD" | "STANDARD_8GB";
+  /**
+   * How long Amplify lets one build job run, in whole minutes (Amplify's `_BUILD_TIMEOUT`, set on the app so every branch gets it).
+   * Amplify allows 5 to 120 and stops a job at 30 without it. Defaults to the maximum, 120, because a large backend release
+   * can need more than 30 minutes (docs/site-hosting.md, "Build timeout").
+   */
+  buildTimeoutMinutes?: number;
   environment: Record<string, string>;
   stagingDomainName?: string;
   stagingDomainPrefix?: string;
   redirects?: CmsRedirect[];
+  /**
+   * The production host is an apex domain (`domainName` with no `domainPrefix`): also serve `www.<domainName>` and redirect it
+   * permanently (301) to the apex, keeping path and query. Off unless set; a site under a shared root domain uses `redirects`.
+   */
+  wwwRedirect?: boolean;
   prospectusAccountsApiStageArn?: string;
   /**
    * The site is a public-reader site that polls Prospectus for retired reader subjects. The template then generates a
@@ -151,6 +162,12 @@ export type AmplifyAppShellSiteConfig = {
    * private repositories get no Actions minutes, so Amplify's own repository-connected auto-build stays on.
    */
   autoDeploy: boolean;
+  /**
+   * Prospectus cost accounting (docs/cost-accounting.md) on the app shell and private chat stacks. Default true: every
+   * resource gets the anthus: cost tags. The site backend tags itself in waves (papyrus-infra backend-deploy) and reads
+   * its site ID from this file, so nothing here switches it.
+   */
+  costAccounting: boolean;
   ci?: CiGateConfig;
   github?: {
     owner: string;
@@ -473,12 +490,26 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
   };
 }
 
+/** Amplify's documented range for `_BUILD_TIMEOUT` (AWS Amplify Hosting user guide, "Troubleshooting build issues"). */
+export const MIN_BUILD_TIMEOUT_MINUTES = 5;
+export const MAX_BUILD_TIMEOUT_MINUTES = 120;
+export const DEFAULT_BUILD_TIMEOUT_MINUTES = MAX_BUILD_TIMEOUT_MINUTES;
+
+/** The build timeout a CMS app gets: the site's setting, else the maximum. */
+export function resolveBuildTimeoutMinutes(cms: Pick<CmsConfig, "buildTimeoutMinutes">): number {
+  return cms.buildTimeoutMinutes ?? DEFAULT_BUILD_TIMEOUT_MINUTES;
+}
+
 function parseCms(value: unknown, environment: Record<string, string | undefined>): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "buildTimeoutMinutes", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "wwwRedirect", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
+  }
+  const buildTimeoutMinutes = cmsRecord.buildTimeoutMinutes;
+  if (buildTimeoutMinutes !== undefined && (!Number.isInteger(buildTimeoutMinutes) || (buildTimeoutMinutes as number) < MIN_BUILD_TIMEOUT_MINUTES || (buildTimeoutMinutes as number) > MAX_BUILD_TIMEOUT_MINUTES)) {
+    fail("cms.buildTimeoutMinutes", `must be a whole number of minutes from ${MIN_BUILD_TIMEOUT_MINUTES} to ${MAX_BUILD_TIMEOUT_MINUTES} (Amplify's range for _BUILD_TIMEOUT), got ${JSON.stringify(buildTimeoutMinutes)}`);
   }
   if (cmsRecord.staging !== undefined && typeof cmsRecord.staging !== "boolean") {
     fail("cms.staging", `must be a boolean, got ${JSON.stringify(cmsRecord.staging)}`);
@@ -494,6 +525,9 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
   const prospectusAccountsApiStageArn = prospectusFromEnvironment || cmsRecord.prospectusAccountsApiStageArn;
   if (cmsRecord.readerRetirementPoll === true && prospectusAccountsApiStageArn === undefined) {
     fail("cms.readerRetirementPoll", "requires cms.prospectusAccountsApiStageArn: the poll calls Prospectus as the site");
+  }
+  if (cmsRecord.wwwRedirect !== undefined && typeof cmsRecord.wwwRedirect !== "boolean") {
+    fail("cms.wwwRedirect", `must be a boolean, got ${JSON.stringify(cmsRecord.wwwRedirect)}`);
   }
   if (cmsRecord.cliRemoteLogin !== undefined && typeof cmsRecord.cliRemoteLogin !== "boolean") {
     fail("cms.cliRemoteLogin", `must be a boolean, got ${JSON.stringify(cmsRecord.cliRemoteLogin)}`);
@@ -522,10 +556,12 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
     ),
     applyCognitoDomainPrefix: cmsRecord.applyCognitoDomainPrefix as boolean | undefined,
     buildComputeType: buildComputeType as "STANDARD" | "STANDARD_8GB" | undefined,
+    buildTimeoutMinutes: buildTimeoutMinutes as number | undefined,
     environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     redirects: parseRedirects(cmsRecord.redirects),
+    wwwRedirect: cmsRecord.wwwRedirect as boolean | undefined,
     deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
     readerRetirementPoll: cmsRecord.readerRetirementPoll as boolean | undefined,
     cliRemoteLogin: cmsRecord.cliRemoteLogin as boolean | undefined,
@@ -549,6 +585,7 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
       fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix, the revalidation secret parameter is derived from siteId and the Prospectus endpoint comes from cms.prospectusAccountsApiStageArn and the public site origin comes from the site host");
     }
   }
+  assertOptionalFeatures(cms.environment);
   const privateChatEnabled = cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED;
   if (privateChatEnabled !== undefined && privateChatEnabled !== "true" && privateChatEnabled !== "false") {
     fail("cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED", "must be the string \"true\" or \"false\"");
@@ -586,6 +623,11 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
   }
   if (cms.domainPrefix && cms.stagingDomainPrefix === cms.domainPrefix) {
     fail("cms.stagingDomainPrefix", "must differ from cms.domainPrefix");
+  }
+
+  if (cms.wwwRedirect) {
+    if (!cms.domainName) fail("cms.wwwRedirect", "requires cms.domainName: it redirects www.<domainName> to the apex");
+    if (cms.domainPrefix) fail("cms.wwwRedirect", "is for an apex production host; with cms.domainPrefix (a shared root domain) use cms.redirects");
   }
 
   if (cms.redirects) {
@@ -661,11 +703,36 @@ function parseCi(raw: unknown, autoDeploy: boolean): CiGateConfig | undefined {
   return { gate: gate as CiGateConfig["gate"], statusContext, requireSignature: false };
 }
 
+/**
+ * The four optional backend features are off unless a site turns them on. A flag must be exactly "true" or "false", and a feature that is on must carry what
+ * it needs, so a missing prerequisite fails here, at synth, and not as a half-built backend: the console responder needs a prebuilt image, inbound email its
+ * own domain and hosted zone. The same rule is `assertFeaturePrerequisites` in amplify/site-backend-names.ts, which the backend build applies.
+ */
+const OPTIONAL_FEATURES: ReadonlyArray<{ flag: string; needs: readonly string[]; why: string }> = [
+  { flag: "PAPYRUS_ENABLE_CONSOLE_RESPONDER", needs: ["PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI"], why: "the console responder runs a container image that this package does not build: publish an ARM64 image to ECR and name it" },
+  { flag: "PAPYRUS_ENABLE_INBOUND_EMAIL", needs: ["PAPYRUS_INBOUND_EMAIL_DOMAIN", "PAPYRUS_INBOUND_EMAIL_CORPUS_KEY", "PAPYRUS_PUBLIC_SITE_BASE_URL"], why: "inbound email receives mail for a domain of the site's own, files it into a corpus and links reply emails to the site's public origin (a hosted zone is also needed when the stack verifies the domain: amplify/inbound-email/settings.ts)" },
+  { flag: "PAPYRUS_ENABLE_SLACK", needs: [], why: "" },
+  { flag: "PAPYRUS_ENABLE_STORAGE_BACKUPS", needs: [], why: "" },
+];
+
+function assertOptionalFeatures(environment: Record<string, string>): void {
+  for (const { flag, needs, why } of OPTIONAL_FEATURES) {
+    const value = environment[flag];
+    if (value === undefined) continue;
+    if (value !== "true" && value !== "false") fail(`cms.environment.${flag}`, `must be the string "true" or "false", got ${JSON.stringify(value)}`);
+    if (value !== "true") continue;
+    const missing = needs.filter((name) => (environment[name] ?? "").trim() === "");
+    if (missing.length > 0) {
+      fail(`cms.environment.${flag}`, `is "true" but ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} missing from cms.environment: ${why}. Add ${missing.length === 1 ? "it" : "them"} or set the flag to "false"`);
+    }
+  }
+}
+
 export function parseSiteConfig(raw: unknown, environment: Record<string, string | undefined> = process.env): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "ci", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "costAccounting", "ci", "github"],
     "site",
   );
 
@@ -721,6 +788,9 @@ export function parseSiteConfig(raw: unknown, environment: Record<string, string
 
   const autoDeploy = record.autoDeploy ?? true;
   if (typeof autoDeploy !== "boolean") fail("autoDeploy", "must be a boolean");
+
+  const costAccounting = record.costAccounting ?? true;
+  if (typeof costAccounting !== "boolean") fail("costAccounting", "must be a boolean");
 
   const ci = parseCi(record.ci, autoDeploy as boolean);
 
@@ -785,6 +855,7 @@ export function parseSiteConfig(raw: unknown, environment: Record<string, string
     storagePreviewPrefix,
     ...(chat ? { chat } : {}),
     autoDeploy: autoDeploy as boolean,
+    costAccounting: costAccounting as boolean,
     ...(ci ? { ci } : {}),
     github,
     ...(record.knowledgeRun !== undefined ? { knowledgeRun: record.knowledgeRun } : {}),

@@ -46,6 +46,10 @@ class Memory:
             return [{"id": self.corpus_id, "role": "canonical", "name": "Publication"}]
         return [copy.deepcopy(row) for (name, _), row in self.rows.items() if name == model]
 
+    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100, sort_eq: str | None = None) -> list[dict[str, Any]]:
+        from papyrus_content.reference_reads_testing import list_by_index_from_records
+        return list_by_index_from_records(self.list_records, index_name, key_value, sort_eq)
+
     def get_record(self, model: str, record_id: str) -> dict[str, Any] | None:
         row = self.rows.get((model, record_id))
         return copy.deepcopy(row) if row else None
@@ -508,6 +512,25 @@ def test_a_reference_created_by_an_asking_path_is_one_a_prediction_is_requested_
     reference = PATHS[path](key)
     (request,) = references_for_prediction([reference])
     assert request["referenceId"] == reference["id"] and request["sourceUri"]
+
+
+@pytest.mark.parametrize("key", CORPUS_KEYS)
+@pytest.mark.parametrize("path", sorted(ASKS_FOR_ONE))
+def test_a_reference_created_by_an_asking_path_also_requests_its_enrichment_exactly_once(path, key):
+    """The one request row that asks for the prediction also asks for the enrichment that precedes it (`predictFor.enrich`); a retry adds nothing."""
+    from procedures.newsroom.tests.test_monitoring_router import ENDPOINT, FakeTable, router_config
+    from .monitoring_view import TableViewStore
+    from .reference_prediction_queue import queue_reference_predictions, references_for_prediction, wants_enrichment
+
+    table = FakeTable()
+    table.put_item(router_config())
+    store = TableViewStore(table, "hn")
+    endpoint = ENDPOINT.replace("abc123", "api0")
+    (request,) = references_for_prediction([PATHS[path](key)])
+    first = queue_reference_predictions(store, endpoint=endpoint, references=[request], subject="test")
+    again = queue_reference_predictions(store, endpoint=endpoint, references=[request], subject="test")
+    rows = [row for row in table.by_prefix("DISC#") if row.get("sourceType") == "reference"]
+    assert first["queued"] == 1 and again["queued"] == 0 and len(rows) == 1 and wants_enrichment(rows[0])
 
 
 @pytest.mark.parametrize("path", sorted(CARRIES_ONE))

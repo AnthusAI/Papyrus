@@ -3,7 +3,7 @@
   "title": "Ship Tactus procedures in the wheel and resolve them by kind (S)",
   "description": "The 11 core procedures in procedures/newsroom/*.tac are read from a Papyrus checkout. newsroom_commands.py (around line 659) hardcodes a kind→path map under PAPYRUS_ROOT, and ontology_enrichment.py reads files from the repo root. The published papyrus-newsroom wheel does not include them, so neither a PyPI install nor a container job nor a local pod without a Papyrus checkout can run the research, reporting, summarisation or ontology procedures. This was found while packaging the cloud knowledge run (Papyrus #596).\n\nFix:\n- Move the .tac files into package data, as #596 did for corpora/, keeping a repo-path symlink or override for checkouts.\n- Load them with importlib.resources.\n- Replace the hardcoded map with one data registry of procedure kind → packaged file, extending papyrus-required-procedures.json or adding a sibling file.\n\nAcceptance:\n- A wheel-content test that every registered kind's file is packaged.\n- A test that the kind lookup works from an unpacked wheel away from the checkout.\n- Gherkin specs.",
   "type": "chore",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,10 +12,18 @@
     "size-S"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5c05e7ee-b706-47b2-9cbd-bca62a04e8bf",
+      "author": "home",
+      "text": "Built and merged to develop (PR #1646). The 14 procedure files now live in src/papyrus_content/data/procedures/ (the wheel carries them) and procedures/newsroom/<name>.tac is a symlink to each. The registry's procedures map is now kind to file name; procedure_file_for_kind / procedure_source_for_kind resolve a kind through importlib.resources (a PAPYRUS_ROOT/procedures/newsroom copy wins when present, which is the checkout override) and refuse a file that declares another kind. The hardcoded kind-to-path dict (newsroom_commands.py) went in PR #1643; ontology_enrichment.py and its preflight now use kinds. Specs: features_backend/packaged-procedures.feature (5 scenarios); wheel-content test and unpacked-wheel lookup test in procedures/newsroom/tests/test_wheel_data_files.py. Pilot-identifier guard allows the packaged path like corpora; baseline untouched, counts unchanged. Not done: registering procedures on deploy (PPY-1b2edd); the Lambda bundles that cp -R src/papyrus_content now carry the 14 files too (not read there, harmless); no release.",
+      "created_at": "2026-11-17T04:54:25.780523Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T05:52:48.359180Z",
-  "updated_at": "2026-10-23T05:52:48.359231Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T04:54:25.956861Z",
+  "closed_at": "2026-11-17T04:54:25.956811Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

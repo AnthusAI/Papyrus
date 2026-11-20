@@ -7,18 +7,23 @@ import {
   monitoringViewParameterArn,
   monitoringViewTableArns,
 } from "../monitoring-view/wire";
+import { connectToSiteApi } from "../../site-api-access";
+import { allowWakeSending } from "../../agents/wake-queue";
 
-/** The reads the function makes of its own site's API with its own role. It writes nothing there. */
+/** The reads the function makes of its own site's API with its own role. It writes nothing there. Today reads the day's runs through the status index, the agents through the tenant index, and the day's email sends through the released-Announcements index, each one's Deliveries and its `announces` links. */
 export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
   "Query/fields/getAutomation",
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
+  "Query/fields/listAnnouncementDecisionsByStateAndReleaseAt",
   "Query/fields/listAutomations",
+  "Query/fields/listAutomationsByTenant",
+  "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
+  "Query/fields/listDeliveriesByDueKeyAndDueAt",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
+  "Query/fields/listProcedureRunsByStatusAndRequestedAt",
+  "Query/fields/listSemanticRelationsBySubjectState",
 ];
-
-/** The procedure runner stack's function (infra/procedures/papyrus-procedure-runner.yaml); Run now starts it asynchronously. */
-export const PROCEDURE_RUNNER_FUNCTION_NAME = "papyrus-procedure-runner";
 
 /** Run now writes one row of its own to the monitoring table, in a monitor's partition (`MONITOR#<id>`), and nothing else. */
 export const AUTOMATION_RUN_NOW_TABLE_ACTIONS = ["dynamodb:PutItem"];
@@ -27,15 +32,14 @@ export const AUTOMATION_RUN_NOW_LEADING_KEYS = ["MONITOR#*"];
 /**
  * Environment and least-privilege IAM for the automation-view function: a few read fields of the site's own API,
  * the same read-only grant on the monitoring table that the Monitoring page has, one PutItem for Run now's row,
- * and permission to start the procedure runner. A site outside the
+ * and permission to put a wake on the site's own wake queue (Run now). A site outside the
  * monitoring account finds no parameter and the page lists its records without runs.
  */
-export function wireAutomationView(backend: any): void {
+export function wireAutomationView(backend: any, brandId: string): void {
   const lambda = backend.automationView.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
-  lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
+  connectToSiteApi(lambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   lambda.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
-  lambda.addEnvironment("PROCEDURE_RUNNER_FUNCTION", PROCEDURE_RUNNER_FUNCTION_NAME);
   const apiId = backend.data.resources.graphqlApi.apiId as string;
   lambda.addToRolePolicy(
     new PolicyStatement({
@@ -66,11 +70,5 @@ export function wireAutomationView(backend: any): void {
       conditions: { "ForAllValues:StringLike": { "dynamodb:LeadingKeys": AUTOMATION_RUN_NOW_LEADING_KEYS } },
     }),
   );
-  lambda.addToRolePolicy(
-    new PolicyStatement({
-      effect: Effect.ALLOW,
-      actions: ["lambda:InvokeFunction"],
-      resources: [`arn:aws:lambda:${stack.region}:${stack.account}:function:${PROCEDURE_RUNNER_FUNCTION_NAME}`],
-    }),
-  );
+  allowWakeSending(lambda, brandId);
 }

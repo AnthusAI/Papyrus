@@ -1,0 +1,36 @@
+{
+  "id": "PPY-9c2ea0f4-7e60-4f61-9bbf-fd56051bc2e5",
+  "title": "Guideline file form and papyrus guidelines check",
+  "description": "One guideline is a folder with GUIDELINE.md: flat front matter (id, type papyrus:Guideline, name, description, kind writing/image/announcement, scope publication/section/<id>/channel/<name>, severity error/warn/guidance, language, avoid, prefer, pattern, maxLength) and prose body. papyrus guidelines check --dir guidelines/ FILE... runs every rule a program can decide with no network and no model, and prints not checked offline plus the rule name for judgement rules. pod check validates the guideline files. A Guideline is never a page. Can run beside slices 1-3.\n\n**Acceptance criteria**\n- Gherkin: A guideline folder is valid or refused (missing kind, unknown key, nested value, bad severity).\n- Gherkin: Offline check (a listed word is found with no network; a judgement rule prints not checked offline; exit status reflects error findings only).\n- Flat keys only, explicit id, unknown keys refused.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-e4fd0c08-42b5-455e-8ddc-c07e33536a2a",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "829ebeaf-708c-42d6-96ee-30599ac1ee89",
+      "author": "home",
+      "text": "Merged to develop in PR #1617 (not yet released). Shipped: the guideline file form (one folder with a GUIDELINE.md), the offline `papyrus guidelines check`, and 25 Gherkin scenarios. NOT done here: (1) `pod check` does not yet validate guideline files; no pod checker existed when this merged. The pod base (PPY-4834f3, PR #1619) now provides one, and the wiring is its own task (see the follow-up filed under this epic): it should call `load_directory` and `validate_meta` in `src/papyrus_content/guidelines/files.py`. (2) The headline-order rule is not a specified front-matter key; decide later.",
+      "created_at": "2026-11-16T22:46:07.389803Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T21:48:37.889274Z",
+  "updated_at": "2026-11-16T22:46:07.501217Z",
+  "closed_at": "2026-11-16T22:46:07.501193Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

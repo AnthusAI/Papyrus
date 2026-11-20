@@ -1,0 +1,53 @@
+{
+  "id": "PPY-4d74d9e4-2ae2-48b2-a298-b2aab6fc5c7e",
+  "title": "A list carries its cadence, time, time zone and rule as data",
+  "description": "Every subscription list (a Caducus public-audience list) gets settings in the site's data: `cadence` (`each`: a message for every new item; `daily`; `weekly`), `sendAt` and `timeZone` for the periodic ones, the rule (sections, types, tags, a minimum star rating never under three), `requireReviewedSource`, the working document (`story`, an issue Story that is published to the archive, or `delivery`, no archive page), the template, and optionally its own rung. A periodic list is a scheduled agent wake (the schedule trigger); an every-item list is woken by the page-is-live and rating-changed changes. All of them create an Announcement (model `AnnouncementDecision`) and an email Delivery. Nothing about a cadence is in code.\n\n**Acceptance criteria**\n- A new list with a cadence and time needs no code or deploy.\n- A list's minimum rating cannot be set under three.\n- Each cadence produces Announcements and Deliveries of the same shape.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- list-cadence.feature: a weekly list wakes at its local time; a daily list wakes daily; an every-item list reacts to a publish; a rule under three stars is refused; changing the time changes the next send only.\n\n**Infrastructure as code touched:** Schedule entries come from the list settings through the schedule reconciler.\n\n**Part of:** Newsletters and subscriptions: weekly, daily and every new item. Slice code N1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-79c915eb-2aff-4c77-9d00-042848ad6fa3",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2a53cd96-5316-4b1c-9bd7-bf9317c1f73e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "65192072-e495-4f16-8776-f60f87af073a",
+      "author": "home",
+      "text": "Branch feat/PPY-4d74d9-list-cadence; PR to follow. Built: list settings document (site document kind lists), schedule entries from list settings through the schedule reconciler, same Announcement and email Delivery for every cadence. Not built: the agent procedure that supplies the period's Stories and drafts the words, issue Story working document, Caducus fan-out.",
+      "created_at": "2026-11-18T13:08:22.726819Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e1bde20a-f464-4f90-88db-a721559a5fc5",
+      "author": "home",
+      "text": "Merged to develop in #1672 (not released). List settings as data, schedule entries from the reconciler, same Announcement/Delivery shape per cadence, minimum 3 stars. Follow-ups: no announce_list agent procedure calls list_cadence.wake.run_list/run_story_change yet; change feed not wired for every-item lists; audience list id/name still from plugin config LISTS_JSON.",
+      "created_at": "2026-11-18T13:54:16.612194Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:43:16.438355Z",
+  "updated_at": "2026-11-18T13:54:16.771772Z",
+  "closed_at": "2026-11-18T13:54:16.771737Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

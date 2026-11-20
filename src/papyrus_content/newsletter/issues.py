@@ -6,10 +6,8 @@ Rows (single table):
   ISSUE#<id> / RENDER      the issue rendered once for sending (html, text, subject)
   ISSUE#<id> / SEND#<hid>  ledger: ``claimed`` before SES is called (at most once), then ``sent``, ``failed``, ``suppressed`` or ``skipped``
 
-  ALERT#<listId> / ITEM#<lineageId>   dedupe: one alert per list and published item, ever (see ``alerts.py``)
-
-Statuses: draft, awaiting_approval, scheduled, sending, sent, cancelled, stopped, blocked. A roundup is born ``draft``; an
-alert (``kind`` "alert", no Item: its subject, body and preheader live on the META row) is born ``awaiting_approval``.
+Statuses: draft, awaiting_approval, scheduled, sending, sent, cancelled, stopped, blocked. A roundup is born ``draft``. Alerts are not issues: an alert is the email
+Delivery of an Announcement (``list_cadence/announce.py``, PPY-58d962).
 """
 
 from __future__ import annotations
@@ -518,22 +516,20 @@ class IssueService:
         issue = self._issue(input_of(event))
         if issue is None:
             return failure(404, "not_found", "No such issue.")
-        alert = issue.get("kind") == "alert"
-        # An alert waiting for approval can be dismissed too; an alert is never edited, so cancelling ends it (a roundup goes back to draft).
-        cancellable = ("scheduled", "awaiting_approval") if alert else ("scheduled",)
+        cancellable = ("scheduled",)
         if issue.get("status") not in cancellable:
             return failure(409, "invalid_state", "Only a scheduled issue can be cancelled; stop one that is sending.")
         if issue.get("scheduleName"):
             self.scheduler.delete(issue["scheduleName"])
         changed = self.issues.update(
             issue["issueId"],
-            {"status": "cancelled" if alert else "draft", "note": f"cancelled by {actor_of(event)}"},
+            {"status": "draft", "note": f"cancelled by {actor_of(event)}"},
             expect=cancellable,
             remove=("contentHash", "approvedBy", "approvedAt", "sendAt", "scheduleName"),
         )
         if not changed:
             return failure(409, "invalid_state", "The issue started sending; stop it instead.")
-        log("issue_cancelled", issue["issueId"], status="cancelled" if alert else "draft")
+        log("issue_cancelled", issue["issueId"], status="draft")
         return reply(200, ok=True, issue=summary(self.issues.get(issue["issueId"]) or {}, self.settings))
 
     def stop(self, event: Mapping[str, Any]) -> Response:
@@ -632,11 +628,6 @@ class IssueService:
         from .roundup import assemble
 
         return reply(200, ok=True, **assemble(self, entry, manual=False, actor="roundup-schedule"))
-
-    def item_published(self, event: Mapping[str, Any]) -> Response:
-        from .alerts import raise_alerts
-
-        return reply(200, ok=True, **raise_alerts(self, event))
 
     def start_send(self, event: Mapping[str, Any]) -> Response:
         from .send import start_send

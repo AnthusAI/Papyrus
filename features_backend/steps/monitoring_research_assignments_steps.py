@@ -233,10 +233,10 @@ def step_granted(context):
     assert asked <= granted, sorted(asked - granted)
 
 
-@then("the grant has no publish field, no updateItem and nothing that changes a Story's text")
+@then("the grant has no publish field and no updateItem or deleteItem: it may only create Items, such as a checklist step")
 def step_no_story_writes(context):
     granted = worker.worker_grants()
-    forbidden = {name for kind, name in granted if kind == "Mutation" and (name.startswith(("publish", "unpublish")) or name in ("updateItem", "createItem", "deleteItem"))}
+    forbidden = {name for kind, name in granted if kind == "Mutation" and (name.startswith(("publish", "unpublish")) or name in ("updateItem", "deleteItem"))}
     assert not forbidden, sorted(forbidden)
 
 

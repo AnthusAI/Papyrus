@@ -227,7 +227,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await result.click();
       await page.locator('[data-related-concept="preview-concept-anthropic"]').waitFor();
       assert.equal(await box(page).inputValue(), "", "the box clears");
-      assert.deepEqual(await calls(page), [{ type: "create", subjectLineageId: "preview-reference-lineage-0", objectKind: "semanticNode", objectLineageId: "preview-concept-anthropic", predicate: "related_to" }]);
+      assert.deepEqual(await calls(page), [{ type: "create", subjectLineageId: "preview-reference-lineage-0", objectKind: "semanticNode", objectLineageId: "preview-concept-anthropic", predicate: "tagged_with" }]);
       await box(page).fill("#translation");
       assert.ok((await page.locator('[data-related-result="preview-concept-translation"]').innerText()).includes("#translation (concept)"), "a shared name says its kind");
       assert.equal(await page.locator('[data-related-result="preview-task-translation"]').count(), 1);
@@ -283,7 +283,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await screenshot(page, "concept", width);
       await page.locator('[data-related-result="preview-reference-lineage-4"]').click();
       await list.locator('[data-related-reference-card="preview-reference-lineage-4"]').waitFor();
-      assert.deepEqual(await calls(page), [{ type: "create", subjectLineageId: "preview-reference-lineage-4", objectKind: "semanticNode", objectLineageId: "preview-concept-voice-cloning", predicate: "related_to" }]);
+      assert.deepEqual(await calls(page), [{ type: "create", subjectLineageId: "preview-reference-lineage-4", objectKind: "semanticNode", objectLineageId: "preview-concept-voice-cloning", predicate: "tagged_with" }]);
     });
     console.log("Related scenario passed: concept");
   },

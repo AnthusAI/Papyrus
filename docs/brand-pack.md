@@ -1,0 +1,51 @@
+# Brand pack
+
+A site on the shared tier is data, never code. Its look is one **brand pack**: a small JSON document that a validator checks before the site uses it. The format is `src/papyrus_content/brand_pack/schema.json` (JSON Schema 2020-12, `schemaVersion` 1, `additionalProperties: false` everywhere). The platform policy is `src/papyrus_content/brand_pack/policy.json`. The validator is `papyrus_content.brand_pack.validate_brand_pack`, which returns a list of problems (empty means valid). Planned in PPY-88a883; first slice PPY-7bc5b7.
+
+## What an owner can set
+
+| Field | What it is |
+| --- | --- |
+| `name` | The brand's name. |
+| `logo` | Optional. `asset` (an uploaded `.svg`, `.png` or `.webp` file name) and `alt` text. |
+| `wordmark` | `text`, shown in the heading font beside or instead of the logo. |
+| `colors.light`, `colors.dark` | One `#rrggbb` colour for each role, in both themes. |
+| `fonts` | `heading` and `body` family, each from the allow-list in `policy.json`. |
+| `shape` | Optional. `corners`: `square`, `soft` or `round`, a registered corner scale (never a size). |
+| `ornaments` | Optional. `none`, `quiet` or `expressive`: how much decoration the shared theme adds. |
+| `imageStyle` | Optional. `treatment: "pictogram"` (still pictograms only) and a short `summary`. Links the image style profile work (PPY-1f68bf). |
+
+The colour roles are named for the standard front end's `--papyrus-*` custom properties: `bg`, `ink`, `bandBg`, `bandCardBg`, `bandMutedBg`, `buttonBg`, `buttonInk`, `rule` and `focus`. A brand change writes one small stylesheet of custom properties; the core stylesheet stays shared.
+
+Custom CSS, sizes, spacing, borders, hooks and plugins are not part of the pack. They are refused, and the refusal says why.
+
+## What the validator checks
+
+- **Text contrast.** Each text and fill pair in `textPairs` (ink on the page and on each band tone, button label on the button fill) must reach 4.5:1 in both light and dark. Source: WCAG 2.2 Success Criterion 1.4.3, Contrast (Minimum), level AA, normal text. Button labels are normal-size text, so they use 4.5:1 rather than the 3:1 allowed for large text.
+- **Colour-safe pairs.** Each pair in `lightnessPairs` (button fill, rule and focus ring against the page) must be told apart by lightness and not only by hue, so that people who cannot tell certain hues apart can still see it. The measure is the WCAG contrast ratio, which is computed from relative luminance and so ignores hue; the minimum is 3:1. Source: WCAG 2.2 Success Criterion 1.4.11, Non-text Contrast, level AA, with SC 1.4.1, Use of Color.
+- **Fonts.** Each family must be in the `fonts` list in `policy.json`, the one place the allow-list is defined. Adding a font is a data change reviewed in Git.
+
+A refusal names the setting, the roles, the theme and the measured ratio, for example `colors.dark: ink on bg (#5A6672 on #12171D) has contrast 3.06:1, needs 4.5:1`. Ratios are truncated to two decimals so a pair just under a minimum is never shown as meeting it.
+
+## Tests and shared vectors
+
+`scripts/fixtures/brand-pack-vectors.json` holds valid and refused packs (invented brand, `Lantern Quay`) with the messages each must produce. The Python tests (`src/papyrus_content/brand_pack/brand_pack_test.py`) and the behave feature (`features_backend/brand-pack-validator.feature`) read it, and the newsroom's TypeScript validator will reuse it.
+
+```
+poetry run pytest src/papyrus_content/brand_pack -q
+poetry run behave features_backend/brand-pack-validator.feature
+```
+
+## How the standard front end applies a pack
+
+A site names its pack in `projection.json` (`"brandPack": "brand.json"`, a file in the static directory). The projection validates it with the platform policy and stops the build, naming every problem, when it fails. A valid pack becomes `css/papyrus-brand-<hash>.css`: one small stylesheet of custom properties and `@font-face` rules (the hash is of its own text, so a changed brand is a new file), plus the self-hosted font files. Pages link `markus-components.css`, `papyrus-tokens.css` (the design tokens at final sizes), `papyrus-publication.css` (the shared theme, written only in tokens) and then the brand file last. Fonts the platform hosts today: Source Serif 4. A font on the allow-list whose files are not hosted yet is refused at build time with a message that says so.
+
+`site.notice` (`{"label": "Satire", "text": "..."}`) is a publication-wide statement: one small quiet line (no fill, no box) under the masthead on every page; a site with no notice shows nothing, a quote in every Markdown twin and in `llms.txt`, a lead in each feed entry's summary and `genre` in the structured data. A language edition may give its own words in the interface strings `notice.label` and `notice.text`.
+
+Plan: `docs/plans/shared-publication-front-end.md`. Features: `features_backend/brand-pack-applied.feature`, `features_backend/front-end-tokens.feature`.
+
+### Notice placement and prominence, and one column
+
+`site.notice` takes two optional settings, both data. `placement`: `inline` (default, one small line under the masthead) or `fixed-footer` (a slim bar fixed to the bottom of the viewport, after the footer; the page is padded so it never covers content, it clears the phone safe area, and it sits below the cookie banner and the skip link). `prominence`: `normal` (label and sentence) or `quiet` (only the sentence, 13px regular, in the brand's `rule` colour on the page background, no tint or border). The label stays in every machine-readable marker. `rule` must reach 4.5:1 against `bg` in both themes for a quiet notice to meet WCAG 2.2 AA; check the pair when choosing it.
+
+`layout.column: "single"` gives every page one readable column (the measure), makes the first card on a listing bigger, gives the home page a heading only assistive technology reads and no intro under the masthead, and leaves out a static footer that has no content of its own. Breadcrumbs (`components.breadcrumbs`) and the page-action buttons (`pageActions.placement: "aside"`) are separate data switches, so the headline can come first on a phone.

@@ -1,0 +1,24 @@
+{
+  "id": "PPY-327fce5a-9f87-408e-a721-18cbfd3ac267",
+  "title": "A permanent public identifier for concepts and published Stories",
+  "description": "As a machine reader or linker, I want every public Concept and published Story to have an identifier that never changes, so that links and structured data survive renames and slug changes. Part of the Vault-LD pilot; Shipped first. Identifier built from the lineage id; the id address forwards to the current page (Ryan decision 2).\n\n```gherkin\nFeature: Permanent public identifiers\n  Scenario: A Story keeps its identifier when its slug changes\n    Given a published Story with a public identifier\n    When an editor changes the Story's slug and publishes again\n    Then the page's structured data carries the same identifier as before\n    And the identifier's address forwards to the Story's new page\n\n  Scenario: A renamed concept keeps its identifier\n    Given an accepted concept with a wiki page\n    When the concept is renamed\n    Then its identifier is unchanged\n\n  Scenario: A thing that is not public has no identifier address\n    Given a draft Story and a concept nobody accepted\n    Then neither has a public identifier address\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25fae4b5-5fe6-4ebd-b3fe-34f9a1764edf",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-13T12:37:32.468545Z",
+  "updated_at": "2026-11-13T12:37:32.468842Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

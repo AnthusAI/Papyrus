@@ -7,7 +7,9 @@ import { addCloudEmail } from "./cloud-email";
 import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
+import { applySiteCostTags } from "./cost-attribution";
+import { addSharedStackDeny } from "./shared-stack-deny";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix, resolveBuildTimeoutMinutes } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -106,8 +108,13 @@ export class AmplifyAppShellStack extends Stack {
   public readonly cmsAppId?: string;
   public readonly readerAppId?: string;
 
-  constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
+  constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps, options: { sharedStackDeny?: boolean } = {}) {
     super(scope, id, props);
+    // Every role of a dedicated site denies the shared tier's resources (PPY-daf673); no resource is added.
+    addSharedStackDeny(this, options.sharedStackDeny);
+    // Prospectus cost accounting: every resource carries the site's owner Account, app papyrus and the site ID.
+    // On unless site.json says costAccounting false. These stacks are small; the backend's tags go in waves.
+    if (config.costAccounting) applySiteCostTags(this, config.siteId);
 
     if (!hasCmsApp(config)) {
       if (!config.reader) throw new Error(`site ${config.siteId} has neither a cms section nor a reader`);
@@ -216,12 +223,19 @@ export class AmplifyAppShellStack extends Stack {
       computeRoleArn: computeRole.roleArn,
       buildSpec: cmsProductionBuildSpec(config),
       jobConfig: config.cms.buildComputeType ? { buildComputeType: config.cms.buildComputeType } : undefined,
+      // Amplify's only build timeout control; on the app, so every branch gets it. The branch sets no _BUILD_TIMEOUT of its own,
+      // because a branch's variable would override this one (docs/site-hosting.md, "Build timeout").
+      environmentVariables: [{ name: "_BUILD_TIMEOUT", value: String(resolveBuildTimeoutMinutes(config.cms)) }],
       customRules: [
         ...(config.cms.redirects ?? []).map((redirect) => ({
           source: `https://${redirect.source}`,
           target: `https://${resolveCmsHostName(config)}`,
           status: String(redirect.status),
         })),
+        // An apex production host: www is permanent-redirected to it (path and query are kept by Amplify's host redirect).
+        ...(config.cms.wwwRedirect && config.cms.domainName
+          ? [{ source: `https://www.${config.cms.domainName}`, target: `https://${config.cms.domainName}`, status: "301" }]
+          : []),
         { source: "/<*>", target: "/index.html", status: "404-200" },
       ],
     });
@@ -342,7 +356,10 @@ export class AmplifyAppShellStack extends Stack {
             })),
             ...(stagingBranch ? [{ branchName: "staging", prefix: config.cms.stagingDomainPrefix as string }] : []),
           ]
-        : [{ branchName: "main", prefix: "" }];
+        : [
+            { branchName: "main", prefix: "" },
+            ...(config.cms.wwwRedirect ? [{ branchName: "main", prefix: "www" }] : []),
+          ];
       const productionDomain = new amplify.CfnDomain(this, "Domain", {
         appId: cmsApp.attrAppId,
         domainName: config.cms.domainName,

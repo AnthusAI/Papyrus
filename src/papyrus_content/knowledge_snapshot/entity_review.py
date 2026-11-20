@@ -153,6 +153,22 @@ def alias_patches(node: Mapping[str, Any], alias: str, others: Iterable[Mapping[
     ]
 
 
+def alias_remove_patches(node: Mapping[str, Any], alias: str, *, actor: Actor, now: str) -> list[dict]:
+    """Take ``alias`` off a node as ``actor`` (recorded like adding one: ``aliasedBy``, with the day). The name is matched the way names are compared everywhere
+    (case, width and spacing folded). Nothing changes when the node does not hold it as an alias. The node's own name is not an alias: rename the node to change it."""
+    name = " ".join(alias.split())
+    if not name:
+        raise EntityReviewError("An alias is needed.")
+    wanted = normalize_name(name)
+    if wanted == normalize_name(node.get("displayName") or ""):
+        raise EntityReviewError(f"{name!r} is the name of {node['nodeKey']}, not an alias of it; rename the entity to change its name.")
+    kept = [existing for existing in node.get("aliases") or () if normalize_name(existing) != wanted]
+    if len(kept) == len(node.get("aliases") or ()):
+        return []
+    marks = decode_review(node.get("changeReason")).replace(aliased_by=actor)
+    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "aliases": kept, "changeReason": marks.encode(), "updatedAt": now}}]
+
+
 def describe_patches(node: Mapping[str, Any], text: str, *, actor: Actor, now: str) -> list[dict]:
     """Set the description as ``actor``: a person's edit makes it ``reviewed``, an AI agent's ``ai_edited``."""
     description = " ".join(text.split())

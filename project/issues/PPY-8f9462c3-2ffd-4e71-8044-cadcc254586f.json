@@ -1,0 +1,48 @@
+{
+  "id": "PPY-8f9462c3-2ffd-4e71-8044-cadcc254586f",
+  "title": "adopt-tenant-data and copy-backend --stamp-tenant cover every model, every key and every object",
+  "description": "Outcome: Today both tools cover five models only (Section, Item, PublishedItem, MediaAsset, PublishedMediaAsset; docs/multi-tenancy.md and docs/migrations/copy-backend.md), and they disagree on media keys: copy-backend and import-markus write media/<tenant>/..., while the one-key rule says media/<srcPath>. Extend both to every tenant-owned model and table from PPY-cd5926: stamp tenantId, rewrite every global key value with the tenant prefix, give corpora tenant-unique ids (rewriting corpusId and corpus-prefixed keys on References), move S3 objects to tenants/<tenant>/... with row paths to match, copy the Cyclotron store prefix (<s3Prefix>-<tenant>), and report rows without a tenant as a count that must reach zero. Dry run by default, idempotent, refuses rows of another tenant, prints a plan per model. This is what moves Threat Intelligence into the shared stack and what every dedicated site runs to adopt its fixed tenant.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content (adopt-tenant-data command, copy_backend module and its CLI), docs/multi-tenancy.md, docs/migrations/copy-backend.md, features/tenant-scoping.feature (existing, PPY-109133).\n\nAcceptance (Gherkin feature file: features_backend/tenant-adoption-complete.feature):\nScenario: A single-tenant backend is copied into a tenant completely\n    Given a backend with References, Messages, Assignments, corpora, media and reader votes and no tenant\n    When copy-backend --stamp-tenant \"threat-intelligence\" --apply runs twice\n    Then the second run creates, updates and copies nothing\n    And the target reports zero rows without a tenant\n\nScenario: Adoption never touches another tenant\n    Given a target where \"beta\" already owns a row with the same id\n    When \"alpha\" is adopted\n    Then the row is listed as a conflict and the apply writes nothing\n\nDependencies: blocked by PPY-ce6207, PPY-752480, PPY-f60a1e, PPY-ef2c57. Blocks PPY-bdc4ee, PPY-b99fc0, PPY-e882ee, PPY-e1d26f, PPY-13fbea, PPY-7438d9. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-109133, PPY-e277e3.\n\nTesting: pytest with recorded fixtures; a sandbox copy of a real backend (Pilobolus, pre-production) as the rehearsal; manifests compared.\nRollout: Command only; each run is an operator action with a dry run first and Ryan's approval for production backends.\nRisk and mitigation: Risk: a corpus id rewrite breaks references from outside the table (Cyclotron stores, monitor configs, S3 vector metadata). Mitigation: the dry run lists every outside reference it knows, and the Cyclotron and monitor configs are rewritten in the same run.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ce620713-6b27-4a64-8d5f-9201e76c9f6e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-752480c1-0ceb-4176-ac1f-9035d7085b39",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-f60a1e84-b635-460f-8d19-45b557b5e5a7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ef2c5747-a0ad-461a-8d3c-175c394553a4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1091336f-13eb-4b23-9d87-63cc85df34fb",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-e277e373-2ce4-48ef-848a-6284c2afd065",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:20.775371Z",
+  "updated_at": "2026-11-08T18:46:57.859638Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

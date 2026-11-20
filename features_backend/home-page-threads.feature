@@ -11,6 +11,12 @@ Feature: A page lists the site's public Message threads with ::include{kind="thr
   Message was not written by a person). No email address, sign-in subject, profile id or other id is ever written, and the text
   of a Message is published as written except for anything shaped like an email address or a UUID and any raw HTML.
 
+  A thread can belong to a section. A thread on a Reference takes the section of that Reference, a thread on a published Story takes the
+  section the Story is filed under, and a section that an editor set on the thread itself wins over both. Only the section's title is
+  written (as "section" in threads.json and in the thread's own file), never its id, and a thread with no section writes no key.
+  An include with section="..." lists only the threads of that section, matching its title or a configured section's label without
+  regard to case; without the attribute nothing changes. The Markdown twin applies the same filter.
+
   Components on one page share a ledger with the Reference grids: the first component to place a thread keeps it, and a later
   one refills from its own ordering. Cards use flat tones and rounded rectangles, with no borders, and say what a thread is on
   in words and a Lucide icon, never by colour alone.
@@ -112,6 +118,50 @@ Feature: A page lists the site's public Message threads with ::include{kind="thr
     When the home-page-snapshot task runs against the threads fixture
     And the home-page-snapshot task runs again against the threads fixture
     Then the second run wrote and deleted nothing
+
+  Scenario: A thread on a Reference takes the section of its Reference
+    The fixture's Reference "Accepted eight" is in the section "Tools". The thread on a pending Reference with no section has none, and
+    the file then has no section key at all.
+    Given the home-page threads fixture site is projected
+    When the home-page-snapshot task runs against the threads fixture
+    Then the thread "Is this tool worth adopting?" is in the section "Tools"
+    And the thread "Notes on the pending high candidate" has no section
+
+  Scenario: A thread on a published Story takes the section its Story is filed under
+    Given the home-page threads fixture site is projected
+    And the Story "Fungi Underground" is filed under the section "Plants"
+    When the home-page-snapshot task runs against the threads fixture
+    Then the thread "Fungi follow-up" is in the section "Plants"
+
+  Scenario: A section set on the thread itself wins over the section of its anchor, and only its title is published
+    The thread "Accepted seven" is on a Reference in the section "Articles", but the thread was filed under "Tools" by an editor.
+    Given the home-page threads fixture site is projected
+    When the home-page-snapshot task runs against the threads fixture
+    Then the thread "Accepted seven" is in the section "Tools"
+    And no published file names a section by its id
+
+  Scenario: A threads include with a section lists only the threads of that section, whatever the case of the label
+    The include says section="tools" and the section's title is "Tools". Its count is larger than the number of matches, so the
+    list is the filter's doing and not the count's.
+    Given the home-page threads fixture site is projected
+    And the Story "Fungi Underground" is filed under the section "Plants"
+    When the home-page-snapshot task runs against the threads fixture
+    Then the threads list on "threads-tools/index.html" lists "Is this tool worth adopting?", "Accepted seven"
+    And the threads list on "threads-plants/index.html" lists "Fungi follow-up"
+
+  Scenario: A threads include without a section lists every public thread as before
+    Given the home-page threads fixture site is projected
+    And the Story "Fungi Underground" is filed under the section "Plants"
+    When the home-page-snapshot task runs against the threads fixture
+    Then the threads list on "threads-grid/index.html" lists "Notes on the pending high candidate", "Is this tool worth adopting?", "Accepted seven", "Fungi follow-up"
+
+  Scenario: The Markdown twin applies the same section filter as the page
+    Given the home-page threads fixture site is projected
+    And the Story "Fungi Underground" is filed under the section "Plants"
+    When the home-page-snapshot task runs against the threads fixture
+    Then the Markdown twin "threads-tools/index.md" lists "Is this tool worth adopting?", "Accepted seven"
+    And the Markdown twin "threads-plants/index.md" lists "Fungi follow-up"
+    And the Markdown twin "threads-grid/index.md" lists "Notes on the pending high candidate", "Is this tool worth adopting?", "Accepted seven", "Fungi follow-up"
 
   Scenario: A site with threads switched off writes no thread file and deletes none
     Given the home-page threads fixture site is projected with threads switched off

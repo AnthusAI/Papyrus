@@ -1,0 +1,33 @@
+{
+  "id": "PPY-6702e2cc-ad4b-4d9d-8de3-d7fe5d071d4d",
+  "title": "Papyrus ships a neutral public theme and two example themes",
+  "description": "Requested by Humorus (https://github.com/AnthusAI/Humorus), the satire publications that run a second, very different newsroom on Papyrus. Humorus issue: HUM-1be843.\n\nFactor the useful parts of the Machines on Machines design (cards, layout preset, tokens at final sizes) into core as the default theme. A site with only a name looks finished; a brand pack of tokens restyles it; a brand pack cannot carry code. Pulls forward PPY-31efef, PPY-3aa10f, PPY-e572de, PPY-0f4e10 and PPY-2a44b2. Machines on Machines must look the same afterwards.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-05957342-0e6d-4775-82a6-82349f36b113",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "fbdc501e-7fbe-4ce1-b706-ef8ca5209edf",
+      "author": "home",
+      "text": "Plan (design doc docs/plans/shared-publication-front-end.md, 2026-11-15). Slices in order: 1 tokens at final sizes + core card set, scaler retired (PPY-2a44b2, part of PPY-31efef); 2 publication layout preset + language base (switcher, banner, strings) (PPY-31efef); 3 brand pack v2 applied by the projection (PPY-88a883, PPY-e572de rendering half); 4 TheHallucinator.ai on the base with a satire brand pack and site.notice (Humorus); 5 neutral default + starter template (PPY-3aa10f); 6 papyrus site init (PPY-f30ad5, later). Every slice that changes how MoM renders ships behind a before/after visual diff at 375 and 1440 px, light and dark, es-419 and zh-Hans included, and Ryan's preview approval. Slices 1 and 2 start only after the in-flight listing, index-page and localize branches merge.",
+      "created_at": "2026-11-15T16:26:55.000Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-11T17:15:59.095669Z",
+  "updated_at": "2026-11-15T16:26:55.000Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Fable 5.2",
+    "name": "Humorus Planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

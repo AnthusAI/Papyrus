@@ -20,11 +20,11 @@ when set, a second search over that longer window asks only for precedential dec
 Board can designate a decision precedential months after it issues). A TTAB item also lists the decision's other
 addresses (the TTABVUE PDF, the Reading Room's double-slash path), and intake reuses a Reference stored under
 any of them rather than creating a second one for the same decision. Each source type only
-accepts a `sourceUrl` on its own host (a `feed` on any host in `FEED_HOSTS`). `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
+accepts a `sourceUrl` on its own host (a `feed` on a host in `FEED_HOSTS`: `rss.arxiv.org`, `export.arxiv.org`, `metr.org`, or on any public host the config names with `sourceName`). `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
 `seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
-`seed_router_config.py --monitor-id ttab --file router.json` with `"decisions": "direct"`. A third value,
+a router config file `infra/monitoring/router-config/ttab.json` with `"decisions": "direct"` ([router config in Git](#router-config-in-git)). A third value,
 `hold`, is for a publication that has no Cyclotron yet: the router collects and enriches its items and never
 decides; the config needs no `cyclotron` block (see [web search](#web-search-monitors-web-search)).
 
@@ -125,8 +125,7 @@ shared-Cyclotron monitors), optional `startDate` (`YYYY-MM-DD`, for a query's ve
 router's is: `TAVILY_API_KEY`, or the SSM SecureString named in `PAPYRUS_TAVILY_KEY_PARAMETER`.
 **Search providers and the fallback chain.** Tavily, then Perplexity, then OpenAI is the default chain, cheapest first (Tavily is free while it has credits; Perplexity is about $5 per 1,000 requests, OpenAI $10 plus tokens; Gemini's grounded search, $14, is opt-in), and the monitor reads its results through `papyrus_content.web_search`,
 one interface over `tavily`, `openai` (Responses API `web_search`), `perplexity` (Search API), `gemini` (Google Search grounding) and
-`bedrock` (Web Search on Amazon Bedrock). The chain is `WEB_SEARCH_PROVIDERS`, an ordered comma list such as `openai,tavily` (the older
-`WEB_SEARCH_PROVIDER` names a chain of one; with neither set the chain is `tavily,perplexity,openai`; a deployment that has only a Tavily key must set `WebSearchProviders` to `tavily`). A monitor overrides it with `searchProviders` in its
+`bedrock` (Web Search on Amazon Bedrock). The chain is `WEB_SEARCH_PROVIDERS`, an ordered comma list such as `openai,tavily` (the retired single name `WEB_SEARCH_PROVIDER` is an error that names `WEB_SEARCH_PROVIDERS`; with it unset the chain is `tavily,perplexity,openai`; a deployment that has only a Tavily key must set `WebSearchProviders` to `tavily`). A monitor overrides it with `searchProviders` in its
 own `CONFIG` (a list or a comma string); an unknown name is rejected when the config is stored. A provider's key is `<PROVIDER>_API_KEY`
 (`TAVILY_API_KEY`, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `GEMINI_API_KEY`) or the SSM SecureString named by
 `PAPYRUS_<PROVIDER>_KEY_PARAMETER`; the standard parameter names are `/papyrus/search/<provider>-api-key` (the Tavily parameter keeps its
@@ -180,8 +179,8 @@ Distinctive Mark has no Cyclotron yet, so its router config is `decisions: "hold
 that): items are collected and enriched, never decided, and its candidates are its own group. When Cyclotron bootstraps
 Distinctive's own run, re-seed its router config with `decisions: "cyclotron"` and the cyclotron block. Every web router config
 sets `holdDecisions: true` and `mode: "live"`: enrichment runs, no decide request is posted, and the receipt says
-`stoppedBy: decisions_held`. Release with `seed_router_config.py --monitor-id web-<id> --set holdDecisions=false` (all six
-shared monitors). Cyclotron items from a web monitor carry `values.source: "web-search"`; the Cyclotron must accept that source.
+`stoppedBy: decisions_held`. Release by putting each monitor's router config under Git (`infra/monitoring/router-config/web-<id>.json`, [router config in Git](#router-config-in-git)) with `holdDecisions` set to `false` (all six
+shared monitors), and releasing. Cyclotron items from a web monitor carry `values.source: "web-search"`; the Cyclotron must accept that source.
 
 **Queries (drafting).** One query per enabled newsroom section plus one for the site (see [search monitors](search-monitors.md#queries-per-section)).
 `papyrus monitors web-queries --publication <id>` (or `--all`) reads each enabled section (mission, policy, guidance, kill criteria)
@@ -318,10 +317,10 @@ Nothing here has been deployed. In account 712236451410 with `AWS_PROFILE=papyru
    ```sh
    TABLE=$(aws ssm get-parameter --name /papyrus/monitoring/table-name --query Parameter.Value --output text)
    python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id huggingface --source-type huggingface-models --file shipped-huggingface-config.json
-   python3 infra/monitoring/seed_router_config.py --table "$TABLE" --monitor-id huggingface --file shipped-huggingface-router.json   # starts in dry-run
+   # the router config is the file infra/monitoring/router-config/huggingface.json (starts in dry-run); a release applies it
    ```
 4. Check a dry run, then flip: `aws lambda invoke --function-name papyrus-monitoring-collector --cli-binary-format raw-in-base64-out --payload '{"monitorId":"huggingface","force":true}' /dev/stdout`, read the `RUN#` receipt and the router's dry-run receipts
-   (`wouldDeliver`), then `seed_router_config.py --table "$TABLE" --monitor-id huggingface --set mode=live`.
+   (`wouldDeliver`), then set `mode` to `live` in the monitor's router config file (`infra/monitoring/router-config/huggingface.json`) and release.
 5. Load history, dry run first, then apply (repeat the apply until it reports `complete`):
    ```sh
    papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z
@@ -380,9 +379,13 @@ intake, one Reference. The source id is the same function of the id for both (`2
 `sourceType: feed` reads an RSS 2.0 or Atom document from the `sourceUrl` in the monitor's config, so a new feed is a new monitor
 config and no code. Safety is that of the Hacker News reader, with one larger limit:
 
-- **https only**, no credentials in the address, and the host must be in `FEED_HOSTS` in `src/papyrus_content/monitoring_feed.py`
-  (today `rss.arxiv.org` and `export.arxiv.org`). Adding a host is one line there, and the deploy ships it; a `sourceUrl` on any other
-  host is refused when the config loads. A feed address may carry a query (the arXiv API's Atom feeds do), unlike the other types.
+- **https only**, no credentials, no fragment, port 443 only, and a host that is either built in (`FEED_HOSTS` in `src/papyrus_content/monitoring_feed.py`:
+  `rss.arxiv.org`, `export.arxiv.org` and `metr.org`, each with its display name) or **named in the monitor's config** (PPY-94458e): add
+  `"sourceName": "Satire Journal"` (a short plain name, up to 80 characters) and any **public** host is accepted, with no engine release. The name is the source's
+  display name wherever it is shown. A name never makes an unsafe address acceptable: an IP address, `localhost`, a single-label or internal name (`.local`, `.internal`
+  and similar), an address with credentials, a fragment or another port, or plain http is refused when the config loads and again before any request. A feed
+  address may carry a query (the arXiv API's Atom feeds do), unlike the other types. Only a feed needs no code: a kind of source that needs its own reader
+  (a JSON API, say) still needs one in `SOURCE_TYPES`.
 - **Size.** 8 MB, not the 2 MB of the Hacker News feed: arXiv's combined daily feed for `cs.AI+cs.LG+cs.CL+cs.MA+stat.ML` was
   3.59 MB (1,661 entries) on 2026-11-03.
 - **A document that declares a DOCTYPE or an ENTITY is refused**, whatever its size, and so is anything that is not an RSS 2.0
@@ -463,13 +466,46 @@ python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id papers-hug
 ```
 
 A monitor also needs what any monitor needs: its collect and route schedules, which `papyrus-monitoring.yaml` has for these three
-(routing at minutes 6, 23 and 51), and `seed_router_config.py --monitor-id <id> --file router.json` for its publications
+(routing at minutes 6, 23 and 51), and `infra/monitoring/router-config/<id>.json` for its publications
 (`decisions: cyclotron` with the shared `cyclotron` block, or `hold` while a site has no Cyclotron). The ids are already in the
 Monitoring page's `MONITOR_IDS` (`monitoring_view.py`), so the page lists them as soon as they have items.
 
 **What the decision sees.** `values.source` is `feed` or `huggingface-papers`, and the abstract is the decision's summary until
 enrichment has a summary of its own: `text` is the title, the address and the abstract, with no fetch of the paper. See "Enrich
 before decide" for why enrichment still runs for these items today and how it behaves for an arXiv address.
+
+**METR** (`metr.org`, shown as "METR"). `https://metr.org/feed.xml` is an RSS 2.0 channel that the general reader takes as is, with no
+host rule. Read offline on 2026-11-10 (4.2 MB, so inside the 8 MB limit): 102 items, each with a title, link, `guid`, `pubDate` and the
+whole post in `content:encoded` (no `<description>`, no authors, no categories). 67 are `/blog/`, 17 `/notes/`, 9 `/evaluations/` and
+nine others; none lacks a title or link. Things to know when reading its items: the `guid` is not always the `link` (an `/evaluations/` post
+has a `/blog/` guid, which is the source id; the link is the canonical URL), nine posts link off the post pages (a PDF, `vivaria.metr.org`,
+GitHub, arXiv, `/fsp`, public-comment dockets), and the abstract is the post's HTML, cut at 20,000 characters (48 of the 102 posts are longer). A monitor is:
+
+```json
+{"pk": "MONITOR#feed-metr", "sk": "CONFIG", "sourceType": "feed", "enabled": true, "intervalSeconds": 21600,
+ "sourceUrl": "https://metr.org/feed.xml"}
+```
+
+```bash
+TABLE=$(aws ssm get-parameter --name /papyrus/monitoring/table-name --query Parameter.Value --output text)
+python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id feed-metr --source-type feed \
+    --source-url https://metr.org/feed.xml --interval-seconds 21600
+```
+
+**What the abstract can cost.** `content:encoded` is stored as the item's `details.abstract`, but `parse_feed` cuts it to 20,000 characters
+before the item is built, so nothing larger is ever written (the largest post in the feed is about 800 KB of source; a test feeds an
+800 KB post and checks the stored abstract is 20,000 characters). The text is the post's HTML, tags included, cut mid-sentence when long.
+
+**What a deploy needs.** The monitor is complete in the repository: the collect schedule `papyrus-monitoring-feed-metr-collect`
+(`rate(6 hours)`) and the route schedule `papyrus-monitoring-feed-metr-route` (hourly at minute 14, a minute no other schedule in the
+template uses) are in `infra/monitoring/papyrus-monitoring.yaml` (`FeedMetrCollectSchedule`, `FeedMetrRouteSchedule`), and `feed-metr` is in
+`MONITOR_IDS` in `monitoring_view.py`. The stack to deploy is `papyrus-monitoring` (the collector and router code carry the `metr.org`
+host, the template carries the schedules). Nobody deploys it by hand: merging the release to `main` runs
+`.github/workflows/stack-deploy.yml`, which builds the zips and creates, checks and executes the change set through GitHub OIDC; the pull
+request shows the same change set as a read-only dry run in its job summary (`infra/pipeline/README.md`). The change set should add the
+two schedules and the code updates, and nothing else; read it before merging. Until it runs, the schedules do not
+exist and the `metr.org` host is refused. After the deploy, a person (not CI) seeds the table with the `seed_config.py` command above; the release applies `infra/monitoring/router-config/feed-metr.json` for the publications (`decisions: cyclotron`, or `hold`
+while a site has no Cyclotron).
 
 **Gherkin.** `monitoring-paper-feeds`. Recorded responses are in `procedures/newsroom/tests/fixtures/feeds`.
 
@@ -743,9 +779,29 @@ aws dynamodb query --table-name "$TABLE" --key-condition-expression 'pk = :p AND
 aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk":{"S":"ROUTE#<sourceId>#000001"}}'
 ```
 
+## Router config in Git
+
+A monitor's router config (the `CONFIG#router` item of `MONITOR#<monitorId>`) is one JSON file in `infra/monitoring/router-config/`, named for the monitor
+(`hn.json`, ...). The file is the item without its key. Nothing writes these items by hand: the `papyrus-monitoring` stack runs
+`papyrus_content.monitoring_router_config` as the custom resource `RouterConfigApplier` on every release that changes a file (the files ship in the router zip,
+so a changed file is a changed zip key), with its own role that can only `GetItem` and `PutItem` on the table. Merging the change to `main` is the deploy, like any
+stack change (`.github/workflows/stack-deploy.yml`), so the deploy role gets no table access. (The one pipeline-roles change it needed is the pipeline service role's permission to start the applier's function, `RunTheCustomResources` in `infra/pipeline/papyrus-stack-pipeline.yaml`, like the other custom resources.)
+
+- **What a file says.** The shape under [Config shape](#config-shape): `mode`, `enabled`, `holdDecisions`, `decisions`, `cyclotron`, and the `publications` list. Each publication
+  entry carries `publicationId`, `site`, `appsyncEndpoint`, `monitorStories` (vector index and bucket, copied from the site's `amplify_outputs.json`), and for anything that
+  starts a procedure on the site's runner: `openaiKeyParameter` (the SSM SecureString `/amplify/shared/<amplifyAppId>/OPENAI_API_KEY`, a name, never a key) and optional `procedureTriggers`.
+  **A site's automations (Run now, translate on publish, Stage Bots) need its entry on the `hn` router to have `openaiKeyParameter`**: they refuse to start without it.
+- **No ids in files; references instead.** This repository is public, so a file holds no account id, endpoint host or Cyclotron id. It holds references the applier resolves at deploy time, and a reference that does not resolve fails the deploy: `${AccountId}` and `${CyclotronInvokerRoleArn}` (stack values); `${AppSyncEndpoint:<Site>}` (the endpoint of the AppSync API the stack's `<Site>ApiId` parameter names, read with `appsync:GetGraphqlApi`); `${Ssm:/papyrus/monitoring/...}` (a String parameter). The Cyclotron's own API endpoint, account id and standing run id are held by the Cyclotron, so they come from three SSM String parameters, `/papyrus/monitoring/cyclotron/endpoint`, `/papyrus/monitoring/cyclotron/account-id` and `/papyrus/monitoring/cyclotron/run-id`, which exist before the release that first applies the files. A new run or binding changes the parameter (and `bindingRevision` in the file).
+- **Change one.** Edit the file, open a pull request (tests run every file through the router's own validator, so a config the router would refuse never merges; the stack dry run lists the change), merge. The release
+  writes the item. A release that changes no file writes nothing: the apply is idempotent, and it replaces an item whole, so a field taken out of the file is taken out of the table.
+- **Add a monitor, or bring an existing one under Git.** Add its file (for an existing monitor, its stored item without `pk` and `sk`; `aws dynamodb get-item` on `MONITOR#<id>` / `CONFIG#router` shows it). A monitor with no file is never touched, and removing a file or the stack deletes nothing. Today only `hn` has a file; the other monitors' stored items stay as they are until their files are added.
+- **A bad file fails the deploy** before anything is written (the stack update rolls back; the message names the file). The custom resource's function is `papyrus-monitoring-RouterConfigApplierFunction-*`; its log group is `/aws/lambda/` plus that name.
+- **Emergency off**: set `enabled` to `false` in the file and release, or `ScheduleState=DISABLED` on the stack for the schedules.
+- `seed_router_config.py` is retired; there is no second way to write these items. `seed_web_monitors.py` still creates a web monitor's router config if none is stored (it never replaces one); once the monitor has a file, the file owns the item.
+
 ## Config shape
 
-`docs/monitoring-router-config.example.json`; seeded with `infra/monitoring/seed_router_config.py`.
+`docs/monitoring-router-config.example.json`; kept as one file per monitor in `infra/monitoring/router-config/` ([router config in Git](#router-config-in-git)).
 
 ```json
 {"mode": "dry-run|live", "enabled": true,
@@ -864,7 +920,7 @@ any delivery. A rejected Reference, or one archived by a person, is reused exact
 
 A publication may list `procedureTriggers` and name its OpenAI key's SSM parameter
 (`openaiKeyParameter`). After a delivery that created a new Reference, the router starts each named
-procedure once for that item by invoking the procedure runner asynchronously, and never waits for it.
+procedure once for that item by putting a wake on the site's wake queue (`papyrus-<site>-agent-wakes.fifo`, [procedure runner](procedure-runner.md#the-wake-queue)), and never waits for the run.
 A Reference that already existed starts nothing. Before a start the router reads the site's `Automation`
 record for the trigger (`listAutomations`, one read per publication per sweep): a disabled automation starts
 nothing (`skipped`), one at its `maxConcurrent` is deferred and retried on later runs (`deferred`), and the record's timeout goes with the
@@ -1002,10 +1058,11 @@ Eastern, so the ideas wait for the morning's review). It does not depend on the 
 every publication the `hn` monitor lists gets it, whether or not it has the stack. Code: `src/papyrus_content/monitoring_stories.py` (the task) running the library behind
 `papyrus ideas monitor-stories` ([idea pipeline](idea-pipeline.md#monitor-stories)) in process; spec: `features_backend/monitoring-daily-stories.feature`.
 
+* **A plan and a queue (2026-11-06).** The daily run used to read the publication and then draft for as long as the Lambda's 600 seconds lasted (`RouterFunction` `Timeout`), keeping 120 of them in reserve (`MIN_REMAINING_SECONDS`), and stop on that time whether or not it had drafted anything useful. On 2026-11-04, -05 and -06 Machines on Machines stopped on `time` after 9, 9 and 8 attempts: the vector pass took 121, 107 and 119 seconds, the signals 112, 103 and 160, and drafting got what was left, 214, 267 and 199 seconds at about 25 seconds an attempt. Nothing it had filed was lost; what was thrown away was the next day's start, because the whole read was done again. With the story queue the task (`plan_publication`, `ideas/story_plan.py`) only PLANS: it runs the vector pass as before (it already reads only what changed since its saved place; the 119 seconds of 2026-11-06 were its one-time first run on the site, `bootstrapped: true`, 2,269 Reference summaries), reads the publication once (signals, packs, candidates), stores each step of the ordered queue as a row in the router's table (`STORYPLAN#<publication>#<plan>#E#<n>`: the pack, or the item with its connections) with the context and the existing ideas in a head row, and sends one message per step to the FIFO story queue (`StoryQueue`, the publication as message group, so its steps run in order and one at a time). `StoryWorkerFunction` (300 seconds, its own role) takes one step per invocation and drafts it with the same code, the retry memory, the point check, the dedupe and the Humanus gate as before; it files the idea at once, writes a `STORYDONE#...` row, and adds the ideas to the plan's ONE soft review request (`rr-batch-<plan id>`, extended as steps file ideas). A step that fails for a reason that says nothing about the Reference (a model error, a filing error) is delivered again by the queue, up to three receives, then waits in `StoryDeadLetterQueue` (alarm `papyrus-monitoring-story-dead-letters`); its last try leaves a DONE row marked failed, so the plan still finishes. The step that completes the plan writes the plan's one log line (`{"monitorStories": "finished", ...}`) and settles the curation flag, once. There is no time stop and no cost stop on a plan: it is bounded by its number of steps, and one step by `MAXIMUM_STEP_COST_USD` (0.50) against one oversized request. There is no per-site proposal rate and no daily count, and there never was; the only learned limits are the duplicate cut (learned once per plan from the editors' decisions and stored in the plan's head) and the point check. Nothing is drafted twice: a filed idea links its Reference `based_on` (so the next plan does not offer it), a rejected one waits in the retry memory until something new is known about it, an unfinished plan is not planned over (the task logs `waiting` and still runs the vector pass), and a redelivered message finds its DONE row and does nothing. A Reference with nothing to add (`nothing_to_add`) is still looked at again by the next plan, as before: it costs a page read and no model call, and a summary or a link may have arrived. A router with no `STORY_QUEUE_URL` (the tests, a hand run) still drafts in process as described below, bounded by the Lambda's remaining time. Operator notes: a stuck plan (its pointer row `STATE#storyPlan#<publication>` not finalized and no message left) is cleared by deleting that row; the queue's dead-letter messages are redriven in SQS once the cause is fixed. Spec: `features_backend/monitoring-stories-queue.feature`.
 * **One publication per invocation (fan-out).** The scheduled run has no `publicationId`: it reads the monitor's config, invokes the router function itself asynchronously (`InvocationType: Event`, its own ARN from the Lambda context, granted by `lambda:InvokeFunction` on `RouterFunction.Arn` in `RouterIdeaPolicy`) once per publication whose `monitorStories` is on, returns `{"status": "fanned-out", "publications": [...]}`, and takes no lock and drafts nothing. Each invocation `{"task": "monitor-stories", "monitorId": "hn", "publicationId": "<id>"}` runs only that publication with the whole Lambda budget (a single run used to split 600 seconds among six publications, and most stopped on time before drafting). Adding a publication to the monitor's config adds it to the fan-out; the template names no site. A publicationId the config does not list returns `{"status": "error", "reason": ...}` and runs nothing. A per-publication run takes the lock `LOCK#monitor-stories#<publicationId>` instead of `LOCK#router`, so the runs, and the hourly route pass, do not make each other return `locked`; a second run of the same publication does. **Retries:** `RouterInvokeConfig` sets zero async retries, so a failed publication run is not repeated (it goes to the dead-letter queue; the next day's fan-out or a hand run covers it); even if retried, filing is idempotent by id, so nothing would be filed twice.
 * **On by default, per publication.** The publication's router entry may carry `"monitorStories": {"enabled": false}`; no block, or `{}`, means on. `store` is `items` (the default; a legacy value `proposals` is read as `items`) or `json`; any other key is refused (`validate_router_publications`).
 * **The standard (no setting).** An idea is filed only when it says more than a summary of its Reference. It rests on something the newsroom already knows beyond its source (an editor's accept reason, a comment, a related Reference), and a second model call, the point check, must find a claim in it that its sources do not make; the check fails closed, and a pack idea is checked against the References it cites. A Reference with nothing to add is skipped as `nothing_to_add` before the model is asked. A Reference or pack whose draft was rejected is skipped as `already_rejected` until a new connection appears for it (a comment, an accept reason, a related Reference, a confirmed link, an explanation on a link); the router keeps that memory in its own table (rows `IDEA_REJECTED#<publication>#<digest>`, the table and role the vector pass's watermark already uses), with no count and no day window. A run that files nothing for any of these reasons raises one curation flag in the Notification Center. The router log line gains `nothingToAdd`, `alreadyRejected`, `retriedWithNewConnections`, `connectionsUsed` and `curationFlag` ([idea context packs, section 9](idea-context-packs.md#9-the-standard-an-idea-is-more-than-a-summary-of-its-reference)). The flag needs `listReviewRequests` and `updateReviewRequest` in `RouterIdeaPolicy` (both are there) and `createReviewRequest`, which the per-API review policies grant. The old `minimumStandard` key is retired: a stored config that still has it loads, and the key is ignored (the log shows `ignored_retired_config`).
-* **Single items and context packs (`singleItem`, `contextPacks`).** Two more keys, both on by default and neither numeric. `singleItem` (true or false) keeps or drops the single-item ideas. `contextPacks` is `{"enabled": true|false, "signals": [...]}`: `signals` names the pack signals to use from the closed set `conversation`, `acceptance`, `hub`, `cluster`, `resurfaced`, and leaving it out means every signal that has data (today `conversation` and `acceptance` build packs; the others are accepted by the validator and build nothing until they exist). With `contextPacks.enabled` false the task is exactly the single-item task described below, ranked by the relevance Cyclotron; with it on, the run is the queue below. Any other key is refused. Example: `"monitorStories": {"singleItem": false, "contextPacks": {"signals": ["acceptance"]}}` drafts only theme ideas from accept bursts.
+* **Single items and context packs (`singleItem`, `contextPacks`).** Two more keys, both on by default and neither numeric. `singleItem` (true or false) keeps or drops the single-item ideas. `contextPacks` is `{"enabled": true|false, "signals": [...]}`: `signals` names the pack signals to use from the closed set `conversation`, `acceptance`, `hub`, `cluster`, `resurfaced`, and leaving it out means every signal that has data (today `conversation` and `acceptance` build packs; the others are accepted by the validator and build nothing until they exist). With `contextPacks.enabled` false the task is exactly the single-item task described below, ranked by the relevance Cyclotron; with it on, the run is the queue below. **`ideaRules`** (PPY-10a5e5) sets what an idea must show before it is filed, per site; leaving it out is the standard (news) rules: `minimumReferences` (a whole number, default 2: how many accepted References a context-pack idea cites, and how many one sentence cites together), `requireJointSentence` (default true), `passingVerdicts` (default `["adds"]`; also `"restates"`, `"unsupported"`), `checkRepeats` and `checkProcessTalk` (default true: whether a repeated point or talk about how the story came to be fails the point check) and `mode` (`"evidence"`, the default, or `"premise-led"`). In the premise-led mode a single item is drafted around an invented premise the writer states in its own field: the sentences about the real item rest on it and are cited, the premise is stored as `evidence.premise` and shown as "Invented premise" in the idea, no connection beyond the item is needed, and no point check is asked. Example: `"ideaRules": {"mode": "premise-led"}`. Any other key is refused. Example: `"monitorStories": {"singleItem": false, "contextPacks": {"signals": ["acceptance"]}}` drafts only theme ideas from accept bursts.
 * **One queue of packs and single items (context packs on).** `run_publication` reads the publication once (`ideas/signal_inputs.py`: Messages, human votes, concept links, pending verdicts, published Items and ideas), loads the lookups the packs need (`ideas/signal_queue.py`: accepted SemanticNodes for concept names and hashtags, the Reference summary Messages of the References a pack shows, the mission, policy and sections), builds the packs (`ideas/context_packs.py`), keeps the signals the publication asked for, holds back every pack whose anchor already has an idea unless it has new evidence (`packsSkippedNoNewEvidence`), scores the single-item candidates from the same inputs (`ideas/item_signals.py`; a Reference the signals say nothing about is not a candidate) and walks ONE ordered queue in which the signals take turns by surprise. A pack goes to `ideas/pack_stories.py` (one model call, up to three ideas that each cite at least two accepted References, each through the same editorial gate), a single item to the single-item path. Both draw on one cost meter and share the stops below; pack ideas are in the same one review request as the single items. A Reference summary is the `reference_summary_<N>_tokens` Message linked to it (the highest budget, the newest); the router has no storage grant, so a Reference without one has an empty summary in a pack. Spec: `features_backend/idea-context-packs.feature`; the command is `papyrus ideas monitor-stories [--packs-only | --single-only]` ([idea pipeline](idea-pipeline.md#monitor-stories)).
 * **What an idea is.** A content `Item` at the `idea` stage, marked "Generated", that cites its source (every sentence carries the source handle and passes the citation check), filed through the same code as the CLI, with
   **one soft review request per publication and pass** ("N new monitor stories to review", raised by `idea-pipeline`, linking the ideas). Nothing is published; an editor accepts an idea by moving it forward on the Stories board and declines it by moving it to `spiked` with a reason. The router does not run the Humanus gate (it has no editorial grants), so its ideas are filed ungated. A Reference is never drafted twice (the Item's `based_on` link to it records it, spiked ideas included), so the task can run every day and a re-run is harmless.
@@ -1049,7 +1106,7 @@ Before packs and single items, the monitor-stories task brings each publication'
 * **One filing error does not stop the run.** A filing that fails is recorded (`fileErrors` in the log line, `fileError` the last message) and the run goes on with the next candidate. The same error twice in a row with nothing filed between is systemic: the run stops (`stoppedBy: file_error`) and `fileErrorReason` says why.
 * **Candidates are read people first.** `collect_monitored_items` reads the accepted References in the order of attention: a human vote, stars, a conversation, a human concept tag first, then the rest newest first (it was by id). If the time stops the reading, the References an editor worked on are the candidates. The pending backlog is no longer listed before drafting only to count it: `notAccepted` is counted last, if time remains.
 * **Only real concepts.** Concept cards and suggested concepts leave out the nodes that are not subjects, using what the public wiki already uses (commit 82670d24, `knowledge_wiki/kinds.py`): authors (`personAuthor`), comment concepts, quality ratings, relevance decisions, coverage questions, editorial forms, plus the bulk-extracted `entity` and `identifier` kinds (`papyrus_knowledge_query/concept_kinds.py`, kept equal to the wiki's list by a test; it has no dependencies so the router zip carries it). The check is by kind and, for a node with no kind, by the key's prefix. It applies in the sync (no new cards) and in `suggest_for` (so the router and the on-demand `suggestReferenceLinks` share it), because cards already in the index cannot be deleted by the router. An allowlist of kinds can be passed instead. The score has no floor: the cut keeps every neighbour at or above a threshold learned from the site's own decided suggestions (labelled "likely" or "possible") and always at least the knee's count, so the best match is offered however low its score; nothing is configured, and no fixed cutoff was added. `papyrus references retire-junk-suggestions [--execute]` lists (default) or marks rejected (by `auto:cleanup`, reason `not_a_concept`; nothing deleted) the open `auto:vector` suggestions to such nodes.
-* **Config.** `monitorStories.vectorIndexArn` and `monitorStories.storageBucketName` are copied from each site's `amplify_outputs.json` (`custom.knowledgeQuery.s3VectorIndexArn`, `storage.bucket_name`) by `seed_router_config.py --file router.json --amplify-outputs <publicationId>=<path>` (repeat per site), never typed. `monitorStories.suggestions.enabled` (default true) turns suggestions off while the index is still kept current. Without `vectorIndexArn` the sync and the suggestions are skipped, packs and single items run as before, and the log line says why.
+* **Config.** `monitorStories.vectorIndexArn` and `monitorStories.storageBucketName` are copied from each site's `amplify_outputs.json` (`custom.knowledgeQuery.s3VectorIndexArn`, `storage.bucket_name`) into the monitor's router config file, never invented. `monitorStories.suggestions.enabled` (default true) turns suggestions off while the index is still kept current. Without `vectorIndexArn` the sync and the suggestions are skipped, packs and single items run as before, and the log line says why.
 * **Change set.** The template has fourteen new parameters (sixteen with Machines on Machines' `MachinesOnMachinesVectorIndexArn` and `MachinesOnMachinesStorageBucketName`), `AnthUsVectorIndexArn`, `PapyrusVectorIndexArn`, `ThreatIntelVectorIndexArn`, `DataParadeVectorIndexArn`, `PilobolusVectorIndexArn`, `ShippedVectorIndexArn`, `DistinctiveVectorIndexArn` (each the site's `custom.knowledgeQuery.s3VectorIndexArn`) and `AnthUsStorageBucketName`, `PapyrusStorageBucketName`, `ThreatIntelStorageBucketName`, `DataParadeStorageBucketName`, `PilobolusStorageBucketName`, `ShippedStorageBucketName`, `DistinctiveStorageBucketName` (each the site's `storage.bucket_name`). A parameter left at its default names no index or bucket, so it grants nothing. Fill them from the sites' `amplify_outputs.json`, keep every other parameter at `UsePreviousValue` (never omit `EditorUserPoolArns`), read the change set (it should show `RouterIdeaPolicy` modified, the router code update and the new parameters, nothing else) and execute it. The router config rows are data and need no deploy.
 * **Package.** The router zip now also holds `src/papyrus_knowledge_query/` (standard library only; its command line and Lambda handler are left out) and the three modules it imports from `papyrus_content` (`knowledge_snapshot/keys`, `knowledge_wiki/pages`, `corpus_storage_paths`), a few hundred kilobytes of source. The function's `boto3` must have the `s3vectors` client (boto3 added it in 1.39); the pass checks this before it starts and skips with `the runtime's boto3 has no usable s3vectors client` when the managed Python 3.13 runtime is older. Check the runtime's version with `aws lambda get-runtime-management-config` / a test invoke before relying on it; the zip does not vendor `boto3`.
 
@@ -1077,6 +1134,10 @@ An editor's research assignment on a Story ([assigning research](story-reporting
 * **Needs.** The search and model keys (the `PAPYRUS_*_KEY_PARAMETER` variables the function carries; SSM reads need no extra statement beyond the key policies), no S3 permission (attachments go through the presigned URL AppSync returns), and no `corpora/` directory: the intake takes the backend's own canonical corpus.
 * **Log line.** One `{"researchAssignments": ...}` line per publication: `status`, `ran`, `failed`, `expired`, `leftOpen`, `stoppedBy`.
 * **Grants.** `test_research_assignments_worker.py` runs one assignment on the real GraphQL client with its transport replaced and checks that every field it asked for is granted to `ResearchWorkerRole`, and that `RouterRole` gained no policy. The template change is a hand-run change set that needs Ryan's yes; nothing is deployed from the pull request.
+
+## One deploy unit: the code and the grants it needs
+
+`StoryWorkerFunction`, `ResearchWorkerFunction` and `RouterFunction` run the same router zip (`RouterCodeKey`) and each has its role in the same stack, so the release that ships a code change ships the IAM grants it needs in the same change set (`infra/pipeline/README.md`); nobody applies the stack first by hand. CloudFormation updates a role before the function that reads its Arn. Filing an idea makes its checklist from the site's saved Story procedure, which asks AppSync for `itemBySlug`, `listModelAttachmentsByOwnerRoleAndSortKey` and `createModelAttachmentDownload`; `test_monitoring_site_document_grants.py` counts those fields from the real code and checks the story worker, the research worker and the router hold them, so a role that is missing one fails CI, not a step. If a grant is ever missing in the cloud, the step fails with AppSync's refusal (it names the field), is delivered again up to three receives, then waits in `StoryDeadLetterQueue` (alarm `papyrus-monitoring-story-dead-letters`); the idea is already written, and the redelivery gives it its checklist once the grant is there.
 
 ## IAM (role `RouterRole`)
 
@@ -1169,10 +1230,10 @@ cleanly. `papyrus-monitoring-decisions-stopped` watches for that.
 
 ## Operating the router
 
-- Seed: `seed_router_config.py --table TABLE --file router.json` (starts as `dry-run`).
-- **Flip to live** (data change, no deploy): `seed_router_config.py --table TABLE --set mode=live`.
+- Config: edit `infra/monitoring/router-config/<monitorId>.json` (a new monitor starts as `dry-run`) and release ([router config in Git](#router-config-in-git)).
+- **Flip to live**: set `mode` to `live` in the file and release.
   Dry-run receipts are harmless; `dry-run-validated` items are processed as live items.
-- **Monitor stories** need no setting either; to run them now, invoke the router with `{"task":"monitor-stories","monitorId":"hn"}`. The same task first keeps the vector index current and writes suggestions ([vector index and suggestions](#vector-index-and-suggestions)). Turn a publication off with `seed_router_config.py` setting its `monitorStories` to `{"enabled": false}`; stop the schedule with `ScheduleState=DISABLED`. Shape it with `singleItem` and `contextPacks` in the same block ([monitor stories](#monitor-stories-daily)).
+- **Monitor stories** need no setting either; to run them now, invoke the router with `{"task":"monitor-stories","monitorId":"hn"}`. The same task first keeps the vector index current and writes suggestions ([vector index and suggestions](#vector-index-and-suggestions)). Turn a publication off by setting its `monitorStories` to `{"enabled": false}` in the file; stop the schedule with `ScheduleState=DISABLED`. Shape it with `singleItem` and `contextPacks` in the same block ([monitor stories](#monitor-stories-daily)).
 - **Feedback** needs no setting: editors' Accept/Reject is always sent for Cyclotron-decided monitors in live mode.
   Back to dry-run with `mode=dry-run` (feedback stops with it); stop entirely with `enabled=false`
   or `ScheduleState=DISABLED`.
@@ -1231,7 +1292,7 @@ authorization point and one least-privilege grant.
 - `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
   when the Cyclotron reports it between 0 and 1.
 - Old `limit`, `maxItems` and `pagesPerQuery` fields in a collector `CONFIG` are ignored the same way (the collector logs one `ignored_retired_config` line).
-- Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. They can be deleted from the stored config; `infra/monitoring/seed_router_config.py --set` drops them on its next write.
+- Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. Delete them from the monitor's router config file; a monitor's file replaces its stored item whole on the next release.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
 
 ### Paged lists: nothing scrolls out of reach

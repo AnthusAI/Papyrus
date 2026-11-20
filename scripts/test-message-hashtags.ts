@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test as nodeTest } from "node:test";
+import { actingFor, buildEventTenantContext } from "../amplify/functions/shared/tenant-context";
+
+// The helpers read the tenant of the call they run in; these tests run as one call on a dedicated stack with no tenant, as the sites do today.
+const dedicatedCall = buildEventTenantContext({ identity: { sub: "test", claims: {} } }, {});
+const test = (name: string, body: () => unknown) => nodeTest(name, () => actingFor(dedicatedCall, body as () => Promise<void>));
 import { hashtagsInMessageText } from "../lib/message-hashtags";
 import { messageHasHashtag } from "../lib/post-message";
 import { linkMessageHashtags, messageConceptRelationId, type MessageHashtagStore } from "../amplify/functions/category-action/message-hashtags";

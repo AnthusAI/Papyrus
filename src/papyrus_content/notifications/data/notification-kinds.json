@@ -1,0 +1,20 @@
+{
+  "kinds": {
+    "story.announce": {
+      "ack": "none",
+      "channels": [
+        "x"
+      ],
+      "class": "broadcast",
+      "defaultOn": true
+    },
+    "story.published": {
+      "ack": "none",
+      "channels": [
+        "email"
+      ],
+      "class": "public",
+      "defaultOn": false
+    }
+  }
+}

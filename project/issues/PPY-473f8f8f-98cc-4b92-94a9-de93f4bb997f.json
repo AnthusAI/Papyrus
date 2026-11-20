@@ -1,0 +1,35 @@
+{
+  "id": "PPY-473f8f8f-98cc-4b92-94a9-de93f4bb997f",
+  "title": "Publishing skips the full checklist: no per-language checklist, and imported or pod Stories get all steps not applicable",
+  "description": "Ryan 2026-11-19: content is getting published that has not been through the whole checklist, and localizations make it worse. Findings from reading publishing.py, story_checklist.py, localization_publish.py on develop: (1) A translation skips require_checklist_closed entirely: publishing.publish_item calls only require_publishable (original published + no unanswered hold), so a translation's translate/faithfulness/copy-edit steps are 'proven by the run records' and nothing ticks per language; a person-imported or hand-corrected translation (stories correct-translation, imports) has no checklist steps at all. (2) Imported Stories (and pod-loaded Stories since #1691) get a checklist with every step but publishing marked not applicable, so they pass the gate with no review. (3) Rating/illustration gates are the original's only. Wanted: one checklist per language lineage ({story}--{language}), with template steps that apply to a translation (translate, faithfulness, copy edit, human review where the site requires it, rating served by the original), checked on that language's version at publish; the review_people stamp (PPY-97c0f2, provisional) and Always-on agent memory read these per-language rows. Decide the design before building; do not add a fallback. Needs Gherkin for each language case.",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "828dad86-22a4-445a-b64f-0d5cdeb59340",
+      "author": "home",
+      "text": "Shipped first, PR 1730 (merged to develop): one named rule, src/papyrus_content/publish_by_person.py, called once by publish_item before every other gate. A pod-loaded Story, an imported Story or a translation publishes only when a person publishes by hand (console, or CLI signed in as a person); everything else is refused with person-publish-required (details.storyKind) and words that say how to proceed. Pod load leaves a draft and reports it, import-markus saves Stories as drafts (reported as storiesForAPerson), automatic translation (languages.auto publish:true, --publish-clean), schedules (refused when made), restore/un-retire and agents leave a ready draft. Recorded in docs/releasing.md and docs/story-translation-procedure.md. This block is lifted by the per-language checklist gate (the follow-up of this ticket): delete publish_by_person.py, its one call in publish_item and the by_person argument. Ticket stays open for that gate.",
+      "created_at": "2026-11-19T15:12:23.715493Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c50c7f71-6374-4923-9ed5-b74782b56276",
+      "author": "home",
+      "text": "Stage 2 PR 1 of 3 (per-language checklist gate): PR 1731 against develop, branch feat/PPY-473f8f-lang-checklist. Language lineages get translate, faithfulness, copy_edit, human_review and publish rows; publish_item checks the lineage being published; publish_by_person.py and by_person are deleted; imported Stories keep review_people open. Specs: translation-language-checklist.feature and updated story-checklist, pod-load and translation-publishing features. Not merged; stamp/delegation and the translation agent are PRs 2 and 3.",
+      "created_at": "2026-11-19T16:41:00.450310Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-19T11:38:50.837652Z",
+  "updated_at": "2026-11-19T16:41:00.451293Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

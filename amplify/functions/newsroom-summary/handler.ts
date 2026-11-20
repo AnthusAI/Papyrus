@@ -2,12 +2,13 @@ import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtim
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
+import { actingFor, buildEventTenantContext, currentTenantContext } from "../shared/tenant-context";
+import { newsroomSummaryPayloadId, tenantScopedClient } from "../shared/tenant-scoped-client";
 import { putJsonModelPayload, readJsonModelPayload } from "../shared/model-payloads";
 
 type DataClient = ReturnType<typeof generateClient<Schema>>;
 type DataClientErrors = Array<{ message?: string | null } | string | null> | null | undefined;
 
-const NEWSROOM_SUMMARY_PAYLOAD_ID = "knowledge-raw-payload-newsroom-summary-current";
 const NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND = "knowledgeRawPayload";
 const SUMMARY_STALE_AFTER_MS = 15 * 60 * 1000;
 let clientPromise: Promise<DataClient> | null = null;
@@ -15,16 +16,19 @@ let clientPromise: Promise<DataClient> | null = null;
 export const handler = async (
   event: Parameters<Schema["getNewsroomSummary"]["functionHandler"]>[0] | Parameters<Schema["updateNewsroomSummary"]["functionHandler"]>[0],
 ) => {
-  const fieldName = typeof event.info?.fieldName === "string" ? event.info.fieldName : "getNewsroomSummary";
-  if (fieldName === "updateNewsroomSummary" || "delta" in event.arguments) {
-    return updateNewsroomSummary(event as Parameters<Schema["updateNewsroomSummary"]["functionHandler"]>[0]);
-  }
-  return getNewsroomSummary();
+  const context = buildEventTenantContext(event);   // one context per call; a shared stack refuses before any read
+  return actingFor(context, () => {
+    const fieldName = typeof event.info?.fieldName === "string" ? event.info.fieldName : "getNewsroomSummary";
+    if (fieldName === "updateNewsroomSummary" || "delta" in event.arguments) {
+      return updateNewsroomSummary(event as Parameters<Schema["updateNewsroomSummary"]["functionHandler"]>[0]);
+    }
+    return getNewsroomSummary();
+  });
 };
 
 async function getNewsroomSummary() {
   const client = await getDataClient();
-  const response = await client.models.KnowledgeRawPayload.get({ id: NEWSROOM_SUMMARY_PAYLOAD_ID });
+  const response = await client.models.KnowledgeRawPayload.get({ id: newsroomSummaryPayloadId(currentTenantContext()) });
   assertNoDataErrors(response.errors, "get Newsroom summary snapshot");
   const payload = await readNewsroomSummaryPayload(client);
   return summaryFromPayload(normalizeSummaryPayload(payload, response.data?.updatedAt ?? new Date().toISOString()));
@@ -33,7 +37,7 @@ async function getNewsroomSummary() {
 async function updateNewsroomSummary(event: Parameters<Schema["updateNewsroomSummary"]["functionHandler"]>[0]) {
   const client = await getDataClient();
   const now = new Date().toISOString();
-  const response = await client.models.KnowledgeRawPayload.get({ id: NEWSROOM_SUMMARY_PAYLOAD_ID });
+  const response = await client.models.KnowledgeRawPayload.get({ id: newsroomSummaryPayloadId(currentTenantContext()) });
   assertNoDataErrors(response.errors, "get Newsroom summary snapshot");
   const currentPayload = normalizeSummaryPayload(await readNewsroomSummaryPayload(client), now);
   const delta = parseJsonObject(event.arguments.delta);
@@ -54,7 +58,7 @@ async function getDataClient(): Promise<DataClient> {
       return generateClient<Schema>();
     })();
   }
-  return clientPromise;
+  return tenantScopedClient(await clientPromise, currentTenantContext());
 }
 
 async function upsertNewsroomSummaryPayload(
@@ -64,7 +68,7 @@ async function upsertNewsroomSummaryPayload(
   now: string,
 ): Promise<void> {
   const input = {
-    id: NEWSROOM_SUMMARY_PAYLOAD_ID,
+    id: newsroomSummaryPayloadId(currentTenantContext()),
     ownerType: "newsroom",
     ownerId: "newsroom",
     payloadKind: "summary-snapshot",
@@ -79,7 +83,7 @@ async function upsertNewsroomSummaryPayload(
   }
   await putJsonModelPayload(
     client as any,
-    { ownerKind: NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND, ownerId: NEWSROOM_SUMMARY_PAYLOAD_ID, importRunId: input.importRunId },
+    { ownerKind: NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND, ownerId: newsroomSummaryPayloadId(currentTenantContext()), importRunId: input.importRunId },
     "raw_payload",
     "summary-snapshot",
     payload,
@@ -91,7 +95,7 @@ async function readNewsroomSummaryPayload(client: DataClient): Promise<Record<st
   return readJsonModelPayload(
     client as any,
     NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND,
-    NEWSROOM_SUMMARY_PAYLOAD_ID,
+    newsroomSummaryPayloadId(currentTenantContext()),
     "raw_payload",
     "summary-snapshot",
   );

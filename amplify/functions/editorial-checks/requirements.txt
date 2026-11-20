@@ -1,1 +1,1 @@
-humanus[jev]>=0.33,<0.34
+humanus[jev]>=0.42.0,<0.43

@@ -56,6 +56,15 @@ Feature: The PyPI wheel carries the data files the commands read at run time
     needs. Release 5.61.0 failed on every site because a GraphQL request from a
     Lambda function imported it.
     Given a Python process that cannot import cli_login and has no signed-in user session
+    And it names the operator lane in its environment, as every site function does
     When it imports the content-actions handler and signs a GraphQL request with IAM
     Then the request carries an IAM signature
+    And cli_login was never imported
+
+  Scenario: A Lambda process that names no lane says so in one line instead of failing on the login library
+    The signed-in lane is the default, so a function whose definition forgot the operator lane is told exactly that,
+    not given an import error from a library it does not ship.
+    Given a Python process that cannot import cli_login and has no signed-in user session
+    When it imports the content-actions handler and signs a GraphQL request with IAM
+    Then it refuses with the message that names papyrus login and papyrus --auth iam
     And cli_login was never imported

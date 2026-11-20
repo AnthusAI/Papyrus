@@ -38,9 +38,22 @@ NODES = [
 class Site:
     """A stand-in for the site: records each mutation the command sends and answers as the site's mutation does."""
 
+    tenant_id = None
+
     def __init__(self) -> None:
+        from papyrus_content.entity_labels.primary import primary_rows
+
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.fail: str | None = None
+        self.labels = [row for node in NODES for row in primary_rows(node, "en", tenant_id=None, now="2026-11-15T00:00:00Z")]   # the names the stream consumer wrote
+
+    def primary_language(self) -> str:
+        return "en"
+
+    def list_by_index(self, index: str, key: str, **_: Any) -> list[dict[str, Any]]:
+        field = {"entityLabelsByName": "nameKey", "semanticNodesByLineage": "lineageId", "semanticNodesByNodeKey": "nodeKey"}[index]
+        rows = self.labels if index == "entityLabelsByName" else NODES
+        return [dict(row) for row in rows if row.get(field) == key]
 
     def list_records(self, model: str) -> list[dict[str, Any]]:
         assert model == "SemanticNode"
@@ -48,8 +61,15 @@ class Site:
 
     safe_list_records = list_records
 
+    READS = {"listEntityLabelsByNameKey": "entityLabelsByName", "listSemanticNodesByLineageAndVersion": "semanticNodesByLineage",
+             "listSemanticNodesByNodeKeyAndVersion": "semanticNodesByNodeKey"}
+
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         field = query.split("{", 1)[1].split("(", 1)[0].strip()
+        if field == "getEditorialCheckSettings":   # a read through a client that talks GraphQL: the stand-in answers it, and it is not something the command sent
+            return {field: {"id": "settings", "tenantId": None, "settings": "{}"}}
+        if field in self.READS:
+            return {field: {"items": self.list_by_index(self.READS[field], next(iter((variables or {}).values()))), "nextToken": None}}
         self.calls.append((field, dict(variables or {})))
         if self.fail:
             raise GraphQLRequestError(f"GraphQL request failed: {self.fail}\nsecond line", status_code=200)
@@ -93,7 +113,7 @@ def test_a_reference_is_linked_to_a_concept_and_a_dry_run_sends_nothing():
     out = run(references_link, ["--reference", "ref-1", "--concept", "boxing", "--note", "The sibling problem"], site)
     assert site.calls == [("createReferenceLink", {
         "subjectLineageId": "ref-1", "objectKind": "semanticNode", "objectLineageId": "semantic-node-editor_concept--confinement-problem",
-        "predicate": "related_to", "note": "The sibling problem"})]
+        "predicate": "tagged_with", "note": "The sibling problem"})]
     assert "created\trel-1" in out
 
 
@@ -123,7 +143,8 @@ def test_a_reference_link_needs_one_target_a_known_predicate_and_a_concept_that_
         (["--reference", "ref-1"], "exactly one of"),
         (["--reference", "ref-1", "--to-reference", "ref-2", "--concept", "boxing"], "exactly one of"),
         (["--reference", "ref-1", "--to-reference", "ref-2", "--predicate", "likes"], "--predicate must be"),
-        (["--reference", "ref-1", "--concept", "boxing", "--predicate", "cites"], "related_to"),
+        (["--reference", "ref-1", "--concept", "boxing", "--predicate", "cites"], "tagged_with"),
+        (["--reference", "ref-1", "--to-reference", "ref-2", "--predicate", "tagged_with"], "tags a Reference with a concept"),
         (["--reference", "ref-1", "--concept", "Spam", "--create"], "was rejected"),
         (["--apply", "--reference", "ref-1", "--to-reference", "ref-2"], "no longer accepts --apply"),
     ):

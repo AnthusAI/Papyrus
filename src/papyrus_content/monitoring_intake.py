@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import weakref
 
+from .tenant_knowledge_keys import own_corpora
 from .catalog import catalog_item_with_external_item_id, reference_attachment_records, reference_record
 from .ids import hash_short, knowledge_corpus_id
 from .monitoring import Monitor, SourceItem, canonical_url
@@ -70,14 +71,20 @@ def listing_for(client) -> ReferenceListing | None:
 
 
 class ReferenceIntake:
-    def __init__(self, client, monitor: Monitor, *, auth_mode: str, persist=None, listing: ReferenceListing | None = None):
+    def __init__(self, client, monitor: Monitor, *, auth_mode: str, persist=None, listing: ReferenceListing | None = None,
+                 tenant_id: str | None = None):
         if auth_mode != "iam":
             raise ValueError("This Monitor worker requires explicitly configured IAM; editorial-session intake is owned by PR367. No IAM fallback.")
-        if client.endpoint.rstrip("/") != monitor.endpoint.rstrip("/") or getattr(client, "tenant_id", None):
+        # `tenant_id` is the tenant the publication names (its router entry's `tenantId`), or None. The client must be scoped to exactly that tenant:
+        # a tenant client for a publication that names none, or for another tenant's, is refused, as is a plain client for a tenant publication.
+        # Reference, KnowledgeCorpus and KnowledgeImportRun are not tenant models (tenancy.TENANT_MODELS), so under a tenant client they are
+        # written and read exactly as without one; the tenant only has to match so the run never mixes one tenant's client with another's publication.
+        if (client.endpoint.rstrip("/") != monitor.endpoint.rstrip("/")
+                or (getattr(client, "tenant_id", None) or None) != (tenant_id or None)):
             raise ValueError("Monitor endpoint/tenant binding does not match the selected worker client")
-        corpora = [r for r in client.list_records("KnowledgeCorpus") if r.get("role") == "canonical"]
+        corpora = [r for r in own_corpora(client.list_records("KnowledgeCorpus"), tenant_id) if r.get("role") == "canonical"]
         if (len(corpora) != 1 or corpora[0].get("id") != monitor.corpus_id
-                or knowledge_corpus_id({"key": monitor.publication}) != monitor.corpus_id):
+                or knowledge_corpus_id({"key": monitor.publication}, tenant_id) != monitor.corpus_id):
             raise ValueError("Monitor binding requires the publication's single verified canonical KnowledgeCorpus")
         self.client, self.monitor = client, monitor
         self.listing = listing   # a run that delivers many items passes one, so the table is read once (see ReferenceListing); without it each delivery reads the table

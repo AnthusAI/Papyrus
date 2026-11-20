@@ -21,7 +21,7 @@ from ..knowledge_snapshot.keys import contains_email, entity_key, kind_key, slug
 from ..knowledge_snapshot.model import LINK_MONITOR, Beat, KnowledgeData
 from ..knowledge_snapshot.publish_run import json_object
 from ..machine_writes import RETIRED_STAGE, machine_write
-from ..publishing import ItemFields, item_id_for, published_item_id_for, save_item, unpublish_item
+from ..publishing import ItemFields, item_id_for, published_item_id_for, save_item
 from ..story_reporting import save_story_version
 from ..wiki_stamp import WIKI_PAGE_ITEM_TYPE
 from .kinds import display_name, is_public_kind
@@ -33,7 +33,6 @@ CREATE = "create"
 UPDATE = "update"
 REVISE = "revise"
 UNCHANGED = "unchanged"
-RETIRE = "retire"
 RETIRED_KEY = "retired"
 CLASH_NOTE = "address taken by another page; nothing written"
 DEFAULT_MINIMUM_SUBTOPIC_ITEMS = 30
@@ -53,34 +52,15 @@ class PagePlan:
 
 
 @dataclass(frozen=True)
-class RetirePlan:
-    """A generated page whose subject is no longer eligible: it comes down (if live) and is marked so no later publish brings it back."""
-
-    section: str
-    slug: str
-    lineage_id: str
-    item_id: str
-    live_item_id: str | None
-    front_matter_yaml: str
-
-    @property
-    def live(self) -> bool:
-        return self.live_item_id is not None
-
-
-@dataclass(frozen=True)
 class SyncPlan:
     pages: tuple[PagePlan, ...]
     warnings: tuple[str, ...] = ()
-    retired: tuple[RetirePlan, ...] = ()
 
     @property
     def counts(self) -> dict[str, int]:
         counts: dict[str, int] = defaultdict(int)
         for page in self.pages:
             counts[f"{page.spec.kind}:{page.action}"] += 1
-        if self.retired:
-            counts[RETIRE] = len(self.retired)
         return dict(sorted(counts.items()))
 
 
@@ -165,7 +145,7 @@ def data_only_lineages(data: KnowledgeData) -> set[str]:
 def eligible_nodes(data: KnowledgeData, public_kinds: Collection[str] | None = None) -> list:
     """The accepted entities that may have a public page: a public name, a kind the wiki publishes (see ``kinds``), and a page answer that is not
     no. The answer is an editor's decision, else the extractor's (``knowledge_snapshot/page_answer.py``); a concept it has not answered for keeps its page.
-    A concept with no page stays accepted, filed and linkable; a page it already has is retired by ``--retire``."""
+    A concept with no page stays accepted, filed and linkable; a page it already has stays as it is: the sync never takes a page down."""
     return [
         node
         for node in data.nodes
@@ -287,15 +267,12 @@ def plan_sync(
     section_of: Mapping[str, str],
     item_rows: Iterable[Mapping[str, Any]],
     published_sources: Mapping[str, str],
-    *,
-    retire: bool = False,
 ) -> SyncPlan:
     """``section_of`` maps a page kind to the section it lives in; ``published_sources`` maps a lineage to the id of the
-    Item row its live PublishedItem was made from. With ``retire``, a generated page nothing generates any more is
-    retired (taken down, marked); without it the sync only reports that page."""
+    Item row its live PublishedItem was made from. A generated page nothing generates any more is only reported: a page that
+    was ever published may be indexed, so the sync never takes one down."""
     rows = list(item_rows)
     pages: list[PagePlan] = []
-    retired: list[RetirePlan] = []
     warnings: list[str] = [note for spec in specs for note in spec.notes]
     seen: dict[str, set[str]] = defaultdict(set)
     for section in sorted(set(section_of.values())):
@@ -319,16 +296,10 @@ def plan_sync(
             if lineage_id in seen[section] or not any(field in front for field in wanted_fields):
                 continue
             working = working_version(lineage_rows)
-            label = f"{section}/{working.get('slug')}"
-            if not retire:
-                warnings.append(f"{label}: no longer generated; left as it is (pass --retire to take it down)")
-            elif (front.get(RETIRED_KEY) is True or working.get("stage") == RETIRED_STAGE) and lineage_id not in published_sources:
-                continue  # retired by an earlier run, or by an undo, and still down
-            else:
-                retired.append(
-                    RetirePlan(section, str(working.get("slug") or ""), lineage_id, working["id"], published_sources.get(lineage_id), front_matter_yaml({**front, RETIRED_KEY: True}))
-                )
-    return SyncPlan(tuple(pages), tuple(warnings), tuple(retired))
+            if front.get(RETIRED_KEY) is True or working.get("stage") == RETIRED_STAGE:
+                continue  # retired by an undo, and still down
+            warnings.append(f"{section}/{working.get('slug')}: no longer generated; left as it is")
+    return SyncPlan(tuple(pages), tuple(warnings))
 
 
 WRITER = "knowledge-wiki-sync"
@@ -360,19 +331,6 @@ def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = Non
                 actor=actor, now=now,
             )
         written[page.action] += 1
-    for page in plan.retired:
-        if page.live_item_id:
-            unpublish_item(client, page.live_item_id, actor=actor, now=now)
-        existing = client.get_record("Item", page.item_id) or {}
-        save_item(
-            client,
-            ItemFields(
-                type=WIKI_PAGE_ITEM_TYPE, slug=existing.get("slug") or page.slug, section=page.section, front_matter_yaml=page.front_matter_yaml,
-                body_markus=existing.get("bodyMarkus") or "", aliases=list(existing.get("aliases") or []), id=page.item_id, machine_write=stamp,
-            ),
-            actor=actor, now=now,
-        )
-        written[RETIRE] += 1
     return dict(written)
 
 

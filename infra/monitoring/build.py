@@ -36,7 +36,9 @@ ROUTER_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-rout
 EMAIL_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-email-submissions.zip"
 OPERATOR_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-operator.zip"
 PACKAGE = ROOT / "src" / "papyrus_content"
-ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http",
+# The router config files (one per monitor); the zip carries them at router-config/, where the RouterConfigApplier custom resource reads them.
+ROUTER_CONFIG = Path(__file__).resolve().parent / "router-config"
+ROUTER_ROOTS = ("monitoring_router", "monitoring_router_config", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http",
                 # papyrus_knowledge_query (below) imports these from papyrus_content, which the closure cannot see from outside the package
                 "knowledge_snapshot/keys", "knowledge_wiki/pages", "corpus_storage_paths")
 # The vector pass of the monitor-stories task (monitoring_vectors.py) runs the knowledge-query package's vector index and S3 Vectors provider.
@@ -44,7 +46,13 @@ ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "
 KNOWLEDGE_QUERY_PACKAGE = ROOT / "src" / "papyrus_knowledge_query"
 KNOWLEDGE_QUERY_EXCLUDED = frozenset({"cli.py", "lambda_handler.py"})
 # Imported only inside functions on paths the router never runs; they need packages the Lambda does not have.
-ROUTER_EXCLUDED = frozenset({"biblicus_runner"})
+# The announcement review handlers (announcements/review_handlers.py, PPY-97c0f2) are imported by their calls (images/handlers.py), which read the site's agent policy and the Delivery
+# records; the router never makes those calls, so they and what they import stay out of the zip (agent_definitions/cli would bring the automations CLI). The same holds for the Announcements list,
+# a Story's lines and `explain` (PPY-e4ae3a: list_handlers, lines, explain, blocked_drafts). The editing window (PPY-e8ec54: edit_handlers, delivery_versions, delivery_lock,
+# delivery_timers, delivery_text) is the same: it writes Delivery rows, which the router never does.
+ROUTER_EXCLUDED = frozenset({"biblicus_runner", "agent_definitions/cli", "agent_policy/__init__", "announcements/review_handlers", "announcements/review_policy", "announcements/deliveries", "announcements/records",
+                         "announcements/list_handlers", "announcements/lines", "announcements/explain", "announcements/blocked_drafts",
+                         "announcements/edit_handlers", "announcements/delivery_versions", "announcements/delivery_lock", "announcements/delivery_timers", "announcements/delivery_text"})
 # Pure-Python packages copied into the worker zips (the Lambda runtime has boto3/botocore only): PyYAML and idna. (youtube-transcript-api and the
 # packages only it needed, requests and its imports, left in PPY-d294d8: YouTube refuses cloud addresses, so no Lambda reads transcripts.)
 # Compiled extensions are left out; each package runs in its pure-Python mode.
@@ -149,6 +157,18 @@ def locked_wheel_packages(roots=ROUTER_WHEEL_ROOTS) -> dict[str, dict]:
     return {name: seen[name] for name in sorted(seen)}
 
 
+def lambda_reads(member: str) -> bool:
+    """Whether a running Lambda can read this file of an unpacked wheel. Left out: an installer's manifest (``*.dist-info/RECORD``, which only
+    pip reads; ``METADATA`` and entry points stay for ``importlib.metadata``), type stubs (``*.pyi``, ``py.typed``) and a package's own test
+    suite (``<package>/tests/``). They were a tenth of the router zip's headroom under its size cap."""
+    parts = member.split("/")
+    if parts[0].endswith(".dist-info") and parts[-1] == "RECORD":
+        return False
+    if member.endswith(".pyi") or parts[-1] == "py.typed":
+        return False
+    return not (len(parts) > 2 and parts[1] in ("tests", "test"))
+
+
 def _lambda_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
     """Download each locked package's binary wheel for the Lambda platform, check its sha256 against poetry.lock, and return its files."""
     entries: dict[str, bytes] = {}
@@ -166,7 +186,7 @@ def _lambda_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
             assert digest in locked, f"{wheels[0].name} is not in poetry.lock for {name} (sha256 {digest})"
             with zipfile.ZipFile(wheels[0]) as wheel:
                 for member in wheel.namelist():
-                    if not member.endswith("/") and "__pycache__" not in member:
+                    if not member.endswith("/") and "__pycache__" not in member and lambda_reads(member):
                         entries[member] = wheel.read(member)
     return entries
 
@@ -177,7 +197,7 @@ def _host_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
     for name in packages:
         distribution = importlib.metadata.distribution(name)
         for file in distribution.files or ():
-            if "__pycache__" not in file.parts and not file.name.endswith(".pyc") and file.parts[0] != "..":
+            if "__pycache__" not in file.parts and not file.name.endswith(".pyc") and file.parts[0] != ".." and lambda_reads(file.as_posix()):
                 entries[file.as_posix()] = Path(distribution.locate_file(file)).read_bytes()
     return entries
 
@@ -186,7 +206,7 @@ def knowledge_query_files() -> dict[str, bytes]:
     return {f"papyrus_knowledge_query/{path.name}": path.read_bytes() for path in sorted(KNOWLEDGE_QUERY_PACKAGE.glob("*.py")) if path.name not in KNOWLEDGE_QUERY_EXCLUDED}
 
 
-def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_query: bool = False) -> str:
+def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_query: bool = False, with_router_config: bool = False) -> str:
     """Worker zip: package modules, the two YAML data files they read, and the pure-Python VENDORED packages.
 
     The Lambda runtime has boto3/botocore only. PyYAML is copied without its C extension, so it
@@ -204,6 +224,8 @@ def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_qu
         entries |= knowledge_query_files()
     for relative in ROUTER_DATA:
         entries[relative] = (ROOT / relative).read_bytes()
+    if with_router_config:
+        entries |= {f"router-config/{path.name}": path.read_bytes() for path in sorted(ROUTER_CONFIG.glob("*.json"))}
     for name in VENDORED:
         root = Path(importlib.import_module(name).__file__).parent
         for path in root.rglob("*"):
@@ -218,7 +240,7 @@ def build_package(out: Path, roots, wheels: str | None = None, with_knowledge_qu
 
 def build_router(out: Path = ROUTER_OUT, target: str = "lambda") -> str:
     """`target` is "lambda" (wheels for the function, fetched and checked against poetry.lock) or "host" (this interpreter's installed copies)."""
-    return build_package(out, ROUTER_ROOTS, wheels=target, with_knowledge_query=True)
+    return build_package(out, ROUTER_ROOTS, wheels=target, with_knowledge_query=True, with_router_config=True)
 
 
 def build_email(out: Path = EMAIL_OUT) -> str:

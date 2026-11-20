@@ -5,42 +5,95 @@ from __future__ import annotations
 import datetime as dt
 import html
 
+from babel import Locale
+from babel.dates import format_date
+
 from .config import FooterColumn, NavLink
 from .entries import StandardEntry
+from .editions import hreflang_value
+from .interface_strings import SKIP_LINK_KEY
 
 
 def esc(value) -> str:
     return html.escape(str(value or ""), quote=True)
 
 
-def skip_link(target: str = "main", label: str = "Skip to main content") -> str:
+SKIP_LINK_DEFAULT = "Skip to main content"
+
+
+def skip_link(target: str = "main", strings=None) -> str:
+    """The link that jumps to the page's main content. Its words are the page's language's interface string ``skipToMain``; a site that writes no interface
+    strings (one language) gets the engine's English."""
+    label = (strings or {}).get(SKIP_LINK_KEY) or SKIP_LINK_DEFAULT
     return f'<a class="markus-skip-link" href="#{esc(target)}">{esc(label)}</a>'
 
 
-def shown_date(date: str, date_format: str = "") -> str:
-    """The text of a date: ISO as stored, or ``date_format`` (``site.dateFormat``) for a calendar date."""
-    if not (date and date_format):
+def shown_date(date: str, date_format: str = "", locale: str = "") -> str:
+    """The text of a date: ISO as stored; ``date_format`` (``site.dateFormat``) for a calendar date; or, on a language edition, the language's own long date
+    format (``locale`` is its BCP 47 tag: ``15 de noviembre de 2026`` for ``es-419``, ``2026年11月15日`` for ``zh-Hans``), which takes the place of ``date_format``,
+    whose month names are one language's."""
+    if not date or not (date_format or locale):
         return date
     try:
-        return dt.date.fromisoformat(date[:10]).strftime(date_format)
+        day = dt.date.fromisoformat(date[:10])
     except ValueError:
         return date
+    return format_date(day, format="long", locale=Locale.parse(locale, sep="-")) if locale else day.strftime(date_format)
 
 
-def time_tag(date: str, *, class_name: str = "markus-time", date_format: str = "") -> str:
-    return f'<time class="{esc(class_name)}" datetime="{esc(date)}">{esc(shown_date(date, date_format))}</time>' if date else ""
+def time_tag(date: str, *, class_name: str = "markus-time", date_format: str = "", locale: str = "") -> str:
+    return f'<time class="{esc(class_name)}" datetime="{esc(date)}">{esc(shown_date(date, date_format, locale))}</time>' if date else ""
 
 
-def byline(entry: StandardEntry, date_format: str = "") -> str:
+def byline(entry: StandardEntry, date_format: str = "", text: str | None = None, locale: str = "") -> str:
+    """The byline; ``text`` is a site hook's complete byline, shown instead of the linked author names (``None``: no hook; an empty string: no byline)."""
     parts = []
-    if entry.author_details:
+    if text is not None:   # a site hook's empty string says this item has no byline: the authors are not a fallback
+        if text:
+            parts.append(f'<span class="markus-byline-authors">{esc(text)}</span>')
+    elif entry.author_details:
         names = ", ".join(
             f'<a href="{esc(author.url)}">{esc(author.name)}</a>' if author.url else esc(author.name) for author in entry.author_details
         )
         parts.append(f'<span class="markus-byline-authors">{names}</span>')
     if entry.date:
-        parts.append(time_tag(entry.date, date_format=date_format))
+        parts.append(time_tag(entry.date, date_format=date_format, locale=locale))
     return f'<p class="markus-byline">{" · ".join(parts)}</p>' if parts else ""
+
+
+def translation_notice(strings, original: dict) -> str:
+    """The line under the byline of a translated page, in the page's language from its interface strings. ``original`` is ``{tag, url, kind}``: the page it
+    was translated from and the translation's kind. A machine translation says an AI translated it (``translation.label``, with the link to the original
+    where ``{original}`` is). An imported translation (finished copy a person or another agent wrote) never claims AI and says nothing of who made it, since
+    the byline says that: its line is only the link to the original, in the words of ``translation.original``. The line is data the page is given, never
+    part of the Story's text."""
+    from ...item_language import IMPORTED_TRANSLATION, MACHINE_TRANSLATION
+    from .interface_strings import ORIGINAL_PLACEHOLDER, TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY
+
+    kind = original.get("kind") or MACHINE_TRANSLATION
+    if kind == "authored":
+        return ""  # A companion is not a translation; normal byline and family switcher apply.
+    if kind not in (MACHINE_TRANSLATION, IMPORTED_TRANSLATION):
+        raise ValueError(f"A translation's kind is {MACHINE_TRANSLATION!r} or {IMPORTED_TRANSLATION!r}, not {kind!r}.")
+    link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'
+    if kind == IMPORTED_TRANSLATION:
+        return f'<p class="markus-translation">{link}</p>'
+    before, found, after = strings[TRANSLATION_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
+    if not found:
+        raise ValueError(f"{TRANSLATION_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original goes.")
+    return f'<p class="markus-translation">{esc(before)}{link}{esc(after)}</p>'
+
+
+def untranslated_notice(strings, original: dict) -> str:
+    """The line on a language's home or listing that has no Story yet: it says so in the page's language and links to the same listing in the original
+    language. ``original`` is ``{tag, url}`` of that page. The page is not indexed (``noindex``) until it lists something."""
+    from .interface_strings import ORIGINAL_PLACEHOLDER, UNTRANSLATED_LABEL_KEY, UNTRANSLATED_ORIGINAL_KEY
+
+    before, found, after = strings[UNTRANSLATED_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
+    if not found:
+        raise ValueError(f"{UNTRANSLATED_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original language's page goes.")
+    link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[UNTRANSLATED_ORIGINAL_KEY])}</a>'
+    return f'<p class="markus-untranslated" role="note">{esc(before)}{link}{esc(after)}</p>'
 
 
 def _same_route(href: str, current: str) -> bool:
@@ -78,9 +131,11 @@ def nav(links: tuple[NavLink, ...], current_path: str, *, label: str = "Site", d
 
 
 def masthead(
-    site_name: str, links: tuple[NavLink, ...], current_path: str, *, tagline: str = "", disclosure: bool = False, brand_html: str = "", home: str = "/"
+    site_name: str, links: tuple[NavLink, ...], current_path: str, *, tagline: str = "", disclosure: bool = False, brand_html: str = "", home: str = "/",
+    switcher: str = "",
 ) -> str:
     tag = f'\n    <p class="markus-site-tagline">{esc(tagline)}</p>' if tagline else ""
+    switcher = f"\n    {switcher}" if switcher else ""
     brand = (
         f'<a href="{esc(home)}" aria-label="{esc(site_name)}, home">{brand_html}</a>' if brand_html else f'<a href="{esc(home)}">{esc(site_name)}</a>'
     )
@@ -89,8 +144,46 @@ def masthead(
     return (
         '  <header class="markus-site-masthead">\n'
         f'    <{wordmark} class="markus-site-wordmark">{brand}</{wordmark}>{tag}\n'
-        f"    {nav(links, current_path, disclosure=disclosure)}\n"
+        f"    {nav(links, current_path, disclosure=disclosure)}{switcher}\n"
         "  </header>"
+    )
+
+
+# Lucide icons (lucide.dev, ISC licence) on the 24 px grid, drawn in currentColor.
+_LUCIDE = (
+    '<svg class="markus-language-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-icon="{name}">{body}</svg>'
+)
+LANGUAGES_ICON = _LUCIDE.format(
+    name="languages",
+    body='<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+)
+CHEVRON_DOWN_ICON = _LUCIDE.format(name="chevron-down", body='<path d="m6 9 6 6 6-6"/>')
+CHECK_ICON = _LUCIDE.format(name="check", body='<path d="M20 6 9 17l-5-5"/>')
+
+
+def language_switcher(alternates, current_tag: str, label: str, *, prominence: str = "normal") -> str:
+    """The language switcher: the Languages icon and the current language's own name open the list of the page's languages (``page.alternates``), each in
+    its own name with its own ``lang``. A ``details`` element, so it opens and closes from the keyboard with no script (Enter or Space on the control; a
+    link is a Tab stop); ``papyrus-language-switcher.js`` adds Escape and a click outside to close it. The current language is marked by a check mark,
+    ``aria-current`` and its place as the control's text, never by colour alone. ``label`` is the word "Language" in the page's language; the control's accessible
+    name is "<label>: <current name>". ``prominence`` is ``normal`` (a filled control) or ``quiet`` (the icon and the name in muted text). Nothing is drawn for a
+    page that exists in one language."""
+    current = next((alternate for alternate in alternates if alternate["tag"] == current_tag), None)
+    if current is None or len(alternates) < 2:
+        return ""
+    options = "".join(
+        f'<li><a class="markus-language-option" href="{esc(alternate["url"])}" lang="{esc(alternate["tag"])}" hreflang="{esc(alternate["hreflang"])}" '
+        f'data-language="{esc(alternate["tag"])}"{" aria-current=\"true\"" if alternate["tag"] == current_tag else ""}>'
+        f'<span class="markus-language-name">{esc(alternate["name"])}</span>{CHECK_ICON if alternate["tag"] == current_tag else ""}</a></li>'
+        for alternate in alternates
+    )
+    quiet = " markus-language-switcher-quiet" if prominence == "quiet" else ""
+    return (
+        f'<div class="markus-language-switcher{quiet}" data-language-switcher><details class="markus-language-details">'
+        f'<summary class="markus-language-trigger" aria-label="{esc(label)}: {esc(current["name"])}">{LANGUAGES_ICON}'
+        f'<span class="markus-language-current">{esc(current["name"])}</span>{CHEVRON_DOWN_ICON}</summary>'
+        f'<ul class="markus-language-list">{options}</ul></details></div>'
     )
 
 
@@ -133,12 +226,12 @@ def card_image(entry: StandardEntry) -> str:
     return picture(entry.image, "day") + picture(entry.image_dark, "night")
 
 
-def card(entry: StandardEntry, *, heading_level: int = 2, date_format: str = "") -> str:
+def card(entry: StandardEntry, *, heading_level: int = 2, date_format: str = "", locale: str = "") -> str:
     level = f"h{heading_level}"
     image = card_image(entry)
     href = entry.url or entry.link or "#"
     summary = f'<p class="markus-card-summary">{esc(entry.summary_text)}</p>' if entry.summary_text else ""
-    meta = byline(entry, date_format)
+    meta = byline(entry, date_format, locale=locale)
     return (
         '<article class="markus-card">'
         f"{image}"
@@ -213,9 +306,17 @@ def section_index_html(view, render_card) -> str:
     )
 
 
-def home_sections_html(name: str, description: str, blocks, render_card, *, lead: bool) -> str:
+def home_heading(name: str, description: str, quiet: bool) -> tuple[str, str]:
+    """The home page's heading and intro. A quiet home (layout.column single) says the site's name only to assistive technology and has no intro:
+    the masthead already says it."""
+    if quiet:
+        return f'<h1 class="papyrus-visually-hidden">{esc(name)}</h1>', ""
+    return f"<h1>{esc(name)}</h1>", (f"<p>{esc(description)}</p>" if description else "")
+
+
+def home_sections_html(name: str, description: str, blocks, render_card, *, lead: bool, quiet: bool = False) -> str:
     """The home of sections: one block per section with its label, description, newest entries and a link to its index page."""
-    intro = f"<p>{esc(description)}</p>" if description else ""
+    heading_html, intro = home_heading(name, description, quiet)
     rendered = []
     for block in blocks:
         section = block.section
@@ -231,4 +332,4 @@ def home_sections_html(name: str, description: str, blocks, render_card, *, lead
             f'<h2 id="{esc(heading)}"><a href="{esc(block.href)}">{esc(section.label)}</a></h2>{about}{grid}'
             f'{_more_link(block.href, "More " + section.label)}</section>'
         )
-    return f'<div class="markus-document markus-home-sections"><h1>{esc(name)}</h1>{intro}{"".join(rendered)}</div>'
+    return f'<div class="markus-document markus-home-sections">{heading_html}{intro}{"".join(rendered)}</div>'

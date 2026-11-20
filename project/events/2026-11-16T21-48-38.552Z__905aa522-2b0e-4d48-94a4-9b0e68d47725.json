@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "905aa522-2b0e-4d48-94a4-9b0e68d47725",
+  "issue_id": "PPY-50a7f594-a703-476f-af89-1d013cbfbaa6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T21:48:38.552Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lifecycle on load: claims, five-star candidates, private pods",
+    "description": "Every lifecycle key lands on the same-named Item field, nothing dropped or renamed; the load records its commit and writes one version per load (no Git replay). Pod review stamps load as claims shown as Recorded in the pod by <name>, not verified, and never satisfy a hard gate, a required checklist step, publishRequiresRating or a five-star rule; a person confirms once in the newsroom. A rating of 5 is refused on load and listed as a five-star candidate. A pod with no site folder is private: pod build refuses and pod load loads notes as private newsroom data at their stage; a load never publishes. Decision accepted by Ryan 2026-11-16: stamps are unverified claims and there is no stronger pod.\n\n**Acceptance criteria**\n- Gherkin: Lossless load (every key lands on the same-named field; commit recorded; loading twice writes nothing).\n- Gherkin: A claim stays a claim.\n- Gherkin: A pod never grants five stars.\n- Gherkin: A pod with no site is private (pod build refuses; a load publishes nothing).\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

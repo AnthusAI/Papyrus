@@ -1,0 +1,28 @@
+{
+  "id": "PPY-c5cd6542-ac9b-47ed-a8aa-2cea32bb1b9c",
+  "title": "Pinned translation block under changed English was published silently",
+  "description": "A person's pinned block whose English source changed or was removed was kept and recorded as a conflict in provenance, but the run did not hold, so a stale paragraph (the 'relaunch' paragraph in the Spanish journalism translation) went out. Fixed on branch fix/localize-conflict-holds: a conflict now holds the run with the paragraph numbers.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "fc5d3053-b6b2-429f-a099-a768475d2b5e",
+      "author": "home",
+      "text": "Merged as PR 1670 on 2026-11-18: a pinned block under changed English now holds the run.",
+      "created_at": "2026-11-18T12:40:27.196158Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-18T12:24:35.342982Z",
+  "updated_at": "2026-11-18T12:40:27.196900Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

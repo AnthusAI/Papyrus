@@ -61,6 +61,22 @@ REFERENCE_ATTACHMENT_FIELDS = """
 id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath sourceUri filename mediaType byteSize sha256 etag importRunId importedAt metadata
 """
 
+CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION = """
+mutation CreateModelAttachmentDownload($attachmentId: ID!) {
+  createModelAttachmentDownload(attachmentId: $attachmentId) {
+    ok
+    attachmentId
+    method
+    downloadUrl
+    storagePath
+    mediaType
+    byteSize
+    expiresAt
+    requiredHeaders
+  }
+}
+"""
+
 KNOWLEDGE_RELATION_DOMAINS = {"knowledge", "ontology", "classification", "evidence"}
 DEFAULT_EXCLUDED_RELATION_DOMAINS = {"commentary", "workflow", "publication", "generic"}
 DEFAULT_EXCLUDED_RELATION_TYPES = {
@@ -406,6 +422,15 @@ class S3VectorsProvider:
             return None
         return list((vectors[0].get("data") or {}).get("float32") or []) or None
 
+    def existing_keys(self, keys: list[str]) -> list[str]:
+        """The subset of ``keys`` that has a vector in the index (``GetVectors`` without data, 100 keys to a request)."""
+        client = self._s3vectors_client()
+        found: list[str] = []
+        for start in range(0, len(keys), 100):
+            response = client.get_vectors(indexArn=self.vector_index_arn, keys=keys[start:start + 100], returnData=False)
+            found.extend(str(vector.get("key")) for vector in response.get("vectors") or [])
+        return found
+
     def query_by_vector(self, vector: list[float], top_k: int, metadata_filter: dict[str, Any] | None) -> list[dict[str, Any]]:
         """``QueryVectors`` with a ready vector; each match is ``{key, distance, metadata}``."""
         client = self._s3vectors_client()
@@ -453,6 +478,7 @@ class S3VectorsProvider:
         )
         with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - fixed OpenAI endpoint
             payload = json.loads(response.read().decode("utf-8"))
+        _record_embedding_usage(payload)
         return payload["data"][0]["embedding"]
 
     def _metadata_filter(self, scope: dict[str, Any], vector_kind: str | None = None) -> dict[str, Any] | None:
@@ -715,6 +741,33 @@ class GraphQLKnowledgeGraphProvider:
                 connection = payload.get(alias) or {}
                 results[lineage_id] = [item for item in connection.get("items") or [] if item]
         return results
+
+    def read_model_attachment_text(self, attachment: dict[str, Any], max_bytes: int = 2_000_000) -> str | None:
+        """The text of one ``ModelAttachment`` body, fetched as the caller: ``createModelAttachmentDownload`` is authorized for the caller's group
+        and returns a short-lived URL for exactly that attachment. The knowledge-query function's own role reads only ``corpora/*`` (not the
+        ``newsroom/payloads/*`` keys these bodies live under), so this is the one way it can read them and still never returns text the caller could not
+        fetch. A refusal or a failed download raises; the caller reports it."""
+        attachment_id = str(attachment.get("id") or "")
+        if not attachment_id:
+            return None
+        data = self.graphql(CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION, {"attachmentId": attachment_id})
+        slot = data.get("createModelAttachmentDownload") or {}
+        url = slot.get("downloadUrl")
+        if not url:
+            raise RuntimeError(f"the download slot for {attachment_id} had no URL")
+        headers = slot.get("requiredHeaders") or {}
+        if isinstance(headers, str):
+            try:
+                headers = json.loads(headers)
+            except json.JSONDecodeError:
+                headers = {}
+        request = urllib.request.Request(url, headers={str(key): str(value) for key, value in headers.items()}, method=slot.get("method") or "GET")
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - a presigned URL our own API just issued for this attachment
+                body = response.read(max_bytes + 1)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"download of {attachment_id} failed with HTTP {exc.code}") from exc
+        return body[:max_bytes].decode("utf-8", errors="replace")
 
     def list_outgoing_relations(self, obj: dict[str, Any]) -> list[dict[str, Any]]:
         kind = str(obj.get("kind") or obj.get("subjectKind") or "").strip()
@@ -1127,3 +1180,12 @@ def _bucket_from_amplify_outputs() -> str:
             if isinstance(entry, dict) and isinstance(entry.get("bucket_name"), str) and entry["bucket_name"]:
                 return entry["bucket_name"]
     return ""
+
+
+def _record_embedding_usage(payload: dict[str, Any]) -> None:
+    """Reports the embedding's tokens to the site's Prospectus usage sender (inactive outside a deployed site)."""
+    try:
+        from papyrus_cost_usage import site_usage
+    except ImportError:  # a bundle without the sender reports nothing
+        return
+    site_usage().record_openai(payload.get("usage"))

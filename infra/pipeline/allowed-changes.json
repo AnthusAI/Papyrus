@@ -17,6 +17,60 @@
       "logicalId": "DecisionReadyInvokePermission",
       "change": "Replace",
       "reason": "Its template is unchanged; CloudFormation reports a possible replacement because it depends on the router function. Recreated in the same update."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorEmailMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorEmailQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads OperatorEmailQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorIngestMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorIngestQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads OperatorIngestQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "StoryEventSourceMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to StoryQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads StoryQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "SuggestEventSourceMapping",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to SuggestQueue, and CloudFormation reports a possible replacement because its EventSourceArn reads SuggestQueue's Arn, which a tag update does not change. Remove after the release that carries the cost tags. An SQS mapping keeps no position: if it were recreated, the messages wait in the queue."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorDeadmanSeed",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorDeadmanSeedFunction, and CloudFormation reports a possible replacement because its ServiceToken reads OperatorDeadmanSeedFunction's Arn, which a tag update does not change. Remove after the release that carries the cost tags. Recreated, it would only write one more HeartbeatDelivered datapoint."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorRecipientKey",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorRecipientKeyFunction, and CloudFormation reports a possible replacement because its ServiceToken reads OperatorRecipientKeyFunction's Arn, which a tag update does not change. Remove after the release that carries the cost tags. Recreated, its provider never overwrites the existing key (Overwrite=False) and the old resource is retained (UpdateReplacePolicy Retain), so the pseudonym key is unchanged."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "OperatorSesEventsPermission",
+      "change": "Replace",
+      "reason": "Its template is unchanged; the cost-tag release (PPY-25e0d7) only adds anthus: tags to OperatorSesEventsRule, and CloudFormation reports a possible replacement because its SourceArn reads OperatorSesEventsRule's Arn, which a tag update does not change. Remove after the release that carries the cost tags. Recreated in the same update, as DecisionReadyInvokePermission is."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "RouterConfigApplier",
+      "change": "Replace",
+      "reason": "CloudFormation reports a custom resource update as a conditional replacement because the handler could answer with a new physical id. RouterConfigApplier's handler returns the physical id it was given (router-config), so a changed zip key re-applies the router config files in place and nothing is replaced or deleted (a replace would only re-run the same idempotent apply; its Delete does nothing)."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "RouterProcedureRunnerPolicy",
+      "change": "Remove",
+      "reason": "The router no longer invokes the procedure runner; it puts a wake on the site's queue (PPY-567bf9). Its permission to invoke the runner is replaced by RouterWakeQueuePolicy, which may send to the wake queues and nothing else."
     }
   ]
 }

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c912ab47-7ca2-46d7-94be-5eed7d3734e3",
+  "issue_id": "PPY-bded0cbd-0019-4d0f-8d02-da17ceb592d7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T18:50:47.697Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A section lists the personas that report for it",
+    "description": "Each section has an ordered list of personas allowed to report for it, edited beside the section's mission and policy. A persona can serve several sections.\nScenario: an editor links two personas to a section and the assignment form offers only those two. Scenario: a section with no personas while the feature is on refuses to assign a Story and says why, rather than picking one silently.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-40443baa-fee3-4b94-811c-569f70a62024",
+    "labels": []
+  }
+}

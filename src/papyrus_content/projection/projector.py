@@ -8,12 +8,14 @@ import json
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Protocol
+from collections.abc import Mapping
+from typing import Any, Protocol
 
 from ..markus_renderer.build import DEFAULT_THEME, render_fragment_text
-from ..markus_renderer.citations import CitationRendering
+from ..markus_renderer.citations import DEFAULT_LINK_MODE, LINK_MODES, CitationRendering
 from ..markus_renderer.content_markup import prepare_page
-from ..markus_renderer.images import ImagePipelineError, dark_sibling_candidates
+from ..markus_renderer.images import ImagePipelineError, ImageRequest, dark_sibling_candidates
+from ..markus_renderer.video import VideoRendering, VideoRequest
 from ..markus_renderer.convert import convert_text_in_process
 from ..markus_renderer.pages import (
     ARTICLES_INDEX_SLUG,
@@ -105,10 +107,32 @@ class MarkusProjectorSettings:
     theme: str | None = DEFAULT_THEME
     sections: tuple[str, ...] = ()
     citations: bool = True            # ``citations: false`` turns [@key] and ::citations off
+    citation_links: str = "external"  # ``citations: {"links": "external" | "internal" | "none"}``: how the bibliography links a source
+    citation_external_icon: bool = False   # ``citations: {"externalIcon": true}``: outside links carry the class ``citation-external`` and the Lucide external-link icon
     chrome: SiteChrome = DEFAULT_CHROME
     images: RenditionSettings | None = DEFAULT_IMAGE_SETTINGS   # ``images: false`` turns ::image off; an object declares the pipeline
     public_data: PublicDataSettings | None = None
     plugins: tuple[str, ...] = ()
+
+
+def citation_links_from_setting(value: object) -> str:
+    """``citations`` is ``true``/``false`` or ``{"links": "external" | "internal" | "none"}``; the links mode (default external)."""
+    if value is None or isinstance(value, bool):
+        return DEFAULT_LINK_MODE
+    if isinstance(value, dict) and set(value) <= {"links", "externalIcon"}:
+        links = value.get("links", DEFAULT_LINK_MODE)
+        if links in LINK_MODES:
+            return links
+        raise ValueError(f'projection.json "citations.links" must be one of {", ".join(LINK_MODES)}, not {links!r}')
+    raise ValueError('projection.json "citations" must be true, false or {"links": "external" | "internal" | "none", "externalIcon": true | false}')
+
+
+def citation_external_icon_from_setting(value: object) -> bool:
+    if isinstance(value, dict) and "externalIcon" in value:
+        if not isinstance(value["externalIcon"], bool):
+            raise ValueError('projection.json "citations.externalIcon" must be true or false')
+        return value["externalIcon"]
+    return False
 
 
 def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
@@ -118,8 +142,7 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
     unknown = set(raw) - allowed
     if unknown:
         raise ValueError(f"Unknown projection settings: {', '.join(sorted(unknown))}")
-    if raw.get("citations") is not None and not isinstance(raw["citations"], bool):
-        raise ValueError('projection.json "citations" must be true or false')
+    citation_links = citation_links_from_setting(raw.get("citations"))
     chrome_raw = dict(raw.get("chrome") or {})
     unknown_chrome = set(chrome_raw) - CHROME_FIELD_NAMES
     if unknown_chrome:
@@ -133,6 +156,8 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
         theme=raw["theme"] if "theme" in raw else DEFAULT_THEME,
         sections=tuple(raw.get("sections") or ()),
         citations=raw.get("citations") is not False,
+        citation_links=citation_links,
+        citation_external_icon=citation_external_icon_from_setting(raw.get("citations")),
         chrome=SiteChrome(**chrome_raw),
         images=images_from_projection(raw),
         public_data=public_data_settings_from_mapping(raw[PUBLIC_DATA_SETTINGS_KEY]) if PUBLIC_DATA_SETTINGS_KEY in raw else None,
@@ -192,8 +217,9 @@ class MarkusSiteProjector:
         self.version = static_version(self._static_files)
         # The registry save validates with (``derive_body``), so a directive one accepts the other renders.
         self._convert_text = convert_text or (lambda text: convert_text_in_process(text, theme=settings.theme, registry=papyrus_registry()))
-        self._citations = CitationRendering() if settings.citations else None
+        self._citations = CitationRendering(links=settings.citation_links, external_icon=settings.citation_external_icon) if settings.citations else None
         self._renditions = renditions
+        self._embeds = VideoRendering()   # ``embeds`` is a setting of the standard front end; a site without one shows a ::video as its plain link
 
     @classmethod
     def from_static_directory(
@@ -211,6 +237,14 @@ class MarkusSiteProjector:
             return StandardMarkusProjector.from_static_directory(static_directory, renditions=renditions, plugins=plugins)
         settings = dataclasses.replace(settings_from_mapping(raw), plugins=plugins)
         return cls(settings, read_static_files(static_directory, settings.theme), renditions=renditions)
+
+    #: Set for the length of one item page's render: ``entry -> path`` of this site's own page for a cited source (see ``site_relations.py``).
+    _citation_page_for: Callable[[Mapping[str, Any]], str | None] | None = None
+
+    def _citation_config(self) -> CitationRendering | None:
+        if self._citations is None or self._citation_page_for is None:
+            return self._citations
+        return dataclasses.replace(self._citations, page_for=self._citation_page_for)
 
     def _content_sections(self) -> tuple[str, ...]:
         return (ARTICLES_SECTION, *self._settings.sections)
@@ -251,6 +285,7 @@ class MarkusSiteProjector:
             citations=self._citations is not None,
             images_unavailable=NO_MEDIA_STORE if images and self._renditions is None else None,
             plain_images_upgraded=images and self._pipeline().upgrade_plain_images,
+            video_embeds=self._embeds.enabled,
         )
 
     def _image_builder(self, text: str) -> StoredRenditionImageBuilder | None:
@@ -274,14 +309,16 @@ class MarkusSiteProjector:
         return StoredRenditionImageBuilder(pipeline, catalog, url_root=self._image_url_root())
 
     def _fragment(self, text: str, depth: int, *, transform=None) -> str:
+        videos = self._embeds if self._embeds.enabled and "::video{" in text else None   # embeds off, or no directive: rendered exactly as before
         return render_fragment_text(
             text,
             convert=self._convert_text,
             depth=depth,
             images=self._pipeline(),
             image_builder=self._image_builder(text),
-            citations=self._citations,
+            citations=self._citation_config(),
             transform=transform,
+            videos=videos,
         )
 
     def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:

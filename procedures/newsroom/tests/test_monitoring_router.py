@@ -1060,6 +1060,18 @@ def test_intake_rationale_names_the_machine_decision():
     assert ReferenceIntake._machine_decision_note({}) == ""
 
 
+def test_the_router_zip_leaves_out_wheel_files_a_lambda_never_reads():
+    sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
+    try:
+        import build
+    finally:
+        sys.path.pop(0)
+    for kept in ("humanus/check.py", "humanus/languages/zh-Hans.yml", "pydantic-2.12.5.dist-info/METADATA", "humanus-0.37.0.dist-info/entry_points.txt"):
+        assert build.lambda_reads(kept), kept
+    for dropped in ("pydantic-2.12.5.dist-info/RECORD", "pydantic_core/core_schema.pyi", "humanus/py.typed", "jsonschema/tests/test_validators.py"):
+        assert not build.lambda_reads(dropped), dropped
+
+
 def test_router_zip_imports_with_only_the_standard_library(tmp_path):
     sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
     try:
@@ -1074,7 +1086,7 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
     assert not [name for name in names if name.split("/")[0] in {"youtube_transcript_api", "defusedxml", "requests", "urllib3", "certifi", "charset_normalizer"}], \
         "the router zip carries no YouTube transcript package, nor the packages only it needed"
     assert any(name.startswith("yaml/") for name in names) and any(name.startswith("idna/") for name in names)
-    assert out.stat().st_size < 6_000_000  # PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
+    assert out.stat().st_size < 6_200_000  # (the operation table grows with each operation the router carries but never calls: PPY-e4ae3a added three, PPY-51f96f one) PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
     code = (
         "import sys; sys.path.insert(0, sys.argv[1])\n"
         "import papyrus_content.monitoring_router as r, papyrus_content.monitoring_intake as i, papyrus_content.editorial_context as e\n"
@@ -1130,7 +1142,7 @@ def test_router_role_is_least_privilege():
     template = _template()
     statements = template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {s["Sid"] for s in statements} == {"MonitoringTable", "OwnLogs", "FailedInvocations", "CyclotronMachineInvoker",
-                                              "PublicationReferenceIntake", "SuggestQueueSend"}
+                                              "PublicationReferenceIntake", "SuggestQueueSend", "StoryQueueSend"}
     by_sid = {s["Sid"]: s for s in statements}
     assert by_sid["CyclotronMachineInvoker"]["Action"] == "sts:AssumeRole" and by_sid["CyclotronMachineInvoker"]["Resource"] == ("Ref", "CyclotronInvokerRoleArn")
     assert template["Parameters"]["CyclotronInvokerRoleArn"]["Default"] == "arn:aws:iam::682849160744:role/cyclotron-machine-invoker"
@@ -1248,16 +1260,6 @@ def test_table_name_is_published_for_the_read_only_monitoring_page():
     assert parameter["Type"] == "AWS::SSM::Parameter"
     assert parameter["Properties"]["Name"] == TABLE_PARAMETER
     assert parameter["Properties"]["Value"] == ("Ref", "MonitoringTable")
-
-
-def test_seed_cli_no_longer_accepts_ceiling_updates():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("seed_router_config", ROOT / "infra" / "monitoring" / "seed_router_config.py")
-    seed = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(seed)
-    for key, value in (("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300"), ("ceilings", "none")):
-        with pytest.raises(ValueError, match="not ceilings"):
-            seed.coerce(key, value)
 
 
 # --- not-ready outputs (criteria_pending) --------------------------------------------------------------

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "bb2b5b4d-5f95-4029-8482-f92c931b2779",
+  "issue_id": "PPY-c7244c12-9099-4ac2-abb2-125b7c20cc56",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:10.803Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us pages: brand packs, layout presets, block catalogue, the two tiers",
+    "description": "What: one page each, written when the matching epic ships. Includes the ordering rule and the freshness promise.\nAcceptance:\nScenario: Each shipped feature has a page\n  Given an epic of this initiative is closed\n  Then its p.apyr.us page exists",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-02227e22-29ee-45dd-93aa-1e2bfc1b1b49",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

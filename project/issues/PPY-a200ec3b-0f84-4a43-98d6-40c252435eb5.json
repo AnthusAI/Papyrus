@@ -1,0 +1,40 @@
+{
+  "id": "PPY-a200ec3b-0f84-4a43-98d6-40c252435eb5",
+  "title": "One worker per responsibility and scope",
+  "description": "State the rule once and enforce it with the queue: all wakes of one agent for one serial scope pass through one message group, so they run one at a time, in order. The definition names the scope: `subject` (one Story at a time, many Stories at once), `agent` (the whole agent one at a time, for anything that spends from one budget or posts to one account), or a named key such as the channel account. This replaces `limits.maxConcurrent`, the count of rows in flight, the 120-second grace and the router's deferred retry sweep. The total number of runs at once is the event source's maximum concurrency, set from the model provider's rate limit, a real constraint.\n\n**Acceptance criteria**\n- Two wakes in one group never run at the same time.\n- A burst for many subjects runs in parallel up to the provider limit.\n- `maxConcurrent`, the in-flight count and the deferred sweep are deleted.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- one-worker.feature: two changes to one Story run in order; changes to two Stories run together; an agent with scope `agent` runs one at a time across all subjects; a slow run delays only its own group.\n\n**Infrastructure as code touched:** Event source mapping maximum concurrency as a template parameter.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cd706fba-2516-4e3d-8df1-5b16e61c7ef7",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "bc9aad7a-17f2-4001-a8ef-aeb9d205782c",
+      "author": "home",
+      "text": "B4 part 1 shipped in PR #1711: a wake's message group is now the agent plus its serial scope from the definition's serialBy, carried in trigger.serialBy: subject (default for wakes no definition governs), agent (one scope for the whole agent; the announce agent now runs one at a time across all Stories), or key:<name> with the value in trigger.serialKey (a missing value or an unknown scope is not a wake). The wake records its scope. Spec: features_backend/one-worker.feature; unit tests in agent_wakes_test.py. Still open on this ticket: delete limits.maxConcurrent, the in-flight count, the 120-second grace and the router's deferred sweep (automation_gate.py, monitoring_router.py, automations.py), and the event source mapping's maximum concurrency as a template parameter (needs the live deploy path, not built here).",
+      "created_at": "2026-11-19T10:21:53.390767Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "783aad31-6224-4581-adcc-237ddb127cd7",
+      "author": "home",
+      "text": "Audit 2026-11-19: removed stale blocked-by PPY-567bf9 (closed; wake queue merged in PR #1642). Part 1 shipped in #1711; the remaining deletions need the live deploy path and are not built here.",
+      "created_at": "2026-11-19T11:07:25.339059Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:43:02.507117Z",
+  "updated_at": "2026-11-19T11:07:25.339827Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

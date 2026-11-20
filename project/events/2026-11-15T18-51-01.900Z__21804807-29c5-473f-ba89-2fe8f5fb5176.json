@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "21804807-29c5-473f-ba89-2fe8f5fb5176",
+  "issue_id": "PPY-60c14408-9959-4794-904a-e1721a5bcdd1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-15T18:51:01.900Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The stack-plan dry run cannot describe the procedure-runner stack: the plan role lacks cloudformation:DescribeStacks",
+    "description": "Every Papyrus PR's dry-run (stack-deploy) fails: the papyrus-stack-plan-github role (the production account) is not authorized to perform cloudformation:DescribeStacks on the papyrus-procedure-runner stack, because no identity-based policy allows it. The stack came with the runner-in-pipeline change (947bca90d). The plan role needs read-only DescribeStacks on that stack; roles change only through the role-stack-deploy workflow after a person approves it, so nothing was widened by an agent. Effect: no PR shows a plan, so a release that adds the EntityLabel table and the entity-label-sync consumer has no CI plan to read; the diff was read from a local synth instead.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

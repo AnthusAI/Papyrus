@@ -18,6 +18,11 @@ const workflow = parse(fs.readFileSync(path.join(repo, ".github/workflows/amplif
 const step = workflow.jobs.deploy.steps.find((candidate) => candidate.id === "target");
 assert.ok(step, "the deploy job has a step that works out the app and the role");
 
+// GitHub expressions have no arithmetic: `${{ inputs.timeout-minutes + 10 }}` made every caller's run fail to parse.
+for (const [name, expression] of Object.entries({ job: workflow.jobs.deploy["timeout-minutes"] })) {
+  assert.match(String(expression), /^\$\{\{\s*inputs\.[\w-]+\s*\}\}$/, `the ${name} timeout is a plain input, not an expression with arithmetic`);
+}
+
 const exampleAccount = "111122223333";
 const otherAccount = "123456789012"; // AWS documentation example account
 function runStep(inputs) {

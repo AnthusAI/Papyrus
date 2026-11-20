@@ -1,0 +1,55 @@
+{
+  "id": "PPY-6b2d3579-e513-4a6f-8136-6d041f9b0823",
+  "title": "Unify subscriber and consent ownership in notifications; migrate Shipped and Distinctive",
+  "description": "**Goal.** Notifications (Caducus) owns subscribers and consent. The newsletter plugin's subscriber table, consent rows, suppression rows and manage tokens move there, and the plugin stops owning any of them. Shipped and Distinctive keep sending throughout; MoM never has a newsletter table.\n\n**Design (target).** One table per site (`papyrus-notifications-<siteId>`): reader, subscription per kind, consent evidence, suppression, erasure. The newsletter's `LIST#` rows become subscriptions to kinds (the roundup list becomes the `roundup` kind, alert lists the `story.published` kind, already planned in PPY-bbc8e5). Consent evidence is copied and marked `migrated`, never re-requested. Manage and unsubscribe tokens in mail already sent stay valid: Caducus accepts the newsletter token format for those two routes only until the migration is verified, then the format is retired in one change (a dated, deleted-after-verification step, not a standing shim; coordinate with PPY-99738c). SES suppression is already shared, so no import.\n\n**Migration (per site, Shipped then Distinctive).** Dry run prints counts per list, consent coverage and suppressed addresses; real run is idempotent; counts verified; the site is switched in one deploy that also bumps what it needs (one deploy per site change); the newsletter plugin's subscriber code is deleted after both sites move. Never break a send week: freeze window agreed with Ryan.\n\n**Specification.**\n```gherkin\nFeature: Subscribers and consent live in notifications\n  Scenario: Moved without re-confirming\n    Given a confirmed roundup subscriber on a site using the newsletter plugin\n    When the migration runs\n    Then they are subscribed to the roundup kind with their original consent evidence marked migrated\n    And they receive no confirmation mail\n\n  Scenario: Counts match\n    When the dry run and the real run finish\n    Then subscribers, suppressed addresses and consent records per list match the source exactly\n\n  Scenario: Idempotent\n    When the migration runs twice\n    Then nothing changes the second time\n\n  Scenario: Old links\n    Given a subscriber migrated\n    When they use the manage or unsubscribe link from an old email\n    Then the change applies in the new system\n\n  Scenario: Suppressed stays suppressed\n    Given an address that bounced before the migration\n    When the next roundup is sent\n    Then it is not mailed\n\n  Scenario: One owner\n    Given the migration is verified on every site\n    Then no code in the newsletter plugin reads or writes a subscriber, consent or suppression row\n```\n\n**Depends on:** public audiences story. Blocks the issue-kind story. Supersedes the alert-list part of PPY-bbc8e5 (link, keep it for alert lists).\n**Related:** PPY-bbc8e5, PPY-99738c.\n\n**Answered (Ryan, 2026-11-12):** (1) A short freeze of Shipped and Distinctive sends during each move is fine. Agree the freeze window per site before each move.\n\n**Open questions for Ryan:** (1) Keep old-format links alive for how long after verification: until the last old email is older than the link lifetime (proposed), or cut at a date you pick?",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-824c144d-8531-404a-8f0e-41dcbfc6ebec",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-1081ad85-f547-4cbb-bbb9-bcc5bc539eb9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-bbc8e5be-9f9f-4374-a187-960a67623125",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-99738c29-4bfc-4a28-9262-a059a252a319",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "c6d0819a-bef1-47a6-8d5a-8a87ca29e865",
+      "author": "home",
+      "text": "Decision (Ryan, 2026-11-12): a short freeze of Shipped and Distinctive sends during each move is fine. Open-questions list updated: question 1 answered, question 2 (old link lifetime) remains.",
+      "created_at": "2026-11-12T13:04:32.335678Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "3da6af20-e6b4-48c0-a640-0cbf4615b5ce",
+      "author": "home",
+      "text": "Branch feat/PPY-6b2d35-subscriber-ownership, PR https://github.com/AnthusAI/Papyrus/pull/1702. Built: migration tooling (plan, run --dry-run, run, verify), dated legacy_links step, list kind, specs, docs. Nothing was run against any real site or AWS. Questions for Ryan: (1) Old-link end date: manage tokens never expire, so 'until the last old email is older than the link lifetime' has no end; please pick a date per site (the run takes --old-links-until). (2) Freeze window for Shipped and Distinctive sends: agree per site before each run. (3) Addresses that unsubscribed on the newsletter are not carried (a new signup is a fresh consent); confirm, or say to carry them as suppressed. (4) The newsletter stored the confirming visitor's raw IP in consent evidence (confirmIp); the run copies evidence verbatim. Keep verbatim, or hash it? (5) Front end: once the newsletter plugin leaves a site, /newsletter/preferences/, /newsletter/unsubscribe/ and /api/newsletter/unsubscribe (old one-click) must lead to the notifications pages and route with the token unchanged; needs a design call (static redirect pages need an external script under the strict CSP). Also: Caducus 0.4.0 MemoryStore.by_recipient is not sparse like the real byRecipient index, so erasing a subscriber that has an alias row fails in fakes; the specs patch it in the test harness; worth a Caducus fix. Open: the roundup list is declared with kind roundup but the newsletter.issue kind is registered by the issue-kind story.",
+      "created_at": "2026-11-19T04:53:14.811080Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "dd1b7cb5-694c-4eb1-b8e7-50191146e467",
+      "author": "home",
+      "text": "Merged to develop in PR #1702 (migration tooling with fakes only; nothing run on any site). Open, needs Ryan: (1) old-link end date per site; (2) send freeze window per site (Shipped, Distinctive); (3) confirm addresses that unsubscribed on the newsletter are not carried; (4) copy confirmIp verbatim or hash; (5) front-end redirect design for old newsletter page and one-click URLs. Unmet: one owner (@wip) until both sites verified live.",
+      "created_at": "2026-11-19T07:24:31.043067Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-12T12:46:02.655226Z",
+  "updated_at": "2026-11-19T07:24:31.043328Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ea8f49bf-cdd4-4d1d-8fd2-3bc3c11018fc",
+  "issue_id": "PPY-57f6d29b-f3bc-47e6-8efb-d88fd2e4bbbb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:08.831Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Vote, Rating, Comments and Flag islands as catalogue blocks placed from data",
+    "description": "Acceptance:\nScenario: A block is placed with configuration only\n  Given a layout that lists the Vote block on stories\n  When the story renders\n  Then the island markup appears with no hook code",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

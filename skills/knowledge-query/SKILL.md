@@ -346,9 +346,10 @@ Check `structured.request.semanticQuerySource`:
 Remote execution (the default) needs no AWS credentials. Sign in once with
 `papyrus login <site>` and the query runs on your session; with several signed-in sites, add
 `--site <host>` (or set `PAPYRUS_GRAPHQL_ENDPOINT`). The site allows the query for editors and admins;
-anyone else gets a one-line refusal. Without a session, remote execution still works from a machine with
-AWS credentials (`AWS_PROFILE`; SigV4) and `PAPYRUS_GRAPHQL_ENDPOINT`, and
-`PAPYRUS_GRAPHQL_AUTH=iam` forces that lane. Use `--execution local` when changing engine code under
+anyone else gets a one-line refusal. Without a session the command refuses and names `papyrus login <site>`
+and `papyrus --auth iam`: the signed-in lane is the default, and AWS credentials (`AWS_PROFILE`; SigV4, with
+`PAPYRUS_GRAPHQL_ENDPOINT`) are used only when the operator lane is named (`papyrus --auth iam knowledge query ...`
+or `PAPYRUS_GRAPHQL_AUTH=iam`). `--execution auto` never turns a missing session into the local engine. Use `--execution local` when changing engine code under
 `src/papyrus_knowledge_query/`; the local engine reads S3 and S3 Vectors directly, so it needs AWS credentials.
 
 Semantic-only smoke:
@@ -413,8 +414,8 @@ poetry run papyrus knowledge query \
 The CLI uses local environment configuration:
 
 - `PAPYRUS_GRAPHQL_ENDPOINT` (or a `papyrus login` session, which supplies the endpoint)
-- the `papyrus login` session for remote execution, or AWS credentials from the standard chain (`AWS_PROFILE`) for
-  the IAM lane and for `--execution local`
+- the `papyrus login` session for remote execution (the default lane), or AWS credentials from the standard chain
+  (`AWS_PROFILE`) for the IAM lane (named with `papyrus --auth iam`) and for `--execution local`
 - optional `PAPYRUS_S3_VECTOR_INDEX_ARN`
 - optional `OPENAI_API_KEY`
 

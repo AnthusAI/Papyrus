@@ -186,10 +186,28 @@ class DynamoStore:
         return self.query_prefix(pk(monitor_id), "QUERY#")
 
     def put_receipt(self, monitor_id, record):
-        self.table.put_item(Item=record)
+        self.table.put_item(Item=_storable(record))
 
     def put_state(self, monitor_id, record):
-        self.table.put_item(Item=record)
+        self.table.put_item(Item=_storable(record))
+
+
+TINY_NUMBER = Decimal("1e-100")   # DynamoDB stores numbers from 1E-130 up, with 38 digits; anything smaller is a rounding artefact of a statistic
+
+
+def _storable(value):
+    """The record with every number made one DynamoDB will store. boto3 refuses a Decimal that is too small or has more than 38 digits (``Underflow`` /
+    ``Inexact``) and that refusal fails the whole write, so a receipt carrying one odd statistic was lost. A number below 1e-100 is stored as 0 and the rest
+    keep 15 significant digits; everything else is unchanged."""
+    if isinstance(value, dict):
+        return {key: _storable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_storable(item) for item in value]
+    if isinstance(value, float):
+        value = Decimal(repr(value))
+    if isinstance(value, Decimal) and value.is_finite() and value != 0:
+        return Decimal(0) if abs(value) < TINY_NUMBER else Decimal(f"{value:.15g}")
+    return value
 
 
 def _validate_config(raw: dict) -> dict:
@@ -200,8 +218,9 @@ def _validate_config(raw: dict) -> dict:
     if source_type == WEB_SEARCH:
         raw = {"sourceUrl": TAVILY_SOURCE_URL, "intervalSeconds": WEB_INTERVAL_SECONDS, **raw}
     source = urlsplit(str(raw.get("sourceUrl") or ""))
+    feed_part = {}
     if source_type == "feed":
-        validate_feed_config(raw)   # the allowed hosts are monitoring_feed.FEED_HOSTS; a feed address may carry a query
+        feed_part = validate_feed_config(raw)   # a built-in host (monitoring_feed.FEED_HOSTS) or any public host the config names with sourceName; a feed address may carry a query
     elif (source.scheme != "https" or source.hostname != host or source.username
             or source.password or source.query or source.fragment):
         raise ValueError(f"Config sourceUrl must be an https://{host} URL for a {source_type} monitor")
@@ -213,7 +232,7 @@ def _validate_config(raw: dict) -> dict:
     if retired:   # an old stored config still loads, so deploy and seed order do not matter
         print(json.dumps({"monitor": "ignored_retired_config", "fields": retired}))
     config = {"sourceType": source_type, "sourceUrl": raw["sourceUrl"], "intervalSeconds": interval,
-              "enabled": raw.get("enabled", True) is not False, **({"runAt": run_at} if run_at else {})}
+              "enabled": raw.get("enabled", True) is not False, **({"runAt": run_at} if run_at else {}), **feed_part}
     if source_type == "ttab-decisions":
         lookback = int(raw.get("lookbackDays", 30))
         if not 1 <= lookback <= 180:
@@ -329,7 +348,7 @@ def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_i
               "observedAt": observed, "monitorId": monitor_id, "sourceUrl": config["sourceUrl"],
               "mediaType": item.media_type if item.media_type != "text/html" else None,
               "aliases": list(item.aliases) or None, "details": item.details or None,
-              "sourceType": config["sourceType"] if item.details else None}
+              "sourceType": config["sourceType"] if item.details else None, "sourceName": config.get("sourceName")}
     discovery = {k: v for k, v in fields.items() if v is not None}
     discovery.update(pk=pk(monitor_id), sk=f"DISC#{item.source_id}#{revision:06d}",
                      routing=ROUTING_COLLECTED, runId=run_id,

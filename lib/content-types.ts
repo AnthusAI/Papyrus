@@ -104,5 +104,7 @@ export type ContentRepository = {
   getEditionArticle(options: GetEditionArticleOptions): Article | undefined | Promise<Article | undefined>;
   getEditionItem(options: GetEditionItemOptions): PublicationItem | undefined | Promise<PublicationItem | undefined>;
   listArticleSlugs(): string[] | Promise<string[]>;
+  /** The newest published articles, newest first, read from the item index (no edition needed). */
+  listNewestArticles(limit: number): Article[] | Promise<Article[]>;
   loadVideoScript(targetSlug: string): VideoScriptRef | null | Promise<VideoScriptRef | null>;
 };

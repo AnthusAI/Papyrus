@@ -20,11 +20,16 @@ from .machine_writes import apply_stamp
 from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
-from .content_item_lifecycle import UNTYPED_ITEM_TYPE
+from .content_item_lifecycle import UNTYPED_ITEM_TYPE, head_stage_fields
 from .item_stars import assert_no_item_stars
+from .item_front_matter import dek_from_front_matter
+from .item_language import ItemLanguageMissing, item_language, item_language_group
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
 PUBLISHED_ID_PREFIX = "published-"
+#: The key a projection task carries when its item was just published (``{"publishedItemId": ...}``): the page is made, and then the Story's follow-up work (its translations)
+#: is asked for. Nothing in a publish tells another function: a Story's page going live reaches the announce agent from the Item change feed.
+PUBLISHED_TASK_KEY = "published"
 DATE_FORMATS = ("%A, %B %d, %Y", "%B %d, %Y", "%b %d, %Y", "%Y-%m-%d", "%Y/%m/%d")
 MEDIA_COMMON_FIELDS = (
     "type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
@@ -45,6 +50,8 @@ class ItemFields:
     overrides: dict | None = None
     #: ``{"runId", "writer"}`` of a machine write: recorded in ``metadata.machineWrite`` (machine_writes.py).
     machine_write: dict | None = None
+    #: Keys merged into the Item's ``metadata`` as the row is written (``pod`` from ``papyrus pod load``); a key given here replaces the stored one.
+    metadata: dict | None = None
 
 
 @dataclass
@@ -60,11 +67,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 class PublishError(Exception):
-    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None):
+    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None, details: dict[str, Any] | None = None):
         super().__init__(message or code)
         self.code = code
         self.message = message or code
         self.errors = list(errors or [])
+        self.details = dict(details or {})   # machine-readable extras, e.g. {"openSteps": [{"key", "label"}]} for checklist-open
 
 
 def item_id_for(section: str | None, slug: str) -> str:
@@ -126,7 +134,7 @@ def columns_from_front_matter(fm: dict) -> dict:
         "title": title,
         "headline": title,
         "sortTitle": title,
-        "deck": _first_text(fm.get("deck"), fm.get("standfirst"), fm.get("description")),
+        "deck": dek_from_front_matter(fm),   # the one derivation: item_front_matter.DEK_KEYS
         "byline": byline,
         "publishedAt": _iso_from_date_value(fm.get("date")),
     }
@@ -236,6 +244,7 @@ def save_item(
     columns.update({key: value for key, value in (fields.overrides or {}).items()})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     metadata["source"] = {"path": fields.source_path}
+    metadata.update(fields.metadata or {})
     apply_stamp(metadata, fields.machine_write, created=existing is None, now=now)
 
     record = {
@@ -252,6 +261,7 @@ def save_item(
         "metadata": to_aws_json(metadata),
         "contentHash": _source_content_hash(fields),
     }
+    record.update(head_stage_fields(record))   # a save in place keeps the row in the head stage index while it is the head
     client.upsert("Item", compact_dict(record))
     return record
 
@@ -279,6 +289,8 @@ def project_item_to_published(
     media: list[dict],
     *,
     published_at: str,
+    version_published_at: str,
+    version_published_by: str,
     version_number: int,
 ) -> tuple[dict, list[dict]]:
     lineage_id = item.get("lineageId") or item["id"]
@@ -308,10 +320,16 @@ def project_item_to_published(
         "byline": item.get("byline"),
         "dateline": item.get("dateline"),
         "publishedAt": published_at,
+        "versionPublishedAt": version_published_at,
+        "versionPublishedBy": version_published_by,
         "sortTitle": item.get("sortTitle"),
         "pullQuotes": [],
         "layout": to_aws_json({"source": "cms"}),
         "editorial": to_aws_json({}),
+        # The language of the published version and its group, copied from the version (item_language.py): the projection serves each language under
+        # its URL prefix and joins the group's published languages (docs/multilingual-serving.md). A version without a language is refused, naming the backfill.
+        "language": item_language(item),
+        "languageGroupId": item_language_group(item),
     }
     published_media = [
         compact_dict(
@@ -337,23 +355,36 @@ def _load_item(client, item_id: str) -> dict:
     return item
 
 
+def _delete_published_media(client, lineage_id: str, rows: list[dict]) -> list[str]:
+    """Delete the published picture rows of a lineage that its projection no longer keeps; the ids it actually deleted. See ``delete_lineage_row``
+    for why a row with no tenant stamp is still the lineage's to delete and a row that is already gone is not a failure."""
+    return [row["id"] for row in rows if client.delete_lineage_row("PublishedMediaAsset", row["id"], lineage_id)]
+
+
 def publish_item(
     client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None
 ) -> PublishResult:
     """Publish an item. ``approved_by`` names the signed-in person whose action this is (the console editor); a site that requires
-    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version."""
+    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version.
+    The checklist of the lineage being published gates it, a translation's included (``story_checklist.require_checklist_closed``)."""
     now = now or utc_now_iso()
     item = _load_item(client, item_id)
     lineage_id = item.get("lineageId") or item_id
     published_id = published_item_id_for(lineage_id)
     metadata = _parse_json_object(item.get("metadata"))
     envelope = _derive_or_raise(metadata.get("frontMatterYaml"), item.get("bodyMarkus") or "")
+    if item.get("type") == "sub-task":
+        raise PublishError("sub-task-not-publishable", "A checklist step belongs to its Story and is never published on its own.")
     if item.get("type") == UNTYPED_ITEM_TYPE:
         raise PublishError("type-required", "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.")
     if item.get("type") == WIKI_PAGE_ITEM_TYPE:
         problems = stamp_problems(_load_front_matter(metadata.get("frontMatterYaml")))
         if problems:
             raise PublishError("wiki-stamp", "A wiki page needs a review stamp to be published: " + "; ".join(problems))
+    try:
+        item_language(item), item_language_group(item)
+    except ItemLanguageMissing as error:
+        raise PublishError("language-missing", str(error)) from error
     media = client.list_by_index("mediaAssetsByItemAndSortKey", item_id)
     _require_images_present(envelope, media)
 
@@ -362,9 +393,28 @@ def publish_item(
     already_projected = existing is not None and existing_hash == item.get("contentHash")
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
+    from .localization_publish import original_of, require_publishable
     from .publish_gate import ensure_publish_approval
+    from .story_checklist import ChecklistError, require_checklist_closed
 
+    original = original_of(client, item)
+    if original is not None:
+        require_publishable(client, item, original)   # a translation is published only while its original is, and a hold on it is cleared (localization_publish.py)
+    try:
+        require_checklist_closed(client, item)   # the checklist of this lineage (a Story's or a language's): every required step done, or skipped / not applicable with a reason
+    except ChecklistError as error:
+        raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
     ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
+    if item.get("type") == WIKI_PAGE_ITEM_TYPE:
+        # A concept's own page is served in every language the site serves, so the concept's name is needed in each (a note in the work list; nothing is named now).
+        from .entity_labels.wanted import record_wanted_for_page
+
+        record_wanted_for_page(client, str(_load_front_matter(metadata.get("frontMatterYaml")).get("entityKey") or ""), now=now)
+    if original is not None:
+        # The pages of this language show the concepts the original is tagged with, so their names are needed here. Only a note in the work list: nothing is named now.
+        from .entity_labels.wanted import record_wanted_for_translation
+
+        record_wanted_for_translation(client, original, item_language(item), now=now)
     if already_projected:
         version_number = existing.get("versionNumber") or 1
     elif existing is not None:
@@ -376,18 +426,18 @@ def publish_item(
     published, published_media = project_item_to_published(
         projectable,
         media,
-        published_at=item.get("publishedAt") or now,
+        published_at=item.get("publishedAt") or now,   # the first publication: save_story_version carries it to every later version
+        version_published_at=now,
+        version_published_by=actor,
         version_number=version_number,
     )
 
     for row in published_media:
         client.upsert("PublishedMediaAsset", row)
     keep_ids = {row["id"] for row in published_media}
-    deleted = []
-    for row in client.list_by_index("publishedMediaAssetsByItemAndSortKey", published_id):
-        if row["id"] not in keep_ids:
-            client.delete_record("PublishedMediaAsset", row["id"])
-            deleted.append(row["id"])
+    deleted = _delete_published_media(
+        client, lineage_id, [row for row in client.list_by_index("publishedMediaAssetsByItemAndSortKey", published_id) if row["id"] not in keep_ids]
+    )
     client.upsert("PublishedItem", published)
     client.update_record(
         "Item",
@@ -397,17 +447,25 @@ def publish_item(
             "stage": "published",
             **_status_keys(item.get("type") or "", item.get("section"), "published"),
             "publishedAt": published["publishedAt"],
+            "versionPublishedAt": now,
+            "versionPublishedBy": actor,
             "versionState": "current",
-            "versionCreatedAt": now,
-            "versionCreatedBy": actor,
-            "changeReason": "publish",
             "bodyIr": to_aws_json(envelope),
+            **head_stage_fields({"versionState": "current", "stage": "published"}),   # the published record is the head
         },
     )
-    # The published record is the one current record of its lineage.
+    # The published record is the one current record of its lineage, and the only one in the head stage index.
+    from .story_reporting import superseding_update
+
     for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
-        if sibling["id"] != item_id and sibling.get("versionState") == "current":
-            client.update_record("Item", {"id": sibling["id"], "versionState": "superseded"})
+        if sibling["id"] != item_id and sibling.get("versionState") in ("current", "draft"):
+            client.update_record("Item", superseding_update(sibling))
+    from .content_item_lifecycle import is_story_item_type
+
+    if is_story_item_type(item.get("type")):
+        from .story_checklist import mark_published
+
+        mark_published(client, lineage_id, actor_label=actor)
     return PublishResult(True, item_id, published_id, version_number, deleted)
 
 
@@ -421,10 +479,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
     if published is None and not media_rows and item.get("status") != "published":
         return PublishResult(False, item_id, published_id, (published or {}).get("versionNumber"))
 
-    deleted = []
-    for row in media_rows:
-        client.delete_record("PublishedMediaAsset", row["id"])
-        deleted.append(row["id"])
+    deleted = _delete_published_media(client, lineage_id, media_rows)
     if published is not None:
         client.delete_record("PublishedItem", published_id)
     client.update_record(
@@ -434,9 +489,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
             "status": "draft",
             "stage": "copywriting",
             **_status_keys(item.get("type") or "", item.get("section"), "draft"),
-            "versionCreatedAt": now,
-            "versionCreatedBy": actor,
-            "changeReason": "unpublish",
+            **head_stage_fields({**item, "stage": "copywriting"}),
         },
     )
     return PublishResult(True, item_id, published_id, (published or {}).get("versionNumber"), deleted)
@@ -448,6 +501,11 @@ class DryRunClient:
     def __init__(self, client) -> None:
         self._client = client
         self.planned: list[dict[str, str]] = []
+
+    @property
+    def tenant_id(self) -> str | None:
+        """The wrapped client's tenant: a read made through a dry run is checked against the same scope as the real publish."""
+        return getattr(self._client, "tenant_id", None)
 
     def get_record(self, model_name: str, record_id: str):
         return self._client.get_record(model_name, record_id)
@@ -470,3 +528,7 @@ class DryRunClient:
 
     def delete_record(self, model_name: str, record_id: str) -> None:
         self.planned.append({"operation": "delete", "model": model_name, "id": record_id})
+
+    def delete_lineage_row(self, model_name: str, record_id: str, lineage_id: str) -> bool:
+        self.planned.append({"operation": "delete", "model": model_name, "id": record_id})
+        return True

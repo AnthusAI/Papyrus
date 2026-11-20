@@ -29,7 +29,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 
 | Key | Contents |
 |---|---|
-| `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`), `dateFormat` (a `strftime` pattern such as `%B %d, %Y` for the dates the core components and the article header print; default: ISO dates), `ledeField` (a front matter field whose text is printed as the article's lede under its title, in place of the summary-derived one; default: none) |
+| `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`), `dateFormat` (a `strftime` pattern such as `%B %d, %Y` for the dates the core components and the article header print; default: ISO dates), `ledeField` (a front matter field whose text is printed as the article's lede under its title, in place of the summary-derived one; default: none), `languageSwitcher` (`placement`: `masthead` (default), `footer` or `none`; `prominence`: `normal` or `quiet`; on a site that serves more than one public language, see [multilingual serving](multilingual-serving.md)) |
 | `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, listingPage, feed, sitemap, linkField, pageSize, listEmpty, sort, groupBy, archive, aliases } }`. `types`: `{ "<Item type>": { base, label, ... } }`, the same settings keyed on the Item's type instead of its section (see "Sections and types"). Leave both out for a site without sections. `basePath` (for example `"/posts"`): every page and file Papyrus generates, and every URL it builds, lives under that path, so another site's CDN can serve the projection with one route (see [Serving a projection under a host site's path](site-hosting.md#serving-a-projection-under-a-host-sites-path)). Paths you write yourself (nav and footer links, `seo` and `icons` paths, redirects, aliases, links in articles) are request paths and are used as written, so they include the base path. `404.html` and `robots.txt` stay at the bucket root. Image renditions, listing copies and `media.originals` objects live under the base path too (`/posts/assets/responsive/...`), and the image URLs in a page are root-relative under it (a site at the root keeps page-relative `../assets/...` URLs) |
 | `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
 | `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
@@ -148,7 +148,7 @@ An entry's `image_dark` is the Night version of its `image` (front matter `image
 the entry has no `image`). The standard listing cards, which every site gets unless it sets a `card` hook, then carry both
 pictures and `markus-components.css` shows one by theme: the system setting, or a theme picked by hand (`dark` or `dark-theme`
 on the root element shows Night, `light`, `light-theme` or `data-theme="light"` shows Day). It needs no JavaScript, and the picture
-that is hidden is not fetched. Social images (`og:image`), feeds and the public data always use `image`. A site's own `card` hook
+that is hidden is not fetched. Social images (`og:image`), feeds and the public data always use `image`. A Story's own picture takes its description for `og:image:alt` and `twitter:image:alt` from front matter `imageAlt` (the site's `seo.defaultImageAlt` describes the default picture only); without `imageAlt` no alt is emitted for it, and `papyrus stories lens-check` says so ([four-lens review](four-lens-review.md)). A site's own `card` hook
 reads `entry.image_dark` itself, or `components.card_image(entry)` for the same markup. Nothing needs to be written by hand: when a Story is
 published, and its `image` is a body `::image` figure that has a `srcDark` (the file itself or one of its
 `assets/responsive/<folder>/<stem>-<width>.<ext>` renditions), the Night file or rendition is stored with the item's listing data as
@@ -192,6 +192,13 @@ not the production origin is **guarded**: every page gets `<meta name="robots" c
 `productionUrl` and sets no `PAPYRUS_SITE_ENV` has nothing to guard and behaves as production. `environment.guard:
 false` switches it off. A guarded build also never emits Google Analytics: `chrome.ga_measurement_id` and `chrome.consent_mode` (with its
 banner) are dropped from every page, so a staging site does not count visits.
+
+`chrome.consent_mode` also takes the region-aware settings `region_lookup` (off by default; when absent the notice shows to
+everyone, as before), `region_lookup_address` (default `/_papyrus/consent`), `region_lookup_timeout_milliseconds` (default
+1500), `denied_by_default_regions` (replaces the default list of regions that need a notice) and
+`additional_denied_by_default_regions` (adds to it). The default list is a policy choice that the owner owns, not legal
+advice. Turning `region_lookup` on only works once the site's edge answers that address; see
+[region-aware consent](region-aware-consent.md) and `site-hosting.md`, "Consent Mode v2 and the consent banner".
 
 ## The head
 
@@ -325,6 +332,7 @@ error (prefix helpers with `_`):
 | `page_finish(html, page)` | the finished page as text, the page | the text that is written; the last step, after `head_extra`, `body_class` and `page_body` |
 | `page_inputs(site)` | a `HookSite` | JSON-able data every page also renders from (a table of URLs it rewrites links with); every page is rendered again when it changes |
 | `redirects(site)` | a `HookSite` | exact redirects `{"/old/": "/new/"}` derived from the items, on top of the items' `aliases`; `redirects.exact` of `projection.json` wins over it, and a path that is a page is never redirected |
+| `byline(entry)` | an entry | the complete byline text (`"By various bots and Ryan Porter"`, plain text, escaped by core), or `None` for the default. It replaces the linked author names in the item page's byline (`components.itemByline`) and the "By ..." line of the Markdown twin, so the page and its twin agree; it reads only the entry |
 | `block(name, attributes, page)` | the name of an `::include{kind="block"}`, its other attributes (without `kind`, `name`, `depends`), the page | the markup of the block (see "Authored page files") |
 
 `card` may also take `variant` (the `card` attribute of an `::include` listing, otherwise `None`) and `index` (the card's place in its list, from 0) as parameters of those names; a hook without `variant` rejects an include that names one.
@@ -792,5 +800,5 @@ uses the text display.
 
 Entries carry the item's raw front matter as `entry.data` and a `derived` map from the `derive` hook, both part of
 the dependency fingerprints, so a new per-item field (a content shape, a shelf life, a pin-until date) reaches
-hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`) and
+hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`; hooks that draw their own listing call `page.ranked(entries, bucket=None)` for the Story ranking the home page uses: rolling recency bucket, then the editors' stars, unchanged when nothing is rated; a rating that moves the order re-renders those pages) and
 selection is the `listed` flag plus section options, so pin and shelf-life rules are additions at those two seams.

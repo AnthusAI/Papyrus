@@ -9,12 +9,13 @@
       "paths": ["infra/newsletter/", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
       "capabilities": [],
       "tags": { "papyrus:site": "operators", "papyrus:feature": "operator-alerts" },
-      "parameters": { "SiteId": "operators", "SendingDomain": "notify.anth.us", "EventTransport": "eventbridge" },
+      "parameters": { "SiteId": "operators", "SendingDomain": "notify.anth.us", "EventTransport": "eventbridge", "CostAccount": "shared" },
       "lookups": { "HostedZoneId": { "hostedZone": "anth.us" } },
       "keepPrevious": false
     },
     {
       "name": "papyrus-monitoring",
+      "hold": "PPY-e713eb: held for the 5.130.0 release window; the runner and the sites switch together (docs/release-5-130-plan.md section 2). Taking this line out is the go.",
       "template": "infra/monitoring/papyrus-monitoring.yaml",
       "paths": [
         "infra/monitoring/",
@@ -36,6 +37,131 @@
         { "parameter": "OperatorCodeKey", "script": "infra/monitoring/build.py", "args": ["--operator"] }
       ],
       "keepPrevious": true
+    },
+    {
+      "name": "papyrus-procedure-runner-repository",
+      "template": "infra/procedures/papyrus-procedure-runner-repository.yaml",
+      "paths": [
+        "infra/procedures/papyrus-procedure-runner-repository.yaml",
+        "infra/pipeline/stacks.json",
+        "infra/pipeline/allowed-changes.json",
+        "infra/pipeline/papyrus-stack-pipeline.yaml"
+      ],
+      "capabilities": [],
+      "tags": {},
+      "parameters": {},
+      "import": {
+        "resourceType": "AWS::ECR::Repository",
+        "logicalId": "RunnerRepository",
+        "identifierKey": "RepositoryName",
+        "lookup": {
+          "kind": "ecrRepositoryByName",
+          "name": "papyrus-procedure-runner"
+        }
+      },
+      "keepPrevious": false
+    },
+    {
+      "name": "papyrus-procedure-runner",
+      "template": "infra/procedures/papyrus-procedure-runner.yaml",
+      "paths": [
+        "infra/procedures/",
+        "src/",
+        "corpora/",
+        "pyproject.toml",
+        "README.md",
+        "LICENSE",
+        "infra/pipeline/stacks.json",
+        "infra/pipeline/allowed-changes.json",
+        "infra/pipeline/papyrus-stack-pipeline.yaml"
+      ],
+      "capabilities": [
+        "CAPABILITY_IAM"
+      ],
+      "tags": {},
+      "parameters": {
+        "MonitoringTableName": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "TableName"
+          }
+        },
+        "DistinctiveApiId": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "ApiIdDistinctive"
+          }
+        },
+        "AnthUsApiId": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "ApiIdAnthUs"
+          }
+        },
+        "MachinesOnMachinesApiId": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "ApiIdMachinesOnMachines"
+          }
+        },
+        "ThreatIntelApiId": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "ApiIdThreatIntel"
+          }
+        },
+        "DataParadeApiId": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "ApiIdDataParade"
+          }
+        },
+        "PilobolusApiId": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "ApiIdPilobolus"
+          }
+        },
+        "ShippedApiId": {
+          "fromStackOutput": {
+            "stack": "papyrus-monitoring",
+            "output": "ApiIdShipped"
+          }
+        }
+      },
+      "builds": [
+        {
+          "parameter": "ImageUri",
+          "script": "infra/procedures/build_image.py",
+          "kind": "image",
+          "args": []
+        }
+      ],
+      "keepPrevious": true
+    },
+    {
+      "name": "papyrus-shared-staging-foundation",
+      "group": "shared",
+      "hold": "PPY-daf673: the first create of a shared stack waits for Ryan's go (docs/shared-stack.md lists what to say go to). Taking this line out is the go.",
+      "template": "infra/shared-stack/papyrus-shared-foundation.yaml",
+      "paths": ["infra/shared-stack/", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
+      "capabilities": ["CAPABILITY_NAMED_IAM"],
+      "serviceRoleName": "papyrus-shared-deploy-cloudformation",
+      "tags": { "anthus:account": "shared", "anthus:app": "papyrus", "anthus:deployment": "shared-staging", "anthus:cost-key": "shared/papyrus/shared-staging" },
+      "parameters": { "Tier": "staging", "MonthlyBudgetUsd": "100" },
+      "keepPrevious": false
+    },
+    {
+      "name": "papyrus-shared-prod-foundation",
+      "group": "shared",
+      "hold": "PPY-daf673: the first create of a shared stack waits for Ryan's go (docs/shared-stack.md lists what to say go to). Taking this line out is the go.",
+      "template": "infra/shared-stack/papyrus-shared-foundation.yaml",
+      "paths": ["infra/shared-stack/", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json", "infra/pipeline/papyrus-stack-pipeline.yaml"],
+      "capabilities": ["CAPABILITY_NAMED_IAM"],
+      "serviceRoleName": "papyrus-shared-deploy-cloudformation",
+      "tags": { "anthus:account": "shared", "anthus:app": "papyrus", "anthus:deployment": "shared-prod", "anthus:cost-key": "shared/papyrus/shared-prod" },
+      "parameters": { "Tier": "production", "MonthlyBudgetUsd": "500" },
+      "keepPrevious": false
     }
   ]
 }

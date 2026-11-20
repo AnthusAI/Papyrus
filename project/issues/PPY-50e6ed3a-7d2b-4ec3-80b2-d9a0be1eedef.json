@@ -1,0 +1,20 @@
+{
+  "id": "PPY-50e6ed3a-7d2b-4ec3-80b2-d9a0be1eedef",
+  "title": "The site notice is one quiet line, fixed to the footer when a site chooses",
+  "description": "Ryan 11-15: the satire strip becomes a small line; site.notice.placement inline or fixed-footer.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-15T21:18:37.724265Z",
+  "updated_at": "2026-11-15T21:18:37.724859Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

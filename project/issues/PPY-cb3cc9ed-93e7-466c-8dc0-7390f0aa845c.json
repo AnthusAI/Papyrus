@@ -1,0 +1,52 @@
+{
+  "id": "PPY-cb3cc9ed-93e7-466c-8dc0-7390f0aa845c",
+  "title": "Newsletter assembly: slots fill during the week, editors curate, pinned slots survive refills",
+  "description": "Newsletters are assembled, not generated whole. An issue Delivery is built from slots that fill automatically as Stories qualify during the week (the machine's picks and blurbs), and an editor curates: reorders, rewrites, swaps, pins, drops. Pinned slots stay when the machine refills the rest. Uses the 5a edit window, versions and lock time; the Machines on Machines roundup (Mon 4 AM ET) is the first user.\n\n**Acceptance criteria**\n- New Gherkin features: Slots fill as Stories qualify; Editor reorders, rewrites, swaps and drops; Pinned slots survive a refill; Lock time sends the last approved assembly.\n- Rendered issue text lives in S3, never in DynamoDB.\n- A 3-star floor applies to every Story in a slot.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Section 13 additions (2026-11-16, always-on agent review; changes C, D, G)**\n- Folded refill bursts (change D): ten Stories qualifying in a minute refill an issue once, not ten times. Downstream work is coalesced in a window, shorter after a person acts.\n- Sent-Delivery memory: the refill does not repeat last week's blurb (reads the last issue's Delivery).\n- A removed slot is remembered (change G): a slot an editor removes stays as a record (`removed`, by whom, when). A refill never adds that Story back (Ryan, 12 November).\n- Any link in a slot must point at the site's own Story page or appear in that Story.\n- Slot edits name the version they replace; a stale save is refused naming the replaced version (PPY-e8ec54).\n**Acceptance criteria (added)**\n- Gherkin: ten Stories in a burst, one refill.\n- Gherkin: a removed slot is never refilled.\n- Gherkin: a blurb link that is neither the site's own Story page nor in the Story is refused.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nThe assembler is the newsletter agent on the standard. It fills one working document per list (PPY-2c29e5): an issue Story for a `story` list, the Delivery's own text for a `delivery` list, with the same slot, pin and removal marks, so one assembler serves weekly and daily lists (PPY-4d74d9). Bursts are folded by the standard's quiet window (PPY-67e3cd). Eligibility is \"qualified since this list's last sent Delivery\" (PPY-b71153). Now also blocked by PPY-4d74d9, PPY-2c29e5 and PPY-67e3cd.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1e75aa80-d6ed-4ac8-a7ba-c6925ba7c456",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4d74d9e4-2ae2-48b2-a298-b2aab6fc5c7e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2c29e516-aba4-4596-b9fd-f0a55fdf80fb",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-67e3cd15-99c0-4aab-9916-845d52118af0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "7b8b5c2d-37d0-45a1-a4b1-568c6d11870c",
+      "author": "home",
+      "text": "Built in PR 1720: newsletter/slot_links.py link rule (own Story page or in the Story) plus spec. Covered by the living-issue model (PR 1718) rather than rebuilt: removed slot remembered (exclusions), pinned slots survive a refill, stale slot edit refused showing the newer text (Conflict). NOT done, blocked or open: burst folding (needs PPY-67e3cd coalescing window), one working document per list incl. delivery lists (PPY-2c29e5), sent-Delivery memory of last blurb, rendered text in S3, lock-time send of the last approved assembly, wiring slot_links into a save path.",
+      "created_at": "2026-11-19T12:32:01.880840Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T21:48:36.630051Z",
+  "updated_at": "2026-11-19T12:32:01.881191Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

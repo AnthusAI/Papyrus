@@ -1,0 +1,226 @@
+[
+ {
+  "detectorId": "worth-noting",
+  "excerpt": "It's worth noting",
+  "excerptText": "It's worth noting",
+  "id": "f-b84fe0e71cfd2b19",
+  "lane": "rules",
+  "message": "Signposting and meta-commentary",
+  "policyId": "signposting",
+  "policyVersion": 1,
+  "segmentId": "s-88303457e9b4",
+  "severity": "warn",
+  "span": {
+   "end": 38,
+   "start": 21
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "brochure-words",
+  "excerpt": "game-changing",
+  "excerptText": "game-changing",
+  "id": "f-8ec03c03ee253917",
+  "lane": "rules",
+  "message": "Promotional puffery",
+  "policyId": "promotional-language",
+  "policyVersion": 1,
+  "segmentId": "s-88303457e9b4",
+  "severity": "warn",
+  "span": {
+   "end": 62,
+   "start": 49
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "is-a-testament-to",
+  "excerpt": "is a testament to",
+  "excerptText": "is a testament to",
+  "id": "f-47474d6943d2ccd3",
+  "lane": "rules",
+  "message": "AI-frequency vocabulary",
+  "policyId": "ai-vocabulary",
+  "policyVersion": 1,
+  "replacement": "shows",
+  "segmentId": "s-88303457e9b4",
+  "severity": "warn",
+  "span": {
+   "end": 88,
+   "start": 71
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "todays-world",
+  "excerpt": "In today's fast-paced",
+  "excerptText": "In today's fast-paced",
+  "id": "f-1d232234112cf648",
+  "lane": "rules",
+  "message": "Formulaic openers",
+  "policyId": "formulaic-openers",
+  "policyVersion": 1,
+  "segmentId": "s-bbd552562ce5",
+  "severity": "warn",
+  "span": {
+   "end": 133,
+   "start": 112
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "lets-verb",
+  "excerpt": "Let's delve",
+  "excerptText": "Let's delve",
+  "id": "f-99452e36a657ac54",
+  "lane": "rules",
+  "message": "Signposting and meta-commentary",
+  "policyId": "signposting",
+  "policyVersion": 1,
+  "segmentId": "s-34cef90fadb7",
+  "severity": "warn",
+  "span": {
+   "end": 348,
+   "start": 337
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "delve-into",
+  "excerpt": "delve into",
+  "excerptText": "delve into",
+  "id": "f-549cfc0ee6b332f6",
+  "lane": "rules",
+  "message": "AI-frequency vocabulary",
+  "policyId": "ai-vocabulary",
+  "policyVersion": 1,
+  "replacement": "explore",
+  "segmentId": "s-34cef90fadb7",
+  "severity": "warn",
+  "span": {
+   "end": 353,
+   "start": 343
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "transition-words",
+  "excerpt": "Moreover",
+  "excerptText": "Moreover",
+  "id": "f-cdf805427969cd9f",
+  "lane": "rules",
+  "message": "Stock transitions",
+  "policyId": "stock-transitions",
+  "policyVersion": 1,
+  "segmentId": "s-406b3c4dab78",
+  "severity": "info",
+  "span": {
+   "end": 456,
+   "start": 448
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "marker-words",
+  "excerpt": "synergy",
+  "excerptText": "synergy",
+  "id": "f-08c25bf296839cc4",
+  "lane": "rules",
+  "message": "AI-frequency vocabulary",
+  "policyId": "ai-vocabulary",
+  "policyVersion": 1,
+  "segmentId": "s-406b3c4dab78",
+  "severity": "warn",
+  "span": {
+   "end": 469,
+   "start": 462
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "jargon-phrase",
+  "excerpt": "synergy",
+  "excerptText": "synergy",
+  "id": "f-6cb5992af959d857",
+  "lane": "rules",
+  "message": "jargon",
+  "policyId": "jargon",
+  "policyVersion": 1,
+  "segmentId": "s-406b3c4dab78",
+  "severity": "info",
+  "span": {
+   "end": 469,
+   "start": 462
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "seamless",
+  "excerpt": "seamless",
+  "excerptText": "seamless",
+  "id": "f-0656e9ee3728f453",
+  "lane": "rules",
+  "message": "AI-frequency vocabulary",
+  "policyId": "ai-vocabulary",
+  "policyVersion": 1,
+  "replacement": "smooth",
+  "segmentId": "s-406b3c4dab78",
+  "severity": "warn",
+  "span": {
+   "end": 517,
+   "start": 509
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "stock-closers",
+  "excerpt": "In conclusion",
+  "excerptText": "In conclusion",
+  "id": "f-cda6bfb44226137c",
+  "lane": "rules",
+  "message": "Generic conclusions",
+  "policyId": "generic-conclusions",
+  "policyVersion": 1,
+  "segmentId": "s-717a37802330",
+  "severity": "warn",
+  "span": {
+   "end": 533,
+   "start": 520
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "stock-closers",
+  "excerpt": "the future looks bright",
+  "excerptText": "the future looks bright",
+  "id": "f-9539888a7b9d1d80",
+  "lane": "rules",
+  "message": "Generic conclusions",
+  "policyId": "generic-conclusions",
+  "policyVersion": 1,
+  "segmentId": "s-717a37802330",
+  "severity": "warn",
+  "span": {
+   "end": 558,
+   "start": 535
+  },
+  "status": "violation"
+ },
+ {
+  "detectorId": "stock-closers",
+  "excerpt": "Only time will tell",
+  "excerptText": "Only time will tell",
+  "id": "f-456c8dcf41d7d66b",
+  "lane": "rules",
+  "message": "Generic conclusions",
+  "policyId": "generic-conclusions",
+  "policyVersion": 1,
+  "segmentId": "s-29a0083979b0",
+  "severity": "warn",
+  "span": {
+   "end": 579,
+   "start": 560
+  },
+  "status": "violation"
+ }
+]

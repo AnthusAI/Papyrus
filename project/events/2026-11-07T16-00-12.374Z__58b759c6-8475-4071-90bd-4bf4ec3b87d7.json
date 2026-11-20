@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "58b759c6-8475-4071-90bd-4bf4ec3b87d7",
+  "issue_id": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T16:00:12.374Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M3: Copy-edit and verify each localized rendition",
+    "description": "As an editor, I want translations to receive the same editorial care as the original, so translated prose reads naturally and preserves the reporting.\n\nRun target-language drafting/localization, Humanus editorial checks and refinement, then compare the final revised text with the exact source revision. Support language-specific Humanus policies, terminology and examples; evaluate English and Spanish checks rather than assuming English detectors transfer. Validate claims, qualifiers, figures, names, quotations, citations, links and structural markup after copy editing. Keep initial translation, refined versions, findings and actor provenance. Protect human corrections and require a fresh check after a substantive edit.\n\nAcceptance: final translated versions are fluent and traceable; fidelity checks flag changed certainty or facts; approvals and check records apply to the exact locale version; a site requiring human publication approval does not silently treat source approval as translation approval. Gherkin scenarios and tests cover refinement, fidelity failures, manual edits and review policy.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-sol"
+    }
+  }
+}

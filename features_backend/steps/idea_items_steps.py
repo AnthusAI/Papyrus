@@ -29,7 +29,7 @@ def state(context):
 
 
 def items(context):
-    return state(context).client.list_records("Item")
+    return [row for row in state(context).client.list_records("Item") if row.get("type") != "sub-task"]   # the Stories, not their checklist steps
 
 
 @given('a Reference "{title}" with captured text')
@@ -299,7 +299,7 @@ def step_decide(context, stage, reason):
 @then("the first and second ideas have left the Idea column and the third is still in it")
 def step_left(context):
     held = state(context)
-    stages = {row["lineageId"]: row["stage"] for row in held.client.list_records("Item")}
+    stages = {row["lineageId"]: row["stage"] for row in held.client.list_records("Item") if row.get("type") != "sub-task"}
     assert [stages[result["lineageId"]] for result in held.morning] == ["reporting", "spiked", "idea"], stages
 
 

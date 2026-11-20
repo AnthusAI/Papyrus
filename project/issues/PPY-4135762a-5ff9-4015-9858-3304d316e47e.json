@@ -1,0 +1,44 @@
+{
+  "id": "PPY-4135762a-5ff9-4015-9858-3304d316e47e",
+  "title": "On the shared stack the renderer reads the site store at run time and never loads hooks",
+  "description": "Outcome: Today content-actions is built with the site's web/ files bundled in (amplify/functions/content-actions/resource.ts, setSiteFilesForContentActionsBundle; amplify/site-backend.ts line 125), and the projector reads projection.json from those files (projection/projector.py, PROJECTION_SETTINGS_FILE). The hooks loader runs site Python (standard/hooks.py load_hooks). On the shared stack: the projector gets SiteConfig, BrandPack and pages from the site store for the TenantContext of the work, no site files are bundled, and the hooks loader refuses to run (shared-plan tenants never run their own code, owner decision 6). Dedicated sites keep the file-seeded store and hooks.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/projector.py, projection/standard/hooks.py, projection/standard/config.py, amplify/functions/content-actions/handler.py and resource.ts, amplify/functions/shared/python-bundle.ts, amplify/plugins/home-page/config.ts (reads projection.json at synth time).\n\nAcceptance (Gherkin feature file: features_backend/shared-render-from-store.feature):\nScenario: Two tenants render in one process without mixing\n    Given tenants \"alpha\" and \"beta\" with different brand packs\n    When both are projected by the same function instance\n    Then each output has only its own content and brand\n\nScenario: Hooks never run on the shared stack\n    Given a shared stack\n    When a SiteConfig names a hooks module\n    Then validation refuses it and the loader is never called\n\nDependencies: blocked by PPY-1252ce, PPY-e572de, PPY-99e309. Blocks PPY-91fb68, PPY-e1d26f, PPY-4a79f9. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-ed33f4, PPY-f0ae90.\n\nTesting: pytest; golden renders from file-seeded and database stores (PPY-f0ae90's byte-identical test).\nRollout: Shared stack; dedicated unchanged.\nRisk and mitigation: Risk: per-request store reads add latency to publishes. Mitigation: the documents are cached per function instance by version id.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-1252ceae-7c20-426b-bccd-8970e7950fa0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e572de82-352c-4456-9232-6594f3f49bc4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-99e30994-968c-437a-90f2-2ece44c660a6",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ed33f40e-c5ce-40b7-9ba4-4ee0ef0d7995",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-f0ae906c-b578-4247-8fa7-5159e21c15c4",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:23.937037Z",
+  "updated_at": "2026-11-08T18:47:06.936006Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0b5e5c9f-809d-492b-bb4f-b7edce75575a",
+  "issue_id": "PPY-ed33f40e-c5ce-40b7-9ba4-4ee0ef0d7995",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:26.098Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "TenantContext seam through resolvers, jobs and rendering",
+    "description": "What: one TenantContext (tenant id, plan state, host) is passed to every read, write, job and render. A fixed tenant for dedicated deployments. No global site state.\nAcceptance:\nScenario: Two tenants in one process never mix\n  Given tenants A and B built in the same run\n  When both render\n  Then each output contains only its own content and brand",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

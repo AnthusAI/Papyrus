@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "3e515264-b5fc-4405-84a3-a85e72797f6a",
+  "issue_id": "PPY-bd1c6ead-eeb8-4ef4-8831-87cc59190a9b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:49.388Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Payment lifecycle moves a tenant through active, past due, suspended and deleted",
+    "description": "What: payment events change tenant state. Suspension keeps content and export available; deletion follows a stated grace period, never silently.\nAcceptance:\nScenario: A failed payment suspends writes, not reading or export",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

@@ -7,6 +7,8 @@ import sys
 import unittest
 from unittest import mock
 
+from procedures.newsroom.tests.tenant_support import dedicated_call
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -19,6 +21,9 @@ specification.loader.exec_module(content_actions)
 
 
 class SuggestReferenceLinksActionTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(dedicated_call())
+
     def test_without_the_knowledge_index_it_says_so_in_words(self):
         with mock.patch.dict(os.environ, {"PAPYRUS_S3_VECTOR_INDEX_ARN": ""}):
             result = content_actions.suggest_reference_links_action({"referenceId": "reference-a"})

@@ -22,8 +22,10 @@ class BackendClient:
         self.tables = {}
         self.summaries = []
 
-    def list_by_index(self, index, key):
-        assert index == "knowledgeCorporaByRoleAndName"
+    def list_by_index(self, index, key, *, limit=100, sort_eq=None):
+        if index != "knowledgeCorporaByRoleAndName":
+            from papyrus_content.reference_reads_testing import list_by_index_from_records
+            return copy.deepcopy(list_by_index_from_records(self.list_records, index, key, sort_eq))
         return copy.deepcopy([row for row in self.tables.get("KnowledgeCorpus", {}).values() if row.get("role") == key])
 
     def list_records(self, model):

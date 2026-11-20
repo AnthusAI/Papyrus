@@ -10,6 +10,10 @@ import type {
   UnpublishItemResult,
   MoveStoryStageInput,
   MoveStoryStageResult,
+  ScheduleStoryInput,
+  ScheduleListResult,
+  ScheduleStoryResult,
+  ScheduleSuggestResult,
   CreateStoryFromReferenceInput,
   CreateStoryFromReferenceResult,
 } from "./content-actions-client";
@@ -19,7 +23,10 @@ import {
   demoContentHash,
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
-import { createLocalPreviewEditableArticle, lineageForPreviewVersion, recordLocalPreviewDesk, recordLocalPreviewVersion } from "./local-preview-seed";
+import { createLocalPreviewEditableArticle, lineageForPreviewVersion, localPreviewScheduleFields, localPreviewSuggestedTime, recordLocalPreviewDesk, recordLocalPreviewVersion, setLocalPreviewSchedule } from "./local-preview-seed";
+import { createDemoAnnouncementsDoor } from "./announcements-demo";
+import { UNRATED_NOTE, scheduleFromFields } from "./story-schedule";
+import { LOCAL_PREVIEW_TIME_ZONE } from "./schedule-zone";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -104,6 +111,13 @@ export function createDemoArticlesBackend(): ArticlesBackend {
     const record = records.get(id);
     if (!record) throw new ContentActionFailure([{ code: "not-found", message: "That article was not found.", line: null }]);
     return record;
+  };
+
+  /** What scheduling will and will not do for a Story with no rating, as the backend words it: the preview reads the sample Story's rating. */
+  const unratedNotes = (itemId: string): string[] => {
+    loadPreviewRecord(itemId);
+    const record = records.get(itemId);
+    return record && !record.starRating ? [UNRATED_NOTE] : [];
   };
 
   return {
@@ -206,6 +220,8 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           throw new ContentActionFailure([{ code: "type-required", message: "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.", line: null }]);
         }
         const changed = record.status !== "published" || record.publishedContentHash !== record.contentHash;
+        const publishedLineage = createLocalPreviewEditableArticle(id)?.lineageId ?? lineageForPreviewVersion(id);
+        if (publishedLineage) setLocalPreviewSchedule(publishedLineage, null);   // publishing now ends the schedule
         const versionNumber = changed ? (record.versionNumber ?? 0) + 1 : record.versionNumber;
         const typeChangedFrom = changed && record.publishedType && record.publishedType !== record.type ? record.publishedType : undefined;
         records.set(id, {
@@ -223,6 +239,30 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         // A plain update of the record: no new version, and a published Story stays as published as it was.
         loadPreviewRecord(itemId);
         records.set(itemId, { ...requireRecord(itemId), starRating: stars });
+      },
+      async scheduleStory(input: ScheduleStoryInput): Promise<ScheduleStoryResult> {
+        try {
+          const fields = setLocalPreviewSchedule(input.lineageId, input.scheduledPublishAt);
+          return { ok: true, scheduledPublishAt: fields.scheduledPublishAt ?? null, scheduledBy: fields.scheduledBy ?? null, notes: fields.scheduledPublishAt ? unratedNotes(input.itemId) : [] };
+        } catch (error) {
+          throw new ContentActionFailure([{ code: "schedule-refused", message: error instanceof Error ? error.message : String(error), line: null }]);
+        }
+      },
+      async scheduleList(input: { storyLineageId: string }): Promise<ScheduleListResult> {
+        const fields = localPreviewScheduleFields(input.storyLineageId);
+        const schedule = scheduleFromFields(fields);
+        return {
+          ok: true, timeZone: LOCAL_PREVIEW_TIME_ZONE,
+          schedules: schedule ? [{
+            itemId: input.storyLineageId, lineageId: input.storyLineageId, versionNumber: null, title: "", state: schedule.state, storedState: schedule.state,
+            scheduledPublishAt: schedule.at, scheduledBy: schedule.by, scheduledAt: schedule.scheduledAt, notes: unratedNotes(input.storyLineageId.replace("-lineage-", "-version-")),
+          }] : [],
+        };
+      },
+      async scheduleSuggest(input: { storyLineageId?: string }): Promise<ScheduleSuggestResult> {
+        // The preview has no publishing history to learn from: it stands in for a publication that publishes on weekday mornings.
+        const picked = localPreviewSuggestedTime(LOCAL_PREVIEW_TIME_ZONE, input.storyLineageId);
+        return { ok: true, suggestion: { at: picked, local: picked, label: picked, zone: LOCAL_PREVIEW_TIME_ZONE, publications: 0, meanGapHours: 0, latestScheduledAt: null }, reason: null, timeZone: LOCAL_PREVIEW_TIME_ZONE };
       },
       async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
         return { ok: true, changed: true, stage: input.stage };
@@ -298,5 +338,6 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         starRating: record.starRating ?? null,
       };
     },
+    announcementsDoor: createDemoAnnouncementsDoor(),
   };
 }

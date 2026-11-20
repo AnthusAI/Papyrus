@@ -86,3 +86,13 @@ def test_a_change_of_rank_alone_is_a_change_and_the_stamp_alone_is_not():
     later = snapshot_bytes(build_snapshot([{**record("a", accepted_at="2026-10-01T00:00:00.000Z"), "rank": 1}, {**record("b", accepted_at="2026-10-02T00:00:00.000Z"), "rank": 2}], NOW + timedelta(hours=1)))
     assert changed_without_generated_at(before, swapped) is True, "an order that changed with no public field changed is rewritten, so the pages that read it are re-rendered"
     assert changed_without_generated_at(before, later) is False
+
+
+def test_a_threads_section_is_written_to_the_index_and_the_thread_file_only_when_it_has_one():
+    from papyrus_content.home_page.snapshot import build_threads_snapshot
+
+    with_section = {**thread_record("a", "2026-10-01T00:00:00.000Z"), "section": "Tools"}
+    index, documents = build_threads_snapshot([with_section, thread_record("b", "2026-10-02T00:00:00.000Z")], NOW)
+    by_key = {entry["key"]: entry for entry in index["threads"]}
+    assert by_key["a"]["section"] == "Tools" and documents["a"]["section"] == "Tools"
+    assert "section" not in by_key["b"] and "section" not in documents["b"]

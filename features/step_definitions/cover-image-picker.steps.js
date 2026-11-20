@@ -63,3 +63,7 @@ Then("the article page's figure has the credit directly under the picture", asyn
 Then("no card, listing, feed or data file carries the credit or the cover record", async () => {
   if (!/2 passed/.test(await runPython())) throw new Error("the card test did not pass");
 });
+
+When("a signed-in editor named {string} accepts a picture as the cover", () => passed(/✔ the body gets the credited figure first/));
+Then("the body and the credit under the picture never name who approved or picked it", () => passed(/✔ changing the cover names the person only in the coverImage record/));
+Then("the person is recorded once, in the cover record of the front matter", () => passed(/✔ changing the cover names the person only in the coverImage record/));

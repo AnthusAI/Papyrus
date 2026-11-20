@@ -10,7 +10,7 @@ import { pythonLambdaCode, type SiteBundleFile } from "../shared/python-bundle";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(dirname, "../../..");
 
-export const contentActionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "latex2mathml>=3.78,<4", "Pillow>=11.3,<12", "awscrt>=0.23,<1", "humanus>=0.33,<0.34", "pypdf>=6.12.1,<7"];
+export const contentActionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "latex2mathml>=3.78,<4", "Pillow>=11.3,<12", "awscrt>=0.23,<1", "humanus>=0.42.0,<0.43", "pypdf>=6.12.1,<7", "Babel>=2.14,<3"];
 
 function installCheckoutRequirements(outputDir: string): void {
   const requirementsPath = path.join(projectRoot, "amplify/functions/content-actions/requirements.txt");
@@ -24,6 +24,11 @@ let siteFilesForNextContentActionsBundle: SiteBundleFile[] | undefined;
 
 export function setSiteFilesForContentActionsBundle(siteFiles: SiteBundleFile[] | undefined): void {
   siteFilesForNextContentActionsBundle = siteFiles;
+}
+
+/** The site files the next content-actions bundle will hold (undefined: the bundle takes none). Read by the synth harness. */
+export function siteFilesForContentActionsBundle(): SiteBundleFile[] | undefined {
+  return siteFilesForNextContentActionsBundle;
 }
 
 export const contentActions = defineFunction(

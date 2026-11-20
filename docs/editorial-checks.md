@@ -19,6 +19,65 @@ entirely inside a direct quotation (double quotes or a block quote) are not repo
 words are the source's, not the publication's; tool artifacts such as placeholder leaks still are.
 A policy or detector can opt back in with `quotations: "check"`.
 
+**Every check is in one language (Humanus 0.35 and later, PPY-d0132d).** Humanus reads text in a language only when it ships a
+language pack for it (`en`, `es`, the `es-419` overlay and `zh-Hans`, which also serves `zh-CN`, `zh-SG` and `zh-MY`), and every
+request states the language: a language with no pack is refused with an error that names it, never read as English. Papyrus
+answers the language questions in one module, `src/papyrus_content/editorial_languages.py`:
+
+- **The site's languages are a setting.** `EditorialCheckSettings.settings.languages` is `{primary, enabled}` (default
+  `{"primary": "en", "enabled": ["en"]}`), edited in Administration → Editorial checks → Settings. Each enabled tag is the exact
+  variant the site writes: a site that writes neutral Latin American Spanish, like Machines on Machines, enables `es-419`, so its
+  Spanish is checked with the `es-419` overlay and the Latin American word-choice rules. A request for `es` on that site means
+  `es-419`. A request for a language the site does not write in is refused, naming it; so is a setting that names a language
+  Humanus has no pack for.
+  The same `languages` object also holds how the site serves each language: `prefixes`, `public` and `slugs` ([multilingual serving](multilingual-serving.md)).
+  Settings has a control for each (which enabled languages are public, each language's URL prefix and slug policy, with the defaults shown), and
+  `papyrus editorial languages [--set-public TAGS] [--set-prefix TAG=PREFIX] [--set-slug TAG=POLICY] [--dry-run]` shows and sets the same keys. Both are
+  checked by the one validation in `language_serving.py` before saving (the console through the `describeEditorialLanguages` query), and a save keeps every
+  key of the stored object that it did not edit.
+- **A Story's language.** `story_language(item, settings)` is the one place that says which language a Story is written in.
+  Every Story today is a primary-language Story; when the multilingual plan's `Item.language` field exists, this function reads it
+  and nothing else changes. `checkItemVersion`, the copy-edit gate, the idea gate and the agent context pack all ask it.
+  `checkEditorial`, `suggestEditorialRewrite` and `tryEditorialPolicy` take a required `language` argument; the article editor
+  sends the Story's language (`storyLanguage` in `lib/editorial-checks-settings.ts`). `papyrus editorial check|suggest|pack`
+  take `--language`, default the site's primary language.
+- **Every policy has a language.** `EditorialPolicy.language` is a tag or `*` for a language-neutral policy (placeholder leaks, tool
+  URL parameters). A check composes the pack for its language: the `*` policies, the base language's (`es`) and the variant's own
+  (`es-419`). Where two share a key, a section's policy replaces the publication's, and within a scope the more specific language
+  wins. English phrase rules never run on Chinese text and Chinese rules never on English. The pack version starts with the
+  language (`zh-Hans-<section>-<fingerprint>`); its fingerprint also covers the version of Humanus's language pack (1.1.0 in
+  Humanus 0.37), so a stored check is not reused once Humanus reads that language differently, and the check result names the Humanus language pack and its version
+  (`language: {tag, version}`). Because the pack version changed shape, the first check of each saved version after this
+  release runs once more (only for versions someone checks or saves; there is no sweep). A starter-pack policy is written for its pack's language; a policy drawn from the writing
+  guidelines for the site's primary language, or for its overlay's language. Two languages may use the same key (both the
+  Spanish and the Chinese typography packs have `quotation-marks`), so new policy ids are `<scope>#<language>#<key>`.
+- **Policies saved before languages existed** have no `language`. The deploy's `ensure_default_policies` (and `papyrus editorial
+  policies ensure-defaults`) writes it once: the starter pack's language for a `starter:<pack>` policy, otherwise the site's primary
+  language. The record keeps its id and version. Until then a check that meets such a policy is refused, naming it; nothing guesses.
+- **Enabling a language brings its starter rules.** `ensure_default_policies` imports the default starter packs of every enabled
+  language once (`DEFAULT_STARTER_PACKS`): English `ai-writing-tells`; Spanish `typography-es`, `ai-writing-tells-es` and `initialisms-es` (standalone "AI" becomes "IA"; DNA, HIV, GDP, NATO and WHO become ADN, VIH, PIB, OTAN and OMS; "OpenAI" and other English names stay), plus
+  `word-choice-es-419` for `es-419`; Simplified Chinese `typography-zh-hans`, `translationese-zh-hans` and
+  `ai-writing-tells-zh-hans`. They run on the next deploy after the setting changes, or at once with `papyrus editorial policies
+  ensure-defaults`; `papyrus editorial languages --enable TAG` changes the setting and imports them in one step. All of them are advice (`info` or `warn`): Humanus marks each policy's evidence grade (measured, normative,
+  folk), and a rule may only drive rewrites once it is about 9 in 10 correct on held-out examples in that language. A pack added to a
+  language's starters later reaches a site that enabled the language earlier on its next deploy, once (the packs applied are recorded in the
+  settings' `defaultStarterPacks`); a policy an admin edited or deleted is never added back.
+- **A language's register is a choice of the language's overlay.** The writing guidelines overlay for a language that offers a register
+  takes `register` (`usted` or `tu` for Spanish; `REGISTER_PACKS` in `editorial_languages.py`). Saving the overlay with `register: usted`
+  draws the policies of Humanus's `register-es-usted` pack for that language (it flags a `tú` imperative that opens link text, such as
+  `[Lee la fuente]`, with the formal repair `Lea`); saving it with `tu`, or without a register, disables them again. Nothing in the code
+  guesses a register from the tone's prose. The shared guidelines, and a language that offers no register choice, refuse the field. The
+  translator is told the register with the overlay's other notes. A repair with a `replacement` is applied by code in a translation run, so the
+  correction needs no model call.
+- **Writing guidelines per language.** The publication's voice, audience and binding rules are written once and apply in every
+  language. A language overlay (`papyrus guidelines save --kind writing --language zh-Hans`, optionally with `--section`) holds only
+  what is particular to the language: register notes, words to prefer and avoid, the target locale's conventions for naming
+  people and organisations, glossary entries. `papyrus guidelines resolve --kind writing --section security --language zh-Hans`
+  lays the publication's document, the section's, the Chinese overlay and the section's Chinese overlay over each other and says
+  which layer each field came from. Saving an overlay draws checks written for that language only. An overlay cannot set binding
+  rules (they are ignored with the warning `language_constraint_ignored`). The locale's conventions are expressed there and in the
+  glossary, never by leaving out or changing a fact.
+
 **Always there, configured as data.** Every Papyrus site's backend and newsroom include editorial
 checks; there is nothing to enable in `papyrus.config.ts` and no per-site code. They are on by
 default. A publication turns them off, or changes how they run, in Administration → Editorial
@@ -34,14 +93,14 @@ still run.
 
 | Model | Who | What |
 |---|---|---|
-| `EditorialPolicy` | editors read, admins manage | One policy: key, scope (`publication` or a section key), version, title, guidance, severity (`info`/`warn`/`error`), enabled, detectors (Humanus `policy-pack-v1` detectors), examples, rewrite guidance, source (`custom` or `starter:<pack>`). A section policy replaces the publication policy with the same key for that section's articles. |
-| `EditorialCheckSettings` | editors read, admins manage | One row, id `settings`: `enabled` (default true), lanes, decision and rewrite models, the judgment-check deadline (default 20 s, inside AppSync's 30 s), token budget, examples per question, house guidance, check while typing, publish warning. |
+| `EditorialPolicy` | editors read, admins manage | One policy: key, scope (`publication` or a section key), language (a tag or `*`), version, title, guidance, severity (`info`/`warn`/`error`), enabled, detectors (Humanus `policy-pack-v1` detectors), examples, rewrite guidance, source (`custom` or `starter:<pack>`). A section policy replaces the publication policy with the same key for that section's articles. |
+| `EditorialCheckSettings` | editors read, admins manage | One row, id `settings`: `enabled` (default true), `languages` (primary and enabled, and how each is served: public, prefixes, slugs), lanes, decision and rewrite models, the judgment-check deadline (default 20 s, inside AppSync's 30 s), token budget, examples per question, house guidance, check while typing, publish warning. |
 | `EditorialFeedback` | editors create and read, admins manage | An editor's decision on a finding (`accepted`, `fixed`, `dismissed`, optional reason). Judgment decisions keep the sentence's text so later checks can use it as an example; `recalibrateEditorialPolicies` turns them into per-detector calibration. |
 
 **Operations.** All are handled by one function that composes the policy pack
 and calls Humanus: `checkEditorial` and `suggestEditorialRewrite` (editors),
 `tryEditorialPolicy`, `draftEditorialQuestions`, `importEditorialStarterPack` and
-`recalibrateEditorialPolicies` (admins). Nothing is open to guests. The function
+`recalibrateEditorialPolicies` (admins), and `describeEditorialLanguages` (the `languages` setting checked by the serving rules, reads and writes nothing). Nothing is open to guests. The function
 may call `appsync:GraphQL` only on the model operations it needs (the list is `EDITORIAL_CHECKS_FUNCTION_FIELDS` in `amplify/functions/editorial-checks/wire.ts`).
 
 **Newsroom.** The article body is a CodeMirror editor; when checks are on,
@@ -97,7 +156,8 @@ for versions someone checks or saves; there is no sweep). A lane that did not ru
 Tactus `papyrus_check_story_version` tool, which also stops calling such a result `clean`.
 
 **Passages copied across stories.** Each server check of a saved version (`checkItemVersion`, which `papyrus
-editorial check-version`, `papyrus stories save-version` and the article editor's save all use) also looks for
+editorial check-version`, `papyrus stories save-version` and the article editor's save all use) and each `papyrus
+editorial check --draft` (and `suggest --draft`) also looks for
 boilerplate: a run of 12 or more consecutive words (the same `COPIED_RUN_WORDS` the reference copy guard uses) that
 also appears, in the same order, in the latest version of another story on the same site. Each shared passage becomes
 one finding under the policy id `cross-story-boilerplate`, severity `warn`, whose message names the other stories by
@@ -111,7 +171,14 @@ call. The other stories' windows are built once per check. Rules:
 - Runs do not cross those excluded spans, so a quotation in the middle of a paragraph splits it.
 - These findings are recomputed on every check, even when the story's own text is unchanged, because another story
   may have changed. They are stored in the version's `EditorialCheckRun` like any finding, so the editor and the
-  filing gate show them. A policy-pack file (`--pack`) has no corpus and reports none.
+  filing gate show them. A policy-pack file (`--pack`) has no corpus, so the check cannot run there (see `notRun` below).
+- A draft check runs this check through the same function a saved version uses (`with_cross_story_findings`), so the
+  same passage gives the same finding either way. A draft file that revises an existing story names it with
+  `--story LINEAGE` (lineage id or slug) so that story's own saved version is not counted as another story; without
+  `--story` the draft is compared with every story on the site. A `--story` the site does not have is refused.
+- A draft check lists every check that did not run in `notRun` (always present, an empty list when all ran), each
+  entry `{"check", "reason"}`. With `--pack` it holds `{"check": "cross-story-boilerplate", "reason": "a policy file has
+  no stories to compare with"}`. The command prints JSON only, so the same list is in the printed output.
 - The function's role needs `listItemsByVersionStateAndUpdatedAt` (added to the least-privilege list); a site picks
   it up when its backend next deploys.
 
@@ -125,3 +192,20 @@ the pack and actor. A judgment question is a `classifier` detector:
 `{"id": "...", "lane": "classifier", "scope": "document", "question": {"type": "noul",
 "instructions": "..."}, "violation": {"answer": "yes"}, "threshold": 0.7, "reviewAt": 0.4,
 "message": "..."}`. Details: [operator-cli.md](operator-cli.md#editorial-policies).
+
+## Content measurements
+
+Besides policy findings, Humanus (0.42 and later) gives plain numbers about a text, and Papyrus shows them. Humanus owns every count: Papyrus hands it
+the text, the Story's language and the headline, dek and blurb from the front matter, and lays out the answer (`src/papyrus_content/story_measure.py`).
+They are deterministic (no model is called) and read the text in its language: words in English and Spanish, characters in Simplified Chinese.
+
+- **Size:** units (words or characters) and reading minutes from the language's reading rate.
+- **Structure:** sections (headings), paragraphs, the longest paragraph and sentence, and whether the headline, dek and blurb are present and how long.
+- **Sourcing:** links and citations, how many per 500 units, and the share of paragraphs with none.
+- **Change:** units added, removed and rewritten against another version, and the share of the text changed. Markup-only edits are not changes.
+
+`papyrus stories measure` works on a saved Story or on a draft file before it is saved, and `papyrus stories save-version` prints the same rows for the
+version it saved and stores them on the version record (`metadata.measurements`, with `humanusVersion`, `measure` and `changeFromPrevious`). They are
+guidance for an editor or an agent, never a gate: no limit is applied, nothing is blocked, and a check or a publish never reads them. Concept density,
+which would take the Story's concepts as input, is a later slice. Executable spec: `features_backend/story-measurements.feature`. Usage:
+[agent CLI guide](agent-cli-guide.md#measure-a-draft-or-a-story).

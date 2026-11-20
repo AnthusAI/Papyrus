@@ -1,0 +1,23 @@
+{
+  "id": "PPY-60e360e7-8a19-4f78-8a9d-9d5eda6b1267",
+  "title": "Retire a story and redirect its address to another story",
+  "description": "Merging two Stories into one article leaves the retired Stories' public addresses with no redirect. Add papyrus stories retire --story X --redirect-to Y [--dry-run] [--undo].",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-11T23:00:16.100909Z",
+  "updated_at": "2026-11-11T23:16:44.286168Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

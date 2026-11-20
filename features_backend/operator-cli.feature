@@ -209,6 +209,55 @@ Feature: Operator CLI
     And stderr should contain "not found"
     And stderr should not contain a Python traceback
 
+  @references @cloud-backend
+  Scenario: references show takes the Reference id after --reference as well as positionally
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show --reference ref-cloud-001`
+    Then the exit code should be 0
+    And stdout should be a single reference detail block
+    And stdout should report id "ref-cloud-001"
+
+  @references @cloud-backend
+  Scenario: references show takes a record id with its version suffix after --reference
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show --reference ref-cloud-001-v1`
+    Then the exit code should be 0
+    And stdout should report id "ref-cloud-001"
+
+  @references @cloud-backend
+  Scenario: references show with no Reference id says so and exits 2
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show --backend cloud`
+    Then the exit code should be 2
+    And stderr should contain "requires a Reference id"
+    And stderr should not contain a Python traceback
+
+  @references @cloud-backend
+  Scenario: references show names a flag it does not take and exits 2
+    Given operator CLI config selects backend "cloud"
+    And the cloud references fixture is loaded
+    When I run `papyrus references show ref-cloud-001 --refrence ref-cloud-001`
+    Then the exit code should be 2
+    And stderr should contain "does not take --refrence"
+    And stderr should not contain a Python traceback
+
+  @references
+  Scenario: references text with no Reference id says so and exits 2
+    Given operator CLI config selects backend "cloud"
+    When I run `papyrus references text`
+    Then the exit code should be 2
+    And stderr should contain "requires a Reference id"
+
+  @references
+  Scenario: references text names a flag it does not take and exits 2
+    Given operator CLI config selects backend "cloud"
+    When I run `papyrus references text --reference ref-cloud-001 --offest 5`
+    Then the exit code should be 2
+    And stderr should contain "does not take --offest"
+
   # ---------------------------------------------------------------------------
   # assignments list — distinguish newsroom work from pod stories
   # ---------------------------------------------------------------------------
@@ -270,9 +319,20 @@ Feature: Operator CLI
     And stderr should not contain "Traceback"
 
   @auth @cloud-backend
-  Scenario: Cloud authoring without AWS credentials surfaces operator guidance instead of a traceback
+  Scenario: Cloud authoring with no sign-in and no lane named says to log in, not to set up AWS
     Given operator CLI config selects backend "cloud"
     And no operator CLI fixtures are loaded
+    When I run `papyrus assignments list --limit 1`
+    Then the exit code should be 2
+    And stderr should contain "papyrus login <site>"
+    And stderr should contain "papyrus --auth iam"
+    And stderr should not contain "Traceback"
+
+  @auth @errors
+  Scenario: Cloud authoring on the operator lane without AWS credentials surfaces operator guidance instead of a traceback
+    Given operator CLI config selects backend "cloud"
+    And no operator CLI fixtures are loaded
+    And the operator lane is named on purpose with PAPYRUS_GRAPHQL_AUTH=iam
     And no AWS credentials are available
     When I run `papyrus assignments list --limit 1`
     Then the exit code should be 2
@@ -283,6 +343,7 @@ Feature: Operator CLI
   Scenario: Expired SSO credentials print recovery guidance and exit 2 without a traceback
     Given operator CLI config selects backend "cloud"
     And no operator CLI fixtures are loaded
+    And the operator lane is named on purpose with PAPYRUS_GRAPHQL_AUTH=iam
     And a GraphQL endpoint that rejects credentials with status 401
     When I run `papyrus assignments list --limit 1`
     Then the exit code should be 2

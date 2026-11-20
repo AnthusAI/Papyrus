@@ -102,7 +102,7 @@ A process that cannot fill a line says so in that line.
 - **Trigger.** The moment a Reference's summary vector is stored, new or rewritten because its text changed (the vector pass of the daily monitor-stories run queues one check). Never a schedule; never an accept, reject, vote or star.
 - **Inputs.** The Reference's summary vector and the publication's vector index; the site's own decided suggestions for the cut-off.
 - **Decision.** Which indexed References and concepts are close enough to suggest, cut where the site's decided suggestions say (`suggestion_calibration`).
-- **May write.** Suggested links (`related_to`, with the close-match score), one check record per Reference in the router's table, and the index's vectors; the saved place of the vector pass.
+- **May write.** Suggested links (`related_to` to another Reference, `tagged_with` to a concept, with the close-match score), one check record per Reference in the router's table, and the index's vectors; the saved place of the vector pass.
 - **Must never.** Repeat the check for text it already checked; walk the corpus to find work; decide a link (a suggestion is only a suggestion, and the card shows two of them); index rejected or archived References as live.
 - **Seen and reversed.** Suggested links on the card and in the Related section, each with Accept and Reject; the decision is recorded and trained on.
 - **Records.** One `{"suggestOnce": ...}` log line per check, the check record row, and the daily line's `suggestionsQueued`.
@@ -120,11 +120,12 @@ A process that cannot fill a line says so in that line.
 - **May write.** Content Items at the `idea` stage marked Generated, one soft review request per pass, and the based-on links.
 - **Must never.** Publish; draft one Reference twice; file an idea that only summarises its source; read pending References for drafting.
 - **Seen and reversed.** The Idea column of the Stories board. An editor moves an idea forward or spikes it with a reason.
-- **Records.** One JSON log line per publication per run and the receipt.
-- **Fails.** Closed: the run stops on `time`, `cost` or `file_error` and says which; what was filed stays filed and the next day continues from the same ranking.
-- **Cost and bound.** The Lambda time and a per-publication model spend backstop (`MAXIMUM_COST_USD`, 0.50). No fixed number of ideas.
+- **Records.** One JSON log line per publication for the plan, one per step (`monitorStoriesStep`), one when the plan finishes, and the receipt.
+- **Fails.** Closed, and nothing is thrown away: the daily run only plans, and a queue drafts one candidate per message; a step that fails is delivered again up to three times, then waits in a dead-letter queue with an alarm, and the plan finishes without it. What was filed stays filed, and the next plan offers only what is not drafted.
+- **Reads.** The plan reads the existing ideas once (the stage indexes, then those stories by id) and stores them in its head row with the context and the duplicate cut. A step reads its own row and head, the Reference it cites and the few records it files and links, by id or index: never a whole table, and the worker's role has no `listItems` or `listReviewRequests`.
+- **Cost and bound.** One plan a day per publication; one step is bounded by the Lambda's 300 seconds and a 0.50 dollar guard on one oversized request. No fixed number of ideas and no time stop on the plan.
 - **Measured.** The log counts. Whether editors keep or spike the ideas is visible on the board but not reported: **no spec**.
-- **Gherkin.** `monitoring-daily-stories`, `idea-pipeline`, `idea-monitor-stories`, `idea-trend-stories`, `idea-context-packs`, `idea-items`, `idea-duplicate-cut`, `idea-excluded-source-hosts`, `idea-run-large-site`, `idea-standard-replay`. Details: [idea-pipeline.md](idea-pipeline.md), [monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily).
+- **Gherkin.** `monitoring-daily-stories`, `monitoring-stories-queue`, `idea-pipeline`, `idea-monitor-stories`, `idea-trend-stories`, `idea-context-packs`, `idea-items`, `idea-duplicate-cut`, `idea-excluded-source-hosts`, `idea-run-large-site`, `idea-standard-replay`. Details: [idea-pipeline.md](idea-pipeline.md), [monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily).
 
 ### 8. Point check ("so what")
 
@@ -196,6 +197,18 @@ A process that cannot fill a line says so in that line.
 - **Measured.** A guard test fails when a module outside the allowed list writes a concept that is not create-only.
 - **Gherkin.** `knowledge-run-concepts`. Code: `src/papyrus_content/semantic_node_writes.py`.
 
+## Agent definition files
+
+From slice D1 of the always-on agents design (`docs/design/always-on-agents-architecture.md`), an agent is one definition file in Git, `<id>.yaml`, that fills the 11 lines above. The file names the responsibility (from the catalog in `src/papyrus_content/responsibilities.py`), the procedure key, what wakes it (changes and an optional schedule with a time zone), what it runs one at a time by, whether it is paid and safe to repeat, each operation it uses with the lowest rung that allows it, the model tier (never a model name), and the template lines under `template:`. A definition that leaves a line out, names an operation the operation table does not have (or one only a person may call, or one that writes at the rung `observe`), or names a responsibility the catalog does not have, is refused with the line named.
+
+A definition never sets how far the agent may go. The rung, a pause, a budget and a model belong to the site's agent policy document, so a deploy cannot change them; a definition that names one is refused.
+
+Core definitions ship in the engine (`src/papyrus_content/agent_definitions/core/`). A site adds its own complete definitions, or extends a core one with a file named for it that holds `extends`, `instructions` and further `mustNever` rules. A site can add and can do nothing else: it cannot change another field and it cannot remove a must-never rule.
+
+`papyrus agents validate --dir DIR [--core DIR]` checks a folder with no network, sign-in or model, and exits 2 with every problem named by definition and line. Specified in `agent-definition.feature`.
+
+A site's deploy applies the definitions (`papyrus agents apply`, slice D2): each becomes the registered copy on an automation named for it, created disabled, and one gone from Git is retired. It never writes the agent policy document, so a new agent arrives at `off`. See [Automations](automations.md#applying-the-definitions-the-deploy-does-it); specified in `agent-definitions-on-release.feature`.
+
 ## Restoring newsroom data
 
 Every Amplify Data table (references, messages, votes, curation decisions and the rest) has DynamoDB point-in-time recovery on, for every site, with no site setting (PPY-39a16b). It is set in `amplify/site-backend.ts` and reaches a site with that site's next deploy.
@@ -227,7 +240,7 @@ The same title is **not** identity. `title_candidate_key` exists only for the re
 | Path | Code | What it checked before | What it does now |
 | --- | --- | --- | --- |
 | Monitor delivery (router, `papyrus monitoring`) | `monitoring_intake.ReferenceIntake` | `canonical_url` of the source address and its aliases against Reference rows of the monitor's corpus; several lineages matching was an error | The gate at publication scope when nothing in the corpus matched. A hit in another corpus or under another form is reused (`identityMatched`); only the discovery fields are written, and only for a hit in the monitor's own corpus |
-| Editor paste (`intakePendingReferences`) | `reference_intake.find_or_create_source_reference` | `canonical_source_url` equality inside the corpus | The gate at publication scope; a hit returns `reusedExisting` and `matchedBy` and creates nothing, no provenance and no preview |
+| Editor paste (`intakePendingReferences`) | `reference_intake.find_or_create_source_reference` | `canonical_source_url` equality inside the corpus | The gate at publication scope; a hit returns `reusedExisting` and `matchedBy` and creates nothing, no provenance and no preview; every result carries `created`, false for an exact URL match, which returns the current Reference with its status unchanged |
 | Email submission | `intake_email_submission_references`, which calls the editor path | The same as the editor path (email duplicate receipts dedupe the emails, not the Reference) | The same as the editor path |
 | Story source registration (Tactus `papyrus_find_or_register_source`) | `find_or_create_source_reference` | The same as the editor path | The same as the editor path |
 | Research intake (`assignments process-proposals`, the research worker) | `assignments_workflow.intake_research_packet_proposals` | Only with `--cited-only`: `held_reference_urls`, by normalised URL, in the corpus. Otherwise nothing, and the item id was a hash of the URL, so a rerun updated the same lineage with `pending` and reset an accepted Reference | The gate always, at publication scope. A hit is listed in `references` (action `existing`) and the item is not registered; a repeat inside one batch is `duplicate-in-batch` |

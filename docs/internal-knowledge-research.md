@@ -152,6 +152,28 @@ Inside Tactus procedures, the research harness exposes the same engine as
 `knowledge_search(...)` and `knowledge_search_uri(...)` (wrappers around
 `knowledge_query{...}` in `src/papyrus_newsroom/tactus_runtime.py`).
 
+## Where a query reads a Reference's text
+
+The evidence passages of a query come from the Reference's **current text**, chosen per matched Reference (PPY-caa222). Nothing is scanned: the
+curation card arrives with the Reference's other attachments, and a captured body is found by listing that one Reference's `ModelAttachment`s through
+`modelAttachmentsByOwnerRoleAndSortKey`. Only accepted References are read, and only the ones the query already returned for this caller.
+
+| Order | Source | When it wins |
+|---|---|---|
+| 1 | The body named by the card's `current.textSortKey`, when it is a `curation-edit-NNNN-text` | A person (or an agent acting through `correctReferenceCapture`) corrected or supplied the text. The latest correction is the current text; earlier ones and the `extracted_text` attachment it replaced are not read. |
+| 2 | An `extracted_text` ReferenceAttachment (Biblicus extraction in corpus storage) | No correction exists. |
+| 3 | The card's machine capture (`curation-text`) | Nothing else exists: a monitor-delivered or curated Reference. |
+
+Text from sources 1 and 3 is fetched with `createModelAttachmentDownload` **as the caller** (the knowledge-query function's own role reads only
+`corpora/*`, so it could not read `newsroom/payloads/*` itself, and this way it never returns text the caller could not download). The passages
+carry `textSource` (`curation_edit`, `curation_text` or `extracted_text`); for the first two they also carry `capture`: `sortKey`, `editedBy`,
+`editedAt`, `via`, the capture's own `note` verbatim (so "captured by an AI agent, not independently completeness-checked" stays attached to the
+text) and `assessmentOfMachineCapture`. The context summary repeats that line. The MCP tools and the signed-in CLI call this same engine
+(`knowledgeQuery`), so they get the same behaviour.
+
+The query reports in `warnings`, never silently falling back to metadata: no text anywhere; the card names a text that has no active attachment for this
+Reference version; the owner lookup failed; the text exists but could not be read (a permission or storage error, with its message); the text is empty.
+
 ## AppSync (deployed engine)
 
 Same JSON input as CLI, via `knowledgeQuery(input: AWSJSON!)`. Example curl
@@ -182,6 +204,7 @@ AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
 | `No accepted reference evidence` with empty `semanticMatches` | No vectors, no accepted refs for query, or index not synced |
 | `cliExecution: remote` but you expected local edits | Default is remote when the endpoint is set and AWS credentials resolve; pass `--execution local` |
 | Graph hits but no passages | `extractMode: auto` on semantic-only queries; use anchors or `extractMode: always` |
+| `sourceTextMode: metadata` with warnings about captured text | The Reference has a captured text the caller could not read, or its card points at a body with no active attachment; the warning says which ([above](#where-a-query-reads-a-references-text)) |
 
 Check `structured.request.semanticQuerySource`: `explicit`, `anchor_derived`,
 or `none`.

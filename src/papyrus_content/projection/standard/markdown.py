@@ -17,7 +17,10 @@ from __future__ import annotations
 
 import re
 
+from ...markus_renderer.content_markup import drop_hidden_credits
+from ...url_paths import encoded_path
 from ...authors import absolute_author_url, normalize_authors
+from ...item_language import MACHINE_TRANSLATION
 
 FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
 LLMS_KEY = "llms.txt"
@@ -33,11 +36,11 @@ def md_key(html_key: str) -> str | None:
 
 
 def md_path(html_key: str) -> str | None:
-    """The site path of the Markdown twin of a page key."""
+    """The site path (percent-encoded, like every URL) of the Markdown twin of a page key."""
     key = md_key(html_key)
     if key is None:
         return None
-    return "/" + key
+    return encoded_path("/" + key)
 
 
 def static_twin_key(site_path: str) -> str | None:
@@ -73,18 +76,30 @@ def byline_markdown(authors, origin: str | None = None) -> str:
     return ", ".join(names)
 
 
-def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None) -> str:
-    body = body_of(source_text)
+def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None, byline: str | None = None,
+                  translation: tuple[str, str, str] | None = None) -> str:
+    """``translation`` is ``(language tag, URL of the original, translation kind)`` of a translated page: the twin says so for agents (``Translation: machine`` for a
+    machine translation; copy a person wrote and imported says no kind, never AI, and its "By ..." line says who wrote it). ``byline`` is a site hook's complete byline text; it replaces the "By <authors>" line. ``None`` means no hook (the authors are shown); an empty string means the hook says there is no byline."""
+    body = drop_hidden_credits(body_of(source_text))
     lines = []
     if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
     facts = []
-    if entry.author_details:
+    if byline is not None:
+        if byline:   # a site hook that returns an empty string says this item has NO byline (a post): the authors are not a fallback
+            facts.append(byline)
+    elif entry.author_details:
         facts.append("By " + byline_markdown(entry.author_details, origin))
     if entry.date:
         facts.append(f"Published {entry.date}")
     if entry.updated and entry.updated != entry.date:
         facts.append(f"Updated {entry.updated}")
+    if translation is not None:
+        tag, original, kind = translation
+        if kind == "authored":
+            facts += [f"Language: {tag}", "Edition: independently authored", f"Companion: {original}"]
+        else:
+            facts += [f"Language: {tag}", *(["Translation: machine"] if kind == MACHINE_TRANSLATION else []), f"Translated from: {original}"]
     if entry.summary_text:
         lines += [f"> {entry.summary_text}", ""]
     if facts:
@@ -102,7 +117,7 @@ def home_markdown(title: str, description: str, source_text: str) -> str:
 
     A home page written as page blocks opens with ``::band`` and carries its own H1, so a second title in front of it
     would not be in the source."""
-    body = body_of(source_text)
+    body = drop_hidden_credits(body_of(source_text))
     lines = [] if _opens_with_heading(body) else [f"# {title}", ""]
     if description:
         lines += [f"> {description}", ""]
@@ -188,3 +203,12 @@ def llms_full_txt(identity, documents, max_bytes: int) -> str:
             break
         parts.append(piece)
     return "".join(parts)
+
+
+def markdown_with_notice(text: str, notice: str) -> str:
+    """``text`` with the publication's ``notice`` (one Markdown quote line) after its first heading, or at the top when it has none."""
+    lines = text.split("\n")
+    for position, line in enumerate(lines):
+        if line.startswith("# "):
+            return "\n".join(lines[: position + 1] + ["", notice] + lines[position + 1 :])
+    return notice + "\n\n" + text

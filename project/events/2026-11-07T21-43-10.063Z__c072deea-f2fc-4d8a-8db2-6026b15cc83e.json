@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "c072deea-f2fc-4d8a-8db2-6026b15cc83e",
+  "issue_id": "PPY-e59af0c0-f9ba-4e8e-b5f4-0a0d7510113e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:10.063Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Golden renders per fixture and per brand pack",
+    "description": "Acceptance:\nScenario: A layout change shows a diff\n  Given golden HTML for home, section, item, wiki and 404 in two brand packs\n  When core changes a card\n  Then CI fails until the diff is accepted",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

@@ -407,7 +407,7 @@
     "sha256": "abababababababababababababababababababababababababababababababab",
     "sourcePublishedAt": "2026-10-16",
     "sourceUpdatedAt": null,
-    "sourceUri": "https://www.example.org/read?email=reader@example.test&id=6",
+    "sourceUri": "https://www.example.org/read?email=reader@example.com&id=6",
     "storagePath": "private/body-6.txt",
     "title": "Accepted six",
     "updatedAt": "2026-10-16T22:01:00.000Z",

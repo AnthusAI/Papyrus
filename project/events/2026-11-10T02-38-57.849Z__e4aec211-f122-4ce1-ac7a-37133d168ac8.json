@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "e4aec211-f122-4ce1-ac7a-37133d168ac8",
+  "issue_id": "PPY-9281e475-96ea-4242-9e28-245a480c0ab7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-10T02:38:57.849Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Python readers use the head-stage index (CLI, ideas, context pack, checklist, monitors)",
+    "description": "Switch story_signals.list_stories (papyrus stories list), ideas/items.idea_rows, newsroom_context_pack.section_stories, story_checklist.backfill and the monitors that use them from itemsByStage plus a client-side versionState filter to itemsByHeadStage. Until every site has the index, the client falls back to the old index plus the versionState filter when the site's schema has no headStageKey, and says so once on stderr. Acceptance: Gherkin reader scenarios pass; against MoM, stories list --stage copywriting returns the same lineages as before with no superseded rows read (request meter).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-94729f1d-562e-4b83-b0dc-5a946303115c",
+    "labels": [
+      "deploy:frontend",
+      "cli"
+    ]
+  }
+}

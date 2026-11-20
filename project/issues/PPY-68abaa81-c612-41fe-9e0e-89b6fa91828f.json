@@ -1,0 +1,31 @@
+{
+  "id": "PPY-68abaa81-c612-41fe-9e0e-89b6fa91828f",
+  "title": "The agent definition file and the responsibility catalog",
+  "description": "One file per agent, in Git, validated by a schema. It names: the responsibility (from the engine's catalog), the procedure key, what wakes it (changes and an optional schedule), the serial scope, whether it is paid and whether it is safe to repeat, the operations it uses with the lowest rung each needs, the model tier, and the 11 template lines (trigger, inputs, decision, may write, must never, seen and reversed, records, fails, cost and bound, measured, Gherkin). Core definitions ship in the engine; a site may add its own and may add instructions, never remove a 'must never'. The existing `Automation` record becomes the registered copy of a definition in a site (id, definition version, digest); the fields a person changes live in the agent policy document, not here. A definition that cannot fill a template line fails validation.\n\n**Acceptance criteria**\n- A definition missing a template line, naming an unknown operation or an unknown responsibility is refused with the line named.\n- `papyrus agents validate` checks a folder of definitions offline.\n- A site definition can add instructions and cannot delete a 'must never'.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-definition.feature: a complete definition validates; a missing 'must never' is refused; an unknown operation is refused; a site addition is accepted; a site removal of a base rule is refused.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Agent definitions, the catalog and generated runbooks. Slice code D1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b05940e6-e99f-4919-a398-a39df6e99bff",
+  "labels": [
+    "always-on-agents",
+    "first-week"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f58445df-45cb-4f2f-9b20-e5d1cf03730e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:04.231071Z",
+  "updated_at": "2026-11-17T00:47:59.010466Z",
+  "closed_at": "2026-11-17T00:47:59.009985Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

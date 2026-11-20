@@ -1,0 +1,1 @@
+../../src/papyrus_content/data/procedures/announce_story.tac

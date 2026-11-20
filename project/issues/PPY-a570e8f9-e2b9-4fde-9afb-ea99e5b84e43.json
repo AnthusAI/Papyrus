@@ -1,0 +1,40 @@
+{
+  "id": "PPY-a570e8f9-e2b9-4fde-9afb-ea99e5b84e43",
+  "title": "Attempt log and attempt event ids (Caducus accepts delivery:<id>:a<N>)",
+  "description": "A retry is an attempt. The attempt log on a Delivery only grows; each entry has number, time, Caducus event id, outcome, provider code. Attempt N is one Caducus event with id delivery:<deliveryId>:a<N>, replacing today's round suffix. Small Caducus change to accept the id shape. A pause, budget stop or rate limit ends an attempt; the next try is the next attempt. An attempt sequence ends on a clear provider answer (sent, refused, or for X after an unknown outcome the read that shows whether the post exists); no invented retry count.\n\n**Acceptance criteria**\n- Gherkin: A retry is an attempt (a failed then a successful attempt is one Delivery with two entries; pause or budget stop ends an attempt and the next try is the next attempt; earlier entries never change).\n- Caducus accepts and de-duplicates on delivery:<id>:a<N>; the round suffix is removed from Papyrus and Caducus.\n- Released through the Caducus release path with its own specs.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Section 13 additions (2026-11-16, always-on agent review; changes B, E, H)**\n- An attempt entry is written before the call: it opens as `started` and closes as `sent`, `refused` or `unknown`. An entry left open or `unknown` is settled by Caducus's reconcile step (for X, the read of recent posts) and shows in the list as \"Outcome unknown\" until then. No timeout decides it.\n- One worker per channel account, for every channel: all attempts for one channel account pass through one consumer (stated as a rule, as X already does).\n- A pause, budget stop or rate limit sets `nextAttemptAt` and `waitingFor` on the Delivery, and `dueAt` (fields from PPY-3792dd).\n**Acceptance criteria (added)**\n- Gherkin: an attempt left `started` is settled without a second post.\n- Gherkin: the `started` entry exists before the provider call is made.\n- Gherkin: a rate-limited attempt ends, records nextAttemptAt and waitingFor `rate limit`, and the next try is the next attempt.\n- Gherkin: all attempts for one channel account pass through one consumer.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\n- Attempt outcomes use the standard's words (PPY-f58445): an attempt opens `started`, closes `sent`, `refused` or `unknown`.\n- **Guard when an attempt opens** (from the review of PR #1618): open an attempt only if the Delivery is the highest generation for its Announcement, channel and account, is not `superseded`, and its text file exists and matches the row's content hash. Otherwise send nothing and raise one flag. `releasable` today looks only at the row's own state.\n- **Closing an attempt never changes a superseded Delivery's state.** If the row was superseded while the attempt was open, the close records the outcome in the attempt log and leaves the state `superseded`.\n**Acceptance criteria (added)**\n- Gherkin: an attempt never opens on a lower generation; a `ready` row whose file is missing is not sent; an attempt that closes after its Delivery was superseded records its outcome and does not revive the Delivery.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-f58445df-45cb-4f2f-9b20-e5d1cf03730e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "b76132b1-e1e0-4876-9217-193389984d51",
+      "author": "home",
+      "text": "Merged to develop in AnthusAI/Papyrus#1631 (attempts.py, four features, 160 announcement scenarios pass locally, CI green) and AnthusAI/Caducus#21 (specs only: Caducus already accepts and dedupes any event id; no Caducus release needed). Not released. Not done: the old X row shape still uses story.announce:...:r<round> until PPY-efd06c deletes it; the single-consumer queue per account and the X transport arrive with efd06c; the 'Outcome unknown' mark in the list is e4ae3a (attempts.shown has the words). A budget stop's nextAttemptAt comes from the transport's answer (wait_until); efd06c supplies the cycle end.",
+      "created_at": "2026-11-17T00:56:12.319541Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T21:48:35.334622Z",
+  "updated_at": "2026-11-17T00:56:40.871519Z",
+  "closed_at": "2026-11-17T00:56:40.871485Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,11 @@
+ID: PPY-a438d0
+Title: M2 Chatticus chat core published as reusable packages
+Type: epic
+Status: open
+Priority: 1
+Assignee: -
+Parent: PPY-de11ec53-e594-4e18-a016-95c436aacfcb
+Labels: -
+Right now: (no right-now summary)
+Description:
+In the Chatticus repository: publish the chat core so other systems depend on it instead of copying it: the turn and SSE stream protocol, the durable turn runner and agent loop, and the client chat components with brand tokens. Versioned releases with a changelog; Papyrus pins exact versions like it pins its own packages. Work tracked in Chatticus's Kanbus, linked from here.

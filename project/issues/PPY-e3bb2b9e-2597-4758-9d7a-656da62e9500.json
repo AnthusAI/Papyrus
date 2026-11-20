@@ -1,0 +1,69 @@
+{
+  "id": "PPY-e3bb2b9e-2597-4758-9d7a-656da62e9500",
+  "title": "Durable triggers: drive 'page is live' and 'rating changed' from the change stream; remove the best-effort publish call",
+  "description": "Today a publish tells the newsletter and notifications functions with a short best-effort call, and every error is swallowed. That keeps publishing fast and can lose the event; the Announcement's once-only key cannot help if the event never arrives. Make the two facts that start an Announcement durable: \"this Story's page is live\" and \"this Story's rating changed\" reach one announcement worker from the change stream of the records that already record them. Delete the best-effort call. Publishing stays fast because it only writes its own record. Which record marks \"page live\" is chosen in this task.\n\nDesign (section 13.3 change A, 13.4): ~/Projects/papyrus-announcement-delivery-design.md. Order: after slice 1 (PPY-3792dd) and slice 2 (PPY-a570e8), before X on the new records (PPY-efd06c). A timer that fires only raises an event; the worker re-reads the record and re-checks everything.\n\n**Acceptance criteria**\n- Gherkin: a publish whose first trigger fails is still announced once (the change stream delivers it; the dedupeKey keeps it to one Announcement).\n- Gherkin: a rating change reaches the announcement worker from the change stream and re-evaluates eligibility.\n- The best-effort publish call to the newsletter and notifications functions is removed, with its swallowed-error path; no fallback or second path remains.\n- Publishing latency is unchanged: publish writes only its own record.\n- One worker per channel account for every channel (see PPY-a570e8).\n- No new inbox table; the change stream, the once-only key and Caducus's queue are the path.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nThis is built on the standard, not as a path of its own: \"the page is live\" and \"the rating changed\" reach the announce agent as wakes from the Item change feed (PPY-8a374e) through the site's wake queue (PPY-567bf9), with wake keys (PPY-70c6e8). The \"one announcement worker\" is the announce agent, serial per channel account (PPY-a200ec). Now also blocked by PPY-567bf9 and PPY-8a374e.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-3792ddab-4271-4031-8d6e-a9db44955bf0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a570e8f9-e2b9-4fde-9afb-ea99e5b84e43",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8a374e41-ca94-41ab-a6cd-b832810e049e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "b4b3e41f-2799-4f71-b17c-f11d1853d8f4",
+      "author": "home",
+      "text": "Branch feat/PPY-e3bb2b-durable-announce-triggers; PR opened against develop (see the PR for acceptance status). Decisions: the record that marks 'page is live' is the Story's Item row entering the published stage (Item/stage_entered stage=published, written by publish_item itself); the rating trigger is a new Item change 'rated' (starRating changed in place). The announce agent (core/announce.yaml, procedure announce_story, list_cadence/story_wake.py) re-reads the Story and decides from the records; the best-effort call publish_alerts.announce_published and its env and grants are deleted.",
+      "created_at": "2026-11-19T03:31:36.205149Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "9fd8e22c-2424-4a44-87b2-5f144917e122",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1697 on branch feat/PPY-e3bb2b-durable-announce-triggers. Open: a drafter for every-item email words (PPY-64378c) and the email sending account source; alerts and story.published notices stop being raised from a publish until PPY-58d962.",
+      "created_at": "2026-11-19T03:32:08.950339Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "9842bebe-8d34-4b61-9077-933e764c9039",
+      "author": "home",
+      "text": "Merged to develop in PR #1697: page-live (Item enters published) and rated changes reach the announce agent from the Item change feed; best-effort publish call deleted. Open: one worker per channel account (queue per-scope grouping, slice B4) is only serialBy agent. Note for release: newsletter alerts and story.published notices stop being raised from a publish until PPY-58d962 lands. Left open.",
+      "created_at": "2026-11-19T06:57:15.910222Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "300de1bc-b8b9-44d0-92f1-91c0ab77623f",
+      "author": "home",
+      "text": "B4 (per-scope queue grouping) shipped in PR #1711: the announce agent's serialBy agent now really puts every announce wake in one message group, so announcements run one at a time per site; a per-account lane is serialBy key:<name> with trigger.serialKey. The queue's remaining B4 work (deleting maxConcurrent and the deferred sweep, max concurrency parameter) stays on PPY-a200ec. Acceptance criteria of this ticket are met; closing.",
+      "created_at": "2026-11-19T10:21:53.936947Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:00:17.162236Z",
+  "updated_at": "2026-11-19T10:47:04.757210Z",
+  "closed_at": "2026-11-19T10:47:04.756590Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

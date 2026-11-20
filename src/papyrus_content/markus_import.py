@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from .content_item_lifecycle import is_story_item_type
 from .markus_renderer.build import slugify
 from .markus_renderer.content_markup import split_front_matter
 from .markus_renderer.derive import derive_body
@@ -160,6 +161,8 @@ class PlannedItem:
     superseded_note: str = ""
     media_changed: bool = False
     needs_publish: bool = False
+    #: The source says published, but the item is a Story: the import saves it as a draft for a person to publish.
+    left_for_person: bool = False
 
 
 @dataclass
@@ -180,6 +183,7 @@ class ImportReport:
     skipped_edited_in_cms: list[str] = field(default_factory=list)
     skipped_superseded: list[str] = field(default_factory=list)
     published: int = 0
+    stories_for_a_person: int = 0   # Stories the source says are published, saved as drafts for a person to publish
     media_uploaded: int = 0
     media_unchanged: int = 0
     reader_owned_assets: int = 0
@@ -199,6 +203,7 @@ class ImportReport:
             "skippedSuperseded": len(self.skipped_superseded),
             "skippedSupersededDetails": list(self.skipped_superseded),
             "published": self.published,
+            "storiesForAPerson": self.stories_for_a_person,
             "mediaUploaded": self.media_uploaded,
             "mediaUnchanged": self.media_unchanged,
             "readerOwnedAssets": self.reader_owned_assets,
@@ -513,7 +518,10 @@ def _adopt_legacy_item_id(source: SourceFile, client) -> None:
 def _classify(planned: PlannedItem, options: ImportOptions, client) -> None:
     existing = client.get_record("Item", planned.source.item_id) or planned.source.legacy_row
     planned.existing = existing
-    desired_published = planned.source.status == "published" and options.publish
+    says_published = planned.source.status == "published" and options.publish
+    # An imported Story is saved as a draft: nothing publishes it by itself: a person reviews it (its `review_people` step stays open) and publishes it.
+    planned.left_for_person = says_published and is_story_item_type(planned.fields.type)
+    desired_published = says_published and not planned.left_for_person
     if existing is None:
         planned.action = "create"
         planned.needs_publish = desired_published
@@ -602,6 +610,8 @@ def run_import(plan: ImportPlan, client, store: MediaStore, *, apply: bool) -> I
             report.updated += 1
         if planned.needs_publish:
             report.published += 1
+        if planned.left_for_person:
+            report.stories_for_a_person += 1
         if apply:
             _apply_item(planned, client)
     return report
@@ -622,6 +632,11 @@ def _apply_item(planned: PlannedItem, client) -> None:
         metadata = _parse_json_object(record.get("metadata"))
         metadata["source"] = {"path": planned.source.relative_path, "importedContentHash": planned.content_hash}
         client.update_record("Item", {"id": item_id, "metadata": to_aws_json(metadata)})
+    if is_story_item_type(planned.fields.type):
+        # An imported Story was not written in the newsroom: its checklist is made, every step not applicable ("imported from <source>") but publishing and the review of readers, which a person closes before it publishes.
+        from .story_checklist import mark_imported_quietly
+
+        mark_imported_quietly(client, (planned.existing or {}).get("lineageId") or item_id, planned.source.relative_path)
     if planned.needs_publish:
         try:
             publish_item(client, item_id, actor=IMPORT_ACTOR, now=None)

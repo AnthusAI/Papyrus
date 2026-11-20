@@ -12,7 +12,7 @@ from papyrus_content.cli_user_auth import AuthError, SiteSession, command, save_
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from papyrus_content.tenancy import tenant_id_from_options
 from procedures.newsroom.tests.test_cli_multisite_auth import Opener, site
-from papyrus.cli import _consume_site_flag
+from papyrus.cli import _consume_leading_flags
 
 A, B = site('a.anth.us'), site('b.anth.us')
 
@@ -224,16 +224,16 @@ def test_a_file_for_the_chosen_site_still_supplies_its_bucket_and_pool(monkeypat
 # --- the flag -----------------------------------------------------------------------------------
 
 def test_the_leading_site_flag_sets_the_site_and_is_removed(monkeypatch):
-    assert _consume_site_flag(['--site', 'a.anth.us', 'editorial', 'context']) == ['editorial', 'context']
+    assert _consume_leading_flags(['--site', 'a.anth.us', 'editorial', 'context']) == ['editorial', 'context']
     assert __import__('os').environ['PAPYRUS_SITE'] == 'a.anth.us'
-    assert _consume_site_flag(['--site=b.anth.us', 'references', 'list']) == ['references', 'list']
+    assert _consume_leading_flags(['--site=b.anth.us', 'references', 'list']) == ['references', 'list']
     assert __import__('os').environ['PAPYRUS_SITE'] == 'b.anth.us'
     monkeypatch.delenv('PAPYRUS_SITE')
 
 
 def test_a_site_option_after_the_command_is_left_for_the_command(monkeypatch):
     arguments = ['items', 'link-references', '--site', 'some-key']
-    assert _consume_site_flag(arguments) == arguments
+    assert _consume_leading_flags(arguments) == arguments
     assert 'PAPYRUS_SITE' not in __import__('os').environ
 
 
@@ -241,7 +241,7 @@ def test_the_leading_site_flag_needs_a_value():
     from papyrus_content.operator_errors import OperatorError
     for arguments in (['--site'], ['--site', '--backend'], ['--site=']):
         with pytest.raises(OperatorError, match='--site requires a signed-in site'):
-            _consume_site_flag(arguments)
+            _consume_leading_flags(arguments)
 
 
 # --- the site document --------------------------------------------------------------------------
@@ -324,12 +324,21 @@ def test_an_explicit_endpoint_gets_the_tenant_of_the_site_that_owns_it(monkeypat
     assert PapyrusGraphQLAuthoringClient(endpoint='https://unknown.appsync-api.us-east-1.amazonaws.com/graphql').tenant_id is None
 
 
-def test_an_iam_operator_gets_no_site_tenant(monkeypatch):
+def test_an_iam_operator_who_names_a_site_gets_that_sites_tenant_and_host(monkeypatch):
     sign_in(A)
     site_document.store('https://a.anth.us', {'tenant_id': 'machines-on-machines'})
     monkeypatch.setenv('PAPYRUS_GRAPHQL_AUTH', 'iam')
     monkeypatch.setenv('PAPYRUS_SITE', 'a.anth.us')
-    assert PapyrusGraphQLAuthoringClient().tenant_id is None
+    assert PapyrusGraphQLAuthoringClient().tenant_id == 'machines-on-machines'
+    assert site_selection.host_for() == 'a.anth.us'
+
+
+def test_an_iam_operator_who_names_no_site_gets_no_site_tenant(monkeypatch):
+    sign_in(A)
+    site_document.store('https://a.anth.us', {'tenant_id': 'machines-on-machines'})
+    monkeypatch.setenv('PAPYRUS_GRAPHQL_AUTH', 'iam')
+    monkeypatch.setenv('PAPYRUS_GRAPHQL_ENDPOINT', A.graphql_endpoint)
+    assert PapyrusGraphQLAuthoringClient().tenant_id is None and site_selection.host_for() is None
 
 
 def test_a_command_that_reads_every_row_opts_out_of_the_site_tenant():

@@ -5,6 +5,7 @@ import type { PapyrusPlugin, PluginManifest, PluginRequest, PluginWiringContext 
 import { signupSubmit } from "./function/resource";
 import { signupSchemaDefinitions } from "./schema";
 import { SIGNUP_MUTATION_FIELD, WAF_MINIMUM_RATE_LIMIT, addSignupRateLimit } from "./waf";
+import { connectToSiteApi } from "../../site-api-access";
 
 export type SignupPluginConfig = {
   /** Form names the site accepts. A submission naming any other form is rejected. */
@@ -54,7 +55,7 @@ export const signupPlugin: PapyrusPlugin<SignupPluginConfig, { signupSubmit: typ
   wire(backend, config, context: PluginWiringContext) {
     const lambda = backend.signupSubmit.resources.lambda as LambdaFunction;
     const stack = Stack.of(lambda);
-    lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", context.graphqlEndpoint);
+    connectToSiteApi(lambda, context.graphqlEndpoint);
     lambda.addEnvironment("PAPYRUS_SIGNUP_FORMS", config.forms.join(","));
     lambda.addEnvironment("PAPYRUS_SIGNUP_ADDRESS_LIMIT", String(config.addressLimitPerMinute));
     lambda.addToRolePolicy(

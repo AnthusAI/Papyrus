@@ -12,11 +12,14 @@ from typing import Any
 
 from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
+import re
+
 from .ids import hash_short, safe_id
 
 MODEL_ATTACHMENT_OWNER_MODELS = {
     "assignment": "Assignment",
     "assignmentEvent": "AssignmentEvent",
+    "delivery": "Delivery",
     "item": "Item",
     "knowledgeRawPayload": "KnowledgeRawPayload",
     "message": "Message",
@@ -28,13 +31,53 @@ MODEL_ATTACHMENT_OWNER_MODELS = {
 }
 
 
+def _transfer(operation):
+    """Runs one transfer to or from the attachment store (a presigned URL), sending it again with a growing pause when the failure is the network's or the
+    store's: a reset connection, a timeout, a 429 or a 5xx. Both directions are safe to repeat (a download changes nothing; an upload of the same bytes to the
+    same key replaces itself). A refusal (any other HTTP status) is raised at once, and when the attempts run out the last failure is raised as it was."""
+    import random
+    import time
+
+    from .graphql_authoring import READ_ATTEMPTS, READ_BACKOFF_SECONDS, TRANSIENT_STATUS_CODES
+
+    for attempt in range(READ_ATTEMPTS):
+        try:
+            return operation()
+        except urllib.error.HTTPError as error:
+            if error.code not in TRANSIENT_STATUS_CODES or attempt == READ_ATTEMPTS - 1:
+                raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
+            if attempt == READ_ATTEMPTS - 1:
+                raise
+        time.sleep(min(READ_BACKOFF_SECONDS * 2 ** attempt, 8.0) * (0.5 + random.random()))
+
+
+def attachment_safe_id(value: Any) -> str:
+    """The id segment the ModelAttachment writer makes: ``safeId`` in amplify/functions/model-attachment-upload/handler.ts (and
+    amplify/functions/shared/model-payloads.ts), character for character.
+
+    The deployed upload function computes the attachment's id and storage path itself, from the same four parts the client sends. It lowercases,
+    collapses every run of other characters to ``-``, and keeps at most 80 characters: a longer segment is cut to 67 and gets ``-`` and the first 12 hex
+    digits of the SHA-256 of the original. ``ids.safe_id`` (used for corpora and Reference ids) cuts at 140 characters with no digest, so for a
+    Reference id longer than 80 characters (``reference-<corpus>-<64 hex>-v1`` is about 110) the two disagreed, and an id built here named a row that
+    does not exist (PPY-caa222). Readers should still find a body through the owner index (``modelAttachmentsByOwnerRoleAndSortKey``) rather than by
+    building the id.
+    """
+    raw = ("payload" if value is None else str(value)).strip()
+    normalized = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-") or "payload"
+    if len(normalized) <= 80:
+        return normalized
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+    return f"{normalized[:67].rstrip('-')}-{digest}"
+
+
 def model_payload_storage_path(owner_kind: str, owner_id: str, role: str, filename: str) -> str:
     root_prefix = "media/payloads" if owner_kind == "publishedItem" else "newsroom/payloads"
-    return f"{root_prefix}/{safe_id(owner_kind)}/{safe_id(owner_id)}/{safe_id(role)}/{filename}"
+    return f"{root_prefix}/{attachment_safe_id(owner_kind)}/{attachment_safe_id(owner_id)}/{attachment_safe_id(role)}/{filename}"
 
 
 def model_attachment_id(owner_kind: str, owner_id: str, role: str, sort_key: str) -> str:
-    return f"model-attachment-{safe_id(owner_kind)}-{safe_id(owner_id)}-{safe_id(role)}-{safe_id(sort_key)}"
+    return f"model-attachment-{attachment_safe_id(owner_kind)}-{attachment_safe_id(owner_id)}-{attachment_safe_id(role)}-{attachment_safe_id(sort_key)}"
 
 
 def build_text_model_payload_attachment(input_payload: dict[str, Any]) -> dict[str, Any]:
@@ -124,9 +167,11 @@ def upload_attachment_body(
         method=slot.get("method") or "PUT",
     )
     try:
-        with urllib.request.urlopen(request) as response:
-            if response.status >= 400:
-                raise RuntimeError(f"Upload failed with status {response.status}")
+        def send():
+            with urllib.request.urlopen(request) as response:
+                if response.status >= 400:
+                    raise RuntimeError(f"Upload failed with status {response.status}")
+        _transfer(send)
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(
@@ -414,8 +459,10 @@ def download_attachment_buffer(
         method=slot.get("method") or "GET",
     )
     try:
-        with urllib.request.urlopen(request) as response:
-            return response.read()
+        def fetch():
+            with urllib.request.urlopen(request) as response:
+                return response.read()
+        return _transfer(fetch)
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(

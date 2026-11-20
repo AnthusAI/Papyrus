@@ -44,6 +44,11 @@ def thread_file(key: str) -> str:
     return f"{THREADS_DIRECTORY}/{key}.json"
 
 
+def _section_of(thread: Mapping[str, Any]) -> dict[str, str]:
+    """``{"section": title}`` when the thread has one; a thread without a section writes no key, so its file is as it was."""
+    return {"section": thread["section"]} if thread.get("section") else {}
+
+
 def build_threads_snapshot(threads: Iterable[Mapping[str, Any]], now: datetime) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     """``threads.json`` (one entry per thread, most recently active first) and one document per thread keyed by file name.
 
@@ -56,6 +61,7 @@ def build_threads_snapshot(threads: Iterable[Mapping[str, Any]], now: datetime) 
             "key": thread["key"],
             "title": thread["title"],
             "anchor": thread["anchor"],
+            **_section_of(thread),
             "messages": len(thread["messages"]),
             "lastAt": thread["messages"][-1].get("at"),
             "latest": thread["messages"][-1],
@@ -63,7 +69,7 @@ def build_threads_snapshot(threads: Iterable[Mapping[str, Any]], now: datetime) 
         for thread in ordered
     ]
     documents = {
-        thread["key"]: {"key": thread["key"], "title": thread["title"], "anchor": thread["anchor"], "messages": thread["messages"]}
+        thread["key"]: {"key": thread["key"], "title": thread["title"], "anchor": thread["anchor"], **_section_of(thread), "messages": thread["messages"]}
         for thread in ordered
     }
     return {GENERATED_AT: _stamp(now), "threads": entries}, documents

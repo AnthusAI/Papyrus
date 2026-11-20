@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "bodyMarkus": "Neutral Latin American Spanish (es-419): the forms a Latin American newsroom uses where English and Spanish names differ. Starter entries from the 2026-11-13 translation experiment's name findings.",
+  "entries": [
+    {"term": "AI", "translations": ["IA"], "caseSensitive": true, "note": "inteligencia artificial; IA in running text, also in compounds (IA generativa)."},
+    {"term": "Hugging Face", "doNotTranslate": true, "caseSensitive": true, "note": "A company name: kept as written (the 2026-11-12 spike rendered it 抱抱脸)."},
+    {"term": "artificial intelligence", "translations": ["inteligencia artificial"]},
+    {"term": "US", "translations": ["EE. UU.", "Estados Unidos"], "variants": ["estadounidense", "estadounidenses"], "caseSensitive": true},
+    {"term": "U.S.", "translations": ["EE. UU.", "Estados Unidos"], "variants": ["estadounidense", "estadounidenses"], "caseSensitive": true},
+    {"term": "UK", "translations": ["Reino Unido"], "caseSensitive": true},
+    {"term": "EU", "translations": ["UE", "Unión Europea"], "caseSensitive": true},
+    {"term": "Paris", "translations": ["París"], "caseSensitive": true},
+    {"term": "Congress", "translations": ["Congreso"], "exceptIn": ["Chaos Communication Congress", "Library of Congress"], "caseSensitive": true, "note": "The United States Congress."},
+    {"term": "Justice Department", "translations": ["Departamento de Justicia"], "caseSensitive": true},
+    {"term": "Department of Justice", "translations": ["Departamento de Justicia"], "caseSensitive": true},
+    {"term": "North Carolina", "translations": ["Carolina del Norte"], "caseSensitive": true},
+    {"term": "White House", "translations": ["Casa Blanca"], "caseSensitive": true},
+    {"term": "computer", "translations": ["computadora"], "variants": ["computadoras"], "note": "Latin American form (not ordenador)."}
+  ]
+}

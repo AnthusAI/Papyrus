@@ -1,0 +1,1 @@
+../../src/papyrus_content/data/procedures/story_localize.tac

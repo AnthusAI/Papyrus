@@ -10,9 +10,17 @@
   "parent": "PPY-ff3780ac-803a-4452-b943-af1d4d993b07",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "bd341890-e5e1-4f49-818f-d90ffc8cc15d",
+      "author": "home",
+      "text": "Duplicates the candidate generation in PPY-c101a6 (image toolchain design, project/wiki/image-toolchain.md). Fold it into PPY-c101a6; note that four options is for people, one image for agents. Not closed yet: decide when the work is picked up.",
+      "created_at": "2026-11-07T18:39:21.813932Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-05T12:10:33.165386Z",
-  "updated_at": "2026-11-05T12:14:25.299746Z",
+  "updated_at": "2026-11-07T18:39:21.814162Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

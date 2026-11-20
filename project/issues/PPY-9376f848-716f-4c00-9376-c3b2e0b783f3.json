@@ -1,0 +1,42 @@
+{
+  "id": "PPY-9376f848-716f-4c00-9376-c3b2e0b783f3",
+  "title": "At the budget, paid work waits and says so",
+  "description": "Before a paid run starts, the gate reads the cycle total. At or over the site's budget the wake is not run: its record becomes `waiting` with `waitingFor: budget cycle` and a due time at the next cycle start, and one flag per cycle tells the admins. Free work continues. Reading, editing and serving are never stopped. Raising the budget is an admin operation and releases the waiting wakes.\n\n**Acceptance criteria**\n- A site at its budget starts no paid run and loses none.\n- One flag per cycle.\n- Waiting wakes run when the cycle turns or the budget is raised.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- spend-stop.feature: at the budget a paid wake waits; a free check still runs; the flag is raised once; the next cycle runs the waiting wakes in order; raising the budget releases them.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Spend, budgets and model tiers. Slice code G2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6505b3d6-bc1e-4d66-9c9d-3b80ea70a43b",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-fa165cff-23f9-40b0-b9d4-923c83b3e95d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-567bf925-df19-4d86-8369-4fd9a8d39616",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3ff01167-78c5-425e-b734-9a335ae51837",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-51ea61b7-0f72-4362-9d0c-24bd08db2896",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-16T22:43:07.787845Z",
+  "updated_at": "2026-11-16T22:43:33.027213Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

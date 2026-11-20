@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f7dd91b9-aff1-45df-9a52-35f69cbdbdb3",
+  "issue_id": "PPY-9376f848-716f-4c00-9376-c3b2e0b783f3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:43:07.787Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "At the budget, paid work waits and says so",
+    "description": "Before a paid run starts, the gate reads the cycle total. At or over the site's budget the wake is not run: its record becomes `waiting` with `waitingFor: budget cycle` and a due time at the next cycle start, and one flag per cycle tells the admins. Free work continues. Reading, editing and serving are never stopped. Raising the budget is an admin operation and releases the waiting wakes.\n\n**Acceptance criteria**\n- A site at its budget starts no paid run and loses none.\n- One flag per cycle.\n- Waiting wakes run when the cycle turns or the budget is raised.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- spend-stop.feature: at the budget a paid wake waits; a free check still runs; the flag is raised once; the next cycle runs the waiting wakes in order; raising the budget releases them.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Spend, budgets and model tiers. Slice code G2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6505b3d6-bc1e-4d66-9c9d-3b80ea70a43b",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

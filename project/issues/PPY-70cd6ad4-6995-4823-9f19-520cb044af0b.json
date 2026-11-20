@@ -1,0 +1,38 @@
+{
+  "id": "PPY-70cd6ad4-6995-4823-9f19-520cb044af0b",
+  "title": "Overdue: anything due and untouched is shown and flagged",
+  "description": "A lost timer must never be silent. The due indexes (runs, Deliveries, review requests) already list what is waiting. Anything whose due time has passed with no run is 'Overdue': Today shows it, and the operations hygiene agent's daily wake reads the due indexes, re-sends the wake with its original key (so it cannot run twice) and raises one flag per overdue record. This is recovery through the same path, not a second path that does the work.\n\n**Acceptance criteria**\n- A record whose timer was lost shows as Overdue on Today.\n- The re-sent wake does the work once.\n- One flag per overdue record, not one per check.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- overdue.feature: a due record with no run shows Overdue; the re-sent wake runs once; a record that ran late is no longer overdue; the flag is raised once.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Timers: the schedule trigger and follow-ups. Slice code C4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4bc31344-3d78-45dd-9a6b-6c045371182d",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-577310e9-1c86-44b7-9e2b-353d16004d19",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "7c165293-e4ef-48a0-a8a0-352ed7e007eb",
+      "author": "home",
+      "text": "Audit 2026-11-19: removed stale blocked-by PPY-3ff011 (closed; follow-up timers merged in PR #1685). Remaining blocker PPY-577310 (run indexes) is buildable without a live deploy.",
+      "created_at": "2026-11-19T11:07:24.946816Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:43:04.021805Z",
+  "updated_at": "2026-11-19T11:41:21.382673Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

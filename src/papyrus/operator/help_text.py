@@ -5,9 +5,12 @@ import argparse
 VERSION = "0.1.0"
 
 TOP_LEVEL_HELP = """\
-Usage: papyrus [--help] [--version] [--backend local|cloud] <group> <command> [options]
+Usage: papyrus [--help] [--version] [--site SITE] [--auth iam] [--backend local|cloud] <group> <command> [options]
+
+Agents: run `papyrus guide` (or `papyrus guide --list`) for task-first recipes with exact syntax. Every command has `--help`.
 
 Operator groups:
+  guide         Print the agent CLI guide (papyrus guide --list; papyrus guide TASK)
   references    List or show references (local pod or cloud GraphQL); search them by words and meaning (signed in)
   monitors      Monitoring state (overview, page; signed in, read-only) and Hacker News worker checkpoints
   assignments   List newsroom assignments (cloud) or pod stories (local)
@@ -17,7 +20,7 @@ Operator groups:
   sections      Newsroom section maintenance
   editions      Edition planning
   procedures    Tactus and policy commands
-  automations   Automation records: list, show, runs, run (now), create, update
+  automations   Automation records: list, show, runs, run (now), create, update, attention, acknowledge
   reviews       Human review points: list, show, raise, answer, withdraw, wait, steering, recipients
   analysis      Analysis and reindex tooling
   ops           Content, corpora, categories, messages, and site copy
@@ -27,14 +30,31 @@ Operator groups:
   ideas         Digest recent references and synthesise private story ideas (ideas digest|synthesize)
   items         Stories as a whole (items link-references)
   home-page     Public data of the home page (home-page snapshot)
+  images        Pictures for Stories: stock search, generation, review, apply and undo (images <command>)
+  agents        Agent definition files, one per always-on agent (agents validate offline; agents apply and agents schedules to a site; agents set-rung sets an agent's rung)
+  guidelines    Writing, image and video guidelines for the site or a section (guidelines show|resolve|diff|save|history|check)
+  announcements Announce Stories on the publication's X account: one Announcement and one Delivery for each channel, dry runs, withdraw, budget and pause (announcements where|recent|explain|dry-run|pause|resume|withdraw|settings|account)
+  handoffs      Ask another responsibility for work on a Story: an Assignment that names who asked and why (handoffs request)
+  ratings       Rate a Story: a person gives 1 to 5 stars, an agent only 3 or 4 where the site's policy allows it (ratings set)
+  figures       Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it (figures render|directive|rules|primitives|localize|variant)
+  pod           A folder of Markdown notes as a pod: start one, mint ids, check it (pod init|id|check; files only, no sign-in)
+  design-system The site's design system for figures, kept in the backend (design-system show|pull|push)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)
   batch         Batch registration and enrichment
+  links         Console addresses of a Story, Reference, Concept, Assignment or review item (links --story|--reference|--concept|--assignment|--review)
   login         Google newsroom sign-in using a configured native OAuth client
   logout        Remove the local user session and attempt provider revocation
   whoami        Renew and identify the selected newsroom user
   auth status   Inspect the selected user session without opening a browser
+
+Signing in (which lane a command calls the site with):
+  Signed in (the default): `papyrus login SITE` once, then every command runs as you. With no session a command refuses.
+  --site SITE   Choose one of your signed-in sites for this command (or PAPYRUS_SITE).
+  --auth iam    The operator lane: this process's own AWS credentials. Never chosen by itself; a worker, deploy or CI step that
+                runs as its own AWS role declares it (or sets PAPYRUS_GRAPHQL_AUTH=iam).
+  A CLI newer than the site's backend refuses what that backend cannot do; upgrade the site rather than switching lanes.
 
 Backend selection:
   Use --backend local|cloud, PAPYRUS_BACKEND, or .papyrus/operator-cli.config.yaml.
@@ -133,7 +153,9 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   context.add_argument("--max-characters", type=int, default=0)
   check = subparsers.add_parser("check", help="Check a draft against the site's editorial policies (Humanus)")
   check.add_argument("--draft", required=True, help="Markus/Markdown body to check (read-only).")
+  check.add_argument("--story", help="The story (lineage id or slug) this draft revises, so its own saved versions are not compared as other stories by the cross-story boilerplate check.")
   check.add_argument("--section", help="Desk key, for desk policies.")
+  check.add_argument("--language", help="Language of the draft (en, es-419, zh-Hans ...). Default: the site's primary language.")
   check.add_argument("--pack", help="Use this Humanus policy-pack file instead of the site's policies.")
   check.add_argument("--output")
   suggest = subparsers.add_parser("suggest", help="Rewrite options for one finding or a passage; never edits the draft")
@@ -141,9 +163,24 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   suggest.add_argument("--finding-id")
   suggest.add_argument("--select")
   suggest.add_argument("--note")
+  suggest.add_argument("--story", help="The story this draft revises (lineage id or slug); see `editorial check --story`.")
+  suggest.add_argument("--section")
+  suggest.add_argument("--language", help="Language of the draft. Default: the site's primary language.")
   subparsers.add_parser("pack", help="Print the site's effective policy pack for a desk")
   subparsers.add_parser("import", help="Add a style profile's controls as editorial policies")
   subparsers.add_parser("policies", help="List policies, import a starter pack, ensure the default packs, add policies from a policy-pack file (add), or export them (export)")
+  languages = subparsers.add_parser("languages", help="Show how the site serves its languages, enable or disable a language, or set which are public, their URL prefixes and slug policies")
+  languages.add_argument("--enable", help="Comma-separated languages (es-419, zh-Hans) the site starts writing in: enabled, never public, with their starter policy packs imported.")
+  languages.add_argument("--disable", help="Comma-separated languages the site stops writing in. Refused for the primary language and for a language that has translations.")
+  languages.add_argument("--set-public", help="Comma-separated languages the public site serves besides the primary.")
+  languages.add_argument("--set-prefix", action="append", help="TAG=PREFIX: the URL prefix of one language.")
+  languages.add_argument("--set-slug", action="append", help="TAG=POLICY: translated, characters, pinyin or primary.")
+  languages.add_argument("--set-segment", action="append", help="TAG:SEGMENT=TRANSLATED: the path segment of a section, type or page in one language.")
+  languages.add_argument("--auto", choices=("on", "off"), help="Translate every Story into every enabled language when it is published.")
+  languages.add_argument("--auto-automation", help="The Automation that runs the translation procedure.")
+  languages.add_argument("--auto-publish", choices=("on", "off"), help="Publish the translations a run saved cleanly.")
+  languages.add_argument("--dry-run", action="store_true")
+  languages.add_argument("--json", action="store_true")
   version = subparsers.add_parser("check-version", help="Check one saved version and store the result with it")
   version.add_argument("--item", required=True)
   version.add_argument("--json", action="store_true")
@@ -154,29 +191,18 @@ def build_editorial_parser() -> argparse.ArgumentParser:
 
 
 def print_group_help(group: str) -> None:
-  builders = {
-    "references": build_references_parser,
-    "assignments": build_assignments_parser,
-    "knowledge": build_knowledge_parser,
-    "editorial": build_editorial_parser,
-  }
-  builder = builders.get(group)
-  if builder is None:
-    from papyrus.operator.group_commands import generic_group_help
+  """`papyrus <group>`: every command of the group with a one-line description (from the usage table), the useful ones first."""
+  from papyrus.operator.help_dispatch import group_text, route_tree
 
-    text = generic_group_help(group)
-    print(text if text is not None else TOP_LEVEL_HELP)
+  node = route_tree().get(group)
+  if node is None:
+    print(TOP_LEVEL_HELP)
     return
-  parser = builder()
+  print(group_text([group], node))
   if group == "assignments":
-    print("Cloud rows are GraphQL Assignment work records (kind: newsroom-assignment).")
+    print("\nCloud rows are GraphQL Assignment work records (kind: newsroom-assignment).")
     print("Local rows are Kanbus pod stories (kind: pod-story).")
     print("Use kbs for board columns, transitions, and workflow state.")
-  parser.print_help()
-  # The parser describes some of the group's commands; the rest are routed elsewhere, so list them too.
-  from papyrus.operator.help_dispatch import route_tree
-
-  described = {name for action in parser._actions for name in (getattr(action, "choices", None) or {})}
-  others = [name for name in route_tree().get(group, {}) if name not in described]
-  if others:
-    print("\nOther commands: " + ", ".join(others))
+  if group == "references":
+    print("\nFiling and linking References as an agent: `papyrus guide find`, `papyrus guide file-reference`, `papyrus guide tag-and-link`.")
+    print("`register` is for the local pod only; it does not file a Reference on a site.")

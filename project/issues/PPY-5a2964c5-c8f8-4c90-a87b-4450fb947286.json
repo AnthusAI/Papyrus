@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5a2964c5-c8f8-4c90-a87b-4450fb947286",
+  "title": "A person can see a generated image candidate before applying it",
+  "description": "Reported 2026-11-12 by the MoM story session after the first real generation on MoM (5.108.0): round-b6e2351b017c, candidate-edd9d458e88e. `papyrus images show <candidate-id>` answers 'image_candidate_get is described but not built yet' and `images round` gives no preview URL, so nobody can look at a generated picture before applying it. The test candidate was left unapplied for that reason.\n\nGoal: as an editor (person or agent) I can see every candidate of a round before I apply, discard or pick one. Ryan's rules apply: no real likenesses in generated images, and a person approves every piece, so seeing the picture is the minimum.\n\nBuild: implement the described-but-unbuilt operation (image_candidate_get) through the one operation table (CLI, MCP, newsroom UI, skill): returns the candidate's metadata (prompt, model, cost, time, round, Story) and a short-lived signed URL to the stored file (candidate files live in S3 as ModelAttachment role image_candidate_file; the picture bytes never go through DynamoDB); `images round` lists each candidate with its preview URL; the newsroom shows the candidates of a round side by side with Apply, Discard and Pick actions (colour never the only signal, plain text, Lucide icons, flat fills, 375px). Related: PPY-43a20d (candidate store for A/B visuals), PPY-6f9fb906 (ImageCandidate).\n\n```gherkin\nFeature: See a generated image candidate before applying it\n  Scenario: Show a candidate\n    Given a round with a ready candidate\n    When an editor runs images show for the candidate\n    Then it prints the prompt, the model, the cost and a preview URL that serves the picture\n  Scenario: A round lists its candidates with previews\n    Given a round with three ready candidates\n    When an editor runs images round for it\n    Then each candidate is listed with its preview URL\n  Scenario: The preview link expires\n    Given a preview URL older than its lifetime\n    Then it no longer serves the picture and asking again gives a fresh one\n  Scenario: Candidates side by side in the newsroom\n    Given a Story with a round of candidates\n    When an editor opens the Story's images\n    Then the candidates appear side by side with Apply, Discard and Pick\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-13T01:15:38.799429Z",
+  "updated_at": "2026-11-13T01:15:38.799499Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

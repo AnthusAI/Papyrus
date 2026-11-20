@@ -27,6 +27,7 @@ AI_FEED = "https://rss.arxiv.org/rss/cs.AI+cs.LG+cs.CL+cs.MA+stat.ML"
 SECURITY_FEED = "https://rss.arxiv.org/rss/cs.CR"
 ATOM_FEED = "https://export.arxiv.org/api/query?search_query=cat:cs.CR&max_results=2"
 PAPERS = "https://huggingface.co/api/daily_papers"
+METR_FEED = "https://metr.org/feed.xml"
 
 
 def read(name) -> bytes:
@@ -360,6 +361,57 @@ def test_a_rate_limited_page_is_waited_out_or_resumed_next_pass():
     assert table.get_item({"pk": "MONITOR#papers-huggingface", "sk": "STATE"})["Item"]["resume"]
 
 
+# --- METR (RSS 2.0 with full-content `content:encoded`, no description) ----------------------------
+
+def test_the_metr_feed_is_read_by_the_general_reader():
+    assert feed.FEED_HOSTS["metr.org"] == "METR" and feed.check_feed_url(METR_FEED) == METR_FEED
+    items = feed.parse_feed(read("metr-rss.xml"), METR_FEED)
+
+    assert [i.title for i in items][:2] == ['Review of the "Risks from automated R&D" section in Anthropic\'s Risk Report (August 2026)',
+                                           "Implementing and Evaluating a Basic Per-Action Monitor for Safer Evals"]
+    assert len(items) == 5 and len({i.source_id for i in items}) == 5
+    first = items[0]
+    assert first.canonical_url == first.source_item_url == "https://metr.org/blog/2026-11-05-rd-section-anthropic-risk-report-august-2026-review/"
+    assert first.published_at == "2026-11-05T08:00:00Z" and first.details["publishedAt"] == first.published_at
+    assert first.details["abstract"].startswith("<p>Redaction summary")      # the post's content:encoded, as the feed gives it
+    assert "authors" not in first.details and "categories" not in first.details
+
+
+def test_a_metr_entry_is_keyed_on_its_guid_and_addressed_by_its_link():
+    items = by_id(feed.parse_feed(read("metr-rss.xml"), METR_FEED))
+    evaluation = next(i for i in items.values() if i.title == "GPT-5.1-Codex-Max Evaluation Results")
+
+    assert evaluation.canonical_url == "https://metr.org/evaluations/gpt-5-1-codex-max-report/"     # /evaluations/ link, /blog/ guid
+    assert evaluation.source_id.startswith("https___metr_org_blog_2025-11-19-gpt-5-1-codex-max-repo-")
+    paper = next(i for i in items.values() if i.title.startswith("HCAST"))
+    assert paper.canonical_url == "https://arxiv.org/abs/2503.17354"                              # a post that points off the site
+    root_page = next(i for i in items.values() if i.title == "Frontier AI Safety Policies")
+    assert root_page.canonical_url == "https://metr.org/fsp"                                       # a site-root link
+
+
+def test_a_metr_item_without_title_or_link_is_left_out_and_the_channel_is_not_an_entry():
+    body = read("metr-rss.xml").decode().replace("</channel>", "<item><title>No link</title><guid>x</guid></item>"
+                                                  "<item><link>https://metr.org/blog/y/</link><guid>y</guid></item></channel>")
+
+    assert len(feed.parse_feed(body.encode(), METR_FEED)) == 5
+
+
+def long_metr_feed() -> bytes:
+    return read("metr-rss.xml").decode().replace("</channel>", "<item><title>Long</title><link>https://metr.org/blog/long/</link>"
+        "<guid>https://metr.org/blog/long/</guid><content:encoded><![CDATA[" + "x" * 800_000 + "]]></content:encoded></item></channel>").encode()
+
+
+def test_a_long_metr_post_is_cut_to_the_abstract_limit_before_it_is_stored():
+    table = FakeTable()
+    table.put_item(feed_config(METR_FEED))
+
+    run(table, "papers", lambda url: long_metr_feed())
+
+    row = next(r for r in table.by_prefix("DISC#") if r["canonicalUrl"] == "https://metr.org/blog/long/")
+    assert len(row["details"]["abstract"]) == feed.MAX_ABSTRACT_CHARACTERS == 20_000
+    assert all(len(json.dumps(r, default=str)) < 100_000 for r in table.by_prefix("DISC#"))
+
+
 # --- collection of a feed --------------------------------------------------------------------------
 
 def test_a_feed_monitor_collects_papers_and_dedupes_on_the_next_pass():
@@ -470,3 +522,49 @@ def test_the_new_modules_are_in_the_collector_and_router_zips():
 
     assert {"monitoring_feed", "monitoring_hf_papers"} <= set(build.package_modules(build.COLLECTOR_ROOTS))
     assert {"monitoring_feed", "monitoring_hf_papers"} <= set(build.package_modules(build.ROUTER_ROOTS))
+
+
+# --- a site adds a feed host as data (PPY-94458e) --------------------------------------------------------------------
+
+NEW_HOST_FEED = "https://feeds.satirejournal.com/rss.xml"
+
+
+def test_a_feed_on_a_new_public_host_is_accepted_when_the_config_names_the_source():
+    config = _validate_config({"sourceType": "feed", "sourceUrl": NEW_HOST_FEED, "intervalSeconds": 3600, "sourceName": "Satire Journal"})
+    assert config["sourceName"] == "Satire Journal" and config["sourceUrl"] == NEW_HOST_FEED
+    with pytest.raises(ValueError, match="names the source"):
+        _validate_config({"sourceType": "feed", "sourceUrl": NEW_HOST_FEED, "intervalSeconds": 3600})   # a host that is not built in needs the name
+    assert "sourceName" not in _validate_config({"sourceType": "feed", "sourceUrl": SECURITY_FEED, "intervalSeconds": 3600})   # a built-in host needs none
+
+
+@pytest.mark.parametrize("url", ["https://localhost/rss", "https://127.0.0.1/rss", "https://10.0.0.5/rss", "https://[::1]/rss", "https://printer.local/rss", "https://intranet/rss",
+                                 "https://metadata.internal/rss", "http://feeds.satirejournal.com/rss.xml", "https://feeds.satirejournal.com:8443/rss.xml",
+                                 "https://user:pw" + "@feeds.satirejournal.com/rss.xml", "https://feeds.satirejournal.com/rss.xml#x"])
+def test_a_name_never_makes_a_private_or_unsafe_address_acceptable(url):
+    with pytest.raises(ValueError):
+        _validate_config({"sourceType": "feed", "sourceUrl": url, "intervalSeconds": 3600, "sourceName": "Anything"})
+
+
+@pytest.mark.parametrize("name", ["", "  ", 5, "x" * 81, "bad\nname"])
+def test_a_source_name_is_a_short_plain_name(name):
+    with pytest.raises(ValueError, match="sourceName"):
+        _validate_config({"sourceType": "feed", "sourceUrl": NEW_HOST_FEED, "intervalSeconds": 3600, "sourceName": name})
+
+
+def test_the_fetch_of_a_named_host_checks_the_address_and_reads_it(monkeypatch):
+    with pytest.raises(ValueError):
+        feed.fetch_feed(NEW_HOST_FEED)   # the fetch alone does not know the name: a host that is not built in is refused
+    seen = []
+    monkeypatch.setattr(feed, "urlopen", lambda request, **k: seen.append(request.full_url) or (_ for _ in ()).throw(RuntimeError("stop")))
+    with pytest.raises(RuntimeError):
+        feed.fetch_feed(NEW_HOST_FEED, True)
+    assert seen == [NEW_HOST_FEED]
+    source = feed.feed_source({"sourceUrl": NEW_HOST_FEED, "sourceName": "Satire Journal"}, None)
+    with pytest.raises(RuntimeError):
+        source["fetch_page"](None)
+
+
+def test_the_name_in_the_config_is_the_name_shown_for_the_source():
+    mr = pytest.importorskip("papyrus_content.monitoring_router")
+    assert mr.source_name_for(NEW_HOST_FEED, "feed", "Satire Journal") == "Satire Journal"
+    assert mr.source_name_for(NEW_HOST_FEED, "feed") == "Feed" and mr.source_name_for(SECURITY_FEED, "feed") == "arXiv"

@@ -113,3 +113,42 @@ def test_an_empty_title_falls_back_to_the_anchor_title_and_threads_sort_by_lates
     )
     found = collect_threads(client, REFERENCES, SETTINGS)
     assert [entry["title"] for entry in found] == ["Later", "A Reference"]
+
+
+def test_a_reference_thread_takes_its_references_section():
+    client = Client([thread()], [comment(1)])
+    [found] = collect_threads(client, REFERENCES, SETTINGS, reference_sections={public_key("lineage-1"): "Tools"})
+    assert found["section"] == "Tools"
+
+
+def test_a_thread_whose_reference_has_no_section_has_no_section_key():
+    client = Client([thread()], [comment(1)])
+    [found] = collect_threads(client, REFERENCES, SETTINGS, reference_sections={})
+    assert "section" not in found
+
+
+def test_a_story_thread_takes_its_storys_section():
+    story = {"url": "https://example.test/s/", "title": "A Story", "section": "Plants"}
+    client = Client([thread(threadKind="story_conversation", primaryAnchorKey="item#story-1")], [comment(1)])
+    [found] = collect_threads(client, REFERENCES, SETTINGS, story_anchor=lambda lineage: story if lineage == "story-1" else None)
+    assert found["section"] == "Plants"
+
+
+def test_an_explicit_section_wins_and_only_its_title_is_published():
+    client = Client([thread(sectionId="section-9")], [comment(1)])
+    client.list_records = lambda model: [{"id": "section-9", "title": "Opinion"}]
+    [found] = collect_threads(client, REFERENCES, SETTINGS, reference_sections={public_key("lineage-1"): "Tools"})
+    assert found["section"] == "Opinion"
+    assert "section-9" not in repr(found)
+
+
+def test_an_explicit_section_that_no_longer_exists_falls_back_to_the_anchors():
+    client = Client([thread(sectionId="gone")], [comment(1)])
+    client.list_records = lambda model: []
+    [found] = collect_threads(client, REFERENCES, SETTINGS, reference_sections={public_key("lineage-1"): "Tools"})
+    assert found["section"] == "Tools"
+
+
+def test_the_section_list_is_not_read_when_no_thread_names_one():
+    client = Client([thread()], [comment(1)])   # no list_records: a read would raise
+    assert collect_threads(client, REFERENCES, SETTINGS)

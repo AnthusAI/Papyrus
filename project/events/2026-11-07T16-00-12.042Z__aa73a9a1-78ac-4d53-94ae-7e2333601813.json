@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "aa73a9a1-78ac-4d53-94ae-7e2333601813",
+  "issue_id": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T16:00:12.042Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Multilingual publishing: one publication in every supported language",
+    "description": "As a publication editor, I want Papyrus to maintain complete, traceable editions of a site in supported languages, so readers can follow the same reporting and concepts in their chosen language.\n\nScope: references, accepted Concepts Wiki entries, stories, sections, public pages and navigation; site-wide language selection; background translation and localization; language-specific editorial guidance; provenance, versioning and approval; backfill and repair. Mission and doctrine remain authoritative backend data in one language, with optional language-specific guidance. The original language is recorded per item, independent of the site's default.\n\nDesign principles: one shared identity, evidence graph and lifecycle per item; one versioned rendition per locale; preserve source revisions and human edits; never imply that approval of source wording approves translated wording. The initial proving pair is English and Spanish. Additional languages use the same mechanism.\n\nMilestones are the child Epics in dependency order. This is a Papyrus engine initiative; site repositories configure and theme it after release. Behavior changes require Gherkin scenarios and focused tests.\n\nDefinition of done: an editor can publish, correct and withdraw content while readers can reach available versions by stable language URLs; translations are traceable, checked, repairable and governed by each site's approval policy; operational cost and coverage are visible.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-sol"
+    }
+  }
+}

@@ -6,9 +6,14 @@ import {
   saveItemDraft,
   unpublishItem,
   moveStoryStage,
+  scheduleStory,
+  scheduleList,
+  scheduleSuggest,
   createStoryFromReference,
   type ContentActionError,
 } from "./content-actions-client";
+import type { AnnouncementsDoor } from "./announcement-lines";
+import { announcementsDoor } from "./announcements-door-client";
 import { createDemoArticlesBackend } from "./content-actions-demo";
 import { UNTYPED_ITEM_TYPE } from "./content-item-lifecycle";
 import { ALWAYS_PROJECTED, typeForNewStory, siteStoryTypes } from "./site-story-types";
@@ -99,12 +104,20 @@ export type ArticlesBackend = {
     publishItem: typeof publishItem;
     unpublishItem: typeof unpublishItem;
     moveStoryStage: typeof moveStoryStage;
+    /** Sets, changes or clears (null) the time this Story's version goes live. */
+    scheduleStory: typeof scheduleStory;
+    /** The Story's schedules (the `schedule_list` operation): the drawer shows what the backend says, not what the loaded row happens to hold. */
+    scheduleList: typeof scheduleList;
+    /** The next time the publication's own rhythm suggests for a Story (the `schedule_suggest` operation), or why there is none. */
+    scheduleSuggest: typeof scheduleSuggest;
     createStoryFromReference: typeof createStoryFromReference;
     /** Saves an editor's rating of a Story (any version id of it; null clears it). A plain update: no new version, nothing republished. */
     setItemStars: (itemId: string, stars: number | null) => Promise<void>;
   };
   listRows: () => Promise<NewsroomArticleRow[]>;
   loadArticle: (id: string) => Promise<EditableArticle>;
+  /** The announcements door (reads only): where the Story was announced, one line for each Delivery. */
+  announcementsDoor: AnnouncementsDoor;
 };
 
 export function slugify(value: string): string {
@@ -341,9 +354,10 @@ export function createLiveArticlesBackend(): ArticlesBackend {
     return client;
   };
   return {
-    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, createStoryFromReference, setItemStars },
+    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, scheduleStory, scheduleList, scheduleSuggest, createStoryFromReference, setItemStars },
     listRows: () => loadArticleRows(dataClient()),
     loadArticle: (id) => loadEditableArticle(dataClient(), id),
+    announcementsDoor,
   };
 }
 

@@ -7,6 +7,7 @@ import { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
 import { Queue, QueueEncryption } from "aws-cdk-lib/aws-sqs";
 import type { PluginWiringContext } from "../types";
 import type { NewsletterConfig, RoundupList } from "./config";
+import { connectToSiteApi } from "../../site-api-access";
 
 export const NEWSLETTER_WORKER_HANDLER = "papyrus_content.newsletter.worker.handler";
 /** The worker mails up to 50 subscribers per message at the SES send rate; the visibility timeout is six times this. */
@@ -90,7 +91,7 @@ export function wireSending(inputs: SendingInputs): { queue: Queue; deadLetterQu
   lambda.addEnvironment("SCHEDULER_ROLE_ARN", schedulerRole.roleArn);
   lambda.addEnvironment("QUEUE_URL", queue.queueUrl);
   lambda.addEnvironment("CONTENT_ACTIONS_FUNCTION", contentActions.functionName);
-  lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", context.graphqlEndpoint);
+  connectToSiteApi(lambda, context.graphqlEndpoint);
 
   queue.grantSendMessages(lambda);
   contentActions.grantInvoke(lambda);
@@ -149,7 +150,7 @@ export function wireSending(inputs: SendingInputs): { queue: Queue; deadLetterQu
     }),
   );
   // GetAccount (the send rate) does not support resource-level permissions.
-  worker.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["sesv2:GetAccount"], resources: ["*"] }));
+  worker.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:GetAccount"], resources: ["*"] }));
 
   // A roundup list drafts itself on its schedule, in the schedule's own time zone.
   const roundups = config.lists.filter((list): list is RoundupList => list.kind === "roundup");

@@ -1,0 +1,25 @@
+{
+  "id": "PPY-0068a4cf-82ea-450d-82f2-1b01b49b1089",
+  "title": "A Pretext site with editions off lists its published articles on the home page",
+  "description": "With editions off the Pretext home page built its item stream from published editions, so a site that never creates editions (Humorus, TheHallucinator.ai) showed \"Nothing published yet\" although articles were published and their pages worked. The stream now reads the newest published articles from the item index (typeStatus by publishedAt, newest first, one page). Scenarios are in features/editions-optional.feature.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-15T14:08:10.279768Z",
+  "updated_at": "2026-11-15T14:08:10.282140Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Humorus public reader"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

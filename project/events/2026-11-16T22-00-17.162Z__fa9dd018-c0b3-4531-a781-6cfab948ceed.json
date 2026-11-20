@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fa9dd018-c0b3-4531-a781-6cfab948ceed",
+  "issue_id": "PPY-e3bb2b9e-2597-4758-9d7a-656da62e9500",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T22:00:17.162Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Durable triggers: drive 'page is live' and 'rating changed' from the change stream; remove the best-effort publish call",
+    "description": "Today a publish tells the newsletter and notifications functions with a short best-effort call, and every error is swallowed. That keeps publishing fast and can lose the event; the Announcement's once-only key cannot help if the event never arrives. Make the two facts that start an Announcement durable: \"this Story's page is live\" and \"this Story's rating changed\" reach one announcement worker from the change stream of the records that already record them. Delete the best-effort call. Publishing stays fast because it only writes its own record. Which record marks \"page live\" is chosen in this task.\n\nDesign (section 13.3 change A, 13.4): ~/Projects/papyrus-announcement-delivery-design.md. Order: after slice 1 (PPY-3792dd) and slice 2 (PPY-a570e8), before X on the new records (PPY-efd06c). A timer that fires only raises an event; the worker re-reads the record and re-checks everything.\n\n**Acceptance criteria**\n- Gherkin: a publish whose first trigger fails is still announced once (the change stream delivers it; the dedupeKey keeps it to one Announcement).\n- Gherkin: a rating change reaches the announcement worker from the change stream and re-evaluates eligibility.\n- The best-effort publish call to the newsletter and notifications functions is removed, with its swallowed-error path; no fallback or second path remains.\n- Publishing latency is unchanged: publish writes only its own record.\n- One worker per channel account for every channel (see PPY-a570e8).\n- No new inbox table; the change stream, the once-only key and Caducus's queue are the path.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": []
+  }
+}

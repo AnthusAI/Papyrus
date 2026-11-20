@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "b63d84e5-7699-4ae0-a2ca-422de940df90",
+  "issue_id": "PPY-956b41b2-2d9a-4968-83cb-ee06452108c2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T01:17:41.513Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Localizer: a paragraph invented inside a container goes back to the repair loop",
+    "description": "Board task for localizer work that had none. PR: https://github.com/AnthusAI/Papyrus/pull/1628 (MERGED). Merged to develop.\n\nCovers the report's finding that #1621, #1628 and #1633 have no board task (Board for every task).\n\n**Report:** papyrus-track-report-1.md, section 1 (merged pull requests table) and section 2 (Board for every task).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

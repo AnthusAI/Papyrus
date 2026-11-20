@@ -1,0 +1,26 @@
+{
+  "id": "PPY-ce9cdd63-c986-4aa2-8f95-2bb3438d4b26",
+  "title": "Card dates ignore the language's date format on language editions",
+  "description": "Card dates on /es/ show 2026-11-15 instead of the language tag's locale date format (also zh-Hans).",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "multilingual"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-16T12:00:38.398369Z",
+  "updated_at": "2026-11-16T12:00:38.399613Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  }
+}

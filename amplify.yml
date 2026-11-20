@@ -4,16 +4,12 @@ backend:
     build:
       commands:
         - npm install --cache .npm --prefer-offline
-        - |
-          if [ -z "${PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI:-}" ]; then
-            export PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true
-          fi
         - npx ampx pipeline-deploy --debug --branch $AWS_BRANCH --app-id $AWS_APP_ID
 frontend:
   phases:
     build:
       commands:
-        - env | grep -e '^PAPYRUS_CONTENT_SOURCE=' -e '^PAPYRUS_EDITION_SLUG=' -e '^PAPYRUS_REVALIDATE_SECRET_PARAMETER=' -e '^PAPYRUS_SITE_ORIGIN=' -e '^PAPYRUS_TENANT_ID=' -e '^PAPYRUS_PROSPECTUS_' -e '^PAPYRUS_CURATION_' >> .env.production
+        - env | grep -e '^PAPYRUS_CONTENT_SOURCE=' -e '^PAPYRUS_EDITION_SLUG=' -e '^PAPYRUS_REVALIDATE_SECRET_PARAMETER=' -e '^PAPYRUS_SITE_ORIGIN=' -e '^PAPYRUS_CONSOLE_ORIGIN=' -e '^PAPYRUS_TENANT_ID=' -e '^PAPYRUS_PROSPECTUS_' -e '^PAPYRUS_CURATION_' >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next

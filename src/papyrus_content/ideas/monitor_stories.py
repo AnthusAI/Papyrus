@@ -50,8 +50,10 @@ from ..monitor_promotion import promoted_reference_ids
 from ..reference_stars import latest_stars
 from ..reference_vote import HUMAN
 from . import connections as connection_rules, dedupe, duplicate_cut, point_check, rated_outcomes, retry_memory as retry_rules, synthesis, trends
+from .rules import DEFAULT as DEFAULT_RULES, IdeaRules
 from .editor_signals import interest_key, order_key
-from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
+from ..tenant_knowledge_keys import corpus_id_for_key
+from .digest import collect_references, iso, parse_time, parse_window, relations_of, relevance_of
 from .excluded_hosts import is_excluded, normalize_hosts
 from . import source_text
 from .source_text import SourceFetcher, fetch_source
@@ -122,6 +124,32 @@ SCHEMA: dict[str, Any] = {
         "additionalProperties": False,
     },
 }
+
+
+PREMISE_PROMPT = """You draft one short story idea for a publication from one real item that a monitor found: a link to a page, with the page's text where it could be read and any facts the monitor stored. You are given the publication's mission and policy, its allowed sections, the source, and its recent and in-flight stories.
+
+This publication starts from something real and adds an invented premise. First write the premise as one sentence in "premise": the invented turn the story takes, plainly invented, never presented as something the source says. Then write the story around it. Everything the story says about the real item (what it is, who made it, what it states) must be true of the source and cited to it; the invented premise is the only thing that is not.
+
+Rules:
+- Every headline, dek and body sentence is its own entry with the handles it rests on, in "cites": the source (I1) is the only handle. A sentence with no handle, or a handle that is not one you were given, makes the whole draft unusable.
+- The premise is not a sentence of the story's evidence: it has no handle, and no sentence may state it as fact about the real source.
+- Use only what the fields say about the real item. Do not invent facts, quotes, dates or names about it, and do not do arithmetic: write a number only if it appears in the source (write digits, not number words).
+- The source is an item from outside the publication. Say where it is from. The story is a proposal for an editor, not finished reporting.
+- Write plain, specific prose. One short paragraph, or two if the premise needs it.
+- Choose the section from the allowed list, exactly as written.
+- Skip nothing and add nothing outside the format. Never use the word "desk".
+"""
+
+PREMISE_SCHEMA: dict[str, Any] = {
+    **SCHEMA,
+    "name": "monitor_story_premise_draft",
+    "schema": {
+        **SCHEMA["schema"],
+        "properties": {"premise": {"type": "string"}, **{key: value for key, value in SCHEMA["schema"]["properties"].items() if key != "point"}},
+        "required": ["premise", "headline", "dek", "section", "paragraphs"],
+    },
+}
+NO_PREMISE_OFFERED = "no_premise_offered"
 
 
 # --- reading the monitored items -------------------------------------------------------------------------------------------
@@ -221,9 +249,9 @@ def collect_monitored_items(
     with no ``sourceUri`` is counted as ``noSourceUri`` and a pending one as ``pendingNotCandidate`` (it cannot be evidence)."""
     statuses = list(dict.fromkeys(statuses))
     window = now - parse_window(since) if since else None
-    rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], statuses, window)
+    rows = collect_references(client, [corpus_id_for_key(site)], statuses, window)
     # Listing every pending Reference only to count them costs a page per thousand: a run that must hurry (``count_pending=False``) leaves the count to later.
-    not_accepted = 0 if ("pending" in statuses or not count_pending) else len(collect_references(client, [f"{CORPUS_PREFIX}{site}"], ["pending"], window))
+    not_accepted = 0 if ("pending" in statuses or not count_pending) else len(collect_references(client, [corpus_id_for_key(site)], ["pending"], window))
     counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "pendingNotCandidate": 0, "noSourceUri": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
     automated = set(automated_monitors)
     handled = {str(identifier) for identifier in automation_handled}
@@ -445,8 +473,9 @@ def build_input(item: MonitoredItem, view: dict[str, Any], context: dict[str, An
     return model_input
 
 
-def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any]) -> tuple[dict[str, Any], synthesis.Usage]:
-    payload = synthesis.request_payload(model, model_input) | {"instructions": SYSTEM_PROMPT, "text": {"format": SCHEMA}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
+def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any], rules: IdeaRules = DEFAULT_RULES) -> tuple[dict[str, Any], synthesis.Usage]:
+    prompt, schema = (PREMISE_PROMPT, PREMISE_SCHEMA) if rules.premise_led else (SYSTEM_PROMPT, SCHEMA)
+    payload = synthesis.request_payload(model, model_input) | {"instructions": prompt, "text": {"format": schema}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
     body = transport(synthesis.RESPONSES_URL, {"Content-Type": "application/json"}, payload)
     text = synthesis.response_text(body)
     if body.get("status") == "incomplete" or text is None:
@@ -464,7 +493,7 @@ def call_model(transport: synthesis.Transport, model: str, model_input: dict[str
 
 
 def check_story(
-    raw: Any, item: MonitoredItem, view: dict[str, Any], allowed_sections: list[str], connections: connection_rules.Connections,
+    raw: Any, item: MonitoredItem, view: dict[str, Any], allowed_sections: list[str], connections: connection_rules.Connections, rules: IdeaRules = DEFAULT_RULES,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """(the checked draft or None, the citation check record). The sentence rules are the trend path's (``trends.check_sentence``): every sentence cites
     a handle, and every number and date in it is in the handles it cites.
@@ -518,7 +547,13 @@ def check_story(
     section = str(raw.get("section") or "").strip()
     if sections and section.lower() not in sections:
         problems.append(trends._problem("section", section, "unknown_section"))
-    problems += connection_rules.standard_problems(checked_entries, connections, page_readable=connection_rules.readable(view))
+    premise = str(raw.get("premise") or "").strip()
+    if rules.premise_led:
+        # The premise is invented and stands apart from the cited sentences; what the newsroom knows about the item is not required (the standard is "premise-led").
+        if not premise:
+            problems.append(trends._problem("premise", "", "premise_missing"))
+    else:
+        problems += connection_rules.standard_problems(checked_entries, connections, page_readable=connection_rules.readable(view))
     if problems or headline is None or dek is None:
         return None, record
     cited = list(dict.fromkeys(handle for entry in checked_entries for handle in entry["handles"]))
@@ -526,7 +561,7 @@ def check_story(
     record.update(status="passed", itemsCited=[source_id], connectionsCited=used)
     return {
         "headline": headline, "dek": dek, "section": sections.get(section.lower(), section), "paragraphs": paragraphs, "citationCheck": record,
-        "connections": used, "citedHandles": cited,
+        "connections": used, "citedHandles": cited, **({"premise": premise} if rules.premise_led else {}),
     }, record
 
 
@@ -557,6 +592,8 @@ def draft_body(draft: dict[str, Any], item: MonitoredItem, connections: connecti
     published = f" ({item.published_at[:10]})" if item.published_at else ""
     lines = [marked(draft["dek"]), ""]
     lines += [" ".join(marked(sentence) for sentence in paragraph) + "\n" for paragraph in draft["paragraphs"]]
+    if draft.get("premise"):
+        lines += ["## Invented premise", "", f"This premise is invented; the sentences above rest on the source. {draft['premise']}", ""]
     lines += ["## Source" if len(numbers) == 1 else "## Sources", "", f"1. {item.title}{published} {item.url}"]
     for handle, number in numbers.items():
         if handle != SOURCE_HANDLE:
@@ -596,7 +633,8 @@ def draft_record(
         "title": draft["headline"]["text"][:200], "angle": draft["dek"]["text"][:300], "section": draft["section"],
         "body": draft_body(draft, item, connections),
         "targets": [target_for(item)],   # the item only: a neighbour it cites must stay a candidate of its own
-        "evidence": {"signals": 1, "source": f"{item.monitor_id} monitor: {item.url}"[:200], "connections": draft.get("connections") or [], "minimumStandard": connection_rules.MORE_THAN_SUMMARY},
+        "evidence": {"signals": 1, "source": f"{item.monitor_id} monitor: {item.url}"[:200], "connections": draft.get("connections") or [],
+                     **({"mode": "premise-led", "premise": draft["premise"]} if draft.get("premise") else {"minimumStandard": connection_rules.MORE_THAN_SUMMARY})},
         "monitorId": item.monitor_id, "referenceId": item.reference_id, "referenceLineageId": item.lineage_id, "relevance": item.verdict,
         "sourceText": ("page found by search" if found_by_search else "page") if "page_text" in view else "stored details",
         "citedItems": [{"id": f"item:{item.url}", "title": item.title, "date": (item.published_at or "")[:10] or None, "url": item.url}]
@@ -612,6 +650,31 @@ def draft_record(
 
 
 # --- the run -------------------------------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Prepared:
+    """What a plan already read for one of its steps (``draft_monitor_stories(prepared=...)``): the step's item (none for a pack), and the site's existing ideas
+    as dedupe rows (``id``, ``title``, ``summary``, ``state``, ``targets``)."""
+
+    items: list[MonitoredItem]
+    proposals: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class PlanInput:
+    """What ``draft_monitor_stories(plan_sink=...)`` hands the sink: the ordered ``steps`` (``("pack", Pack)`` or ``("item", MonitoredItem)``), the ``knowledge`` that
+    gives an item its connections, the run's ``context`` and ``proposals`` (the site's existing ideas), the ``run`` record, the ``signal_run``, the ``candidates``
+    that are items, and ``covered`` (the Reference lineages an earlier idea cites)."""
+
+    steps: list[tuple[str, Any]]
+    knowledge: Any
+    context: dict[str, Any]
+    proposals: list[dict[str, Any]]
+    run: dict[str, Any]
+    signal_run: Any
+    candidates: list[MonitoredItem]
+    covered: set[str]
 
 
 def draft_monitor_stories(
@@ -645,6 +708,10 @@ def draft_monitor_stories(
     suggestions_waiting: bool = False,
     priority_lineages: Iterable[str] = (),
     count_pending: bool = True,
+    run_id: str | None = None,
+    prepared: Prepared | None = None,
+    plan_sink: Callable[[PlanInput], dict[str, Any]] | None = None,
+    rules: IdeaRules = DEFAULT_RULES,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -662,6 +729,10 @@ def draft_monitor_stories(
     ``point_check.judge`` (a model judge that fails closed), for a pack idea as well as a single item. ``knowledge`` is what the run knows about the Reference
     (tests and the replay pass their own).
 
+    ``rules`` (``ideas/rules.py``) are the site's idea rules: how many References a pack idea cites, which point-check verdicts pass, and the premise-led mode,
+    in which an item is drafted around an invented premise stated apart from the sentences that rest on the source; that draft needs no connection beyond
+    the item and is not judged for a point of its own.
+
     ``stoppedBy`` ``time`` or ``cost`` means the candidates were not all looked at, and ``suggestions_waiting`` that the router has not yet written the
     suggested links the connections come from: either way a run that filed nothing says nothing about curation, so it raises no curation flag.
 
@@ -669,6 +740,12 @@ def draft_monitor_stories(
     skipped (``already_rejected``) until the newsroom has a connection for it that the rejection was not made against, a new comment, link, explanation, related
     Reference or accept reason, and then it is written again. Without one given, a run with a ``json_store`` keeps the memory in files beside it, and a run
     without either remembers nothing. A dry run recalls but remembers nothing new.
+
+    Two arguments split the run in two for the queue (``ideas/story_plan.py``, docs/monitoring-cloud.md#monitor-stories-daily). ``plan_sink`` makes it the
+    PLAN: everything up to the ordered steps is done as usual, the sink is handed the steps (``PlanInput``) and the run returns without drafting, asking the model,
+    filing or requesting a review. ``prepared`` makes it ONE STEP of such a plan: the items, the existing ideas and the steps were read by the plan, so the run reads
+    none of them again (no walk of the corpus and no list of the site's stories) and does not request the review or the curation flag, which belong to the whole
+    plan. ``run_id`` is the plan's run id, shared by every step of it.
 
     ``signal_run`` (``ideas/signal_queue.SignalRun``) turns the run into one walk over a queue of context packs and scored single items: the queue
     orders the candidates (an item with no evidence is not in it), a pack goes to ``pack_stories.draft_pack_ideas``, an item to the path below, and
@@ -682,20 +759,25 @@ def draft_monitor_stories(
     threshold = cut.threshold
     run: dict[str, Any] = {
         "duplicateCut": cut.record(),
-        "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model, "minimumStandard": connection_rules.MORE_THAN_SUMMARY,
+        "runId": run_id or run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model, "minimumStandard": connection_rules.MORE_THAN_SUMMARY,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None, "suggestionsWaiting": suggestions_waiting,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
-    proposals = idea_store.story_drafts() if idea_store else []
+    proposals = prepared.proposals if prepared is not None else (idea_store.story_drafts() if idea_store else [])
     already = drafted_lineage_ids(proposals, stored)
-    automated, automation_error = automated_monitor_ids(client)
     started = time.monotonic()
-    items, counts = collect_monitored_items(
-        client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, automation_handled=automation_handled, statuses=statuses,
-        workers=read_workers, out_of_time=out_of_time, priority_lineages=priority_lineages, count_pending=count_pending,
-    )
+    if prepared is not None:
+        # One step of a plan: its item was read, and found a candidate, when the plan was made.
+        automated, automation_error = set(), None
+        items, counts = list(prepared.items), {"inWindow": len(prepared.items), "notAccepted": 0, "notMonitored": 0, "pendingNotCandidate": 0, "noSourceUri": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
+    else:
+        automated, automation_error = automated_monitor_ids(client)
+        items, counts = collect_monitored_items(
+            client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, automation_handled=automation_handled, statuses=statuses,
+            workers=read_workers, out_of_time=out_of_time, priority_lineages=priority_lineages, count_pending=count_pending,
+        )
     timings = {"collectSeconds": round(time.monotonic() - started, 1)}
     if counts.get("readStopped"):
         run["stoppedBy"] = "time"   # the time ran out while reading: what was read is drafted if any time is left, the rest waits for the next run
@@ -704,7 +786,7 @@ def draft_monitor_stories(
         run["automationLookupError"] = automation_error
     freshness = learn_freshness(items)
     run["freshness"] = freshness or {"tauDays": None, "examples": sum(item.status == "accepted" for item in items), "note": f"Fewer than {MINIMUM_FRESHNESS_EXAMPLES} accepted examples: no freshness weight, the score alone ranks."}
-    promoted = promoted_reference_ids(client, items) if items else set()
+    promoted = promoted_reference_ids(client, items) if items and prepared is None else set()
     counts.update(alreadyDrafted=sum(item.lineage_id in already for item in items), promoted=sum(item.reference_id in promoted and item.lineage_id not in already for item in items))
     # One Reference is drafted once: not when its lineage, nor the address it came from, is already covered by a Proposal in any state, nor twice in this run.
     keys = source_keys(items)
@@ -738,11 +820,17 @@ def draft_monitor_stories(
     attempt_cap = None if limit is None else limit * ATTEMPT_FACTOR
     run["ranking"] = [{"rank": number, **item.as_dict()} for number, item in enumerate(candidates[:attempt_cap], start=1)]
     run.update(attempted=0, invalid=[], skipped=[], duplicates=[], drafts=[], modelCalls=[], usage=None, pointChecks=[], retriedWithNewConnections=[])
+    if knowledge is None:
+        knowledge = default_knowledge(client, signal_run)
+    if plan_sink is not None:
+        # The plan: hand the ordered steps to the queue and stop. Nothing is asked of the model, filed or reviewed here.
+        run["planned"] = plan_sink(PlanInput(steps=steps, knowledge=knowledge, context=context, proposals=proposals, run=run, signal_run=signal_run, candidates=candidates, covered=already))
+        run["timings"] = {**timings, "afterCollectSeconds": round(time.monotonic() - started - timings["collectSeconds"], 1)}
+        run["finishedAt"] = iso(datetime.now(timezone.utc))
+        return run
     documents = comparison_documents(context, [*stored], proposals, [])
     sections = [section["title"] for section in context.get("sections", [])]
     meter = CostMeter()
-    if knowledge is None:
-        knowledge = default_knowledge(client, signal_run)
 
     def recall(subject: str) -> Any:
         """What was remembered about a rejection, or None. A memory that cannot be read is no memory: the subject is tried again, and the run says so."""
@@ -816,7 +904,7 @@ def draft_monitor_stories(
                 result = draft_pack_ideas(
                     client, subject, store=idea_store, gate=signal_run.gate, transport=transport, cost_meter=meter,
                     existing_titles=[*(dedupe.Document("draft", d["ideaId"], d["title"], d.get("angle") or "") for d in [*kept]), *pack_documents],
-                    run_id=run["runId"], dry_run=dry_run, concept_nodes=signal_run.concept_nodes, model=model, threshold=threshold, now=moment,
+                    run_id=run["runId"], dry_run=dry_run, concept_nodes=signal_run.concept_nodes, model=model, threshold=threshold, now=moment, rules=rules,
                 )
             except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; one failure is recorded and the run goes on, a repeated one is systemic and stops it
                 if filing_failed(error, {"packId": subject.pack_id, "title": subject.anchor}):
@@ -862,7 +950,7 @@ def draft_monitor_stories(
             run["skipped"].append({key: value for key, value in skipped.items() if value})
             continue
         page_readable = connection_rules.readable(view)
-        if not connections.clears_the_bar(page_readable):
+        if not rules.premise_led and not connections.clears_the_bar(page_readable):
             # Nothing to add beyond the source: the model is not asked and the Reference is not marked drafted, so the next run looks again.
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": connection_rules.NOTHING_TO_ADD, "pageReadable": page_readable, "found": dict(connections.found)})
             continue
@@ -878,35 +966,40 @@ def draft_monitor_stories(
             break
         run["attempted"] += 1
         try:
-            raw, usage = call_model(transport, model, model_input)
+            raw, usage = call_model(transport, model, model_input, rules)
         except synthesis.SynthesisError as error:
             run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "model_error", "message": str(error)[:300]})
             continue
         meter.add(usage.cost_usd)
         run["modelCalls"].append({"model": model, "promptTokens": usage.input_tokens, "completionTokens": usage.output_tokens, "cachedTokens": usage.cached_input_tokens})
-        if isinstance(raw, dict) and not str(raw.get("point") or "").strip():
+        if rules.premise_led and isinstance(raw, dict) and not str(raw.get("premise") or "").strip():
+            run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": NO_PREMISE_OFFERED, "pageReadable": page_readable})
+            remember(subject_key, [NO_PREMISE_OFFERED], connection_keys, remembered)
+            continue
+        if not rules.premise_led and isinstance(raw, dict) and not str(raw.get("point") or "").strip():
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": point_check.NO_POINT_OFFERED, "pageReadable": page_readable, "found": dict(connections.found)})
             remember(subject_key, [point_check.NO_POINT_OFFERED], connection_keys, remembered)
             continue
-        draft, record = check_story(raw, item, view, sections, connections)
+        draft, record = check_story(raw, item, view, sections, connections, rules)
         if draft is None:
             title = str(((raw.get("headline") or {}).get("text")) if isinstance(raw, dict) and isinstance(raw.get("headline"), dict) else "")[:200]
             run["invalid"].append({"referenceId": item.reference_id, "title": title or item.title, "reason": "citation_check_failed", "citationCheck": record, "draft": raw})
             remember(subject_key, ["citation_check_failed"], connection_keys, remembered)
             continue
-        try:
-            verdict, judge_usage = point_check.judge(transport, model, view, connections.view(), draft_sentences(draft))
-        except synthesis.SynthesisError as error:
-            run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": point_check.POINT_CHECK_ERROR, "message": str(error)[:300]})
-            continue   # no verdict says nothing about the Reference: not remembered, so the next run asks again
-        meter.add(judge_usage.cost_usd)
-        run["modelCalls"].append({"model": model, "promptTokens": judge_usage.input_tokens, "completionTokens": judge_usage.output_tokens, "cachedTokens": judge_usage.cached_input_tokens})
-        failed = point_check.failures(verdict)
-        run["pointChecks"].append({"referenceId": item.reference_id, "lineageId": item.lineage_id, "title": item.title, "failures": failed, "verdict": verdict, "point": raw.get("point"), "sentences": draft_sentences(draft)})
-        if failed:
-            run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "point_check_failed", "failures": failed, "verdict": verdict, "draft": raw})
-            remember(subject_key, ["point_check_failed"], connection_keys, remembered)
-            continue
+        if not rules.premise_led:   # a premise-led draft has no point to judge: the premise is the point, and it is invented
+            try:
+                verdict, judge_usage = point_check.judge(transport, model, view, connections.view(), draft_sentences(draft))
+            except synthesis.SynthesisError as error:
+                run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": point_check.POINT_CHECK_ERROR, "message": str(error)[:300]})
+                continue   # no verdict says nothing about the Reference: not remembered, so the next run asks again
+            meter.add(judge_usage.cost_usd)
+            run["modelCalls"].append({"model": model, "promptTokens": judge_usage.input_tokens, "completionTokens": judge_usage.output_tokens, "cachedTokens": judge_usage.cached_input_tokens})
+            failed = point_check.failures(verdict, rules)
+            run["pointChecks"].append({"referenceId": item.reference_id, "lineageId": item.lineage_id, "title": item.title, "failures": failed, "verdict": verdict, "point": raw.get("point"), "sentences": draft_sentences(draft)})
+            if failed:
+                run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "point_check_failed", "failures": failed, "verdict": verdict, "draft": raw})
+                remember(subject_key, ["point_check_failed"], connection_keys, remembered)
+                continue
         built = draft_record(draft, item, view, run=run, now=moment, exploration=exploration, connections=connections)
         similar, dropped = dedupe.split_duplicates([built], [*documents, *pack_documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
         run["duplicates"] += [{**row, "referenceId": item.reference_id} for row in dropped]
@@ -915,8 +1008,9 @@ def draft_monitor_stories(
             if not dry_run:
                 try:
                     if idea_store:
-                        # Read the targets again: another run (an overlapping task, a laptop) may have filed this Reference since this run began.
-                        if item.lineage_id in drafted_lineage_ids(idea_store.story_drafts(), []):
+                        # Read the targets again: another run (an overlapping task, a laptop) may have filed this Reference since this run began. (A step of a
+                        # plan does not: filing is idempotent by the Reference's lineage, and listing the site's stories again would read the whole table.)
+                        if prepared is None and item.lineage_id in drafted_lineage_ids(idea_store.story_drafts(), []):
                             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "already_drafted"})
                             continue
                         idea_store.mark(record, idea_store.file_story_draft(record))
@@ -935,8 +1029,8 @@ def draft_monitor_stories(
             break
     run["usage"] = _usage(model, run["modelCalls"])
     timings["afterCollectSeconds"] = round(time.monotonic() - started - timings["collectSeconds"], 1)
-    if not count_pending and "pending" not in list(statuses) and (out_of_time is None or not out_of_time()):
-        counts["notAccepted"] = len(collect_references(client, [f"{CORPUS_PREFIX}{corpus_key or site}"], ["pending"], None))   # counted last, and only if the time allows
+    if not count_pending and prepared is None and "pending" not in list(statuses) and (out_of_time is None or not out_of_time()):
+        counts["notAccepted"] = len(collect_references(client, [corpus_id_for_key(corpus_key or site)], ["pending"], None))   # counted last, and only if the time allows
     run["timings"] = timings
     if memory_errors:
         run["retryMemoryErrors"] = dict(memory_errors)
@@ -960,6 +1054,9 @@ def draft_monitor_stories(
     if dry_run:
         run["review"] = {"status": "skipped", "requested": False, "ideas": len(run["drafts"]), "note": "Dry run: nothing was filed, so no review was requested."}
         run["curationFlag"] = {"status": "skipped", "note": "Dry run: no flag is raised."}
+    elif prepared is not None:
+        run["review"] = {"status": "left_to_the_plan", "requested": False, "ideas": len(run["drafts"])}   # one review and one curation flag for the whole plan (story_plan.py)
+        run["curationFlag"] = {"status": "left_to_the_plan"}
     else:
         request_human_review(review_client, run, run["drafts"], noun="monitor story draft")
         run["curationFlag"] = settle_curation_flag(review_client, run, site)

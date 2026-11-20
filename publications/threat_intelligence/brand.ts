@@ -39,7 +39,7 @@ export const threatIntelligenceBrand: SiteBrand = {
   opsChrome: "app",
   corpusKey: "threat-intelligence",
   steeringConfigPath: "corpora/papyrus-steering.yml",
-  newsroomSectionsConfigPath: "corpora/example-newsroom-sections.yml",
+  newsroomSectionsConfigPath: "corpora/threat-intelligence-newsroom-sections.yml",
   analysisProfilesPath: "corpora/papyrus-analysis-profiles.yml",
   publicationName: "Anthus Threat Intelligence",
   components: { PictogramFigure, BlogPageBackground },

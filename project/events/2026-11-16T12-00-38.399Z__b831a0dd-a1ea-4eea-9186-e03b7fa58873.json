@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "b831a0dd-a1ea-4eea-9186-e03b7fa58873",
+  "issue_id": "PPY-ce9cdd63-c986-4aa2-8f95-2bb3438d4b26",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T12:00:38.399Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Card dates ignore the language's date format on language editions",
+    "description": "Card dates on /es/ show 2026-11-15 instead of the language tag's locale date format (also zh-Hans).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "multilingual"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

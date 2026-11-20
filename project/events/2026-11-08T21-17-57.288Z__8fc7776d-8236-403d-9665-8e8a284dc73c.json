@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "8fc7776d-8236-403d-9665-8e8a284dc73c",
+  "issue_id": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:17:57.288Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Report Papyrus cost through Prospectus cost accounting on our sites and the design partner's three sites",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

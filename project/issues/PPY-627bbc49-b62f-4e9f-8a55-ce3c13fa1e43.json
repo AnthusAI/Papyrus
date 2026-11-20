@@ -1,0 +1,38 @@
+{
+  "id": "PPY-627bbc49-b62f-4e9f-8a55-ce3c13fa1e43",
+  "title": "Capture what a person changed in an announcement, and how far it should reach",
+  "description": "When a Delivery is sent (or a preferred version is saved) with a person's changes, record on the Delivery, once: the machine draft version, the final version, and the person's choice of scope, asked in one tap when they save: 'just this one', 'this channel', 'this kind on this channel', or 'the whole publication', with an optional one-line reason (stored with the text version in S3). No choice means 'not decided': the edit is kept as a candidate and changes nothing. The difference between the two versions is computed from the stored versions when needed, not stored again.\n\n**Acceptance criteria**\n- An edited Delivery records which version was the machine's and which was sent.\n- With no scope chosen, nothing about future drafts changes.\n- The reason text is not in the catalog row.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- delivery-edit-capture.feature: an edit with scope 'this channel' is recorded as an example for that channel; an edit with no scope is a candidate; an unedited send records nothing; the reason is stored in S3.\n\n**Infrastructure as code touched:** Amplify data: short fields on `Delivery` (`exampleScope`, `exampleState`, `machineVersion`); one sparse index for active examples, in its own release.\n\n**Part of:** Announcements learn from a person's edits. Slice code O1 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f51641cb-954c-4ce7-96a7-6902ed923b61",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e8ec54ca-25b4-455a-acff-cb941a8fdbc9",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "e09a4782-73ee-4c0b-980c-7438055e7759",
+      "author": "home",
+      "text": "lead8: Merged in #1717 (develop, not released). Delivery fields machineVersion, exampleScope, exampleState, exampleAt, exampleKey; announcements_example (person only); candidate/this_one/channel/kind/publication; reason in S3. Spec delivery-edit-capture.feature. The sparse index for active examples shipped with O3 (#1728), which must go in a release of its own.",
+      "created_at": "2026-11-19T13:38:36.048962Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-16T22:43:19.458250Z",
+  "updated_at": "2026-11-19T13:38:37.841388Z",
+  "closed_at": "2026-11-19T13:38:37.841355Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

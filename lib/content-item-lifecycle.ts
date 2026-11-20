@@ -4,6 +4,8 @@
  * a publication overrides them with SiteBrand.contentItemStages.
  * See docs/content-item-lifecycle.md.
  */
+import type { ScheduleFields } from "./story-schedule";
+
 export type ContentItemStageDefinition = {
   key: string;
   label: string;
@@ -17,7 +19,7 @@ export type ContentItemStageDefinition = {
  * (`guide`, `case-study`) needs no engine change. A system type never appears on the Stories board or in a story count. Which Story types a site offers editors,
  * and which one is its default, come from the site's projection.json (lib/site-story-types.ts).
  */
-export const SYSTEM_ITEM_TYPES: readonly string[] = ["wiki_page", "doctrine", "page"];
+export const SYSTEM_ITEM_TYPES: readonly string[] = ["wiki_page", "doctrine", "page", "sub-task"];
 
 /**
  * The stored type of a Story that has none yet (UNTYPED_ITEM_TYPE in content_item_lifecycle.py). `Item.type` is required and `typeStatus` is a key, so "no type" is an
@@ -36,6 +38,15 @@ export function isStoryItemType(type: string | null | undefined): boolean {
 /** The GraphQL `filter` that keeps only story Items, for the Item and PublishedItem list queries: the type is not any system type. */
 export function storyItemTypeFilter(): Record<string, unknown> {
   return { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) };
+}
+
+/**
+ * The filter for the board's stage columns: story types, and never a superseded version. A saved version keeps the stage it was written in, so a Story
+ * published long ago still has a superseded row in Copywriting; the Published column loads only its newest page, and that row would stand in for the Story
+ * in the wrong column. The newest row of a Story is current or a draft.
+ */
+export function boardStoryFilter(): Record<string, unknown> {
+  return { and: [...SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })), { versionState: { ne: "superseded" } }] };
 }
 
 export const PUBLISHED_STAGE_KEY = "published";
@@ -87,7 +98,7 @@ export function contentItemStageLabel(
   return stageDefinitions.find(definition => definition.key === stage)?.label ?? stage;
 }
 
-export type ContentItemVersionRecord = {
+export type ContentItemVersionRecord = ScheduleFields & {
   id: string;
   lineageId: string;
   versionNumber: number;
@@ -105,7 +116,21 @@ export type ContentItemVersionRecord = {
   versionCreatedBy?: string | null;
   /** An editor's private 1-5 rating of the Story. Absent (undefined) when this record was not read from the Item row, so the rating is unknown; null is unrated. */
   starRating?: number | null;
+  /** current, draft or superseded. Read by the board's stage queries; absent on records built elsewhere. */
+  versionState?: string | null;
+  /** The row's stage while it is the head of its lineage, else absent (contentItemHeadStageKey). Indexed by listItemsByHeadStageAndUpdatedAt. */
+  headStageKey?: string | null;
 };
+
+/**
+ * The head stage key a row should carry (docs/plans/story-head-stage-index.md): its stage while it is the head of its lineage (any version state
+ * but superseded: a story whose only row is a draft is still on the board), else null. A row with no stage is in no stage index. The same rule is
+ * head_stage_key in src/papyrus_content/content_item_lifecycle.py; the authoring client adds the tenant prefix on a tenant backend.
+ */
+export function contentItemHeadStageKey(row: { stage?: string | null; versionState?: string | null }): string | null {
+  if (row.versionState === "superseded") return null;
+  return row.stage ? row.stage : null;
+}
 
 export function latestVersionPerContentItem(
   versions: readonly ContentItemVersionRecord[],

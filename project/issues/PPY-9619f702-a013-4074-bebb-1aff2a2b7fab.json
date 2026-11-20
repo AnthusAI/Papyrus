@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9619f702-a013-4074-bebb-1aff2a2b7fab",
+  "title": "Newsroom site switcher and CLI site choice write the TenantSelection and re-issue tokens",
+  "description": "Outcome: A person picks a site in the newsroom (and in the CLI's signed-in lane) and the session acts for it: the choice is written to the person's TenantSelection row (papyrus_content.tenant_records.tenant_selection_record; id = their Cognito sub) and the tokens are re-issued so the pre-token trigger (PPY-0bb0fd) puts the new tenant's role claim in them. Picking a site the person has no active membership of is refused before writing. Touches: lib/prospectus-tenant.ts, lib/tenant-keys.ts, the newsroom switcher in app/newsroom, the CLI's site file tenant (docs/cli-login.md). Acceptance: a Gherkin feature in features_backend covering the switch (Ada switches alpha to beta and her next token carries beta only), the refused pick, and the CLI choice. Testing: unit tests plus Behave against stubbed events; no sandbox (D9). Rollout: ships dark with PPY-0bb0fd; no rule reads the claims until PPY-06ae68. Releasable on its own: yes. DynamoDB index: none. AppSync authorisation: none (TenantSelection owner rule already shipped).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-13T23:12:20.333042Z",
+  "updated_at": "2026-11-13T23:12:20.333524Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
