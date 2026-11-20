@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ffd735a7-f0fd-4f96-a26c-fdcc2ed793d3",
+  "issue_id": "PPY-96ae601c-32f0-4a8a-b882-4e9fc147046c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-16T23:42:32.862Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Preserve tenant context in localization procedure workers",
+    "description": "Production localization mistakes a tenant-prefixed original language group for a translation. Investigate and fix request-to-worker tenant propagation, retaining cross-tenant and real-translation rejection. Local deterministic regression only; no deploy or push authorized.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
+    "labels": []
+  }
+}

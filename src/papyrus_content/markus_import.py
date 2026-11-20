@@ -519,7 +519,7 @@ def _classify(planned: PlannedItem, options: ImportOptions, client) -> None:
     existing = client.get_record("Item", planned.source.item_id) or planned.source.legacy_row
     planned.existing = existing
     says_published = planned.source.status == "published" and options.publish
-    # An imported Story is saved as a draft: nothing publishes it by itself and a person does (publish_by_person.py). The import is not a person.
+    # An imported Story is saved as a draft: nothing publishes it by itself: a person reviews it (its `review_people` step stays open) and publishes it.
     planned.left_for_person = says_published and is_story_item_type(planned.fields.type)
     desired_published = says_published and not planned.left_for_person
     if existing is None:
@@ -633,7 +633,7 @@ def _apply_item(planned: PlannedItem, client) -> None:
         metadata["source"] = {"path": planned.source.relative_path, "importedContentHash": planned.content_hash}
         client.update_record("Item", {"id": item_id, "metadata": to_aws_json(metadata)})
     if is_story_item_type(planned.fields.type):
-        # An imported Story was not written in the newsroom: its checklist is made, every step not applicable ("imported from <source>"), and only a person publishes it (publish_by_person.py).
+        # An imported Story was not written in the newsroom: its checklist is made, every step not applicable ("imported from <source>") but publishing and the review of readers, which a person closes before it publishes.
         from .story_checklist import mark_imported_quietly
 
         mark_imported_quietly(client, (planned.existing or {}).get("lineageId") or item_id, planned.source.relative_path)

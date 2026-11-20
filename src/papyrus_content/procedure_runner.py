@@ -28,6 +28,7 @@ from .agent_policy import Gate, PolicyGate, PolicyNotLocated, PolicyUnreadable, 
 from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
+from .tenancy import TENANT_ID_ENVIRONMENT_VARIABLE, TenantError, validate_tenant_id
 
 SECONDS_KEPT_FOR_RECORDING = 60
 MAX_TIMEOUT_SECONDS = 840          # the Lambda's 15 minutes less the recording margin; an automation's limit is capped here
@@ -65,13 +66,14 @@ def validate_request(request: dict) -> dict:
         raise ProcedureNotRunnable(str(invalid)) from invalid
     if not isinstance(request.get("input") or {}, dict):
         raise ProcedureNotRunnable("input must be an object")
-    tenant_id, site_bucket = str(request.get("tenantId") or ""), str(request.get("siteBucket") or "")
-    if tenant_id:
-        from .tenancy import TenantError, validate_tenant_id
+    tenant_id, site_bucket = request.get("tenantId"), str(request.get("siteBucket") or "")
+    if tenant_id is not None:   # present means a publication tenant: a string that is a valid tenant id, never an empty or coerced value
         try:
-            validate_tenant_id(tenant_id)
-        except TenantError as invalid:
-            raise ProcedureNotRunnable(str(invalid)) from invalid
+            if not isinstance(tenant_id, str):
+                raise ValueError("tenant must be a string")
+            tenant_id = validate_tenant_id(tenant_id)
+        except (TenantError, ValueError) as invalid:
+            raise ProcedureNotRunnable("tenantId must be a valid publication tenant id") from invalid
     if site_bucket and not S3_BUCKET.match(site_bucket):
         raise ProcedureNotRunnable("siteBucket must be an S3 bucket name")
     timeout = request.get("timeoutSeconds")
@@ -369,17 +371,20 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
-    environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")}
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")
+                   and key != TENANT_ID_ENVIRONMENT_VARIABLE}
     environment.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam", HOME="/tmp",
                        PYTHONUNBUFFERED="1")
+    if request.get("tenantId"):
+        environment[TENANT_ID_ENVIRONMENT_VARIABLE] = request["tenantId"]
     if request.get("procedureKey"):
         environment[request_meter.ENV_CALLER] = f"stage:{request['procedureKey']}"   # the stage's own requests are attributed to it
     if openai_api_key:
         environment["OPENAI_API_KEY"] = openai_api_key
     # Where the site's own store is, for a procedure that reads a site document (the announce agent reads the lists' settings). Never inherited from the runner's own process.
-    environment.pop("PAPYRUS_TENANT_ID", None), environment.pop("PAPYRUS_SITE_BUCKET", None)
+    environment.pop("PAPYRUS_SITE_BUCKET", None)   # the tenant id above is the request's own or absent; the bucket only goes with a tenant
     if request.get("tenantId") and request.get("siteBucket"):
-        environment.update(PAPYRUS_TENANT_ID=request["tenantId"], PAPYRUS_SITE_BUCKET=request["siteBucket"])
+        environment["PAPYRUS_SITE_BUCKET"] = request["siteBucket"]
     return environment
 
 
@@ -423,6 +428,11 @@ def handler(event, context):
             openai_api_key = boto3.client("ssm").get_parameter(Name=request["openaiKeyParameter"],
                                                                WithDecryption=True)["Parameter"]["Value"]
         os.environ.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam")
+        # A warm worker may have served a different publication. Scope parent reads
+        # and post-run triggers too, and clear tenant context for dedicated sites.
+        os.environ.pop(TENANT_ID_ENVIRONMENT_VARIABLE, None)
+        if request.get("tenantId"):
+            os.environ[TENANT_ID_ENVIRONMENT_VARIABLE] = request["tenantId"]
         client = PapyrusGraphQLAuthoringClient()
         policy = policy_for(request, client, lambda: boto3.client("s3"))
         seconds_available = context.get_remaining_time_in_millis() / 1000 if hasattr(context, "get_remaining_time_in_millis") else 840

@@ -2077,9 +2077,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
         fields.update(primary_language=view.primary, alternates=tuple(alternate.as_dict() for alternate in alternates), link_map=view.links)
         original = view.original_of(extra["entry"].summary) if kind == "item" and extra.get("entry") is not None else None
         if original is not None:   # a translated Story page says so, and where the original is (the label is the page's data, never the Story's text)
-            head = dataclasses.replace(head, translation_of=(self.head.absolute(original.url) or original.url, original.tag))
-            fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url,
-                                     "kind": translation_kind(extra["entry"].summary.translation_kind)}
+            kind = translation_kind(extra["entry"].summary.translation_kind)
+            head = dataclasses.replace(head, translation_of=((self.head.absolute(original.url) or original.url, original.tag) if kind != "authored" else None))
+            fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url, "kind": kind}
         return head, fields
 
     def _page(self, kind: str, head: PageHead, site: SiteIndex, *, entries=(), **extra) -> StandardPage:

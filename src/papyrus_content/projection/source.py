@@ -93,7 +93,7 @@ def summary_from_row(row: dict, *, item_id: str | None = None, tenant_id: str | 
         lineage_id=row.get("itemLineageId") or row.get("lineageId") or None,
         language=row.get("language") or None,
         language_group_id=bare_group_id(row.get("languageGroupId"), tenant_id),
-        translation_kind=localization.get("translation") or None,
+        translation_kind=("authored" if metadata.get("authoredEdition", {}).get("kind") == "independent" else localization.get("translation") or None),
     )
 
 

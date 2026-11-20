@@ -336,7 +336,6 @@ class ScheduleService:
         if row.get("scheduleState") == PUBLISHING:
             raise ScheduleError("publishing", "This version is being published right now.")
         item = self.client.get_record("Item", row["id"]) or row
-        from .publish_by_person import require_person_act
         from .publish_gate import ensure_publish_approval
         from .publishing import PublishError
 
@@ -351,7 +350,6 @@ class ScheduleService:
         if dry_run:
             return result
         try:
-            require_person_act(self.client, item, by_person=None)   # a schedule publishes at its moment with no person at the keyboard, so it is refused now, not at that moment
             ensure_publish_approval(self.client, item, approved_by=caller.person, actor=caller.actor)
         except PublishError as error:
             raise ScheduleError(error.code, error.message) from error

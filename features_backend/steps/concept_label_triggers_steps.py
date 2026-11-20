@@ -207,7 +207,7 @@ def step_publish_and_tag(context, name):
     from papyrus_content.entity_labels.wanted import record_wanted_for_tagging
     from papyrus_content.publishing import publish_item
 
-    publish_item(context.site, context.translation["id"], actor="An Editor", by_person="An Editor")
+    publish_item(context.site, context.translation["id"], actor="An Editor")
     record_wanted_for_tagging(context.site, context.fixtures.ORIGINAL, [context.site.tables["SemanticNode"]["pi-v1"]], now="2026-11-16T00:00:00Z")
 
 

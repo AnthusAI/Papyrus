@@ -4,8 +4,9 @@ Feature: A translation is published as a person's act, with its own gates, and i
   (`<story>--<language>`). A person publishes it through the ordinary publish path (`papyrus ops content publish`, or the console), and the site
   serves it under its language's prefix with its own address. Nothing publishes by itself.
 
-  A translation is not written the way an English Story is, so its checklist is its provenance: the run that saved it proves that it was translated,
-  checked against the English and copy edited, and nothing has to be ticked by hand. It has two gates. A translation the procedure held (a finding
+  A translation is not written the way an English Story is, so it has a checklist of its own (translate, faithfulness, copy edit, human review, publish; see
+  [translation-language-checklist.feature](translation-language-checklist.feature)). The run that saved it records the first three. The scenarios here are about
+  the pages a published translation produces, so they run on a site that does not require a person's review of its translations. It has two gates. A translation the procedure held (a finding
   that changes the meaning remains, or the run's cost reached its ceiling) publishes only after a person clears the review request the run raised.
   And it publishes only while its original is published: the page is served beside the original's, so taking the original down takes the
   translation off the site, and publishing it again brings the translation back. A translation has no rating of its own; one rating serves every
@@ -19,6 +20,7 @@ Feature: A translation is published as a person's act, with its own gates, and i
     Given the published English Story "story-waymo" version 3 in the Machines on Machines newsroom
     And a scripted translator, judge and repairer for "es-419"
     And an editor asked for the "es-419" translation of "story-waymo"
+    And the site does not require a person's review of its translations
     And the English Story is served by a site that publishes Spanish under "es"
 
   Scenario: A clean translation is published under /es/ with its own address and its label
@@ -29,22 +31,13 @@ Feature: A translation is published as a person's act, with its own gates, and i
     And the Story's own text does not contain "Traducido por IA"
     And the Waymo English page lists hreflang "en" and "es" and x-default pointing at itself
     And the English listings do not list the translation
-    And the translation has no checklist steps and no rating of its own
+    And the translation has its own checklist steps and no rating of its own
 
   Scenario: An agent reads the same facts from the page
     Given the translation run for "es-419" has finished
     When a person publishes the translation
     Then the Spanish page's JSON-LD says inLanguage "es-419" and is a translationOfWork of the English page in "en"
     And the Spanish Markdown twin says language "es-419", translation "machine" and the English page it was translated from
-
-  Scenario: An automatic publish of a clean translation is refused and leaves a ready draft
-    Given the translation run for "es-419" has finished
-    When an automation publishes the translation
-    Then publishing is refused as "person-publish-required" naming "publish it by hand"
-    And the translation is still a ready draft
-    And no Spanish page is served
-    When a person publishes the translation
-    Then the translation is published as "story-waymo--es-419" at "es/articles/bajan-los-choques-de-waymo/index.html"
 
   Scenario: A held translation does not publish until a person clears it
     Given the translator writes "varias ciudades" where the English says "12 cities"
