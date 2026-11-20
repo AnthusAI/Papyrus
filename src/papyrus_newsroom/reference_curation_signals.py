@@ -1775,6 +1775,134 @@ def reference_list(
     }
 
 
+def _start_of_curation_window(
+    *,
+    now_dt: _dt.datetime,
+    since_hours: int,
+    since: str,
+    curate_all: bool,
+) -> tuple[_dt.datetime | None, str, str]:
+    requested_since = _clean_text(since)
+    if curate_all:
+        return None, requested_since, "all"
+    if requested_since:
+        since_dt = _parse_iso_datetime(requested_since)
+        if since_dt is None:
+            raise ValueError(f"Invalid --since value: {since}")
+        return since_dt, requested_since, "since"
+    return now_dt - _dt.timedelta(hours=max(int(since_hours or 0), 0)), requested_since, "since_hours"
+
+
+def _resolve_references_named_for_curation(
+    semantic: PapyrusSemanticClient,
+    explicit_reference_ids: list[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    selected_references = []
+    selection_failures = []
+    for reference_id in explicit_reference_ids:
+        try:
+            selected_references.append(_resolve_reference(semantic, reference_id))
+        except Exception as exc:
+            selection_failures.append({
+                "referenceId": reference_id,
+                "status": "selection_failed",
+                "failureReason": str(exc),
+            })
+    return selected_references, selection_failures
+
+
+def _curation_selection_description(
+    *,
+    mode: str,
+    explicit_reference_ids: list[str],
+    requested_since: str,
+    since_dt: _dt.datetime | None,
+    since_source: str,
+    since_hours: int,
+    curate_all: bool,
+    max_count: int,
+    scan_limit: int,
+    max_parallel: int,
+    resume: str,
+) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "referenceIds": explicit_reference_ids,
+        "since": requested_since or (since_dt.isoformat().replace("+00:00", "Z") if since_dt else ""),
+        "sinceSource": since_source,
+        "sinceHours": max(int(since_hours or 0), 0),
+        "curateAll": bool(curate_all),
+        "maxCount": max(int(max_count or 0), 0),
+        "scanLimit": max(int(scan_limit or 1), 1),
+        "maxParallel": max(int(max_parallel or 1), 1),
+        "resume": resume,
+    }
+
+
+def reference_pick_for_curation(
+    *,
+    corpus_key: str,
+    reference_ids: list[str] | None = None,
+    since_hours: int = 48,
+    since: str = "",
+    curate_all: bool = False,
+    max_count: int = 0,
+    scan_limit: int = 1000,
+) -> dict[str, Any]:
+    """Pick the References a curation run would work on, and try nothing on them. A real `references curate-recent` run queues one
+    assignment per picked Reference, and the assignment worker does the curation; `reference_curate_recent` is the preview that
+    tries every stage here."""
+    now_dt = _parse_iso_datetime(_now()) or _dt.datetime.now(_dt.UTC)
+    explicit_reference_ids = [str(value).strip() for value in (reference_ids or []) if str(value).strip()]
+    since_dt, requested_since, since_source = _start_of_curation_window(
+        now_dt=now_dt,
+        since_hours=since_hours,
+        since=since,
+        curate_all=curate_all,
+    )
+    if explicit_reference_ids:
+        selected_references, selection_failures = _resolve_references_named_for_curation(_semantic_client(), explicit_reference_ids)
+    else:
+        selection_failures = []
+        selected_references = _select_references_for_curate_recent(
+            corpus_key=corpus_key,
+            since_dt=since_dt,
+            curate_all=curate_all,
+            max_count=max_count,
+            scan_limit=scan_limit,
+        )
+    items = [
+        {"reference": _reference_summary(reference), "referenceId": str(reference.get("id")), "failed": False}
+        for reference in selected_references
+        if reference.get("id")
+    ]
+    return {
+        "kind": "reference.curate-recent.selection",
+        "ok": not selection_failures,
+        "degraded": bool(selection_failures),
+        "command": "references curate-recent",
+        "corpusKey": corpus_key,
+        "selection": _curation_selection_description(
+            mode="explicit" if explicit_reference_ids else ("all" if curate_all else "recent_window"),
+            explicit_reference_ids=explicit_reference_ids,
+            requested_since=requested_since,
+            since_dt=since_dt,
+            since_source=since_source,
+            since_hours=since_hours,
+            curate_all=curate_all,
+            max_count=max_count,
+            scan_limit=scan_limit,
+            max_parallel=1,
+            resume="",
+        ),
+        "summary": {"selectedCount": len(items), "selectionFailures": len(selection_failures)},
+        "selectionFailures": selection_failures,
+        "count": len(items),
+        "items": items,
+        "warnings": [],
+    }
+
+
 def reference_curate_recent(
     *,
     corpus_key: str,
@@ -1796,16 +1924,12 @@ def reference_curate_recent(
     now_dt = _parse_iso_datetime(run_started_at) or _dt.datetime.now(_dt.UTC)
     explicit_reference_ids = [str(value).strip() for value in (reference_ids or []) if str(value).strip()]
 
-    requested_since = _clean_text(since)
-    since_source = "all" if curate_all else ("since" if requested_since else "since_hours")
-    if curate_all:
-        since_dt = None
-    elif requested_since:
-        since_dt = _parse_iso_datetime(requested_since)
-        if since_dt is None:
-            raise ValueError(f"Invalid --since value: {since}")
-    else:
-        since_dt = now_dt - _dt.timedelta(hours=max(int(since_hours or 0), 0))
+    since_dt, requested_since, since_source = _start_of_curation_window(
+        now_dt=now_dt,
+        since_hours=since_hours,
+        since=since,
+        curate_all=curate_all,
+    )
 
     run_id = _hash_short([
         "reference-curation",
@@ -1838,18 +1962,7 @@ def reference_curate_recent(
     selection_failures: list[dict[str, Any]] = []
 
     if explicit_reference_ids:
-        selected_references = []
-        for reference_id in explicit_reference_ids:
-            try:
-                resolved = _resolve_reference(semantic, reference_id)
-            except Exception as exc:
-                selection_failures.append({
-                    "referenceId": reference_id,
-                    "status": "selection_failed",
-                    "failureReason": str(exc),
-                })
-                continue
-            selected_references.append(resolved)
+        selected_references, selection_failures = _resolve_references_named_for_curation(semantic, explicit_reference_ids)
     elif resume:
         selected_references = []
         manifest_references = manifest.get("references") if isinstance(manifest.get("references"), dict) else {}
@@ -2003,20 +2116,19 @@ def reference_curate_recent(
         "manifestPath": str(manifest_path),
         "apply": apply,
         "corpusKey": corpus_key,
-        "selection": {
-            "mode": "explicit"
-            if explicit_reference_ids
-            else ("resume" if resume else ("all" if curate_all else "recent_window")),
-            "referenceIds": explicit_reference_ids,
-            "since": requested_since or (since_dt.isoformat().replace("+00:00", "Z") if since_dt else ""),
-            "sinceSource": since_source,
-            "sinceHours": max(int(since_hours or 0), 0),
-            "curateAll": bool(curate_all),
-            "maxCount": max(int(max_count or 0), 0),
-            "scanLimit": max(int(scan_limit or 1), 1),
-            "maxParallel": max(int(max_parallel or 1), 1),
-            "resume": str(manifest_path) if resume else "",
-        },
+        "selection": _curation_selection_description(
+            mode="explicit" if explicit_reference_ids else ("resume" if resume else ("all" if curate_all else "recent_window")),
+            explicit_reference_ids=explicit_reference_ids,
+            requested_since=requested_since,
+            since_dt=since_dt,
+            since_source=since_source,
+            since_hours=since_hours,
+            curate_all=curate_all,
+            max_count=max_count,
+            scan_limit=scan_limit,
+            max_parallel=max_parallel,
+            resume=str(manifest_path) if resume else "",
+        ),
         "summary": dict(manifest.get("summary") or {}),
         "selectionFailures": selection_failures,
         "count": len(results),

@@ -73,7 +73,7 @@ class PublicationWhoseCurationStagesAreStandIns:
         self.stage_was_tried(reference_id, "quality", apply=apply)
         return {"action": "create"}
 
-    def run_the_preview(self, **options):
+    def run_with_stand_ins(self, work):
         self.stages_tried = []
         with ExitStack() as stand_ins:
             for name_in_the_module, stand_in in {
@@ -88,7 +88,10 @@ class PublicationWhoseCurationStagesAreStandIns:
                 "reference_quality_assess": self.assess_quality,
             }.items():
                 stand_ins.enter_context(patch.object(reference_curation_signals, name_in_the_module, stand_in))
-            return reference_curation_signals.reference_curate_recent(corpus_key="test-corpus", **options)
+            return work()
+
+    def run_the_preview(self, **options):
+        return self.run_with_stand_ins(lambda: reference_curation_signals.reference_curate_recent(corpus_key="test-corpus", **options))
 
 
 @given('it is "{time_now}" and the publication holds these References')

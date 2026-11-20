@@ -150,9 +150,12 @@ poetry run papyrus ops categories import-projection --config corpora/papyrus-ste
 poetry run papyrus ops content delete all --yes
 ```
 
-`references curate-recent` is assignment-only for re-curation operations:
-Default apply mode dispatches `curation.reference-refresh` assignments and returns queue
-status; it does not execute inline curation stages.
+`references curate-recent` is assignment-only for re-curation operations. A real
+run picks the References and queues one `curation.reference-refresh` assignment
+for each; it runs no curation stage and calls no model. `--dry-run` previews
+every stage for each picked Reference without saving and queues nothing.
+`--dry-run --pick-only` lists the References a real run would queue and tries
+nothing.
 
 `references register-catalog` is the canonical bridge from corpus accession
 files into Papyrus workflow state. In default apply mode, it creates a
@@ -184,10 +187,11 @@ poetry run papyrus references curate-recent --corpus-key <key> --since-hours 48 
 poetry run papyrus references curate-recent --corpus-key <key> --all --max-count 250 --dry-run --json
 ```
 
-`references curate-recent` runs identifier prepass first, then title/subtitle,
-summary, and quality in order. It writes resumable manifests under
-`.papyrus-runs/reference-curation-<run-id>/manifest.json` and returns nonzero
-when any reference fails so automation can detect degraded runs.
+A `--dry-run` preview runs identifier prepass first, then title/subtitle,
+summary, and quality in order. It writes a resumable manifest under
+`.papyrus-runs/reference-curation-<run-id>/manifest.json` (continue it with
+`--dry-run --resume <manifest>`) and returns nonzero when any reference fails
+so automation can detect degraded runs. A real run refuses `--resume`.
 Reference subtitle display is canonical: the Newsroom UI shows `metadata.subtitle`
 from the reference metadata attachment verbatim when present.
 
