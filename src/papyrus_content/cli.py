@@ -592,7 +592,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     if not is_ported_command(group, command):
         raise unsupported_command(f"command: {group} {command}")
     if route in GENERATED_CLI_ROUTES:
-        run_registered_command(route, flags)
+        exit_code = run_registered_command(route, flags)
+        if exit_code:
+            raise SystemExit(exit_code)
         return
     if route == "content:inspect":
         content_inspect(flags)

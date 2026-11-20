@@ -124,7 +124,15 @@ class StaffReads(StaffStoryWrites):
             raise ValueError("Reference has no unambiguous current version and revision.")
         return {"reference": rows[0]}
 
-    def reference_search(self, principal: Principal, *, query: str, limit: int = 20, nextToken: str | None = None) -> dict:
+    def reference_search(self, principal: Principal, *, query: str, limit: int | None = None, nextToken: str | None = None,
+                         show: str | None = None, cursor: str | None = None) -> dict:
+        if principal.is_operator:
+            from .references_search_cli import operator_reference_search
+
+            if nextToken is not None:
+                raise ValueError("Invalid argument: nextToken. Use --cursor to continue a References search.")
+            return operator_reference_search(self.client, query=query, show=show, limit=limit, cursor=cursor)
+        limit = limit or 20
         self._reference_scope()
         operation = """query SearchReferences($limit: Int!, $nextToken: String, $filter: ModelReferenceFilterInput) {
           listReferences(limit: $limit, nextToken: $nextToken, filter: $filter) {
