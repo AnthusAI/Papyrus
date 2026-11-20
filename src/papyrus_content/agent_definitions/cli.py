@@ -290,10 +290,23 @@ def _site_store_for(client):
     return SiteStore(s3, bucket, SiteCatalogueTable(client))
 
 
+def _policy_function_sender(client):
+    def send(request: dict) -> dict:
+        answer = client.graphql("mutation AgentPolicyChange($input: AWSJSON) { agentPolicyChange(input: $input) }", {"input": json.dumps(request)})["agentPolicyChange"]
+        return json.loads(answer) if isinstance(answer, str) else answer
+
+    return send
+
+
 def _policy_store_for_site(client):
     from papyrus_content.agent_policy import AgentPolicyStore
+    from papyrus_content.agent_policy.remote import RemoteAgentPolicyStore
+    from papyrus_content.user_auth_mode import user_auth_requested
 
-    return AgentPolicyStore(_site_store_for(client))
+    site_store = _site_store_for(client)
+    if user_auth_requested():
+        return RemoteAgentPolicyStore(site_store, _policy_function_sender(client))
+    return AgentPolicyStore(site_store)
 
 
 def _lists_for_site(client, site_store_for=None) -> dict:

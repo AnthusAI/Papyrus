@@ -6,9 +6,9 @@ Each operation answers ``{"ok": true, ...}`` or ``{"ok": false, "error": code, "
 from __future__ import annotations
 
 import json
-import os
 from typing import Any, Callable, Mapping
 
+from ..actor_identity import PERSON_CLIENT_IDS_VARIABLE, credential_is_person, person_client_ids  # noqa: F401
 from ..appsync_event import NoOperation, operation_name
 from .settings import AnnouncementSettings
 from .x_account import AnnouncementError, XAccounts
@@ -17,19 +17,6 @@ READS = {"announcementsSettings", "announcementsXStatus", "announcementsXUsage",
 CHANGES = {"announcementsSaveSettings", "announcementsPause", "announcementsXSaveApp", "announcementsXBegin",
            "announcementsXComplete", "announcementsXDisconnect"}
 OPERATIONS = sorted(READS | CHANGES)
-PERSON_CLIENT_IDS_VARIABLE = "PERSON_ONLY_CLIENT_IDS"
-
-
-def person_client_ids(environ: Mapping[str, str] | None = None) -> frozenset[str]:
-    """The app clients a person signs in with (the console). A credential issued to any other client, such as the CLI's that an agent shares, is not a person's."""
-    raw = (os.environ if environ is None else environ).get(PERSON_CLIENT_IDS_VARIABLE, "")
-    return frozenset(part.strip() for part in raw.split(",") if part.strip())
-
-
-def credential_is_person(claims: Mapping[str, Any], environ: Mapping[str, str] | None = None) -> bool:
-    """True only when the token was issued to a person-only app client. No configured client means no credential is a person's: the rule fails closed."""
-    issued_to = {str(claims.get(name)) for name in ("aud", "client_id") if claims.get(name)}
-    return bool(issued_to & person_client_ids(environ))
 
 
 def handle_event(event: Mapping[str, Any], accounts: XAccounts, settings: AnnouncementSettings, ledger: Callable[[], Any] | None = None) -> dict[str, Any]:

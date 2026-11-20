@@ -841,6 +841,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | operation                            | outcome                              |
       | abortModelAttachmentUpload           | denied, or returns nothing of "beta" |
       | addStoryAgentNote                    | denied, or returns nothing of "beta" |
+      | agentPolicyChange                    | denied, or returns nothing of "beta" |
       | agentRequestStoryPublish             | denied, or returns nothing of "beta" |
       | agentReviewReferenceCuration         | denied, or returns nothing of "beta" |
       | agentSaveStoryDraft                  | denied, or returns nothing of "beta" |
@@ -989,6 +990,8 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
 
     Examples: generated from the schema
       | function                   | call                             | outcome                            |
+      | agent-policy               | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
+      | agent-policy               | iam-call-without-tenant          | refused before any read            |
       | alexa/function             | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |
       | alexa/function             | iam-call-without-tenant          | refused before any read            |
       | announcements              | invoke-with-foreign-tenant-input | reads and writes nothing of "beta" |

@@ -6,8 +6,8 @@
     "modelCases": 505,
     "indexCases": 230,
     "subscriptionCases": 9,
-    "operationCases": 141,
-    "functionCases": 76,
+    "operationCases": 142,
+    "functionCases": 78,
     "surfaceCases": 9
   },
   "cases": [
@@ -5980,6 +5980,14 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "operation:agentPolicyChange",
+      "kind": "operation",
+      "subject": "agentPolicyChange",
+      "operation": "call-scope",
+      "probe": "alpha calls agentPolicyChange with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "operation:agentRequestStoryPublish",
       "kind": "operation",
       "subject": "agentRequestStoryPublish",
@@ -7090,6 +7098,22 @@
       "operation": "call-scope",
       "probe": "alpha calls updateReaderSettings with settings chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "function:agent-policy",
+      "kind": "function",
+      "subject": "agent-policy",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/agent-policy (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:agent-policy:iam-without-tenant",
+      "kind": "function",
+      "subject": "agent-policy",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/agent-policy without naming a tenant",
+      "expect": "refused before any read"
     },
     {
       "id": "function:alexa/function",
