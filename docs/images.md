@@ -1588,7 +1588,3 @@ Example result:
 }
 ```
 <!-- /generated:image-operations -->
-
-## Turning announcements On is decided by the credential
-
-The announcements function refuses `announcementsSaveSettings` that moves the mode to On unless the caller's token was issued to a person-only app client (`PERSON_ONLY_CLIENT_IDS`, set from the console's user pool client). With none configured nobody qualifies. The CLI's own sign-in shares the console client unless the site's CLI login uses the separate federation client (`cliOnFederationClient`); until it does, a CLI token still passes this check, and only the terminal and agent-runtime rules in `actor_identity.py` stand in the way.
