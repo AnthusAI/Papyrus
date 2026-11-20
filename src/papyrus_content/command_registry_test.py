@@ -264,3 +264,21 @@ def test_reviews_are_subject_scoped_for_an_external_principal_and_wide_for_the_o
     operator = Principal("staff", "cli", is_operator=True)
     assert call_tool(operator, "reviews_list", {"raisedBy": "idea-pipeline", "state": "open"}, staff=staff) == {"reviews": []}
     assert asked == [{"state": "open", "mode": None, "raised_by": "idea-pipeline", "subject_type": None, "subject_id": None}]
+
+
+def test_story_show_gives_the_operator_the_signals_view_and_an_external_principal_only_the_current_version(monkeypatch):
+    import papyrus_content.story_commands as story_commands
+    from .mcp_tools import call_tool
+
+    monkeypatch.setattr(story_commands, "operator_story_show", lambda client, lineage_id, bucket: {"lineageId": lineage_id, "bucket": bucket})
+
+    class CurrentVersionOnlyStaff(StaffReads):
+        def _story_versions(self, lineage_id):
+            return [{"id": f"{lineage_id}-v1", "versionState": "current", "versionNumber": 1}]
+
+    staff = CurrentVersionOnlyStaff(client=object())
+    operator = Principal("staff", "cli", is_operator=True)
+    assert call_tool(operator, "stories_show", {"lineageId": "story-1", "bucket": "week"}, staff=staff) == {"lineageId": "story-1", "bucket": "week"}
+    assert call_tool(STAFF_PRINCIPAL, "stories_show", {"lineageId": "story-1"}, staff=staff)["story"]["id"] == "story-1-v1"
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "stories_show", {"lineageId": "story-1", "bucket": "week"}, staff=staff)
