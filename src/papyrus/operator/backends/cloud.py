@@ -132,7 +132,9 @@ class CloudBackend(OperatorBackend):
       from papyrus_content.graphql_authoring import create_authoring_client
 
       client, _ = create_authoring_client()
-      assignments = client.list_records("Assignment")
+      from papyrus_content.assignments_commands import operator_assignments_list
+
+      shared_result = operator_assignments_list(client, status=status or None, assignment_type=assignment_type or None)
       rows = [
         OperatorRow(
           kind="newsroom-assignment",
@@ -141,7 +143,7 @@ class CloudBackend(OperatorBackend):
           title=str(item.get("title") or ""),
           extra={"type": str(item.get("assignmentTypeKey") or "")},
         )
-        for item in assignments
+        for item in shared_result["assignments"]
       ]
 
     if status:
