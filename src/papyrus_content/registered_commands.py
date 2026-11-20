@@ -10,9 +10,22 @@ from .options import parse_options
 CLI_PRINCIPAL_SUBJECT = "cli"
 
 
+def render_story_versions(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    return [
+        "\t".join([command.group, command.command, str(version.get("versionNumber")), str(version.get("versionState")),
+                   str(version.get("versionCreatedAt") or version.get("updatedAt") or ""), str(version.get("versionCreatedBy") or ""),
+                   str(version.get("changeReason") or ""), str(version["id"])])
+        for version in result["versions"]
+    ]
+
+
+TAB_RENDERERS = {"stories:versions": render_story_versions}
+
+
 def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) -> dict[str, Any]:
     properties = {**command.required, **command.optional}
     known = {option_name(name): name for name in properties}
+    known.update({alias: name for name, alias in command.cli_flag_aliases.items()})
     unknown = sorted(set(options) - set(known))
     if unknown:
         raise ValueError(f"Unknown option --{unknown[0]}. Options: {', '.join('--' + flag for flag in known)}.")
@@ -41,13 +54,23 @@ def run_registered_command(route: str, flags: list[str]) -> None:
     from .mcp_tools import Principal, StaffReads, call_tool
 
     command = BY_ROUTE[route]
-    arguments = arguments_from_options(command, parse_options(flags))
+    options = parse_options(flags)
+    as_json = bool(options.pop("json", False))
+    arguments = arguments_from_options(command, options)
     client, _ = create_authoring_client()
     result = call_tool(Principal("staff", CLI_PRINCIPAL_SUBJECT), command.tool_name, arguments, staff=StaffReads(client))
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    renderer = TAB_RENDERERS.get(route)
+    if as_json or renderer is None:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    for line in renderer(command, result):
+        print(line)
 
 
 def usage_line(command: RegisteredCommand) -> str:
     required = " ".join(f"--{option_name(name)} VALUE" for name in command.required)
     optional = " ".join(f"[--{option_name(name)} VALUE]" for name in command.optional)
+    for name, alias in command.cli_flag_aliases.items():
+        required = required.replace(f"--{option_name(name)} VALUE", f"--{alias} VALUE")
+        optional = optional.replace(f"--{option_name(name)} VALUE", f"--{alias} VALUE")
     return f"{required} {optional}".strip()

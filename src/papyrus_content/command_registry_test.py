@@ -130,3 +130,33 @@ def test_running_a_registered_command_calls_the_tool_the_mcp_service_calls(monke
     run_registered_command("stories:evidence", ["--lineage-id", "story-1", "--limit", "5"])
     assert calls == [{"lineageId": "story-1", "limit": 5}]
     assert '"evidence"' in capsys.readouterr().out
+
+
+def test_a_story_command_accepts_the_story_flag_the_other_story_commands_use():
+    command = BY_ROUTE["stories:versions"]
+    assert arguments_from_options(command, {"story": "story-1"}) == {"lineageId": "story-1"}
+    assert arguments_from_options(command, {"lineage-id": "story-1"}) == {"lineageId": "story-1"}
+
+
+def test_versions_print_one_tab_separated_row_each_and_json_prints_what_the_tool_returns(monkeypatch, capsys):
+    version_rows = [{"id": "story-1-v2", "versionNumber": 2, "versionState": "current", "versionCreatedAt": "2026-11-02", "versionCreatedBy": "ana", "changeReason": "edit"},
+                    {"id": "story-1-v1", "versionNumber": 1, "versionState": "superseded", "updatedAt": "2026-11-01"}]
+
+    class VersionStaff:
+        available_tools = frozenset({"stories_versions"})
+
+        def __init__(self, client):
+            pass
+
+        def story_versions(self, principal, **arguments):
+            return {"versions": version_rows}
+
+    import papyrus_content.graphql_authoring as graphql_authoring
+    import papyrus_content.mcp_tools as mcp_tools
+
+    monkeypatch.setattr(graphql_authoring, "create_authoring_client", lambda *a, **k: (object(), {}))
+    monkeypatch.setattr(mcp_tools, "StaffReads", VersionStaff)
+    run_registered_command("stories:versions", ["--story", "story-1"])
+    assert capsys.readouterr().out.splitlines() == ["stories\tversions\t2\tcurrent\t2026-11-02\tana\tedit\tstory-1-v2", "stories\tversions\t1\tsuperseded\t2026-11-01\t\t\tstory-1-v1"]
+    run_registered_command("stories:versions", ["--story", "story-1", "--json"])
+    assert '"versions"' in capsys.readouterr().out

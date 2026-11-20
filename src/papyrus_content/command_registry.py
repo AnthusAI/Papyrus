@@ -21,6 +21,8 @@ VERSION = {**LINEAGE, "expectedCurrentVersionId": STRING}
 REVISION = {**VERSION, "expectedRevision": STRING}
 PAGE = {"limit": LIMIT, "nextToken": STRING}
 
+STORY_FLAG = {"lineageId": "story"}
+
 STAFF = "staff"
 READER = "reader"
 
@@ -37,6 +39,7 @@ class RegisteredCommand:
     cli_native: bool = False
     cli_available: bool = True
     writes: str = "reads"
+    cli_flag_aliases: dict[str, str] = field(default_factory=dict)
 
     @property
     def route(self) -> str:
@@ -52,7 +55,7 @@ class RegisteredCommand:
 
 
 def _command(group: str, command: str, audience: str, handler: str, description: str, required: dict | None = None, optional: dict | None = None,
-             **flags: bool | str) -> RegisteredCommand:
+             **flags: bool | str | dict) -> RegisteredCommand:
     return RegisteredCommand(group, command, audience, handler, description, required or {}, optional or {}, **flags)
 
 
@@ -63,7 +66,7 @@ REGISTRY: tuple[RegisteredCommand, ...] = (
     _command("references", "concept-get", STAFF, "concept_get", "Read a concept.", {"id": STRING}),
     _command("stories", "search", STAFF, "story_search", "Find Stories matching a phrase.", {"query": STRING}, PAGE),
     _command("stories", "show", STAFF, "story_get", "Read the current version of a Story.", LINEAGE, cli_native=True),
-    _command("stories", "versions", STAFF, "story_versions", "List a Story's saved versions.", LINEAGE, cli_native=True),
+    _command("stories", "versions", STAFF, "story_versions", "List a Story's saved versions.", LINEAGE, cli_flag_aliases=STORY_FLAG),
     _command("stories", "evidence", STAFF, "story_evidence", "Read the evidence linked to a Story.", LINEAGE, PAGE),
     _command("stories", "next", STAFF, "story_next", "Read the next steps in the Story procedure.", LINEAGE, cli_native=True),
     _command("assignments", "list", STAFF, "assignments_list", "List Assignments.", {"storyLineageId": STRING}, PAGE, cli_native=True),

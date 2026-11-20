@@ -256,14 +256,6 @@ def stories_measure(flags: list[str]) -> None:
         print(line)
 
 
-def stories_versions(flags: list[str]) -> None:
-    """papyrus stories versions --story <lineage>"""
-    options = parse_options(flags)
-    client, _ = create_authoring_client()
-    for version in story_versions(client, _required_option(options, "story")):
-        print("\t".join(["stories", "versions", str(version.get("versionNumber")), str(version.get("versionState")), str(version.get("versionCreatedAt") or version.get("updatedAt") or ""), str(version.get("versionCreatedBy") or ""), str(version.get("changeReason") or ""), str(version["id"])]))
-
-
 def stories_pull(flags: list[str]) -> None:
     """papyrus stories pull --story <lineage> --body-file <file> --front-matter-file <file> [--version <N>] [--json]
 
