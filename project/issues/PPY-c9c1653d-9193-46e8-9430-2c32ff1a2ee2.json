@@ -3,7 +3,7 @@
   "title": "Model tier is configuration",
   "description": "A definition names a tier, not a model: `editorial` (writing and rewriting that readers see), `work` (structured tasks and checks), `bulk` (rating and bookkeeping), `decision` (the trained decision model). The site policy maps each tier to a model id, with the engine's defaults; the price table stays data. Changing a model is a policy change with a version, and each run records the model it used.\n\n**Acceptance criteria**\n- Changing a tier's model changes the next run with no deploy.\n- Each run records its tier and model.\n- A model missing from the price table is named, not treated as free.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- model-tiers.feature: an agent uses the model its tier maps to; a policy change switches it; the run records both; an unknown model id is refused when saved.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Spend, budgets and model tiers. Slice code G4 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -21,10 +21,28 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "44805452-edb9-4a11-9f12-cfefb5c6b2df",
+      "author": "ryan",
+      "text": "Merged to develop in PR 1734 (not released). Met: a tier's model is the site policy's, changed with no deploy; each model call records tier and model (usage perCall, summary tiers); a model with no price is refused when the policy is saved and named. Only the rating agent calls a model through a tier so far; editorial, work and decision have the resolver and no caller yet.",
+      "created_at": "2026-11-20T05:45:36.608802Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "M3 thread"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:08.209703Z",
-  "updated_at": "2026-11-16T22:43:33.794263Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T05:45:36.608957Z",
+  "closed_at": "2026-11-20T05:45:36.343237Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "M3 thread"
+  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
