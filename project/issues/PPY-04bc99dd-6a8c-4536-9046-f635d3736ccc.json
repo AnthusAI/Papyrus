@@ -3,7 +3,7 @@
   "title": "The open thread's title on the Messages page shows a bar on its left edge",
   "description": "",
   "type": "bug",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Ryan saw it on the review server. components/newsroom-organizer.css gives every [aria-current=true] and [data-selected=true] in the newsroom an inset 3px bar; the selected thread's title button has aria-current=true. Fix excludes [data-conversation-card] and [data-conversation-open] (the ring is their mark). New scenario noEdgeMark in scripts/test-messages-page.ts loads the real organizer stylesheet inside .newsroom-organizer; it failed before the fix.",
       "created_at": "2026-10-30T15:44:00.840245Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3cab5fc4-e60f-46ba-97f8-a687605f897b",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: merged to develop in #888; no remaining work recorded.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-30T15:44:00.778895Z",
-  "updated_at": "2026-10-30T15:44:00.900514Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "closed_at": "2026-11-20T13:52:20.000000Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

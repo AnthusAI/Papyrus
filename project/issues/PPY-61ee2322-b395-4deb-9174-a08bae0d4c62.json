@@ -3,7 +3,7 @@
   "title": "Consume shared Chatticus chat presentation in the newsroom console",
   "description": "As a signed-in editor, I want the newsroom console to consume the shared Chatticus chat surface so that chat UI is reused without cloning an agent engine.\n\nFeature: Shared newsroom chat presentation\n  Scenario: Render an editorial conversation\n    Given a signed-in editor has an active console conversation\n    When the newsroom renders its messages using the shared package\n    Then the editor sees their conversation and can send a message once\n    And Papyrus retains its current auth and editorial context adapter\n  Scenario: Preserve host context actions\n    Given a console conversation includes a Papyrus navigation action\n    When the editor selects that action\n    Then Papyrus handles the navigation without a Chatticus product dependency\n\nFirst slice of PPY-a438d0 / PPY-7962e3. Chatticus tracking: chatticus-abde29 / chatticus-080b0e. UI/client extraction is independent of the later server-runtime migration. Shared server, per-editor isolation and delegated tools remain separate acceptance gates. No deployment or registry publication authorized.",
   "type": "story",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -85,10 +85,17 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "a823c756-6b22-48a9-9e66-1e36991c1f2d",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-10-23; paused, not being worked on.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T18:30:23.561107Z",
-  "updated_at": "2026-10-23T19:22:47.929197Z",
+  "updated_at": "2026-11-20T13:52:20.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

@@ -3,7 +3,7 @@
   "title": "Add-a-reference form: rating buttons and full explanation textarea",
   "description": "Replace the Include/Exclude select in the Paste a URL form with radio-group toggle buttons; make the explanation a full-width labelled textarea below the rating. Ryan: rating never a dropdown; explanations must be encouraged. Payload unchanged.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -29,11 +29,18 @@
         "model": "Claude Sonnet 5.5",
         "name": "Claude"
       }
+    },
+    {
+      "id": "54eed392-5976-4e59-b85e-3ec1ab9dacbe",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: merged to develop in #513; no remaining work recorded.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T01:39:00.547582Z",
-  "updated_at": "2026-10-22T01:49:01.791256Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "closed_at": "2026-11-20T13:52:20.000000Z",
   "agent": {
     "platform": "claude_code",
     "model": "Claude Sonnet 5.5",

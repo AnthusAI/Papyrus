@@ -3,16 +3,24 @@
   "title": "Streamable HTTP and protocol harness",
   "description": "",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ddc2e49e-0978-423d-88ce-eb2f1f455105",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-11-05; paused, not being worked on.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-05T20:04:41.766388Z",
-  "updated_at": "2026-11-05T20:05:54.036640Z",
+  "updated_at": "2026-11-20T13:52:20.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
