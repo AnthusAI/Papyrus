@@ -63,7 +63,7 @@ def operator_assignment_show(client, assignment_id: str) -> dict:
 
     The direction is the text the editor wrote when assigning the work. It lives in the Assignment's metadata attachment."""
     from .assignments import assignment_metadata
-    from .assignments_workflow import assignment_section_key
+    from .assignments_workflow import assignment_section_key, read_assignment_events
 
     assignment = client.get_record("Assignment", assignment_id)
     if not assignment:
@@ -75,8 +75,7 @@ def operator_assignment_show(client, assignment_id: str) -> dict:
         ("held by", assignment.get("assigneeKey")),
         ("created", assignment.get("createdAt")), ("updated", assignment.get("updatedAt"))) if value not in (None, "")]
     direction = assignment_metadata(client, assignment).get("direction")
-    events = sorted((event for event in client.list_records("AssignmentEvent") if event.get("assignmentId") == assignment_id),
-                    key=lambda event: str(event.get("createdAt") or ""))
+    events = read_assignment_events(client, assignment_id)
     return {"id": assignment_id, "fields": fields, "direction": direction if isinstance(direction, str) and direction.strip() else None,
             "events": [{"createdAt": str(event.get("createdAt") or ""), "eventType": event.get("eventType") or "",
                         "transition": f"{event.get('fromStatus') or ''}->{event.get('toStatus') or ''}", "note": event.get("note") or ""} for event in events]}
