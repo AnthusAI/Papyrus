@@ -139,6 +139,9 @@ def previous_alignment(client, lineage: str) -> tuple[dict[str, Any] | None, lis
     if not versions:
         return None, None
     current = next((row for row in versions if row.get("versionState") == "current"), versions[0])
+    from ..authored_editions import is_authored
+    if is_authored(current):
+        raise ValueError(f"{lineage} is independently authored; translation cannot replace it.")
     provenance = read_provenance(client, current)
     return current, [AlignedBlock(entry.get("sourceBlock"), entry["text"], entry.get("owner", "machine"), bool(entry.get("pinned")))
                      for entry in provenance["alignment"]]
@@ -310,6 +313,9 @@ def save(client, request: LocalizeRequest, outcome: dict[str, Any], *, now: str 
     primary = client.get_record("Item", request.source.version_id)
     versions = story_versions(client, request.localization_lineage)
     latest = next((row for row in versions if row.get("versionState") == "current"), versions[0] if versions else None)
+    from ..authored_editions import is_authored
+    if is_authored(latest):
+        raise ValueError("An independently authored edition now exists; this translation saves nothing.")
     if latest is not None and int(latest.get("sourceVersionNumber") or 0) > request.source.version_number:
         raise ValueError(f"{request.localization_lineage} already holds a translation of source version {latest['sourceVersionNumber']}; "
                          f"this run translated version {request.source.version_number} and saves nothing.")

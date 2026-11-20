@@ -403,7 +403,8 @@ def publish_item(
     original = original_of(client, item)
     if original is not None:
         require_publishable(client, item, original)   # a translation's checklist is its provenance; its gates are its original and any hold (localization_publish.py)
-    else:
+    from .authored_editions import is_authored
+    if original is None or is_authored(item):
         try:
             require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
         except ChecklistError as error:
