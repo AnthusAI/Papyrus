@@ -720,14 +720,6 @@ def step_page_names(context, key, path):
     assert any(url == f"{ORIGIN}{path}" for _tag, url in _hreflang(_site(context).text(key))), _hreflang(_site(context).text(key))
 
 
-@then('the written page "{key}" does not exist or only redirects')
-def step_page_absent_or_redirect(context, key):
-    site = _site(context)
-    if site.exists(key):
-        text = site.text(key)
-        assert 'http-equiv="refresh"' in text or "/es/hallazgos/" in text, site.keys()
-
-
 @given('the site\'s notice is "{label}" and "{text}" and Spanish says "{label_es}" and "{text_es}"')
 def step_notice(context, label, text, label_es, text_es):
     site = _site(context)

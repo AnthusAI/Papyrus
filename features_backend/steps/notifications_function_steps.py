@@ -61,7 +61,6 @@ def reader_request(context, action: str) -> None:
 
 
 @then("{count:d} email is sent to the subscriber")
-@then("{count:d} emails are sent to the subscriber")
 def emails_sent(context, count: int) -> None:
     calls = context.site.mailer.calls
     assert len(calls) == count, calls

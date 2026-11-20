@@ -112,11 +112,6 @@ def step_gen_private(context, use, image_type, brief):
     generate(context, PERSON, use, image_type, brief)
 
 
-@when('a person generates a "{use}" picture of type "{image_type}" for the section "{section}" with the brief "{brief}"')
-def step_gen_section(context, use, image_type, section, brief):
-    generate(context, PERSON, use, image_type, brief, section=section)
-
-
 @when('a person generates as request "{request_id}" a "{use}" picture of type "{image_type}" for the section "{section}" with the brief "{brief}"')
 def step_gen_section_request(context, request_id, use, image_type, section, brief):
     generate(context, PERSON, use, image_type, brief, section=section, request_id=request_id)

@@ -95,7 +95,6 @@ def step_counted(context, count):
 
 
 @then("the monitor story run counted {count:d} item as handled by an automation")
-@then("the monitor story run counted {count:d} items as handled by an automation")
 def step_handled(context, count):
     assert context.eh_run["inputs"]["handledByAutomation"] == count, context.eh_run["inputs"]
 

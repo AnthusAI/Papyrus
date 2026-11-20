@@ -138,7 +138,6 @@ def step_request_generation(context):
 
 
 @given('the request is for the section "{section}"')
-@when('the request is for the section "{section}"')
 def step_request_section(context, section):
     request(context)["sectionId"] = section
 

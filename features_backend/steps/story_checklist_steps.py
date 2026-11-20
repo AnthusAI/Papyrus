@@ -236,12 +236,6 @@ def publishing_succeeded(context):
     assert client_of(context).get_record("Item", f"{LINEAGE}-v{context.world.version_number}")["status"] == "published"
 
 
-@then('the procedure output has a line "{first}" "{second}" reading "{text}"')
-def line_reading(context, first, second, text):
-    lines = [line.split("\t") for line in context.output.splitlines()]
-    assert any(line[:3] == [first, second, text] for line in lines), context.output
-
-
 @then('the procedure output has an "item" line for "{key}" showing "{state}"')
 def item_line(context, key, state):
     lines = [line.split("\t") for line in context.output.splitlines()]
@@ -302,7 +296,6 @@ def board_lists_story_only(context):
 
 
 @then('the checklist item "{key}" has {count:d} note, the newest by the {kind} "{label}" saying "{text}"')
-@then('the checklist item "{key}" has {count:d} notes, the newest by the {kind} "{label}" saying "{text}"')
 def has_newest_note(context, key, count, kind, label, text):
     notes = item(context, key)["notes"]
     assert len(notes) == count and (notes[-1]["actorKind"], notes[-1]["actorLabel"], notes[-1]["text"]) == (kind, label, text), notes
@@ -662,11 +655,6 @@ def use_policy(context, **changes) -> None:
 def revision_of_published(context, stage):
     new_version(context)
     client_of(context).update_record("Item", {"id": f"{LINEAGE}-v{context.world.version_number}", "stage": stage, "headStageKey": stage, "status": "draft", "bodyMarkus": "Revised."})
-
-
-@when('a person marks the step "{key}" done')
-def person_marks_done(context, key):
-    mark(context, key, "done", EDITOR)
 
 
 @when('an agent marks the step "{key}" skipped with the reason "{reason}"')

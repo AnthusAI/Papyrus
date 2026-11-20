@@ -196,7 +196,6 @@ def total(context, count):
     assert context.today["totals"]["runs"] == count + len(others), context.today["totals"]
 
 
-@then('the "{title}" line gives the {kind}-to-do reasons "{reasons}"')
 @then('the "{title}" line gives the nothing-to-do reasons "{reasons}"')
 def nothing_reasons_shown(context, title, reasons, kind="nothing"):
     assert today.reasons_text(line(context, title)["reasons"]["nothing"]) == reasons

@@ -199,15 +199,6 @@ def no_identity(context, name: str) -> None:
     assert "person" not in text.lower()
 
 
-@when("{count:d} more readers rate \"{subject}\" \"{dimension}\" {value:d}")
-def more_readers_rate(context, count: int, subject: str, dimension: str, value: int) -> None:
-    backend = ensure_started(context)
-    start = getattr(context, "reader_extra_readers", 0)
-    for number in range(start, start + count):
-        backend.call(subject_for(f"extra-{number}"), "rating", {"subject": subject, "dimension": dimension, "value": value})
-    context.reader_extra_readers = start + count
-
-
 def prospectus_reports(context, record: RetiredSubject) -> None:
     context.reader_retired = [*getattr(context, "reader_retired", []), record]
 

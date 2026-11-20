@@ -248,7 +248,6 @@ def scheduler_fires(context, when):
 
 
 @then("the wake queue holds {count:d} scheduled message")
-@then("the wake queue holds {count:d} scheduled messages")
 def queue_holds(context, count):
     assert len(context.queue.messages) == count, [message.body for message in context.queue.messages]
 

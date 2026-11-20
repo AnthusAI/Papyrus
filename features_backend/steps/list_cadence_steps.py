@@ -127,7 +127,6 @@ def agent_row(context, agent, procedure):
     context.api.rows[agent] = au.stored_payload(record)
 
 
-@given('the agent "{agent}" is switched off')
 @when('the agent "{agent}" is switched off')
 def switch_off(context, agent):
     context.api.rows[agent] = {**context.api.rows[agent], "enabled": False}
@@ -495,7 +494,6 @@ def same_announcement_fields(context):
 # --- period keys and what carries forward (features_backend/period-keys.feature) -------------------------------------------------------------------
 
 
-@given('the Delivery of the list "{list_id}" is approved and sent at "{time}"')
 @when('the Delivery of the list "{list_id}" is approved and sent at "{time}"')
 def approved_and_sent(context, list_id, time):
     deliveries = context.announcements.deliveries
@@ -507,7 +505,6 @@ def approved_and_sent(context, list_id, time):
     attempts.close(approved["id"], entry["number"], "sent", by="sender", now=time)
 
 
-@given('the due Announcements are released at "{time}"')
 @when('the due Announcements are released at "{time}"')
 def release_due(context, time):
     assert context.announcements.release_due(time), "no Announcement was due"

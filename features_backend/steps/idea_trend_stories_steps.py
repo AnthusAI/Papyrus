@@ -205,7 +205,6 @@ def step_signal_weeks(context, weeks, end):
 
 
 @then("{count:d} trend draft is filed as an idea")
-@then("{count:d} trend drafts are filed as ideas")
 def step_filed(context, count):
     rows = filed(context)
     assert len(rows) == count, context.trend_run

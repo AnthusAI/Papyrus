@@ -219,7 +219,6 @@ def still(context, version):
 
 
 @then('the site\'s policy is version {version:d} and "{agent}" is at "{rung}"')
-@then('the site\'s policy is still version {version:d} and "{agent}" is at "{rung}"')
 def version_and_rung(context, version, agent, rung):
     state = _state(context)
     assert state.version == version and state.document["agents"][agent]["rung"] == rung, state

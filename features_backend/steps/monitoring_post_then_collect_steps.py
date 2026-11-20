@@ -39,11 +39,6 @@ def step_collected(context):
     run_collection(DynamoStore(context.table_), "hn", fetch=lambda url: tr.FEED, now=1000)
 
 
-@given("the router may take only one story per run")
-def step_one_per_run(context):
-    context.table_.put_item(tr.router_config())
-
-
 @given("Cyclotron does not have the combined endpoint")
 def step_no_combined(context):
     context.cyclotron.combined_enabled = False
@@ -113,11 +108,6 @@ def step_three_posts(context):
 def step_awaiting_three(context):
     assert context.result["status"] == "awaiting" and context.result["stoppedBy"] == "awaiting"
     assert context.result["counts"]["awaiting"] == 3
-
-
-@then("the run ends with the status awaiting and counts one story awaiting")
-def step_awaiting_one(context):
-    assert context.result["status"] == "awaiting" and context.result["counts"]["awaiting"] == 1
 
 
 @then("all three stories are still waiting for the router with their jobs recorded")

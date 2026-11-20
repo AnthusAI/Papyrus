@@ -168,7 +168,6 @@ def step_reject(context, name):
 
 
 @when('the entity "{entity}" is extracted from the document of "{name}" and the run is imported')
-@given('the entity "{entity}" was extracted from the document of "{name}" and imported')
 def step_extracted(context, entity, name):
     typed = {
         "schema_version": 1,
@@ -208,7 +207,6 @@ def step_link(context):
 
 
 @when('an editor accepts the entity "{entity}"')
-@given('an editor accepted the entity "{entity}" through the review')
 def step_accept(context, entity):
     command(context, commands.knowledge_entities_accept, "--key", node_of(context, entity)["nodeKey"], "--actor", "ai")
     assert context.error is None, context.error

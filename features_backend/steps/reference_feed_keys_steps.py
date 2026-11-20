@@ -131,7 +131,6 @@ def step_key(context, prefix):
 
 
 @then("it is still in the unrated feed")
-@then("it is in the unrated feed of its corpus")
 def step_unrated(context):
     assert stored(context)["feedStateKey"] == f"{CORPUS}#unrated", stored(context)
 

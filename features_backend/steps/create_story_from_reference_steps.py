@@ -177,7 +177,6 @@ def _is_untyped(context):
 
 
 @then("the Story is a {item_type}")
-@then("the Story is an {item_type}")
 def _is_type(context, item_type):
     assert story(held(context))["type"] == item_type
 

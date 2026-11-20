@@ -58,11 +58,6 @@ def step_run_live_console_agent_smoke_scenario(context, scenario: str) -> None:
     raise last_error
 
 
-@then("the live console agent smoke scenario should pass")
-def step_live_console_agent_smoke_scenario_should_pass(context) -> None:
-    assert context.live_console_agent_smoke_result.get("ok") is True
-
-
 @then('the live console agent response should include "{needle}"')
 def step_live_console_agent_response_should_include(context, needle: str) -> None:
     content = str(context.live_console_agent_smoke_result.get("content") or "")
@@ -141,14 +136,6 @@ def step_live_console_agent_smoke_should_include_no_structured_errors(context) -
 def step_live_console_agent_smoke_should_default_model(context, model: str) -> None:
     resolved = context.live_console_agent_smoke_result.get("model")
     assert resolved == model, f"Expected model {model}; saw {resolved}"
-
-
-@then('the live console agent model context should include "{needle}"')
-def step_live_console_agent_model_context_should_include(context, needle: str) -> None:
-    model_context = context.live_console_agent_smoke_result.get("modelContext")
-    assert model_context is not None, "Model context snapshot is missing from smoke result."
-    serialized = json.dumps(model_context, ensure_ascii=False)
-    assert needle in serialized, f'Expected "{needle}" in model context; saw {serialized}'
 
 
 @then('the live console agent model context should include role "{role}" containing "{needle}"')

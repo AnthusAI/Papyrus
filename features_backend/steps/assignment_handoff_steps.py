@@ -320,7 +320,6 @@ def runner_again(context):
 
 
 @then("the responsible procedure ran {count:d} time")
-@then("the responsible procedure ran {count:d} times")
 def ran(context, count):
     assert context.handoff_run_count == count, context.handoff_run_count
 
