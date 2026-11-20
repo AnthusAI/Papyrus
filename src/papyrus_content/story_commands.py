@@ -775,38 +775,29 @@ def stories_set_stars(flags: list[str]) -> None:
                      "write" if result["applied"] else "dry-run: nothing sent"]))
 
 
-def stories_next(flags: list[str]) -> None:
-    """papyrus stories next --story <lineage> [--json]
+def operator_story_next(client, lineage_id: str) -> dict:
+    from .newsroom_process import Procedure, resolve
+    from .story_checklist import progress_text, read_steps, steps_for_display, summary_of
 
-    Read only. One answer about what remains (docs/story-procedure.md). The Story's stored checklist decides each step's state; the records only add a
-    `hint` where they differ. Lines, tab-separated: `status` (complete, ready, blocked or stale; the number still to do; why), a `step` line per step
-    (state done, skipped, not_applicable, not_done or stale), a `version` line per checklist step (the Story version it was recorded against and
-    `current` or `STALE: recorded against vN, story is now vM`), `hint`, the stored `item` and `note` lines and the `checklist progress` line, then
-    a `remaining` line per step still to do (in order), `next` (the first), `skipped` and one `lens` line per review step not current. A review lens
-    or the copy edit recorded done against an earlier version is stale and remains until it is recorded again for the current version."""
-    options = parse_options(flags)
-    lineage_id = _required_option(options, "story")
-    client, _ = create_authoring_client()
     facts = story_facts(client, lineage_id)
-    from .newsroom_process import Procedure, hint_lines, remaining_lines, resolve, status_lines, version_lines
-    from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
-
-    raw = read_steps(client, lineage_id)   # one index read by Story lineage
-    assessment = resolve(assess(facts), raw, facts)   # the stored checklist decides; the records only hint
+    raw = read_steps(client, lineage_id)
+    assessment = resolve(assess(facts), raw, facts)
     procedure = Procedure.from_spec(facts.get("procedureSpec"))
     stored = steps_for_display(raw, lineage_id, procedure)
-    stale_count = len(assessment["stale"])
-    states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}   # the lens steps as resolved, stale included
-    if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
-                          "currentVersion": facts["versionNumber"], "checklist": stored,
-                          "progress": progress_text(summary_of(stored, procedure), stale_count) if stored else None}, indent=2))
-        return
-    print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    lines = (status_lines(assessment) + step_lines(assessment) + version_lines(assessment) + hint_lines(assessment) + checklist_lines(stored, stale_count)
-             + remaining_lines(assessment) + next_lines(assessment) + lens_lines(states, lineage=lineage_id))
-    for line in lines:
-        print(line)
+    states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}
+    return {"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
+            "currentVersion": facts["versionNumber"], "checklist": stored,
+            "progress": progress_text(summary_of(stored, procedure), len(assessment["stale"])) if stored else None}
+
+
+def story_next_rows(result: dict) -> list[str]:
+    from .newsroom_process import hint_lines, remaining_lines, status_lines, version_lines
+    from .story_checklist import checklist_lines
+
+    lineage_id = result["story"]
+    states = {row["key"]: row["state"] for row in result["steps"] if row["source"] == "checklist"}
+    return ([f"stories\tnext\t{lineage_id}\tstage {result['stage']}"] + status_lines(result) + step_lines(result) + version_lines(result) + hint_lines(result)
+            + checklist_lines(result["checklist"], len(result["stale"])) + remaining_lines(result) + next_lines(result) + lens_lines(states, lineage=lineage_id))
 
 
 def stories_step(flags: list[str]) -> None:
