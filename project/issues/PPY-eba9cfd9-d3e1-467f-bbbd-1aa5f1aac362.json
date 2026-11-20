@@ -3,7 +3,7 @@
   "title": "Current database doctrine reaches classification and copy-edit model requests",
   "description": "As an editor, I want current publication doctrine and the selected section overlay to reach classification and copy-edit prompts so database edits govern behavior without stale seeds. Feature: Current scoped editorial guidance at model boundaries. Scenario: Inherit and isolate. Given current private publication doctrine and two section overlays When a candidate is classified and a draft checked or rewritten for one section Then the actual model request includes publication and selected section guidance And the other section guidance does not enter that classifier or edit scope. Scenario: Refresh changed policy. Given a previous request When publication or section policy is updated in the database Then the next request uses current text and a changed context fingerprint And missing, ambiguous, denied or mismatched required policy stops before any model call. Source fixes and local controlled tests are authorized; production writes, grants, deployments and live provider calls remain separately gated. Preserve all 50 human decisions; do not train.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -106,11 +106,18 @@
       "text": "Shipped (Papyrus 4.0.0 via #393, context fix #397, release 5.0.0 rolled to TI, Pilobol.us, p.apyr.us, Anth.us-web): the editorial-context resolver reads only backend data (publication = the single canonical KnowledgeCorpus; mission/policy = doctrine Items edited at /newsroom/administration/policies; section overlays = NewsroomSection edited at /newsroom/administration/sections). No steering YAML is read for editorial context; --backend local removed. The same records reach (a) copy-edit/editorial checks (pack version carries the context hash) and (b) the Cyclotron request context (classifier context hash equals the editorial context hash); verified read-only on TI for section cloud, and covered by tests with no model call. Seed YAML is a one-time idempotent import that never overwrites existing records. Editorial checks are core to every site, on by default, configured by stored EditorialCheckSettings (enabled flag). Remaining: real per-publication policies still to be filed; live model test pending a budget and CYCLOTRON_ALLOW_LIVE. TI also has legacy sections (newsroom, aws, ai, azure, and older text for mission/gaming) from the July import beside the 6 sections newly imported 2026-10-20; reconcile in Administration > Sections.",
       "created_at": "2026-10-21T01:42:43.323891Z",
       "comment_type": "default"
+    },
+    {
+      "id": "85ff9a57-6c6a-4432-9a00-285469daf5bf",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: work shipped on develop (commits); any follow-ups are in the notes above and need their own records.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T11:37:29.555867Z",
-  "updated_at": "2026-10-21T01:42:43.323929Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "closed_at": "2026-11-20T14:03:43.000000Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",

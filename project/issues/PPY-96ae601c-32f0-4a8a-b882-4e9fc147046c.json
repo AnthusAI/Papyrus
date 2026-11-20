@@ -3,7 +3,7 @@
   "title": "Preserve tenant context in localization procedure workers",
   "description": "Production localization mistakes a tenant-prefixed original language group for a translation. Investigate and fix request-to-worker tenant propagation, retaining cross-tenant and real-translation rejection. Local deterministic regression only; no deploy or push authorized.",
   "type": "bug",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Local verification complete: focused worker regression 14 passed; runner + automation Run now + dispatcher + original regression batch 86 passed, 4 skipped. Scoped Behave 5 scenarios/15 steps passed. Full repository Behave loader blocked by missing httpx in existing test environment; isolated feature passed without unrelated steps. git diff --check clean. Ready for review; no push, merge, deploy or production writes.",
       "created_at": "2026-11-16T23:48:43.107788Z",
       "comment_type": "default"
+    },
+    {
+      "id": "be47e202-9d5c-4101-8fbf-eba463a49708",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: work shipped on develop (#1737); any follow-ups are in the notes above and need their own records.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T23:42:32.862069Z",
-  "updated_at": "2026-11-16T23:48:43.108545Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "closed_at": "2026-11-20T14:03:43.000000Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

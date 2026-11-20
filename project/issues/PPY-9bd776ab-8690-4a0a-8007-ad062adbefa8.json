@@ -3,7 +3,7 @@
   "title": "A Papyrus deployment needs no hand-made cloud resources",
   "description": "Ryan's rule (2026-11-11): nobody creates a cloud resource by hand. Every resource is defined in Git and applied by a pipeline on merge; agents read with the AWS CLI and never create or change. Person-only steps: the one seed apply, registrar name servers, the Google OAuth client, and secret values (CloudFormation cannot create SecureString parameters). Humorus issue: HUM-be87f4 (design draft in its comments). Must not regress the running Anthus deployments: the papyrus-pipeline-approver stack, the AWS_ACCOUNT_ID variable and the role-change approval workflow keep working. New pieces are additive: infra/account/ (account baseline and account stack templates), stack_deploy.py with --config, CloudFormation IMPORT, the reusable workflow account-stacks.yml.",
   "type": "epic",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -24,10 +24,17 @@
       "text": "2026-11-11 evening: Ryan's rule extended: nothing in GitHub may require his approval. The account-stacks roles job now needs no approval (environment keeps a main-only branch policy). Added: when.delegated gate and the delegation command (PR 1409), SES MAIL FROM/SPF/DMARC, placeholder-site stack (CloudFront Function), ssm:GetParameters for SSM parameter types. Remaining: PPY-b5ddec (Anthus imports, design/dry-run), PPY-1f6e73 (client account), PPY-a41df9 (org seeding, design).",
       "created_at": "2026-11-11T23:15:41.716858Z",
       "comment_type": "default"
+    },
+    {
+      "id": "0f2d4277-d537-421c-8e1c-29de83117156",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-11-11; paused.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-11T20:36:48.824244Z",
-  "updated_at": "2026-11-11T23:15:41.717116Z",
+  "updated_at": "2026-11-20T14:03:43.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

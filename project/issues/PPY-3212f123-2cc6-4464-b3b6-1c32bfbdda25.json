@@ -3,7 +3,7 @@
   "title": "First recurring Monitor learning slice for Anth.us, Papyrus, TI and Pilobolus",
   "description": "## Current delivery status\n\nImplementation remains in progress; production two-layer classification and applied feedback are not complete.\n\n- Public HN collection succeeded at 2026-10-20T11:35:17Z: 30 deduplicated private review sources with separate discovery provenance, mode-0600 queue/checkpoint/export files and presentation deduplication. Collection-only staging is distinct from publication Reference intake and full routing.\n- Parent enabled an hourly automation in America/New_York. No first scheduled-run receipt or reliable next-run timestamp has been observed. Parent owns review-batch delivery and scheduled wake coordination; avoid overlapping manual collection.\n- Draft PR https://github.com/AnthusAI/Papyrus/pull/382 is pushed, unmerged. Collector head 4a151214 passed Python/TypeScript/smoke CI. Latest guideline/tracker head bbacf15ce703dc620dbcf583c13f1431226c3c5d has CI running; do not describe the latest head as green until verified.\n- 50 explicit human decisions and their explanations/message provenance are privately preserved and hash-verified. Zero applied feedback, labels, seeds or training. Individual labels and publication policy prose must not appear in public tracker records.\n- Database-guideline propagation is implemented and tested under PPY-6b80ab and PPY-eba9cf: 63 focused Python tests and 24 BDD scenarios/98 steps pass locally with synthetic providers. Source/CLI request evidence is not production deployment or live inference evidence.\n\n## Required architecture and acceptance\n\nThe same immutable discovered source revision must be evaluated once by ONE SHARED REMOTE Cyclotron across four publication-relevance outputs. Only relevant outputs continue to each publication's INTEGRATED Cyclotron, with section-fit outputs and its selector. Preserve shared decision identity plus account/publication/output/binding revision and prediction fingerprint. Independent first-stage engines or a local fallback do not satisfy this contract.\n\nRecurring collection -> persisted discovery/Reference provenance -> correctly scoped real shared decision -> integrated section decisions -> human review -> authorized, verified applied feedback is the intended full slice. Never treat predictions, advisory judgments or received JSON feedback as human-label application. Keep evaluation answers separate from seeds and preserve baseline-before-seeding order.\n\n## Exact remaining gates\n\n1. Verify the hourly automation's first actual run and resulting queue receipt.\n2. Reconcile and normally release the reviewed shared publication-host composition and trusted model-context adapter. Interactive sign-in was verified, but publication routing/provider composition remains undeployed and classifier execution disabled. No live predictions have run.\n3. Verify current account/person/publication grants, shared remote output/binding identities, and each integrated publication's canonical corpus/section bindings. Do not invent namespaces, grants, credentials or predictions.\n4. Review/roll out Papyrus context changes through the normal package/consumer pipeline. The existing editorial-checks role source proposes only private reads getEditorialContext and listKnowledgeCorporaByRoleAndName; no production grant was applied. Reconcile current consumer owner changes, including existing provider-secret fixes, rather than duplicating them.\n5. Under the correct authenticated publication, read current private mission/policy and section overlays, prepare exact preserved-content diffs, and verify effective context/request provenance. Production policy writes and any live model test require the exact target/scope and a bounded approved provider budget. Do not publish private prompt text in traces or artifacts.\n6. Apply received feedback only through the intended authority-bound human-feedback path after correct prediction/output targets and ordering are verified; retain actual applied receipts. No fabricated authority, seeds or synthetic predictions.\n\nOther RSS/headless/source-adapter plans remain design-only unless separately authorized. No merge, infrastructure, publication or deployment action follows from tracker upkeep.",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -201,10 +201,17 @@
         "model": "Sonnet 5.5",
         "name": "Claude Code"
       }
+    },
+    {
+      "id": "57bb8ed4-26d1-46b8-8715-2fa04a16557c",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-10-21; paused.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-21T02:41:37.042776Z",
+  "updated_at": "2026-11-20T14:03:43.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
