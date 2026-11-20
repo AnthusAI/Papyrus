@@ -144,7 +144,7 @@ jobs:
               publications/threat_intelligence/tests/test-blog-defense-graph.cjs publications/threat_intelligence/tests/test-pictograms.cjs \
               | grep -v node_modules | LC_ALL=C sort -u)
           echo "$files" | wc -l
-          mine=$(echo "$files" | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
+          mine=$(echo "$files" | python3 infra/pipeline/deal_out_test_files.py --shard "$SHARD" --of "$SHARDS" --seconds infra/pipeline/ts-test-seconds.json)
           echo "$mine"
           node --import tsx --test --test-reporter=spec --test-concurrency=4 $mine
 
