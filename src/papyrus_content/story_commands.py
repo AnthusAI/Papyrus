@@ -755,26 +755,6 @@ def stories_list(flags: list[str]) -> None:
     print(f"stories\tlist\t{len(stories)} of {total}")
 
 
-def stories_set_stars(flags: list[str]) -> None:
-    """papyrus stories set-stars --story <lineage> --stars <0-5> [--agent <your name>] [--dry-run]
-
-    Sets the editor's rating of a Story (1 to 5; 0 clears it) as the signed-in person, through the newsroom's setItemStars mutation (the one the console
-    calls), which also re-renders the listing pages whose order changed. It does not republish the Story. It writes unless you pass --dry-run. It sets the
-    editor value only; `stories show` also prints the effective rating, which can differ once votes are aggregated."""
-    from .story_signals import set_story_stars, validated_stars
-
-    options = parse_options(flags)
-    apply = resolve_mutation_apply(options, "stories set-stars")
-    lineage_id = _required_option(options, "story")
-    if options.get("stars") is None or options.get("stars") is True:
-        raise ValueError("stories set-stars requires --stars 0 to 5 (0 clears the rating).")
-    stars = validated_stars(options["stars"])
-    client, _ = create_authoring_client()
-    result = set_story_stars(client, lineage_id, stars, apply=apply, agent=normalize_string(options.get("agent")))
-    print("\t".join(["stories", "set-stars", lineage_id, f"previous {result['previous']}", f"stars {result['stars']}", "editor value",
-                     "write" if result["applied"] else "dry-run: nothing sent"]))
-
-
 def operator_story_next(client, lineage_id: str) -> dict:
     from .newsroom_process import Procedure, resolve
     from .story_checklist import progress_text, read_steps, steps_for_display, summary_of

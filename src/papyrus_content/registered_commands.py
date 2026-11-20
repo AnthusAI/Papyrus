@@ -19,17 +19,23 @@ def render_story_versions(command: RegisteredCommand, result: dict[str, Any]) ->
     ]
 
 
+def render_story_stars(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    return ["\t".join(["stories", "set-stars", result["lineageId"], f"previous {result['previous']}", f"stars {result['stars']}", "editor value",
+                       "write" if result["applied"] else "dry-run: nothing sent"])]
+
+
 def render_story_next(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
     from .story_commands import story_next_rows
 
     return story_next_rows(result)
 
 
-TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next}
+TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars}
 
 
 def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) -> dict[str, Any]:
-    properties = {**command.required, **command.optional}
+    schema = command.schema_for(True)
+    properties = schema["properties"]
     known = {option_name(name): name for name in properties}
     known.update({alias: name for name, alias in command.cli_flag_aliases.items()})
     unknown = sorted(set(options) - set(known))
@@ -45,11 +51,13 @@ def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) 
             try:
                 value = int(value)
             except (TypeError, ValueError) as error:
-                raise ValueError(f"--{flag} must be a whole number.") from error
+                raise ValueError(f"--{flag} must be a whole number" + (f" from {rule['minimum']} to {rule['maximum']}." if "minimum" in rule and "maximum" in rule else ".")) from error
         elif rule["type"] == "object":
             value = json.loads(value)
+        elif rule["type"] == "boolean":
+            value = value is True or str(value).lower() == "true"
         arguments[name] = value
-    missing = [option_name(name) for name in command.required if name not in arguments]
+    missing = [option_name(name) for name in schema["required"] if name not in arguments]
     if missing:
         raise ValueError(f"Missing required option --{missing[0]}.")
     return arguments
@@ -74,8 +82,9 @@ def run_registered_command(route: str, flags: list[str]) -> None:
 
 
 def usage_line(command: RegisteredCommand) -> str:
-    required = " ".join(f"--{option_name(name)} VALUE" for name in command.required)
-    optional = " ".join(f"[--{option_name(name)} VALUE]" for name in command.optional)
+    schema = command.schema_for(True)
+    required = " ".join(f"--{option_name(name)} VALUE" for name in schema["required"])
+    optional = " ".join(f"[--{option_name(name)}{'' if rule['type'] == 'boolean' else ' VALUE'}]" for name, rule in schema["properties"].items() if name not in schema["required"])
     for name, alias in command.cli_flag_aliases.items():
         required = required.replace(f"--{option_name(name)} VALUE", f"--{alias} VALUE")
         optional = optional.replace(f"--{option_name(name)} VALUE", f"--{alias} VALUE")

@@ -200,3 +200,28 @@ def test_the_command_line_runs_every_registered_command_as_the_operator(monkeypa
     run_registered_command("stories:versions", ["--story", "story-1"])
     assert seen == [True]
     assert STAFF_PRINCIPAL.is_operator is False
+
+
+def test_an_external_principal_asking_for_an_operator_only_option_on_set_stars_is_refused():
+    from .mcp_tools import call_tool
+
+    staff = StaffReads(client=object())
+    for refused in ({"dryRun": True}, {"agent": "someone"}):
+        with pytest.raises(ValueError, match="Invalid tool arguments"):
+            call_tool(STAFF_PRINCIPAL, "stories_set-stars", {"lineageId": "story-1", "stars": 3, "expectedCurrentVersionId": "story-1-v1", "expectedRevision": "[]", **refused}, staff=staff)
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "stories_set-stars", {"lineageId": "story-1", "stars": 3}, staff=staff)
+    with pytest.raises(ValueError, match="0 to 5|1 to 5"):
+        call_tool(STAFF_PRINCIPAL, "stories_set-stars", {"lineageId": "story-1", "stars": 0, "expectedCurrentVersionId": "story-1-v1", "expectedRevision": "[]"}, staff=staff)
+
+
+def test_the_operator_rates_a_story_without_a_revision_and_may_clear_the_rating(monkeypatch):
+    import papyrus_content.story_signals as story_signals
+    from .mcp_tools import call_tool
+
+    asked = []
+    monkeypatch.setattr(story_signals, "set_story_stars", lambda client, lineage_id, stars, *, apply, agent=None: asked.append((lineage_id, stars, apply, agent)) or {"lineageId": lineage_id})
+    staff = StaffReads(client=object())
+    operator = Principal("staff", "cli", is_operator=True)
+    call_tool(operator, "stories_set-stars", {"lineageId": "story-1", "stars": 0, "dryRun": True, "agent": "an agent"}, staff=staff)
+    assert asked == [("story-1", 0, False, "an agent")]
