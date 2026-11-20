@@ -12,13 +12,13 @@ for (const resource of resources) {
   assert.doesNotMatch(result.contents[0].text, /localStorage|Authorization|Bearer|fetch\(/);
 }
 assert.throws(() => readMcpAppResource("ui://unknown"));
-assert.equal(withMcpAppMetadata({name: "reference_get", inputSchema: {}})._meta?.ui.resourceUri, resources[0].uri);
-assert.equal(withMcpAppMetadata({name: "story_get", inputSchema: {}})._meta?.ui.resourceUri, resources[1].uri);
+assert.equal(withMcpAppMetadata({name: "references_show", inputSchema: {}})._meta?.ui.resourceUri, resources[0].uri);
+assert.equal(withMcpAppMetadata({name: "stories_show", inputSchema: {}})._meta?.ui.resourceUri, resources[1].uri);
 assert.equal(withMcpAppMetadata({name: "reviews_list", inputSchema: {}})._meta, undefined);
 console.log("MCP App resource checks passed");
 
 const plain = { content: [{ type: "text", text: "Readable result" }], structuredContent: { reference: { title: "A reference" } } };
-const decorated = withMcpAppResult(plain, ["reference_get", "reference_decide"]);
+const decorated = withMcpAppResult(plain, ["references_show", "references_decide"]);
 assert.deepEqual(decorated.content, plain.content);
 assert.deepEqual(decorated.structuredContent, plain.structuredContent);
-assert.deepEqual((decorated as any)._meta.papyrus.availableTools, ["reference_get", "reference_decide"]);
+assert.deepEqual((decorated as any)._meta.papyrus.availableTools, ["references_show", "references_decide"]);

@@ -19,58 +19,7 @@ class Principal:
     delegated_by: str | None = None
 
 
-def _schema(required: dict[str, dict], optional: dict[str, dict] | None = None) -> dict:
-    return {"type": "object", "properties": {**required, **(optional or {})},
-            "required": list(required), "additionalProperties": False}
-
-
-S = {"type": "string", "minLength": 1}
-LIMIT = {"type": "integer", "minimum": 1, "maximum": 100}
-STARS = {"type": "integer", "minimum": 1, "maximum": 5}
-LINEAGE = {"lineageId": S}
-VERSION = {**LINEAGE, "expectedCurrentVersionId": S}
-REVISION = {**VERSION, "expectedRevision": S}
-TOOLS = {
-    "reference_search": ("staff", _schema({"query": S}, {"limit": LIMIT, "nextToken": S})),
-    "reference_get": ("staff", _schema(LINEAGE)),
-    "concept_search": ("staff", _schema({"query": S}, {"limit": LIMIT, "nextToken": S})),
-    "concept_get": ("staff", _schema({"id": S})),
-    "story_search": ("staff", _schema({"query": S}, {"limit": LIMIT, "nextToken": S})),
-    "story_get": ("staff", _schema(LINEAGE)),
-    "story_versions": ("staff", _schema(LINEAGE)),
-    "story_evidence": ("staff", _schema(LINEAGE, {"limit": LIMIT, "nextToken": S})),
-    "story_next": ("staff", _schema(LINEAGE)),
-    "assignments_list": ("staff", _schema({"storyLineageId": S}, {"limit": LIMIT, "nextToken": S})),
-    "assignment_get": ("staff", _schema({"id": S})),
-    "story_save_draft": ("staff", _schema({**VERSION, "body": S, "reason": S}, {"frontMatter": {"type": "string"}})),
-    "reference_decide": ("staff", _schema({**REVISION, "decision": {"type": "string", "enum": ["accept", "reject"]}}, {"note": S})),
-    "reference_star": ("staff", _schema({**REVISION, "stars": STARS})),
-    "story_star": ("staff", _schema({**REVISION, "stars": STARS})),
-    "reviews_list": ("staff", _schema({"subjectType": S, "subjectId": S}, {"state": S, "mode": S, "limit": LIMIT, "nextToken": S})),
-    "review_get": ("staff", _schema({"id": S})),
-    "review_answer": ("staff", _schema({"id": S, "expectedRevision": S, "decision": S}, {"feedback": S, "steer": S})),
-    "story_publish": ("staff", _schema(VERSION)),
-    "story_request_publish": ("staff", _schema(VERSION)),
-    "reader_comment": ("reader", _schema({"subject": S, "body": S}, {"parent": S, "ratingContext": {"type": "object"}})),
-    "reader_submit": ("reader", _schema({"url": S, "title": S}, {"kind": S, "note": S})),
-}
-
-
-DESCRIPTIONS = {
-    "reference_search": "Find References matching a phrase.", "reference_get": "Read a current Reference.",
-    "concept_search": "Find concepts matching a phrase.", "concept_get": "Read a concept.",
-    "story_search": "Find Stories matching a phrase.", "story_get": "Read the current version of a Story.",
-    "story_versions": "List a Story's saved versions.", "story_evidence": "Read the evidence linked to a Story.",
-    "story_next": "Read the next steps in the Story procedure.", "assignments_list": "List Assignments.",
-    "assignment_get": "Read an Assignment.", "story_save_draft": "Save a new immutable Story draft.",
-    "reference_decide": "Accept or reject a Reference.", "reference_star": "Rate a Reference with stars.",
-    "story_star": "Rate a Story with stars.", "reviews_list": "List review requests.",
-    "review_get": "Read a review request.", "review_answer": "Answer a review request.",
-    "story_publish": "Publish a Story through its existing gates.",
-    "story_request_publish": "Request a person's approval to publish a Story.",
-    "reader_comment": "Comment on a subject under the site's reader policy.",
-    "reader_submit": "Submit a link under the site's reader policy.",
-}
+from .command_registry import BY_TOOL_NAME, REGISTRY, STAFF
 
 
 def _story_fields(row: dict) -> dict:
@@ -84,9 +33,10 @@ def _story_fields(row: dict) -> dict:
 
 def list_tools(principal: Principal, *, staff: Any = None, reader: Callable[[dict], dict] | None = None) -> list[dict[str, Any]]:
     _identity(principal)
-    return [{"name": name, "description": DESCRIPTIONS[name], "inputSchema": schema}
-            for name, (kind, schema) in TOOLS.items() if kind == principal.kind
-            and ((kind == "reader" and reader is not None) or (kind == "staff" and callable(getattr(staff, name, None)) and name in getattr(staff, "available_tools", ())))]
+    return [{"name": command.tool_name, "description": command.description, "inputSchema": command.input_schema}
+            for command in REGISTRY if command.audience == principal.kind
+            and ((command.audience == "reader" and reader is not None)
+                 or (command.audience == STAFF and callable(getattr(staff, command.handler, None)) and command.tool_name in getattr(staff, "available_tools", ())))]
 
 
 def _identity(principal: Principal) -> None:
@@ -118,16 +68,16 @@ def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
     ``reader`` invokes the site's existing Reader Steering handler, including its policy.
     """
     _identity(principal)
-    spec = TOOLS.get(name)
-    if spec is None or spec[0] != principal.kind:
+    command = BY_TOOL_NAME.get(name)
+    if command is None or command.audience != principal.kind:
         raise PermissionError("Tool is unavailable to this identity.")
-    _validate(spec[1], arguments)
+    _validate(command.input_schema, arguments)
     if principal.kind == "reader":
         if reader is None:
             raise RuntimeError("Reader Steering is unavailable.")
         return reader({"siteSubject": principal.site_subject, "isStaff": False,
                        "action": "comment" if name == "reader_comment" else "submit", "payload": arguments})
-    operation = getattr(staff, name, None)
+    operation = getattr(staff, command.handler, None)
     if name not in getattr(staff, "available_tools", ()) or not callable(operation):
         raise RuntimeError("Site operation is unavailable.")
     return operation(principal, **arguments)
@@ -139,7 +89,7 @@ from .mcp_story_writes import StaffStoryWrites
 class StaffReads(StaffStoryWrites):
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "story_next", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star", "story_save_draft", "story_request_publish"})
+    available_tools = frozenset(command.tool_name for command in REGISTRY if command.audience == STAFF)
 
     def __init__(self, client: Any):
         self.client = client

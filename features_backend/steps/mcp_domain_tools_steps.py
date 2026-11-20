@@ -35,8 +35,8 @@ def reader(context):
 
 @when('the editor asks for the Story and its evidence')
 def read_story(context):
-    context.story = call_tool(context.principal, "story_get", {"lineageId": "story"}, staff=context.staff)
-    context.evidence = call_tool(context.principal, "story_evidence", {"lineageId": "story"}, staff=context.staff)
+    context.story = call_tool(context.principal, "stories_show", {"lineageId": "story"}, staff=context.staff)
+    context.evidence = call_tool(context.principal, "stories_evidence", {"lineageId": "story"}, staff=context.staff)
 
 
 @then('the tools return the current Story version and the evidence lineage')
@@ -49,7 +49,7 @@ def story_result(context):
 def stale(context):
     context.staff.available_tools = frozenset()
     try:
-        call_tool(context.principal, "reference_decide", {"lineageId": "ref", "expectedCurrentVersionId": "ref-v1", "expectedRevision": "old", "decision": "accept"}, staff=context.staff)
+        call_tool(context.principal, "references_decide", {"lineageId": "ref", "expectedCurrentVersionId": "ref-v1", "expectedRevision": "old", "decision": "accept"}, staff=context.staff)
     except RuntimeError as error:
         context.error = error
 
@@ -62,7 +62,7 @@ def refused(context):
 @when('the reader asks for the Story')
 def forbidden(context):
     try:
-        call_tool(context.principal, "story_get", {"lineageId": "story"}, staff=context.staff)
+        call_tool(context.principal, "stories_show", {"lineageId": "story"}, staff=context.staff)
     except PermissionError as error:
         context.error = error
 
@@ -111,7 +111,7 @@ def shared_reference_site(context):
 @when('the editor opens the Reference by its lineage')
 def open_reference(context):
     try:
-        context.result = call_tool(context.principal, "reference_get", {"lineageId": "ref"}, staff=context.staff)
+        context.result = call_tool(context.principal, "references_show", {"lineageId": "ref"}, staff=context.staff)
     except PermissionError as error:
         context.error = error
 
@@ -129,7 +129,7 @@ def reference_refused(context):
 
 @when('the agent accepts the Reference shown on the card')
 def accept_reference(context):
-    context.result = call_tool(context.principal, "reference_decide", {"lineageId": "ref", "expectedCurrentVersionId": "ref-v2", "expectedRevision": "revision", "decision": "accept"}, staff=context.staff)
+    context.result = call_tool(context.principal, "references_decide", {"lineageId": "ref", "expectedCurrentVersionId": "ref-v2", "expectedRevision": "revision", "decision": "accept"}, staff=context.staff)
 
 
 @then('the site receives the current version and revision for an agent decision')
@@ -142,7 +142,7 @@ def decision_result(context):
 @when('the agent accepts an outdated Reference card')
 def stale_reference(context):
     try:
-        call_tool(context.principal, "reference_decide", {"lineageId": "ref", "expectedCurrentVersionId": "ref-v1", "expectedRevision": "old", "decision": "accept"}, staff=context.staff)
+        call_tool(context.principal, "references_decide", {"lineageId": "ref", "expectedCurrentVersionId": "ref-v1", "expectedRevision": "old", "decision": "accept"}, staff=context.staff)
     except ValueError as error:
         context.error = error
 
@@ -214,7 +214,7 @@ def foreign_assignment(context):
 @when('the editor opens that Assignment')
 def open_foreign_assignment(context):
     try:
-        call_tool(context.principal, "assignment_get", {"id": "assignment"}, staff=context.staff)
+        call_tool(context.principal, "assignments_show", {"id": "assignment"}, staff=context.staff)
     except (ValueError, PermissionError) as error:
         context.error = error
 
@@ -237,7 +237,7 @@ def searchable_story(context):
 
 @when('the editor searches for the Story with a page size of two')
 def search_story(context):
-    context.result = call_tool(context.principal, "story_search", {"query": "Example", "limit": 2}, staff=context.staff)
+    context.result = call_tool(context.principal, "stories_search", {"query": "Example", "limit": 2}, staff=context.staff)
 
 
 @then('the result contains the Story and a continuation token')
@@ -265,7 +265,7 @@ def open_review(context):
 @when('the agent answers the current review with feedback')
 def answer_current_review(context):
     try:
-        context.result = call_tool(context.principal, "review_answer", {"id": "review", "expectedRevision": "revision", "decision": "feedback", "feedback": "Revise the lead."}, staff=context.staff)
+        context.result = call_tool(context.principal, "reviews_answer", {"id": "review", "expectedRevision": "revision", "decision": "feedback", "feedback": "Revise the lead."}, staff=context.staff)
     except ValueError as error:
         context.error = error
 
@@ -279,7 +279,7 @@ def review_answer_result(context):
 @when('the agent answers an outdated review')
 def answer_old_review(context):
     try:
-        call_tool(context.principal, "review_answer", {"id": "review", "expectedRevision": "old", "decision": "approve"}, staff=context.staff)
+        call_tool(context.principal, "reviews_answer", {"id": "review", "expectedRevision": "old", "decision": "approve"}, staff=context.staff)
     except ValueError as error:
         context.error = error
 
@@ -299,7 +299,7 @@ def publish_review(context):
 @when('the agent tries to approve the publish request')
 def approve_publish_review(context):
     try:
-        call_tool(context.principal, "review_answer", {"id": "review", "expectedRevision": "revision", "decision": "approve"}, staff=context.staff)
+        call_tool(context.principal, "reviews_answer", {"id": "review", "expectedRevision": "revision", "decision": "approve"}, staff=context.staff)
     except PermissionError as error:
         context.error = error
 
@@ -336,7 +336,7 @@ def rateable_story(context):
 @when('the agent gives that Story four stars')
 def rate_story(context):
     card = context.staff.story_get(context.principal, lineageId="story")["story"]
-    context.result = call_tool(context.principal, "story_star", {"lineageId": "story", "expectedCurrentVersionId": card["id"], "expectedRevision": card["revision"], "stars": 4}, staff=context.staff)
+    context.result = call_tool(context.principal, "stories_set-stars", {"lineageId": "story", "expectedCurrentVersionId": card["id"], "expectedRevision": card["revision"], "stars": 4}, staff=context.staff)
     context.previous_revision = card["revision"]
 
 
@@ -349,7 +349,7 @@ def rated_story(context):
 @when('the agent rates the Story from an outdated card')
 def rate_old_story(context):
     try:
-        call_tool(context.principal, "story_star", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "expectedRevision": '["2026-11-01T10:00:00Z",null]', "stars": 4}, staff=context.staff)
+        call_tool(context.principal, "stories_set-stars", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "expectedRevision": '["2026-11-01T10:00:00Z",null]', "stars": 4}, staff=context.staff)
     except ValueError as error:
         context.error = error
 
@@ -363,7 +363,7 @@ def stale_story_rating(context):
 @when('the reader tries to rate a Story')
 def reader_rates_story(context):
     try:
-        call_tool(context.principal, "story_star", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "expectedRevision": '["2026-11-01T10:00:00Z",null]', "stars": 4}, staff=context.staff)
+        call_tool(context.principal, "stories_set-stars", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "expectedRevision": '["2026-11-01T10:00:00Z",null]', "stars": 4}, staff=context.staff)
     except PermissionError as error:
         context.error = error
 
@@ -381,7 +381,7 @@ def draft_site(context):
 
 @when('the agent saves a new draft and its check is unavailable')
 def save_draft_unchecked(context):
-    context.result = call_tool(context.principal, "story_save_draft", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "body": "New draft.", "reason": "Revision"}, staff=context.staff)
+    context.result = call_tool(context.principal, "stories_save-draft", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "body": "New draft.", "reason": "Revision"}, staff=context.staff)
 
 
 @then('the tool reports both the saved draft and the check status')
@@ -393,7 +393,7 @@ def saved_draft_and_check(context):
 
 @when('the editor asks for the next Story procedure steps')
 def next_story_steps(context):
-    context.result = call_tool(context.principal, "story_next", {"lineageId": "story"}, staff=context.staff)
+    context.result = call_tool(context.principal, "stories_next", {"lineageId": "story"}, staff=context.staff)
 
 
 @then('the direction and research steps are reported as unknown')
@@ -416,7 +416,7 @@ def publish_request_site(context):
 
 @when('the agent requests publication for the current Story')
 def request_story_publish(context):
-    context.result = call_tool(context.principal, "story_request_publish", {"lineageId": "story", "expectedCurrentVersionId": "story-v1"}, staff=context.staff)
+    context.result = call_tool(context.principal, "stories_request-publish", {"lineageId": "story", "expectedCurrentVersionId": "story-v1"}, staff=context.staff)
 
 
 @then('the tool reports a pending human approval request')

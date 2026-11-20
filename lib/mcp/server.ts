@@ -52,7 +52,7 @@ export function createSiteMcpHandler(options: Options = {}) {
       if (!domain) throw new Error('MCP tools are not configured');
       const result = await invoke(domain.functionArn, { operation: 'call', principal, name, arguments: args });
       if (!isObject(result) || !Array.isArray(result.content)) throw new Error('Invalid MCP tool result');
-      return domain.appsEnabled && !result.isError && (name === 'reference_get' || name === 'story_get')
+      return domain.appsEnabled && !result.isError && (name === 'references_show' || name === 'stories_show')
         ? withMcpAppResult(result as McpToolResult, available) : result as McpToolResult;
     },
     ...(domain?.appsEnabled ? { listResources: async () => listMcpAppResources(), readResource: async (_principal: DomainPrincipal, uri: string) => readMcpAppResource(uri) } : {}),

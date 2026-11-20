@@ -77,13 +77,13 @@ def handler(event: dict, context: Any) -> dict:
             staff = StaffReads(UserPoolClient(endpoint, raw["idToken"], tenant))
             available = set(staff.available_tools)
             if tenant or os.environ.get("PAPYRUS_MCP_STORY_PUBLISH_REQUEST_ENABLED") != "true":
-                available.discard("story_request_publish")
+                available.discard("stories_request-publish")
             if os.environ.get("PAPYRUS_MCP_STORY_DRAFT_ENABLED") != "true":
-                available.discard("story_save_draft")
+                available.discard("stories_save-draft")
             if tenant:
-                available -= {"reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "story_evidence", "assignments_list", "assignment_get", "reviews_list", "review_get", "review_answer"}
+                available -= {"references_show", "references_search", "references_decide", "references_concept-get", "references_concept-search", "stories_evidence", "assignments_list", "assignments_show", "reviews_list", "reviews_show", "reviews_answer"}
             elif os.environ.get("PAPYRUS_MCP_REFERENCE_SINGLE_TENANT") != "true":
-                available.discard("reference_decide")
+                available.discard("references_decide")
             staff.available_tools = frozenset(available)
         elif kind == "reader" and isinstance(raw.get("siteSubject"), str) and re.fullmatch(r"ss1_[A-Za-z0-9_-]{43}", raw["siteSubject"]):
             if set(raw) - {"kind", "siteSubject", "expiresAt"}:

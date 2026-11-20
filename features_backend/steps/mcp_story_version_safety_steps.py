@@ -34,7 +34,7 @@ def step(context):
 
 @then("the agent cannot call the Story publish tool")
 def step(context):
-    assert "story_publish" not in context.names
+    assert "stories_publish" not in context.names
 
 @when("the site's draft operation checks the current version in its transaction")
 def step(context):

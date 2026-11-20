@@ -234,6 +234,8 @@ from .tenant_adoption_commands import content_adopt_tenant_data
 from .tenant_field_backfill_commands import content_backfill_tenant_id
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
+from .command_registry import GENERATED_CLI_ROUTES
+from .registered_commands import run_registered_command
 from .knowledge_snapshot.commands import KNOWLEDGE_COMMANDS
 from .knowledge_wiki.commands import WIKI_COMMANDS
 from .renditions_commands import content_renditions
@@ -241,7 +243,7 @@ from .publish_commands import content_publish, content_rebuild, content_unpublis
 from .markus_renderer.commands import markus_build
 
 
-PORTED_COMMANDS = frozenset(
+PORTED_COMMANDS = GENERATED_CLI_ROUTES | frozenset(
     {
         "content:inspect",
         "content:schema-check",
@@ -606,6 +608,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     route = f"{group}:{command}"
     if not is_ported_command(group, command):
         raise unsupported_command(f"command: {group} {command}")
+    if route in GENERATED_CLI_ROUTES:
+        run_registered_command(route, flags)
+        return
     if route == "content:inspect":
         content_inspect(flags)
     elif route == "content:schema-check":
