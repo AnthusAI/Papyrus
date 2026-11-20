@@ -26,3 +26,13 @@ Feature: Backend features run side by side on every processor
     When behave loads them and looks one up for each step
     Then only the definitions that share the step's opening words are tried
     And every step finds the same definition stock behave finds, and an ambiguous definition is still refused
+
+  Scenario: No shard is left holding all the slow features
+    Given a list of how many seconds each slow feature takes
+    When the feature files are dealt out to the shards and to the processes of a shard
+    Then the slowest go first and each goes to whoever has the least so far
+    And the shards together still run every backend feature exactly once
+
+  Scenario: Every Python job restores only the virtual environment
+    Given poetry's download folders are left out of the cache
+    Then a job restores about a third of what it restored before and installs nothing new
