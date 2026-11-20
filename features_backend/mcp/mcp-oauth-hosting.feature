@@ -1,5 +1,7 @@
-Feature: Private hosted MCP grant service
-  A publication can opt in to an isolated grant service without exposing its credentials.
+Feature: A publication opts in to a private grant service for hosted MCP
+  A publication that wants people to connect an MCP client turns on an isolated grant service. The service keeps the publication's
+  credentials to itself, and when it cannot be reached the client is told the service is unavailable. It is never told its token
+  is invalid, because that would make a working client throw its grant away.
 
   Scenario: A publication enables the grant service
     Given a publication opts into hosted MCP with its HTTPS console origin and compute role

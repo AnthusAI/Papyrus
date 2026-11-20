@@ -1,5 +1,8 @@
-Feature: Renewable normal-user CLI authentication
-  A newsroom user signs in once with Google and uses their existing permissions without AWS SSO.
+Feature: A newsroom user signs in to the CLI once with Google
+  A newsroom user signs in to the `papyrus` command once, with the Google account they already use for the publication, and works
+  with exactly the permissions they have there. No AWS SSO is involved. The session is kept in the computer's secure store and
+  renews itself across restarts and days, each site's session stays apart from the others, and losing access never turns into
+  broader operator access. Where there is no secure store, sign-in fails with guidance and saves nothing.
 
   Scenario: Initial login uses the publication identity
     Given a configured newsroom login with an isolated OAuth provider and secure store

@@ -1,6 +1,9 @@
 @live-agent @agent-core
-Feature: Live console agent core behavior
-  Live AppSync and LLM core behavior specs for the Papyrus console responder.
+Feature: The console agent answers a person in the live newsroom
+  These scenarios talk to the real console agent on a deployed site with a real model behind it, so they run only when live agent
+  tests are turned on and never in the ordinary test run. They show the basics a person relies on: the agent answers a greeting
+  without calling a tool, reads its own documentation a piece at a time as it needs it, and tries again when the first thing it
+  wrote is not supported.
 
   Background:
     Given live console agent tests are enabled

@@ -1,4 +1,4 @@
-Feature: Publishing proposals is opt-in
+Feature: A site publishes its proposals only when it opts in
   A proposal is stored as a private record. AI can file story ideas as draft proposals without anything reaching the public
   site. A site publishes its proposals, in every state, only when it opts in with the reader-steering setting
   proposals.publish. The setting is off by default, and the reader snapshot still counts the stored proposals either way.

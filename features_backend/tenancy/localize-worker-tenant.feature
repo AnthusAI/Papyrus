@@ -1,5 +1,7 @@
-Feature: Localization workers retain their publication's tenant
-  A worker must use the router publication's tenant, not workflow input or a previous invocation.
+Feature: A translation worker keeps the tenant of its own publication
+  A translation worker takes its tenant from the publication the router launched it for. It never takes it from the workflow's
+  input or from an earlier invocation in the same process. An original that belongs to another publication is not eligible,
+  whatever the input claims.
 
   Scenario: A tenant-prefixed original remains eligible in a launched worker
     Given a localization worker launched for a tenant publication

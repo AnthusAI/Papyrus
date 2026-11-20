@@ -1,6 +1,7 @@
-Feature: Rebuild on publish
-  Publishing through the content actions starts a rebuild of the static reader
-  through IAM, without a webhook URL or token, and never fails because of it.
+Feature: Publishing a Story starts a rebuild of the reader site
+  Publishing through the content actions starts a rebuild of the static reader site, using the function's own IAM permission and
+  no webhook address or token. A rebuild already waiting is not queued a second time, and a rebuild that cannot be started never
+  makes the publish itself fail.
 
   Scenario: Publishing starts a reader rebuild
     Given a content actions backend with a reader app and no pending build

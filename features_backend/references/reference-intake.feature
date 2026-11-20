@@ -1,7 +1,8 @@
 @reference-intake
-Feature: Publication-scoped pending Reference intake
-  Editors can register reporting sources using their existing publication session.
-  Intake preserves source provenance without granting generic model writes.
+Feature: An editor registers a source as a pending Reference
+  An editor adds a reporting source with the publication session they already have, from the Add dialog or as a whole catalog from
+  the command line. Intake needs only the address, keeps the first record of a source when it is sent again, and never changes a
+  decision a person already made. It works only for the editor's own publication and grants no general write access to the data.
 
   Scenario: Authorized editor registers and consults a source
     Given an isolated publication intake backend

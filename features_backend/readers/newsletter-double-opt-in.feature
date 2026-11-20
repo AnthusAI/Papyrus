@@ -1,4 +1,4 @@
-Feature: Newsletter double opt-in
+Feature: A newsletter address is subscribed only after it confirms
   A visitor asks for a newsletter by giving an address and choosing lists. The site answers the same way whatever it
   knows about the address, mails a confirmation link, and subscribes the address only when the link is used. The link
   works once, expires, and a page that merely shows it changes nothing.

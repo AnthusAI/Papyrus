@@ -1,5 +1,7 @@
-Feature: Uploading a built static site to the staging preview prefix
-  The staging preview serves a prebuilt site from the private preview/ prefix.
+Feature: A built site is uploaded to the private staging preview
+  The staging preview serves a site that was already built, from a private preview location. Uploading a new build replaces
+  everything that was there, so nothing stale is left behind, and a build with no files in it is refused instead of emptying the
+  preview.
 
   Scenario: Uploading a built site replaces the preview prefix
     Given a built site with "index.html" and "articles/foo.html"

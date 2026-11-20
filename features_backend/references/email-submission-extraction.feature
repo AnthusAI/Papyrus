@@ -1,6 +1,8 @@
-Feature: Extract untrusted email submissions as reference candidates
-  Editors forward newsletters to a configured submission address. Their messages are
-  data: extracting references never follows message actions or delegates instructions.
+Feature: Forwarded newsletters become Reference candidates and are never obeyed
+  Editors forward newsletters to the publication's submission address. Papyrus treats each message as data: it pulls out the
+  editorial links as Reference candidates, keeps private where each one came from, and never follows an action or an instruction
+  written in the message. Tracking variants of one link are one candidate, automatic replies are not submissions, and a long
+  newsletter loses none of its links.
 
   Scenario: Multipart newsletter retains editorial links and private provenance
     Given a submitted multipart newsletter with editorial links and account actions

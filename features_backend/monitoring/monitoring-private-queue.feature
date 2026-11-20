@@ -1,5 +1,7 @@
-Feature: Public collection supplies a private review batch without app authentication
-  Collection is independent of classification and never applies human feedback.
+Feature: A private review queue is filled from public sources without signing in to the app
+  A collector gathers public discoveries into a private queue for a person to review later. It only collects: the batch carries no
+  predictions and applies no labels, and several discoveries of one source stay together as revisions of that source. When a
+  scheduled fetch fails, the last batch stays available and the failure is shown.
 
   Scenario: Resume a private morning review queue
     Given a private HN review queue and a feed with two discoveries of one source

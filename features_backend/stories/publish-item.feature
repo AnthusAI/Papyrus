@@ -1,6 +1,7 @@
-Feature: Publishing an item to the published projection
-  Saving writes a draft Item; publishing projects it to the guest-readable
-  PublishedItem; unpublishing removes the projection.
+Feature: Publishing makes a draft readable to guests and unpublishing takes it back
+  Saving writes a draft that only the newsroom can read. Publishing copies it to the published record that guests read, and
+  unpublishing removes that copy again. Publishing a second time with nothing changed does nothing, and a body that uses a
+  directive Papyrus does not know cannot be published at all.
 
   Scenario: Publishing a draft makes it readable
     Given a saved draft article

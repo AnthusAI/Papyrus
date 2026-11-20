@@ -1,6 +1,8 @@
-Feature: A recurring Hacker News Monitor registers publication-scoped discoveries
-  A small worker uses the existing Reference intake, preserving source provenance
-  and checkpoints. Collection never curates or trains a classifier.
+Feature: A recurring Hacker News monitor registers what it finds for one publication
+  A small worker reads Hacker News on a configured cadence and registers what it finds through the same Reference intake an editor
+  uses, keeping where each source came from. Repeating a batch registers nothing twice, an interrupted run picks up where it
+  stopped, and a source that changed is noted without touching a decision a person already made. Collecting never curates and
+  never trains a classifier.
 
   Scenario: Repeat a real-shaped source batch without duplicate registration
     Given a configured Hacker News Monitor and a two-item feed

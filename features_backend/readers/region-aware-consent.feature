@@ -1,4 +1,4 @@
-Feature: Region-aware cookie consent
+Feature: The cookie notice is shown only where a visitor's region needs it
   A site can stop showing the cookie notice to visitors who do not need it. The page asks the site's own edge address
   once, in the background. The answer says the visitor's country and whether a notice is required. The list of regions
   that need a notice is a policy choice that the site owner owns; it is not legal advice and it must be reviewed.

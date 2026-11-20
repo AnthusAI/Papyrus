@@ -1,6 +1,7 @@
-Feature: Deriving the body IR from Markus source
-  Every write path derives bodyIr from the Markus source so the stored IR
-  always matches the source, and authors get actionable error codes.
+Feature: Saving a Story derives its body from the Markus source
+  Every way of saving a Story derives the stored body from the Markus source the author wrote, so the two can never disagree. When
+  the source has a problem, such as an unknown directive, an unknown citation key or an unsafe image address, the author gets an
+  error code that says what to fix.
 
   Scenario: A valid article derives an IR envelope
     When I derive the body of an article with a paragraph and a citation

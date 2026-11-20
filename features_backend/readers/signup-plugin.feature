@@ -1,4 +1,4 @@
-Feature: Signup plugin guest submissions
+Feature: An anonymous visitor signs up with an email address
   An anonymous visitor can submit an email address to a signup form through one
   narrow operation. The operation limits what it accepts, ignores bots without
   telling them, stores each address once, and refuses a caller that sends too

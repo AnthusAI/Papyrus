@@ -1,5 +1,8 @@
-Feature: Site tools preserve editorial and reader authority
-  Editors and readers use structured site tools in their own authority. A stale card must not overwrite a newer decision.
+Feature: Site tools act with the authority of the person behind them
+  Editors, readers and their agents use the site's structured tools with the authority of the person behind them and no more. A
+  reader cannot reach a staff tool or grant itself staff authority through a tool's arguments, and one tenant cannot read
+  another's records. Each card names the version it shows, so a decision, a rating or a review answer made from an out-of-date
+  card is refused and cannot overwrite a newer one.
 
   Scenario: An editor reads the current Story and its evidence
     Given an editor connected to a site with a Story and evidence

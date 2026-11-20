@@ -1,4 +1,4 @@
-Feature: Newsletter roundup issues
+Feature: The weekly roundup is mailed only after an admin approves it
   The weekly roundup is drafted from the week's published items, written up in the newsroom editor, approved by an admin
   for a time, and only then mailed, once to each subscriber. An approval is an approval of exactly what was read: an edit
   afterwards takes the issue back to draft.

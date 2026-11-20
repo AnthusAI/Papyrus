@@ -1,4 +1,4 @@
-Feature: The agent policy document
+Feature: A site's agent policy says how far each agent may go
   How far each always-on agent may go on a site is data, not code. One document per site, a versioned site document of kind
   "agents", holds the rung of each responsibility: off, observe, propose, draft, prepare, publish_soft, publish_auto. It can narrow
   a rung by section, story type, channel, announcement kind or list, and the narrowest override decides. It also holds a pause for

@@ -1,5 +1,11 @@
 @requires-cyclotron
-Feature: Account-scoped reference curation in Papyrus
+Feature: An editor curates References for their account's publication
+  An editor works on one account's publication from the References page: watching the monitored sources, reviewing what people
+  decided, and teaching by example from a web address. The curation engine can run inside Papyrus or as a separate peer, and the
+  editor sees the same controls either way. What a person may do follows their role in the account at the moment the work is done,
+  a preview that is left saves nothing, and a publication with no curation host configured keeps the Reference workflows it
+  already had.
+
   Scenario Outline: Curate from either supported transport
     Given an authorized publication workspace using <mode> execution
     When the editor opens References

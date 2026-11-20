@@ -1,6 +1,7 @@
-Feature: Producing and attaching article videos
-  The papyrus videos commands render narrated videos from CMS items using a
-  publication-supplied video config, and register the rendered MP4 as media.
+Feature: An operator renders a narrated video from a Story and attaches it
+  The `papyrus videos` commands render a narrated video from a Story, using the video configuration and the VideoML tool the
+  publication itself supplies, and register the finished MP4 as the Story's lead media. A publication with no video configuration
+  is told exactly what is missing instead of getting a half-made video.
 
   Scenario: Rendering without a video config explains what is missing
     Given a publication directory without a video config

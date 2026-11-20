@@ -1,5 +1,7 @@
-Feature: Request human approval to publish a Story
-  An agent can ask for a person's decision without publishing or approving its own work.
+Feature: An agent asks a person to approve publishing a Story
+  An agent that has finished a draft can ask for a person's decision. It cannot publish, and it cannot approve its own work. The
+  request names the exact draft, so a draft that changed needs a new request, and a Story that would fail the publish checks is
+  not sent for approval at all. An approval is only an approval: publishing remains a separate act by a person.
 
   Scenario: A current draft needs a person's approval
     Given a site requires human publication approval

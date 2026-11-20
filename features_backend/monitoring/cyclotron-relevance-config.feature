@@ -1,8 +1,9 @@
 @requires-cyclotron
-Feature: Relevance cyclotron configuration
-  One installation is one publication, and it configures one relevance
-  cyclotron: the decision whether a candidate source should become a
-  reference. Doctrine seeds the first rubric, never the question.
+Feature: A publication configures its relevance cyclotron
+  One installation is one publication, and it configures one relevance cyclotron: the decision whether a candidate source should
+  become a Reference. The publication's doctrine seeds the first rubric and never the question itself. The configuration names the
+  corpus to learn from and the shape of the review control, a mistake is refused with the field named, and provider keys never
+  come from the configuration.
 
   Scenario: A publication configures its relevance cyclotron
     Given a steering config with a relevance cyclotron block

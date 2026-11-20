@@ -1,4 +1,4 @@
-Feature: The shared stacks start empty, inside the existing production account, with five isolation layers (PPY-daf673)
+Feature: The shared stacks start empty, inside the existing production account, with five isolation layers
   The shared tier is the same Papyrus backend deployed once with tenancy mode "shared". It lives in the Papyrus
   production account next to every dedicated site and Prospectus, because no new AWS account is available (Ryan,
   2026-11-13). Two stacks exist, shared production and shared staging, and every release lands on staging first.

@@ -1,4 +1,4 @@
-Feature: Tenancy mode
+Feature: A backend is deployed as a dedicated stack or as a shared stack
   One synth-time setting says whether a backend is a dedicated stack (one site,
   the default) or a shared stack (several tenants). Functions learn it from one
   environment variable, read only through one helper in Python and in TypeScript.

@@ -1,7 +1,8 @@
 @data-driven-cli
-Feature: Operating a data-driven publication from the CLI
-  A publication whose editorial configuration lives in its backend needs no repo steering
-  file. Operators work with the backend's single canonical corpus.
+Feature: An operator runs a publication whose configuration lives in its backend
+  A publication whose editorial configuration lives in its backend needs no steering file in a repository. An operator creates the
+  publication with one command, registers sources, and mints Stories and their reporting Assignments against the backend's single
+  corpus. When something is missing or the session is for another publication, the error names the fix.
 
   Scenario: A fresh backend gets its publication from one command
     Given a fresh backend with no canonical corpus
