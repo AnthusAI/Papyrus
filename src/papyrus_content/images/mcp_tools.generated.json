@@ -4072,6 +4072,59 @@
       }
     },
     {
+      "name": "announcements_account_set_app",
+      "audience": "staff",
+      "description": "Save the X developer app's client ID and client secret: the secret into SSM SecureString and the ID into the connection record, together.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "blocked",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The OAuth 2.0 client ID of the X app."
+          },
+          "clientSecret": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The OAuth 2.0 client secret. On the command line it is read from PAPYRUS_X_CLIENT_SECRET or from standard input, never from a flag."
+          }
+        },
+        "required": [
+          "clientId",
+          "clientSecret"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "object",
+            "properties": {
+              "connection": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "connection"
+            ]
+          },
+          "saved": {
+            "type": "boolean",
+            "description": "True when both the secret and the client ID were saved."
+          }
+        },
+        "required": [
+          "saved"
+        ]
+      }
+    },
+    {
       "name": "announcements_blocked",
       "audience": "staff",
       "description": "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).",

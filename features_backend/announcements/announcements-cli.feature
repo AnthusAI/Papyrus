@@ -1,6 +1,6 @@
 Feature: People and agents at a terminal manage announcements
   Agents work through the CLI and MCP, so every console action has the same operation
-  behind it. Connecting the X account stays in the browser, and no secret is ever a flag. The Announcements themselves are read with
+  behind it. Connecting the X account stays in the browser. The X app's keys are saved from the command line, with the secret read from the environment or standard input and never a flag. The Announcements themselves are read with
   where, recent and explain (announcement-list-lines.feature, announcement-explain.feature); the list and show commands of the old X row shape are gone.
 
   Background:
@@ -54,3 +54,29 @@ Feature: People and agents at a terminal manage announcements
   Scenario: The CLI never takes a secret
     When a person types "papyrus announcements settings set --client-secret abc"
     Then the announcement command fails with "invalid_input"
+
+  Scenario: The X app keys are saved with the secret on standard input
+    When a person types "papyrus announcements account set-app --client-id id-1" with the secret "secret-1" on standard input
+    Then the announcement command succeeds
+    And the site saved the X app "id-1" with the secret "secret-1"
+    And the announcement answer does not contain "secret-1"
+
+  Scenario: The X app keys are saved with the secret in the environment
+    When a person types "papyrus announcements account set-app --client-id id-1" with the secret "secret-2" in the environment
+    Then the site saved the X app "id-1" with the secret "secret-2"
+
+  Scenario: Nothing is saved when the secret is missing
+    When a person types "papyrus announcements account set-app --client-id id-1"
+    Then the announcement command fails with "invalid_input"
+    And the site saved no X app keys
+
+  Scenario: A dry run saves nothing and never shows the secret
+    When a person types "papyrus announcements account set-app --client-id id-1 --dry-run" with the secret "secret-3" on standard input
+    Then the announcement command succeeds
+    And the announcement answer does not contain "secret-3"
+    And the site saved no X app keys
+
+  Scenario: An agent may not save the X app keys
+    When an AI agent types "papyrus announcements account set-app --client-id id-1" with the secret "secret-4" on standard input
+    Then the announcement command fails with "blocked"
+    And the site saved no X app keys

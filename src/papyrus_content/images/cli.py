@@ -133,8 +133,14 @@ def signed_in_uploader(path: str, kind: str) -> str:
     return upload_picture(create_authoring_client()[0], path, kind)
 
 
+#: operation -> (input field, environment variable): a secret the command line takes from the environment or standard input, never from a flag
+SECRET_INPUTS = {"announcements_account_set_app": ("clientSecret", "PAPYRUS_X_CLIENT_SECRET")}
+REDACTED = "(hidden)"
+
+
 def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None,
-            stdout: TextIO | None = None, previews: Mapping[str, str] | None = None, uploader: Callable[[str, str], str] | None = None) -> int:
+            stdout: TextIO | None = None, previews: Mapping[str, str] | None = None, uploader: Callable[[str, str], str] | None = None,
+            stdin: TextIO | None = None) -> int:
     """Run ``papyrus <group> <argv>`` and print the JSON envelope. ``handlers``, ``environ`` and ``uploader`` are for tests and later front ends.
 
     ``previews`` maps a write operation to the read operation its ``--dry-run`` runs, so a dry run shows what would change instead of echoing the input.
@@ -159,6 +165,14 @@ def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handl
     except _BadFlags as bad:
         return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": bad.path}))
     caller = caller_from(environ)
+    secret = SECRET_INPUTS.get(spec["op"])
+    if secret and secret[0] not in arguments:
+        value = (environ.get(secret[1]) or "").strip()
+        source = stdin if stdin is not None else sys.stdin
+        if not value and not source.isatty():
+            value = source.read().strip()
+        if value:
+            arguments[secret[0]] = value
     picture = arguments.pop(PICTURE_KEY, None)
     if picture is not None:
         if dry_run:
@@ -174,6 +188,8 @@ def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handl
                 arguments[spec["picture"]] = (uploader or signed_in_uploader)(picture, kind)
             except PictureError as bad:
                 return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": "file"}))
+    if dry_run and secret and secret[0] in arguments:
+        arguments = {**arguments, secret[0]: REDACTED}
     if dry_run:
         # Check the input and the caller exactly as a real call would, then stop before the handler: nothing is sent, nothing is spent.
         envelope = execute(spec["op"], arguments, caller, handlers={spec["op"]: _dry_run_handler})

@@ -1276,13 +1276,14 @@ def cli_judge(claim, cited, info=None):
     return {"verdict": "supported", "quotes": [" ".join(cited.values()).split("\n")[0]], "explanation": "", "attribution_lost": False, "claim_is_only_about_source_limits": False}
 
 
-def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind."):
+def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind.", stdin=None, env=None):
     words = shlex.split(line)
     assert words[:2] == ["papyrus", "announcements"], line
     handlers = signed_in_handlers(lambda: context.backend, {"SITE_ORIGIN": ORIGIN, "ITEM_URL_STYLE": "clean"}, llm=lambda system, user, schema: {"text": DEFAULT_DRAFT}, judge=cli_judge,
                                   guidelines_text=guidelines, files=context.files, functions=context.functions)
     out = io.StringIO()
-    status = announcements_cli.command(words[2:], handlers=handlers, environ={"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}, stdout=out)
+    environ = {**({"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}), **(env or {})}
+    status = announcements_cli.command(words[2:], handlers=handlers, environ=environ, stdout=out, stdin=io.StringIO(stdin if stdin is not None else ""))
     context.cli_status, context.cli_answer = status, json.loads(out.getvalue())
     return context.cli_answer
 
@@ -1316,6 +1317,36 @@ def _agent_runs(context, line):
 @when('a person types "{line}" with no writing guidelines')
 def _no_guidelines_cli(context, line):
     run_cli(context, line, guidelines="")
+
+
+@when('a person types "{line}" with the secret "{secret}" on standard input')
+def _person_stdin(context, line, secret):
+    run_cli(context, line, stdin=secret)
+
+
+@when('a person types "{line}" with the secret "{secret}" in the environment')
+def _person_env(context, line, secret):
+    run_cli(context, line, env={"PAPYRUS_X_CLIENT_SECRET": secret})
+
+
+@when('an AI agent types "{line}" with the secret "{secret}" on standard input')
+def _agent_stdin(context, line, secret):
+    run_cli(context, line, agent=True, stdin=secret)
+
+
+@then('the site saved the X app "{client_id}" with the secret "{secret}"')
+def _app_saved(context, client_id, secret):
+    assert context.functions.saved_app == (client_id, secret), getattr(context.functions, "saved_app", None)
+
+
+@then('the site saved no X app keys')
+def _app_not_saved(context):
+    assert not hasattr(context.functions, "saved_app")
+
+
+@then('the announcement answer does not contain "{text}"')
+def _answer_lacks(context, text):
+    assert text not in json.dumps(context.cli_answer), context.cli_answer
 
 
 @when("a person saves the announcement settings in Dry run at {stars:d} stars with a budget of ${amount}")

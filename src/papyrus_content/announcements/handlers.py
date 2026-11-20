@@ -57,6 +57,9 @@ class Functions:
     def status(self) -> dict:
         return self._call("announcementsXStatus", {})["status"]
 
+    def save_app(self, client_id: str, client_secret: str) -> dict:
+        return self._call("announcementsXSaveApp", {"clientId": client_id, "clientSecret": client_secret}, mutation=True)["status"]
+
 
 def _lazy_model() -> tuple[Callable[..., dict], Callable[..., dict]]:
     """The model and its judge, made when a draft first needs them: a site with X off, or a Story X does not carry, never builds either."""
@@ -198,6 +201,11 @@ def account_connect(client, arguments: dict, caller: Caller, services: Services)
     return Outcome(operations.account_connect_link(base), _publication(client))
 
 
+def account_set_app(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
+    status = _refusal(lambda: services.control.settings.save_app(arguments["clientId"], arguments["clientSecret"]))
+    return Outcome({"status": status, "saved": True}, _publication(client))
+
+
 def blocked(client, arguments: dict, caller: Caller, services: Services) -> Outcome:
     return Outcome({"blocked": operations.blocked_stories(services)}, _publication(client))
 
@@ -218,7 +226,7 @@ def retry(client, arguments: dict, caller: Caller, services: Services) -> Outcom
 ANNOUNCEMENT_HANDLERS: dict[str, tuple[Callable[..., Outcome], bool]] = {
     "announcements_dry_run": (dry_run, True), "announcements_pause": (pause, False), "announcements_resume": (resume, False),
     "announcements_settings_show": (settings_show, False), "announcements_settings_set": (settings_set, False), "announcements_account_status": (account_status, False),
-    "announcements_account_connect": (account_connect, False), "announcements_blocked": (blocked, False), "announcements_retry": (retry, False),
+    "announcements_account_connect": (account_connect, False), "announcements_account_set_app": (account_set_app, False), "announcements_blocked": (blocked, False), "announcements_retry": (retry, False),
 }
 
 
