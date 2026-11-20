@@ -136,6 +136,20 @@ def signed_in_uploader(path: str, kind: str) -> str:
 #: operation -> (input field, environment variable): a secret the command line takes from the environment or standard input, never from a flag
 SECRET_INPUTS = {"announcements_account_set_app": ("clientSecret", "PAPYRUS_X_CLIENT_SECRET")}
 REDACTED = "(hidden)"
+#: operation -> (input field, question): asked at a terminal when the flag is left out
+PROMPTED_INPUTS = {"announcements_account_set_app": ("clientId", "X app client ID: ")}
+
+
+def ask_visible(question: str) -> str:
+    sys.stderr.write(question)
+    sys.stderr.flush()
+    return sys.stdin.readline().strip()
+
+
+def ask_hidden(question: str) -> str:
+    import getpass
+
+    return getpass.getpass(question).strip()
 
 
 def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None,
@@ -166,11 +180,18 @@ def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handl
         return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": bad.path}))
     caller = caller_from(environ)
     secret = SECRET_INPUTS.get(spec["op"])
+    source = stdin if stdin is not None else sys.stdin
+    asked = PROMPTED_INPUTS.get(spec["op"])
+    if asked and asked[0] not in arguments and source.isatty():
+        value = ask_visible(asked[1])
+        if value:
+            arguments[asked[0]] = value
     if secret and secret[0] not in arguments:
         value = (environ.get(secret[1]) or "").strip()
-        source = stdin if stdin is not None else sys.stdin
         if not value and not source.isatty():
             value = source.read().strip()
+        if not value and source.isatty():
+            value = ask_hidden("X app client secret (hidden): ")
         if value:
             arguments[secret[0]] = value
     picture = arguments.pop(PICTURE_KEY, None)

@@ -24,7 +24,8 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 
 from papyrus_content.agent_policy import AgentPolicyStore  # noqa: E402
 from papyrus_content.announcements import blocked_drafts, budget, learned_examples, lines, operations, post, records, review_handlers  # noqa: E402
-from papyrus_content.announcements import cli as announcements_cli  # noqa: E402
+from papyrus_content.announcements import cli as announcements_cli
+from papyrus_content.images import cli as images_cli  # noqa: E402
 from papyrus_content.announcements.attempts import Attempts, NotReleasable  # noqa: E402
 from papyrus_content.announcements.decisions import Announcements  # noqa: E402
 from papyrus_content.announcements.deliveries import Deliveries, Plan  # noqa: E402
@@ -1276,14 +1277,14 @@ def cli_judge(claim, cited, info=None):
     return {"verdict": "supported", "quotes": [" ".join(cited.values()).split("\n")[0]], "explanation": "", "attribution_lost": False, "claim_is_only_about_source_limits": False}
 
 
-def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind.", stdin=None, env=None):
+def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind.", stdin=None, env=None, terminal=None):
     words = shlex.split(line)
     assert words[:2] == ["papyrus", "announcements"], line
     handlers = signed_in_handlers(lambda: context.backend, {"SITE_ORIGIN": ORIGIN, "ITEM_URL_STYLE": "clean"}, llm=lambda system, user, schema: {"text": DEFAULT_DRAFT}, judge=cli_judge,
                                   guidelines_text=guidelines, files=context.files, functions=context.functions)
     out = io.StringIO()
     environ = {**({"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}), **(env or {})}
-    status = announcements_cli.command(words[2:], handlers=handlers, environ=environ, stdout=out, stdin=io.StringIO(stdin if stdin is not None else ""))
+    status = announcements_cli.command(words[2:], handlers=handlers, environ=environ, stdout=out, stdin=terminal or io.StringIO(stdin if stdin is not None else ""))
     context.cli_status, context.cli_answer = status, json.loads(out.getvalue())
     return context.cli_answer
 
@@ -1332,6 +1333,18 @@ def _person_env(context, line, secret):
 @when('an AI agent types "{line}" with the secret "{secret}" on standard input')
 def _agent_stdin(context, line, secret):
     run_cli(context, line, agent=True, stdin=secret)
+
+
+@when('a person types "{line}" at a terminal answering the ID "{client_id}" and the secret "{secret}" privately')
+def _person_terminal(context, line, client_id, secret):
+    from unittest import mock
+
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    with mock.patch.object(images_cli, "ask_visible", lambda question: client_id), mock.patch.object(images_cli, "ask_hidden", lambda question: secret):
+        run_cli(context, line, terminal=Terminal())
 
 
 @then('the site saved the X app "{client_id}" with the secret "{secret}"')
