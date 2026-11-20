@@ -1,6 +1,5 @@
 {
   "scripts/verify_archived_email_submission.py": 1,
-  "src/papyrus/operator/backends/cloud.py": 1,
   "src/papyrus_content/analysis_commands.py": 5,
   "src/papyrus_content/analysis_graph.py": 2,
   "src/papyrus_content/assignment_executors.py": 1,
