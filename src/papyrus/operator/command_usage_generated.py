@@ -391,7 +391,6 @@ GENERATED: dict[str, tuple[str | None, str]] = {
   'sections import': (None, '?'),
   'sections import-doctrine': (None, '?'),
   'sections prune-attachments': (None, '?'),
-  'sections purge-planning': (None, '?'),
   'sections recount-summary': (None, '?'),
   'sections repair-message-status': (None, '?'),
   'sections update': ('--id <section id> [--editorial-mission-file F] [--editorial-policy-file F] [--assignment-guidance-file F] [--kill-criteria-file F] [--enabled true|false] [--dry-run]', 'writes'),

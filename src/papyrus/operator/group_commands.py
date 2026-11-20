@@ -32,7 +32,6 @@ SECTIONS_COMMANDS = {
   "backfill-feed-fields": "backfill-feed-fields",
   "backfill-operational-indexes": "backfill-operational-indexes",
   "prune-attachments": "prune-attachments",
-  "purge-planning": "purge-planning",
 }
 PROCEDURES_COMMANDS = ("seed-required", "register", "execute-tactus", "policy")
 OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages", "site")
