@@ -1,0 +1,32 @@
+name: playwright-chromium
+description: >-
+  Chromium for Playwright with the system packages it needs. `playwright install --with-deps` downloads about thirty
+  megabytes of fonts and graphics libraries from the Ubuntu mirror on every job, which usually takes fifteen seconds and
+  on a slow mirror took eleven minutes. The downloaded packages are kept in a cache and installed from disk; when there is
+  no cache yet, or installing from it fails, the job falls back to the download, so the result is the same either way.
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+    - id: system-packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/playwright-system-packages
+        key: playwright-system-packages-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+    - shell: bash
+      run: |
+        kept_packages="$HOME/.cache/playwright-system-packages"
+        if compgen -G "$kept_packages/*.deb" > /dev/null && sudo dpkg --install "$kept_packages"/*.deb; then
+          echo "installed $(ls "$kept_packages"/*.deb | wc -l) system packages from the cache"
+          npx playwright install chromium
+        else
+          sudo rm -f /etc/apt/apt.conf.d/docker-clean
+          echo 'Binary::apt::APT::Keep-Downloaded-Packages "true"; APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99-keep-downloaded-packages > /dev/null
+          npx playwright install --with-deps chromium
+          mkdir -p "$kept_packages"
+          rm -f "$kept_packages"/*.deb
+          cp /var/cache/apt/archives/*.deb "$kept_packages"/ 2>/dev/null || echo "apt kept no packages; the next job downloads them again"
+        fi

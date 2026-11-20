@@ -100,11 +100,7 @@ jobs:
       # One new index per table per release (features_backend/platform/gsi-ledger.feature): compares every schema source with the last release tag.
       - run: npx tsx scripts/check-gsi-ledger.ts
       - run: npm run test:alexa
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - name: Shared chat browser acceptance
         run: npm run test:shared-chat
       - name: MCP transport, OAuth and Apps
@@ -137,11 +133,7 @@ jobs:
       - run: npm run build
         working-directory: infra/amplify-app-shell
       # Several of these tests drive a real browser, as they did when Chromium was installed earlier in the one big job.
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - name: Run this shard of npm test
         env:
           SHARD: ${{ matrix.shard }}
