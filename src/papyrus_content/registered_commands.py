@@ -90,6 +90,8 @@ def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) 
         if rule["type"] == "integer":
             try:
                 value = int(value)
+                if "minimum" in rule and "maximum" in rule and not rule["minimum"] <= value <= rule["maximum"]:
+                    raise ValueError
             except (TypeError, ValueError) as error:
                 raise ValueError(f"--{flag} must be a whole number" + (f" from {rule['minimum']} to {rule['maximum']}." if "minimum" in rule and "maximum" in rule else ".")) from error
         elif rule["type"] == "object":
