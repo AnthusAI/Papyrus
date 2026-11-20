@@ -101,7 +101,16 @@ export type CmsConfig = {
    */
   alarmTopicArn?: string;
   deployStackInBuild?: boolean;
+  /**
+   * What the production build runs as. `administrator` (the default, unchanged) is the managed AdministratorAccess policy; `scoped` is
+   * AmplifyBackendDeployFullAccess plus this site's explicit grants and a deny on the pipeline's own roles and stacks (lib/build-role.ts).
+   */
+  buildRole?: BuildRoleKind;
 };
+
+export const BUILD_ROLE_KINDS = ["administrator", "scoped"] as const;
+export type BuildRoleKind = (typeof BUILD_ROLE_KINDS)[number];
+export const DEFAULT_BUILD_ROLE_KIND: BuildRoleKind = "administrator";
 
 export type ChatConfig = {
   enabled: boolean;
@@ -502,7 +511,7 @@ export function resolveBuildTimeoutMinutes(cms: Pick<CmsConfig, "buildTimeoutMin
 
 function parseCms(value: unknown, environment: Record<string, string | undefined>): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "buildTimeoutMinutes", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "wwwRedirect", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "buildTimeoutMinutes", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "wwwRedirect", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient", "buildRole"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -541,6 +550,9 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
   if (cmsRecord.deployStackInBuild !== undefined && typeof cmsRecord.deployStackInBuild !== "boolean") {
     fail("cms.deployStackInBuild", `must be a boolean, got ${JSON.stringify(cmsRecord.deployStackInBuild)}`);
   }
+  if (cmsRecord.buildRole !== undefined && !(BUILD_ROLE_KINDS as readonly unknown[]).includes(cmsRecord.buildRole)) {
+    fail("cms.buildRole", `must be ${BUILD_ROLE_KINDS.map((kind) => JSON.stringify(kind)).join(" or ")}, got ${JSON.stringify(cmsRecord.buildRole)}`);
+  }
   const cms: CmsConfig = {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
     domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
@@ -563,6 +575,7 @@ function parseCms(value: unknown, environment: Record<string, string | undefined
     redirects: parseRedirects(cmsRecord.redirects),
     wwwRedirect: cmsRecord.wwwRedirect as boolean | undefined,
     deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
+    buildRole: cmsRecord.buildRole as BuildRoleKind | undefined,
     readerRetirementPoll: cmsRecord.readerRetirementPoll as boolean | undefined,
     cliRemoteLogin: cmsRecord.cliRemoteLogin as boolean | undefined,
     cliOnFederationClient: cmsRecord.cliOnFederationClient as boolean | undefined,

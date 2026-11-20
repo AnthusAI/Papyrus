@@ -9,6 +9,7 @@ import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
 import { applySiteCostTags } from "./cost-attribution";
 import { addSharedStackDeny } from "./shared-stack-deny";
+import { SCOPED_BUILD_ROLE_GRANTS_POLICY_ID, buildRoleDescription, buildRoleManagedPolicies, resolveBuildRoleKind, scopedBuildRoleStatements } from "./build-role";
 import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix, resolveBuildTimeoutMinutes } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
@@ -131,10 +132,11 @@ export class AmplifyAppShellStack extends Stack {
     const stagingDomainName = resolveStagingDomainName(config);
     const cmsHostName = resolveCmsHostName(config);
 
+    const buildRoleKind = resolveBuildRoleKind(config.cms);
     const cmsServiceRole = new iam.Role(this, "AmplifyServiceRole", {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
-      description: `Backend deploy and staging build service role for Amplify app ${cmsAppName} (AdministratorAccess: documented risk)`,
-      managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("AdministratorAccess")],
+      description: buildRoleDescription(cmsAppName, buildRoleKind),
+      managedPolicies: buildRoleManagedPolicies(buildRoleKind),
     });
 
     addCiReceiptGate(this, config, cmsServiceRole);
@@ -388,6 +390,13 @@ export class AmplifyAppShellStack extends Stack {
 
     const amplifyAppIds = [cmsApp.attrAppId, ...(this.readerAppId ? [this.readerAppId] : [])];
     this.addAuthoringRole(config, cmsApp.attrAppId, amplifyAppIds);
+    if (buildRoleKind === "scoped") {
+      // A separate policy, not the role's own, because the grants name the app and the app names the role.
+      new iam.Policy(this, SCOPED_BUILD_ROLE_GRANTS_POLICY_ID, {
+        roles: [cmsServiceRole],
+        statements: [...scopedBuildRoleStatements(this, config), ...this.authoringStatements(config, cmsApp.attrAppId, amplifyAppIds)],
+      });
+    }
 
     if (config.autoDeploy) {
       this.addGithubDeployRole(config, [
