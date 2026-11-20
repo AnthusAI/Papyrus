@@ -43,6 +43,7 @@ class RegisteredCommand:
     operator_extra: dict[str, dict] = field(default_factory=dict)
     operator_optional: tuple[str, ...] = ()
     operator_rules: dict[str, dict] = field(default_factory=dict)
+    signed_in_only: bool = False
 
     @property
     def route(self) -> str:
@@ -71,7 +72,8 @@ def _command(group: str, command: str, audience: str, handler: str, description:
 
 
 REGISTRY: tuple[RegisteredCommand, ...] = (
-    _command("references", "search", STAFF, "reference_search", "Find References matching a phrase.", {"query": STRING}, PAGE, cli_native=True),
+    _command("references", "search", STAFF, "reference_search", "Find References matching a phrase.", {"query": STRING}, PAGE,
+             signed_in_only=True, operator_extra={"show": {"type": "string", "enum": ["unrated", "rated", "accepted", "rejected", "all"]}, "cursor": STRING}),
     _command("references", "show", STAFF, "reference_get", "Read a current Reference.", LINEAGE, cli_native=True),
     _command("references", "concept-search", STAFF, "concept_search", "Find concepts matching a phrase.", {"query": STRING}, PAGE),
     _command("references", "concept-get", STAFF, "concept_get", "Read a concept.", {"id": STRING}),

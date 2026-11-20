@@ -79,7 +79,7 @@ _ENTRIES = dict([
   _e("references text", "Read the captured text of a Reference (what the newsroom stored), a slice at a time, with its total length and whether the capture was cut.",
      "REFERENCE_ID | --reference REFERENCE_ID [--offset N] [--limit N] [--json]  (default --limit 20000 characters; --limit 0 reads to the end; exits 1 when nothing was captured)", "both", "reads", "find"),
   _e("references search", "Find References by words and meaning, rated or not, accepted or not.",
-     "\"plain words\" [--show unrated|rated|all] [--limit N] [--cursor CURSOR] [--site HOST] [--json]", "editor", "reads", "find"),
+     "\"plain words\" [--show unrated|rated|accepted|rejected|all] [--limit N] [--cursor CURSOR] [--site HOST] [--json]", "editor", "reads", "find"),
   _e("references register", "Register a Reference in the local pod only (a developer's Kanbus pod; it does not touch a site).",
      "[--url URL] [--title TEXT] [--status pending] [--why TEXT] [--story ID] [--corpus-key KEY] [--id ID] [--backend local|cloud]", "operator", "writes", ""),
   # ---- references: file from URLs ---------------------------------------------------------------------------------
