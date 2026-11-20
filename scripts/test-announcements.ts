@@ -135,7 +135,8 @@ const pageCalls: [AnnouncementOperation, Record<string, unknown>][] = [
   ["announcementsXSaveApp", { clientId: "client-123", clientSecret: "s3cret-value" }], ["announcementsXBegin", { redirectUri: "https://mom.example/cb" }],
   ["announcementsXComplete", { code: "c", state: "s", redirectUri: "https://mom.example/cb" }], ["announcementsXDisconnect", {}],
 ];
-assert.deepEqual(pageCalls.map(([name]) => name).sort(), [...ANNOUNCEMENT_QUERY_OPERATIONS, ...ANNOUNCEMENT_MUTATION_OPERATIONS].sort(), "every operation is a page call");
+const COMMAND_LINE_ONLY: readonly string[] = ["announcementsXSpend"]; // the budget's spend reads, asked by `papyrus announcements` through the function, never by the page
+assert.deepEqual(pageCalls.map(([name]) => name).sort(), [...ANNOUNCEMENT_QUERY_OPERATIONS, ...ANNOUNCEMENT_MUTATION_OPERATIONS].filter((name) => !COMMAND_LINE_ONLY.includes(name)).sort(), "every operation but the command line's is a page call");
 // The function's side (src/papyrus_content/announcements/actions_test.py) feeds this same file to handle_event, so the two sides are
 // held to one contract: the requests the page's calls become on the way to the Lambda.
 const PAGE_REQUESTS = "features_backend/fixtures/announcements-page-requests.json";

@@ -21,7 +21,9 @@ from .runtime_test import KEY, OPERATORS, aws, create_table, environment, receiv
 
 def make_tables() -> None:
     dynamodb = boto3.client("dynamodb")
-    for name in ("announcement-settings", "x-connection", "announcement-spend"):
+    dynamodb.create_table(TableName="spend-ledger", BillingMode="PAY_PER_REQUEST", AttributeDefinitions=[{"AttributeName": "pk", "AttributeType": "S"}, {"AttributeName": "sk", "AttributeType": "S"}],
+                          KeySchema=[{"AttributeName": "pk", "KeyType": "HASH"}, {"AttributeName": "sk", "KeyType": "RANGE"}])
+    for name in ("announcement-settings", "x-connection"):
         dynamodb.create_table(TableName=name, BillingMode="PAY_PER_REQUEST", AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}], KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}])
 
 
@@ -29,7 +31,7 @@ def x_environment(queue_url: str, x_queue_url: str, api_base: str) -> dict[str, 
     return {
         **environment(queue_url), "X_QUEUE_URL": x_queue_url, "X_API_BASE": api_base, "X_AUTHORIZE_URL": "https://x.example/authorize", "X_TOKEN_URL": "https://x.example/token",
         "X_REVOKE_URL": "https://x.example/revoke", "ANNOUNCEMENT_SETTINGS_TABLE": "announcement-settings", "X_CONNECTION_TABLE": "x-connection",
-        "ANNOUNCEMENT_SPEND_TABLE": "announcement-spend", "X_REFRESH_LEASE_SECONDS": "28",
+        "TRIGGER_TABLE_NAME": "spend-ledger", "PAPYRUS_TENANT_ID": "alpha", "X_REFRESH_LEASE_SECONDS": "28",
     }
 
 
@@ -62,8 +64,8 @@ def test_the_x_queue_posts_what_the_broadcaster_hands_over_and_withdraws_it(aws:
         view = rt.broadcaster.delivery("delivery:d1:a1")
         assert (view.status, view.post_id, Decimal(view.cost)) == (SENT, fake.posts[0]["id"], Decimal("0.2"))
         # The charge is on the spend counter the guard reads, through the function's own table.
-        (spend,) = boto3.resource("dynamodb").Table("announcement-spend").scan()["Items"]
-        assert Decimal(spend["total"]) == Decimal("0.2") and spend["accountId"] == X_USER_ID
+        totals = [item for item in boto3.resource("dynamodb").Table("spend-ledger").scan()["Items"] if item["sk"] == "TOTAL"]
+        assert len(totals) == 1 and Decimal(totals[0]["microUsd"]) == Decimal("200000") and X_USER_ID in totals[0]["pk"]
         withdrawn = rt.broadcaster.withdraw("delivery:d1:a1", by="ada")
         assert (withdrawn.status, withdrawn.withdrawn_by) == (WITHDRAWN, "ada") and fake.posts == []
     finally:

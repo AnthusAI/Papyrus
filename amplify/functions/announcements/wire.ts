@@ -3,6 +3,7 @@ import type { ITable } from "aws-cdk-lib/aws-dynamodb";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import { ANNOUNCEMENTS_TIMEOUT_SECONDS } from "./resource";
+import { wireSpendLedger } from "./spend-ledger-wire";
 
 /** X's endpoints (docs.x.com, 2026-11-12). The function reads them from its environment; tests point them at a fake server. */
 export const X_ENDPOINTS = {
@@ -33,6 +34,7 @@ export function wireAnnouncements(backend: any, siteId: string): void {
   lambda.addEnvironment("X_CONNECTION_TABLE", connection.tableName);
   lambda.addEnvironment("X_REFRESH_LEASE_SECONDS", String(ANNOUNCEMENTS_TIMEOUT_SECONDS));
   for (const [name, value] of Object.entries(X_ENDPOINTS)) lambda.addEnvironment(name, value);
+  wireSpendLedger(lambda); // the page's budget reads what the account spent from the ledger, through this function
   lambda.addToRolePolicy(
     new PolicyStatement({
       effect: Effect.ALLOW,

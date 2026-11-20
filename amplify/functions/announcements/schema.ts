@@ -120,7 +120,7 @@ export const announcementsSchemaDefinitions = {
     ])
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.groups(editors).to(["read"])]),
-  /** What an account spent on X in one billing cycle: id = "<accountId>#<cycle start date>", raised once for every charge Caducus records. */
+  /** No longer written or read (PPY-fa165c): the X spend counter is in the shared spend ledger (src/papyrus_content/spend_ledger.py). Kept for one release so the move never drops a table; X was never on, so it holds no rows. A later release removes it. */
   AnnouncementSpend: a
     .model({
       id: a.id().required(),
@@ -154,6 +154,7 @@ export const announcementsSchemaDefinitions = {
   announcementsSettings: query(),
   announcementsXStatus: query(),
   announcementsXUsage: query(),
+  announcementsXSpend: query(),
   announcementsSaveSettings: mutation(),
   announcementsPause: mutation(),
   announcementsXSaveApp: mutation(),

@@ -31,5 +31,11 @@ _accounts = XAccounts(
 )
 
 
+def _ledger():
+    from papyrus_content.announcements.spend import ledger_from_environment
+
+    return ledger_from_environment(os.environ)   # made when a request needs it: a site with no tenant answers that, and nothing else about the function changes
+
+
 def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
-    return handle_event(event, _accounts, _settings)
+    return handle_event(event, _accounts, _settings, _ledger)

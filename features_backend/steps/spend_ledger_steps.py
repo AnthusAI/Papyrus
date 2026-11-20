@@ -18,7 +18,7 @@ from papyrus_content.agent_policy.resolve import PolicyState  # noqa: E402
 from papyrus_content.spend_ledger_test import FakeLedgerTable  # noqa: E402
 
 TENANT = "alpha"
-MONTHS = {"November": 11}
+MONTHS = {"November": 11, "December": 12}
 
 
 class _Decision:
@@ -97,3 +97,24 @@ def second_added_nothing(context):
 def partial(context, missing):
     held = _held(context, "ai", "Sunday 1 November 2026")
     assert held.partial and held.unpricedCalls == missing, held
+
+
+@when('Caducus charges the X account "{account}" {amount} dollars on {when} in the cycle starting {start}')
+def x_charged(context, account, amount, when, start):
+    from papyrus_content.announcements.spend import SpendLedger as XLedger
+
+    XLedger(context.table_ledger, TENANT, lambda: _moment(when)).add_spend(account, _day(start), Decimal(amount))
+
+
+@then('the X account "{account}" cycle starting {start} holds {amount} dollars')
+def x_holds(context, account, start, amount):
+    from papyrus_content.announcements.spend import SpendLedger as XLedger
+
+    assert Decimal(XLedger(context.table_ledger, TENANT).spent(account, _day(start))) == Decimal(amount)
+
+
+@then('the X account "{account}" cycle starting {start} holds nothing')
+def x_holds_nothing(context, account, start):
+    from papyrus_content.announcements.spend import SpendLedger as XLedger
+
+    assert XLedger(context.table_ledger, TENANT).spent(account, _day(start)) is None

@@ -7,6 +7,7 @@ from papyrus_content.announcements.attempts import ANSWER_FAILED, ANSWER_REFUSED
 from papyrus_content.announcements.fakes import FakeFunctions, FakeX, StoryRecordsBackend
 from papyrus_content.announcements.records import BUDGET_REACHED_CODE, PAUSED_CODE, RecordError
 from papyrus_content.announcements.spend import SpendLedger
+from papyrus_content.spend_ledger_test import FakeLedgerTable
 from papyrus_content.announcements.x_channel import XChannel, link_of
 from papyrus_content.announcements.x_runner import NotSendable, SpendControl
 
@@ -64,7 +65,7 @@ def test_a_delivery_of_another_channel_is_not_handed_to_x():
 def control(**connection):
     functions = FakeFunctions(lambda: NOW.timestamp())
     functions.connected = {"connection": "connected", "accountId": "mom", "handle": "@mom_test", **connection}
-    return SpendControl(settings=functions, connection=functions.status, ledger=SpendLedger(StoryRecordsBackend()), now=lambda: NOW), functions
+    return SpendControl(settings=functions, connection=functions.status, ledger=SpendLedger(FakeLedgerTable(), "site"), now=lambda: NOW), functions
 
 
 def test_nothing_is_sent_until_the_owner_turns_announcements_on():

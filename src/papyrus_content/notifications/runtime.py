@@ -195,7 +195,8 @@ def x_wiring(environment: Mapping[str, str], ssm: Any) -> XWiring:
     from papyrus_content.announcements.channel import CaducusTokens
     from papyrus_content.announcements.guard import SpendGuard
     from papyrus_content.announcements.settings import AnnouncementSettings
-    from papyrus_content.announcements.stores import DynamoConnection, DynamoSettings, DynamoSpendLedger, SsmParameters
+    from papyrus_content.announcements.spend import ledger_from_environment
+    from papyrus_content.announcements.stores import DynamoConnection, DynamoSettings, SsmParameters
     from papyrus_content.announcements.x_account import XAccounts, XEndpoints
 
     dynamodb = boto3.resource("dynamodb")
@@ -207,7 +208,7 @@ def x_wiring(environment: Mapping[str, str], ssm: Any) -> XWiring:
         lease_seconds=float(environment["X_REFRESH_LEASE_SECONDS"]),
     )
     return XWiring(
-        connection=accounts.status, tokens=CaducusTokens(accounts), guard=SpendGuard(DynamoSpendLedger(dynamodb.Table(environment["ANNOUNCEMENT_SPEND_TABLE"]), time.time), announcement_settings),
+        connection=accounts.status, tokens=CaducusTokens(accounts), guard=SpendGuard(ledger_from_environment(environment, ssm=ssm), announcement_settings),
         prices=SettingsPrices(announcement_settings.read), http=UrllibHttp(timeout=X_HTTP_TIMEOUT_SECONDS), base_url=environment["X_API_BASE"],
     )
 
