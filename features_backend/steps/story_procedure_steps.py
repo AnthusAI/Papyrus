@@ -23,6 +23,7 @@ from fake_client import FakeAuthoringClient  # noqa: E402
 from papyrus_content import newsroom_process as process  # noqa: E402
 from papyrus_content import story_commands  # noqa: E402
 from papyrus_content.story_reporting import current_story_version  # noqa: E402
+from papyrus_content.registered_commands import run_registered_command  # noqa: E402
 
 LINEAGE = "story-1"
 NOW = "2026-11-03T09:00:00.000000Z"
@@ -220,7 +221,7 @@ def next_lines_written(context):
 @when('I run "{command}" with "{flags}"')
 def run_command(context, command, flags):
     handlers = {
-        "stories next": story_commands.stories_next,
+        "stories next": lambda flags: run_registered_command("stories:next", flags),
         "stories save-version": story_commands.stories_save_version,
         "stories move": story_commands.stories_move,
         "stories link-reference": story_commands.stories_link_reference,
