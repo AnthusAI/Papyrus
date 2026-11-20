@@ -20,6 +20,7 @@ from papyrus.operator.commands import references as reference_commands  # noqa: 
 from papyrus.operator.config import OperatorConfig  # noqa: E402
 from papyrus.operator.errors import OperatorError  # noqa: E402
 from papyrus_content import assignments_commands, projection_trigger, publication, steering, story_commands, story_reporting  # noqa: E402
+from papyrus_content.registered_commands import run_registered_command  # noqa: E402
 
 fake_client.INDEX_MODELS.setdefault("itemsByStage", "Item")
 fake_client.INDEX_MODELS.setdefault("knowledgeCorporaByRoleAndName", "KnowledgeCorpus")
@@ -273,15 +274,15 @@ def test_assignments_show_prints_the_fields_and_the_events():
     client = Client({"Assignment": [{"id": "as-1", "status": "open", "assignmentTypeKey": "research.multi", "title": "Look", "queueKey": "q",
                                      "sectionKey": "news", "itemLineageId": "a", "assigneeKey": "someone"}],
                      "AssignmentEvent": [{"id": "e1", "assignmentId": "as-1", "eventType": "created", "createdAt": "2026-11-01", "toStatus": "open"}]})
-    with mock.patch.object(assignments_commands, "create_authoring_client", return_value=(client, {})):
-        out = run(assignments_commands.assignments_show, ["--assignment", "as-1"])
+    with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, {})):
+        out = run(run_registered_command, "assignments:show", ["--assignment", "as-1"])
     assert "assignments\tshow\tas-1\tstatus\topen" in out and "\tstory\ta" in out and "\theld by\tsomeone" in out
     assert "created" in out and "assignments\tevents\tas-1\t1" in out
 
 
 def test_assignments_show_of_a_missing_assignment_is_an_error():
-    with mock.patch.object(assignments_commands, "create_authoring_client", return_value=(Client(), {})), pytest.raises(ValueError, match="Assignment not found: x"):
-        assignments_commands.assignments_show(["--assignment", "x"])
+    with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(Client(), {})), pytest.raises(ValueError, match="Assignment not found: x"):
+        run_registered_command("assignments:show", ["--assignment", "x"])
 
 
 # --- section by name -------------------------------------------------------------------------------------------------

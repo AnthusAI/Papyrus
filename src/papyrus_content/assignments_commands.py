@@ -37,16 +37,10 @@ from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options, resolve_mutation_apply
 
 
-def assignments_list(flags: list[str]) -> None:
+def operator_assignments_list(client, *, queue=None, status=None, assignment_type=None, section=None) -> dict:
     from .assignments_workflow import assignment_section_key, assignment_sort_key
 
-    options = parse_options(flags)
-    client, _ = create_authoring_client()
     assignments = client.list_records("Assignment")
-    queue = options.get("queue")
-    status = options.get("status")
-    assignment_type = options.get("type")
-    section = options.get("section")
     if queue:
         assignments = [row for row in assignments if row.get("queueKey") == queue]
     if status:
@@ -56,50 +50,46 @@ def assignments_list(flags: list[str]) -> None:
     if section:
         assignments = [row for row in assignments if assignment_section_key(row) == section]
     assignments.sort(key=assignment_sort_key)
-    for assignment in assignments:
-        section_key = assignment_section_key(assignment) or ""
-        print(
-            f"{assignment.get('status')}\t{assignment.get('id')}\t{assignment.get('assignmentTypeKey')}\t"
-            f"{assignment.get('queueKey')}\tsection={section_key}\t{assignment.get('title')}"
-        )
+    return {"assignments": [{"status": row.get("status"), "id": row.get("id"), "assignmentTypeKey": row.get("assignmentTypeKey"), "queueKey": row.get("queueKey"),
+                             "section": assignment_section_key(row) or "", "title": row.get("title")} for row in assignments]}
 
 
-def assignments_show(flags: list[str]) -> None:
-    """papyrus assignments show --assignment <id>
+def assignments_list_rows(result: dict) -> list[str]:
+    return [f"{row['status']}\t{row['id']}\t{row['assignmentTypeKey']}\t{row['queueKey']}\tsection={row['section']}\t{row['title']}" for row in result["assignments"]]
 
-    Read only. The Assignment's status, type, section, Story and who holds it, its direction (what it asks for, whole), then its events,
-    newest last. `assignments list` prints the ids.
 
-    The direction is the text the editor wrote when assigning the work. It lives in the Assignment's metadata attachment, which this
-    reads. Output is tab separated, one row per line, so a multi-line direction prints one `direction` row per line, in order, a blank
-    line as an empty value and a tab inside a line as a space so the columns hold; drop the first four columns of each `direction` row and join them to get the text back."""
-    options = parse_options(flags)
-    assignment_id = normalize_string(options.get("assignment"))
-    if not assignment_id:
-        raise ValueError("assignments show requires --assignment <id>. `papyrus assignments list` prints the ids.")
-    client, _ = create_authoring_client()
+def operator_assignment_show(client, assignment_id: str) -> dict:
+    """The Assignment's status, type, section, Story and who holds it, its direction (what it asks for, whole), then its events, newest last.
+
+    The direction is the text the editor wrote when assigning the work. It lives in the Assignment's metadata attachment."""
+    from .assignments import assignment_metadata
+    from .assignments_workflow import assignment_section_key, read_assignment_events
+
     assignment = client.get_record("Assignment", assignment_id)
     if not assignment:
         raise ValueError(f"Assignment not found: {assignment_id}")
-    from .assignments_workflow import assignment_section_key, list_assignment_events
-
-    fields = (
+    fields = [[label, value] for label, value in (
         ("status", assignment.get("status")), ("type", assignment.get("assignmentTypeKey")), ("title", assignment.get("title")),
         ("queue", assignment.get("queueKey")), ("section", assignment_section_key(assignment)),
         ("story", assignment.get("contentItemLineageId") or assignment.get("itemLineageId")), ("priority", assignment.get("priority")),
         ("held by", assignment.get("assigneeKey")),
-        ("created", assignment.get("createdAt")), ("updated", assignment.get("updatedAt")),
-    )
-    for label, value in fields:
-        if value not in (None, ""):
-            print(f"assignments\tshow\t{assignment_id}\t{label}\t{value}")
-    from .assignments import assignment_metadata
-
+        ("created", assignment.get("createdAt")), ("updated", assignment.get("updatedAt"))) if value not in (None, "")]
     direction = assignment_metadata(client, assignment).get("direction")
-    if isinstance(direction, str) and direction.strip():
-        for line in direction.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-            print(f"assignments\tshow\t{assignment_id}\tdirection\t{line.rstrip().replace(chr(9), ' ')}")
-    list_assignment_events(client, {"assignment": assignment_id})
+    events = read_assignment_events(client, assignment_id)
+    return {"id": assignment_id, "fields": fields, "direction": direction if isinstance(direction, str) and direction.strip() else None,
+            "events": [{"createdAt": str(event.get("createdAt") or ""), "eventType": event.get("eventType") or "",
+                        "transition": f"{event.get('fromStatus') or ''}->{event.get('toStatus') or ''}", "note": event.get("note") or ""} for event in events]}
+
+
+def assignment_show_rows(result: dict) -> list[str]:
+    assignment_id = result["id"]
+    rows = [f"assignments\tshow\t{assignment_id}\t{label}\t{value}" for label, value in result["fields"]]
+    if result["direction"]:
+        rows += [f"assignments\tshow\t{assignment_id}\tdirection\t{line.rstrip().replace(chr(9), ' ')}"
+                 for line in result["direction"].replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    rows += ["\t".join([event["createdAt"], event["eventType"], event["transition"], event["note"]]) for event in result["events"]]
+    rows.append(f"assignments\tevents\t{assignment_id}\t{len(result['events'])}")
+    return rows
 
 
 def assignments_create_research(flags: list[str]) -> None:

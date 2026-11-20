@@ -24,13 +24,27 @@ def render_story_stars(command: RegisteredCommand, result: dict[str, Any]) -> li
                        "write" if result["applied"] else "dry-run: nothing sent"])]
 
 
+def render_assignments_list(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .assignments_commands import assignments_list_rows
+
+    if all("queueKey" in row for row in result["assignments"]):
+        return assignments_list_rows(result)
+    return [json.dumps(result, indent=2, ensure_ascii=False)]
+
+
+def render_assignment_show(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .assignments_commands import assignment_show_rows
+
+    return assignment_show_rows(result)
+
+
 def render_story_next(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
     from .story_commands import story_next_rows
 
     return story_next_rows(result)
 
 
-TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars}
+TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars, "assignments:list": render_assignments_list, "assignments:show": render_assignment_show}
 
 
 def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) -> dict[str, Any]:

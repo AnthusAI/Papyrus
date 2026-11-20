@@ -225,3 +225,22 @@ def test_the_operator_rates_a_story_without_a_revision_and_may_clear_the_rating(
     operator = Principal("staff", "cli", is_operator=True)
     call_tool(operator, "stories_set-stars", {"lineageId": "story-1", "stars": 0, "dryRun": True, "agent": "an agent"}, staff=staff)
     assert asked == [("story-1", 0, False, "an agent")]
+
+
+def test_assignments_list_is_story_scoped_for_an_external_principal_and_wide_for_the_operator(monkeypatch):
+    from .mcp_tools import call_tool
+
+    staff = StaffReads(client=object())
+    for refused in ({"queue": "q"}, {"status": "open"}, {"type": "research"}, {"section": "news"}):
+        with pytest.raises(ValueError, match="Invalid tool arguments"):
+            call_tool(STAFF_PRINCIPAL, "assignments_list", {"storyLineageId": "story-1", **refused}, staff=staff)
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "assignments_list", {}, staff=staff)
+
+    import papyrus_content.assignments_commands as assignments_commands
+
+    asked = []
+    monkeypatch.setattr(assignments_commands, "operator_assignments_list", lambda client, **filters: asked.append(filters) or {"assignments": []})
+    operator = Principal("staff", "cli", is_operator=True)
+    assert call_tool(operator, "assignments_list", {"queue": "q", "status": "open"}, staff=staff) == {"assignments": []}
+    assert asked == [{"queue": "q", "status": "open", "assignment_type": None, "section": None}]

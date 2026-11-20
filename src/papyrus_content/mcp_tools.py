@@ -275,6 +275,10 @@ class StaffReads(StaffStoryWrites):
         return {key: row[key] for key in ("id", "itemLineageId", "title", "status", "assignmentTypeKey", "priority", "summary", "createdAt", "updatedAt") if key in row}
 
     def assignment_get(self, principal: Principal, *, id: str) -> dict:
+        if principal.is_operator:
+            from .assignments_commands import operator_assignment_show
+
+            return operator_assignment_show(self.client, id)
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Assignments lack a tenant ownership key.")
         row = self.client.get_record("Assignment", id)
@@ -283,7 +287,14 @@ class StaffReads(StaffStoryWrites):
         self.story_get(principal, lineageId=row["itemLineageId"])
         return {"assignment": self._assignment(row)}
 
-    def assignments_list(self, principal: Principal, *, storyLineageId: str, limit: int = 20, nextToken: str | None = None) -> dict:
+    def assignments_list(self, principal: Principal, *, storyLineageId: str | None = None, limit: int = 20, nextToken: str | None = None,
+                         queue: str | None = None, status: str | None = None, type: str | None = None, section: str | None = None) -> dict:
+        if principal.is_operator and storyLineageId is None:
+            from .assignments_commands import operator_assignments_list
+
+            return operator_assignments_list(self.client, queue=queue, status=status, assignment_type=type, section=section)
+        if storyLineageId is None or any(value is not None for value in (queue, status, type, section)):
+            raise ValueError("Invalid tool arguments.")
         self.story_get(principal, lineageId=storyLineageId)
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Assignment indexes lack a tenant ownership key.")
