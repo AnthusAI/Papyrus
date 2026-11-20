@@ -357,7 +357,8 @@ def test_a_docs_only_release_deploys_nothing_and_a_code_change_deploys_the_monit
     assert sd.changed_stacks(config, ["src/papyrus_content/monitoring_router.py"]) == ["papyrus-monitoring", "papyrus-procedure-runner"]   # the runner image holds the same code
     assert sd.changed_stacks(config, ["infra/newsletter/papyrus-newsletter-sending.yaml"]) == ["papyrus-newsletter-sending-operators"]
     assert sd.changed_stacks(config, ["infra/pipeline/allowed-changes.json"]) == [
-        "papyrus-newsletter-sending-operators", "papyrus-monitoring", "papyrus-procedure-runner-repository", "papyrus-procedure-runner", "papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
+        "papyrus-newsletter-sending-operators", "papyrus-dmarc-anth-us", "papyrus-dmarc-mail-machines-on-machines", "papyrus-monitoring", "papyrus-procedure-runner-repository", "papyrus-procedure-runner", "papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
+    assert sd.changed_stacks(config, ["infra/email/papyrus-dmarc.yaml"]) == ["papyrus-dmarc-anth-us", "papyrus-dmarc-mail-machines-on-machines"]
     assert sd.changed_stacks(config, ["infra/shared-stack/papyrus-shared-foundation.yaml"]) == ["papyrus-shared-staging-foundation", "papyrus-shared-prod-foundation"]
 
 

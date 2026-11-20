@@ -3,6 +3,7 @@
 Nothing here calls AWS, DNS or a mailbox. The report address is the placeholder dmarc-reports@example.test: the real address is an SSM parameter a person creates once.
 """
 import importlib.util
+import json
 import re
 from pathlib import Path
 
@@ -21,6 +22,16 @@ _spec.loader.exec_module(stack_deploy)
 
 def _template() -> dict:
     return stack_deploy.parse_template(TEMPLATE.read_text())
+
+
+def _stacks() -> list[dict]:
+    return json.loads((PIPELINE / 'stacks.json').read_text())['stacks']
+
+
+def _dmarc_stack(domain: str) -> dict:
+    found = [stack for stack in _stacks() if stack['name'].startswith('papyrus-dmarc-') and stack['parameters'].get('DomainName') == domain]
+    assert len(found) == 1, (domain, [stack['name'] for stack in _stacks()])
+    return found[0]
 
 
 def _roles_text() -> str:
@@ -92,6 +103,38 @@ def no_authorization(context):
     assert list(context.template['Resources']) == ['DmarcRecord'], list(context.template['Resources'])
 
 
+@given('the release stack list')
+def release_configuration(context):
+    context.stacks = _stacks()
+
+
+@then('there is a DMARC stack for the domain "{first}" and one for the domain "{second}"')
+def dmarc_stacks(context, first, second):
+    context.domains = [first, second]
+    for domain in context.domains:
+        _dmarc_stack(domain)
+
+
+@then('both use the DMARC template and look up the zone "{zone}"')
+def both_use_template(context, zone):
+    for domain in context.domains:
+        stack = _dmarc_stack(domain)
+        assert stack['template'] == 'infra/email/papyrus-dmarc.yaml', stack
+        assert stack['lookups'] == {'HostedZoneId': {'hostedZone': zone}}, stack
+
+
+@then('both start at the policy "{policy}"')
+def both_policy(context, policy):
+    assert all(_dmarc_stack(domain)['parameters']['DmarcPolicy'] == policy for domain in context.domains)
+
+
+@then('both name the report address by its SSM parameter, never by an address')
+def both_name_parameter(context):
+    for domain in context.domains:
+        name = _dmarc_stack(domain)['parameters']['ReportAddress']
+        assert name.startswith('/') and '@' not in name, name
+
+
 @given('the release roles template')
 def roles_template(context):
     context.roles = _roles_text()
@@ -119,9 +162,9 @@ def deploy_resolves(context):
     assert default.startswith('/papyrus/'), default
 
 
-@given('the DMARC template and its specs')
+@given('the DMARC template, its stacks and its specs')
 def files_in_scope(context):
-    context.files = [TEMPLATE, *SPECS]
+    context.files = [TEMPLATE, PIPELINE / 'stacks.json', *SPECS]
 
 
 @then('none contains an email address other than the example.test placeholder')
