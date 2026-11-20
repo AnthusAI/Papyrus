@@ -19,3 +19,7 @@ The loader refuses a file that breaks a rule and names every problem: an unknown
 ## Idea (PPY-f1c774)
 
 `idea.yaml`: generated, selected, assigned for research, spiked. At propose and below a person selects; at draft and above the selecting agent selects, picky, and takes at most what the site's policy allows. An idea nobody selects stays and is counted; none is spiked for its age; a spiked idea records why. Built: the file. Not built: the selecting agent itself (no task builds it yet; PPY-fb1aef is ideation), and Today's count of unselected ideas (a count is an unbounded read of the idea stage unless something stores it, which the board records on PPY-f1c774).
+
+## Translation (PPY-21b8c5)
+
+`translation.yaml`: wanted, translating, held, ready, published, stale. `papyrus_content/localize/lifecycle_state.py` says which of the six each language of a Story is in, from the request a run keeps (`LocalizationRequest`): `story_states(client, source, languages)` is one point read for each language and returns exactly one state for each. `failed` and `stopped` are wanted again (the dispatcher retries them), `waiting` (a cost ceiling) and `held` are held, `saved` and `unchanged` are ready, and a request that names an older source than the Story has now is stale. A hold raises one flag and blocks only that translation. Block-level staleness and pinned blocks are the translation engine's own (`localize/blocks.py`, `translation-correction.feature`); a translator woken for a source edit is the translation agent (PPY-98f88e), not built here.
