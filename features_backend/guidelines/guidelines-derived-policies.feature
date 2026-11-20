@@ -1,6 +1,6 @@
 Feature: Saving writing guidelines updates the editorial checks drawn from them
   The writer and the checker read the same data. When an admin saves a site's writing guidelines, the Humanus policies drawn from them (the avoided lexicon, the
-  banned phrases, the house checks and the rest) are created or updated at publication scope; when an admin saves a section's writing guidelines, desk
+  banned phrases, the house checks and the rest) are created or updated at publication scope; when an admin saves a section's writing guidelines, section
   policies are created for that section. A drawn policy records where it came from as writing-guidelines, the document's slug and the saved version. Only
   policies with that source for that very document are ever created, updated or disabled: a starter-pack policy, a policy an admin wrote, and a drawn policy an
   admin has since edited by hand (its source becomes custom) are never changed by a save. Removing a word disables the policy it produced and keeps it for
@@ -19,7 +19,7 @@ Feature: Saving writing guidelines updates the editorial checks drawn from them
     And that check detects the word "leverage"
     And its source names version 2
 
-  Scenario: Saving section writing guidelines creates desk checks for that section
+  Scenario: Saving section writing guidelines creates checks for that section only
     Given a site whose saved writing guidelines avoid the word "synergy"
     When an admin saves writing guidelines for the section "news" that avoid the word "buzz"
     Then a check named "avoid-lexicon" exists at the scope "news" with the source "writing-guidelines:desk-doctrine-news-writing:v1"

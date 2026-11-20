@@ -1,6 +1,6 @@
 @backend @video-embed
 Feature: A Story can embed a video as the provider's own player
-  A news desk editor writes ::video{src="..." title="..." credit="..."} on a line of its own, the way ::image works, to show a video the
+  An editor writes ::video{src="..." title="..." credit="..."} on a line of its own, the way ::image works, to show a video the
   Story is about. The page holds the provider's standard embed: an iframe in which the provider draws its own thumbnail and play button,
   in a responsive 16 by 9 wrapper, with the caption and a credit line linked to the video underneath. YouTube plays through
   youtube-nocookie.com, Vimeo with do-not-track, Instagram through its own embed address. Papyrus draws no poster, no placeholder and no
