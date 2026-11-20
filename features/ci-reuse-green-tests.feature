@@ -12,6 +12,11 @@ Feature: A green tests run is reused when the code is identical
     Given no earlier successful run tested this tree
     Then the full suite runs
 
+  Scenario: Looking for an earlier run does not hold the suite back
+    Given a pull request whose tree no earlier run tested
+    When the earlier runs are looked up
+    Then they are looked up side by side, so the test jobs start within seconds and not after two minutes
+
   Scenario: A failed run is never reused
     Given the only earlier run on this tree failed or was cancelled
     Then the full suite runs

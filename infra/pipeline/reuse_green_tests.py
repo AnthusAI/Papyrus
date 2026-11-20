@@ -13,6 +13,7 @@ Environment: GH_TOKEN (actions: read), GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_
 """
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import re
@@ -23,6 +24,7 @@ WORKFLOW = "tests.yml"
 JOB_PREFIX = "tested-tree "
 TREE_JOB = re.compile(r"^" + re.escape(JOB_PREFIX) + r"([0-9a-f]{40})$")
 TRUSTED_PUSH_BRANCHES = {"develop", "main"}
+SIMULTANEOUS_JOB_LOOKUPS = 16
 
 
 def is_trusted(run: dict, repo: str) -> bool:
@@ -71,6 +73,21 @@ def gh_json(*args: str):
     return json.loads(out)
 
 
+def candidates_newest_first(runs: list[dict], repo: str) -> list[dict]:
+    """The tree each run vouched for, in the order the runs were given.
+
+    One request per run, sent side by side: a pull request usually has no earlier run on its tree, so every run is looked at, and
+    looking at them one after another held every test job back for about two minutes.
+    """
+
+    def candidate_for(run: dict) -> dict:
+        jobs = gh_json(f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100")["jobs"]
+        return {"id": run["id"], "conclusion": run["conclusion"], "tree": tree_from_jobs(jobs), "url": run["html_url"]}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=SIMULTANEOUS_JOB_LOOKUPS) as lookups:
+        return list(lookups.map(candidate_for, runs))
+
+
 def write(path_var: str, text: str) -> None:
     path = os.environ.get(path_var)
     if path:
@@ -83,18 +100,11 @@ def main() -> int:
     reused, why, url = False, "", ""
     try:
         repo, run_id = os.environ["GITHUB_REPOSITORY"], os.environ.get("GITHUB_RUN_ID")
-        # Cheap pre-filter: scanning the jobs of every recent run is wasteful, so look newest first and stop at the first match.
         runs = gh_json(f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?status=success&per_page=100")["workflow_runs"]
-        match = None
-        for run in runs:
-            if str(run["id"]) == str(run_id) or not is_trusted(run, repo):
-                continue
-            jobs = gh_json(f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100")["jobs"]
-            candidate = {"id": run["id"], "conclusion": run["conclusion"], "tree": tree_from_jobs(jobs), "url": run["html_url"]}
-            match, why = decide(tree, [candidate], run_id)
-            if match:
-                reused, url = True, match["url"]
-                break
+        earlier_trusted_runs = [run for run in runs if str(run["id"]) != str(run_id) and is_trusted(run, repo)]
+        match, why = decide(tree, candidates_newest_first(earlier_trusted_runs, repo), run_id)
+        if match:
+            reused, url = True, match["url"]
         if not reused:
             why = why or "no earlier run tested this tree"
     except Exception as error:  # any lookup problem means: run everything
