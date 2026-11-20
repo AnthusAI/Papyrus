@@ -970,7 +970,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   wireImageService(backend);
   wireProposalActions(backend);
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
-  wireAnnouncements(backend, siteBackendIdentity.brandId);
+  wireAnnouncements(backend, siteBackendIdentity.brandId, [backend.auth.resources.userPoolClient.userPoolClientId]);
   // Every always-on agent resource is in the one `agents` stack, which the first deploy of a new site leaves out (amplify/agents/stack.ts).
   // The Item change feed (slice B2) reads the Item table's stream, so the stream is switched on with the stack that reads it, never in the first deploy. A dedicated site
   // with a tenant id only: a shared stack's rows carry tenants it does not act for, and the listener index is one site's document.

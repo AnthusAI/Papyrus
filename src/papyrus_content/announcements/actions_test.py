@@ -14,7 +14,7 @@ PAGE_REQUESTS = json.loads((Path(__file__).resolve().parents[3] / "features_back
 @pytest.fixture
 def ran(monkeypatch):
     calls = []
-    monkeypatch.setattr(actions, "handle", lambda operation, payload, groups, actor, accounts, settings: calls.append((operation, payload, groups, actor)) or {"ok": True})
+    monkeypatch.setattr(actions, "handle", lambda operation, payload, groups, actor, accounts, settings, **_: calls.append((operation, payload, groups, actor)) or {"ok": True})
     return calls
 
 
@@ -48,3 +48,55 @@ def test_the_requests_the_page_sends_each_run_the_operation_they_name(ran):
     assert [operation for operation, *_ in ran] == [event["fieldName"] for event in PAGE_REQUESTS]
     assert sorted(operation for operation, *_ in ran) == OPERATIONS
     assert [payload for _, payload, *_ in ran] == [json.loads(event["arguments"]["input"]) for event in PAGE_REQUESTS]
+
+
+class SettingsInMode:
+    def __init__(self, mode):
+        self.mode, self.saved = mode, []
+
+    def read(self):
+        return {"mode": self.mode}
+
+    def save(self, proposed, connection_status):
+        self.saved.append(proposed)
+        return proposed
+
+
+class ConnectedAccounts:
+    def status(self):
+        return {"connection": "connected"}
+
+
+def save_event(mode, claims):
+    event = amplify_function_event("Mutation", "announcementsSaveSettings", {"input": json.dumps({"settings": {"mode": mode}})}, user_pool_identity("ryan", ["admin"], "ryan@example.test"))
+    event["identity"]["claims"].update(claims)
+    return event
+
+
+def test_a_credential_issued_to_no_person_client_cannot_turn_announcements_on(monkeypatch):
+    monkeypatch.setenv(actions.PERSON_CLIENT_IDS_VARIABLE, "console-client")
+    settings = SettingsInMode("dry_run")
+    answer = actions.handle_event(save_event("on", {"aud": "cli-client"}), ConnectedAccounts(), settings)
+    assert answer["error"] == "person_only" and settings.saved == []
+
+
+def test_a_credential_issued_to_the_console_client_can_turn_announcements_on(monkeypatch):
+    monkeypatch.setenv(actions.PERSON_CLIENT_IDS_VARIABLE, "console-client")
+    settings = SettingsInMode("dry_run")
+    for claims in ({"aud": "console-client"}, {"client_id": "console-client"}):
+        assert actions.handle_event(save_event("on", claims), ConnectedAccounts(), settings)["ok"] is True
+    assert len(settings.saved) == 2
+
+
+def test_with_no_person_client_configured_no_credential_is_a_person(monkeypatch):
+    monkeypatch.delenv(actions.PERSON_CLIENT_IDS_VARIABLE, raising=False)
+    answer = actions.handle_event(save_event("on", {"aud": "console-client"}), ConnectedAccounts(), SettingsInMode("off"))
+    assert answer["error"] == "person_only"
+
+
+def test_any_credential_may_still_save_other_modes_and_leave_on_alone(monkeypatch):
+    monkeypatch.setenv(actions.PERSON_CLIENT_IDS_VARIABLE, "console-client")
+    agent_claims = {"aud": "cli-client"}
+    assert actions.handle_event(save_event("dry_run", agent_claims), ConnectedAccounts(), SettingsInMode("off"))["ok"] is True
+    assert actions.handle_event(save_event("off", agent_claims), ConnectedAccounts(), SettingsInMode("on"))["ok"] is True
+    assert actions.handle_event(save_event("on", agent_claims), ConnectedAccounts(), SettingsInMode("on"))["ok"] is True
