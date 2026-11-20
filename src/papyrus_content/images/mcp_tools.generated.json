@@ -4125,6 +4125,50 @@
       }
     },
     {
+      "name": "announcements_hashtags",
+      "audience": "staff",
+      "description": "List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first.",
+      "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          }
+        },
+        "required": [
+          "story"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lineageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hashtags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "description": "A hashtag with its #, in CamelCase, for example #VoiceCloning."
+            }
+          }
+        },
+        "required": [
+          "lineageId",
+          "hashtags"
+        ]
+      }
+    },
+    {
       "name": "announcements_blocked",
       "audience": "staff",
       "description": "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).",
