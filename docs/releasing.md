@@ -15,6 +15,10 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
 
+## Green tests gate every merge and every package release
+
+No person approves a merge, so the gate is automatic. A repository ruleset (`infra/pipeline/protect-branches.sh`, run once by someone with admin rights) makes `main` and `develop` take changes only through a pull request whose `ts` and `python` checks passed, and refuses force-pushes and deletion. No reviewer is required. A pull request that changes only `project/` is covered by `tests-board-only.yml`, which reports the same two check names. `release.yml` also runs the whole test suite (`tests.yml`, reusing an earlier green run of an identical tree) before it publishes, so a direct push cannot publish red code. The GitHub Actions app is the only bypass, for the release workflow's back-merge of `main` into `develop`.
+
 ## One new index per table per release
 
 DynamoDB creates or deletes one global secondary index per table in one update, and a table holds at most 20. The GSI ledger check (`scripts/check-gsi-ledger.ts`, run by the `ts-misc` job and by `npm run test:gsi-ledger`) compares the indexes in every schema source (`amplify/data/schema.ts` and each plugin's and function's `schema.ts`) with the last stable release tag (the `ts-misc` job checks out the full history so tags exist; with no tag the check fails and says so) and fails when:
