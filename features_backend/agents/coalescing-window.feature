@@ -1,5 +1,5 @@
 Feature: A paid step waits for quiet before it starts; a free step does not
-  A burst of edits must not start ten paid runs (PPY-67e3cd, slice B5 of the always-on agents design). When a Story changes, the change feed hands each wake to
+  A burst of edits must not start ten paid runs. When a Story changes, the change feed hands each wake to
   the wake gate. A step marked free is put on the queue at once, on every change. A step marked paid does not start: the change sets or replaces ONE follow-up
   timer for that Story and that step, due when the Story has been quiet for the site's window. The window is site data in the agent policy document: one length after
   an agent's change and a shorter one after a person's own action (Ryan's ruling: 30 minutes to 24 hours, about 5 minutes after a person). A site that has set

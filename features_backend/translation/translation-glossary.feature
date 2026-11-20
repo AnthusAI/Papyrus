@@ -1,5 +1,5 @@
 Feature: A publication decides how its terms are translated
-  A publication keeps a glossary and do-not-translate list per language (PPY-795b4b). It is guideline data, the kind `glossary`: the
+  A publication keeps a glossary and do-not-translate list per language. It is guideline data, the kind `glossary`: the
   publication's document holds what every language shares (terms kept exactly as written), and each language overlay holds that
   language's approved forms, including the target locale's naming conventions (Paris is París in Latin American Spanish). A section may
   add its own. Laying over is by term: a later layer's entry for a term replaces the earlier one unless the publication locks the entries.

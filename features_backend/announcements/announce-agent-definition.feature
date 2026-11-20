@@ -1,5 +1,5 @@
 Feature: The announce agent is a core agent definition that listens for the Item changes that start an Announcement
-  The engine ships the definition of the standing responsibility "announce" (PPY-e3bb2b). It listens for two changes to a Story's own record, both from the Item change
+  The engine ships the definition of the standing responsibility "announce". It listens for two changes to a Story's own record, both from the Item change
   feed through the site's wake queue: the Story entering the published stage (its page is live) and a published Story's rating being set, changed or cleared. It
   listens for no schedule and for no other change, because nothing a publish does calls it. It runs one wake at a time for the agent, because every wake may spend from
   one account's budget and write to one account's Deliveries, and a repeat is harmless because the once-only key of the Announcement makes it find the first

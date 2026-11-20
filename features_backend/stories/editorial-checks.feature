@@ -192,7 +192,7 @@ Feature: Editors check a Story against the publication's editorial policies
     Then "TYPESAFE_API_KEY" is the value stored in SSM
     And "OPENAI_API_KEY" is not set, so rewrite suggestions report that they are not configured
 
-  # PPY-2c4b56: a publication without a mission still gets its rule-based copy checks.
+  # A publication without a mission still gets its rule-based copy checks.
   Scenario: No current mission: rule checks run, judgment checks are skipped
     Given the publication has no current mission
     And the editorial check settings turn the classifier on with a 12 second deadline
@@ -207,7 +207,7 @@ Feature: Editors check a Story against the publication's editorial policies
     When the saved version of a story with "This game-changing release." is checked
     Then the stored check run records the classifier lane as skipped
 
-  # PPY-2c4b56: items store a section name or slug; with no matching NewsroomSection the check still returns a result.
+  # Items store a section name or slug; with no matching NewsroomSection the check still returns a result.
   Scenario: No section record: the check still runs and records the skip
     Given the section has no NewsroomSection record
     When an editor checks "This game-changing release." in section "engineering"

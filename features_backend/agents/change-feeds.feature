@@ -1,6 +1,6 @@
 Feature: A change to a Reference, review request, Message, translation request or Delivery wakes the agents that listen for it, once
-  The Item change feed (PPY-8a374e) turns a change to a Story into one wake for each agent that listens. The other tables agents react to work the same way
-  (PPY-9b9e64, slice B3 of the always-on agents design), with the same normalized change (the table, the kind, the record, its lineage and version, what changed,
+  The Item change feed turns a change to a Story into one wake for each agent that listens. The other tables agents react to work the same way,
+  with the same normalized change (the table, the kind, the record, its lineage and version, what changed,
   who changed it and when), the same listener index and the same wake on the site's queue. A Reference is created, accepted, rated or captured again. A review
   request is answered, and the answer is for the agent that asked. A Message is posted, and the wake is for the listeners of the Story, Reference or Delivery the
   comment is on. A translation is wanted. A Delivery changes state. Whoever wrote the change (a person in the console, the command line, an agent) the stream

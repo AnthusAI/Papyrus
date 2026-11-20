@@ -1,5 +1,5 @@
 Feature: The rating agent looks at unrated published Stories each day and, at observe, only says what it would rate
-  The rating agent is the first always-on agent (slice L1, PPY-d85860). Once a day its schedule puts a wake on the site's queue and the procedure runner
+  The rating agent is the first always-on agent. Once a day its schedule puts a wake on the site's queue and the procedure runner
   takes it. The agent reads the published Stories that nobody has rated, by the site's head stage index, newest first, and for each asks the bulk-tier
   model one question: three stars (the default), four (clearly better than the usual Story), or five (a candidate for a person). A five is never a
   rating: the run lists it as a candidate and nothing more. A person's rating is never touched, and a Story a person rated is never listed.

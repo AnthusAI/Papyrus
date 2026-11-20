@@ -1,9 +1,9 @@
 Feature: A translated page says what it is, and never claims AI for copy a person wrote
   A localization version records its kind in `metadata.localization.translation`: `machine` for a translation the procedure wrote
-  (`papyrus stories localize`) and `imported` for finished copy a person or another agent wrote (`papyrus stories import-translation`, PPY-b64b0b). The kind is
+  (`papyrus stories localize`) and `imported` for finished copy a person or another agent wrote (`papyrus stories import-translation`). The kind is
   record data; what the page says about it is small. Who made a Story is the byline's to say ("By various bots", "By various bots and NAME" or "By NAME",
   from the version's `author` and `drafting` front matter, translated into the page's language), so an imported translation's page adds nothing about its
-  writer (PPY-376575).
+  writer.
 
   A machine translation says in its own language that an AI translated it from the original, with a link to the original; its twin says
   `Translation: machine`. An imported translation shows only the link to the original, in the words of `translation.original`, and never says AI; its twin

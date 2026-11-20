@@ -1,5 +1,5 @@
 Feature: A Story's page going live and its rating changing reach the announce agent durably, and a publish tells no one
-  Two facts start an Announcement: a Story's page is live, and a Story's rating changed (PPY-e3bb2b, design section 13.3 change A). Both are changes to the Story's own
+  Two facts start an Announcement: a Story's page is live, and a Story's rating changed. Both are changes to the Story's own
   record, so the Item change feed delivers them to the announce agent as wakes on the site's wake queue, and nothing else does. The record that marks "the page is live"
   is the Story's Item row entering the published stage: the publish writes that stage in the same update that makes the version the lineage's current one, so the feed
   sees it whoever published. A rating is made in place on the same record, so a rating change is a change of its star field. A publish writes only its own records, so

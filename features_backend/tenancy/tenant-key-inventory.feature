@@ -1,5 +1,5 @@
 Feature: One generated table says which keys are global and which tables can list a tenant
-  Moving many tenants onto one set of tables (PPY-1ce06f and the key tasks that follow) needs one fact about every
+  Moving many tenants onto one set of tables needs one fact about every
   model: what the partition value of each of its indexes is. A value that already starts with the tenant is safe. A
   value that starts with a corpus id is safe once corpus ids are unique across tenants. A value that is another
   record's id is safe because ids are unique, but it cannot list a whole tenant. A constant, an enum, a slug or a

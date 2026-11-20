@@ -106,13 +106,13 @@ def test_every_feature_title_is_a_sentence_and_not_a_bare_topic() -> None:
     assert features_titled_with_a_bare_topic == [], "Say what Papyrus does, as features_backend/README.md asks"
 
 
-def test_no_feature_title_carries_a_ticket_id_or_slice_number() -> None:
-    features_titled_with_a_ticket = sorted(
-        feature
-        for feature, (title, _) in title_and_description_of_every_feature().items()
-        if TICKET_ID_OR_SLICE_NUMBER.search(title)
+def test_no_feature_cites_a_ticket_id_or_slice_number() -> None:
+    features_that_cite_a_ticket = sorted(
+        str(feature_path.relative_to(BACKEND_FEATURES_ROOT))
+        for feature_path in BACKEND_FEATURES_ROOT.rglob("*.feature")
+        if TICKET_ID_OR_SLICE_NUMBER.search(feature_path.read_text(encoding="utf-8"))
     )
-    assert features_titled_with_a_ticket == []
+    assert features_that_cite_a_ticket == [], "Describe what is true now; tickets belong on the board"
 
 
 def test_every_feature_opens_by_saying_what_the_behaviour_is_for() -> None:

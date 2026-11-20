@@ -1,8 +1,8 @@
 Feature: Every change to a Story or its checklist wakes the agents that listen for it, once
-  A DynamoDB stream on the Item table invokes a small feed function (PPY-8a374e, slice B2 of the always-on agents design). Whoever wrote the change (the console
+  A DynamoDB stream on the Item table invokes a small feed function. Whoever wrote the change (the console
   board, the command line, an agent, a person's save) the stream record is the same, so the feed starts procedures for all of them and no writer has to call
   anything. For each record the feed normalizes the change: a Story version created, a Story entering a stage (a first version created at a stage, or the stage
-  field changed in place, as a board move does), a checklist step getting a new state, or a Story's star rating being set, changed or cleared in place (PPY-e3bb2b).
+  field changed in place, as a board move does), a checklist step getting a new state, or a Story's star rating being set, changed or cleared in place.
   A note on a step, a version being marked superseded, a card's counts being refreshed and a new version that only carries the rating over are no change. It then puts one wake on the site's wake queue for each agent that listens for that change, found in the site's listener index:
   one small document, written by the deploy from the registered definitions, read by its live version. The feed never lists the Automation table or any other
   table. The wake key is the agent, the Story's lineage, the version and what changed; the run record made from it is the claim, and the queue's message group is

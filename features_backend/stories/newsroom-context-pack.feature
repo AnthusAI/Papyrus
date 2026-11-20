@@ -337,7 +337,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
       | neither a Story nor a section | give one of them        |
       | an unknown section            | Section not found       |
 
-  # Guidelines as data (PPY-2a2a8a, PPY-de286b): a site's guidelines are an add-only layer after an agent's fixed role text, resolved for the Story's section.
+  # Guidelines as data: a site's guidelines are an add-only layer after an agent's fixed role text, resolved for the Story's section.
 
   Scenario: The copywriter's pack holds the section's resolved writing guidelines after its role text
     Given the site has writing guidelines and the section "law-policy" adds to them
@@ -390,7 +390,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     Then the role texts in the context pack hold no publication-specific wording
     And the lint fails on a role text that names a site
 
-  # The byline policy (PPY-804b7b): who a story may be credited to is the site's rule, with the honest rule as the default.
+  # The byline policy: who a story may be credited to is the site's rule, with the honest rule as the default.
   Scenario: A site with no byline policy gets the honest rule
     When the copywriter's context pack is built for the Story
     Then the byline layer says to attribute agent work to AI and never invent an author
@@ -411,7 +411,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     When an admin saves a byline policy for the section "law-policy"
     Then the save is refused because the byline rules belong to the publication
 
-  # Agent instructions (PPY-c05a3c): a site owns the whole text of its agents' role instructions. This replaces the add-only rule of PPY-7a61ca.
+  # Agent instructions: a site owns the whole text of its agents' role instructions.
   Scenario: A site's own role text replaces the default role of that agent whole
     Given the site wrote the copywriter's role as "ROLE-WRITE-THE-JOKE. You write satire for readers who know it is satire."
     When the copywriter's context pack is built for the Story

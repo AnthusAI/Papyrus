@@ -1,7 +1,7 @@
 Feature: Finished copy written by a person or another agent is attached as a Story's translation
   A published English Story is translated by a model (`papyrus stories localize`), and a person corrects a published translation
   (`papyrus stories correct-translation`). Neither takes copy that was written separately and is already finished. The command
-  `papyrus stories import-translation` does (PPY-b64b0b): it saves the copy as the next version of the sibling lineage `<story>--<language>`, the way the
+  `papyrus stories import-translation` does: it saves the copy as the next version of the sibling lineage `<story>--<language>`, the way the
   translation procedure saves one, as an unpublished companion edition of the English version it pairs with. The version's author is the writer, and its
   provenance says the copy was written and not machine-generated. Every block is the writer's, owner human and pinned, so a later translation run keeps the
   copy exactly. The version's front matter says who made it for the site's standard byline ("By various bots", "By various bots and NAME", or "By NAME"):
