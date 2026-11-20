@@ -21,9 +21,41 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "74759eca-b3b3-40ce-ac12-3d72fd5df6c7",
+      "author": "ryan",
+      "text": "Started on the M3 (branch feat/PPY-fa165c-spend-ledger). Plan: a new SpendLedger model (scope + cycle id, atomic ADD of integer micro-dollars, an unpricedCalls counter for partial), a once-per-run marker written in the same transaction as the add, then X spend moved onto it. No in-place rename of AnnouncementSpend (that would drop its table); it is removed in a later release after the move.",
+      "created_at": "2026-11-20T05:43:51.037888Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4d31366a-616c-4715-a4ce-0868d46c6fe6",
+      "author": "ryan",
+      "text": "Started on the M3 (branch feat/PPY-fa165c-spend-ledger). Plan: a new SpendLedger model (scope and cycle id, atomic ADD of integer micro-dollars, an unpricedCalls counter for a partial total), a once-per-run marker written in the same transaction as the add, then the X spend moved onto it. AnnouncementSpend is not renamed in place (that would drop its table); it is removed in a later release after the move.",
+      "created_at": "2026-11-20T05:43:58.892027Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "M3 thread"
+      }
+    },
+    {
+      "id": "6016ad09-e123-461b-bd96-94124ec2609a",
+      "author": "ryan",
+      "text": "Blocked on a role decision, found on reading the code. The ledger must be added to atomically (acceptance line 1) and once per run. The procedure runner writes only through AppSync (no transactions, no ADD), so an atomic add needs the runner role to hold dynamodb:UpdateItem and TransactWriteItems on the ledger table, plus its table name in the runner environment. That is a role change, which needs Ryan's go (see the track audit, decision 2). Without it the only option is a read-then-write through AppSync, which can double count and breaks the line. Nothing is built yet; the plan comment above stands. Next if no go: pick another G or L task.",
+      "created_at": "2026-11-20T05:44:45.861840Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "M3 thread"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:07.557587Z",
-  "updated_at": "2026-11-16T22:44:34.505240Z",
+  "updated_at": "2026-11-20T05:44:45.862057Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

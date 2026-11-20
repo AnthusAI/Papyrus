@@ -60,6 +60,9 @@ def request_translations(client, item_id: str, *, settings: dict[str, Any] | Non
     for language in serving.enabled:
         if language == serving.primary:
             continue
+        from ..authored_editions import current_companion, is_authored
+        if is_authored(current_companion(client, source["lineageId"], language)):
+            continue
         existing = desired_state.current(client, source["lineageId"], language)
         if (existing is not None and str(existing.get("sourceContentHash") or "") == str(source.get("contentHash") or "")
                 and existing.get("state") not in RETRY_STATES):

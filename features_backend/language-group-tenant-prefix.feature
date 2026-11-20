@@ -1,4 +1,4 @@
-@backend @languages
+@backend @languages @checklist-gate
 Feature: On a tenant backend, every reader of a language group strips the tenant prefix before it decides what is a translation
   A tenant backend stores each language group with the tenant in front of it: the Story `story-rivers` of the tenant `machines-on-machines` is in the group
   `machines-on-machines#story-rivers`. A Story is a translation when its group, without the prefix, is another lineage than its own. A reader that forgot the
@@ -23,6 +23,6 @@ Feature: On a tenant backend, every reader of a language group strips the tenant
     Then the original is not marked as a translation
     And the translation is marked as a translation
 
-  Scenario: A translation is held for a person to publish and the original is not
-    Then publishing "story-rivers--es-419" by an automation is refused as a translation
-    And publishing "story-rivers" by an automation is not refused as a translation
+  Scenario: A translation is gated by its own language checklist and the original by the Story checklist
+    Then publishing "story-rivers--es-419" is checked against its own language checklist
+    And publishing "story-rivers" is checked against the Story checklist

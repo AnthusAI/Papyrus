@@ -71,6 +71,8 @@ def translation_notice(strings, original: dict) -> str:
     from .interface_strings import ORIGINAL_PLACEHOLDER, TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY
 
     kind = original.get("kind") or MACHINE_TRANSLATION
+    if kind == "authored":
+        return ""  # A companion is not a translation; normal byline and family switcher apply.
     if kind not in (MACHINE_TRANSLATION, IMPORTED_TRANSLATION):
         raise ValueError(f"A translation's kind is {MACHINE_TRANSLATION!r} or {IMPORTED_TRANSLATION!r}, not {kind!r}.")
     link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'

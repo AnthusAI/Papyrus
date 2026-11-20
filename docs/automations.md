@@ -484,6 +484,18 @@ changes an agent definition may name are one list, `src/papyrus_content/change_v
 * **What the feed may do** (its role): read the streams it owns; call `getSiteDocument` and `getMessageThread` on its own site's API; read the listener index's objects of its own
   tenant; look up and send to its own site's wake queue. It reads no table by scan or list, receives and deletes no wake, and calls no model.
 
+## Overdue: anything due and untouched (PPY-70cd6a)
+
+A lost timer is never silent. Every record that waits keeps a named due time in a sparse due index (a Delivery's `dueKey` + `dueAt`); its timer puts one wake on the queue at that time and the run moves the time on or clears it. A record still in its due index after the queue's own limits are used up has no wake in flight and was not run: it is **Overdue**. "Long enough" is not a number chosen here: the runner's whole possible length (900 s plus the 60 s it keeps for recording) times the two deliveries the queue allows, 1,920 s, read from `amplify/agents/wake-queue.ts` (`src/papyrus_content/overdue.py`; `overdue_test.py` and the feature hold the two sides together).
+
+- **Today** lists each overdue record first, under "Needs attention", as `⏰ Overdue: Delivery ID was due TIME (what it waited for) and nothing ran` (the console draws a Lucide alarm clock beside the word). One index query per kind of waiting record.
+- **The hygiene agent's daily wake** calls `overdue.recover`: for each overdue record it sends the record's wake again with the key its own timer would have used (`DeliveryTimers.wake_request`, the same function the timer uses), and raises one flag for the record and the due time it missed. A repeat inside the queue's deduplication window is dropped by the queue; a repeat after it is answered `duplicate` by the runner's once-only create, so the work is done once. Recovery does no work itself.
+- **One flag for each overdue record**, not one for each check: the flag is a review request in mode `flag` whose id is made from the record and the due time, and raising an id that exists returns the existing request. A record that misses a later time is a new flag.
+- **A record that ran late** has a new due time or none, so it leaves the index and is no longer Overdue.
+- Only Deliveries have a due index today. A kind of record that waits adds its source to `overdue.py` when its own due index exists (review request deadlines, PPY-9b8e59). The operations hygiene agent itself is PPY-50445c; until it exists nothing calls `recover` on a schedule.
+
+Specs: `features_backend/overdue.feature`.
+
 ## Runs that need a person (PPY-577310)
 
 A finished run needs a person when its outcome is `failed` or `unknown` and nobody has acknowledged it. Such a run carries `attentionKey` (the constant `attention`, `<tenant>#attention` on a shared stack) and `dueAt` (its finish time); every other run carries neither, so the sparse index `listProcedureRunsByAttentionKeyAndDueAt` holds only what needs a person. `update_cloud_procedure_run_record` writes the two fields in the same update that records the outcome, so every runner path (finished, refused, skipped, wake guard check) is covered. `src/papyrus_content/run_attention.py` is the one module that builds the key, lists the index and acknowledges.
@@ -527,6 +539,7 @@ they show the same lines. It is read only.
 
 For one day (the viewer's own day on the page, `--day` and `--time-zone` on the command; default today, UTC on the command line) it shows:
 
+- **Needs attention**, first: the records that are Overdue (see Overdue, above), each as `⏰ Overdue` and its words.
 - **What ran**, one line per responsibility (a run's `responsibility`; a run without one is counted under its automation, and one with neither under its
   procedure): how many runs ended `✓ Did it`, `– Nothing to do`, `? Asked`, `✗ Failed` and `! Outcome unknown`, each as its mark and its words, with the
   cost. A run that has no outcome is counted in words too: `… Not finished yet` (queued or running) and `Recorded before outcomes`.

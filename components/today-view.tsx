@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CheckIcon, ChevronDownIcon, CircleHelpIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { AlarmClockIcon, CheckIcon, ChevronDownIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { OUTCOME_MARKS, RunOutcome } from "./run-outcome";
 import {
   OTHER_ORDER,
   OUTCOME_ORDER,
@@ -16,6 +17,7 @@ import {
   sendItemsText,
   type TodayCountKey,
   type TodayDidNotRun,
+  type TodayOverdue,
   type TodayOverview,
   type TodayResult,
   type TodayRow,
@@ -23,19 +25,8 @@ import {
   type TodaySend,
 } from "../lib/today-overview";
 
-/** Every status is a mark and its words, never a colour alone. The marks are Lucide icons; the words come with them. */
-const MARKS: Record<TodayCountKey, LucideIcon> = {
-  acted: CheckIcon,
-  nothing: MinusIcon,
-  asked: CircleHelpIcon,
-  failed: XIcon,
-  unknown: TriangleAlertIcon,
-  notFinished: ClockIcon,
-  beforeOutcomes: MinusIcon,
-};
-
 function Mark({ name }: { name: TodayCountKey }) {
-  const Icon = MARKS[name];
+  const Icon = OUTCOME_MARKS[name];
   return <Icon aria-hidden="true" className="size-3.5 shrink-0" />;
 }
 
@@ -54,10 +45,7 @@ function RunLine({ run }: { run: TodayRun }) {
   const outcome = run.outcome ?? (run.runStatus === "completed" || run.runStatus === "failed" ? "beforeOutcomes" : "notFinished");
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-today-run={run.runId ?? "unlinked"} data-today-run-outcome={outcome}>
-      <span className="inline-flex items-center gap-1.5 font-medium">
-        <Mark name={outcome} />
-        {run.outcomeShown}
-      </span>
+      <span className="font-medium"><RunOutcome outcome={outcome} shown={run.outcomeShown} /></span>
       <span className="tabular-nums text-muted-foreground">{run.requestedAt ? run.requestedAt.slice(11, 16) + " UTC" : "time not recorded"}</span>
       <span className="text-muted-foreground">{run.costUsd === null ? "cost unknown" : costText({ costUsd: run.costUsd, costKnownRuns: 1, costUnknownRuns: 0 })}</span>
       <span className="break-all text-muted-foreground">{run.runId ? `Run ${run.runId}` : "No run id"}</span>
@@ -149,6 +137,19 @@ function SendLine({ send }: { send: TodaySend }) {
   );
 }
 
+function OverdueLine({ entry }: { entry: TodayOverdue }) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm" data-today-overdue={entry.id} data-today-overdue-kind={entry.kind}>
+      <span className="inline-flex items-center gap-1.5 font-medium">
+        <AlarmClockIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        Overdue
+      </span>
+      <span>{entry.kind} {entry.id}</span>
+      <span className="text-xs text-muted-foreground">was due {entry.dueAt}{entry.waitingFor ? ` (${entry.waitingFor})` : ""} and nothing ran</span>
+    </li>
+  );
+}
+
 function DidNotRunLine({ entry, demo }: { entry: TodayDidNotRun; demo: boolean }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm" data-today-did-not-run={entry.automationId} data-today-why={entry.whyCode}>
@@ -169,6 +170,14 @@ function Ready({ overview, demo }: { overview: TodayOverview; demo: boolean }) {
       <p className="text-sm text-muted-foreground" data-today-summary role="status">
         {runsText(overview.totals.runs)} · {costText(overview.totals)}
       </p>
+      {overview.overdue.length ? (
+        <>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Needs attention</h3>
+          <ul className="space-y-2" data-today-overdue-list>
+            {overview.overdue.map((entry) => <OverdueLine entry={entry} key={`${entry.kind}:${entry.id}`} />)}
+          </ul>
+        </>
+      ) : null}
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What ran</h3>
       {overview.rows.length ? (
         <ul className="space-y-2" data-today-rows>

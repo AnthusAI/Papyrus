@@ -129,6 +129,15 @@ Resources:
                 Condition:
                   ForAllValues:StringLike:
                     dynamodb:LeadingKeys: ["MONITOR#*"]
+              - Sid: SpendLedger
+                Effect: Allow
+                Action: [dynamodb:UpdateItem, dynamodb:PutItem, dynamodb:GetItem]
+                Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}"
+                # The one spend ledger (PPY-fa165c): a finished run's cost is added to its site's and its agent's counters, and a marker says the run was counted, in one
+                # transaction (a transaction needs no action of its own: each item is checked as the put or the update it is). Only keys that start with `SPEND#`.
+                Condition:
+                  ForAllValues:StringLike:
+                    dynamodb:LeadingKeys: ["SPEND#*"]
               - Sid: PutWakes
                 Effect: Allow
                 Action: [sqs:GetQueueUrl, sqs:SendMessage]

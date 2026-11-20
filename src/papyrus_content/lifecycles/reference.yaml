@@ -1,0 +1,66 @@
+schemaVersion: 1
+record: Reference
+title: Reference
+summary: >-
+  A Reference is one source the newsroom may use. It is collected by a monitor, delivered as pending, captured and summarised, predicted, accepted or rejected, rated and
+  grouped with the others about the same document or story. A pending Reference nobody decides is not an error: it stays pending and is counted.
+stages:
+  - id: collected
+    title: Collected
+    mover: monitor
+    person: never
+    nobodyActs:
+      kind: moves_on
+      text: The monitor looks again at its own schedule; nothing waits here.
+  - id: delivered
+    title: Delivered (pending)
+    mover: monitor
+    person: never
+    nobodyActs:
+      kind: moves_on
+      text: The router delivers each new item once; a Reference that was delivered is pending and goes on to capture.
+  - id: captured
+    title: Captured and summarised
+    mover: intake
+    person: never
+    text: A person is needed only to paste text a machine could not read; that is a correction, not a stage.
+    nobodyActs:
+      kind: retries
+      then: flags
+      text: A capture that failed for a transient reason has a due time and is retried once by its timer. A final failure waits for a person and shows capture_failed on the card.
+  - id: predicted
+    title: Predicted
+    mover: accept
+    person: never
+    nobodyActs:
+      kind: retries
+      then: stays
+      text: An outage of the Cyclotron leaves the Reference undecided and the request is posted again once; if that fails the Reference stays pending and is counted.
+  - id: decided
+    title: Accepted or rejected
+    mover: accept
+    person: by_policy
+    rung: publish_auto
+    text: A person decides below the rung publish_auto; at that rung the acceptance agent accepts at the learned threshold. Rejecting is always a person's decision.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: A pending Reference nobody decides stays pending. It is not an error; Today counts it.
+  - id: rated
+    title: Rated
+    mover: rate
+    person: always
+    why: A five-star rating is always a person's decision; a machine gives three or four stars and never a five.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: An accepted Reference nobody rated shows as a count of unrated References.
+  - id: grouped
+    title: Grouped (same document, same story)
+    mover: knowledge
+    person: always
+    why: A merge of two Concepts or References is confirmed by a person; the knowledge run only suggests it.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: Suggestions wait for a person; none is applied by itself.

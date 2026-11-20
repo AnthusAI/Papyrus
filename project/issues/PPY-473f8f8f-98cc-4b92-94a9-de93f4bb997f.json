@@ -17,10 +17,17 @@
       "text": "Shipped first, PR 1730 (merged to develop): one named rule, src/papyrus_content/publish_by_person.py, called once by publish_item before every other gate. A pod-loaded Story, an imported Story or a translation publishes only when a person publishes by hand (console, or CLI signed in as a person); everything else is refused with person-publish-required (details.storyKind) and words that say how to proceed. Pod load leaves a draft and reports it, import-markus saves Stories as drafts (reported as storiesForAPerson), automatic translation (languages.auto publish:true, --publish-clean), schedules (refused when made), restore/un-retire and agents leave a ready draft. Recorded in docs/releasing.md and docs/story-translation-procedure.md. This block is lifted by the per-language checklist gate (the follow-up of this ticket): delete publish_by_person.py, its one call in publish_item and the by_person argument. Ticket stays open for that gate.",
       "created_at": "2026-11-19T15:12:23.715493Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c50c7f71-6374-4923-9ed5-b74782b56276",
+      "author": "home",
+      "text": "Stage 2 PR 1 of 3 (per-language checklist gate): PR 1731 against develop, branch feat/PPY-473f8f-lang-checklist. Language lineages get translate, faithfulness, copy_edit, human_review and publish rows; publish_item checks the lineage being published; publish_by_person.py and by_person are deleted; imported Stories keep review_people open. Specs: translation-language-checklist.feature and updated story-checklist, pod-load and translation-publishing features. Not merged; stamp/delegation and the translation agent are PRs 2 and 3.",
+      "created_at": "2026-11-19T16:41:00.450310Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-19T11:38:50.837652Z",
-  "updated_at": "2026-11-19T15:12:23.716427Z",
+  "updated_at": "2026-11-19T16:41:00.451293Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

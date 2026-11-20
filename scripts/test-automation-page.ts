@@ -50,7 +50,7 @@ async function main() {
 
   // Each finished run says what came of it in words with a mark; an older run says it was recorded before outcomes.
   for (const expected of [
-    "Outcome: ✓ Did it", "Outcome: ✗ Failed (procedure_error)", "Outcome: – Nothing to do (no_new_filing)",
+    "Outcome: Did it", "Outcome: Failed (procedure_error)", "Outcome: Nothing to do (no_new_filing)",
     "Outcome: Recorded before outcomes",
   ]) assert.ok(detail.includes(expected), `outcome shows: ${expected}`);
   assert.match(html, /data-automation-run-outcome="nothing"/);

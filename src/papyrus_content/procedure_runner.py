@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import agent_wakes, request_meter, run_outcomes, wake_keys
+from . import agent_wakes, request_meter, run_outcomes, spend_ledger, wake_keys
 from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
@@ -28,6 +28,7 @@ from .agent_policy import Gate, PolicyGate, PolicyNotLocated, PolicyUnreadable, 
 from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
+from .tenancy import TENANT_ID_ENVIRONMENT_VARIABLE, TenantError, validate_tenant_id
 
 SECONDS_KEPT_FOR_RECORDING = 60
 MAX_TIMEOUT_SECONDS = 840          # the Lambda's 15 minutes less the recording margin; an automation's limit is capped here
@@ -65,13 +66,14 @@ def validate_request(request: dict) -> dict:
         raise ProcedureNotRunnable(str(invalid)) from invalid
     if not isinstance(request.get("input") or {}, dict):
         raise ProcedureNotRunnable("input must be an object")
-    tenant_id, site_bucket = str(request.get("tenantId") or ""), str(request.get("siteBucket") or "")
-    if tenant_id:
-        from .tenancy import TenantError, validate_tenant_id
+    tenant_id, site_bucket = request.get("tenantId"), str(request.get("siteBucket") or "")
+    if tenant_id is not None:   # present means a publication tenant: a string that is a valid tenant id, never an empty or coerced value
         try:
-            validate_tenant_id(tenant_id)
-        except TenantError as invalid:
-            raise ProcedureNotRunnable(str(invalid)) from invalid
+            if not isinstance(tenant_id, str):
+                raise ValueError("tenant must be a string")
+            tenant_id = validate_tenant_id(tenant_id)
+        except (TenantError, ValueError) as invalid:
+            raise ProcedureNotRunnable("tenantId must be a valid publication tenant id") from invalid
     if site_bucket and not S3_BUCKET.match(site_bucket):
         raise ProcedureNotRunnable("siteBucket must be an S3 bucket name")
     timeout = request.get("timeoutSeconds")
@@ -217,8 +219,33 @@ def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
     if not calls:
         return (extra or None), None
     estimate = estimate_cost(calls)
-    summary = {key: estimate[key] for key in ("complete", "unpricedModels", "calls", "promptTokens", "completionTokens", "models")}
+    summary = {key: estimate[key] for key in ("complete", "unpricedModels", "unpricedCalls", "calls", "promptTokens", "completionTokens", "models")}
+    tiers: dict[str, int] = {}
+    for call in calls:
+        if call.get("tier"):
+            tiers[str(call["tier"])] = tiers.get(str(call["tier"]), 0) + 1
+    if tiers:
+        summary["tiers"] = tiers   # the tier each model call was made for; the model is in `models` and on every call in `perCall`
     return {**summary, "perCall": calls[:MAX_RECORDED_CALLS], **extra}, estimate["costUsd"]
+
+
+def spend_of(request: dict, decision, usage: dict | None, cost_usd: float | None) -> dict | None:
+    """What the ledger needs to count this run: the site, the agent that made it, the budget period of the site's policy and the model calls with their cost.
+    None when the run made no model call. A site with no budget in its policy is counted by the month."""
+    if not usage or not usage.get("calls") or not request.get("tenantId"):
+        return None
+    site = (decision.state.document.get("site") or {}) if decision.state is not None else {}
+    return {"tenantId": request["tenantId"], "responsibility": decision.responsibility, "period": (site.get("budget") or {}).get("period", "month"),
+            "costUsd": cost_usd, "calls": usage["calls"], "unpricedCalls": usage.get("unpricedCalls", 0)}
+
+
+def record_spend(table, result: dict, *, moment: datetime | None = None) -> None:
+    """Add a finished run's cost to the spend ledger, once. A run that made no model call adds nothing."""
+    spend = result.get("spend")
+    if table is None or not spend:
+        return
+    spend_ledger.record_run(table, tenant_id=spend["tenantId"], responsibility=spend["responsibility"], run_id=result["runId"], period=spend["period"],
+                            cost_usd=spend["costUsd"], calls=spend["calls"], unpriced_calls=spend["unpricedCalls"], moment=moment or datetime.now(timezone.utc))
 
 
 def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], str]) -> dict:
@@ -336,7 +363,7 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         agent_assignments.finish(client, handoff["assignment"], handoff["agent"], run_id=run_id, outcome=ended["outcome"], reason=ended["outcomeReason"],
                                  summary=record["resultSummary"], error=None if succeeded else ended["error"], now=record["finishedAt"])
     return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "versionId": procedure["version"]["id"],
-            **decision.run_fields(),
+            **decision.run_fields(), "responsibility": decision.responsibility, "spend": spend_of(request, decision, usage, cost_usd),
             "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
             "seconds": outcome.get("seconds"),
             "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
@@ -344,17 +371,20 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
-    environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")}
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")
+                   and key != TENANT_ID_ENVIRONMENT_VARIABLE}
     environment.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam", HOME="/tmp",
                        PYTHONUNBUFFERED="1")
+    if request.get("tenantId"):
+        environment[TENANT_ID_ENVIRONMENT_VARIABLE] = request["tenantId"]
     if request.get("procedureKey"):
         environment[request_meter.ENV_CALLER] = f"stage:{request['procedureKey']}"   # the stage's own requests are attributed to it
     if openai_api_key:
         environment["OPENAI_API_KEY"] = openai_api_key
     # Where the site's own store is, for a procedure that reads a site document (the announce agent reads the lists' settings). Never inherited from the runner's own process.
-    environment.pop("PAPYRUS_TENANT_ID", None), environment.pop("PAPYRUS_SITE_BUCKET", None)
+    environment.pop("PAPYRUS_SITE_BUCKET", None)   # the tenant id above is the request's own or absent; the bucket only goes with a tenant
     if request.get("tenantId") and request.get("siteBucket"):
-        environment.update(PAPYRUS_TENANT_ID=request["tenantId"], PAPYRUS_SITE_BUCKET=request["siteBucket"])
+        environment["PAPYRUS_SITE_BUCKET"] = request["siteBucket"]
     return environment
 
 
@@ -398,6 +428,11 @@ def handler(event, context):
             openai_api_key = boto3.client("ssm").get_parameter(Name=request["openaiKeyParameter"],
                                                                WithDecryption=True)["Parameter"]["Value"]
         os.environ.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam")
+        # A warm worker may have served a different publication. Scope parent reads
+        # and post-run triggers too, and clear tenant context for dedicated sites.
+        os.environ.pop(TENANT_ID_ENVIRONMENT_VARIABLE, None)
+        if request.get("tenantId"):
+            os.environ[TENANT_ID_ENVIRONMENT_VARIABLE] = request["tenantId"]
         client = PapyrusGraphQLAuthoringClient()
         policy = policy_for(request, client, lambda: boto3.client("s3"))
         seconds_available = context.get_remaining_time_in_millis() / 1000 if hasattr(context, "get_remaining_time_in_millis") else 840
@@ -416,6 +451,7 @@ def handler(event, context):
     if result.get("duplicate"):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
+    record_spend(table, result)   # after the trigger row, so a ledger error never leaves a finished run's row looking unfinished
     if result.get("skipped"):
         return result   # the policy started nothing: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":

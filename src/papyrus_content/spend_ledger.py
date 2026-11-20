@@ -1,0 +1,109 @@
+"""The one spend ledger: a counter for each scope and budget cycle (PPY-fa165c, slice G1).
+
+A scope is what is being counted (``ai`` for a site's whole model spend, ``ai:<responsibility>`` for one agent) and a cycle is the budget period of the site's
+agent policy (``day``, ``week`` or ``month``) that contains the moment. The ledger holds numbers only, in integer millionths of a dollar so that adding is exact.
+
+It lives in the shared monitoring table, because the procedure runner is one stack for every site and a site's own tables cannot be named in its role. A
+row's partition key starts with ``SPEND#<tenant>#``, which is the one key prefix the runner's role may write besides its trigger rows::
+
+    pk = SPEND#<tenant>#<scope>#<cycle start>   sk = TOTAL        microUsd, calls, unpricedCalls, updatedAt
+    pk = SPEND#<tenant>#<scope>#<cycle start>   sk = RUN#<run id> a marker: this run was counted here (ttl: it only has to outlive a redelivery)
+
+A run is counted once. The markers and the totals of every scope the run belongs to are written in one transaction, and a marker that already exists cancels the
+whole transaction, so a wake that is delivered twice adds its cost once. A model call with no price is counted in ``unpricedCalls`` and never as free: the total
+of a cycle that has any is ``partial`` and says how many calls it does not include.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any, Mapping
+
+PERIODS = ("day", "week", "month")
+KEY_PREFIX = "SPEND#"
+TOTAL_SORT_KEY = "TOTAL"
+MARKER_SORT_PREFIX = "RUN#"
+MARKER_LIFETIME = timedelta(days=30)   # longer than the queue keeps a message, so no redelivery meets a missing marker
+MICRO = Decimal(1_000_000)
+
+
+class SpendError(Exception):
+    """The ledger could not be written."""
+
+
+def cycle_start(period: str, moment: datetime) -> date:
+    """The first day of the budget cycle that contains ``moment`` (UTC): the day itself, the Monday of its week, or the first of its month."""
+    if period not in PERIODS:
+        raise ValueError(f"A budget period is one of {', '.join(PERIODS)}, not {period!r}.")
+    day = moment.astimezone(timezone.utc).date()
+    if period == "day":
+        return day
+    if period == "week":
+        return day - timedelta(days=day.weekday())
+    return day.replace(day=1)
+
+
+def scopes_of(responsibility: str | None) -> list[str]:
+    """The scopes a run's spend is added to: the site's, and the agent's when an agent made the run."""
+    return ["ai", f"ai:{responsibility}"] if responsibility else ["ai"]
+
+
+def partition_key(tenant_id: str, scope: str, start: date) -> str:
+    return f"{KEY_PREFIX}{tenant_id}#{scope}#{start.isoformat()}"
+
+
+def micro_usd(cost_usd: Any) -> int:
+    """Whole millionths of a dollar for a cost in dollars; nothing for a run that priced no call."""
+    return int((Decimal(str(cost_usd or 0)) * MICRO).to_integral_value())
+
+
+@dataclass(frozen=True)
+class Spent:
+    """What one scope's cycle holds. ``partial`` when some call had no price: the total is then at least ``usd``."""
+    microUsd: int
+    calls: int
+    unpricedCalls: int
+
+    @property
+    def usd(self) -> Decimal:
+        return Decimal(self.microUsd) / MICRO
+
+    @property
+    def partial(self) -> bool:
+        return self.unpricedCalls > 0
+
+
+def record_run(table: Any, *, tenant_id: str, responsibility: str | None, run_id: str, period: str, cost_usd: Any, calls: int, unpriced_calls: int,
+               moment: datetime) -> bool:
+    """Add one finished run's cost to its scopes for the cycle that contains ``moment``. True when it was added, False when this run was counted already."""
+    if not tenant_id or not run_id:
+        raise SpendError("A run is counted for a site and by its run id.")
+    start = cycle_start(period, moment)
+    stamp = moment.astimezone(timezone.utc).isoformat()
+    expires = int((moment + MARKER_LIFETIME).timestamp())
+    items: list[dict[str, Any]] = []
+    for scope in scopes_of(responsibility):
+        key = partition_key(tenant_id, scope, start)
+        items.append({"Put": {"TableName": table.name, "Item": {"pk": key, "sk": f"{MARKER_SORT_PREFIX}{run_id}", "ttl": expires},
+                              "ConditionExpression": "attribute_not_exists(pk)"}})
+        items.append({"Update": {"TableName": table.name, "Key": {"pk": key, "sk": TOTAL_SORT_KEY},
+                                 "UpdateExpression": "ADD microUsd :cost, calls :calls, unpricedCalls :unpriced SET updatedAt = :stamp",
+                                 "ExpressionAttributeValues": {":cost": micro_usd(cost_usd), ":calls": calls, ":unpriced": unpriced_calls, ":stamp": stamp}}})
+    try:
+        table.meta.client.transact_write_items(TransactItems=items)
+    except Exception as error:   # a botocore ClientError; read by its response so this module needs no AWS library to be imported
+        response = getattr(error, "response", None)
+        if not isinstance(response, dict):
+            raise
+        reasons = response.get("CancellationReasons") or []
+        if response.get("Error", {}).get("Code") == "TransactionCanceledException" and any(r.get("Code") == "ConditionalCheckFailed" for r in reasons):
+            return False   # the marker of this run is already there: its cost was added when the wake was first delivered
+        raise SpendError(f"The spend of run {run_id} could not be added to the ledger: {error}") from error
+    return True
+
+
+def spent(table: Any, *, tenant_id: str, scope: str, period: str, moment: datetime) -> Spent:
+    """What a scope's cycle holds now (zero when nothing was counted)."""
+    item = table.get_item(Key={"pk": partition_key(tenant_id, scope, cycle_start(period, moment)), "sk": TOTAL_SORT_KEY}, ConsistentRead=True).get("Item") or {}
+    return Spent(int(item.get("microUsd", 0)), int(item.get("calls", 0)), int(item.get("unpricedCalls", 0)))

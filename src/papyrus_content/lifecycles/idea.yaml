@@ -1,0 +1,41 @@
+schemaVersion: 1
+record: Idea
+title: Idea
+summary: >-
+  An idea is an Item at the idea stage. It is generated, then selected (by an editor, or by the selecting agent at a rung that allows it), then assigned for research, or
+  spiked with a reason. An idea nobody selects stays an idea: ideas are never spiked, closed or removed for their age.
+stages:
+  - id: generated
+    title: Generated
+    mover: ideate
+    person: never
+    text: The ideating agent files an idea only when it adds something its source does not say; one that only summarises its Reference is not filed.
+    nobodyActs:
+      kind: moves_on
+      text: Nothing waits here; the idea is filed at the idea stage and waits to be selected.
+  - id: selected
+    title: Selected
+    mover: select
+    person: by_policy
+    rung: draft
+    text: At the rung propose and below the agent recommends ideas and selects none, so a person selects. At draft and above the agent selects, and it must be picky. It compares each idea with the section's mission and the section's recent Stories and takes at most what the site's policy allows.
+    nobodyActs:
+      kind: stays
+      counted: true
+      text: An idea nobody selects stays an idea. It is counted and never silently removed; ideas are never spiked for age.
+  - id: assigned
+    title: Assigned for research
+    mover: select
+    person: never
+    nobodyActs:
+      kind: flags
+      text: A research Assignment that failed is flagged once and waits for the person who asked; the idea stays at the assignment stage.
+  - id: spiked
+    title: Spiked
+    mover: select
+    person: by_policy
+    rung: draft
+    text: Spiking is viable. An idea is spiked only with a reason, by a person or by an agent whose rung allows it, and the reason is recorded with the idea.
+    nobodyActs:
+      kind: moves_on
+      text: A spiked idea is final; the record keeps its reason.
