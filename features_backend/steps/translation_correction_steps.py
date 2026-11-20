@@ -154,6 +154,12 @@ def step_conflict(context):
     assert any(entry.get("conflict") for entry in _provenance(context)["alignment"]), _provenance(context)["alignment"]
 
 
+@then("the newest translation is held saying the person's wording no longer matches the English")
+def step_conflict_held(context):
+    provenance = _provenance(context)
+    assert provenance["outcome"] == "held" and "no longer matches the English" in provenance["reason"], (provenance["outcome"], provenance["reason"])
+
+
 @then('the title and the first paragraph of the newest translation say "{text}"')
 def step_every(context, text):
     row = _latest(context)

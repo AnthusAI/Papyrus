@@ -24,41 +24,99 @@ export const announcementsSchemaDefinitions = {
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.group("admin").to(["read"])]),
   /**
-   * One announcement of a Story on the publication's X account: the audit row (who, what, when, post id, cost, mode, outcome). id = "<accountId>#<storyLineageId>",
-   * created with a condition so a Story is announced once per account. The post text is in S3 (ModelAttachment role announcement_document). Editors and admins read;
-   * the announcement pipeline writes.
+   * An Announcement: the decision to say something about one or more Stories (docs/announcement-records.md). It knows nothing about channels and holds no approval;
+   * a Delivery holds both. id is made from the once-only key (dedupeKey), and created with a condition, so a decision is made once. The Stories it is about are
+   * `announces` relations, with the version looked at. Short fields only: no text. The model named `Announcement` (the old X row shape, with its
+   * account index and round counter) is gone: an X post is an Announcement with one Delivery. Editors and admins read; the announcement pipeline writes.
    */
-  Announcement: a
+  AnnouncementDecision: a
     .model({
       id: a.id().required(),
-      accountId: a.string().required(),
-      accountHandle: a.string(),
-      storyLineageId: a.id().required(),
-      storyItemId: a.id(),
-      storyVersionNumber: a.integer(),
-      channel: a.string().required(),
+      tenantId: a.string(),
+      dedupeKey: a.string().required(),
+      kind: a.string().required(),
       state: a.string().required(),
-      blockedReason: a.string(),
-      mode: a.string().required(),
+      releaseAt: a.datetime().required(),
+      createdBy: a.string().required(),
       trigger: a.string(),
-      link: a.string(),
-      weight: a.integer(),
-      draftedBy: a.string(),
-      checks: a.json(),
-      postId: a.string(),
-      postedAt: a.datetime(),
-      cost: a.string(),
-      attempts: a.integer(),
-      round: a.integer(),
-      error: a.string(),
       history: a.json(),
-      withdrawnBy: a.string(),
-      withdrawnAt: a.datetime(),
+      revision: a.integer().required(),
       createdAt: a.datetime().required(),
       updatedAt: a.datetime().required(),
     })
     .secondaryIndexes((index) => [
-      index("accountId").sortKeys(["createdAt"]).queryField("listAnnouncementsByAccountAndCreatedAt"),
+      index("tenantId").sortKeys(["id"]).queryField("listAnnouncementDecisionsByTenant"),
+      index("dedupeKey").sortKeys(["createdAt"]).queryField("listAnnouncementDecisionsByDedupeKeyAndCreatedAt"),
+      index("state").sortKeys(["releaseAt"]).queryField("listAnnouncementDecisionsByStateAndReleaseAt"),
+    ])
+    .disableOperations(["subscriptions"])
+    .authorization((allow) => [allow.groups(editors).to(["read"])]),
+  /**
+   * A Delivery: one channel's version of an Announcement (docs/announcement-records.md). The words and any picture are files in S3 (textKey, imageKey, contentHash);
+   * the row never holds text. id is `<announcement>#<channel>#<account>#g<generation>`, created with a condition: one live Delivery for each Announcement, channel and
+   * account, and a correction is the next generation, written with `supersedes`. Every edit is a new version: `versions` is the log (each version's file, key, hash, who saved it and which
+   * version it replaced; the words themselves are files in S3) and `candidates` the texts and pictures kept beside the draft. Approval lives here, per Delivery. Every wait is a named time (releaseAt, lockAt,
+   * nextAttemptAt with waitingFor); dueAt is the earliest of them and, with dueKey, is present only while one is pending, so the due index is sparse.
+   */
+  Delivery: a
+    .model({
+      id: a.id().required(),
+      tenantId: a.string(),
+      announcementId: a.string().required(),
+      channel: a.string().required(),
+      accountId: a.string().required(),
+      accountKey: a.string().required(),
+      audience: a.string().array(),
+      mode: a.string().required(),
+      state: a.string().required(),
+      blockedReason: a.string(),
+      generation: a.integer().required(),
+      version: a.integer().required(),
+      textKey: a.string(),
+      imageKey: a.string(),
+      contentHash: a.string(),
+      draftedBy: a.string(),
+      checks: a.json(),
+      versions: a.json(),
+      candidates: a.json(),
+      approval: a.string().required(),
+      approvalPolicy: a.string().required(),
+      approvedVersion: a.integer(),
+      approvedBy: a.string(),
+      approvedAt: a.datetime(),
+      releaseAt: a.datetime().required(),
+      lockAt: a.datetime().required(),
+      lockedAt: a.datetime(),
+      lockedVersion: a.integer(),
+      preferredVersion: a.integer(),
+      machineVersion: a.integer(),
+      exampleScope: a.string(),
+      exampleState: a.string(),
+      exampleAt: a.datetime(),
+      exampleKey: a.string(),
+      nextAttemptAt: a.datetime(),
+      waitingFor: a.string(),
+      dueAt: a.datetime(),
+      dueKey: a.string(),
+      resultUrl: a.string(),
+      providerId: a.string(),
+      cost: a.string(),
+      counts: a.json(),
+      attempts: a.json(),
+      supersedes: a.string(),
+      supersededBy: a.string(),
+      history: a.json(),
+      revision: a.integer().required(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+    })
+    .secondaryIndexes((index) => [
+      index("tenantId").sortKeys(["id"]).queryField("listDeliveriesByTenant"),
+      index("announcementId").sortKeys(["createdAt"]).queryField("listDeliveriesByAnnouncementAndCreatedAt"),
+      index("accountKey").sortKeys(["createdAt"]).queryField("listDeliveriesByAccountKeyAndCreatedAt"),
+      index("dueKey").sortKeys(["dueAt"]).queryField("listDeliveriesByDueKeyAndDueAt"),
+      // Sparse: only a Delivery that is an active example carries exampleKey, so the drafter reads a scope's examples newest first and never scans.
+      index("exampleKey").sortKeys(["exampleAt"]).queryField("listDeliveriesByExampleKeyAndExampleAt"),
     ])
     .disableOperations(["subscriptions"])
     .authorization((allow) => [allow.groups(editors).to(["read"])]),

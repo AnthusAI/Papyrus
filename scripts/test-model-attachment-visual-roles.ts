@@ -12,7 +12,7 @@ import {
 
 const SHA = "a".repeat(64);
 const good = { ownerKind: "item", ownerId: VISUAL_STYLE_OWNER_ID, role: "visual_example", mediaType: "image/png", byteSize: 200_000, sha256: SHA, sortKey: SHA, filename: `${SHA}.png` };
-const general = new Set(["application/json", "text/plain"]);
+const general = new Set(["application/json", "text/plain", "text/markdown"]);
 
 // The two new roles take PNG, JPEG and WebP up to 10 MB, stored under the profile's own item.
 assert.doesNotThrow(() => assertVisualUpload(good));
@@ -44,6 +44,8 @@ assert.equal(mediaTypeAllowedForRole("image_record", "image/png", general), fals
 // Guideline documents are JSON; the files they name are raw bytes; neither takes pictures.
 assert.equal(mediaTypeAllowedForRole("doctrine_document", "application/json", general), true);
 assert.equal(mediaTypeAllowedForRole("doctrine_document", "image/png", general), false);
+assert.equal(mediaTypeAllowedForRole("doctrine_files", "text/markdown", general), true);
+assert.equal(mediaTypeAllowedForRole("doctrine_files", "image/png", general), false);
 assert.equal(mediaTypeAllowedForRole("doctrine_asset", "application/octet-stream", general), true);
 assert.equal(mediaTypeAllowedForRole("doctrine_asset", "application/json", general), false);
 assert.equal(mediaTypeAllowedForRole("metadata", "application/octet-stream", general), false);
@@ -54,7 +56,7 @@ assert.equal(byteLimitForRole("metadata", 25 * 1024 * 1024), 25 * 1024 * 1024);
 // The function applies these rules and registers the roles; items keep the private newsroom prefix.
 const source = readFileSync(join(process.cwd(), "amplify/functions/model-attachment-upload/handler.ts"), "utf8");
 assert.match(source, /"visual_example",\s*\n\s*"visual_negative",/);
-assert.match(source, /"doctrine_document",\s*\n\s*"doctrine_asset",\n\]\);/, "guideline documents and their files are accepted roles");
+assert.match(source, /"doctrine_document",\s*\n\s*"doctrine_asset",\s*\n\s*"doctrine_files",\n\]\);/, "guideline documents and their files are accepted roles");
 assert.match(source, /assertVisualUpload\(/);
 assert.match(source, /ownerKind === "publishedItem" \? "media\/payloads" : "newsroom\/payloads"/, "only published items are stored under the public prefix");
 

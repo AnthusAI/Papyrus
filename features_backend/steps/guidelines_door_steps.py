@@ -51,10 +51,10 @@ def step_recorded(context, name):
     assert context.backend.items[0]["versionCreatedBy"] == name
 
 
-@then("the catalog row holds no text and the document is stored as one file")
+@then("the catalog row holds no text and each guideline file is stored as one file")
 def step_catalog(context):
     row = context.backend.items[0]
-    assert row["bodyMarkus"] == "" and row["body"] == [] and len(context.backend.bodies) == 1 and len(context.backend.attachments) == 1
+    assert row["bodyMarkus"] == "" and row["body"] == [] and len(context.backend.bodies) == len(context.backend.attachments) == len(WRITING) - 1
     assert row["slug"] == "editorial-doctrine-writing"
 
 
@@ -190,7 +190,7 @@ def step_changed(context):
 
 @when('an admin saves a document with an empty tone sentence and an unknown field "{field}"')
 def step_invalid(context, field):
-    context.answer = save(context.backend, ADMIN, {"schemaVersion": 1, "tone": ["ok", ""], field: 1}, request="invalid")
+    context.answer = save(context.backend, ADMIN, {"schemaVersion": 2, "tone": ["ok", ""], field: 1}, request="invalid")
 
 
 @then('the door lists the problems on the fields "{first}" and "{second}" and nothing new is stored')
@@ -233,7 +233,7 @@ def step_lists_kinds(context, a, b, c):
 
 @given('a section "{section}" with its own tone and audience')
 def step_section(context, section):
-    document = {"schemaVersion": 1, "tone": ["Dry."], "audience": "Specialists"}
+    document = {"schemaVersion": 2, "tone": ["Dry."], "audience": "Specialists"}
     answer = save(context.backend, ADMIN, document, section=section, guard="none", request="section")
     assert answer["ok"], answer
 

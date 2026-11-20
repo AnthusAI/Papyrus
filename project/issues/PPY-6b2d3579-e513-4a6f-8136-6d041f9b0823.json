@@ -30,10 +30,24 @@
       "text": "Decision (Ryan, 2026-11-12): a short freeze of Shipped and Distinctive sends during each move is fine. Open-questions list updated: question 1 answered, question 2 (old link lifetime) remains.",
       "created_at": "2026-11-12T13:04:32.335678Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3da6af20-e6b4-48c0-a640-0cbf4615b5ce",
+      "author": "home",
+      "text": "Branch feat/PPY-6b2d35-subscriber-ownership, PR https://github.com/AnthusAI/Papyrus/pull/1702. Built: migration tooling (plan, run --dry-run, run, verify), dated legacy_links step, list kind, specs, docs. Nothing was run against any real site or AWS. Questions for Ryan: (1) Old-link end date: manage tokens never expire, so 'until the last old email is older than the link lifetime' has no end; please pick a date per site (the run takes --old-links-until). (2) Freeze window for Shipped and Distinctive sends: agree per site before each run. (3) Addresses that unsubscribed on the newsletter are not carried (a new signup is a fresh consent); confirm, or say to carry them as suppressed. (4) The newsletter stored the confirming visitor's raw IP in consent evidence (confirmIp); the run copies evidence verbatim. Keep verbatim, or hash it? (5) Front end: once the newsletter plugin leaves a site, /newsletter/preferences/, /newsletter/unsubscribe/ and /api/newsletter/unsubscribe (old one-click) must lead to the notifications pages and route with the token unchanged; needs a design call (static redirect pages need an external script under the strict CSP). Also: Caducus 0.4.0 MemoryStore.by_recipient is not sparse like the real byRecipient index, so erasing a subscriber that has an alias row fails in fakes; the specs patch it in the test harness; worth a Caducus fix. Open: the roundup list is declared with kind roundup but the newsletter.issue kind is registered by the issue-kind story.",
+      "created_at": "2026-11-19T04:53:14.811080Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "dd1b7cb5-694c-4eb1-b8e7-50191146e467",
+      "author": "home",
+      "text": "Merged to develop in PR #1702 (migration tooling with fakes only; nothing run on any site). Open, needs Ryan: (1) old-link end date per site; (2) send freeze window per site (Shipped, Distinctive); (3) confirm addresses that unsubscribed on the newsletter are not carried; (4) copy confirmIp verbatim or hash; (5) front-end redirect design for old newsletter page and one-click URLs. Unmet: one owner (@wip) until both sites verified live.",
+      "created_at": "2026-11-19T07:24:31.043067Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T12:46:02.655226Z",
-  "updated_at": "2026-11-12T13:04:32.335915Z",
+  "updated_at": "2026-11-19T07:24:31.043328Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

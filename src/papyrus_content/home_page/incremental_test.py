@@ -354,7 +354,7 @@ def test_a_dry_run_saves_no_state(site):
 
 
 def test_usable_state_checks_every_condition():
-    settings = type("S", (), {"references": type("R", (), {"fields": ("key",), "recommended_threshold": 0.5, "summary_characters": 240})()})()
+    settings = type("S", (), {"floor_stars": None, "references": type("R", (), {"fields": ("key",), "recommended_threshold": 0.5, "summary_characters": 240})()})()
     fingerprint = fingerprint_of(settings, CORPUS)
     assert fingerprint != fingerprint_of(settings, "another-corpus")
     body = json.dumps({"references": [{"key": "a1"}]}).encode()

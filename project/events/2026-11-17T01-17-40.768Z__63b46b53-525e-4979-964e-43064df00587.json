@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "63b46b53-525e-4979-964e-43064df00587",
+  "issue_id": "PPY-1a322a50-7d71-4904-aa13-931b0b58c953",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-17T01:17:40.768Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Run outcomes in the console use Lucide icons with the outcome word, not text glyphs",
+    "description": "**Problem.** The console shows run outcomes as text glyphs (`✓ – ? ✗ !`) taken from the server string, not Lucide icons. The standing rule is Lucide icons only, and status must show as marks and words, never colour alone (Ryan is colourblind). The words are present today, so it is accessible, but it breaks the icon rule. The console's Recent Runs panel was also left alone when run outcomes were added (PPY-f58445).\n\n**Change.** Show each run outcome (acted, nothing, asked, failed, unknown) in the console as a Lucide icon plus the outcome word. The icons differ by shape, not only by colour. The CLI keeps its text marks. Today v1 (PPY-5bcf42) uses the same component.\n\n**Acceptance criteria**\n- Every outcome renders a distinct Lucide icon and its word; no text glyph from the server string is shown.\n- Without any colour (greyscale) the five outcomes are still distinguishable by icon and word.\n- Recent Runs panel uses the same component.\n\n**Gherkin features needed**\n- run-outcome-display.feature: 'each outcome shows a distinct icon and its word'; 'outcomes are distinguishable without colour'.\n\n**Dependencies:** relates PPY-f58445 and PPY-5bcf42 (Today v1, in flight; share the component, land Today first).\n\n**Report:** papyrus-track-report-1.md, section 2 (Lucide icons only), section 1 (#1625 row).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-76781314-e642-4b7a-a69a-c5e24bf8f469",
+    "labels": [
+      "always-on-agents"
+    ]
+  }
+}

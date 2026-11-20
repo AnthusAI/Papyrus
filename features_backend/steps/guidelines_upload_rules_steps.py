@@ -23,9 +23,9 @@ def step_files(context):
     context.refusal = None
 
 
-@then('the saved file is a "{role}" of JSON, which the upload function\'s rules accept')
+@then('each saved guideline file is a "{role}" file of Markdown, which the upload function\'s rules accept')
 def step_stored(context, role):
-    assert [(a["role"], a["mediaType"]) for a in context.backend.attachments] == [(role, "application/json")]
+    assert context.backend.attachments and {(a["role"], a["mediaType"]) for a in context.backend.attachments} == {(role, "text/markdown")}
 
 
 @when('a "{role}" file of type "{media_type}" is offered to the upload function')

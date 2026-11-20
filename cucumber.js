@@ -195,6 +195,12 @@ module.exports = {
     require: ["features/step_definitions/story-preview-heading.steps.js"],
     format: ["summary"],
   },
+  wakeKeyDuplicate: {
+    paths: ["features/wake-key-duplicate.feature"],
+    requireModule: ["tsx/cjs"],
+    require: ["features/step_definitions/wake-key-duplicate.steps.ts"],
+    format: ["summary"],
+  },
   messageHashtags: {
     paths: ["features/message-hashtags.feature"],
     require: ["features/step_definitions/message-hashtags.steps.js"],
@@ -273,6 +279,20 @@ module.exports = {
   storySchedule: {
     paths: ["features/newsroom-story-schedule.feature"],
     require: ["features/step_definitions/story-schedule.steps.js"],
+    format: ["summary"],
+  },
+  // The Story drawer's "where it was announced" and the Announcements list, on the local preview's seeded data (demo mode: no server credentials). Needs `npm run dev:preview`
+  // and PAPYRUS_BASE_URL pointing at it.
+  storyAnnouncements: {
+    paths: ["features/newsroom-story-announcements.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/story-announcements.steps.js"],
+    tags: "",
+    format: ["summary"],
+  },
+  announcementsPage: {
+    paths: ["features/newsroom-announcements.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/newsroom-announcements.steps.js"],
+    tags: "",
     format: ["summary"],
   },
   autoAcceptedList: {

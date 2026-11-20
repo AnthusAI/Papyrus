@@ -174,6 +174,8 @@ jobs:
           poetry run biblicus --help > /dev/null
       - name: Pilot identifiers stay out of application logic
         run: python procedures/guards/check_pilot_identifiers.py
+      - name: Procedure registry matches the procedure files
+        run: poetry run python -m papyrus_content.procedure_registry
       # Keep this boundary visible independently of broad-suite collection: it
       # imports and executes the real Lambda handler, including payload upload.
       - name: Pending Reference intake handler and concurrency

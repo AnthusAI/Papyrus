@@ -9,6 +9,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGED_DIRECTORY = "papyrus_content/data/corpora"
+PACKAGED_PROCEDURES = "papyrus_content/data/procedures"
 SOURCE_DIRECTORY = REPO_ROOT / "src" / "papyrus_content" / "data" / "corpora"
 
 # `corpora/<name>` defaults that runtime code names literally (a quoted path or a `"corpora" / "<name>"` join).

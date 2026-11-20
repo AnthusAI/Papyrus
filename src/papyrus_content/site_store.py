@@ -13,7 +13,7 @@ A save is three writes in a fixed order, so a save that stops half way is never 
 Until step 3 succeeds the old version is still the one ``read_current`` returns. An object or version row left behind by a
 failed save is harmless: the next save numbers from the highest version row, so it never reuses the orphan.
 
-Nothing calls this yet; the site store and the projection will (PPY-f0ae90, PPY-e572de). S3 and the table are injected:
+Nothing but the agent policy calls this yet (PPY-51ea61); the site store and the projection will (PPY-f0ae90, PPY-e572de). S3 and the table are injected:
 
 * ``s3`` has ``put_object(Bucket=, Key=, Body=, ContentType=)`` and ``get_object(Bucket=, Key=)`` returning ``{"Body": <readable>}``
   (a boto3 S3 client does);
@@ -31,7 +31,7 @@ from typing import Any, Callable
 
 from .tenancy import TENANT_KEY_SEPARATOR, TenantError, validate_tenant_id
 
-SITE_DOCUMENT_KINDS = ("site", "brand", "nav")
+SITE_DOCUMENT_KINDS = ("site", "brand", "nav", "agents", "lists", "listeners")
 SCHEMA_VERSION = 1
 
 #: Index query field, as declared in amplify/data/schema.ts and resource.ts.
@@ -92,10 +92,21 @@ class SiteStore:
             raise SiteStoreError(f"{document_id(tenant_id, kind)} has no version {version}.")
         return self._read_object(row)
 
-    def save(self, tenant_id: str, kind: str, body: dict[str, Any], updated_by: str, *, note: str | None = None) -> int:
-        """Save ``body`` as the next version and make it live. Returns the new version number."""
+    def version_record(self, tenant_id: str, kind: str, version: int) -> dict[str, Any]:
+        """The catalogue row of one version: who saved it (``createdBy``), when (``createdAt``) and why (``note``)."""
+        row = self._table.get("SiteDocumentVersion", version_id(tenant_id, kind, version))
+        if row is None:
+            raise SiteStoreError(f"{document_id(tenant_id, kind)} has no version {version}.")
+        return dict(row)
+
+    def save(self, tenant_id: str, kind: str, body: dict[str, Any], updated_by: str, *, note: str | None = None,
+             expected_version: int | None = None) -> int:
+        """Save ``body`` as the next version and make it live. Returns the new version number.
+
+        With ``expected_version`` the save is refused (``SiteSaveConflict``, nothing written) unless that is still the live version, so a
+        change made from a read of version N never overwrites a version saved after it."""
         data = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        return self._save_bytes(tenant_id, kind, data, updated_by, note)
+        return self._save_bytes(tenant_id, kind, data, updated_by, note, expected_version)
 
     def restore(self, tenant_id: str, kind: str, version: int, updated_by: str) -> int:
         """Make an older version's content live again as a NEW version; history is never rewritten."""
@@ -104,10 +115,12 @@ class SiteStore:
             raise SiteStoreError(f"{document_id(tenant_id, kind)} has no version {version}.")
         return self._save_bytes(tenant_id, kind, self._read_bytes(row), updated_by, f"Restored from version {version}")
 
-    def _save_bytes(self, tenant_id: str, kind: str, data: bytes, updated_by: str, note: str | None) -> int:
+    def _save_bytes(self, tenant_id: str, kind: str, data: bytes, updated_by: str, note: str | None, expected_version: int | None = None) -> int:
         doc_id = document_id(tenant_id, kind)
         document = self._table.get("SiteDocument", doc_id)
         previous = int(document["currentVersion"]) if document else 0
+        if expected_version is not None and expected_version != previous:
+            raise SiteSaveConflict(f"{doc_id} is at version {previous}, not {expected_version}.")
         latest = self._table.latest_version(doc_id)
         version = max(previous, int(latest["version"]) if latest else 0) + 1
         key = version_key(tenant_id, kind, version)

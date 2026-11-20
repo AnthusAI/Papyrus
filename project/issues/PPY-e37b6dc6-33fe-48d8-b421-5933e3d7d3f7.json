@@ -1,0 +1,40 @@
+{
+  "id": "PPY-e37b6dc6-33fe-48d8-b421-5933e3d7d3f7",
+  "title": "Decision: go for the Machines on Machines guideline conversion with its 5.130 bump",
+  "description": "**Decision for Ryan.** Go for the Machines on Machines guideline conversion, in the same window as its 5.130 bump. The 5.130 release breaks writing guidelines on any site not yet converted (translation, glossary, announcements and console save answer `legacy_version`). The cutover is per site: dry run with the new CLI, bump, `papyrus guidelines convert --apply` by a signed-in admin, verify (docs/guidelines-files-cutover.md). Between the bump and the apply, guidelines are unavailable on that site.\n\n**Default if nobody says otherwise:** yes, convert Machines on Machines first, in its bump window. No other site is bumped until its dry-run conversion is clean.\n\n**Acceptance criteria**\n- Ryan's go (or no-go) for Machines on Machines is recorded in a comment here, in his words.\n- Which sites hold version-1 guidelines is read per site (needs the signed-in CLI) and recorded here.\n- Each further site's conversion go is recorded on that site's own line in the Release 5.130 plan task.\n\n**Gherkin features needed:** none (a decision, not a behaviour change).\n\n**Report:** papyrus-track-report-1.md, page one row 2 and section 7 item 4; section 3 risk 3.",
+  "type": "chore",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b7039f30-0a84-423a-a43d-3ab310147a41",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e40d096c-6f94-4825-bafc-3302ad07c56e",
+      "author": "ryan",
+      "text": "Already done: the Machines on Machines guideline conversion was applied on 2026-11-17 (see the note on PPY-e713eb: dry run matched, --apply converted all 3 lineages, a second run shows already_files, resolve and export verified). MoM has since moved to 5.130.3 and 5.134.0. No decision is pending for MoM.",
+      "created_at": "2026-11-20T07:16:33.256808Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "M3 thread"
+      }
+    }
+  ],
+  "created_at": "2026-11-17T01:18:00.416873Z",
+  "updated_at": "2026-11-20T07:16:33.347850Z",
+  "closed_at": "2026-11-20T07:16:33.347822Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "M3 thread"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -62,14 +62,23 @@ def byline(entry: StandardEntry, date_format: str = "", text: str | None = None,
 
 
 def translation_notice(strings, original: dict) -> str:
-    """The line under the byline of a translated page, in the page's language from its interface strings: who translated it and a link to the original.
-    ``original`` is ``{tag, url}`` of the page it was translated from. The line is data the page is given, never part of the Story's text."""
+    """The line under the byline of a translated page, in the page's language from its interface strings. ``original`` is ``{tag, url, kind}``: the page it
+    was translated from and the translation's kind. A machine translation says an AI translated it (``translation.label``, with the link to the original
+    where ``{original}`` is). An imported translation (finished copy a person or another agent wrote) never claims AI and says nothing of who made it, since
+    the byline says that: its line is only the link to the original, in the words of ``translation.original``. The line is data the page is given, never
+    part of the Story's text."""
+    from ...item_language import IMPORTED_TRANSLATION, MACHINE_TRANSLATION
     from .interface_strings import ORIGINAL_PLACEHOLDER, TRANSLATION_LABEL_KEY, TRANSLATION_ORIGINAL_KEY
 
+    kind = original.get("kind") or MACHINE_TRANSLATION
+    if kind not in (MACHINE_TRANSLATION, IMPORTED_TRANSLATION):
+        raise ValueError(f"A translation's kind is {MACHINE_TRANSLATION!r} or {IMPORTED_TRANSLATION!r}, not {kind!r}.")
+    link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'
+    if kind == IMPORTED_TRANSLATION:
+        return f'<p class="markus-translation">{link}</p>'
     before, found, after = strings[TRANSLATION_LABEL_KEY].partition(ORIGINAL_PLACEHOLDER)
     if not found:
         raise ValueError(f"{TRANSLATION_LABEL_KEY} must contain {ORIGINAL_PLACEHOLDER}, where the link to the original goes.")
-    link = f'<a href="{esc(original["url"])}" hreflang="{esc(hreflang_value(original["tag"]))}">{esc(strings[TRANSLATION_ORIGINAL_KEY])}</a>'
     return f'<p class="markus-translation">{esc(before)}{link}{esc(after)}</p>'
 
 

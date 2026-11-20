@@ -54,7 +54,9 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
 - [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.
 - [agent-rules-detail.md](agent-rules-detail.md): the full text behind each rule summarized in AGENTS.md.
+- [agent-briefs.md](agent-briefs.md): the wording to put in every agent brief, and the definition of done for an agent pull request.
 - [releasing.md](releasing.md): lockstep npm and PyPI releases with Semantic Release.
+- [distinctive-bump-plan.md](distinctive-bump-plan.md): staged bump of Distinctive Mark from Papyrus 5.73.0 to 5.130.2 (one index per table per stage, the 5.130 contract, post-bump steps).
 
 ## Layout and reader
 

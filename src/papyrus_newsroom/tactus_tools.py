@@ -76,6 +76,26 @@ def papyrus_curate_reference(reference_id: str, force: bool = False) -> dict:
     return curate_reference_by_id(reference_id, force=force)
 
 
+def papyrus_rate_items() -> dict:
+    """One day's rating work for the site: read the published Stories nobody has rated, decide three stars, four stars or a five-star candidate for each, and,
+    only at a rung the site's policy allows, write the threes and fours through the gate. Never writes a five. Returns the counts, each proposal with its reason,
+    the five-star candidates for a person, and the gate's answers."""
+
+    from papyrus_content.rating_agent import rate_items
+
+    return rate_items()
+
+
+def papyrus_announce_story(story: str, version: str, change: str, what: str = "", stage: str = "") -> dict:
+    """The announce agent's run for one wake: a Story's page went live (stage_entered into published) or its rating changed (rated). Re-reads the Story as it is now and
+    decides from the records, never from the wake: one Announcement and one email Delivery for the Story at a rung the site's policy allows, once however many wakes
+    arrive. At observe it writes nothing. Never sends. Returns the Story, the lists that carry it and what was decided."""
+
+    from papyrus_content.list_cadence.story_wake import announce_story
+
+    return announce_story(story, version, change, what, stage)
+
+
 def papyrus_create_story(title: str, section: str, author_label: str, stage: str = "reporting", summary: str = "", based_on_references: str = "") -> dict:
     """Create a story (a new item lineage) in a section at the idea, assignment or reporting stage.
     Pass the Reference ids the story is based on, comma separated, in based_on_references: each is linked to the story.

@@ -38,10 +38,17 @@
       "text": "Ryan 2026-11-12 answers on the explicit-association exception: (1) applies to both editor-created and AI-suggested associations; (2) the one- or two-star Reference may show both on a Story's related-sources list and on the associated Reference's own page; (3) it counts only when the Story or Reference it hangs off is itself public (Ryan: 'I guess so?', tentative: treat as the default, revisit if it proves wrong). Still to pin down in the Gherkin: whether a pending AI suggestion nobody has accepted counts, or only a stored relation; I read 'AI-suggested' as an association that exists as a stored relation.",
       "created_at": "2026-11-12T13:09:23.789170Z",
       "comment_type": "default"
+    },
+    {
+      "id": "fe8fa54c-c71a-49f8-866e-3c9c7866cf1c",
+      "author": "home",
+      "text": "Shipped in PR #1713 (merged to develop): site setting quality.floorStars in projection.json (1 to 5; 3 if the block has no number; NO block = no floor = no behaviour change). Stories: one filter in StandardMarkusProjector._entries (entries.apply_floor), so listings, home, section and tag pages, collections, fallbacks, feeds, sitemap, llms-full and public data all drop below-floor Stories while their pages stay served. References: home_page.export.is_chosen (accepted and rated at or above the floor only; no recommended; floor in the stored-state fingerprint). Roundup: drafts only Stories at the floor, the rest under a '## Left out' section; newsletter plugin setting floorStars -> FLOOR_STARS (keep equal to quality.floorStars by hand, like itemUrlStyle). Story rating readers now go through effective_rating. Docs: docs/quality-floor.md. Specs: features_backend/three-star-floor.feature.\n\nNOT done, so the ticket stays open: (a) the read-only per-site report of what would drop, by title (rollout step 1); (b) alerts and announcements keep their own hard floor of 3 (a list's minStars can raise it per list); a site-wide raise is not wired into them; (c) the explicit-association exception (1-2 star Reference on a public Story's related list) is not built, and related lists are not filtered by the floor today; Concepts are untouched; (d) the Worth-watching card and select=recommended blocks simply show nothing once a site turns the floor on.\n\nQUESTIONS FOR RYAN: (1) Worth-watching / recommended: retire them everywhere (proposed), or keep a clearly marked AI-only block outside the floor? (2) Rollout order: which site first, anth.us or Machines on Machines, after the report? (3) Confirm an accepted-but-unrated Reference or published-but-unrated Story stays unlisted until rated (implemented that way). (4) The public Reference snapshot still publishes stars on accepted References (PPY-ba2f19) while this ticket says no public file carries a star count, and the minStars include reads it. Keep, or remove once the floor is on?\n",
+      "created_at": "2026-11-19T10:19:50.005135Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T13:02:39.475666Z",
-  "updated_at": "2026-11-12T13:09:23.789871Z",
+  "updated_at": "2026-11-19T10:19:50.005791Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-020300cc-b36e-4410-9c47-ed40ec2f0a7f",
+  "title": "A Slack channel monitor files newsroom talk as Messages",
+  "description": "Scenario: an editor connects #funny to the site; the monitor's next run copies new threads (with replies, authors as Slack display names) into newsroom Messages of kind newsroom_talk, and a later run adds only what is new. Scenario: a message deleted in Slack is withdrawn from the copy on the next run. Scenario: a channel the bot was not invited to is refused at connect time with a plain reason. Runs as a scheduled monitor through the standard automation records; uses the site's Slack connection, token in SSM.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-15050c47-b59b-4ba0-a961-893afcb5b891",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-18T13:34:40.586847Z",
+  "updated_at": "2026-11-18T13:34:40.586899Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

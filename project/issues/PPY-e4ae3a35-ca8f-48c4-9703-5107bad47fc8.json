@@ -3,7 +3,7 @@
   "title": "Story drawer and Announcements list",
   "description": "One Announcement with one line per Delivery in the Story drawer, read through the announces relation with no table listing, and an Announcements list. State is shown with marks and words, never colour alone.\n\n**Acceptance criteria**\n- Gherkin: A Story shows where it was announced (one line per Delivery, read through the relation, no table listing).\n- Lucide icons only; no borders (flat fills, rounded rectangles); colourblind-safe.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Section 13 additions (2026-11-16, always-on agent review; changes E, H, L, M)**\n- Blocked-draft review flag: a Delivery whose draft is blocked shows the open review flag (words and marks, never colour alone), one per Announcement.\n- The list shows \"Overdue\" for any Delivery whose `dueAt` has passed and which has no attempt, and \"Outcome unknown\" for a Delivery with an open or `unknown` attempt, until Caducus settles it.\n- `papyrus announcements explain --story X` reads the eligibility rules and answers on demand why a Story was or was not announced, per channel. No row is written for things that did not happen.\n**Acceptance criteria (added)**\n- Gherkin: a due Delivery with no attempt shows \"Overdue\".\n- Gherkin: a Delivery with an attempt left `started` shows \"Outcome unknown\" until settled.\n- Gherkin: `papyrus announcements explain --story X` names the rule that kept a Story from being announced, and writes nothing.\n- The drawer shows the blocked-draft review flag once per Announcement.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -26,11 +26,32 @@
       "text": "Always-on agent standard: the Announcements list feeds the Today page (PPY-5bcf42, PPY-b6d5ad); 'Overdue' and 'Outcome unknown' use the standard's due and attention indexes; invariant alerts for half-finished corrections come from PPY-9922b2.",
       "created_at": "2026-11-16T22:46:05.711059Z",
       "comment_type": "default"
+    },
+    {
+      "id": "161c46e1-87ff-4a44-aaeb-0b7b30f5fc72",
+      "author": "home",
+      "text": "Branch feat/PPY-e4ae3a-announcements-list, PR #1677 (base develop). Drawer lines and list read announcements_where / announcements_recent through the new read-only announcementsRead door; explain is papyrus announcements explain --story X. Open: the blocked-draft raiser (block_and_flag) is built and specified, its caller arrives with the X rewire (PPY-efd06c).",
+      "created_at": "2026-11-18T14:53:44.306305Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "16d78761-0270-4224-a07e-5fc34c4680f1",
+      "author": "home",
+      "text": "Branch feat/PPY-e4ae3a-announcements-list, PR #1677 (base develop). Drawer lines and list read announcements_where / announcements_recent through the new read-only announcementsRead door; explain is papyrus announcements explain --story X. Open: the blocked-draft raiser (block_and_flag) is built and specified, its caller arrives with the X rewire (PPY-efd06c).",
+      "created_at": "2026-11-18T14:53:57.395196Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e2448336-6d5a-4b64-85f6-69411ed6a34a",
+      "author": "home",
+      "text": "Merged to develop in #1677 (not released). Acceptance met. Caveats: blocked-draft raiser needs a caller from PPY-efd06c; explain covers X only.",
+      "created_at": "2026-11-18T16:53:53.110590Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T21:48:37.669456Z",
-  "updated_at": "2026-11-16T22:46:05.938876Z",
-  "closed_at": null,
+  "updated_at": "2026-11-18T16:53:53.244079Z",
+  "closed_at": "2026-11-18T16:53:53.244046Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

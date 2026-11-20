@@ -9,8 +9,12 @@ The engine records the outcome on the LocalizationRequest as ever. No Automation
 from __future__ import annotations
 
 import os
+import uuid
 from typing import Any
 
+from .. import wake_keys
+
+from ..agent_policy import PersonStart
 from ..procedure_runner import ProcedureNotRunnable, execute_in_child, run_procedure_request
 
 SUFFIX = "story-localize"
@@ -55,10 +59,11 @@ def run_from_cli(client, *, story: str, language: str, ceiling_usd: float | None
         raise ValueError("A run started here executes the procedure in a child process that signs as the operator: use `papyrus --auth iam` "
                          "(AWS credentials for the site), or start it through an automation with --automation.")
     request = {"appsyncEndpoint": client.endpoint, "procedureKey": procedure_key, "actorLabel": "papyrus stories localize",
+               "wakeKey": wake_keys.manual_key(wake_keys.owner(None, procedure_key), uuid.uuid4().hex),
                "input": {"story": story, "language": language, "ceiling_usd": ceiling_usd or 0, "procedure_key": procedure_key},
                "trigger": {"kind": "cli", "title": f"{procedure_key}: {story} into {language}", "summary": "Started with papyrus stories localize"}}
     try:
-        return run_procedure_request(request, client=client, execute=execute, seconds_available=RUN_SECONDS + 60,
+        return run_procedure_request(request, client=client, policy=PersonStart(), execute=execute, seconds_available=RUN_SECONDS + 60,
                                      environment=child_environment(client, openai_api_key=key))
     except ProcedureNotRunnable as error:
         raise ValueError(f"{error}. Register the procedure on this site first: papyrus procedures register --file procedures/newsroom/story_localize.tac "

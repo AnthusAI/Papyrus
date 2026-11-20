@@ -22,12 +22,16 @@ import json
 import os
 import re
 import string
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
+from .policy_location import policy_location
+from . import agent_wakes, run_attention, wake_keys
+from .run_outcomes import outcome_shown
 from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
 from .monitoring_router import (
     PROCEDURE_INPUT_NAME,
@@ -37,17 +41,18 @@ from .monitoring_router import (
 )
 
 KINDS = ("monitor", "schedule", "event", "manual")
-ACTIVE_KINDS = frozenset({"monitor"})
+ACTIVE_KINDS = frozenset({"monitor", "schedule"})   # a schedule automation is started by the schedule trigger (agent_definitions/schedules.py)
 AUTOMATION_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MONITOR_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 ENABLED_NOTE = "the router starts nothing for a disabled automation"
+SCHEDULE_ENABLED_NOTE = "a disabled automation has no schedule entry, so nothing wakes it"
 LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged"
 COST_NOTE = "not recorded for this run"
-RUNNER_FUNCTION = "papyrus-procedure-runner"
 OUTSIDE_FETCH = 25
-RUN_COST_FIELDS = "usage costUsd"
+RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"
 NOT_SUPPORTED = "not yet supported"
 ROUTER_CONFIG_SK = "CONFIG#router"
+REGISTERED_FIELDS = ("definitionId", "definitionVersion", "definitionDigest", "definition", "definitionRetiredAt")   # the registered copy of an agent definition (agent_definitions/registered.py)
 DEFAULT_LIMITS = {"timeoutSeconds": 840}   # no maxConcurrent: no limit on how many run at once, as before slice 2
 MAX_TIMEOUT_SECONDS = 840          # the runner Lambda's 15 minutes less its recording margin
 MAX_TRIGGER_PAGES = 5
@@ -118,6 +123,16 @@ def validate_trigger(trigger: Any) -> dict[str, Any]:
         if not PUBLICATION_ID.match(publication_id):
             raise AutomationError("a monitor trigger needs config.publicationId, the router publication it delivers to.")
         config = {"monitorId": monitor_id, "publicationId": publication_id}
+    if kind == "schedule":
+        # What wakes the agent (its cron and zone) is in its registered definition, not here. The config only names the router publication that
+        # gives each tick the site's endpoint, model key and policy location; a record not yet linked has none.
+        monitor_id, publication_id = str(config.get("monitorId") or ""), str(config.get("publicationId") or "")
+        if monitor_id or publication_id:
+            if not MONITOR_ID.match(monitor_id) or not PUBLICATION_ID.match(publication_id):
+                raise AutomationError("a schedule trigger names its router publication with both config.monitorId (for example ttab) and config.publicationId, or neither.")
+            config = {"monitorId": monitor_id, "publicationId": publication_id}
+        else:
+            config = {}
     if kind == "event" and config.get("event") == STAGE_ENTERED:
         from .content_item_lifecycle import CONTENT_ITEM_STAGES
 
@@ -149,6 +164,8 @@ def validate_input_template(template: Any, trigger: dict[str, Any]) -> dict[str,
         if is_stage_trigger(trigger) and "{" in text:
             raise AutomationError(f"inputTemplate {name}: a story-stage automation's input is static; the engine adds story, version, "
                                   "versionNumber, stage, runKey, automationId and hop.")
+        if trigger["kind"] == "schedule" and "{" in text:
+            raise AutomationError(f"inputTemplate {name}: a schedule automation's input is static: a tick carries no item to fill a placeholder from.")
         if trigger["kind"] == "monitor":
             used = {field for _, field, _, _ in string.Formatter().parse(text) if field is not None}
             unknown = sorted(used - TRIGGER_PLACEHOLDERS)
@@ -204,6 +221,12 @@ def build_record(fields: dict[str, Any], *, existing: dict[str, Any] | None = No
         "updatedBy": actor,
         "updatedAt": now,
     }
+    responsibility = fields.get("responsibility", base.get("responsibility"))
+    if responsibility:   # only ever set by an adoption (automation_adoption.py); never inferred from the procedure or the trigger
+        record["responsibility"] = _text(responsibility, "responsibility", limit=64)
+    for key in REGISTERED_FIELDS:   # the registered copy of an agent definition (agent_definitions/registered.py); set only by registering, carried through every other change
+        if fields.get(key, base.get(key)) is not None:
+            record[key] = fields.get(key, base.get(key))
     if existing:
         record["createdBy"], record["createdAt"] = base.get("createdBy"), base.get("createdAt")
     else:
@@ -217,7 +240,20 @@ def stored_payload(record: dict[str, Any]) -> dict[str, Any]:
                                                  "createdBy", "createdAt", "updatedBy", "updatedAt")}
     for key in ("trigger", "inputTemplate", "limits"):
         payload[key] = json.dumps(record[key])
+    if record.get("responsibility"):   # only sent once adopted, so a site backend that has not got the field is not asked for it
+        payload["responsibility"] = record["responsibility"]
+    for key in REGISTERED_FIELDS:      # likewise only once a definition is registered
+        if record.get(key) is not None:
+            payload[key] = json.dumps(record[key]) if key == "definition" else record[key]
     return payload
+
+
+def registered_schedule(row: dict[str, Any]) -> dict[str, str] | None:
+    """The schedule (cron and time zone) the registered definition names, or None. A retired definition names none."""
+    if row.get("definitionRetiredAt"):
+        return None
+    schedule = ((_parse(row.get("definition"), None) or {}).get("wakes") or {}).get("schedule")
+    return {"cron": schedule["cron"], "timeZone": schedule["timeZone"]} if schedule else None
 
 
 def read_record(row: dict[str, Any]) -> dict[str, Any]:
@@ -228,18 +264,23 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row.get("id"), "title": row.get("title"), "description": row.get("description"),
         "enabled": row.get("enabled") is not False,
-        "enabledNote": ENABLED_NOTE,
+        "enabledNote": SCHEDULE_ENABLED_NOTE if kind == "schedule" else ENABLED_NOTE,
         "trigger": {"kind": kind, "config": trigger.get("config") or {}},
+        "schedule": registered_schedule(row) if kind == "schedule" else None,
         "onStage": (trigger.get("config") or {}).get("onStage") if is_stage_trigger(trigger) else None,
         "nextStage": (trigger.get("config") or {}).get("nextStage") if is_stage_trigger(trigger) else None,
         "maxHops": _parse(row.get("limits"), {}).get("maxHops") if is_stage_trigger(trigger) else None,
         "supported": supported,
         "supportNote": None if supported else NOT_SUPPORTED,
         "procedureKey": row.get("procedureKey"),
+        "responsibility": row.get("responsibility"),
+        "definitionId": row.get("definitionId"), "definitionVersion": row.get("definitionVersion"), "definitionDigest": row.get("definitionDigest"), "definitionRetiredAt": row.get("definitionRetiredAt"),
+        "definition": _parse(row.get("definition"), None),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
         "limitsNote": LIMITS_NOTE,
         "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind, "stageTrigger": is_stage_trigger(trigger),
+                                        "linked": bool((trigger.get("config") or {}).get("monitorId") and (trigger.get("config") or {}).get("publicationId")),
                                         "template": _parse(row.get("inputTemplate"), {})}),
         "createdBy": row.get("createdBy"), "createdAt": row.get("createdAt"),
         "updatedBy": row.get("updatedBy"), "updatedAt": row.get("updatedAt"),
@@ -256,6 +297,8 @@ def run_now_availability(info: dict[str, Any]) -> dict[str, Any]:
         return {"available": False, "reason": NOT_SUPPORTED, "needsInput": False, "inputNames": []}
     if not info["enabled"]:
         return {"available": False, "reason": "disabled", "needsInput": False, "inputNames": []}
+    if info["kind"] == "schedule" and not info.get("linked"):
+        return {"available": False, "reason": "not linked to a router publication", "needsInput": False, "inputNames": []}
     return {"available": True, "reason": None, "needsInput": bool(placeholders), "inputNames": sorted(template)}
 
 
@@ -350,10 +393,21 @@ def monitoring_reader_from_environment(env=None) -> MonitoringReader | None:
 # --- the router link --------------------------------------------------------------------------------------
 
 
+def schedule_link(automation: dict[str, Any]) -> dict[str, Any]:
+    """What starts a schedule automation, in words: the time and zone its registered definition names. Reads only the record."""
+    schedule = automation.get("schedule")
+    if not schedule:
+        return {"state": "schedule", "text": "Starts on a schedule, but its registered definition names none, so nothing wakes it."}
+    publication = "" if automation["trigger"]["config"].get("publicationId") else " It names no router publication yet, so it has no schedule entry."
+    return {"state": "schedule", "text": f"Starts on its schedule: {schedule['cron']} in {schedule['timeZone']}, from its definition.{publication}"}
+
+
 def router_link(automation: dict[str, Any], router: dict | None) -> dict[str, Any]:
     """Whether the router's own `procedureTriggers` entry for this automation exists, and whether it agrees.
 
     The router config is the source; the record mirrors it. This only reads and compares."""
+    if automation["trigger"]["kind"] == "schedule":
+        return schedule_link(automation)
     if automation["trigger"]["kind"] != "monitor":
         return {"state": "not_applicable", "text": NOT_SUPPORTED}
     if router is None:
@@ -453,6 +507,9 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: 
         "sourceId": row.get("sourceId"), "referenceId": row.get("referenceId"),
         "triggerStatus": row.get("status"), "runId": row.get("runId"),
         "status": (run or {}).get("runStatus") or row.get("status"),
+        "outcome": ((run or {}) if run is not None else row).get("outcome") or None,
+        "outcomeReason": ((run or {}) if run is not None else row).get("outcomeReason") or None,
+        "outcomeShown": outcome_shown(run, row),
         "reason": row.get("reason"),
         "startedAt": started, "finishedAt": finished,
         "durationSeconds": _seconds_between((run or {}).get("startedAt"), (run or {}).get("finishedAt")),
@@ -471,8 +528,8 @@ def outside_entry(run: dict, budget: Any = None) -> dict[str, Any]:
     """A ProcedureRun of the same procedure that no trigger row of this automation links to."""
     entry = run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"),
                        "requestedBy": run.get("requestedBy")}, run, False, budget)
-    return {key: entry[key] for key in ("runId", "status", "startedAt", "finishedAt", "durationSeconds", "error", "requestedBy",
-                                        "storyId", "storyVersionId", "storyTitle", "costUsd", "costNote", "overBudget")}
+    return {key: entry[key] for key in ("runId", "status", "outcome", "outcomeReason", "outcomeShown", "startedAt", "finishedAt",
+                                        "durationSeconds", "error", "requestedBy", "storyId", "storyVersionId", "storyTitle", "costUsd", "costNote", "overBudget")}
 
 
 def _row_time(row: dict) -> str:
@@ -508,6 +565,27 @@ def mark_deleted_stories(client, runs: list[dict[str, Any]]) -> None:
         run["storyExists"] = known[story]
 
 
+def schedule_history(automation: dict[str, Any], client, limit: int) -> dict[str, Any]:
+    """A schedule automation's runs are the procedure's runs that name it (the wake's run record carries the automation id); the rest are the procedure's other runs.
+
+    Nothing here reads the monitoring table: a tick is a wake on the queue, not a monitor's trigger row."""
+    budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
+    result = {"link": schedule_link(automation), "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None, "outsideRuns": [], "outsideNotice": None}
+    fetch = getattr(client, "recent_procedure_runs", None)
+    if fetch is None:
+        return result
+    try:
+        found = fetch(automation["procedureKey"], OUTSIDE_FETCH)
+    except Exception:   # the record still shows
+        return {**result, "outsideNotice": "outside_unavailable"}
+    own = [run for run in found if run.get("automationId") == automation["id"]][:limit]
+    runs = [{**run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"), "requestedBy": run.get("requestedBy")}, run, False, budget),
+             "origin": "schedule"} for run in own]
+    mark_deleted_stories(client, runs)
+    others = [outside_entry(run, budget) for run in found if run.get("automationId") != automation["id"]][:limit]
+    return {**result, "runs": runs, "lastRun": runs[0] if runs else None, "outsideRuns": others}
+
+
 def automation_history(automation: dict[str, Any], *, reader: MonitoringReader | None, client, limit: int = DEFAULT_RUN_LIMIT,
                        site_endpoint: str | None = None) -> dict[str, Any]:
     """Router link, recent runs (newest first), the last run and the procedure's other runs for one automation.
@@ -519,6 +597,8 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
     empty = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None,
              "outsideRuns": [], "outsideNotice": None}
     stage_trigger = is_stage_trigger(automation["trigger"])
+    if automation["trigger"]["kind"] == "schedule":
+        return schedule_history(automation, client, limit)
     if automation["trigger"]["kind"] != "monitor" and not stage_trigger:
         return {**empty, "link": router_link(automation, None), "notice": NOT_SUPPORTED}
     if reader is None:
@@ -580,16 +660,6 @@ def automation_overview(client, *, reader: MonitoringReader | None, limit: int =
 # --- run now --------------------------------------------------------------------------------------------------
 
 
-def lambda_invoker(function_name: str | None = None):
-    """Starts the procedure runner asynchronously, as the router does."""
-    name = function_name or os.environ.get("PAPYRUS_PROCEDURE_RUNNER_FUNCTION") or RUNNER_FUNCTION
-
-    def invoke(request: dict) -> None:
-        import boto3  # provided by the Lambda runtime and the operator's environment
-        boto3.client("lambda").invoke(FunctionName=name, InvocationType="Event", Payload=json.dumps(request).encode("utf-8"))
-    return invoke
-
-
 def resolve_manual_input(automation: dict[str, Any], supplied: Any) -> dict[str, Any]:
     """The input for a Run now: what the person gave, else the record's template when it names no item placeholder."""
     if supplied is not None:
@@ -616,7 +686,10 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
     automation is not a monitor automation, is disabled, has no router publication for this site, or is at its
     maxConcurrent (the router defers such a start and retries it; a person is told at once)."""
     if automation["trigger"]["kind"] not in ACTIVE_KINDS:
-        raise AutomationError(f"only monitor automations can be run now; this one is {NOT_SUPPORTED}.")
+        raise AutomationError(f"only monitor and schedule automations can be run now; this one is {NOT_SUPPORTED}.")
+    if not automation["trigger"]["config"].get("monitorId"):
+        raise AutomationError("this automation names no router publication yet, so there is nothing to run it with: "
+                              "papyrus automations update <id> --monitor <monitor> --publication <publication>.")
     if not automation["enabled"]:
         raise AutomationError("this automation is disabled; enable it before running it.")
     if reader is None or (writer is None and not dry_run):
@@ -631,6 +704,9 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
         raise AutomationError("this automation's publication belongs to another site.")
     if not publication.get("openaiKeyParameter"):
         raise AutomationError("the router publication has no openaiKeyParameter for the procedure's model calls.")
+    unplaced = [name for name in ("tenantId", "siteBucket") if not publication.get(name)]
+    if unplaced:
+        raise AutomationError("the router publication has no " + " and no ".join(unplaced) + " for the site's agent policy, so the runner would refuse the run.")
     input_values = resolve_manual_input(automation, supplied_input)
     rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"]) \
         + reader.manual_rows(config["monitorId"], automation["id"])
@@ -641,9 +717,10 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
         raise (AutomationDeferred if gate.action == "defer" else AutomationError)(gate.reason or "the automation cannot start another run now.")
     key = f"{MANUAL_PREFIX}{automation['id']}#{stamp}"
     pk = f"MONITOR#{config['monitorId']}"
-    request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+    wake_key = wake_keys.manual_key(wake_keys.owner(automation["id"], automation["procedureKey"]), uuid.uuid4().hex)
+    request = {"wakeKey": wake_key, "publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
                "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"],
-               "input": input_values, "actorLabel": f"{actor} (run now)"[:200], "timeoutSeconds": gate.timeout_seconds,
+               **policy_location(publication), "input": input_values, "actorLabel": f"{actor} (run now)"[:200], "timeoutSeconds": gate.timeout_seconds,
                "trigger": {"kind": "manual", "automationId": automation["id"], "monitorId": config["monitorId"], "pk": pk, "sk": key,
                            "title": f"{automation['procedureKey']}: run now by {actor}"[:200],
                            "summary": f"Started by {actor} with Run now on automation {automation['id']}"[:500]}}
@@ -750,7 +827,7 @@ def _print_runs(runs: list[dict[str, Any]]) -> None:
                else f"story entered {run.get('stage') or 'stage'}" if run.get("origin") == "stage" else (run["sourceId"] or ""))
         story = "-" if not run["storyId"] else (f"{run['storyId']} (story deleted)" if run.get("storyExists") is False else run["storyId"])
         print("\t".join(str(part) for part in (
-            "run", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
+            "run", run["startedAt"] or "", run["status"] or "", run["outcomeShown"], f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
             who, run["runId"] or "-", story, cost_text(run), tools_text(run), run["reason"] or run["error"] or "")))
 
 
@@ -759,7 +836,7 @@ def _print_outside_runs(runs: list[dict[str, Any]]) -> None:
         print("outside\tStarted outside this automation:")
     for run in runs:
         print("\t".join(str(part) for part in (
-            "outside", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
+            "outside", run["startedAt"] or "", run["status"] or "", run["outcomeShown"], f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
             run["requestedBy"] or "", run["runId"] or "-", run["storyId"] or "-", cost_text(run), run["error"] or "")))
 
 
@@ -773,8 +850,33 @@ def _signed_in_lane() -> bool:
     return user_auth_requested()
 
 
+def attention_command(command: str, options: dict[str, Any], *, as_json: bool, apply: bool | None) -> None:
+    """`papyrus automations attention` lists the runs that need a person; `acknowledge --run RUN_ID` takes one off the list (PPY-577310)."""
+    from .graphql_authoring import create_authoring_client
+    client = create_authoring_client()[0]
+    if command == "attention":
+        runs = run_attention.list_attention(client)
+        if as_json:
+            print(json.dumps({"ok": True, "command": "automations attention", "runs": runs}, indent=2, default=str))
+            return
+        for run in runs:
+            print("\t".join([str(run.get("id")), outcome_shown(run), str(run.get("procedureKey") or ""), str(run.get("dueAt") or ""),
+                             str(run.get("errorSummary") or "")[:200]]))
+        print(f"{len(runs)} run(s) need attention")
+        return
+    run_id = options.get("run")
+    if not isinstance(run_id, str):
+        raise AutomationError("papyrus automations acknowledge needs --run <run id>.")
+    actor = os.environ.get("PAPYRUS_ACTOR_LABEL") or "papyrus-cli"
+    result = run_attention.acknowledge(client, run_id, actor, _now()) if apply else {"runId": run_id, "changed": False, "reason": "dry run, nothing written"}
+    if as_json:
+        print(json.dumps({"ok": True, "command": "automations acknowledge", "dryRun": not apply, **result}, indent=2))
+    else:
+        print("\t".join(["automations", run_id, "acknowledged" if result["changed"] else f"unchanged ({result['reason']})"]))
+
+
 def run_command(command: str, flags: list[str]) -> None:
-    """`papyrus automations list|show|runs|run|create|update`.
+    """`papyrus automations list|show|runs|run|create|update|adopt|attention|acknowledge`.
 
     Signed in with `papyrus login`, list|show|runs|run ask the site's `automationOverview` and `runAutomation` (see
     `automations_signed_in`). Otherwise the reads use the selected GraphQL lane and the monitoring table and the Lambda
@@ -791,6 +893,14 @@ def run_command(command: str, flags: list[str]) -> None:
         code = signed_in_command(command, options, as_json=as_json, apply=apply)
         if code:
             raise SystemExit(code)
+        return
+    if command in {"attention", "acknowledge"}:
+        attention_command(command, options, as_json=as_json,
+                          apply=resolve_mutation_apply(options, "automations acknowledge") if command == "acknowledge" else None)
+        return
+    if command == "adopt":
+        from .automation_adoption import run_command as adopt_command
+        adopt_command(options, as_json=as_json, apply=resolve_mutation_apply(options, "automations adopt"))
         return
     if command in {"create", "update"}:
         apply = resolve_mutation_apply(options, f"automations {command}")
@@ -829,7 +939,7 @@ def run_command(command: str, flags: list[str]) -> None:
             raise AutomationError(f"automation {record_id} does not exist.")
         table = monitoring_table_from_environment()
         result = run_now(read_record(row), reader=MonitoringReader(table) if table is not None else None,
-                         writer=MonitoringWriter(table) if table is not None else None, invoke=lambda_invoker(),
+                         writer=MonitoringWriter(table) if table is not None else None, invoke=agent_wakes.wake_sender(),
                          actor=os.environ.get("PAPYRUS_ACTOR_LABEL") or "papyrus-cli", supplied_input=_json_option(options, "input"),
                          dry_run=dry_run)
         if as_json:

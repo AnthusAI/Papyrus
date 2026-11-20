@@ -1,9 +1,9 @@
 {
   "id": "PPY-df3e7454-0e2c-4a57-8781-9650df1714e2",
   "title": "Definitions are applied by the release",
-  "description": "The release registers each definition in the site's backend, as procedures are to be registered on deploy (PPY-1b2edd): an unchanged digest changes nothing; a changed one writes a new registered version; a definition removed from Git is marked retired, its schedule is removed and its history stays. The apply step never touches the agent policy document, so a deploy cannot change a rung or lift a pause. A new agent arrives at rung `off` unless the site's policy already names it.\n\n**Acceptance criteria**\n- A release with no definition change writes nothing.\n- A new definition appears at `off` on a site that has no policy line for it.\n- A deploy never changes a rung, a pause or a budget.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-definitions-on-release.feature: an unchanged definition is a no-op; a changed one becomes a new version; a removed one is retired and its schedule deleted; a new agent starts `off`; the policy document is untouched.\n\n**Infrastructure as code touched:** Site deploy step (the same place procedures are registered).\n\n**Part of:** Agent definitions, the catalog and generated runbooks. Slice code D2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+  "description": "The release registers each definition in the site's backend, as procedures are to be registered on deploy (PPY-1b2edd): an unchanged digest changes nothing; a changed one writes a new registered version; a definition removed from Git is marked retired, its schedule is removed and its history stays. The apply step never touches the agent policy document, so a deploy cannot change a rung or lift a pause. A new agent arrives at rung `off` unless the site's policy already names it.\n\n**Acceptance criteria**\n- A release with no definition change writes nothing.\n- A new definition appears at `off` on a site that has no policy line for it.\n- A deploy never changes a rung, a pause or a budget.\n- The registered copy of a definition (id, version, digest) is written on the Automation record; the follow-up task PPY-fba046 delivers it and this task proves it end to end.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-definitions-on-release.feature: an unchanged definition is a no-op; a changed one becomes a new version; a removed one is retired and its schedule deleted; a new agent starts `off`; the policy document is untouched.\n\n**Infrastructure as code touched:** Site deploy step (the same place procedures are registered).\n\n**Part of:** Agent definitions, the catalog and generated runbooks. Slice code D2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -19,12 +19,24 @@
     {
       "target": "PPY-1b2edd12-5a13-4a0a-aff6-5208cb8acfa3",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fba04651-9800-4e64-afbd-8102f6c9f904",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2ccddec1-d148-4ce4-8065-c7e201f147b1",
+      "author": "home",
+      "text": "Built and merged to develop (PR #1648, merge 3311e842a). papyrus agents apply (agent_definitions/release.py) runs in the production build spec right after the procedure sync: validates every core and site definition (folder papyrus-site-agents), checks each procedure is registered and each automation is the agent's own, all before any write; creates the automation disabled when missing, register() writes the registered copy (same digest writes nothing); a definition gone from Git is retired (new Automation.definitionRetiredAt, record disabled, no schedule via registered_schedules, history kept). Never writes the policy document, never adopts (adopt stays an admin act). --dry-run and --check. Reads automations by the tenantId index, not a scan. Specs: agent-definitions-on-release.feature, infra agent-sync.feature. Not done: no real-site run; the schedule reconciler (C1) must skip definitionRetiredAt records. Release blockers: core/rate.yaml names rate_items, which no registry lists, so every site build would stop until PPY-d85860 registers it or the definition leaves core/; the step needs the tenant id in the build environment.",
+      "created_at": "2026-11-17T06:10:28.281916Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:04.425744Z",
-  "updated_at": "2026-11-16T22:43:27.932281Z",
-  "closed_at": null,
+  "updated_at": "2026-11-17T06:10:28.422900Z",
+  "closed_at": "2026-11-17T06:10:28.422753Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

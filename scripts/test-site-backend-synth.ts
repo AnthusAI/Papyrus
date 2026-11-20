@@ -5,7 +5,7 @@ import { Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambd
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { addInboundEmailSesIntake } from "../amplify/inbound-email/ses-intake";
 import { wireEmailReferenceIntake, wireMonitoringView } from "../amplify/functions/monitoring-view/wire";
-import { validateMonitoringConfig } from "../amplify/site-backend-config";
+import { validateAgentsConfig, validateMonitoringConfig } from "../amplify/site-backend-config";
 import {
   deriveReceiptRuleName,
   deriveReceiptRuleSetName,
@@ -136,6 +136,15 @@ assert.ok(firstSynth.every((name) => name.includes("p-apyr-us")), `names must co
 
 assert.deepEqual(validateMonitoringConfig({ emailMonitorId: "p-apyr-us-email" }), []);
 assert.ok(validateMonitoringConfig({ emailMonitorId: "MONITOR#hn" }).length > 0);
+
+// The agents' model key parameter is a NAME that starts with "/": a key pasted into the setting, or a path, is refused before any deploy.
+assert.deepEqual(validateAgentsConfig(undefined), []);
+assert.deepEqual(validateAgentsConfig({}), []);
+assert.deepEqual(validateAgentsConfig({ openAiKeyParameter: "/papyrus/shipped/openai-api-key" }), []);
+for (const bad of ["papyrus/shipped/openai-api-key", "/papyrus/shipped/", "/", "", "sk-proj-not-a-name", "/with space", 7]) {
+  assert.ok(validateAgentsConfig({ openAiKeyParameter: bad }).length > 0, `refused: ${JSON.stringify(bad)}`);
+}
+assert.ok(validateAgentsConfig("nope").length > 0);
 
 function synthEmailPartitionAccess() {
   const app = new App();

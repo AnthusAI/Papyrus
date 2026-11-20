@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
+from ..item_stars import effective_rating
+from ..quality_floor import meets_floor
 from ..public_text import PRIVATE_SHAPES, WithheldReference, contains_private_shape, public_url, scrub  # noqa: F401 - re-exported: the scrub rule moved to public_text.py
 from ..reference_public_fields import chosen_preview, preview_metadata
 from ..ideas.digest import RELEVANCE_PREDICATE, relations_of, relevance_of
@@ -27,7 +29,8 @@ from ..reference_thumbnails import EDITOR_IMAGE, public_image as thumbnail_image
 from ..reference_feed_keys import accept_probability as decision_probability
 from ..reference_titles import first_usable_title, needs_title, readable_name
 from ..tenancy import STORED_RECORD_ID_FIELD
-from .ordering import RANK_FIELD, rank_records, valid_stars
+from ..quality_ranking import valid_stars
+from .ordering import RANK_FIELD, rank_records
 
 if TYPE_CHECKING:
     from .settings import HomePageSettings
@@ -380,8 +383,13 @@ def is_listed(row: Mapping[str, Any], corpus_id: str) -> bool:
 
 
 def is_chosen(row: Mapping[str, Any], decision: Mapping[str, Any] | None, settings: HomePageSettings) -> bool:
-    """An accepted Reference is public. A pending one is public only when it has a real prediction (``stored_prediction``) and its live P(accept) reaches the
+    """With the site's quality floor on (``quality_floor.py``), only an accepted Reference whose human rating is at or above the floor is public: accepting it
+    without stars does not qualify it, and a pending one never does, however sure the Cyclotron is, because a prediction is not a rating.
+
+    With no floor, an accepted Reference is public. A pending one is public only when it has a real prediction (``stored_prediction``) and its live P(accept) reaches the
     threshold; a prediction of exactly the threshold (0.5 by default) is a prediction and passes. No prediction is never a number, so it never passes."""
+    if settings.floor_stars is not None:
+        return row.get("curationStatus") == STATUS_ACCEPTED and meets_floor(effective_rating(row)["stars"], settings.floor_stars)
     if row.get("curationStatus") == STATUS_ACCEPTED:
         return True
     probability = live_probability(row, decision) if has_prediction(row) else None
@@ -416,7 +424,9 @@ def collect_entries(
 ) -> list[PublicEntry]:
     """Every public entry of a corpus, newest accepted first and then the recommended ones (pending, with a real prediction) newest first, read from the whole corpus (a full read)."""
     accepted = current_references(client, "referencesByCurationStatusKey", f"{corpus_id}#{STATUS_ACCEPTED}")
-    pending = [row for row in current_references(client, "referencesByFeedStateAndPrediction", f"{corpus_id}#unrated") if row.get("curationStatus") not in (STATUS_ACCEPTED, *NOT_PUBLIC_STATUSES) and has_prediction(row)]
+    pending = [] if settings.floor_stars is not None else [   # with the floor on a prediction never qualifies, so the unrated partition is not read at all
+        row for row in current_references(client, "referencesByFeedStateAndPrediction", f"{corpus_id}#unrated") if row.get("curationStatus") not in (STATUS_ACCEPTED, *NOT_PUBLIC_STATUSES) and has_prediction(row)
+    ]
     decisions = map_with_clients([*accepted, *pending], lambda worker, row: decision_of(worker, row), client=client, client_factory=client_factory, workers=workers)
     decided = list(zip([*accepted, *pending], decisions))
     chosen = [(row, decision) for row, decision in decided if is_chosen(row, decision, settings)]

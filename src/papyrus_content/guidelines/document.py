@@ -58,6 +58,7 @@ class KindSpec:
     fields: dict[str, Field] = field(default_factory=dict)
     validate: Callable[[Any, str], list[Problem]] | None = None   # a kind owned by another module (image) supplies its own validation
     layers: bool = True                    # False when another module resolves this kind (image: visual_style.py)
+    form: str = "document"                 # "document": one JSON document. "files": a set of GUIDELINE.md files (field_files.py); the document is a view read from them
 
 
 # --- small checks -----------------------------------------------------------------------------------------------------------------------------------
@@ -183,7 +184,7 @@ def register_kind(spec: KindSpec) -> KindSpec:
         if "schemaVersion" in fields:
             raise ValueError("schemaVersion is added to every kind; do not declare it.")
         fields["locked"] = Field(_locked_check(lambda: {name for name, f in fields.items() if f.lockable}), PUBLICATION_ONLY)
-        spec = KindSpec(spec.name, spec.slug_word, spec.schema_version, fields, spec.validate, spec.layers)
+        spec = KindSpec(spec.name, spec.slug_word, spec.schema_version, fields, spec.validate, spec.layers, spec.form)
     _REGISTRY[spec.name] = spec
     return spec
 
@@ -356,7 +357,8 @@ def _validate_design_system(document: Any, scope: str) -> list[Problem]:
     return validate_design_system_document(document, scope)
 
 
-register_kind(KindSpec("writing", "writing", 1, WRITING_FIELDS))
+# Writing guidelines are stored as a set of guideline files (schema version 2, PPY-1d5c43); the document below is the view read from the field files.
+register_kind(KindSpec("writing", "writing", 2, WRITING_FIELDS, form="files"))
 register_kind(KindSpec("video", "video", 1, VIDEO_FIELDS))
 # Image documents keep their own schema and resolver (images/visual_style.py); the store keeps them the same way as any other kind, the publication's and each section's (PPY-c16829).
 register_kind(KindSpec("image", "visual-style", 2, validate=_validate_image, layers=False))

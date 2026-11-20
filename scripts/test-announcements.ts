@@ -33,6 +33,34 @@ for (const model of ["AnnouncementSettings", "XConnection"]) {
   assert.match(declaration, /groups: \["admin"\]/);
   assert.equal(/groups: \["editor"\]/.test(declaration), false, `${model} is not read by editors directly`);
 }
+// The Announcement and Delivery records (docs/announcement-records.md): catalog only, read by editors, written by the pipeline, read through indexes.
+const modelBlock = (model: string) => {
+  const start = base.indexOf(`type ${model} @model`);
+  assert.ok(start >= 0, `${model} is a model`);
+  return base.slice(start, base.indexOf("\n}", start));
+};
+for (const model of ["AnnouncementDecision", "Delivery"]) {
+  const block = modelBlock(model);
+  assert.match(block.split("{\n")[0], /groups: \["editor", "admin"\]/, `${model} is read by editors and admins`);
+  assert.equal(/ensureDisabled|onCreate|onUpdate|onDelete/.test(block), false, `${model} has no subscriptions`);
+  for (const text of ["text:", "body:", "bodyMarkus:", "html:", "markus:", "post:", "content:"]) assert.equal(block.includes(`\n  ${text}`), false, `${model} holds no ${text} field`);
+}
+assert.equal(base.includes("type AnnouncementDecision") && !/type AnnouncementDecision[^{]*\{[^}]*approval/.test(base), true, "the Announcement holds no approval field");
+for (const field of ["approval", "approvalPolicy", "approvedVersion", "approvedBy", "approvedAt", "lockAt", "lockedAt", "lockedVersion", "nextAttemptAt", "waitingFor", "dueAt", "dueKey", "textKey", "contentHash", "versions", "candidates", "preferredVersion", "supersedes", "supersededBy"]) {
+  assert.match(modelBlock("Delivery"), new RegExp(`\\n  ${field}: `), `a Delivery has ${field}`);
+}
+for (const index of [
+  'dedupeKey: String! @index(sortKeyFields: ["createdAt"], queryField: "listAnnouncementDecisionsByDedupeKeyAndCreatedAt")',
+  'state: String! @index(sortKeyFields: ["releaseAt"], queryField: "listAnnouncementDecisionsByStateAndReleaseAt")',
+  'tenantId: String @index(sortKeyFields: ["id"], queryField: "listAnnouncementDecisionsByTenant")',
+  'announcementId: String! @index(sortKeyFields: ["createdAt"], queryField: "listDeliveriesByAnnouncementAndCreatedAt")',
+  'accountKey: String! @index(sortKeyFields: ["createdAt"], queryField: "listDeliveriesByAccountKeyAndCreatedAt")',
+  'tenantId: String @index(sortKeyFields: ["id"], queryField: "listDeliveriesByTenant")',
+  // The due index is sparse: its keys are optional, so a Delivery with no pending time has neither and is not in it.
+  'dueKey: String @index(sortKeyFields: ["dueAt"], queryField: "listDeliveriesByDueKeyAndDueAt")',
+]) assert.ok(base.includes(index), `the schema has ${index}`);
+assert.match(modelBlock("Delivery"), /\n  dueAt: AWSDateTime\n/, "dueAt is optional, so the due index is sparse");
+
 assert.equal(announcementOperationDocument("announcementsXStatus"), "query AnnouncementsXStatus($input: AWSJSON) { announcementsXStatus(input: $input) }");
 assert.equal(announcementOperationDocument("announcementsXDisconnect"), "mutation AnnouncementsXDisconnect($input: AWSJSON) { announcementsXDisconnect(input: $input) }");
 

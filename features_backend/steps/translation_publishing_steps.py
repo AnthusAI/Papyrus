@@ -21,10 +21,8 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 
 from features_backend.steps.language_serving_steps import NOW, LanguageSite  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
-from papyrus_content.newsletter.alerts_test import alert, announce as announce_alert, configure, publish as publish_alert_row  # noqa: E402
 from papyrus_content.newsletter.issues_test import rig_context  # noqa: E402
-from papyrus_content.newsletter.roundup import items_in_window  # noqa: E402
-from papyrus_content.notifications.notifications_test import Site as NotificationsSite  # noqa: E402
+from papyrus_content.newsletter.roundup import candidates  # noqa: E402
 from papyrus_content.publishing import PublishError, project_item_to_published, publish_item, published_item_id_for, unpublish_item  # noqa: E402
 
 STORY = "story-waymo"
@@ -100,11 +98,27 @@ def step_publish(context):
     version = _translation(context)
     context.publish_error = None
     try:
-        publish_item(context.client, version["id"], actor=PERSON)
+        publish_item(context.client, version["id"], actor=PERSON, by_person=PERSON)
     except PublishError as error:
         context.publish_error = error
         return
     _site(context).project(version["id"])
+
+
+@when("an automation publishes the translation")
+def step_automation_publish(context):
+    context.publish_error = None
+    try:
+        publish_item(context.client, _translation(context)["id"], actor="AI (translation on publish)")
+    except PublishError as error:
+        context.publish_error = error
+
+
+@then("the translation is still a ready draft")
+def step_ready_draft(context):
+    version = _translation(context)
+    assert version["status"] != "published", version
+    assert context.client.get_record("PublishedItem", published_item_id_for(LINEAGE)) is None
 
 
 @given("a person unpublishes the translation")
@@ -261,18 +275,26 @@ def _translated_row(lineage: str, **row) -> dict:
 
 @then("the new-story alert for the translation is ignored as a translation")
 def step_alert(context):
-    with rig_context() as rig:
-        configure(rig, alert("everything"))
-        publish_alert_row(rig, STORY, languageGroupId=STORY, language="en")
-        publish_alert_row(rig, LINEAGE, **_translated_row(STORY, slug="bajan-los-choques-de-waymo"))
-        assert announce_alert(rig, STORY)["status"] == "done"
-        assert announce_alert(rig, LINEAGE) == {"ok": True, "status": "ignored", "reason": "translation"}
-    site = NotificationsSite("alpha")
-    site.rows["published-" + STORY] = {"id": "published-" + STORY, "status": "published", "type": "article", "section": "news", "slug": "waymo", "title": "Waymo",
-                                       "itemLineageId": STORY, "languageGroupId": STORY, "metadata": json.dumps({"frontMatterYaml": "title: Waymo\n"})}
-    site.rows["published-" + LINEAGE] = {**site.rows["published-" + STORY], "id": "published-" + LINEAGE, **_translated_row(STORY)}
-    assert site.announce(STORY)["status"] != "ignored"
-    assert site.announce(LINEAGE) == {"status": "ignored", "reason": "translation"}
+    from unittest import mock
+
+    from papyrus_content.list_cadence import story_wake
+
+    original = {"id": "published-" + STORY, "status": "published", "type": "article", "section": "news", "slug": "waymo", "title": "Waymo", "itemLineageId": STORY,
+                "languageGroupId": STORY, "language": "en", "versionNumber": 1}
+    translated = {**original, "id": "published-" + LINEAGE, "slug": "bajan-los-choques-de-waymo", **_translated_row(STORY)}
+
+    class Client:
+        """The published copy and the lineage's current version, as the announce agent reads them."""
+
+        def get_record(self, _model, row_id):
+            return {original["id"]: original, translated["id"]: translated}.get(row_id)
+
+        def list_by_index(self, _index, lineage):
+            return [{"id": lineage + "-v1", "versionState": "current", "stage": "published", "starRating": 4, "starRatedBy": "ada", "starRatedAt": "2026-11-17T09:00:00Z"}]
+
+    with mock.patch("papyrus_content.announcements.intake.ChecklistReviewStamps.reviewed", return_value=False):
+        assert story_wake.read_candidate(Client(), STORY).translation is False
+        assert story_wake.read_candidate(Client(), LINEAGE).translation is True
 
 
 @then("the roundup of the week names the English Story and not the translation")
@@ -280,5 +302,5 @@ def step_roundup(context):
     with rig_context() as rig:
         rig.content.publish(slug="waymo", title="Waymo", section="articles", at=rig.now)
         rig.content.published.append({**rig.content.published[0], "id": "published-" + LINEAGE, "slug": "bajan", **_translated_row(STORY)})
-        found = [row["slug"] for row in items_in_window(rig.service, rig.now - 3600, rig.now + 1)]
+        found = [entry.row["slug"] for entry in candidates(rig.service)]
     assert found == ["waymo"], found

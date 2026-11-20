@@ -11,7 +11,7 @@ Feature: Guidelines are read and saved through the site's data API door
     When an admin saves writing guidelines naming "none" as the version they replace, with the reason "First guidelines"
     Then the door answers with version 1 of the writing guidelines
     And the version records "Ada Admin" as the person who saved it
-    And the catalog row holds no text and the document is stored as one file
+    And the catalog row holds no text and each guideline file is stored as one file
     And an editor reading the writing guidelines gets the document that was saved
 
   Scenario: An editor can read but not save guidelines

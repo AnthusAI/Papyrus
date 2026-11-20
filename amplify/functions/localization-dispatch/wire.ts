@@ -4,7 +4,8 @@ import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Architecture, CfnEventSourceMapping, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import { pythonLambdaCode } from "../shared/python-bundle";
 import { connectToSiteApi } from "../../site-api-access";
-import { AUTOMATION_RUN_NOW_LEADING_KEYS, AUTOMATION_RUN_NOW_TABLE_ACTIONS, PROCEDURE_RUNNER_FUNCTION_NAME } from "../automation-view/wire";
+import { AUTOMATION_RUN_NOW_LEADING_KEYS, AUTOMATION_RUN_NOW_TABLE_ACTIONS } from "../automation-view/wire";
+import { allowWakeSending } from "../../agents/wake-queue";
 import { MONITORING_TABLE_PARAMETER, MONITORING_VIEW_TABLE_ACTIONS, monitoringViewParameterArn, monitoringViewTableArns } from "../monitoring-view/wire";
 
 /**
@@ -14,7 +15,7 @@ import { MONITORING_TABLE_PARAMETER, MONITORING_VIEW_TABLE_ACTIONS, monitoringVi
  * run saved cleanly. It calls no model and publishes nothing itself.
  *
  * What it may do, and nothing else: read and update LocalizationRequest rows and read Automation records of its own site's API; read the monitoring
- * table and write one Run now row in a monitor's partition (the automation-view grant); start the procedure runner; invoke the content-actions function.
+ * table and write one Run now row in a monitor's partition (the automation-view grant); put a wake on the site's own wake queue; invoke the content-actions function.
  * A shared stack (one backend for several tenants) is not wired: its rows carry a tenant the dispatcher does not act for (docs/multi-tenancy.md).
  */
 export const DISPATCH_API_FIELDS = [
@@ -45,7 +46,7 @@ function localizationRequestStream(backend: any): string {
 }
 
 /** Wires the dispatcher, or nothing when the site's schema leaves out the localization models (`excludeModelGroups`: no table, nothing to dispatch). */
-export function wireLocalizationDispatch(backend: any, contentActionsLambda: LambdaFunction): LambdaFunction | undefined {
+export function wireLocalizationDispatch(backend: any, contentActionsLambda: LambdaFunction, brandId: string): LambdaFunction | undefined {
   if (!backend.data.resources.tables.LocalizationRequest) return undefined;
   const streamArn = localizationRequestStream(backend);
   const stack = backend.createStack("localization-dispatch");
@@ -71,7 +72,6 @@ export function wireLocalizationDispatch(backend: any, contentActionsLambda: Lam
   });
   connectToSiteApi(dispatcher, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   dispatcher.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
-  dispatcher.addEnvironment("PROCEDURE_RUNNER_FUNCTION", PROCEDURE_RUNNER_FUNCTION_NAME);
   dispatcher.addEnvironment(CONTENT_ACTIONS_ENV, contentActionsLambda.functionName);
   const apiId = backend.data.resources.graphqlApi.apiId as string;
   const region = stack.region;
@@ -97,9 +97,10 @@ export function wireLocalizationDispatch(backend: any, contentActionsLambda: Lam
     new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ["lambda:InvokeFunction"],
-      resources: [`arn:aws:lambda:${region}:${account}:function:${PROCEDURE_RUNNER_FUNCTION_NAME}`, contentActionsLambda.functionArn],
+      resources: [contentActionsLambda.functionArn],
     }),
   );
+  allowWakeSending(dispatcher, brandId);
   dispatcher.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: STREAM_READ_ACTIONS, resources: [streamArn] }));
   new CfnEventSourceMapping(stack, "LocalizationDispatcherStreamMapping", {
     eventSourceArn: streamArn,

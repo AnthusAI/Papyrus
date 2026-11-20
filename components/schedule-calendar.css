@@ -28,3 +28,4 @@
 .schedule-calendar .schedule-event[data-schedule-kind=overdue]{background:color-mix(in oklab,var(--org-ink) 22%,var(--org-paper))}
 .schedule-calendar .schedule-event[data-schedule-kind=scheduled]{background:color-mix(in oklab,var(--org-accent) 22%,var(--org-paper))}
 .schedule-calendar :focus-visible{outline:2px solid var(--org-ink);outline-offset:1px}
+.schedule-calendar .schedule-event[data-schedule-kind=published]{background:color-mix(in oklab,var(--org-ink) 7%,var(--org-paper))}

@@ -5,6 +5,7 @@ Placeholders only: reader addresses are @example.com and the postal address is a
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 from contextlib import contextmanager
@@ -30,7 +31,7 @@ DAY = 24 * 60 * 60
 LISTS = (
     {
         "id": "weekly", "name": "Weekly roundup", "description": "", "kind": "roundup",
-        "issueType": "newsletter_issue", "archivePath": "/roundup/", "timezone": "America/New_York",
+        "issueType": "newsletter_issue", "types": ["article"], "archivePath": "/roundup/", "timezone": "America/New_York",
     },
     {"id": "alerts-a", "name": "Alerts A", "description": "", "kind": "alert"},
 )
@@ -46,6 +47,11 @@ class FakeContent:
         self.items: dict[str, dict[str, Any]] = {}
         self.published: list[dict[str, Any]] = []
         self.published_items: dict[str, dict[str, Any]] = {}
+        self.versions: dict[str, list[dict[str, Any]]] = {}
+
+    def list_by_index(self, index: str, lineage: str) -> list[dict[str, Any]]:
+        assert index == "itemsByLineageAndVersion"
+        return list(self.versions.get(lineage, []))
 
     def get_record(self, model: str, record_id: str) -> dict[str, Any] | None:
         if model == "PublishedItem":
@@ -62,11 +68,12 @@ class FakeContent:
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
         return list(self.published)
 
-    def publish(self, *, slug: str, title: str, section: str | None, at: float, type: str = "article", dek: str | None = None) -> None:
+    def publish(self, *, slug: str, title: str, section: str | None, at: float, type: str = "article", dek: str | None = None, stars: int | None = None) -> None:
+        self.versions[f"lineage-{slug}"] = [{"id": f"item-{slug}-v1", "versionState": "current", "stage": "published", **({"starRating": stars, "starRatedBy": "an editor"} if stars else {})}]
         front = f"title: {json.dumps(title)}\n" + (f"description: {json.dumps(dek)}\n" if dek else "")
         self.published.append(
             {
-                "id": f"published-{slug}", "type": type, "status": "published", "slug": slug, "section": section, "title": title,
+                "id": f"published-{slug}", "itemLineageId": f"lineage-{slug}", "type": type, "status": "published", "slug": slug, "section": section, "title": title,
                 "publishedAt": iso(at), "metadata": json.dumps({"frontMatterYaml": front}),
             }
         )
@@ -244,7 +251,7 @@ def test_assembly_groups_items_by_section_with_links_and_deks(rig: Rig) -> None:
     assert created["status"] == "created" and created["items"] == 3
     item = rig.content.items[created["itemId"]]
     assert item["type"] == "newsletter_issue" and item["section"] == "roundup" and item["status"] == "draft"
-    assert item["title"] == "Weekly roundup: Jan 8 to Jan 15, 2027"
+    assert item["title"] == "Weekly roundup: Jan 11 to Jan 15, 2027"
     body = item["bodyMarkus"]
     assert body.startswith("Write a short introduction")
     assert body.index("## Security") < body.index("## Tools") < body.index("## More")
@@ -891,3 +898,41 @@ def test_the_send_queue_batches_ten_entries_and_reports_refusals() -> None:
     assert json.loads(client.calls[0]["Entries"][0]["MessageBody"]) == {"issueId": "i" * 16, "hids": ["a" * 32]}
     with pytest.raises(RuntimeError):
         SendQueue("https://sqs.example/q", Sqs(failed=True)).send_batches("i" * 16, [["a" * 32]])
+
+
+def with_floor(rig: Rig, floor: int | None) -> None:
+    rig.service.settings = dataclasses.replace(rig.settings, floor_stars=floor)
+
+
+def test_a_site_with_no_floor_drafts_every_item_and_reads_no_rating(rig: Rig) -> None:
+    rig.content.publish(slug="rated", title="Rated", section="tools", at=START - DAY, stars=4)
+    rig.content.publish(slug="unrated", title="Unrated", section="tools", at=START - DAY)
+    rig.content.list_by_index = lambda *_: (_ for _ in ()).throw(AssertionError("no floor: no rating is read"))  # type: ignore[assignment]
+    body = rig.content.items[rig.service.issues.get(rig.task("assemble-roundup", listId="weekly")["issueId"])["itemId"]]["bodyMarkus"]
+    assert "[Rated]" in body and "[Unrated]" in body and "Left out" not in body
+
+
+def test_the_floor_keeps_items_at_or_above_it_and_shows_the_rest_as_left_out(rig: Rig) -> None:
+    with_floor(rig, 3)
+    for slug, stars in (("three", 3), ("four", 4), ("two", 2), ("none", None), ("five-low", 1)):
+        rig.content.publish(slug=slug, title=slug.title(), section="tools", at=START - DAY, stars=stars)
+    body = rig.content.items[rig.service.issues.get(rig.task("assemble-roundup", listId="weekly")["issueId"])["itemId"]]["bodyMarkus"]
+    kept, left_out = body.split("## Left out")
+    assert "[Three]" in kept and "[Four]" in kept
+    assert all(f"[{title}]" not in kept for title in ("Two", "None", "Five-Low"))
+    assert all(f"[{title}]" in left_out for title in ("Two", "None", "Five-Low")) and "floor of 3 stars" in left_out
+
+
+def test_a_higher_floor_leaves_out_three_star_items(rig: Rig) -> None:
+    with_floor(rig, 4)
+    rig.content.publish(slug="three", title="Three", section="tools", at=START - DAY, stars=3)
+    rig.content.publish(slug="four", title="Four", section="tools", at=START - DAY, stars=4)
+    body = rig.content.items[rig.service.issues.get(rig.task("assemble-roundup", listId="weekly")["issueId"])["itemId"]]["bodyMarkus"]
+    kept, left_out = body.split("## Left out")
+    assert "[Four]" in kept and "[Three]" in left_out
+
+
+def test_a_week_with_nothing_at_the_floor_makes_no_scheduled_draft(rig: Rig) -> None:
+    with_floor(rig, 3)
+    rig.content.publish(slug="unrated", title="Unrated", section="tools", at=START - DAY)
+    assert rig.task("assemble-roundup", listId="weekly")["status"] == "empty"

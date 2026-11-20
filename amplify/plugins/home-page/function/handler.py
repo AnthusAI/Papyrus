@@ -265,6 +265,12 @@ def schedule_for_changes(
 
 def handler(event: Mapping[str, Any], context: Any = None, *, dynamodb_client: Any = None, scheduler_client: Any = None, now_seconds: float | None = None) -> dict[str, Any]:
     records = event.get("Records") or []
+    # Where the Message stream already has two readers the change feed is not a third: this reader passes it the batch (papyrus_content.change_feed_relay; PPY-9b9e64).
+    # This mapping reports no single record, so a record the feed could not finish fails the batch, which is retried whole (every wake key is the same on the retry).
+    from papyrus_content.change_feed_relay import relay
+
+    if relay(event):
+        raise RuntimeError("the change feed could not finish every record of the batch")
     changes = [change for change in (record_change(record) for record in records) if change is not None]
     if not changes:
         return {"records": len(records), "changed": 0, "scheduled": False}

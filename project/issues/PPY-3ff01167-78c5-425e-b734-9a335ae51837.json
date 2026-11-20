@@ -3,7 +3,7 @@
   "title": "Follow-up timers: a due time on a record raises one wake",
   "description": "Every wait is a named time on the record that waits (`dueAt`, with `waitingFor`), as the Delivery record already does. One helper turns a due time into a one-shot schedule entry that puts a wake on the queue and deletes itself; setting a new due time replaces the entry; clearing it deletes the entry. It is the same mechanism scheduled publishing uses per Story today, moved into one helper that both use. Nothing polls. The wake key includes the record and the due time.\n\n**Acceptance criteria**\n- A record with a due time gets exactly one wake at that time.\n- Moving the time moves the wake; clearing it cancels the wake.\n- Scheduled publishing uses the same helper and behaves as before.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- follow-up-timers.feature: a due time raises one wake; a moved time raises one wake at the new time; a cleared time raises none; a wake for a record that no longer waits does nothing; scheduled publishing still publishes on time.\n\n**Infrastructure as code touched:** Site backend: one-shot entries in the schedule group; the helper's role may create and delete entries in that group only.\n\n**Part of:** Timers: the schedule trigger and follow-ups. Slice code C2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,25 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "12758b04-9f70-4e3a-8d19-953290603567",
+      "author": "home",
+      "text": "PR #1685 (feat/PPY-3ff011-follow-up-timers, base develop, not merged, not released, nothing deployed). Built: follow_up_timers.py (OneShotSchedules + FollowUpTimers + check_wake), scheduled publishing moved onto OneShotSchedules unchanged, allowFollowUpTimers IAM (follow-up-* in the site group only, 0 resources), features_backend/follow-up-timers.feature (13 scenarios), docs/follow-up-timers.md. Checks green: behave (follow-up-timers, scheduled-publishing, -cli, wake-queue, wake-keys, schedule-trigger, gsi-ledger, list-cadence), pytest, test-agents-stack (first stage 1978/2000 unchanged), test-scheduled-publishing, gsi-ledger. Live proof remaining (needs a deploy): a real one-shot entry in the real group fires into the real FIFO queue (scheduler sets no dedup id; queue dedups by body) and deletes itself; the first consumer function holding allowFollowUpTimers.",
+      "created_at": "2026-11-18T20:14:02.917378Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "244ca5cd-680c-4175-a97a-44b3a34f11d6",
+      "author": "home",
+      "text": "Audit 2026-11-18: merged to develop in PR #1685. Closing so dependents unblock. Remaining live proof (a real one-shot entry fires into the real queue and deletes itself) needs a deploy and is recorded in the earlier comment.",
+      "created_at": "2026-11-19T02:16:21.097131Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:03.594850Z",
-  "updated_at": "2026-11-16T22:43:25.916580Z",
-  "closed_at": null,
+  "updated_at": "2026-11-19T02:16:21.253068Z",
+  "closed_at": "2026-11-19T02:16:21.253031Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

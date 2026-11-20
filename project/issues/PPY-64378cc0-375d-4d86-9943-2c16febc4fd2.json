@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f29d877b-cfe0-49c6-aa38-fe35858d98c8",
+      "author": "home",
+      "text": "Audit: drafting and checks met; unmet: withdraw handler (fold into bf9d26), production notify wiring (efd06c).",
+      "created_at": "2026-11-18T16:59:13.665844Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:39.013170Z",
-  "updated_at": "2026-11-12T18:51:02.201141Z",
+  "updated_at": "2026-11-18T16:59:13.666652Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

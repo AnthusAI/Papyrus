@@ -1359,6 +1359,7 @@ const schema = a.schema({
       procedureId: a.id(),
       procedureKey: a.string(),
       procedureVersionId: a.id(),
+      wakeKey: a.string(),
       title: a.string(),
       summary: a.string(),
       input: a.json(),
@@ -1527,6 +1528,21 @@ const schema = a.schema({
       procedureVersionNumber: a.integer(),
       assignmentId: a.id(),
       runStatus: a.string().required(),
+      /** What came of a finished run: acted, nothing, asked, failed or unknown. Set only when the run finishes or is settled; a run recorded before outcomes has none. */
+      outcome: a.string(),
+      /** A short lower-case code for why: required for `nothing` and `asked`, such as no_new_filing. */
+      outcomeReason: a.string(),
+      automationId: a.string(),
+      responsibility: a.string(),
+      subjectKind: a.string(),
+      subjectId: a.string(),
+      subjectVersion: a.string(),
+      /** The wake that started the run (docs/design/always-on-agents-architecture.md A2). The run's id is derived from it, so one wake is one run. Runs recorded before wake keys have none. */
+      wakeKey: a.string(),
+      /** The rung the run was decided under (off, observe, propose, draft, prepare, publish_soft, publish_auto). Written by the runner from the site's agent policy; a person's own run has none. */
+      rung: a.string(),
+      /** The version of the site's agent policy document the run was decided under (PPY-c8175e). */
+      policyVersion: a.integer(),
       requestedBy: a.string(),
       requestedAt: a.datetime().required(),
       startedAt: a.datetime(),
@@ -1541,12 +1557,20 @@ const schema = a.schema({
       newsroomFeedKey: a.string(),
       usage: a.json(),
       costUsd: a.float(),
+      /** `attention`, only while the run needs a person (it failed, or its outcome is unknown) and nobody has acknowledged it; absent otherwise, so the attention index is sparse (PPY-577310). A shared stack puts the tenant in front. */
+      attentionKey: a.string(),
+      /** When the run needed attention (its finish time). The sort key of the attention index; absent with `attentionKey`. */
+      dueAt: a.datetime(),
+      /** Who acknowledged the run and when. Acknowledging clears `attentionKey` and `dueAt`; the run stays as history. */
+      acknowledgedAt: a.datetime(),
+      acknowledgedBy: a.string(),
     })
     .secondaryIndexes((index) => [
       index("procedureId").sortKeys(["requestedAt"]).queryField("listProcedureRunsByProcedureAndRequestedAt"),
       index("assignmentId").sortKeys(["requestedAt"]).queryField("listProcedureRunsByAssignmentAndRequestedAt"),
       index("runStatus").sortKeys(["requestedAt"]).queryField("listProcedureRunsByStatusAndRequestedAt"),
       index("newsroomFeedKey").sortKeys(["requestedAt"]).queryField("listProcedureRunsByFeedAndRequestedAt"),
+      index("attentionKey").sortKeys(["dueAt"]).queryField("listProcedureRunsByAttentionKeyAndDueAt"),
     ])
     .authorization((allow) => [
       allow.group("editor").to(["read"]),
@@ -1562,6 +1586,15 @@ const schema = a.schema({
       enabled: a.boolean().required(),
       trigger: a.json().required(),
       procedureKey: a.string().required(),
+      /** The standing responsibility this automation fills (a key of the agent catalog). Set by `papyrus automations adopt`, never inferred. An automation with none starts no run (PPY-c8175e). */
+      responsibility: a.string(),
+      /** The registered copy of the agent definition this automation runs (PPY-fba046): its id, the registered version (1, then one higher for each changed digest), the digest of the effective definition and the definition as registered. The runner and Today read this, not Git. Set only by registering a definition. */
+      definitionId: a.string(),
+      definitionVersion: a.integer(),
+      definitionDigest: a.string(),
+      definition: a.json(),
+      /** When the release found this agent's definition gone from Git and retired it (PPY-df3e74); empty while the definition is in Git. A retired agent is disabled and names no schedule; its registered copy stays as history. */
+      definitionRetiredAt: a.datetime(),
       inputTemplate: a.json(),
       limits: a.json(),
       createdBy: a.string(),

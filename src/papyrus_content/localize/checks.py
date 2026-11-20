@@ -76,11 +76,16 @@ def tally(findings: Iterable[Finding]) -> tuple[int, int, int, int]:
             sum(1 for f in findings if f.replacement is not None))
 
 
+ADVISORY_POLICIES = frozenset({"names-adapted"})
+
+
 def faithfulness_worse(before: Iterable[Finding], after: Iterable[Finding]) -> bool:
     """Whether a rewrite made faithfulness worse: it added a faithfulness finding the earlier text did not have, or more errors."""
     old = {f.key() for f in before if f.category == "faithfulness"}
     new = [f for f in after if f.category == "faithfulness"]
-    added = [f for f in new if f.key() not in old and f.severity in ("error", "warn")]
+    # ``names-adapted`` is advice, not a loss: it says a capitalized name was written the target language's way and leaves it to the glossary and the judge. A repair that
+    # puts "Ejército de EE. UU." where the translation kept "U.S. Army" adds it by being right, so it never makes a rewrite worse by itself.
+    added = [f for f in new if f.key() not in old and f.severity in ("error", "warn") and f.policy not in ADVISORY_POLICIES]
     errors = lambda findings: sum(1 for f in findings if f.category == "faithfulness" and f.severity == "error")  # noqa: E731
     return bool(added) or errors(new) > errors(before)
 
@@ -157,16 +162,22 @@ class BlockChecker:
             raise JudgeUnavailable(f"the bilingual judge did not run: {judge.get('reason') or judge.get('status')}")
         return [self._finding(f, "faithfulness") for f in result["findings"]], result["lanes"]
 
-    def faithfulness_document(self, source: str, target: str) -> tuple[list[Finding], dict[str, Any]]:
-        """The whole translated body against the whole source with the parity rules only (the judge has read every block already): the
-        structure, links and directives of the document as a whole."""
+    def parity(self, source: str, target: str) -> tuple[list[Finding], dict[str, Any]]:
+        """The parity rules alone (numbers, links, citations, code, directives, structure and the glossary) of ``target`` against ``source``, with no
+        bilingual judge: no model is called. This is what a person's finished copy is checked with (``import_copy``)."""
         request = {"schemaVersion": 1, "content": {"text": target, "format": "markdown", "language": self.target_language},
                    "source": {"text": source, "format": "markdown", "language": self.source_language},
                    "glossary": self.glossary.humanus(self.glossary.entries_in([source], self.source_language)),
                    "pack": self.faithfulness_pack, "options": {"lanes": {"rules": False, "classifier": False, "parity": True, "judge": False}}}
         result = humanus.check(request, decision_model=None)
+        return [self._finding(f, "faithfulness") for f in result["findings"]], result["lanes"]
+
+    def faithfulness_document(self, source: str, target: str) -> tuple[list[Finding], dict[str, Any]]:
+        """The whole translated body against the whole source with the parity rules only (the judge has read every block already): the
+        structure, links and directives of the document as a whole."""
+        findings, lanes = self.parity(source, target)
         document_wide = {"structure", "links", "citations", "code", "directives"}
-        return [self._finding(f, "faithfulness") for f in result["findings"] if f["policyId"] in document_wide], result["lanes"]
+        return [f for f in findings if f.policy in document_wide], lanes
 
     def copy_edit(self, target: str) -> tuple[list[Finding], dict[str, Any]]:
         request = {"schemaVersion": 1, "content": {"text": target, "format": "markdown", "language": self.target_language},

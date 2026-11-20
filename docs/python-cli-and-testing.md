@@ -10,7 +10,7 @@ Papyrus now packages its Python newsroom tooling as the Poetry-managed
 Use Poetry as the canonical Python entrypoint:
 
 ```bash
-poetry install --extras newsroom
+poetry install --extras "newsroom markus priming" --with cyclotron
 export BIBLICUS_WORKDIR=/path/to/biblicus-workdir
 poetry run papyrus --help
 poetry run papyrus assignments build-context --assignment <assignment-id>

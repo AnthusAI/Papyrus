@@ -237,3 +237,89 @@ def test_the_honeypot_is_hidden_with_the_style_object_not_an_attribute():
         'const el = mount({}); const trap = byClass(el, "markus-notifications-trap")[0]; console.log(JSON.stringify({ attribute: trap.attrs.style || null, style: trap.style }));',
     )
     assert result["attribute"] is None and result["style"]["left"] == "-10000px"
+
+
+FAMILIES = {
+    "status": 200,
+    "body": {
+        "status": "ready",
+        "email": "reader@example.com",
+        "consent": CONSENT,
+        "lists": [
+            {"id": "every-item", "name": "Every new story", "description": "", "subscribed": True, "family": "new-stories", "cadence": "each"},
+            {"id": "daily", "name": "Daily summary", "description": "", "subscribed": False, "family": "new-stories", "cadence": "daily"},
+            {"id": "weekly", "name": "Weekly newsletter", "description": "", "subscribed": False, "family": "weekly", "cadence": "weekly"},
+        ],
+    },
+}
+CHOICES = """const choices = (selector) => $(selector).queryAll("button.markus-notifications-choice");
+const rows = (selector) => choices(selector).map((b) => [b.queryAll(".markus-notifications-name")[0].textContent, b.queryAll(".markus-notifications-state")[0].textContent,
+  /data-icon="([a-z-]+)"/.exec(b.queryAll(".markus-notifications-mark")[0].innerHTML)[1]]);
+const sent = () => $("form").queryAll("input").filter((i) => i.name === "l" && !i.disabled).map((i) => i.value);
+const consent = () => ({ shown: visible("[data-notifications-consent]"), value: $("form").elements.consent.value, disabled: $("form").elements.consent.disabled,
+  save: text("button[value=save] span") });
+"""
+
+
+def test_a_family_is_one_choice_among_its_lists_and_off_and_a_newsletter_is_a_tick(site):
+    result = run_page(
+        page(site, "preferences"), f"?token={TOKEN}", {STATE: FAMILIES},
+        CHOICES + """console.log(JSON.stringify({ family: rows("div.markus-notifications-family"), ticks: $("form").queryAll("button.markus-notifications-toggle").length - choices("form").length,
+          sent: sent(), consent: consent() }));""",
+    )
+    assert result["family"] == [["Every new story", "Chosen", "circle-check"], ["Daily summary", "Choose", "circle"], ["Off", "Choose", "circle"]], "one choice, said in words and with a mark"
+    assert result["ticks"] == 1, "the weekly newsletter is its own family: a tick"
+    assert result["sent"] == ["every-item"]
+    assert result["consent"] == {"shown": False, "value": "", "disabled": True, "save": "Save"}
+
+
+def test_choosing_another_cadence_in_a_family_the_reader_holds_asks_for_nothing_more(site):
+    result = run_page(
+        page(site, "preferences"), f"?token={TOKEN}", {STATE: FAMILIES},
+        CHOICES + """choices("form")[1].click();
+        console.log(JSON.stringify({ family: rows("div.markus-notifications-family"), sent: sent(), consent: consent() }));""",
+    )
+    assert result["family"] == [["Every new story", "Choose", "circle"], ["Daily summary", "Chosen", "circle-check"], ["Off", "Choose", "circle"]]
+    assert result["sent"] == ["daily"], "only the chosen list is sent, so the reader holds one list of the family"
+    assert result["consent"] == {"shown": False, "value": "", "disabled": True, "save": "Save"}
+
+
+def test_choosing_off_sends_no_list_of_the_family(site):
+    result = run_page(
+        page(site, "preferences"), f"?token={TOKEN}", {STATE: FAMILIES},
+        CHOICES + """choices("form")[2].click(); console.log(JSON.stringify({ sent: sent(), consent: consent() }));""",
+    )
+    assert result["sent"] == [] and not result["consent"]["shown"]
+
+
+def test_choosing_a_family_the_reader_does_not_hold_shows_the_consent_wording_and_posts_it(site):
+    off = json.loads(json.dumps(FAMILIES))
+    off["body"]["lists"][0]["subscribed"] = False
+    result = run_page(
+        page(site, "preferences"), f"?token={TOKEN}", {STATE: off},
+        CHOICES + """choices("form")[0].click();
+        const family = { sent: sent(), consent: consent(), words: text("[data-notifications-consent-words]") };
+        choices("form")[2].click();
+        const unticked = consent();
+        const weekly = $("form").queryAll("button.markus-notifications-toggle").filter((b) => !b.className.includes("choice"))[0];
+        weekly.click();
+        console.log(JSON.stringify({ family, unticked, tick: consent(), tickSent: sent() }));""",
+    )
+    assert result["family"]["consent"]["shown"] and result["family"]["consent"]["value"] == CONSENT and not result["family"]["consent"]["disabled"]
+    assert result["family"]["consent"]["save"] == "Save and send a confirmation"
+    assert CONSENT in result["family"]["words"] and "does not start until you press it" in result["family"]["words"]
+    assert result["unticked"]["shown"] is False and result["unticked"]["value"] == "", "going back to Off needs no consent"
+    assert result["tick"]["shown"] and result["tick"]["value"] == CONSENT, "a newsletter the reader did not hold needs it too"
+    assert result["tickSent"] == ["weekly"]
+
+
+def test_after_a_save_that_needs_a_confirmation_the_page_says_which_list_waits(site):
+    replies = {STATE + "?kind=preferences": FAMILIES, STATE + "?kind=lists": {"status": 200, "body": {"status": "ready", "lists": [{"id": "weekly", "name": "Weekly newsletter"}]}}}
+    result = run_page(
+        page(site, "preferences"), f"?token={TOKEN}&msg=check_email&confirming=weekly", replies,
+        """console.log(JSON.stringify({ shown: visible("[data-notifications-notice]"), notice: text("[data-notifications-notice] span") }));""",
+    )
+    assert result["shown"]
+    assert result["notice"] == (
+        "Your other choices are saved. We emailed a link to confirm: Weekly newsletter. It is not on until you press the link. You get: Every new story. You do not get: Daily summary, Weekly newsletter."
+    )

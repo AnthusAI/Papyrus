@@ -1,70 +1,70 @@
 {
   "generatedBy": "scripts/generate-tenant-isolation-cases.ts",
   "summary": {
-    "models": 72,
+    "models": 73,
     "globalModels": 3,
-    "modelCases": 498,
-    "indexCases": 222,
+    "modelCases": 505,
+    "indexCases": 230,
     "subscriptionCases": 9,
-    "operationCases": 134,
-    "functionCases": 68,
+    "operationCases": 136,
+    "functionCases": 72,
     "surfaceCases": 9
   },
   "cases": [
     {
-      "id": "model:Announcement:get",
+      "id": "model:AnnouncementDecision:get",
       "kind": "model",
-      "subject": "Announcement",
+      "subject": "AnnouncementDecision",
       "operation": "get",
-      "probe": "alpha gets \"beta\"'s Announcement by id",
+      "probe": "alpha gets \"beta\"'s AnnouncementDecision by id",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
-      "id": "model:Announcement:list",
+      "id": "model:AnnouncementDecision:list",
       "kind": "model",
-      "subject": "Announcement",
+      "subject": "AnnouncementDecision",
       "operation": "list",
-      "probe": "alpha lists Announcement rows",
+      "probe": "alpha lists AnnouncementDecision rows",
       "expect": "no row of \"beta\" is returned and pages are not short"
     },
     {
-      "id": "model:Announcement:list-filtered-to-foreign-tenant",
+      "id": "model:AnnouncementDecision:list-filtered-to-foreign-tenant",
       "kind": "model",
-      "subject": "Announcement",
+      "subject": "AnnouncementDecision",
       "operation": "list-filtered-to-foreign-tenant",
-      "probe": "alpha lists Announcement rows with filter tenantId eq \"beta\"",
+      "probe": "alpha lists AnnouncementDecision rows with filter tenantId eq \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
-      "id": "model:Announcement:create-with-foreign-tenantId",
+      "id": "model:AnnouncementDecision:create-with-foreign-tenantId",
       "kind": "model",
-      "subject": "Announcement",
+      "subject": "AnnouncementDecision",
       "operation": "create-with-foreign-tenantId",
-      "probe": "alpha creates a Announcement with tenantId \"beta\"",
+      "probe": "alpha creates a AnnouncementDecision with tenantId \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
-      "id": "model:Announcement:update-to-foreign-tenantId",
+      "id": "model:AnnouncementDecision:update-to-foreign-tenantId",
       "kind": "model",
-      "subject": "Announcement",
+      "subject": "AnnouncementDecision",
       "operation": "update-to-foreign-tenantId",
-      "probe": "alpha updates its own Announcement setting tenantId to \"beta\" (tenantId must be immutable)",
+      "probe": "alpha updates its own AnnouncementDecision setting tenantId to \"beta\" (tenantId must be immutable)",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
-      "id": "model:Announcement:update-foreign-row",
+      "id": "model:AnnouncementDecision:update-foreign-row",
       "kind": "model",
-      "subject": "Announcement",
+      "subject": "AnnouncementDecision",
       "operation": "update-foreign-row",
-      "probe": "alpha updates \"beta\"'s Announcement",
+      "probe": "alpha updates \"beta\"'s AnnouncementDecision",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
-      "id": "model:Announcement:delete-foreign-row",
+      "id": "model:AnnouncementDecision:delete-foreign-row",
       "kind": "model",
-      "subject": "Announcement",
+      "subject": "AnnouncementDecision",
       "operation": "delete-foreign-row",
-      "probe": "alpha deletes \"beta\"'s Announcement",
+      "probe": "alpha deletes \"beta\"'s AnnouncementDecision",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -569,6 +569,62 @@
       "subject": "CurationDelegationRecord",
       "operation": "delete-foreign-row",
       "probe": "alpha deletes \"beta\"'s CurationDelegationRecord",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Delivery:get",
+      "kind": "model",
+      "subject": "Delivery",
+      "operation": "get",
+      "probe": "alpha gets \"beta\"'s Delivery by id",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Delivery:list",
+      "kind": "model",
+      "subject": "Delivery",
+      "operation": "list",
+      "probe": "alpha lists Delivery rows",
+      "expect": "no row of \"beta\" is returned and pages are not short"
+    },
+    {
+      "id": "model:Delivery:list-filtered-to-foreign-tenant",
+      "kind": "model",
+      "subject": "Delivery",
+      "operation": "list-filtered-to-foreign-tenant",
+      "probe": "alpha lists Delivery rows with filter tenantId eq \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Delivery:create-with-foreign-tenantId",
+      "kind": "model",
+      "subject": "Delivery",
+      "operation": "create-with-foreign-tenantId",
+      "probe": "alpha creates a Delivery with tenantId \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Delivery:update-to-foreign-tenantId",
+      "kind": "model",
+      "subject": "Delivery",
+      "operation": "update-to-foreign-tenantId",
+      "probe": "alpha updates its own Delivery setting tenantId to \"beta\" (tenantId must be immutable)",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Delivery:update-foreign-row",
+      "kind": "model",
+      "subject": "Delivery",
+      "operation": "update-foreign-row",
+      "probe": "alpha updates \"beta\"'s Delivery",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "model:Delivery:delete-foreign-row",
+      "kind": "model",
+      "subject": "Delivery",
+      "operation": "delete-foreign-row",
+      "probe": "alpha deletes \"beta\"'s Delivery",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -3996,11 +4052,27 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
-      "id": "index:listAnnouncementsByAccountAndCreatedAt",
+      "id": "index:listAnnouncementDecisionsByTenant",
       "kind": "index",
-      "subject": "listAnnouncementsByAccountAndCreatedAt",
+      "subject": "listAnnouncementDecisionsByTenant",
       "operation": "list-by-index-at-foreign-key",
-      "probe": "alpha calls listAnnouncementsByAccountAndCreatedAt on Announcement with accountId at one of \"beta\"'s keys",
+      "probe": "alpha calls listAnnouncementDecisionsByTenant on AnnouncementDecision with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listAnnouncementDecisionsByDedupeKeyAndCreatedAt",
+      "kind": "index",
+      "subject": "listAnnouncementDecisionsByDedupeKeyAndCreatedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listAnnouncementDecisionsByDedupeKeyAndCreatedAt on AnnouncementDecision with dedupeKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listAnnouncementDecisionsByStateAndReleaseAt",
+      "kind": "index",
+      "subject": "listAnnouncementDecisionsByStateAndReleaseAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listAnnouncementDecisionsByStateAndReleaseAt on AnnouncementDecision with state at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -4249,6 +4321,46 @@
       "subject": "listCurationDelegationRecordsByGrantor",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listCurationDelegationRecordsByGrantor on CurationDelegationRecord with grantorSub at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listDeliveriesByTenant",
+      "kind": "index",
+      "subject": "listDeliveriesByTenant",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listDeliveriesByTenant on Delivery with tenantId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listDeliveriesByAnnouncementAndCreatedAt",
+      "kind": "index",
+      "subject": "listDeliveriesByAnnouncementAndCreatedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listDeliveriesByAnnouncementAndCreatedAt on Delivery with announcementId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listDeliveriesByAccountKeyAndCreatedAt",
+      "kind": "index",
+      "subject": "listDeliveriesByAccountKeyAndCreatedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listDeliveriesByAccountKeyAndCreatedAt on Delivery with accountKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listDeliveriesByExampleKeyAndExampleAt",
+      "kind": "index",
+      "subject": "listDeliveriesByExampleKeyAndExampleAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listDeliveriesByExampleKeyAndExampleAt on Delivery with exampleKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listDeliveriesByDueKeyAndDueAt",
+      "kind": "index",
+      "subject": "listDeliveriesByDueKeyAndDueAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listDeliveriesByDueKeyAndDueAt on Delivery with dueKey at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -4913,6 +5025,14 @@
       "subject": "listProcedureRunsByFeedAndRequestedAt",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listProcedureRunsByFeedAndRequestedAt on ProcedureRun with newsroomFeedKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listProcedureRunsByAttentionKeyAndDueAt",
+      "kind": "index",
+      "subject": "listProcedureRunsByAttentionKeyAndDueAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listProcedureRunsByAttentionKeyAndDueAt on ProcedureRun with attentionKey at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -5865,6 +5985,14 @@
       "subject": "announcementsPause",
       "operation": "call-scope",
       "probe": "alpha calls announcementsPause with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsRead",
+      "kind": "operation",
+      "subject": "announcementsRead",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsRead with op, input, actorKind chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -6840,7 +6968,7 @@
       "kind": "operation",
       "subject": "startNewsroomProcedureRun",
       "operation": "call-with-foreign-ids",
-      "probe": "alpha calls startNewsroomProcedureRun with \"beta\"'s ids for procedureId, procedureKey, procedureVersionId",
+      "probe": "alpha calls startNewsroomProcedureRun with \"beta\"'s ids for procedureId, procedureKey, procedureVersionId, wakeKey",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -6865,6 +6993,14 @@
       "subject": "suggestReferenceLinks",
       "operation": "call-scope",
       "probe": "alpha calls suggestReferenceLinks with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:todayOverview",
+      "kind": "operation",
+      "subject": "todayOverview",
+      "operation": "call-scope",
+      "probe": "alpha calls todayOverview with day, timeZone chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
@@ -6996,6 +7132,22 @@
       "expect": "refused before any read"
     },
     {
+      "id": "function:change-feed",
+      "kind": "function",
+      "subject": "change-feed",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/change-feed (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:change-feed:iam-without-tenant",
+      "kind": "function",
+      "subject": "change-feed",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/change-feed without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
       "id": "function:cli-login-pages",
       "kind": "function",
       "subject": "cli-login-pages",
@@ -7121,6 +7273,22 @@
       "subject": "image-service",
       "operation": "iam-call-without-tenant",
       "probe": "the platform operator role invokes amplify/functions/image-service without naming a tenant",
+      "expect": "refused before any read"
+    },
+    {
+      "id": "function:item-change-feed",
+      "kind": "function",
+      "subject": "item-change-feed",
+      "operation": "invoke-with-foreign-tenant-input",
+      "probe": "alpha reaches amplify/functions/item-change-feed (directly or through an operation) with an event naming \"beta\"",
+      "expect": "reads and writes nothing of \"beta\""
+    },
+    {
+      "id": "function:item-change-feed:iam-without-tenant",
+      "kind": "function",
+      "subject": "item-change-feed",
+      "operation": "iam-call-without-tenant",
+      "probe": "the platform operator role invokes amplify/functions/item-change-feed without naming a tenant",
       "expect": "refused before any read"
     },
     {
@@ -7545,6 +7713,16 @@
     },
     {
       "code": "index-not-tenant-prefixed",
+      "subject": "listAnnouncementDecisionsByDedupeKeyAndCreatedAt",
+      "note": "partition key dedupeKey on AnnouncementDecision is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listAnnouncementDecisionsByStateAndReleaseAt",
+      "note": "partition key state on AnnouncementDecision is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
       "subject": "listAssignmentEventsByAssignmentAndCreatedAt",
       "note": "partition key assignmentId on AssignmentEvent is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
@@ -7682,6 +7860,26 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listCurationDelegationRecordsByGrantor",
       "note": "partition key grantorSub on CurationDelegationRecord is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listDeliveriesByAccountKeyAndCreatedAt",
+      "note": "partition key accountKey on Delivery is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listDeliveriesByAnnouncementAndCreatedAt",
+      "note": "partition key announcementId on Delivery is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listDeliveriesByDueKeyAndDueAt",
+      "note": "partition key dueKey on Delivery is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listDeliveriesByExampleKeyAndExampleAt",
+      "note": "partition key exampleKey on Delivery is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",
@@ -8017,6 +8215,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listProcedureRunsByAssignmentAndRequestedAt",
       "note": "partition key assignmentId on ProcedureRun is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listProcedureRunsByAttentionKeyAndDueAt",
+      "note": "partition key attentionKey on ProcedureRun is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",
@@ -8440,11 +8643,6 @@
     },
     {
       "code": "model-without-tenantId",
-      "subject": "Announcement",
-      "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
-    },
-    {
-      "code": "model-without-tenantId",
       "subject": "AnnouncementSettings",
       "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
     },
@@ -8467,6 +8665,11 @@
       "code": "model-without-tenantId",
       "subject": "XConnection",
       "note": "tenant-owned model has no tenantId field and is not in GLOBAL_MODELS"
+    },
+    {
+      "code": "no-tenant-claim-rule",
+      "subject": "AnnouncementDecision",
+      "note": "access rests on group rules, none compares tenantId with a token claim"
     },
     {
       "code": "no-tenant-claim-rule",
@@ -8501,6 +8704,11 @@
     {
       "code": "no-tenant-claim-rule",
       "subject": "CurationDelegationRecord",
+      "note": "access rests on group rules, none compares tenantId with a token claim"
+    },
+    {
+      "code": "no-tenant-claim-rule",
+      "subject": "Delivery",
       "note": "access rests on group rules, none compares tenantId with a token claim"
     },
     {
@@ -8845,6 +9053,11 @@
     },
     {
       "code": "tenantId-can-be-changed",
+      "subject": "AnnouncementDecision",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
       "subject": "Assignment",
       "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
@@ -8876,6 +9089,11 @@
     {
       "code": "tenantId-can-be-changed",
       "subject": "CurationDelegationRecord",
+      "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
+    },
+    {
+      "code": "tenantId-can-be-changed",
+      "subject": "Delivery",
       "note": "no field-level rule on tenantId: with model-level rules an editor can update a row into another tenant (spike PPY-867f76)"
     },
     {

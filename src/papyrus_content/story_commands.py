@@ -687,7 +687,7 @@ def stories_show(flags: list[str]) -> None:
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
     metadata = latest.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
-    from .home_page.ordering import utc_today
+    from .quality_ranking import utc_today
     from .projection.standard.config import DEFAULT_STORY_BUCKET
     from .story_signals import signals
 
@@ -698,6 +698,10 @@ def stories_show(flags: list[str]) -> None:
                          f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
         if signal["source"] == "editor":
             print("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+        from .pod_claims import claim_lines
+
+        for line in claim_lines(latest):
+            print("\t".join(["stories", "show", "claim", line]))
         from datetime import datetime, timezone
 
         from .story_schedule import BLOCKED_MESSAGE, BLOCKED, OVERDUE, effective_state, scheduled_versions
@@ -976,7 +980,9 @@ def stories_set_slug(flags: list[str]) -> None:
     print(f"stories\tset-slug\tsaved\t{item_id}\t{slug}")
     if not published:
         return
-    publish_item(client, item_id, actor=actor)
+    from .publish_commands import signed_in_person
+
+    publish_item(client, item_id, actor=actor, by_person=signed_in_person(actor))
     if not projection_requested():
         return
     if options.get("no-trigger"):
@@ -1300,6 +1306,7 @@ def stories_localize_all(options: dict) -> None:
     ceiling = float(options["ceiling-usd"]) if options.get("ceiling-usd") else None
     concurrency = normalize_positive_integer(options.get("concurrency"), "--concurrency") or backfill.DEFAULT_CONCURRENCY
     automation = normalize_string(options.get("automation"))
+    window = backfill.UpdatedWindow.parse(options.get("updated-since"), options.get("updated-before"))
     client, _ = create_authoring_client()
     settings = settings_from(GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
     serving = serving_languages(settings)
@@ -1311,7 +1318,13 @@ def stories_localize_all(options: dict) -> None:
     procedure = normalize_string(options.get("procedure"))
     if not automation:
         procedure = procedure or default_procedure_key(host_for(client.endpoint))
-    jobs = backfill.survey(client, settings, languages)
+    jobs = backfill.survey(client, settings, languages, window=window)
+    if window is not None and not jobs:
+        if as_json:
+            print(json.dumps({"dryRun": dry_run, "languages": languages, "updated": window.describe(), "undated": window.undated, "rows": [], "message": window.empty_message()}, ensure_ascii=False))
+        else:
+            print("\t".join(["stories", "localize", "none", window.empty_message()]))
+        return
     todo = [job for job in jobs if job.status == backfill.PLANNED]
     request_meter.add_units(len(todo))   # each Story and language still to do is a unit of work the request budget allows for
     summary: dict = {}
@@ -1332,8 +1345,10 @@ def stories_localize_all(options: dict) -> None:
                              publish_clean_results=publish_clean, concurrency=concurrency, ceiling_usd=ceiling, procedure_key=procedure,
                              key=openai_key(options.get("openai-key-parameter")), project=project)
     if as_json:
-        print(json.dumps({"dryRun": dry_run, "languages": languages, "rows": [job.row() for job in jobs], **summary}, ensure_ascii=False))
+        print(json.dumps({"dryRun": dry_run, "languages": languages, **({"updated": window.describe(), "undated": window.undated} if window else {}), "rows": [job.row() for job in jobs], **summary}, ensure_ascii=False))
     else:
+        if window is not None:
+            print("\t".join(["stories", "localize", "window", f"Stories updated {window.describe()}" + (f"; {window.undated} with no publish time left out" if window.undated else "")]))
         for line in backfill.table(jobs):
             print("\t".join(["stories", "localize", line]))
         if dry_run:
@@ -1399,6 +1414,72 @@ def stories_correct_translation(flags: list[str]) -> None:
         content_publish(["--id", record["id"], *(["--verify"] if verify else []), *(["--json"] if as_json else [])])
 
 
+def stories_import_translation(flags: list[str]) -> None:
+    """papyrus stories import-translation --story LINEAGE --language TAG --body-file FILE [--front-matter-file FILE] --written-by NAME [--drafting-by-ai] --reason TEXT [--dry-run] [--json]
+
+    Attaches finished copy, written separately by people or other agents, as the translation of a published Story. It saves the copy as the next version of
+    ``<story>--<language>`` the way the translation procedure saves one (unpublished, paired with the English version it translates, the original's
+    pictures carried, its address drafted by the language's slug policy), with the writer as its author and a provenance that says the copy was written,
+    not machine-generated. The version's front matter gets ``author: NAME`` (--written-by) and, only with --drafting-by-ai (bots helped write the copy),
+    ``drafting: {by: AI}``, in place of the English's; the site's standard byline reads from those two keys ("By NAME", or "By various bots and NAME") and is
+    translated into the page's language like every byline. The page of an imported translation says nothing of who translated it, only where the original is. Every block is the writer's: owner human, pinned, so a later translation run keeps the copy exactly.
+
+    FILE is the body in Markdown. The front matter is YAML with the Story's own reader-facing texts (title, dek or deck, and blurb and imageAlt when the
+    English has them), in its own file or as a leading --- block of the body file. The copy must have the English's blocks in the same order (blocks are
+    separated by blank lines), the same link targets, web addresses, citations, credits and figure settings, and the English's code blocks and rules; a copy
+    that does not line up, or changes one of those, is refused and nothing is saved. No model is called: the parity and glossary rules and the language's
+    copy-edit policies check each block and the whole body. An error-severity faithfulness finding holds the version (a flag review request a person
+    answers before it publishes), exactly as it holds a machine translation; other findings are printed as advice.
+
+    The Story must be published, in a language the site writes in, and not itself a translation. The command also writes the Story's translation request
+    finished, so ``papyrus stories localize --all`` counts the language up to date. It never publishes: use ``papyrus ops content publish --id VERSION_ID``.
+
+    Writes by default; --dry-run prints the alignment and the findings and writes nothing. See docs/story-translation-procedure.md, "Finished copy"."""
+    from .localize.import_copy import import_translation
+
+    options = parse_options(flags)
+    story = _required_option(options, "story")
+    language = _required_option(options, "language")
+    body_file = _required_option(options, "body-file")
+    front_matter_file = normalize_string(options.get("front-matter-file"))
+    written_by = _required_option(options, "written-by")
+    reason = _required_option(options, "reason")
+    drafting_by_ai = parse_boolean_option(options.get("drafting-by-ai"), default=False, label="--drafting-by-ai")
+    dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    as_json = parse_boolean_option(options.get("json"), default=False, label="--json")
+
+    def read(path: str, flag: str) -> str:
+        if not Path(path).is_file():
+            raise ValueError(f"{flag} {path} is not a file.")
+        return Path(path).read_text(encoding="utf-8")
+
+    body = read(body_file, "--body-file")
+    front_matter = read(front_matter_file, "--front-matter-file") if front_matter_file else None
+    client, claims = create_authoring_client()
+    applied_by = normalize_string((claims or {}).get("sub")) or "papyrus-cli"
+    done = import_translation(client, story=story, language=language, body=body, front_matter=front_matter, written_by=written_by, applied_by=applied_by,
+                              reason=reason, drafting_by_ai=drafting_by_ai, apply=not dry_run)
+    record = done.record
+    if as_json:
+        print(json.dumps({"dryRun": dry_run, "lineage": done.lineage, "language": done.language, "blocks": done.pairs, "findings": done.findings,
+                          "held": done.held, "reason": done.reason, "reviewRequest": done.review_request, "replaces": done.replaces,
+                          "unchanged": done.unchanged, "versionId": record["id"] if record else None, "published": False}, ensure_ascii=False))
+        return
+    row = lambda *cells: print("\t".join(["stories", "import-translation", done.lineage, *cells]))  # noqa: E731
+    for pair in done.pairs:
+        row(f"block {pair['block']}", pair["kind"], "aligned", pair["english"].replace("\n", " ")[:80], "->", pair["copy"].replace("\n", " ")[:80])
+    for finding in done.findings:
+        row(f"block {finding['block']}" if finding["block"] else "body", finding["kind"], f"{finding['severity']} {finding['category']}", finding["policy"],
+            finding["message"], finding["excerpt"])
+    if done.replaces:
+        row("replaces", f"version {done.replaces['versionNumber']}", f"{done.replaces['translation']} copy, {done.replaces['status']}", "kept in the version history")
+    status = "held: flag review request " + str(done.review_request) + " (" + done.reason + ")" if done.held else "no error findings"
+    if dry_run:
+        row("dry run", f"{len(done.pairs)} block(s) aligned", status)
+    else:
+        row("unchanged" if done.unchanged else f"saved {record['id']}", f"{len(done.pairs)} block(s) pinned to {written_by}", status)
+
+
 def stories_localize(flags: list[str]) -> None:
     """papyrus stories localize --story LINEAGE --language TAG [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--ceiling-usd N] [--dry-run] [--json]
 
@@ -1416,9 +1497,11 @@ def stories_localize(flags: list[str]) -> None:
     language's measured runs) and writes nothing.
 
     Whole site: ``papyrus stories localize --all (--language TAG | --all-languages) [--publish-clean] [--dry-run] [--concurrency N] [--ceiling-usd N]
-    [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--json]`` finds every published primary-language Story with no up-to-date
+    [--updated-since DATE|7d|1w] [--updated-before DATE|7d|1w] [--procedure KEY] [--automation ID] [--openai-key-parameter SSM_PARAMETER] [--json]`` finds every published primary-language Story with no up-to-date
     translation in the language (or in every enabled language) and runs them all, printing one row per Story and language (saved, held, failed,
-    up to date, cost). See ``localize/backfill.py``."""
+    up to date, cost). ``--updated-since`` / ``--updated-before`` (an ISO date or datetime in UTC, or a duration such as 7d, 36h, 1w before now) keep only the
+    Stories whose current published version was published in the range (inclusive start, exclusive end), for every mode including ``--publish-clean``.
+    See ``localize/backfill.py``."""
     from .localize.desired_state import want
     from .localize.record import collect
     from .story_reporting import published_story_version
@@ -1426,6 +1509,8 @@ def stories_localize(flags: list[str]) -> None:
     options = parse_options(flags)
     if parse_boolean_option(options.get("all"), default=False, label="--all"):
         return stories_localize_all(options)
+    if options.get("updated-since") or options.get("updated-before"):
+        raise ValueError("--updated-since and --updated-before narrow --all; to translate one Story, name it with --story.")
     story = _required_option(options, "story")
     language = _required_option(options, "language")
     dry_run = parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")

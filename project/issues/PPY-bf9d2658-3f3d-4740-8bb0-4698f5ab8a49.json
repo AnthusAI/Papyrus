@@ -15,9 +15,24 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7bc8aca2-b56a-4189-9fb2-c09fd07b1115",
+      "author": "home",
+      "text": "Audit: nothing built beyond the engine copying a Caducus withdrawal; story_retire has no announcement call. Blocked by 9f4d66/efd06c.",
+      "created_at": "2026-11-18T16:59:14.115431Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "27daf278-b923-495c-b51a-91a5eed198a2",
+      "author": "home",
+      "text": "Built (PR #1714): papyrus stories retire now withdraws every Delivery of each Announcement that is only about retired Stories (announcements/retirement.py; spec announcement-retire-withdraws.feature). A Delivery that has not gone is stopped. A post already on X is NOT deleted by this command: the signed-in CLI holds no Caducus rights, so its line says NOT withdrawn with the Delivery id and it stays sent. papyrus announcements retry puts a failed delete (or any failed Delivery) back to ready. Not built: the Withdraw announcement button in the drawer (it needs a write door in the image-service schema, the UI and a deploy). QUESTION FOR RYAN: how should retiring a Story delete a post that already went on X? Proposed: the announce agent also wakes when a Story's Item enters the retired stage (a listener on Item stage_entered retired, from the existing Item change feed) and withdraws through the site's own X channel, which does hold the rights; the CLI stays as it is. Alternative: give the signed-in CLI a way to call the site's X channel. I have not decided; I recommend the first.",
+      "created_at": "2026-11-19T10:21:54.498857Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-12T18:41:39.411515Z",
-  "updated_at": "2026-11-12T18:51:02.632077Z",
+  "updated_at": "2026-11-19T10:21:54.499159Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

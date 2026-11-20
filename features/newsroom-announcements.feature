@@ -70,9 +70,50 @@ Feature: The Announcements page lets the site owner connect X and decide what is
     Then the price table should say "as of 12 Nov 2026"
 
   @brand-agnostic
-  Scenario: A dry run list shows the exact post and says it was not sent
+  Scenario: The list shows one line for each Delivery under one Announcement
     Given I open the announcements page at 1440 by 1000
-    Then the announcement "The machines that audit other machines" should read "Dry run: not sent"
+    Then the "Story published" announcement about "harbor safety review" should have 2 lines, one for each Delivery
+    And in it the "Email" line should read "Sent" with an icon
+    And in it the "X" line should read "Dry run: not sent" with an icon
+
+  @brand-agnostic
+  Scenario: Each Delivery says how it is reviewed, in words and a mark
+    Given I open the announcements page at 1440 by 1000
+    Then the "Story published" announcement about "harbor safety review" should have 2 lines, one for each Delivery
+    And in it the "Email" line should show the review "Released by a person" with an icon
+    And the "Correction" announcement about "harbor safety review" should have 1 line, one for each Delivery
+    And in it the "X" line should show the review "Released automatically by publication policy" with an icon
+    And the "Story published" announcement about "lighthouse keepers" should have 2 lines, one for each Delivery
+    And in it the "Email" line should show the review "Goes at its lock time unless a person stops it" with an icon
+    And the "Roundup" announcement about "lighthouse keepers" should have 1 line, one for each Delivery
+    And in it the "Email" line should show the review "Waits for a person to release it" with an icon
+
+  @brand-agnostic
+  Scenario: A due Delivery with no attempt says Overdue
+    Given I open the announcements page at 1440 by 1000
+    Then the "Story published" announcement about "lighthouse keepers" should have 2 lines, one for each Delivery
+    And in it the "X" line should say "Overdue" with an icon
+    And the overdue section should hold an "X" line
+
+  @brand-agnostic
+  Scenario: A Delivery with an attempt that has no answer says Outcome unknown
+    Given I open the announcements page at 1440 by 1000
+    Then the "Correction" announcement about "harbor safety review" should have 1 line, one for each Delivery
+    And in it the "X" line should say "Outcome unknown" with an icon
+    And the page should say that a Delivery has an attempt with no answer yet
+
+  @brand-agnostic
+  Scenario: A blocked draft shows its review flag once for its Announcement
+    Given I open the announcements page at 1440 by 1000
+    Then the "Story published" announcement about "lighthouse keepers" should have 2 lines, one for each Delivery
+    And in it the "Email" line should read "Blocked: check failed" with an icon
+    And the announcement should show the review flag once
+
+  @brand-agnostic
+  Scenario: Nothing on the list depends on colour or borders
+    Given I open the announcements page at 1440 by 1000
+    Then every state on the list should be an icon together with words
+    And nothing on the list should have a border
 
   @brand-agnostic
   Scenario: The page fits a phone

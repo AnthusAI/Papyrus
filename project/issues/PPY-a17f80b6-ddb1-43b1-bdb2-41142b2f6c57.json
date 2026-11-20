@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a17f80b6-ddb1-43b1-bdb2-41142b2f6c57",
+  "title": "In-process translation runs publish data but cannot build pages without the site bucket",
+  "description": "Found 2026-11-18 in the last-week Machines on Machines batch: papyrus stories localize --publish-clean ran in process without PAPYRUS_SITE_BUCKET, so the two 'hackers' translations were published as data but their pages were not built. They were rebuilt with ops content publish. The command should hand the projection to the site the way the signed-in lane does, or refuse to publish without a bucket; it must not publish data and silently skip the page. Related to the missing siteBucket that also blocks the automation path until the papyrus-monitoring hold lifts.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-18T12:24:34.906236Z",
+  "updated_at": "2026-11-18T12:24:34.906766Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -33,6 +33,15 @@ def _constraint_lines(document: dict) -> list[str]:
     return ["Binding rules:", *rules] if rules else []
 
 
+def _rule_lines(document: dict) -> list[str]:
+    """The rule files of the guidelines (guideline files that are not a field): each with its severity, what it avoids and its own words."""
+    out: list[str] = []
+    for rule in document.get("guidelineFiles") or []:
+        avoid = f" Avoid: {'; '.join(rule['avoid'])}." if rule.get("avoid") else ""
+        out.append(f"- {rule['name']} ({rule['severity']}): {(rule.get('body') or rule.get('description') or '').strip()}{avoid}")
+    return ["", "Guideline files:", *out] if out else []
+
+
 def writing_text(document: dict, *, binding_only: bool = False) -> str:
     """The writing guidelines for an agent. ``binding_only`` keeps the voice, the audience and the binding rules, for an agent that only chooses what to commission."""
     lines = _voice_lines(document)
@@ -49,6 +58,7 @@ def writing_text(document: dict, *, binding_only: bool = False) -> str:
         lines += ["Glossary:", *glossary] if glossary else []
         if document.get("bodyMarkus"):
             lines += ["", document["bodyMarkus"].strip()]
+        lines += _rule_lines(document)
     constraints = _constraint_lines(document)
     if constraints:
         lines += ["", *constraints] if lines else constraints

@@ -1,0 +1,37 @@
+{
+  "id": "PPY-4c7c87b6-8c2b-40ca-aca9-462f1f165bcd",
+  "title": "Localizer: keep a translated block's soft line breaks",
+  "description": "Board task for localizer work that had none. PR: https://github.com/AnthusAI/Papyrus/pull/1633 (OPEN). Not merged yet; CI was running when the report was written. Stays open until it merges.\n\nCovers the report's finding that #1621, #1628 and #1633 have no board task (Board for every task).\n\n**Report:** papyrus-track-report-1.md, section 1 (merged pull requests table) and section 2 (Board for every task).",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-376e8515-5591-481a-b0a3-1be5294dd787",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "5c55a60a-f0db-4427-828c-7d7a71688d8c",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1633 (open, CI running at the time of the report). Close with the merge link once merged to develop.",
+      "created_at": "2026-11-17T01:18:22.421003Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "85c22710-f076-4568-a658-f801d67ebe7b",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1633 (open, CI running at the time of the report). Close with the merge link once merged to develop.",
+      "created_at": "2026-11-17T01:18:28.647745Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-17T01:17:41.856184Z",
+  "updated_at": "2026-11-17T01:18:28.648082Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

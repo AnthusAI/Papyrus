@@ -31,9 +31,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7b8b5c2d-37d0-45a1-a4b1-568c6d11870c",
+      "author": "home",
+      "text": "Built in PR 1720: newsletter/slot_links.py link rule (own Story page or in the Story) plus spec. Covered by the living-issue model (PR 1718) rather than rebuilt: removed slot remembered (exclusions), pinned slots survive a refill, stale slot edit refused showing the newer text (Conflict). NOT done, blocked or open: burst folding (needs PPY-67e3cd coalescing window), one working document per list incl. delivery lists (PPY-2c29e5), sent-Delivery memory of last blurb, rendered text in S3, lock-time send of the last approved assembly, wiring slot_links into a save path.",
+      "created_at": "2026-11-19T12:32:01.880840Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T21:48:36.630051Z",
-  "updated_at": "2026-11-16T22:46:05.065743Z",
+  "updated_at": "2026-11-19T12:32:01.881191Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

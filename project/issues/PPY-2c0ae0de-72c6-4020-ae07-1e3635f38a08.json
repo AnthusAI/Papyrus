@@ -1,0 +1,20 @@
+{
+  "id": "PPY-2c0ae0de-72c6-4020-ae07-1e3635f38a08",
+  "title": "Every Story carries one persona from assignment to announcement",
+  "description": "When a Story is assigned, the editor picks a persona from the section's list; an automated assignment rotates through the list. The persona is stored on the Story and kept through research, outline, draft, revisions and publication; the published byline and JSON-LD author come from it. An editor can change the persona before publication, and the change is recorded.\nScenario: an automated assignment in a section with personas A and B gives successive Stories A then B. Scenario: the published page and its JSON-LD name the Story's persona.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-40443baa-fee3-4b94-811c-569f70a62024",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-17T18:50:47.963919Z",
+  "updated_at": "2026-11-17T18:50:47.963952Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

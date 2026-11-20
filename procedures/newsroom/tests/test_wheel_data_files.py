@@ -70,3 +70,37 @@ def test_a_checkout_still_prefers_the_repo_corpora_file(tmp_path, monkeypatch):
     (root / "corpora" / "papyrus-steering.yml").unlink()
     assert env.resolve_corpora_file("corpora/papyrus-steering.yml") == env.packaged_corpora_file("papyrus-steering.yml")
     assert env.resolve_corpora_file("corpora/not-shipped.yml") == root / "corpora" / "not-shipped.yml"
+
+
+def test_the_built_wheel_contains_the_file_of_every_registered_procedure_kind(wheel):
+    import json
+
+    registered = json.loads((support.SOURCE_DIRECTORY / "papyrus-required-procedures.json").read_text(encoding="utf-8"))["procedures"]
+    assert len(registered) >= 11
+    members = support.wheel_members(wheel)
+    assert {f"{support.PACKAGED_PROCEDURES}/{name}" for name in registered.values()} <= members
+
+
+def test_every_registered_kind_is_found_from_an_unpacked_wheel_away_from_the_checkout(wheel, tmp_path):
+    target = tmp_path / "site-packages"
+    support.install_wheel(wheel, target)
+    workdir = tmp_path / "elsewhere"
+    workdir.mkdir()
+    environment = {key: value for key, value in os.environ.items() if key not in {"PAPYRUS_ROOT", "PYTHONPATH"}}
+    code = (
+        "from pathlib import Path\n"
+        "from papyrus_content import procedure_registry as registry\n"
+        "from papyrus_content.env import PAPYRUS_ROOT\n"
+        f"target = Path({str(target)!r}).resolve()\n"
+        "assert not (PAPYRUS_ROOT / 'procedures').exists(), PAPYRUS_ROOT\n"
+        "registry.validate_procedure_registry()\n"
+        "kinds = registry.load_registry_config()['procedures']\n"
+        "for kind in kinds:\n"
+        "    path = registry.procedure_file_for_kind(kind)\n"
+        "    assert path.resolve().is_relative_to(target), path\n"
+        "    assert registry.declared_kind(registry.procedure_source_for_kind(kind)) == kind\n"
+        "print(len(kinds))\n"
+    )
+    result = support.run_installed(target, workdir, code, environment)
+    assert result.returncode == 0, result.stderr
+    assert int(result.stdout.strip()) >= 11

@@ -1,22 +1,18 @@
-"""The shared order, its rank, and the time buckets (``home_page/ordering.py``)."""
+"""The Reference adapters of the shared ranking: ``rank`` as a position in the public snapshot, and Reference windows (``home_page/ordering.py``). The algorithm is tested in ``quality_ranking_test.py``."""
 
-import itertools
 import random
 from datetime import date, timedelta
 
 import pytest
 
 from papyrus_content.home_page.ordering import (
-    bucket_of,
     bucket_moment,
     has_ranks,
     order_in_buckets,
     order_public_records,
-    ordered,
-    rank_in_buckets,
     rank_records,
-    valid_stars,
 )
+from papyrus_content.quality_ranking import rank
 
 
 def reference(key, stars=None, confidence=0.5, arrived="2026-10-10T00:00:00.000Z", accepted=None):
@@ -24,42 +20,7 @@ def reference(key, stars=None, confidence=0.5, arrived="2026-10-10T00:00:00.000Z
 
 
 def shared(items):
-    return [item["key"] for item in ordered(items, stars=lambda i: i["stars"], confidence=lambda i: i["confidence"], newest=lambda i: i["arrivedAt"], key=lambda i: i["key"])]
-
-
-def test_high_stars_then_unrated_by_confidence_then_low_stars():
-    items = [
-        reference("low1", 1, 0.99), reference("low2", 2, 0.99), reference("unrated-high", None, 0.9), reference("unrated-low", None, 0.2),
-        reference("s3", 3, 0.1), reference("s4", 4, 0.1), reference("s5", 5, 0.1),
-    ]
-    assert shared(items) == ["s5", "s4", "s3", "unrated-high", "unrated-low", "low2", "low1"]
-
-
-def test_a_low_rating_sinks_a_reference_the_cyclotron_is_sure_of_and_a_high_one_lifts_a_doubtful_one():
-    assert shared([reference("sure", 2, 1.0), reference("meh", None, 0.5)]) == ["meh", "sure"]
-    assert shared([reference("doubtful", 3, 0.0), reference("sure", None, 1.0)]) == ["doubtful", "sure"]
-
-
-def test_equal_standing_goes_to_the_newest_arrival_then_the_key():
-    items = [
-        reference("b", 4, arrived="2026-10-02T00:00:00.000Z"), reference("a", 4, arrived="2026-10-02T00:00:00.000Z"),
-        reference("c", 4, arrived="2026-10-03T00:00:00.000Z"), reference("d", None, 0.5, "2026-10-01T00:00:00.000Z"), reference("e", None, 0.5, "2026-10-04T00:00:00.000Z"),
-    ]
-    assert shared(items) == ["c", "a", "b", "e", "d"]
-
-
-def test_the_order_does_not_depend_on_the_input_order():
-    items = [reference(f"k{n}", stars, confidence, f"2026-10-{n + 1:02d}T00:00:00.000Z") for n, (stars, confidence) in enumerate(itertools.product([None, 1, 2, 3, 4, 5], [0.2, 0.8]))]
-    expected = shared(items)
-    for seed in range(5):
-        shuffled = items[:]
-        random.Random(seed).shuffle(shuffled)
-        assert shared(shuffled) == expected
-
-
-@pytest.mark.parametrize(("value", "expected"), [(1, 1), (5, 5), (3.0, 3), (0, None), (6, None), (None, None), (True, None), ("4", None), (2.5, None)])
-def test_valid_stars_reads_only_a_whole_number_from_one_to_five(value, expected):
-    assert valid_stars(value) == expected
+    return [item["key"] for item in rank(items, stars=lambda i: i["stars"], confidence=lambda i: i["confidence"], newest=lambda i: i["arrivedAt"], key=lambda i: i["key"])]
 
 
 def public(key, rank, **fields):
@@ -142,49 +103,6 @@ def test_the_order_changes_only_on_the_day_a_reference_crosses_a_window():
 def test_a_reference_with_no_date_is_in_the_oldest_window():
     records = [public("dated", 2, acceptedAt="2026-10-20T00:00:00.000Z"), {"key": "undated", "rank": 1}]
     assert [record["key"] for record in order_in_buckets(records, "week", AS_OF)] == ["dated", "undated"]
-
-
-# ------------------------------------------------------------------ Stories use the same buckets and the same order
-
-
-@pytest.mark.parametrize(
-    ("moment", "bucket", "expected"),
-    [
-        ("2026-02-08", "week", "2026-02-02"),          # a Sunday belongs to the week that began on the Monday before
-        ("2026-02-09", "week", "2026-02-09"),
-        ("2026-02-08", "day", "2026-02-08"),
-        ("2026-02-08T23:30:00-05:00", "day", "2026-02-09"),   # UTC, whatever the offset says
-        ("", "week", ""),
-        (None, "day", ""),
-        ("not a date", "week", ""),
-    ],
-)
-def test_bucket_of_takes_a_date_or_a_timestamp_and_buckets_it_in_utc(moment, bucket, expected):
-    assert bucket_of(moment, bucket) == expected
-
-
-def test_rank_in_buckets_ranks_stories_inside_a_bucket_and_keeps_every_story():
-    stories = [("a", "2026-02-08", None), ("b", "2026-02-07", 5), ("c", "2026-02-06", 1), ("d", "2026-01-30", 5), ("e", "2026-02-05", 3), ("f", None, 4)]
-    ranked = rank_in_buckets(stories, stars=lambda story: story[2], moment=lambda story: story[1], bucket="week")
-    assert [story[0] for story in ranked] == ["b", "e", "a", "c", "d", "f"]
-    assert sorted(story[0] for story in ranked) == sorted(story[0] for story in stories)
-
-
-def test_rank_in_buckets_without_any_stars_is_the_list_it_was_given():
-    stories = [("a", "2026-02-08"), ("b", "2026-02-07"), ("c", "2026-01-30"), ("d", "2026-01-20")]
-    assert rank_in_buckets(stories, stars=lambda story: None, moment=lambda story: story[1], bucket="week") == stories
-
-
-def test_a_reference_with_no_confidence_ranks_below_every_scored_one_and_never_ties_with_a_real_half():
-    """Ryan, 2026-11-05: no confidence is not 0.5. An accepted Reference the Cyclotron never scored is unrated and unscored: after the scored ones, before a low rating."""
-    items = [reference("unscored", None, None, "2026-10-20T00:00:00.000Z"), reference("half", None, 0.5, "2026-10-01T00:00:00.000Z"), reference("zero", None, 0.0, "2026-10-01T00:00:00.000Z"),
-             reference("low", 2, None), reference("high", 4, None)]
-    assert shared(items) == ["high", "half", "zero", "unscored", "low"], "newer does not lift it over a scored one, not even a confident reject"
-
-
-def test_unscored_references_go_newest_first_then_by_key():
-    items = [reference("b", None, None, "2026-10-02T00:00:00.000Z"), reference("a", None, None, "2026-10-02T00:00:00.000Z"), reference("c", None, None, "2026-10-03T00:00:00.000Z")]
-    assert shared(items) == ["c", "a", "b"]
 
 
 def test_a_missing_or_bad_confidence_in_a_public_record_is_none_and_the_build_orders_it_as_unscored():

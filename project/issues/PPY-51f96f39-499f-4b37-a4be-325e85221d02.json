@@ -21,9 +21,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ebb8e342-7668-47bd-a7b0-64ea2cd2c0c8",
+      "author": "home",
+      "text": "F1 built on feat/PPY-51f96f-assignment-handoff; see PR and docs/agent-handoffs.md",
+      "created_at": "2026-11-19T08:55:43.549141Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:06.509524Z",
-  "updated_at": "2026-11-16T22:43:30.842736Z",
+  "updated_at": "2026-11-19T08:55:43.549898Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

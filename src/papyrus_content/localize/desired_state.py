@@ -29,15 +29,31 @@ def request_id(language_group: str, language: str) -> str:
     return f"{language_group}#{language}"
 
 
+def _record(source: dict[str, Any], language: str, requested_by: str, now: str, **fields: Any) -> dict[str, Any]:
+    return {"id": request_id(source["lineageId"], language), "languageGroupId": source["lineageId"], "language": language,
+            "sourceVersionId": source["id"], "sourceVersionNumber": int(source.get("versionNumber") or 0),
+            "sourceContentHash": str(source.get("contentHash") or ""), "requestedBy": requested_by, "requestedAt": now, "updatedAt": now, **fields}
+
+
 def want(client, *, source: dict[str, Any], language: str, requested_by: str, automation_id: str | None = None, publish: bool = False,
          now: str | None = None) -> dict[str, Any]:
     """Writes (or overwrites) the request for ``source`` (the published primary version) in ``language``. ``automation_id`` names the Automation that runs
     it (the automatic trigger and the dispatcher read it); ``publish`` asks for a clean result to be published when the run saves it."""
     now = now or utc_now_iso()
-    record = {"id": request_id(source["lineageId"], language), "languageGroupId": source["lineageId"], "language": language,
-              "sourceVersionId": source["id"], "sourceVersionNumber": int(source.get("versionNumber") or 0),
-              "sourceContentHash": str(source.get("contentHash") or ""), "state": "wanted", "requestedBy": requested_by, "requestedAt": now,
-              "runKey": None, "reason": None, "automationId": automation_id, "publish": publish, "updatedAt": now}
+    record = _record(source, language, requested_by, now, state="wanted", runKey=None, reason=None, automationId=automation_id, publish=publish)
+    client.upsert(MODEL, record)
+    return record
+
+
+def settled(client, *, source: dict[str, Any], language: str, requested_by: str, state: str, run_key: str, reason: str | None = None,
+            now: str | None = None) -> dict[str, Any]:
+    """Writes the request for ``source`` and ``language`` already finished (``saved`` or ``held``), for a translation that was not made by a run: finished
+    copy a person or an agent wrote (``import_copy``). The request names no automation and never asks for a publish, so the dispatcher leaves it alone, and
+    ``papyrus stories localize --all`` counts the language of this Story as up to date for exactly this source text."""
+    if state not in ("saved", "held"):
+        raise ValueError("A request settled without a run is saved or held.")
+    now = now or utc_now_iso()
+    record = _record(source, language, requested_by, now, state=state, runKey=run_key, reason=(reason or None) and reason[:1000], automationId=None, publish=False)
     client.upsert(MODEL, record)
     return record
 

@@ -11,6 +11,7 @@ TESTS = Path(__file__).resolve().parents[2] / "procedures" / "newsroom" / "tests
 sys.path.insert(0, str(TESTS))
 import automation_fixture as fx  # noqa: E402
 from fake_client import FakeAuthoringClient  # noqa: E402
+from papyrus_content.agent_policy import PersonStart
 from papyrus_content import automation_view, automations as au, procedure_runner as pr  # noqa: E402
 from test_automation_gate import AUTOMATION, PROCEDURE, SiteClient, automation as automation_row, sweep, trigger_rows  # noqa: E402
 from test_monitoring_ttab import NOW  # noqa: E402
@@ -63,6 +64,13 @@ def disabled(context):
 @given("the site has the TTAB automation")
 def enabled(context):
     with_limits(context)
+
+
+@given("the site has the TTAB automation whose router publication names no site bucket")
+def without_site_bucket(context):
+    with_limits(context)
+    for config in (row for key, row in context.run_table.rows.items() if key[1] == "CONFIG#router"):
+        config["publications"][0].pop("siteBucket")
 
 
 @given("the site has the TTAB automation with a timeout of {seconds:d} seconds and room for {count:d} at a time")
@@ -256,9 +264,9 @@ CALL = {"agent": "analyst", "model": "gpt-6-luna", "provider": "openai", "prompt
 def record_run(context, client, calls):
     context.newsroom = client
     context.outcome = pr.run_procedure_request(
-        {"appsyncEndpoint": "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql", "procedureKey": PROCEDURE,
+        {"appsyncEndpoint": "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql", "procedureKey": PROCEDURE, "wakeKey": "distinctive.ttab|manual|request-1",
          "input": {"proceeding": "1", "opinion_url": "https://x/a.pdf"}},
-        client=client, execute=lambda *a, **k: {"success": True, "output": {"title": "x"}, "seconds": 3, "usage": calls},
+        policy=PersonStart(), client=client, execute=lambda *a, **k: {"success": True, "output": {"title": "x"}, "seconds": 3, "usage": calls},
         seconds_available=900, environment={})
 
 
@@ -422,6 +430,12 @@ def history_lists(context):
 @then("nothing is started because the input for this run is needed")
 def input_needed(context):
     assert context.error and "give the input for this run" in context.error and context.invoked == [] and context.run_table.puts == []
+
+
+@then("nothing is started because the router publication names no site policy")
+def refused_no_site_policy(context):
+    assert context.error and "no siteBucket for the site's agent policy" in context.error and "the runner would refuse the run" in context.error
+    assert context.invoked == [] and context.run_table.puts == []
 
 
 @then("nothing is started because the automation is disabled")

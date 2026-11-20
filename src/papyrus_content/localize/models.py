@@ -23,7 +23,7 @@ from ..model_cost import estimate_cost
 MODEL = "gpt-6-luna"
 RESPONSES_URL = "https://api.openai.com/v1/responses"
 REQUEST_TIMEOUT_SECONDS = 300
-PROMPT_VERSION = "localize-prompts-2"
+PROMPT_VERSION = "localize-prompts-4"
 TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 Transport = Callable[[dict[str, Any]], dict[str, Any]]
@@ -96,6 +96,8 @@ Rules:
   code and fixed attributes; never translate, drop, repeat or invent one.
 - Keep the Markus structure of each block: heading marks, list marks, quote marks, emphasis marks (** and *), directive names and attribute
   names. Translate only the reader-facing text, including the alt, caption and title attribute values.
+- Keep the source block's line structure: a single newline inside a paragraph stays a single newline (never turn it into a blank line, which would make
+  a new paragraph), and a blank line stays a blank line. Do not add or remove a paragraph.
 - After a closing emphasis mark, keep a space or move the punctuation outside the emphasis, so the emphasis still renders.
 - Do not add, drop, soften, strengthen or reorder claims. Keep every hedge (may, reportedly, about) at the same strength and every attribution
   (X says, according to) attached to the same speaker.
@@ -112,7 +114,8 @@ translation. Repair exactly the problems listed; change nothing else in the bloc
 
 Rules: keep every placeholder such as ⟦3⟧ exactly once; keep the Markus structure and emphasis marks; the repaired block must say exactly what
 the source block says: no claim added, dropped, softened or strengthened, every hedge and attribution kept, every number with its value, names
-as written unless the glossary approves a local form. Problems about meaning come first. If a problem cannot be repaired without changing
+as written unless the glossary approves a local form. Keep a single newline of the source as a single newline, never a blank line. Problems about meaning come first. If a problem says the translation has a paragraph (or any block) that the source does not have, delete
+every paragraph that is not in the source block, inside a container such as a note too; the repaired block has exactly the source block's paragraphs. If a problem cannot be repaired without changing
 the meaning, keep the current wording.
 {register}"""
 

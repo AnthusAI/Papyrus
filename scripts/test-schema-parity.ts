@@ -106,6 +106,7 @@ const TENANT_FIELD_SOURCES = [
   "amplify/functions/proposal-actions/schema.ts",
   "amplify/plugins/reader-steering/schema.ts",
   "amplify/plugins/signup/schema.ts",
+  "amplify/functions/announcements/schema.ts",
 ];
 const TENANT_FIELD_MODELS = [
   "UserRoleAssignment", "Assignment", "AssignmentEvent", "ProcedureDefinition", "ProcedureVersion", "ProcedureRun", "Automation",
@@ -116,6 +117,7 @@ const TENANT_FIELD_MODELS = [
   "PublishedEdition", "PublishedEditionItem", "PublishedCategorySet", "PublishedCategory", "EditorialPolicy",
   "EditorialCheckSettings", "EditorialFeedback", "EditorialCheckRun", "Proposal", "ReaderProfile", "ReaderHandle", "ReaderVote",
   "ReaderFlag", "ReaderComment", "ReaderSubmission", "ReaderReport", "ModerationAction", "SignupEntry",
+  "LocalizationRequest", "EntityLabel", "AnnouncementDecision", "Delivery",
 ];
 const GLOBAL_IDENTITY_MODELS = ["UserProfile", "UserIdentity", "PublicHandleClaim"];
 function modelDeclarations(modelName: string): { file: string; block: string }[] {

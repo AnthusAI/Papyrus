@@ -45,6 +45,40 @@ Feature: The site owner decides what is announced
     Then the minimum rating is 4 stars
     And the sections are "Security"
 
+  Scenario: Reviewed Stories are not required until the owner turns it on
+    When ellie reads the announcement settings
+    Then reviewed Stories are not required
+
+  # PROVISIONAL: what counts as a person having reviewed a Story is defined in announcement-human-review-stamp.feature, and Ryan has not confirmed it.
+  Scenario: The owner can require that a person reviewed a Story before it is announced
+    When ryan saves the announcement settings requiring reviewed Stories
+    Then reviewed Stories are required
+    When ryan saves the announcement settings with a minimum of 4 stars
+    Then reviewed Stories are required
+
+  Scenario: Reviewed Stories required is on or off and nothing else
+    When ryan saves the announcement settings with reviewed Stories required set to "sometimes"
+    Then the announcement request is refused with "Reviewed only is on or off."
+
+  Scenario: Post spacing is empty until the owner sets it, and empty means no spacing
+    When ellie reads the announcement settings
+    Then no account has post spacing
+
+  Scenario: The owner can set post spacing for one account
+    When ryan saves post spacing of 30 minutes for "x#handle"
+    Then the post spacing of "x#handle" is 30 minutes
+    And the announcement settings the pipeline reads show the post spacing of "x#handle" as 30 minutes
+
+  Scenario: Post spacing is a whole number of minutes for a named account
+    When ryan saves post spacing of 0 minutes for "x#handle"
+    Then the announcement request is refused with "Post spacing for x#handle is a whole number of minutes, 1 or more; leave the account out for no spacing."
+    When ryan saves post spacing of 30 minutes for "handle"
+    Then the announcement request is refused with "Name the account as <channel>#<account>, such as x#handle; not 'handle'."
+
+  Scenario: An editor cannot set post spacing
+    When ellie tries to save post spacing of 30 minutes for "x#handle"
+    Then the announcement request is refused with "Your role cannot do this."
+
   Scenario: The prices are editable and carry the date they were copied
     When ryan saves the price of a post with a link as 0.25 as of "2026-12-01"
     Then the price of a post with a link is 0.25 as of "2026-12-01"

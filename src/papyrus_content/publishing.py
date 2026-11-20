@@ -27,6 +27,9 @@ from .item_language import ItemLanguageMissing, item_language, item_language_gro
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
 PUBLISHED_ID_PREFIX = "published-"
+#: The key a projection task carries when its item was just published (``{"publishedItemId": ...}``): the page is made, and then the Story's follow-up work (its translations)
+#: is asked for. Nothing in a publish tells another function: a Story's page going live reaches the announce agent from the Item change feed.
+PUBLISHED_TASK_KEY = "published"
 DATE_FORMATS = ("%A, %B %d, %Y", "%B %d, %Y", "%b %d, %Y", "%Y-%m-%d", "%Y/%m/%d")
 MEDIA_COMMON_FIELDS = (
     "type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
@@ -47,6 +50,8 @@ class ItemFields:
     overrides: dict | None = None
     #: ``{"runId", "writer"}`` of a machine write: recorded in ``metadata.machineWrite`` (machine_writes.py).
     machine_write: dict | None = None
+    #: Keys merged into the Item's ``metadata`` as the row is written (``pod`` from ``papyrus pod load``); a key given here replaces the stored one.
+    metadata: dict | None = None
 
 
 @dataclass
@@ -239,6 +244,7 @@ def save_item(
     columns.update({key: value for key, value in (fields.overrides or {}).items()})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     metadata["source"] = {"path": fields.source_path}
+    metadata.update(fields.metadata or {})
     apply_stamp(metadata, fields.machine_write, created=existing is None, now=now)
 
     record = {
@@ -356,10 +362,12 @@ def _delete_published_media(client, lineage_id: str, rows: list[dict]) -> list[s
 
 
 def publish_item(
-    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None
+    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None, by_person: str | None = None
 ) -> PublishResult:
     """Publish an item. ``approved_by`` names the signed-in person whose action this is (the console editor); a site that requires
-    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version."""
+    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version.
+    ``by_person`` names the person publishing by hand (the console editor, the CLI in the signed-in lane): a pod-loaded, imported or translated Story
+    publishes only with it (``publish_by_person.py``). A schedule, an automation or an agent never passes it."""
     now = now or utc_now_iso()
     item = _load_item(client, item_id)
     lineage_id = item.get("lineageId") or item_id
@@ -387,9 +395,11 @@ def publish_item(
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
     from .localization_publish import original_of, require_publishable
+    from .publish_by_person import require_person_act
     from .publish_gate import ensure_publish_approval
     from .story_checklist import ChecklistError, require_checklist_closed
 
+    require_person_act(client, item, by_person=by_person)   # the one rule that keeps unreviewed pod, import and translation Stories from publishing by themselves
     original = original_of(client, item)
     if original is not None:
         require_publishable(client, item, original)   # a translation's checklist is its provenance; its gates are its original and any hold (localization_publish.py)

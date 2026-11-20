@@ -6,7 +6,7 @@ Feature: A guideline is a folder with a GUIDELINE.md that can be checked offline
   guideline and key, and nothing is checked against a refused set. papyrus guidelines check reads the folders and the files to check, decides every rule a
   program can decide (a listed word, a pattern, a length) with no network and no model, and lists each rule that needs judgement as not checked offline. It
   never guesses and it never connects to a site. Its exit status is 1 only when a guideline with severity error finds something; warnings are reported and
-  guidance is never checked. Nothing here changes how guidelines are stored in the cloud.
+  guidance is never checked. The writing guidelines are stored in the cloud as these same files (guidelines-cloud-files.feature).
 
   Scenario: A guideline folder with every key is valid
     Given a guidelines folder with the guideline "plain-claims" of kind writing, scope publication and severity error that avoids "we believe"

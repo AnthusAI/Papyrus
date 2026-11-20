@@ -1,7 +1,7 @@
 /**
- * The logic behind Administration > Policies > Writing guidelines, apart from React: what the editable form holds, how it becomes a guideline document, how each
- * field of a section's effective guidelines is labelled with where it came from, and the client for the guidelines door (`guidelinesRead` and `guidelinesWrite`).
- * Nothing here knows how a document is stored: every read and write is one of the `guidelines_*` operations (docs/plans/guidelines-as-data.md section 8).
+ * The logic behind Administration > Policies > Writing guidelines, apart from React: the types of the guidelines door, how each field of a section's effective
+ * guidelines is labelled with where it came from, change lines, and the checks drawn from a set. The files editor itself is `guideline-files.ts`. Nothing here
+ * knows how a set is stored: every read and write is one of the `guidelines_*` operations (docs/plans/guidelines-as-data.md section 8).
  */
 import type { ImageEnvelope, ImageOperationName, ImageOperations } from "../images/operations.generated";
 
@@ -18,72 +18,11 @@ export const NO_REASON_PROBLEM = "Say why you are changing the guidelines. The r
 export const NO_WRITING_WARNING = "This publication has no writing guidelines yet, so agents and the editorial checks have no house voice to follow. Write them here.";
 export const EDITORS_READ_ONLY = "You can read the writing guidelines. Only an admin can change them.";
 
-export const LIST_FIELDS = [
-  { key: "tone", label: "Tone", hint: "How the writing should sound. One sentence per line." },
-  { key: "sentenceStyle", label: "Sentence style", hint: "How sentences are built. One per line." },
-  { key: "voicePatterns", label: "Voice patterns", hint: "Moves the voice makes, and moves it avoids. One per line." },
-  { key: "structure", label: "Structure", hint: "How a story is laid out. One per line." },
-  { key: "evidenceRules", label: "Evidence rules", hint: "What a claim needs before it is written. One per line." },
-] as const;
-export const CHOICE_FIELDS = [
-  { key: "audience", label: "Audience", hint: "Who the publication writes for." },
-  { key: "editorialAim", label: "Editorial aim", hint: "What the writing is for." },
-] as const;
-export const LOCKABLE_FIELDS: { key: string; label: string }[] = [
-  { key: "voice", label: "Voice" }, { key: "audience", label: "Audience" }, { key: "editorialAim", label: "Editorial aim" }, { key: "headline", label: "Headline" }, { key: "glossary", label: "Glossary" },
-];
 export const FIELD_LABELS: Record<string, string> = {
   voice: "Voice", audience: "Audience", editorialAim: "Editorial aim", headline: "Headline", tone: "Tone", sentenceStyle: "Sentence style", voicePatterns: "Voice patterns",
   structure: "Structure", evidenceRules: "Evidence rules", bodyMarkus: "Guidance in your own words", lexicon: "Words to prefer and avoid", glossary: "Glossary",
   exemplars: "Voice examples", constraints: "Binding rules",
 };
-
-export type GlossaryRow = { term: string; use: string; avoid: string };
-export type WritingForm = {
-  voiceName: string; audience: string; editorialAim: string; lists: Record<string, string>; prefer: string; avoid: string; bodyMarkus: string;
-  glossary: GlossaryRow[]; exemplars: { storyLineageId: string; note: string }[]; locked: string[];
-};
-
-export const textLines = (text: string): string[] => text.split("\n").map((line) => line.trim()).filter(Boolean);
-const joinLines = (items: unknown): string => (Array.isArray(items) ? items.filter((item) => typeof item === "string").join("\n") : "");
-const asText = (value: unknown): string => (typeof value === "string" ? value : "");
-
-export function formFromDocument(document: GuidelineDocument | null): WritingForm {
-  const source = document ?? {};
-  return {
-    voiceName: asText(source.voice?.name), audience: asText(source.audience), editorialAim: asText(source.editorialAim),
-    lists: Object.fromEntries(LIST_FIELDS.map((field) => [field.key, joinLines(source[field.key])])),
-    prefer: joinLines(source.lexicon?.prefer), avoid: joinLines(source.lexicon?.avoid), bodyMarkus: asText(source.bodyMarkus),
-    glossary: (Array.isArray(source.glossary) ? source.glossary : []).map((entry: any) => ({ term: asText(entry.term), use: asText(entry.use), avoid: joinLines(entry.avoid).split("\n").join(", ") })),
-    exemplars: (Array.isArray(source.exemplars) ? source.exemplars : []).map((entry: any) => ({ storyLineageId: asText(entry.storyLineageId), note: asText(entry.note) })),
-    locked: Array.isArray(source.locked) ? source.locked.filter((item: unknown) => typeof item === "string") : [],
-  };
-}
-
-/**
- * The document a form makes. Fields the form does not edit (headline, binding rules, the legacy publication-only fields) are carried over from `base` untouched;
- * a section's document never carries the publication-only fields, so a section form leaves them out. An empty field is left out, never saved empty.
- */
-export function documentFromForm(form: WritingForm, base: GuidelineDocument | null, scope: "publication" | "section"): GuidelineDocument {
-  const document: GuidelineDocument = { ...(base ?? {}), schemaVersion: 1 };
-  const setOrDrop = (key: string, value: unknown, present: boolean) => { if (present) document[key] = value; else delete document[key]; };
-  setOrDrop("voice", { ...(base?.voice ?? {}), name: form.voiceName.trim() }, form.voiceName.trim() !== "");
-  setOrDrop("audience", form.audience.trim(), form.audience.trim() !== "");
-  setOrDrop("editorialAim", form.editorialAim.trim(), form.editorialAim.trim() !== "");
-  for (const field of LIST_FIELDS) { const lines = textLines(form.lists[field.key] ?? ""); setOrDrop(field.key, lines, lines.length > 0); }
-  const prefer = textLines(form.prefer), avoid = textLines(form.avoid);
-  setOrDrop("lexicon", { ...(prefer.length ? { prefer } : {}), ...(avoid.length ? { avoid } : {}) }, prefer.length + avoid.length > 0);
-  setOrDrop("bodyMarkus", form.bodyMarkus, form.bodyMarkus.trim() !== "");
-  const glossary = form.glossary.filter((row) => row.term.trim()).map((row) => ({
-    term: row.term.trim(), ...(row.use.trim() ? { use: row.use.trim() } : {}), ...(row.avoid.trim() ? { avoid: row.avoid.split(",").map((word) => word.trim()).filter(Boolean) } : {}),
-  }));
-  setOrDrop("glossary", glossary, glossary.length > 0);
-  const exemplars = form.exemplars.filter((row) => row.storyLineageId).map((row) => ({ storyLineageId: row.storyLineageId, ...(row.note.trim() ? { note: row.note.trim() } : {}) }));
-  setOrDrop("exemplars", exemplars, exemplars.length > 0);
-  if (scope === "publication") setOrDrop("locked", form.locked, form.locked.length > 0);
-  else for (const key of ["locked", "constraints", "publicationKey", "judge", "checks", "density", "rules", "compare", "referenceSamples"]) delete document[key];
-  return document;
-}
 
 export function reasonProblem(reason: string): string | null {
   return reason.trim() ? null : NO_REASON_PROBLEM;
@@ -109,9 +48,6 @@ export function describeChange(change: { path: string; from?: unknown; to?: unkn
   if (change.to === undefined) return `${name}: removed ${shown(change.from)}`;
   return `${name}: changed from ${shown(change.from)} to ${shown(change.to)}`;
 }
-
-export const addExemplar = (rows: WritingForm["exemplars"], story: PublishedStory): WritingForm["exemplars"] =>
-  rows.some((row) => row.storyLineageId === story.lineageId) ? rows : [...rows, { storyLineageId: story.lineageId, note: "" }];
 
 export function storyTitle(stories: PublishedStory[], lineageId: string): string {
   return stories.find((story) => story.lineageId === lineageId)?.title ?? lineageId;

@@ -18,7 +18,7 @@ PUBLICATION_ID = "publication#avoid-lexicon"
 
 
 def document(*avoid, ban=()):
-    return {"schemaVersion": 1, "lexicon": {"avoid": list(avoid)}, **({"rules": {"bannedPhrases": list(ban)}} if ban else {})}
+    return {"schemaVersion": 2, "lexicon": {"avoid": list(avoid)}, **({"rules": {"bannedPhrases": list(ban)}} if ban else {})}
 
 
 def check(context, scoped_key, language="en"):

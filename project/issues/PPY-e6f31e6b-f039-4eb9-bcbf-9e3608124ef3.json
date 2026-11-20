@@ -25,9 +25,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "abcbae32-1ca8-4ba8-98f5-7057e813a3ea",
+      "author": "home",
+      "text": "set-rung built and merged to develop (PR #1652, 4511d6b0; not released): papyrus agents set-rung, admin-only, dry run unless --apply, before/after printed, new version per apply, refuses unknown rung / above definition ceiling / publish_auto (E4 floor gate not built). Spec: features_backend/agent-set-rung.feature. siteBucket for MoM router publication: PR #1653 (52b2de14). Not done: pause, resume, wake, redirect, undo; IAM grant for admins to write tenants/*/site/agents/* in the media bucket (not applied); task left open.",
+      "created_at": "2026-11-17T09:20:00.646713Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:08.891817Z",
-  "updated_at": "2026-11-16T22:46:10.931949Z",
+  "updated_at": "2026-11-17T09:20:00.648311Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

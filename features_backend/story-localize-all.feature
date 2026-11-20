@@ -150,3 +150,101 @@ Feature: A whole site is translated by one command, and only what remains is don
     When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --dry-run"
     Then every Story of the plan was planned with the same shared reads
     And the request budget of the command allows for the 2 translations to do
+
+  Scenario: Only the Stories whose text was updated in the range are surveyed
+    A Story's text was updated when its current published version was published: the published summary's versionPublishedAt, which the survey already
+    reads, so the range costs no further read. The start of the range is included and the end is not, and a date with no time is midnight UTC.
+    Given "story-a" was last published at "2026-11-01T12:00:00Z"
+    And "story-b" was last published at "2026-11-10T00:00:00Z"
+    And "story-c" was last published at "2026-11-15T23:59:59Z"
+    And "story-d" was last published at "2026-11-16T00:00:00Z"
+    When the Stories updated since "2026-11-10" and before "2026-11-16" are surveyed for "es-419"
+    Then "story-b" is to do because nothing was ever requested
+    And "story-c" is to do because its request is for older text
+    And "story-a" is not listed
+    And "story-d" is not listed
+    And the survey read the published summaries once and the requests through their state index, never a table per Story
+
+  Scenario: A Story first published long ago and published again in the range is in the range
+    The first publication date never moves, so it says when a Story appeared and not when its text last changed. The range reads the date of the current version.
+    Given "story-b" was first published at "2026-01-05T09:00:00Z" and last published at "2026-11-12T09:00:00Z"
+    When the Stories updated since "2026-11-10" are surveyed for "es-419"
+    Then "story-b" is to do because nothing was ever requested
+
+  Scenario: A range with only a start or only an end is open on the other side
+    Given "story-a" was last published at "2026-11-01T12:00:00Z"
+    And "story-b" was last published at "2026-11-12T12:00:00Z"
+    When the Stories updated before "2026-11-05" are surveyed for "es-419"
+    Then "story-a" is up to date
+    And "story-b" is not listed
+
+  Scenario: A Story with no publish time cannot be dated and is left out, and the range says so
+    Given "story-b" was last published at "2026-11-12T12:00:00Z"
+    When the Stories updated since "2026-11-10" are surveyed for "es-419"
+    Then "story-b" is to do because nothing was ever requested
+    And "story-a" is not listed
+    And the range reports 3 Stories left out for having no publish time
+
+  Scenario: A duration counts back from now, in days, hours or weeks
+    When the range "7d" is read as the start at "2026-11-17T08:30:00Z"
+    Then the range starts at "2026-11-10T08:30:00Z"
+    When the range "36h" is read as the start at "2026-11-17T08:30:00Z"
+    Then the range starts at "2026-11-15T20:30:00Z"
+    When the range "1w" is read as the start at "2026-11-17T08:30:00Z"
+    Then the range starts at "2026-11-10T08:30:00Z"
+    When the range "2026-11-10T06:00:00+02:00" is read as the start at "2026-11-17T08:30:00Z"
+    Then the range starts at "2026-11-10T04:00:00Z"
+
+  Scenario: A range that is malformed or backwards is refused before anything is read or written
+    When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --updated-since last-week"
+    Then it is refused saying --updated-since must be an ISO date or a duration
+    When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --updated-before 0d"
+    Then it is refused saying --updated-before must be longer than zero
+    When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --updated-since 2026-11-16 --updated-before 2026-11-10"
+    Then it is refused saying --updated-since must be earlier than --updated-before
+    When an operator signed in with AWS credentials runs "papyrus stories localize --story story-b --language es-419 --updated-since 2026-11-10"
+    Then it is refused saying the range narrows --all
+    And no request was written by the command
+
+  Scenario: A range that holds no Story says so and does nothing
+    Given "story-a" was last published at "2026-11-01T12:00:00Z"
+    When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --updated-since 2026-12-01 --publish-clean"
+    Then the output says no published Story was updated since 2026-12-01 and there is nothing to translate
+    And no request was written by the command
+    And no procedure was run here
+
+  Scenario: A dry run with a range predicts only the Stories in it
+    Given "story-b" was last published at "2026-11-12T12:00:00Z"
+    And "story-c" was last published at "2026-11-01T12:00:00Z"
+    And the procedure has measured Spanish runs
+    When an operator signed in with AWS credentials runs "papyrus stories localize --all --language es-419 --updated-since 2026-11-10 --dry-run"
+    Then the output ends with a plan line for 1 Stories to do
+    And the output lists "story-b" and not "story-c"
+    And no request was written by the command
+
+  Scenario: Running with a range translates only the Stories in it
+    Given "story-b" was last published at "2026-11-12T12:00:00Z"
+    And "story-c" was last published at "2026-11-01T12:00:00Z"
+    When the Stories updated since "2026-11-10" are translated in this process for "es-419"
+    Then only "story-b" is run
+
+  Scenario: Queueing with a range queues only the Stories in it
+    Given "story-b" was last published at "2026-11-12T12:00:00Z"
+    And "story-c" was last published at "2026-11-01T12:00:00Z"
+    When the Stories updated since "2026-11-10" are queued on the automation "mom.story-localize" for "es-419" with --publish-clean
+    Then the Spanish request of "story-b" is wanted and names that automation
+    And "story-c" has no new Spanish request
+
+  Scenario: --publish-clean with a range publishes a saved translation only when its Story is in the range
+    "story-a" has a translation saved earlier and never published. Without a range --publish-clean would publish it; with a range that leaves its Story out
+    it is not even surveyed, so it stays unpublished until a person or a later run without that range publishes it.
+    Given "story-a" was last published at "2026-11-01T12:00:00Z"
+    And "story-b" was last published at "2026-11-12T12:00:00Z"
+    When the Stories updated since "2026-11-10" are translated in this process for "es-419" with --publish-clean
+    Then the Spanish translation of "story-b" is published through the ordinary publish path
+    And the Spanish translation of "story-a" is not published
+
+  Scenario: --publish-clean with a range publishes a saved translation of a Story that is in the range
+    Given "story-a" was last published at "2026-11-12T12:00:00Z"
+    When the Stories updated since "2026-11-10" are translated in this process for "es-419" with --publish-clean
+    Then the Spanish translation of "story-a" is published through the ordinary publish path

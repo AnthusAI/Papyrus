@@ -38,6 +38,7 @@ from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_
 from ...markus_renderer.video import csp_text as video_csp_text
 from ...renditions import PrefixedRenditionStore, RenditionCatalog
 
+from ...item_language import translation_kind
 from ...story_from_reference import url_key
 from ..model import ItemSummary, ProjectedItem, SiteIndex
 from ..site_relations import EMPTY as EMPTY_RELATIONS, SiteRelations
@@ -58,7 +59,7 @@ import inspect
 
 from . import alexa_pages, blocks, card_images, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, notifications_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
-from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
+from .entries import SUMMARY_FIELDS, StandardEntry, apply_floor, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .story_order import rank_entries
@@ -958,7 +959,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ model
 
     def _entries(self, site: SiteIndex) -> list[StandardEntry]:
-        return newest_first(build_entries(site.items, self.standard, self.policy, self.hooks.derive, self.hooks.item_filter))
+        floored = (apply_floor(entry, self.standard, site.story_stars) for entry in build_entries(site.items, self.standard, self.policy, self.hooks.derive, self.hooks.item_filter))
+        return newest_first([entry for entry in floored if entry is not None])
 
     def _entry(self, summary: ItemSummary) -> StandardEntry | None:
         return entry_for_summary(summary, self.standard, self.policy, self.hooks.derive, self.hooks.item_filter)
@@ -1454,7 +1456,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             ]
         else:
             groups = [("Articles", visible[:limit])]
-        pages = [entry for entry in entries if not entry.listed and entry.key and not entry.noindex]
+        pages = [entry for entry in entries if not entry.listed and not entry.below_floor and entry.key and not entry.noindex]
         pages += [
             SimpleNamespace(title=custom.title, key=self.policy.listing_key(custom.path), link=None, summary_text=custom.description or "", date="")
             for custom in self._authored_pages()
@@ -1571,7 +1573,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return found
 
     def _llms_full_entries(self, entries: list[StandardEntry]) -> list[StandardEntry]:
-        return [entry for entry in entries if entry.key and not entry.noindex]
+        return [entry for entry in entries if entry.key and not entry.noindex and not entry.below_floor]
 
     def _add_llms_files(self, plan, site: SiteIndex, entries, listed) -> None:
         agents = self.standard.agents
@@ -2076,7 +2078,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         original = view.original_of(extra["entry"].summary) if kind == "item" and extra.get("entry") is not None else None
         if original is not None:   # a translated Story page says so, and where the original is (the label is the page's data, never the Story's text)
             head = dataclasses.replace(head, translation_of=(self.head.absolute(original.url) or original.url, original.tag))
-            fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url}
+            fields["translation"] = {"tag": original.tag, "name": original.name, "url": original.url,
+                                     "kind": translation_kind(extra["entry"].summary.translation_kind)}
         return head, fields
 
     def _page(self, kind: str, head: PageHead, site: SiteIndex, *, entries=(), **extra) -> StandardPage:
@@ -2153,7 +2156,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
         view = self._view
         original = view.original_of(entry.summary) if view is not None and view.multilingual else None
-        translation = (self.standard.identity.language, self.head.absolute(original.url) or original.url) if original is not None else None
+        translation = ((self.standard.identity.language, self.head.absolute(original.url) or original.url, translation_kind(entry.summary.translation_kind))
+                       if original is not None else None)
         return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin, self._hook_byline(entry), translation)
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
@@ -2194,7 +2198,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if page.kind == "newsletter_page":
             scripts += (newsletter_pages.PAGES_SCRIPT_PATH,)
         if page.kind == "notifications_page":
-            scripts += (notifications_pages.PAGES_SCRIPT_PATH,) + ((notifications_pages.COMPONENT_SCRIPT_PATH,) if "<papyrus-notifications>" in page.fragment else ())
+            # the event script comes first so the pages script finds it, and exists only where a measurement id does (a guarded build has none)
+            scripts += ((notifications_pages.ANALYTICS_SCRIPT_PATH,) if base.ga_measurement_id is not None else ()) + (notifications_pages.PAGES_SCRIPT_PATH,) + ((notifications_pages.COMPONENT_SCRIPT_PATH,) if "<papyrus-notifications>" in page.fragment else ())
         if page.ledger.paged_lists_used:   # only a page with a paged Reference list loads the script that loads more
             scripts += (home_page_lists.SCRIPT_PATH,)
         if page.alternates and self.standard.identity.language_switcher_placement != "none":   # only a page that exists in more than one language draws the switcher

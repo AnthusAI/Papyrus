@@ -6,6 +6,7 @@ the very top of the file. A note with no front matter is a plain note, which is 
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -73,6 +74,11 @@ def parse(text: str) -> tuple[dict | None, str, str | None]:
     return None, text, "front matter opens with --- and is never closed with a second ---"
 
 
+def body_hash(body: str) -> str:
+    """The hash a ``reviewedHash`` holds: ``sha256:`` and the hex digest of the body's UTF-8 text, with Windows line ends read as plain newlines."""
+    return "sha256:" + hashlib.sha256(body.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+
 def walk(pod: Path) -> list[Note]:
     """Every note of the pod, in path order."""
     notes: list[Note] = []
@@ -88,3 +94,21 @@ def walk(pod: Path) -> list[Note]:
         front, body, problem = parse(text)
         notes.append(Note(relative.as_posix(), front, body, problem, list(front) if front else []))
     return notes
+
+
+def name_index(notes: list[Note]) -> dict[str, list[Note]]:
+    """Every note by each name a link may call it: its path without ``.md``, and each shorter path that ends the same way (``water``, ``sections/water``)."""
+    index: dict[str, list[Note]] = {}
+    for note in notes:
+        parts = note.path.removesuffix(".md").split("/")
+        for start in range(len(parts)):
+            index.setdefault("/".join(parts[start:]), []).append(note)
+    return index
+
+
+def link_name(value: object) -> str | None:
+    """The name inside a front matter link ``[[name]]``, or None when the value is not just a link."""
+    if not isinstance(value, str) or not (text := value.strip()).startswith("[[") or not text.endswith("]]"):
+        return None
+    name = text[2:-2]
+    return name.strip().removesuffix(".md") if name and not any(mark in name for mark in "[]|#") else None

@@ -382,19 +382,19 @@ def _resolve(context, section, language):
 @given('the publication\'s writing guidelines set the audience "{audience}", the tone "{tone}" and the binding rule "{rule}"')
 def step_publication_guidelines(context, audience, tone, rule):
     context.backend, context.files = world(saved=False)
-    context.publication_document = {"schemaVersion": 1, "audience": audience, "tone": [tone], "lexicon": {"avoid": ["synergy"]},
+    context.publication_document = {"schemaVersion": 2, "audience": audience, "tone": [tone], "lexicon": {"avoid": ["synergy"]},
                                     "constraints": [{"id": rule, "text": "No hype."}]}
     assert _save(context, context.publication_document, request="publication")["ok"]
 
 
 @given('the section "{section}" writing guidelines add the tone "{tone}"')
 def step_section_guidelines(context, section, tone):
-    assert _save(context, {"schemaVersion": 1, "tone": [tone]}, section=section, request="section")["ok"]
+    assert _save(context, {"schemaVersion": 2, "tone": [tone]}, section=section, request="section")["ok"]
 
 
 @given('a Chinese overlay adds the tone "{tone}" and avoids the word "{word}"')
 def step_chinese_overlay(context, tone, word):
-    context.overlay = {"schemaVersion": 1, "tone": [tone], "lexicon": {"avoid": [word]}}
+    context.overlay = {"schemaVersion": 2, "tone": [tone], "lexicon": {"avoid": [word]}}
     answer = _save(context, context.overlay, language="zh-Hans", request="overlay")
     assert answer["ok"], answer
 
@@ -517,7 +517,7 @@ def step_overlay_slug(context, slug):
 
 @when('an admin saves a writing guidelines overlay for "{tag}"')
 def step_save_unknown(context, tag):
-    body = {"kind": "writing", "language": tag, "document": {"schemaVersion": 1, "tone": ["Formal."]}, "reason": "Change", "expectedCurrentVersionId": "none"}
+    body = {"kind": "writing", "language": tag, "document": {"schemaVersion": 2, "tone": ["Formal."]}, "reason": "Change", "expectedCurrentVersionId": "none"}
     context.save_answer = door(context.backend, "guidelinesWrite", ADMIN, "guidelines_save", requestId="unknown", input=body)
 
 
@@ -558,7 +558,7 @@ def step_versions_differ(context):
 # --- the register an overlay chooses ------------------------------------------------------------------------------------------------------------
 
 def _spanish_overlay(context, register):
-    context.spanish = {"schemaVersion": 1, "tone": ["Formal."], "register": register}
+    context.spanish = {"schemaVersion": 2, "tone": ["Formal."], "register": register}
     answer = _save(context, context.spanish, language="es-419", request=f"spanish-{register}-{len(context.backend.policies.rows)}")
     assert answer["ok"], answer
     context.save_answer = answer
@@ -626,17 +626,17 @@ def _refused_save(context, document, language):
 
 @when('an admin saves the shared writing guidelines with the register "{register}"')
 def step_shared_register(context, register):
-    _refused_save(context, {"schemaVersion": 1, "register": register}, None)
+    _refused_save(context, {"schemaVersion": 2, "register": register}, None)
 
 
 @when('an admin saves the Chinese overlay with the register "{register}"')
 def step_chinese_register(context, register):
-    _refused_save(context, {"schemaVersion": 1, "register": register}, "zh-Hans")
+    _refused_save(context, {"schemaVersion": 2, "register": register}, "zh-Hans")
 
 
 @when('an admin saves the Spanish overlay with the register "{register}"')
 def step_spanish_bad_register(context, register):
-    _refused_save(context, {"schemaVersion": 1, "register": register}, "es-419")
+    _refused_save(context, {"schemaVersion": 2, "register": register}, "es-419")
 
 
 @when('the guidelines are resolved for a Spanish Story in the "{section}" section')
@@ -656,7 +656,7 @@ def step_register_notes(context, note):
 
 @given('a Spanish overlay for "{tag}" sets the tone "{tone}"')
 def step_spanish_tone(context, tag, tone):
-    answer = _save(context, {"schemaVersion": 1, "tone": [tone]}, language=tag, request=f"spanish-tone-{len(context.backend.policies.rows)}")
+    answer = _save(context, {"schemaVersion": 2, "tone": [tone]}, language=tag, request=f"spanish-tone-{len(context.backend.policies.rows)}")
     assert answer["ok"], answer
 
 

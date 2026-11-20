@@ -43,6 +43,7 @@ class StoryFacts:
     summary: str
     body: str
     path: str
+    rated_by: str = ""   # who gave the rating (the Story's starRatedBy); a five is counted only from a person (review_policy.floor_refusal)
 
 
 def _line(value: Any) -> str:
@@ -71,6 +72,7 @@ def load_story(client: Any, lineage_id: str, *, item_url_style: str) -> StoryFac
         summary=summary,
         body=str(source.get("bodyMarkus") or ""),
         path=item_path(source.get("section") or None, str(source.get("slug") or ""), item_url_style),
+        rated_by=str(head.get("starRatedBy") or ""),
     )
 
 
@@ -98,3 +100,26 @@ def verdict(story: StoryFacts, settings: Mapping[str, Any]) -> Verdict:
     if bar is None or story.stars == 0 or story.stars < bar:
         return Verdict(False, "below_bar")
     return Verdict(True, "eligible")
+
+
+#: The words of each reason the channel's own rules keep a Story out, as ``papyrus announcements explain`` and the Announcements list say them.
+VERDICT_WORDS = {
+    "off": "Announcements are off for this publication, so nothing is announced.",
+    "not_a_story": "It is not a Story (a Reference is never announced).",
+    "retired": "The Story was retired.",
+    "not_published": "The Story is not published yet; only a published Story is announced.",
+    "type_not_announced": "Its type is not one of the types this publication announces.",
+    "section_not_announced": "Its section is not one of the sections this publication announces.",
+    "below_bar": "Its star rating is below the bar this publication set for announcements.",
+}
+
+
+def refusal(story: StoryFacts, settings: Mapping[str, Any]) -> tuple[str, str] | None:
+    """The X channel's own rules: the code and the words of the first one that keeps the Story out, or None when the channel carries it."""
+    decision = verdict(story, settings)
+    if decision.eligible:
+        return None
+    words = VERDICT_WORDS.get(decision.reason, decision.reason)
+    if decision.reason == "below_bar":
+        words = f"It has {story.stars or 'no'} {'star' if story.stars == 1 else 'stars'}, and the bar for announcements is {settings.get('minStars')} stars."
+    return decision.reason, words

@@ -67,6 +67,7 @@ import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
+import { StoryAnnouncementsCard } from "./announcement-lines";
 import { StorySchedulePanel } from "./story-schedule-panel";
 import { useScheduleZone } from "../lib/schedule-zone";
 import { scheduleFromEntries, scheduleFromResult, type StorySchedule } from "../lib/story-schedule";
@@ -217,6 +218,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     };
   }, [activeArticleId, backend, blocked, isNew, reloadToken]);
 
+  const loadedVersionNumber = editor?.versionNumber ?? null;   // a version saved from this drawer changes what "newer than the scheduled one" means, so the schedule is read again
   useEffect(() => {
     setScheduleKnown(false);
     if (!scheduleZone || !lineageId) { setSchedule(undefined); return; }
@@ -226,7 +228,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       .then((result) => { if (!cancelled) { setSchedule(scheduleFromEntries(result.schedules)); setScheduleKnown(true); } })
       .catch((error: unknown) => { if (!cancelled) setNotice({ tone: "error", text: `The schedule could not be read. ${failureMessage(error)}` }); });
     return () => { cancelled = true; };
-  }, [backend, lineageId, scheduleZone, reloadToken]);
+  }, [backend, lineageId, scheduleZone, reloadToken, loadedVersionNumber]);
 
   const savedItemId = editor?.id ?? null;
   useEffect(() => {
@@ -614,6 +616,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
           {!isNew && scheduleZone !== null ? <div className="rounded-md bg-muted" data-skeleton-schedule /> : null}
+          {!isNew ? <div className="rounded-md bg-muted" data-skeleton-announcements /> : null}
           {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
           <div className="rounded-md bg-muted" data-skeleton-headline />
           <div className="grid gap-6">
@@ -766,6 +769,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               zone={scheduleZone}
               schedule={schedule}
               blockedReason={editor.dirty ? "Save your changes first: a schedule publishes the saved version." : isOlderVersion ? "This is an older version of the Story." : null}
+              suggest={() => backend.actions.scheduleSuggest({ storyLineageId: lineageId })}
               save={async (scheduledPublishAt) => {
                 const saved = scheduleFromResult(await backend.actions.scheduleStory({ itemId: editor.id!, lineageId, scheduledPublishAt }));
                 setSchedule(saved);
@@ -774,6 +778,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               }}
             />
           ) : null}
+
+          {editor.id !== null ? <StoryAnnouncementsCard door={backend.announcementsDoor} lineageId={lineageId ?? editor.id} /> : null}
 
           {editor.id !== null ? (
             <div className="max-w-md" data-newsroom-article-stars>

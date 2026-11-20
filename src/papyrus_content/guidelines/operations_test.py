@@ -30,7 +30,7 @@ COMMANDS = [entry for entry in ALL_COMMANDS if entry["group"] == "guidelines"]
 EDITOR = {"claims": {"name": "Edie Editor"}, "groups": ["editor"], "username": "edie"}
 ADMIN = {"claims": {"name": "Ada Admin"}, "groups": ["admin"], "username": "ada"}
 READER = {"claims": {"name": "Rae Reader"}, "groups": [], "username": "rae"}
-WRITING = {"schemaVersion": 1, "audience": "General readers", "tone": ["Warm and plain."], "constraints": [{"id": "no-hype", "text": "No hype."}], "locked": ["headline"]}
+WRITING = {"schemaVersion": 2, "audience": "General readers", "tone": ["Warm and plain."], "constraints": [{"id": "no-hype", "text": "No hype."}], "locked": ["headline"]}
 VIDEO = {"schemaVersion": 1, "bodyMarkus": "Show the screen, not the speaker."}
 
 
@@ -138,7 +138,7 @@ def test_an_admin_saves_writing_guidelines_and_the_text_goes_to_the_files_not_th
     first = door(backend, "guidelinesWrite", ADMIN, "guidelines_save", requestId="r1",
                  input={"kind": "writing", "document": WRITING, "reason": "First", "expectedCurrentVersionId": "none"})
     assert first["ok"] and first["result"]["versionNumber"] == 1 and first["publication"] == "ours"
-    assert backend.items[0]["bodyMarkus"] == "" and backend.items[0]["versionCreatedBy"] == "Ada Admin" and len(backend.bodies) == 1
+    assert backend.items[0]["bodyMarkus"] == "" and backend.items[0]["versionCreatedBy"] == "Ada Admin" and len(backend.bodies) == len(WRITING) - 1
     shown = read(backend)["result"]
     assert shown["document"] == WRITING and shown["isCurrent"] is True and shown["expectedCurrentVersionId"] == first["result"]["itemId"]
     second = save(backend, ADMIN, {**WRITING, "audience": "Engineers"}, reason="Narrowed", request="r2")
@@ -192,7 +192,7 @@ def test_a_stale_version_an_invalid_document_and_an_unchanged_document_save_noth
     backend, _ = world()
     before = created(backend)
     assert save(backend, ADMIN, {**WRITING, "audience": "X"}, guard="item-editorial-doctrine-writing-v0", request="s1")["error"]["code"] == "stale_version"
-    bad = save(backend, ADMIN, {"schemaVersion": 1, "tone": ["ok", ""], "mystery": 1}, request="s2")
+    bad = save(backend, ADMIN, {"schemaVersion": 2, "tone": ["ok", ""], "mystery": 1}, request="s2")
     assert bad["error"]["code"] == "invalid_input" and {p["path"] for p in bad["error"]["details"]["problems"]} == {"tone", "mystery"}
     same = save(backend, ADMIN, WRITING, request="s3")
     assert same["ok"] and same["result"]["unchanged"] is True and same["result"]["versionNumber"] == 1
@@ -217,7 +217,7 @@ def test_video_guidelines_work_through_the_same_operations_and_a_new_kind_needs_
 
 def test_resolve_prints_each_field_with_where_it_came_from_and_a_missing_site_is_a_warning():
     backend, _ = world()
-    save(backend, ADMIN, {"schemaVersion": 1, "tone": ["Dry."], "audience": "Specialists"}, section="security", guard="none", request="sec")
+    save(backend, ADMIN, {"schemaVersion": 2, "tone": ["Dry."], "audience": "Specialists"}, section="security", guard="none", request="sec")
     answer = door(backend, "guidelinesRead", EDITOR, "guidelines_resolve", input={"kind": "writing", "section": "security"})
     result = answer["result"]
     assert result["found"] and result["section"] == "security" and result["document"]["tone"] == ["Warm and plain.", "Dry."]
@@ -235,7 +235,7 @@ def test_diff_shows_the_change_and_binding_rule_changes_and_stores_nothing():
     assert {c["path"] for c in answer["changes"]} == {"audience", "constraints"} and answer["constraintChanges"][0]["change"] == "removed" and answer["wouldCreateVersion"] == 2
     unchanged = door(backend, "guidelinesRead", EDITOR, "guidelines_diff", input={"kind": "writing", "document": WRITING})["result"]
     assert unchanged["changes"] == [] and unchanged["wouldCreateVersion"] == 1
-    assert door(backend, "guidelinesRead", EDITOR, "guidelines_diff", input={"kind": "writing", "document": {"schemaVersion": 1, "x": 1}})["error"]["code"] == "invalid_input"
+    assert door(backend, "guidelinesRead", EDITOR, "guidelines_diff", input={"kind": "writing", "document": {"schemaVersion": 2, "x": 1}})["error"]["code"] == "invalid_input"
     assert created(backend) == before and len(backend.writes) == reads
 
 

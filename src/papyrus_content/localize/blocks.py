@@ -254,3 +254,46 @@ def protect_like(source: Protected, target: str) -> Protected:
     for number, part in sorted(enumerate(source.parts, start=1), key=lambda pair: len(pair[1]), reverse=True):
         out = out.replace(part, f"⟦{number}⟧", 1)
     return Protected(out, list(source.parts))
+
+
+# --- soft line breaks ---------------------------------------------------------------------------------------------------------------------------
+
+_LINE_BREAKS = re.compile(r"(\n(?:[ \t]*\n)+|\n)")
+_LINE_CLASS = (("fence", re.compile(r"^\s*(?::{2,}|```|~~~)")), ("list", re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")), ("heading", re.compile(r"^\s*#{1,6}\s")),
+               ("quote", re.compile(r"^\s*>")), ("table", re.compile(r"^\s*\|")), ("html", re.compile(r"^\s*<")))
+
+
+def _line_class(line: str) -> str:
+    return next((name for name, pattern in _LINE_CLASS if pattern.match(line)), "prose")
+
+
+def _lines_and_joints(text: str) -> tuple[list[str], list[str]]:
+    """The non-blank lines of a block and what joins each to the next: ``soft`` (a single newline) or ``blank`` (a blank line)."""
+    parts = _LINE_BREAKS.split(text.strip("\n"))
+    return parts[0::2], ["blank" if len(joint.strip(" \t")) > 1 else "soft" for joint in parts[1::2]]
+
+
+def keep_soft_breaks(source: str, target: str) -> str:
+    """The translated block with a blank line turned back into the single newline the source has there, where the two blocks line up with certainty.
+
+    A translator often turns a lone newline inside a paragraph (a soft break) into a blank line, which makes a second paragraph the source does not
+    have. The source's soft break is put back only when the alignment can be verified: the two blocks have the same number of lines, every line has
+    the same kind (a prose line, a directive or fence line, a list item, a heading, a quote), and every blank line of the source is a blank line
+    of the translation at the same place. Then the translation differs only by blank lines at the source's soft breaks, and those are joined with
+    a single newline. Anything else (an extra paragraph, a merged one, lines that do not line up) is left as written, for the structure check to
+    hold. A source with no soft break is never touched."""
+    source_lines, source_joints = _lines_and_joints(source)
+    if "soft" not in source_joints:
+        return target
+    target_lines, target_joints = _lines_and_joints(target)
+    if len(target_lines) != len(source_lines) or [_line_class(line) for line in target_lines] != [_line_class(line) for line in source_lines]:
+        return target
+    if any(joint == "blank" and target_joints[index] != "blank" for index, joint in enumerate(source_joints)):
+        return target
+    lead = target[:len(target) - len(target.lstrip("\n"))]
+    trail = target[len(target.rstrip("\n")):]
+    parts = _LINE_BREAKS.split(target.strip("\n"))
+    for number, (was, now) in enumerate(zip(source_joints, target_joints)):
+        if was == "soft" and now == "blank":
+            parts[2 * number + 1] = "\n"
+    return lead + "".join(parts) + trail

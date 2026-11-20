@@ -42,7 +42,9 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
   sectionStatus: tenantPrefixed("open"),
   tenantSlug: tenantPrefixed("open"),
   languageGroupId: tenantPrefixed("open"),   // the primary Story's lineage id (src/papyrus_content/item_language.py)
+  dedupeKey: open,   // the once-only key of an Announcement (`story-published:<lineage>`); stored with the tenant in front on a shared stack (announcements/records.py)
   nameKey: open,   // `<kind>#<language>#<folded name>` of an EntityLabel; a shared stack puts the tenant in front with tenant_knowledge_keys.global_key, like the feed keys
+  exampleKey: closed,   // `publication`, `channel:<channel>` or `kind:<channel>:<kind>`, on a Delivery that is an active example (global_key puts the tenant in front)
   workKey: closed,   // `<kind>#<language>#<syncState>` of an EntityLabel that needs work, absent otherwise (tenant in front on a shared stack, as nameKey)
 
   // corpus-prefixed: "<corpusId>" or "<corpusId>#..." (src/papyrus_content/reference_feed_keys.py and the knowledge import keys).
@@ -57,6 +59,8 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
 
   // record-id: another record's id, alone or inside a composite such as "reference#<lineage>#current".
   accountId: recordId,
+  accountKey: recordId,   // `<channel>#<accountId>` of a Delivery
+  announcementId: recordId,
   assignmentId: recordId,
   authorUserProfileId: recordId,
   categorySetId: recordId,
@@ -96,6 +100,8 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
 
   // global, one partition: a constant.
   newsroomFeedKey: constant,
+  attentionKey: constant,   // `attention`, on a ProcedureRun that needs a person and is not acknowledged (a shared stack puts the tenant in front with tenant_knowledge_keys.global_key)
+  dueKey: constant,   // `due`, on a Delivery that has a pending time (a shared stack puts the tenant in front with tenant_knowledge_keys.global_key)
   reviewedFeedKey: constant,
 
   // global, closed set: an enum or a fixed list of kinds.

@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from papyrus_content.relation_types import load_vocabulary_namespace
+
 from . import profile
 from .profile import Key
 
@@ -29,11 +31,17 @@ def _term(key: Key) -> dict | str:
     return {"@id": key.iri, "@type": profile.TERM_TYPES[key.kind]}
 
 
-def generate(relation_types_path: str | Path | None = None) -> str:
-    """The text of ``papyrus.context.jsonld`` for the relation-types file (the packaged one when no path is given)."""
+def _class_keys() -> tuple[Key, ...]:
+    return tuple(key for keys in profile.CLASS_KEYS.values() for key in keys)
+
+
+def generate(relation_types_path: str | Path | None = None, namespace: str | None = None) -> str:
+    """The text of ``papyrus.context.jsonld`` for the relation-types file (the packaged one when no path is given) and the vocabulary namespace
+    (the packaged relation-types file's when none is given)."""
+    namespace = namespace or load_vocabulary_namespace()
     relation_types = profile.relation_types(relation_types_path)
-    terms: dict[str, object] = {"@version": 1.1, **profile.PREFIXES, **KEYWORDS}
-    for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *profile.RELATION_KEYS):
+    terms: dict[str, object] = {"@version": 1.1, **profile.prefixes(namespace), **KEYWORDS}
+    for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *_class_keys()):
         terms[key.name] = _term(key)
     for relation_type in relation_types:
         terms[relation_type.key] = {"@id": f"papyrus:{relation_type.key}", "@type": "@id", "@container": "@set"}
@@ -58,6 +66,24 @@ def id_base_problem(value: str) -> str | None:
     if not value.endswith("/"):
         return f"{value!r} does not end with a slash; an id is the base followed by an identifier, such as https://example.org/id/"
     return None
+
+
+def namespace_problem(value: str) -> str | None:
+    """Why ``value`` cannot be the vocabulary namespace, or None. A term is the namespace followed by its name, so it is an https address ending in ``#`` or ``/``."""
+    parts = urlsplit(value)
+    if parts.scheme != "https" or not parts.netloc or parts.query or any(character.isspace() for character in value) or not value.endswith(("#", "/")):
+        return f"{value!r} is not an https address ending in # or /, such as https://example.org/ns#"
+    return None
+
+
+def recorded_namespace(generated: Path) -> str | None:
+    """The vocabulary namespace a pod's generated context records, or None when it is missing or unreadable."""
+    try:
+        terms = json.loads(generated.read_text(encoding="utf-8"))["@context"]
+        value = terms[profile.NAMESPACE_PREFIX]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return value if isinstance(value, str) and namespace_problem(value) is None else None
 
 
 def root_context(id_base: str) -> str:
@@ -89,7 +115,7 @@ def read_root(path: Path) -> tuple[RootContext, list[str]]:
         return RootContext(), [f'must be {{"@context": ["{profile.PROFILE_CONTEXT_FILE}", {{...}}]}}: the first entry names the generated context']
     problems: list[str] = []
     root = RootContext()
-    prefixes = set(profile.PREFIXES)
+    prefixes = set(profile.PREFIX_NAMES)
     declarations = entries[1:]
     for entry in declarations:
         if not isinstance(entry, dict):
@@ -120,7 +146,7 @@ def read_root(path: Path) -> tuple[RootContext, list[str]]:
 
 
 def reserved_names(relation_types_path: str | Path | None = None) -> set[str]:
-    names = {key.name for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *profile.RELATION_KEYS)}
+    names = {key.name for key in (*profile.PLAIN_KEYS, *profile.LINK_KEYS, *_class_keys())}
     names |= {relation_type.key for relation_type in profile.relation_types(relation_types_path)} | set(KEYWORDS)
     return names
 

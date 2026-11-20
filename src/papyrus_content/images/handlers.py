@@ -20,6 +20,7 @@ class Caller:
     delegated_by: str | None = None
     is_admin: bool = False   # an admin of this site; only a person who is one may change a binding constraint
     request_id: str | None = None   # the door's requestId: a write repeated with the same id gives the first answer
+    gate_run: Any = field(default=None, compare=False)   # an agent's run (agent_gate.GateRun): every call it makes is answered by the one gate
 
 
 @dataclass(frozen=True)
@@ -117,8 +118,12 @@ def execute(name: str, arguments: Any, caller: Caller | None = None, handlers: d
     item = operation(name) if isinstance(name, str) else None
     if item is None:
         return error_envelope(str(name), "unknown_operation", f"There is no image operation named {name}.", details={"operation": str(name)})
-    if caller.kind == "agent" and not item.agent_allowed:
-        return error_envelope(name, "human_required", f"{name} needs a person; an agent may not call it.")
+    if caller.kind == "agent" and caller.gate_run is not None:
+        answer = caller.gate_run.ask(name)
+        if not answer.allowed:
+            return error_envelope(name, answer.answer, answer.reason, details={"gate": answer.as_record()})
+    elif caller.kind == "agent" and not item.agent_allowed:
+        return error_envelope(name, item.agent_refusal, f"{name} needs a person; an agent may not call it.")
     problem = check(item.input, arguments if arguments is not None else {})
     if problem:
         return error_envelope(name, "invalid_input", problem[1], details={"path": problem[0]})
@@ -149,3 +154,58 @@ HANDLERS.update(signed_in_generation_handlers())
 from papyrus_content.announcements.handlers import signed_in_handlers as _announcement_handlers  # noqa: E402
 
 HANDLERS.update(_announcement_handlers())
+
+# Announcement review (PPY-97c0f2): the announce rung and its overrides, and one Delivery's review. They read the site's agent policy and the Delivery records, which the
+# monitoring router and the image service never do, so the module is imported by the call and not by this file (infra/monitoring/build.py leaves it out of the router zip).
+REVIEW_OPERATIONS = ("announcements_review_show", "announcements_review_set", "announcements_delivery_review_set", "announcements_record_manual", "announcements_correct", "announcements_withdraw")
+
+
+def _review_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.announcements.review_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _review_handler(name) for name in REVIEW_OPERATIONS})
+
+# The editing window (PPY-e8ec54): versions, candidates, pinned blocks and unlock of a Delivery, imported by the call for the same reason.
+EDIT_OPERATIONS = ("announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_versions", "announcements_unlock", "announcements_example", "announcements_preferred")
+
+
+def _edit_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.announcements.edit_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _edit_handler(name) for name in EDIT_OPERATIONS})
+
+# The Announcements list, a Story's lines and "why was this not announced" (PPY-e4ae3a) read the same records and are imported by the call for the same reason.
+LIST_OPERATIONS = ("announcements_where", "announcements_recent", "announcements_explain")
+
+
+def _list_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.announcements.list_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _list_handler(name) for name in LIST_OPERATIONS})
+
+
+# The rating operation (PPY-d85860) runs on the same lane: whoever runs it, a person's session or the procedure runner's role, opens its own authoring client.
+from papyrus_content.rating_handlers import signed_in_handlers as _rating_handlers  # noqa: E402
+
+HANDLERS.update(_rating_handlers())
+
+
+# The handoff request (PPY-51f96f) runs on the same lane: a person's session, or the procedure runner's role inside an agent's run.
+from papyrus_content.handoff_handlers import signed_in_handlers as _handoff_handlers  # noqa: E402
+
+HANDLERS.update(_handoff_handlers())

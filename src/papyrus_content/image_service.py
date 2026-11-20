@@ -30,9 +30,10 @@ from .guidelines.s3_files import S3DocumentFiles
 from .staff_groups import claim_groups, has_editor_rights
 
 LOG = logging.getLogger(__name__)
-DOORS = {"imageRead": ("read",), "imageWrite": ("write", "spend"), "guidelinesRead": ("read",), "guidelinesWrite": ("write",)}
-DOOR_GROUP = {"imageRead": "images", "imageWrite": "images", "guidelinesRead": "guidelines", "guidelinesWrite": "guidelines"}
-DOOR_FOR = {("images", True): "imageRead", ("images", False): "imageWrite", ("guidelines", True): "guidelinesRead", ("guidelines", False): "guidelinesWrite"}
+DOORS = {"imageRead": ("read",), "imageWrite": ("write", "spend"), "guidelinesRead": ("read",), "guidelinesWrite": ("write",), "announcementsRead": ("read",)}
+DOOR_GROUP = {"imageRead": "images", "imageWrite": "images", "guidelinesRead": "guidelines", "guidelinesWrite": "guidelines", "announcementsRead": "announcements"}
+DOOR_FOR = {("images", True): "imageRead", ("images", False): "imageWrite", ("guidelines", True): "guidelinesRead", ("guidelines", False): "guidelinesWrite",
+            ("announcements", True): "announcementsRead"}
 WRITE_DOORS = ("imageWrite", "guidelinesWrite")
 
 
@@ -77,7 +78,9 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
         return error_envelope(name, "not_authorized")
     item = operation(name)
     if item is not None and (item.group != DOOR_GROUP[door] or item.effect not in DOORS[door]):
-        right = DOOR_FOR[(item.group, item.effect == "read")]
+        right = DOOR_FOR.get((item.group, item.effect == "read"))
+        if right is None:   # the announcements door only reads; what changes an announcement goes through ``papyrus announcements`` and the agents' tools
+            return error_envelope(name, "invalid_input", f"{name} is not run through {door}: this door only reads.", details={"path": "op"})
         return error_envelope(name, "invalid_input", f"{name} is run through {right}, not {door}.", details={"path": "op"})
     try:
         payload = _arguments(arguments.get("input"))
@@ -91,6 +94,10 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
         files = (files_factory or (lambda built: S3DocumentFiles(built, env=env)))(client)
         if DOOR_GROUP[door] == "guidelines":
             return execute(name, payload, caller, guidelines_with_client(client, files))
+        if DOOR_GROUP[door] == "announcements":
+            from .announcements.list_handlers import with_client as announcements_with_client
+
+            return execute(name, payload, caller, announcements_with_client(client))
         return execute(name, payload, caller, with_client(client, section_fields=SECTION_STYLE_FIELD, files=files))
     except Exception as error:   # the browser gets a state; the cause goes to the log by type only
         LOG.error("image operation failed: %s %s", name, type(error).__name__)

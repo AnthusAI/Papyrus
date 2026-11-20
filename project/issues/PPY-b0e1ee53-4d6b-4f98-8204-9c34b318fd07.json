@@ -1,0 +1,25 @@
+{
+  "id": "PPY-b0e1ee53-4d6b-4f98-8204-9c34b318fd07",
+  "title": "Agents see relevant newsroom talk in their context",
+  "description": "A newsroom_talk layer in build_context_pack for the ideation, selection, copywriter and editor profiles: threads relevant to the task (vector and concept match, newest first, budget-bounded), each with its date and authors, labelled as editors' discussion, not instructions that override guidelines. Scenario: an idea about AI regulators gets last week's thread about regulator jokes; an unrelated idea gets none. Scenario: a site with no Slack connection gets the same pack as today. The pack hash covers the threads used.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-15050c47-b59b-4ba0-a961-893afcb5b891",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-020300cc-b36e-4410-9c47-ed40ec2f0a7f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-18T13:34:41.033932Z",
+  "updated_at": "2026-11-18T13:34:42.036486Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,26 +1,8 @@
 import type { AnnouncementsApi } from "./announcements-client";
-import type { AnnouncementRow, AnnouncementSettings, XStatus } from "./announcements-model";
-import type { AnnouncementsSource } from "./announcements-data";
+import type { AnnouncementSettings, XStatus } from "./announcements-model";
 
 /** Demo data for `?demo=1` and the local preview only. Nothing here is read by a signed-in site. */
 const DEMO_REDIRECT_HANDLE = "mom_test";
-
-const DEMO_ROWS: AnnouncementRow[] = [
-  {
-    id: "a1", storyTitle: "The machines that audit other machines", state: "dry_run", at: "2026-11-13T09:01:00Z",
-    text: "New on Machines on Machines: how automated auditors check other automated systems, and where they fall short.", link: "https://machines.example/articles/auditors?utm_source=x&utm_medium=social&utm_campaign=announcement", weightedLength: 126,
-  },
-  {
-    id: "a2", storyTitle: "Why the hardware shortage is a software story", state: "blocked", blockedReason: "Paused", at: "2026-11-13T10:30:00Z",
-    text: "A shortage of chips is changing how software gets written. Our latest on what teams are doing about it.", link: "https://machines.example/articles/shortage?utm_source=x&utm_medium=social&utm_campaign=announcement", weightedLength: 119,
-  },
-  {
-    id: "a3", storyTitle: "Reading a model's mind, one neuron at a time", state: "posted", at: "2026-11-12T14:00:00Z", postUrl: "https://x.example/mom_test/status/1", costUsd: 0.2,
-    text: "Interpretability researchers can now trace a single answer back to its parts. What that does and does not tell us.", link: "https://machines.example/articles/neurons?utm_source=x&utm_medium=social&utm_campaign=announcement", weightedLength: 133,
-  },
-];
-
-export const demoAnnouncementsSource: AnnouncementsSource = { list: async () => DEMO_ROWS };
 
 export function createFixtureApi(initial?: { connected?: boolean }): AnnouncementsApi {
   let settings: AnnouncementSettings = {

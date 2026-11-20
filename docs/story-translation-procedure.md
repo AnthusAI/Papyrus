@@ -79,6 +79,7 @@ papyrus stories localize --all --language es-419 --dry-run                      
 papyrus --auth iam stories localize --all --language es-419 --publish-clean       # run them here, publish the clean ones
 papyrus --auth iam stories localize --all --all-languages [--concurrency 3] [--ceiling-usd 1] [--openai-key-parameter SSM_PARAMETER]
 papyrus stories localize --all --language es-419 --automation SITE.story-localize [--publish-clean]   # queue them for the site's runner
+papyrus stories localize --all --all-languages --updated-since 7d [--updated-before 2026-11-17] --dry-run   # only Stories updated in a range
 ```
 
 - **What remains** (`localize/backfill.py`) is found without a read per Story: one paged listing of the published summaries (each has its language, its
@@ -92,6 +93,17 @@ papyrus stories localize --all --language es-419 --automation SITE.story-localiz
   new run could replace what a person has yet to answer. Only Stories that have such a record are read this way; the survey never reads one lineage per Story.
   The same transient-failure rule covers every read of the command, including the downloads and uploads of the attachment store: a read is sent again with a growing pause on a reset connection, a timeout or a data-store
   timeout, up to five attempts, and a failure that persists is that row's `cannot be planned` reason (or `failed`) with its real message.
+- **`--updated-since DATE` and `--updated-before DATE`** keep only the Stories whose source text was updated in a range, for every mode: a dry run, a run in
+  this process, `--automation` queueing and `--publish-clean`. A DATE is an ISO date or datetime in UTC (`2026-11-10`, `2026-11-10T06:00:00Z`; a date alone is
+  midnight UTC; an offset is converted) or a duration counted back from now (`7d`, `36h`, `1w`). The start is included and the end is not; either may be
+  given alone. A malformed value, a duration of zero, or a start that is not before the end is refused before anything is read or written, and the flags are
+  refused without `--all`. A Story's source text was **updated when its current published version was published**: the `versionPublishedAt` of its published
+  summary, which every publish of a new version sets and which the survey already reads, so the range costs no extra read. It is not `publishedAt`, the
+  first publication, which never moves and says when a Story appeared. That is the time that made a translation stale, so a Story translated at its current text
+  is still listed (as `up to date`) when it is in the range. A Story with no `versionPublishedAt` cannot be dated and is left out; the output counts them. A range
+  that holds no Story prints `No published Story was updated ...: nothing to translate` and does nothing. Because the range narrows the survey itself,
+  `--publish-clean` publishes a saved translation only when its Story is in the range: a translation saved earlier for a Story outside it stays unpublished
+  until a run without that range (or `papyrus ops content publish --id VERSION_ID`) publishes it.
 - **In this process** (the default; needs `--auth iam`) each remaining Story is requested and run through the registered procedure exactly as
   `papyrus stories localize --story` does, `--concurrency` at a time (default 3; each run mostly waits for the model). One line per Story and language:
   `saved`, `held` (a person answers its review request), `failed` (its reason; the others go on), `up to date`, `published`, `not published`, with the run's
@@ -125,7 +137,7 @@ Automation that runs it (`papyrus automations create --id SITE.story-localize --
 The mechanism, once per change and without a table read per change:
 
 1. **The publish writes the desired state.** When a Story written in the primary language is published (the one funnel every publish path ends in:
-   `announce_published_story` in the content-actions function, after the page is live), `localize.auto.request_translations` writes one
+   `story_is_live` in the content-actions function, after the page is live), `localize.auto.request_translations` writes one
    `LocalizationRequest` per enabled language other than the primary: the newest published source version, `automationId`, `publish`, state `wanted`.
    A record already naming the same text asks for nothing again (unless its run `failed` or `stopped`); a newer publish overwrites the record (coalescing). A
    translation, a Story in another language and a Story marked do not localize request nothing. A failure to write is logged
@@ -157,7 +169,7 @@ translate Stories already published: run `papyrus stories localize --all --publi
    fence as the outlier band once four runs exist). A caller's ceiling makes the run wait when the prediction is above it.
 3. **translate**: only the blocks whose source changed. The blocks are the title, the dek, the front matter's reader-facing texts (`blurb`, `imageAlt`: kinds `field:blurb`, `field:imageAlt`, saved back into the translation's front matter; references and picture paths stay as written) and the body's blocks. Link targets, URLs, citations, code and every directive attribute except `alt`, `caption`
    and `title` are replaced by placeholders and put back by the system, so a translator never sets a link target or a credit.
-4. **normalize and parity**: emphasis that would not render is fixed by code (the punctuation moves outside the closing marker); the Humanus
+4. **normalize and parity**: emphasis that would not render is fixed by code (the punctuation moves outside the closing marker), and so is a soft line break: where the English has a single newline inside a paragraph and the translator wrote a blank line (which makes a second paragraph), code joins them with the same single newline, after the translation and after each repair, on machine-owned blocks only. It does this only when the alignment is certain: the same number of lines, the same kind of line (prose, directive or fence, list item, heading, quote) and every blank line of the English a blank line of the translation. Otherwise the block is left as written and the structure check holds it. The translate and refine prompts also say to keep single newlines as single newlines (`PROMPT_VERSION` `localize-prompts-4`). The Humanus
    `translation-faithfulness` parity rules run on each block.
 5. **bilingual judge**: GPT-6 Luna through Humanus's judge hook, two passes per block, quotes verified by code.
 6. **copy edit**: the language's own policies (typography, translationese, AI-writing tells, house words, Spanish initialisms, and the formal imperative when the site's overlay chose `usted`).
@@ -167,6 +179,7 @@ translate Stories already published: run `papyrus stories localize --all --publi
    repairs) and adds no faithfulness finding; a block whose rewrite makes faithfulness worse reverts. It ends on convergence.
 9. **record**: the new unpublished version, its provenance, and the advice on the English version (`metadata.translationAdvice`) for stock phrasing
    the copy edit found in the translation that the English block has too.
+    The whole assembled body is then checked against the English with the structure, link and directive rules. A structure finding there (an extra paragraph inside a `:::note`, which is one block and whose own check can miss it) is mapped by its span to the block that holds it; that block goes back to the loop alone with the finding as a problem, and the refine prompt says to delete any paragraph the source does not have. The body is checked again afterwards, and a rewrite that still adds the paragraph leaves the finding, which holds the translation (step 10).
 10. **gate**: an error-severity faithfulness finding that remains holds the translation and raises a flag review request.
 
 Every stage's result is stored (ModelAttachment role `localize_stage` on the source version), so a run that fails continues from its finished
@@ -195,10 +208,11 @@ Where the translation differs from an English Story, in one place each (`src/pap
 | **A held translation is cleared by a person** | A run holds a translation when an error-severity faithfulness finding remains or its cost reached its ceiling. The version records `metadata.localization.outcome: held` and the run raises a flag review request (`localize-<first 24 characters of the run key>`). Publishing that version is refused (`translation-held`, naming the request) until a person answers it `approve` or `acknowledge` (`papyrus reviews answer --id ID --decision approve`). An open, rejected or missing request keeps it back. A new version of the translation is judged by its own run. A held translation never touches the English Story: its checklist, page and publication are unaffected. |
 | **Only while the original is published** | Publishing is refused (`original-unpublished`) unless the original's published row exists. The site serves a translation by the same rule (`PublishedContentSource` leaves out a translation whose original is not published): taking the original down takes the translation's pages, listings and sitemap entry off the site without touching its record, and publishing the original again brings them back. |
 | **No rating of its own** | One star rating serves every language of a Story (plan decision 10), and the original passed the site's `publishRequiresRating` gate when it was published. The run does not copy the rating, nothing asks for one, and a machine never creates one. |
+| **Only a person publishes it (for now)** | `publish_item` refuses a translation unless a person is publishing it by hand (`person-publish-required`, `src/papyrus_content/publish_by_person.py`): translating on publish (`languages.auto` with `publish: true`), `--publish-clean`, a scheduled publish and an agent's publish all leave a ready draft and say so, and the person publishes it in the console or with `papyrus ops content publish` signed in as themselves. This is a temporary block, lifted by the per-language checklist gate (PPY-473f8f); see [Releasing](releasing.md#only-a-person-publishes-pod-loaded-imported-and-translated-stories-ppy-473f8f). |
 | **The site's approval gate is the site's** | A site that requires a person's approval to publish (`publish-gate`) requires it for a translation like any other Story. |
 
-Scheduled publishing and the publish step of `papyrus stories next` read the same `publish_item`: a scheduled translation that is held, or whose original
-has been taken down by the time it fires, fails with the same message and shows as overdue.
+Scheduled publishing and the publish step of `papyrus stories next` read the same `publish_item`: a translation cannot be scheduled (it is refused when the
+schedule is made, with the person-only rule above), and one whose original has been taken down by the time it fires fails with the same message and shows as overdue.
 
 ### A person's correction
 
@@ -223,22 +237,80 @@ papyrus stories correct-translation --story LINEAGE --language es-419 --edits-fi
   translation's hold carries over and still needs its review request answered.
 - The version keeps `metadata.localization.reviewed` as it was: recording "reviewed by a person" and the page label are the correction view's (below).
 
+### Finished copy written elsewhere
+
+Copy that people or other agents wrote separately, and that is already finished, is attached to a published English Story as its companion edition with
+one command (`localize/import_copy.py`; spec `features_backend/translation-import.feature`; PPY-b64b0b). It reuses the procedure's own record-writing path
+(`record.save`), so the version looks like any translation to the rest of Papyrus; what differs is who wrote it and that no model is involved.
+
+```sh
+papyrus stories import-translation --story LINEAGE --language es-419 --body-file es.md --front-matter-file es.yaml --written-by "Person or agent" --reason "why" --dry-run
+papyrus stories import-translation --story LINEAGE --language es-419 --body-file es.md --front-matter-file es.yaml --written-by "Person or agent" --reason "why"
+```
+
+**The files.** `--body-file` is the body in Markdown. The front matter is YAML with the Story's own reader-facing texts: `title`, the dek (`dek` or `deck`), and `blurb` and
+`imageAlt` when the English has them; it is `--front-matter-file`, or a leading `---` block of the body file (not both). Any other key is refused: tags, sources, pictures and
+section stay the English's.
+
+**What it saves.** The next version of `{story}--{language}` (`localization_lineage_id`), unpublished, with no board stage, paired with the published English version it
+translates (`languageGroupId`, `sourceLineageId`, `sourceVersionNumber`, `sourceContentHash`, `syncState: current`), the language's drafted address, and the original's
+stored pictures, exactly as a machine translation is saved. The version's author is `--written-by` and its change reason is `imported copy written by NAME: REASON`. Its front matter says who made it for the site's standard byline: `author` is the writer (`--written-by`) and `drafting: {by: AI}` is there only with `--drafting-by-ai` (bots helped write the copy), in place of the English Story's `author` and `drafting`, which a machine translation keeps. The site's byline then reads "By NAME" or "By various bots and NAME", translated into the page's language like every byline. An
+earlier version of the lineage (a machine translation, an earlier import) is superseded, never deleted; the command prints which it replaces.
+
+**Provenance.** The provenance record (`localization_provenance`) has an `authorship` entry (`kind: written`, `machineGenerated: false`, who wrote it, who imported it (the
+signed-in session), the reason, the version it replaces), no model and no cost, and `metadata.localization.translation` is `imported` where a machine translation has
+`machine`. In its alignment every block is `owner: human`, `pinned: true`, naming the English block it pairs with, so a later translation run keeps the copy exactly: a changed or
+deleted English block under it is a conflict and nothing is overwritten (`plan_slots`), as for a correction.
+
+**Alignment.** The copy has the English's blocks in the same order: the title, the dek, the front matter texts, then the body's blocks (separated by blank lines; a `:::` container,
+a fenced code block and a figure directive are one block each), and each block is of the same kind. Everything a translator never sees (`blocks.protect`: link targets, web
+addresses, citations, inline code, a figure's `src`, `credit` and other settings) must be the English's, in any order within the block, and every code block, comment and rule must be
+the English's as written; a figure's `alt` and `caption` and a container's `title` are the copy's own. Otherwise the import is refused, nothing is saved, and the message says how the
+block counts differ and the first block where they stop matching (a paragraph split or joined), or which block changed which fixed part and how.
+
+**Checks.** The translation run's own checks without the bilingual judge: the parity rules and the glossary (numbers, links, citations, code, directives, structure, house terms)
+of each block against its English block, the same rules over the whole body, and the language's copy-edit policies on each block. No model is called, so an import costs nothing and
+needs no key; it also cannot catch a changed meaning that the rules cannot see (a dropped hedge or attribution): the person or agent who wrote the copy answers for that.
+Every finding is printed with its block. An error-severity faithfulness finding holds the version exactly as it holds a machine translation: `metadata.localization.outcome: held`
+and a flag review request (`localize-<first 24 characters of the run key>`, raised by `papyrus.story.import-translation`) that a person answers before the version publishes
+(`papyrus reviews answer`). Other findings are advice and do not hold.
+
+**What it refuses, saving nothing.** A language Humanus has no pack for, or that the site does not write in (`languages.enabled`); a Story whose English version is not published
+(the copy pairs with a published version, and a translation publishes only while its original is: publish the English Story first); a Story marked do not localize; a Story that
+is itself a translation; a translation run in progress for the Story and language; and a copy that cannot be aligned, or that changes a link, credit or figure, as above.
+
+**The request.** The Story's `LocalizationRequest` for the language is written finished (`saved`, or `held`), for this source version and text, with no automation and no publish
+choice, so `papyrus stories localize --all` counts the language up to date (a held copy counts too: it waits for a person) and the dispatcher leaves it alone. The same copy imported
+again saves nothing new. An explicit `papyrus stories localize --story` asks again and runs; it keeps every block as written.
+
+**Publishing stays the ordinary command**, `papyrus ops content publish --id VERSION_ID`; the import never publishes. `--dry-run` prints the alignment (each block, its kind, the
+English and the copy), the findings and the version it would replace, and writes nothing.
+
+The page and the Markdown twin of an imported translation never say that an AI translated it, and say nothing of the writer beyond the byline (below).
+
 ### What a reader and an agent see
 
-The page of a translation says, in the page's language and apart from the Story's text, that an AI translated it, with a link to the original:
+The page of a translation says, in the page's language and apart from the Story's text, what it is, with a link to the original. The line reads the
+version's translation kind (`metadata.localization.translation`). A machine translation says an AI translated it:
 
 > Traducido por IA del [original en inglés]
+
+An imported translation (finished copy written by a person or another agent) never claims AI and does not say who wrote it, because the byline does; its line
+is only the link, in the words of `translation.original`:
+
+> [original en inglés]
 
 - The words are two interface strings of the language, `translation.label` (with `{original}` where the link goes) and `translation.original`
   ([interface strings](multilingual-serving.md#interface-strings)); a public language without them is refused. The label is the page's data, computed from
   the language group (the page is in a language other than the primary's and the group's primary page is served), never text in the Story's body, so a
   correction to the Story cannot remove it and the Markdown the translator sees never contains it.
 - Agents read the same facts: the JSON-LD has `inLanguage` and `translationOfWork` (`{@type, url, inLanguage}` of the original), and the Markdown twin
-  says `Language: es-419 · Translation: machine · Translated from: <original URL>`. The head has `hreflang` for each published language and `x-default`
+  says `Language: es-419 · Translation: machine · Translated from: <original URL>`; for an imported translation `Language: es-419 · Translated from: <original URL>`
+  (no kind, no writer), and neither has a JSON-LD `translator`. The head has `hreflang` for each published language and `x-default`
   (the original), as for every page of a group.
 - Every page of the group lists the others, so publishing or unpublishing a translation (or the original) renders the other languages of the group again,
   in the same projection (`docs/multilingual-serving.md`).
-- A new Story announcement is not made for a translation: the new-story alert (`item-published`), the `story.published` notification and the weekly roundup
+- A new Story announcement is not made for a translation: the announce agent's every-item alert (`story_wake.read_candidate` marks a translation and the run makes nothing, reason `story_is_translation`) and the weekly roundup
   leave translations out, because the English Story announced the Story. The `translation.published` notification (admin class, for correctors) is not
   built (below).
 

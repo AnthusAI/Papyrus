@@ -94,16 +94,33 @@ def is_localization_of(lineage_id: str | None, group_id: str | None, language: s
     return bool(lineage_id and group_id and language and lineage_id == f"{group_id}{LOCALIZATION_SEPARATOR}{language}")
 
 
-def translation_original(row: dict[str, Any], tenant_id: str | None = None) -> str | None:
+#: The kinds of translation a localization version records in ``metadata.localization.translation``: written by the translation procedure, or finished
+#: copy a person or another agent wrote and imported (``papyrus stories import-translation``).
+MACHINE_TRANSLATION = "machine"
+IMPORTED_TRANSLATION = "imported"
+
+
+def translation_kind(recorded: str | None) -> str:
+    """What a localization version says about who wrote it. A version that records no kind was written by the procedure, as every translation was before
+    ``imported`` existed. An unknown kind is refused: a page must never say a kind it does not know."""
+    kind = recorded or MACHINE_TRANSLATION
+    if kind not in (MACHINE_TRANSLATION, IMPORTED_TRANSLATION):
+        raise ValueError(f"A translation's kind is {MACHINE_TRANSLATION!r} or {IMPORTED_TRANSLATION!r}, not {kind!r}.")
+    return kind
+
+
+def translation_original(row: dict[str, Any], tenant_id: str | None) -> str | None:
     """The Story a saved row is a translation of, judged by what the row says and not by its id: the row's language group is another lineage than its own.
-    None for a Story of its own, in any language (including one whose id contains ``--``)."""
+    None for a Story of its own, in any language (including one whose id contains ``--``).
+    ``tenant_id`` has no default: a stored group carries the tenant prefix on a tenant backend, and a caller that forgot it would read every original as
+    a translation of ``{tenant}#{itself}``. Pass the client's tenant id, or None on a backend with no tenant."""
     group = bare_group_id(row.get(LANGUAGE_GROUP_FIELD), tenant_id)
     lineage = row.get("itemLineageId") or row.get("lineageId")
     return group if group and lineage and group != lineage else None
 
 
-def localization_original(row: dict[str, Any], tenant_id: str | None = None) -> str | None:
-    """The primary lineage a localization row (an ``Item`` version or a ``PublishedItem``) is a translation of, or None for any other row."""
+def localization_original(row: dict[str, Any], tenant_id: str | None) -> str | None:
+    """The primary lineage a localization row (an ``Item`` version or a ``PublishedItem``) is a translation of, or None for any other row. ``tenant_id`` has no default, for the reason ``translation_original`` gives."""
     group = bare_group_id(row.get(LANGUAGE_GROUP_FIELD), tenant_id)
     return group if is_localization_of(row.get("itemLineageId") or row.get("lineageId"), group, row.get(LANGUAGE_FIELD)) else None
 

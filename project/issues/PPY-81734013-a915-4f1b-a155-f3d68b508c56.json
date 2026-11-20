@@ -1,0 +1,22 @@
+{
+  "id": "PPY-81734013-a915-4f1b-a155-f3d68b508c56",
+  "title": "Run the wake guard check on a real site (PPY-a5513c live proof)",
+  "description": "Live proof of the once-only create, waiting for Ryan's approval and a site on a release with wake keys (5.130 or later). Code and procedure merged in PR #1639 (PPY-a5513c): see docs/procedure-runner.md, section 'Proving the once-only create on a real site'. Acceptance: on one site, 'papyrus --site <site> procedures check-wake-guard --procedure-key <key without required parameters> --json' prints status proved (first answer duplicate false, second duplicate true, same run id); one run record for the wake key, outcome nothing, reason wake_guard_check. Record the JSON on this task and on PPY-567bf9. Blocks PPY-567bf9 (B1).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-865e8323-0e33-42e8-ada4-f24d5a67c231",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-17T02:56:43.860783Z",
+  "updated_at": "2026-11-17T02:56:43.860877Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

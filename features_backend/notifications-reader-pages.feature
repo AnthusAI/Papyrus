@@ -66,6 +66,29 @@ Feature: Notification pages for readers, on the site
     Then each list on the page says On or Off in words and with a bell mark
     And the page confirms in words that the new-story email is off
 
+  Scenario: A family of cadences is one choice and a newsletter is a tick
+    Given a confirmed subscriber on every new story follows the manage link
+    When they open the page
+    Then the cadences of that family are one choice with Every new story chosen, said in words and with a mark
+    And the weekly newsletter is a tick of its own
+
+  Scenario: Choosing another cadence in the family the reader holds asks for nothing more
+    Given a confirmed subscriber on every new story follows the manage link
+    When they choose the daily summary
+    Then only the daily summary is sent with the save
+    And no consent wording is shown or posted
+
+  Scenario: Choosing something the reader does not hold shows the consent wording and posts it
+    Given a confirmed subscriber on every new story follows the manage link
+    When they choose the weekly newsletter they did not hold
+    Then the page shows the site's consent wording and says the save sends a confirmation
+    And the save posts that wording with the weekly newsletter
+
+  Scenario: After the save the page says the new list waits for the reader's confirmation
+    Given a confirmed subscriber on every new story follows the manage link
+    When they come back after a save that is waiting for the weekly newsletter's confirmation
+    Then the page says in words that a link was emailed and the weekly newsletter is not on until it is pressed
+
   Scenario: A bad link
     When someone opens a manage link that is no good
     Then they land on the site's expired page, not an /api address
