@@ -38,16 +38,19 @@ SYSTEM = (
     "Write it in the publication's voice, following the guidelines.\n\n{guidelines}"
 )
 HASHTAGS_WITH_CHOICES = (
-    "\n\nHashtags: the Story's own concepts are offered as hashtagChoices. Put at most {maximum} of them in `hashtags`, copied exactly, and only those a reader would search for "
-    "to find this Story. Return an empty list when none fits: no hashtag is better than a forced one. Never write a hashtag in `text`. A hashtag is added after your text and costs its length plus one toward the limit; the limit given above already leaves room for the shortest, so keep your text within it. A text that leaves no room for the hashtag you chose is posted without it."
+    "\n\nHashtags matter (Ryan, 2026-11-20: a good hashtag is worth more than a few words of the text). The Story's own concepts are offered as hashtagChoices, each with its cost. "
+    "Put at most {maximum} of them in `hashtags`, copied exactly: the ones a reader would search for to find this Story. Return an empty list only when none is relevant. "
+    "The text limit above already leaves room for a hashtag, so keep `text` within it. Never write a hashtag in `text`."
 )
 HASHTAGS_NONE = "\n\nThe Story offers no hashtags: return an empty `hashtags` list."
 #: How many hashtags a post may carry. Derived from practice on X (more than two reads as spam), not from the API.
 MAX_HASHTAGS = 2
+#: How far under the limit the draft is told to stay when hashtags are offered: the model cannot count X's weight exactly, and a post over the limit is blocked.
+COUNTING_MARGIN = 20
 SCHEMA = {
     "type": "json_schema", "name": "announcement_draft", "strict": True,
-    "schema": {"type": "object", "additionalProperties": False, "required": ["text", "hashtags"],
-               "properties": {"text": {"type": "string"}, "hashtags": {"type": "array", "items": {"type": "string"}}}},
+    "schema": {"type": "object", "additionalProperties": False, "required": ["hashtags", "text"],
+               "properties": {"hashtags": {"type": "array", "items": {"type": "string"}}, "text": {"type": "string"}}},
 }
 
 
@@ -88,13 +91,13 @@ def story_source(story: StoryFacts) -> str:
 def prompt(story: StoryFacts, guidelines: str, learned: str = "", hashtags: list[str] | None = None) -> tuple[str, str]:
     """``learned`` is what people's edits taught (``learned_examples.Read.prompt``): it goes after the guidelines, so a rule in them still outranks an example.
     ``hashtags`` are the Story's own concepts the draft may choose from."""
-    # A hashtag takes room from the words: the limit the draft is given leaves room for the shortest one offered (and says each costs its length plus one).
-    limit = DRAFT_WEIGHT - min(weighted_length(f" {tag}") for tag in hashtags) if hashtags else DRAFT_WEIGHT
+    # A hashtag takes room from the words, and the model counts weight loosely: the limit it is given leaves room for the shortest hashtag offered and a margin.
+    limit = DRAFT_WEIGHT - min(weighted_length(f" {tag}") for tag in hashtags) - COUNTING_MARGIN if hashtags else DRAFT_WEIGHT
     system = SYSTEM.format(limit=limit, guidelines=guidelines) + (f"\n\n{learned}" if learned else "")
     system += HASHTAGS_WITH_CHOICES.format(maximum=MAX_HASHTAGS) if hashtags else HASHTAGS_NONE
     content: dict[str, Any] = {"title": story.title, "dek": story.dek, "summary": story.summary}
     if hashtags:
-        content["hashtagChoices"] = list(hashtags)
+        content["hashtagChoices"] = [{"tag": tag, "cost": weighted_length(f" {tag}")} for tag in hashtags]
     return system, json.dumps(content, ensure_ascii=False)
 
 
