@@ -1,15 +1,16 @@
 # The pipeline's own IAM roles (the papyrus-stack-pipeline stack) are changed here, and only here (PPY-9d1b3e).
 #
-#   merge to develop or main   `plan` makes a change set from the merged template and prints it, with an IAM view, as the job summary.
-#                              Nothing to change: it ends quietly and nobody is asked for anything.
-#   something to change        `apply` waits in the protected GitHub environment `pipeline-roles` for its required reviewer.
-#                              One click to approve; it then executes that exact change set, polls it and verifies the result.
+#   merge to develop or main   `plan` makes a change set from the merged template, prints it with an IAM view as the job summary, and runs the
+#                              automatic check (infra/pipeline/role_stack.py): hard rules no list can lift, and every changed IAM statement and every
+#                              removal or replacement must be listed in allowed-role-changes.json or allowed-changes.json. A change the check
+#                              refuses stops here, its change set is deleted and nothing is applied. Nothing to change: it ends quietly.
+#   something to change        `apply` then executes that exact change set, polls it and verifies the result. Nobody clicks anything.
 #
-# Nobody applies these roles from a laptop, and an agent never approves. The roles this workflow runs as come from
-# infra/pipeline/papyrus-pipeline-approver.yaml, a separate small stack a person sets up once per AWS account
-# (infra/pipeline/bootstrap.sh --approver-only, then infra/pipeline/create-environment.sh). No stored keys: GitHub OIDC only.
-# Only merged code runs here (develop or main), so only merged templates are applied; develop is allowed because the roles often
-# have to change before the release that needs them. The account id lives in the AWS_ACCOUNT_ID repository variable.
+# role-change-check.yml runs the same check on the pull request, before the merge, and prints the fingerprints a change needs.
+# Nobody applies these roles from a laptop. The roles this workflow runs as come from infra/pipeline/papyrus-pipeline-approver.yaml, a separate
+# small stack a person sets up once per AWS account (infra/pipeline/bootstrap.sh --approver-only, then infra/pipeline/create-environment.sh).
+# No stored keys: GitHub OIDC only. Only merged code runs here (develop or main), so only merged templates are applied; develop is allowed
+# because the roles often have to change before the release that needs them. The account id lives in the AWS_ACCOUNT_ID repository variable.
 name: role-stack-deploy
 
 on:
@@ -68,8 +69,8 @@ jobs:
     if: needs.plan.outputs.needed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    # The approval: required reviewers on this environment, deployment branches limited to develop and main (infra/pipeline/create-environment.sh).
-    # The role below trusts this environment's subject and nothing else.
+    # No reviewer: the automatic check in `plan` is the control. The environment exists because the role below trusts its OIDC subject and nothing
+    # else, and its deployment branches are limited to develop and main (infra/pipeline/create-environment.sh).
     environment: pipeline-roles
     permissions:
       contents: read

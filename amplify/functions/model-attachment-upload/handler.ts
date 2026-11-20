@@ -31,6 +31,7 @@ const ALLOWED_OWNER_KINDS = new Set([
   "knowledgeRawPayload",
   "message",
   "publishedItem",
+  "procedureRun",
   "procedureVersion",
   "reference",
   "semanticNode",
@@ -60,6 +61,7 @@ const ALLOWED_ROLES = new Set([
   "visual_negative",
   "image_record",
   "image_candidate_file",
+  "run_body",                 // a procedure run's input, normalized input, output and error, one JSON file in S3 (src/papyrus_content/run_bodies.py)
   "delivery_text",            // a Delivery's words, one file in S3 (src/papyrus_content/announcements/deliveries.py)
   "doctrine_document",
   "doctrine_asset",
@@ -298,6 +300,7 @@ function ownerModelName(ownerKind: string): string {
   if (ownerKind === "knowledgeRawPayload") return "KnowledgeRawPayload";
   if (ownerKind === "message") return "Message";
   if (ownerKind === "publishedItem") return "PublishedItem";
+  if (ownerKind === "procedureRun") return "ProcedureRun";
   if (ownerKind === "procedureVersion") return "ProcedureVersion";
   if (ownerKind === "reference") return "Reference";
   if (ownerKind === "semanticNode") return "SemanticNode";

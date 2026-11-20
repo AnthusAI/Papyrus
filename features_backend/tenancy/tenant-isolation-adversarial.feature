@@ -853,6 +853,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | announcementsXComplete               | denied, or returns nothing of "beta" |
       | announcementsXDisconnect             | denied, or returns nothing of "beta" |
       | announcementsXSaveApp                | denied, or returns nothing of "beta" |
+      | announcementsXSpend                  | denied, or returns nothing of "beta" |
       | announcementsXStatus                 | denied, or returns nothing of "beta" |
       | announcementsXUsage                  | denied, or returns nothing of "beta" |
       | applyKnowledgeReview                 | denied, or returns nothing of "beta" |

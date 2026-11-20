@@ -270,11 +270,11 @@ def diff_templates(live: dict, new: dict) -> dict:
 
 
 def bootstrap_hint(message: str) -> str:
-    """A permission refusal on the service role or deploy role is fixed by changing the pipeline roles, which only the approval-gated workflow does."""
+    """A permission refusal on the service role or deploy role is fixed by changing the pipeline roles, which only the automatically checked workflow does."""
     if re.search(r"not authorized|AccessDenied|is not allowed to perform|UnauthorizedOperation", message, re.IGNORECASE):
-        return (f"This looks like a permission the pipeline roles do not have. Roles are changed only by the {ROLES_WORKFLOW} workflow, after a person "
-                f"approves it in GitHub: {ROLES_WORKFLOW_URL}. Open its latest run on develop or main and approve the pending 'pipeline-roles' "
-                f"deployment (an agent links it and never approves). If it ran and was approved, re-run this workflow. If there is no run, the "
+        return (f"This looks like a permission the pipeline roles do not have. Roles are changed only by the {ROLES_WORKFLOW} workflow, after its automatic check "
+                f"passes: {ROLES_WORKFLOW_URL}. Open its latest run on develop or main: if the check refused the change, fix the template or list the statements "
+                f"it names in infra/pipeline/allowed-role-changes.json (an agent never works around a refusal). If it applied, re-run this workflow. If there is no run, the "
                 f"template change has not been merged.")
     return ""
 
@@ -302,10 +302,10 @@ def pipeline_notice(ctx: "Context") -> str:
     state, detail = pipeline_state(ctx.cloud, PIPELINE_TEMPLATE.read_text(encoding="utf-8"))
     ctx.pipeline_said = state
     if state != "same":
-        ctx.write_summary(f"### The pipeline roles are out of date\n{detail[0].upper() + detail[1:]}. A permission added to the template since the last approved apply is not in the account, "
-                          f"so a deploy can be refused for it. The {ROLES_WORKFLOW} workflow updates them after a person approves in GitHub: "
+        ctx.write_summary(f"### The pipeline roles are out of date\n{detail[0].upper() + detail[1:]}. A permission added to the template since the last apply is not in the account, "
+                          f"so a deploy can be refused for it. The {ROLES_WORKFLOW} workflow updates them once its automatic check passes: "
                           f"{ROLES_WORKFLOW_URL} (see infra/pipeline/README.md). Nothing is stopped for this.")
-        ctx.out(f"::warning::The pipeline roles are out of date ({detail}). Approve the {ROLES_WORKFLOW} run: {ROLES_WORKFLOW_URL}")
+        ctx.out(f"::warning::The pipeline roles are out of date ({detail}). Read the {ROLES_WORKFLOW} run: {ROLES_WORKFLOW_URL}")
     return state
 
 

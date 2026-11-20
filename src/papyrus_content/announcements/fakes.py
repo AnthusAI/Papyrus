@@ -170,6 +170,10 @@ class FakeFunctions:
     def status(self) -> dict:
         return dict(self.connected)
 
+    def spent(self, account_id: str, start: Any) -> str | None:
+        """What ``handlers.Functions.spent`` answers: the function reads the spend ledger a spec sets as ``ledger``."""
+        return self.ledger.spent(account_id, start)
+
     def save_app(self, client_id: str, client_secret: str) -> dict:
         if not client_id.strip() or not client_secret.strip():
             from .x_account import AnnouncementError

@@ -4,7 +4,7 @@
 #   push to main  tests pass, then each stack whose inputs changed since the last successful run is built, change-set, read and executed
 #
 # AWS access is GitHub OIDC only (no stored keys). The roles come from infra/pipeline/papyrus-stack-pipeline.yaml, which is changed only by the
-# approval-gated workflow role-stack-deploy.yml (merge, a plan appears, the reviewer approves in GitHub). The dry run and the deploy both say, in the
+# workflow role-stack-deploy.yml (merge, a plan appears, its automatic check applies it). The dry run and the deploy both say, in the
 # job summary, when the roles in the account differ from that file, and a permission refusal names that workflow. A change to that file puts
 # both stacks in scope on purpose, so the release runs this check. The account id lives in the AWS_ACCOUNT_ID
 # repository variable, not in Git. Public repository only.
@@ -75,7 +75,7 @@ jobs:
           for name in ${STACKS//,/ }; do args+=(--stack "$name"); done
           python infra/pipeline/stack_deploy.py plan "${args[@]}"
       # The shared-tier stacks have roles of their own (reaching papyrus-shared-* only), so they are planned in a second step.
-      # Until the pipeline-roles change that creates papyrus-shared-plan-github has been approved and applied, the role does not exist: the
+      # Until the pipeline-roles change that creates papyrus-shared-plan-github has been applied, the role does not exist: the
       # credential step then fails, the shared dry run is skipped with a notice, and the pull request is not blocked on a role it is itself adding.
       - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         id: shared_credentials
@@ -88,7 +88,7 @@ jobs:
       - name: Say why there is no shared-tier dry run yet
         if: steps.shared_credentials.outcome == 'failure'
         run: |
-          echo "::notice::The shared plan role papyrus-shared-plan-github does not exist yet. The pipeline-roles change that creates it needs approval after merge (infra/pipeline/README.md). The shared-tier dry run appears on the next pull request after that."
+          echo "::notice::The shared plan role papyrus-shared-plan-github does not exist yet. The pipeline-roles change that creates it applies after merge, through the automatic check (infra/pipeline/README.md). The shared-tier dry run appears on the next pull request after that."
       - name: Dry run of the shared-tier stacks (read-only)
         if: steps.shared_credentials.outcome == 'success'
         env:

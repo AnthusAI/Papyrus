@@ -22,6 +22,7 @@ import {
 } from "../amplify/plugins/notifications/papyrus.plugin";
 import { KNOWN_PLUGINS, resolvePlugins } from "../amplify/plugins/registry";
 import { wirePlugins } from "../amplify/plugins/wire";
+process.env.PAPYRUS_TENANT_ID = "example-tenant"; // the site build's tenant (docs/multi-tenancy.md): the X spend counter is keyed by it
 import { readFileSync } from "node:fs";
 
 const computeRoleArn = "arn:aws:iam::123456789012:role/AmplifyComputeRole-abc";
@@ -125,7 +126,7 @@ wirePlugins(new Proxy({}, { get: () => assert.fail("a site without plugins must 
 /** The announcements function's three model tables, as the site's data stack holds them. */
 function announcementTables(dataStack: Stack) {
   return Object.fromEntries(
-    ["AnnouncementSettings", "XConnection", "AnnouncementSpend"].map((name) => [name, new Table(dataStack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+    ["AnnouncementSettings", "XConnection"].map((name) => [name, new Table(dataStack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
   );
 }
 
@@ -215,9 +216,12 @@ template.hasResourceProperties("AWS::SQS::Queue", {
 template.hasResourceProperties("AWS::Lambda::EventSourceMapping", { FunctionResponseTypes: ["ReportBatchItemFailures"], BatchSize: 1 });
 template.hasResourceProperties("AWS::Lambda::Function", {
   FunctionName: notificationsXName("example"),
-  Environment: { Variables: Match.objectLike({ X_QUEUE_URL: Match.anyValue(), X_API_BASE: "https://api.x.com", ANNOUNCEMENT_SETTINGS_TABLE: Match.anyValue(), X_CONNECTION_TABLE: Match.anyValue(), ANNOUNCEMENT_SPEND_TABLE: Match.anyValue() }) },
+  Environment: { Variables: Match.objectLike({ X_QUEUE_URL: Match.anyValue(), X_API_BASE: "https://api.x.com", ANNOUNCEMENT_SETTINGS_TABLE: Match.anyValue(), X_CONNECTION_TABLE: Match.anyValue(), PAPYRUS_TENANT_ID: "example-tenant", PAPYRUS_MONITORING_TABLE_PARAMETER: "/papyrus/monitoring/table-name" }) },
 });
 assert.match(JSON.stringify(template.findResources("AWS::IAM::Policy")), /parameter\/papyrus\/example\/announcements\/x\/\*/, "the account's token parameters, and no other of the site's");
+// The X spend counter is in the shared ledger (PPY-fa165c): the consumer reads and adds to this site's X rows only, by the leading key, and the site has no spend table of its own.
+assert.match(JSON.stringify(template.findResources("AWS::IAM::Policy")), /"dynamodb:LeadingKeys":\["SPEND#example-tenant#x:\*"\]/, "the spend ledger grant is this tenant's X rows");
+assert.doesNotMatch(JSON.stringify(template.toJSON()), /ANNOUNCEMENT_SPEND_TABLE/, "no spend table of the site's own");
 
 // Queues: the email queue, the x queue and the dead letter queues, each dead letter queue watched by an alarm with no action.
 template.resourceCountIs("AWS::SQS::Queue", 5);

@@ -38,6 +38,7 @@ from papyrus_content.announcements.link_reads import StoryRef  # noqa: E402
 from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles  # noqa: E402
 from papyrus_content.announcements.review_policy import RESPONSIBILITY, RUNG_OF  # noqa: E402
 from papyrus_content.announcements.spend import SpendLedger  # noqa: E402
+from papyrus_content.spend_ledger_test import FakeLedgerTable  # noqa: E402
 from papyrus_content.announcements.withdrawals import Withdrawals  # noqa: E402
 from papyrus_content.announcements.x_account import AnnouncementError  # noqa: E402
 from papyrus_content.announcements.x_announce import XAnnouncer, XServices  # noqa: E402
@@ -89,8 +90,9 @@ def setup(context):
     context.files = MemoryDeliveryFiles(context.backend)
     context.deliveries = Deliveries(context.backend, context.files)
     context.announcements = Announcements(context.backend, context.deliveries)
-    context.ledger = SpendLedger(context.backend)
+    context.ledger = SpendLedger(FakeLedgerTable(), "site")
     context.functions = FakeFunctions(lambda: NOW.timestamp())
+    context.functions.ledger = context.ledger   # what the function reads for the signed-in lane
     context.told = []
     context.control = SpendControl(settings=context.functions, connection=context.functions.status, ledger=context.ledger,
                                    notify=lambda kind, facts: context.told.append((kind, dict(facts))), now=lambda: NOW)

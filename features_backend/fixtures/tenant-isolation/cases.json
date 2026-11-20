@@ -6,7 +6,7 @@
     "modelCases": 505,
     "indexCases": 230,
     "subscriptionCases": 9,
-    "operationCases": 140,
+    "operationCases": 141,
     "functionCases": 76,
     "surfaceCases": 9
   },
@@ -6073,6 +6073,14 @@
       "subject": "announcementsXSaveApp",
       "operation": "call-scope",
       "probe": "alpha calls announcementsXSaveApp with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:announcementsXSpend",
+      "kind": "operation",
+      "subject": "announcementsXSpend",
+      "operation": "call-scope",
+      "probe": "alpha calls announcementsXSpend with input chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

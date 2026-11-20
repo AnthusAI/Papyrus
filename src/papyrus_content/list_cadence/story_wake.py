@@ -176,7 +176,7 @@ def default_services(environ: Mapping[str, str]) -> Services:
     from papyrus_content.announcements.eligibility import load_story
     from papyrus_content.announcements.handlers import ORIGIN_ENV, STYLE_ENV, Functions, x_services
     from papyrus_content.announcements.intake import ChecklistReviewStamps
-    from papyrus_content.announcements.spend import SpendLedger
+    from papyrus_content.announcements.spend import ledger_from_environment
     from papyrus_content.announcements.x_delivery import send_due
     from papyrus_content.announcements.x_runner import SpendControl
     from papyrus_content.announcements.email_channel import CaducusEmail
@@ -192,7 +192,7 @@ def default_services(environ: Mapping[str, str]) -> Services:
     draft = alert_drafter(lambda lineage: load_story(client, lineage, item_url_style=environ.get(STYLE_ENV, "html")), origin)
     functions = Functions(client)
     announcements = Announcements(client)
-    control = SpendControl(settings=functions, connection=functions.status, ledger=SpendLedger(client))
+    control = SpendControl(settings=functions, connection=functions.status, ledger=ledger_from_environment(environ))
     # The site's Broadcaster is the one its config provides (the notifications function's X queue); a site without one has None, and a site set to On without it refuses to run.
     wired = build_runtime(environ) if environ.get("EMAIL_QUEUE_URL") else None
     broadcaster = wired.broadcaster if wired is not None else None

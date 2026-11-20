@@ -17,7 +17,20 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f2095d0b-282a-4147-ae31-ab5599452457",
+      "author": "ryan",
+      "text": "Scoping note (2026-11-20): this is several PRs, not one. Writers of input/normalizedInput/output/error: the Python runner (cloud_procedures.update_cloud_procedure_run_record and the start mutation), amplify/functions/procedure-action/handler.ts (start: input, normalizedInput), amplify/functions/assignment-action/handler.ts (retry copies normalizedInput; executeImmediateProcedureRun writes output). Readers: automations.py (run detail, output and error), priming_export.py (output.story), story_commands.py (stage bot output), assignment-action handler (normalizedInput), automation-view/wire.ts, and the console run view. Needed first: owner kind procedureRun and a run_body role in model-attachment-upload (ALLOWED_OWNER_KINDS, ownerModelName, model_attachments.MODEL_ATTACHMENT_OWNER_MODELS), plus the storage rule. Proposed order: (1) owner kind and role, one read/write helper (run_bodies.py) with a missing-attachment error; (2) move the Python runner and CLI/automation readers; (3) the two TypeScript writers and readers; (4) the one-time idempotent conversion command; (5) a later release drops the four fields. Steps 2 and 3 must land in one release so no reader has to handle both shapes. Not started: the runner writes through AppSync with IAM, and I could not confirm in the cloud that its role may call the attachment upload mutation; that needs checking first.",
+      "created_at": "2026-11-20T19:12:01.345648Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "CLI and MCP thread"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:01.311772Z",
   "updated_at": "2026-11-16T22:43:21.733185Z",
   "closed_at": null,

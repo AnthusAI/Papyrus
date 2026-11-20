@@ -11,10 +11,13 @@ OPERATIONS = sorted(actions.READS | actions.CHANGES)
 PAGE_REQUESTS = json.loads((Path(__file__).resolve().parents[3] / "features_backend" / "fixtures" / "announcements-page-requests.json").read_text())
 
 
+COMMAND_LINE_ONLY = {"announcementsXSpend"}
+
+
 @pytest.fixture
 def ran(monkeypatch):
     calls = []
-    monkeypatch.setattr(actions, "handle", lambda operation, payload, groups, actor, accounts, settings, **_: calls.append((operation, payload, groups, actor)) or {"ok": True})
+    monkeypatch.setattr(actions, "handle", lambda operation, payload, groups, actor, accounts, settings, ledger=None, **_: calls.append((operation, payload, groups, actor)) or {"ok": True})
     return calls
 
 
@@ -46,7 +49,7 @@ def test_the_requests_the_page_sends_each_run_the_operation_they_name(ran):
     answers = [actions.handle_event(event, accounts=None, settings=None) for event in PAGE_REQUESTS]
     assert answers == [{"ok": True}] * len(PAGE_REQUESTS)
     assert [operation for operation, *_ in ran] == [event["fieldName"] for event in PAGE_REQUESTS]
-    assert sorted(operation for operation, *_ in ran) == OPERATIONS
+    assert sorted(operation for operation, *_ in ran) == [name for name in OPERATIONS if name not in COMMAND_LINE_ONLY]   # the page never asks the ledger: the command line does
     assert [payload for _, payload, *_ in ran] == [json.loads(event["arguments"]["input"]) for event in PAGE_REQUESTS]
 
 
@@ -100,3 +103,21 @@ def test_any_credential_may_still_save_other_modes_and_leave_on_alone(monkeypatc
     assert actions.handle_event(save_event("dry_run", agent_claims), ConnectedAccounts(), SettingsInMode("off"))["ok"] is True
     assert actions.handle_event(save_event("off", agent_claims), ConnectedAccounts(), SettingsInMode("on"))["ok"] is True
     assert actions.handle_event(save_event("on", agent_claims), ConnectedAccounts(), SettingsInMode("on"))["ok"] is True
+
+
+def test_the_spend_query_reads_the_ledger_and_says_when_there_is_none():
+    from datetime import date
+
+    class Ledger:
+        def spent(self, account_id, start):
+            assert (account_id, start) == ("mom", date(2026, 11, 1))
+            return "0.4"
+
+    from types import SimpleNamespace
+
+    accounts = SimpleNamespace(status=lambda: {})
+    ask = {"accountId": "mom", "cycleStart": "2026-11-01"}
+    assert actions.handle("announcementsXSpend", ask, ["editor"], "ed", accounts, None, lambda: Ledger()) == {"ok": True, "spent": "0.4"}
+    refused = actions.handle("announcementsXSpend", ask, ["editor"], "ed", accounts, None, None)
+    assert refused["ok"] is False and refused["error"] == "not_configured"
+    assert actions.handle("announcementsXSpend", ask, [], "nobody", accounts, None, lambda: Ledger())["error"] == "forbidden"
