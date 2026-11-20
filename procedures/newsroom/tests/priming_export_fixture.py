@@ -23,7 +23,7 @@ def automation(monitor="ttab", publication=PUBLICATION, kind="monitor", procedur
 
 
 def run(story, proceeding, *, status="completed", at="2026-10-24T17:05:50Z", procedure=PROCEDURE):
-    return {"id": f"run-{story}-{at}", "procedureKey": procedure, "runStatus": status, "requestedAt": at,
+    return {"id": f"run-{story}-{at}", "procedureId": f"def-{procedure}", "procedureKey": procedure, "runStatus": status, "requestedAt": at,
             "input": json.dumps({"proceeding": proceeding, "opinion_url": f"https://ttab.example.test/{proceeding}/decision.pdf"}),
             "output": json.dumps({"story": story} if story else {})}
 
@@ -48,6 +48,11 @@ class FakeSite:
 
     def list_by_index(self, index, key, **_):
         self.calls.append(("index", index))
+        if index == "procedureDefinitionsByKey":   # one definition per procedure key a run or an automation names
+            known = {row["procedureKey"] for model in ("ProcedureRun", "Automation") for row in self.tables[model]}
+            return [{"id": f"def-{key}", "procedureKey": key}] if key in known else []
+        if index == "procedureRunsByProcedure":
+            return deepcopy([row for row in self.tables["ProcedureRun"] if row.get("procedureId") == key])
         assert index == "itemsByLineageAndVersion"
         return deepcopy([row for row in self.tables["Item"] if row["lineageId"] == key])
 

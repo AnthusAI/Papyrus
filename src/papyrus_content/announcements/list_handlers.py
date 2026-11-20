@@ -47,11 +47,24 @@ def explain(client: Any, arguments: dict, caller: Caller, policy: AgentPolicySto
     """Why a Story was or was not announced, for each channel. Reads the rules and writes nothing."""
     from . import rules
     from .eligibility import load_story
-    from .explain import explain as explain_story
+    from .explain import explain as explain_story, explain_delivery
     from .handlers import Functions
     from .intake import ChecklistReviewStamps
     from .lines import story_entries
 
+    if bool(arguments.get("story")) == bool(arguments.get("delivery")):
+        raise ImageOperationError("invalid_input", "Ask about one thing: a Story (why it was or was not announced) or a Delivery (what its draft read).")
+    if arguments.get("delivery"):
+        from .deliveries import Deliveries
+
+        deliveries = Deliveries(client)
+        row = deliveries.get(arguments["delivery"])
+        if row is None:
+            raise ImageOperationError("not_found", f"No Delivery {arguments['delivery']!r} on this site.")
+        from .x_announce import recorded_inputs
+
+        named = (recorded_inputs(row) or {}).get("examples") or []
+        return Outcome(explain_delivery(row, [found for found in (deliveries.get(example) for example in named) if found]), _publication(client))
     tenant = getattr(client, "tenant_id", None)
     if not tenant or policy is None:
         raise ImageOperationError("service_unavailable", "The site's tenant is not known: sign in to the site so the policy of one site is read.")

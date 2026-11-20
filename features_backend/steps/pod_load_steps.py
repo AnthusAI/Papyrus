@@ -83,7 +83,12 @@ def _run_load(context, line: str) -> None:
         return fake
 
     out, err = io.StringIO(), io.StringIO()
+    if getattr(context, "delivery_files", None) is None:
+        from papyrus_content.announcements.records_fakes import MemoryDeliveryFiles
+
+        context.delivery_files = MemoryDeliveryFiles()   # a Delivery's words are files in S3; the spec keeps them in memory
     with ExitStack() as stack:
+        stack.enter_context(patch("papyrus_content.announcements.deliveries.AttachmentFiles", lambda client: context.delivery_files))
         stack.enter_context(patch.object(graphql_authoring, "create_authoring_client", sign_in))
         stack.enter_context(patch("papyrus_content.publish_commands.run_site_triggers", page_build))
         stack.enter_context(patch.object(urllib.request, "urlopen", closed("urlopen")))
@@ -190,12 +195,21 @@ def automation_publishes(context, path):
         context.publish_error = error
 
 
+@when('a person without the site\'s approval publishes the story for the note "{path}"')
+def person_without_approval_publishes(context, path):
+    context.publish_error = None
+    try:
+        publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", by_person="editor-sub", now=NOW)
+    except PublishError as error:
+        context.publish_error = error
+
+
 @when('an editor publishes the story for the note "{path}"')
 def editor_publishes(context, path):
     context.publish_error = None
     with patch("papyrus_content.editorial_commands.read_item_check_run", lambda _item_id: None):
         try:
-            publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", approved_by="editor-sub", now=NOW)
+            publish_item(_newsroom(context), _current(context, path)["id"], actor="editor", approved_by="editor-sub", by_person="editor-sub", now=NOW)
         except PublishError as error:
             context.publish_error = error
 
@@ -352,3 +366,58 @@ def rating_step_open(context, path):
 @then('the load output says "{text}"')
 def output_says(context, text):
     assert text in context.output, context.output
+
+
+# ---- Announcement and Delivery notes as history (features_backend/pod-load-announcements.feature, PPY-e78134) ---------------------------------------------------
+
+def _delivery_rows(context, channel):
+    rows = [row for row in _newsroom(context).list_records("Delivery") if row["channel"] == channel]
+    assert rows, f"the newsroom has no {channel} Delivery"
+    return rows[0]
+
+
+@then("the newsroom has {announcements:d} Announcement and {deliveries:d} Delivery")
+@then("the newsroom has {announcements:d} Announcements and {deliveries:d} Deliveries")
+def newsroom_history_counts(context, announcements, deliveries):
+    client = _newsroom(context)
+    assert (len(client.list_records("AnnouncementDecision")), len(client.list_records("Delivery"))) == (announcements, deliveries)
+
+
+@then('the loaded Delivery for "{channel}" is "{state}" in manual mode with the words "{words}"')
+def loaded_delivery_words(context, channel, state, words):
+    row = _delivery_rows(context, channel)
+    assert row["state"] == state and row["mode"] == "manual", row
+    assert context.delivery_files.get(row["id"], "v1") == words, context.delivery_files.get(row["id"], "v1")
+
+
+@then('the loaded Delivery for "{channel}" has {count:d} attempt, number {number:d}, "{outcome}" by "{who}"')
+def loaded_delivery_attempts(context, channel, count, number, outcome, who):
+    from papyrus_content.announcements.records import attempt_log
+
+    log = attempt_log(_delivery_rows(context, channel))
+    assert len(log) == count and log[0]["number"] == number and log[0]["outcome"] == outcome and log[0]["by"] == who, log
+
+
+@then('the loaded Delivery for "{channel}" records its approval as a claim, with no approved version')
+def loaded_delivery_claim(context, channel):
+    row = _delivery_rows(context, channel)
+    assert row["approvalPolicy"].startswith("recorded in a pod") and row.get("approvedVersion") is None and row.get("approvedBy") is None, row
+
+
+@then('the loaded Delivery for "{channel}" is in no sparse index of work to do')
+def loaded_delivery_no_due(context, channel):
+    row = _delivery_rows(context, channel)
+    assert row.get("dueKey") is None and row.get("dueAt") is None and row.get("exampleKey") is None, row
+
+
+@then("the load opened no attempt beyond the one the note records")
+def load_opened_no_attempt(context):
+    from papyrus_content.announcements.records import attempt_log
+
+    assert sum(len(attempt_log(row)) for row in _newsroom(context).list_records("Delivery")) == 1
+
+
+@then("the newsroom has 1 story, the Article, and no story for the Announcement or the Delivery note")
+def only_the_article(context):
+    stories = {row["lineageId"] for row in _newsroom(context).list_records("Item") if row.get("lineageId")}
+    assert stories == {_lineage(context, "articles/slow-water.md")}, stories

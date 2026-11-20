@@ -4,7 +4,7 @@
     "models": 73,
     "globalModels": 3,
     "modelCases": 505,
-    "indexCases": 228,
+    "indexCases": 230,
     "subscriptionCases": 9,
     "operationCases": 136,
     "functionCases": 72,
@@ -4348,6 +4348,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listDeliveriesByExampleKeyAndExampleAt",
+      "kind": "index",
+      "subject": "listDeliveriesByExampleKeyAndExampleAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listDeliveriesByExampleKeyAndExampleAt on Delivery with exampleKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listDeliveriesByDueKeyAndDueAt",
       "kind": "index",
       "subject": "listDeliveriesByDueKeyAndDueAt",
@@ -5017,6 +5025,14 @@
       "subject": "listProcedureRunsByFeedAndRequestedAt",
       "operation": "list-by-index-at-foreign-key",
       "probe": "alpha calls listProcedureRunsByFeedAndRequestedAt on ProcedureRun with newsroomFeedKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
+      "id": "index:listProcedureRunsByAttentionKeyAndDueAt",
+      "kind": "index",
+      "subject": "listProcedureRunsByAttentionKeyAndDueAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listProcedureRunsByAttentionKeyAndDueAt on ProcedureRun with attentionKey at one of \"beta\"'s keys",
       "expect": "returns nothing of \"beta\""
     },
     {
@@ -7862,6 +7878,11 @@
     },
     {
       "code": "index-not-tenant-prefixed",
+      "subject": "listDeliveriesByExampleKeyAndExampleAt",
+      "note": "partition key exampleKey on Delivery is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
       "subject": "listEditionItemsByEditionAndSortKey",
       "note": "partition key editionId on EditionItem is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
@@ -8194,6 +8215,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listProcedureRunsByAssignmentAndRequestedAt",
       "note": "partition key assignmentId on ProcedureRun is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listProcedureRunsByAttentionKeyAndDueAt",
+      "note": "partition key attentionKey on ProcedureRun is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",

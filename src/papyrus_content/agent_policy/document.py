@@ -18,6 +18,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import re
 
+from papyrus_content.model_cost import load_prices, price_for
 from papyrus_content.agent_rungs import RUNGS  # noqa: E402  (the ladder; re-exported here for the policy package)
 
 #: The ways an override can narrow a rung, narrowest first: a list is narrower than an Announcement kind, a kind than a channel, a channel than a Story type, a Story type
@@ -135,8 +136,11 @@ def validate_site(site: Any) -> None:
         _budget(site["budget"])
     if "tiers" in site:
         tiers = _only(site["tiers"], set(TIERS), "site.tiers")
+        prices = load_prices()
         for tier, model in tiers.items():
             _text(model, f"site.tiers.{tier}")
+            if price_for(model, prices) is None:
+                raise _invalid(f"site.tiers.{tier}: \"{model}\" is not in the model price table, so its cost could not be counted. Add its price first.")
 
 
 def validate_agent(responsibility: str, entry: Any) -> None:

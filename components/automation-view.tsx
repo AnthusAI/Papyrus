@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RunNowControl } from "./automation-run-now";
+import { RunOutcome } from "./run-outcome";
 import {
   ENABLED_NOTE,
   OUTSIDE_NOTICE,
@@ -38,7 +39,7 @@ function RunLine({ run, demo }: { run: AutomationRun; demo: boolean }) {
     <li data-automation-run={run.runId ?? run.sourceId ?? "unlinked"} data-run-status={run.status ?? "unknown"}>
       <strong>{formatUtc(run.startedAt)}</strong>
       <span><span aria-hidden="true">{statusMark(run.status)} </span>Status: {statusText(run.status)} &middot; {durationText(run.durationSeconds)}</span>
-      <span data-automation-run-outcome={run.outcome ?? undefined}>Outcome: {run.outcomeShown}</span>
+      <span data-automation-run-outcome={run.outcome ?? undefined}>Outcome: <RunOutcome outcome={run.outcome} shown={run.outcomeShown} /></span>
       <span>{whoText(run)}</span>
       {run.reason ? <span data-automation-run-reason>Reason: {run.reason}</span> : null}
       {run.error ? <span data-automation-run-error>Error: {run.error}</span> : null}
@@ -64,7 +65,7 @@ function OutsideRunLine({ run, demo }: { run: AutomationOutsideRun; demo: boolea
     <li data-automation-outside-run={run.runId ?? "unlinked"} data-run-status={run.status ?? "unknown"}>
       <strong>{formatUtc(run.startedAt)}</strong>
       <span><span aria-hidden="true">{statusMark(run.status)} </span>Status: {statusText(run.status)} &middot; {durationText(run.durationSeconds)}</span>
-      <span data-automation-run-outcome={run.outcome ?? undefined}>Outcome: {run.outcomeShown}</span>
+      <span data-automation-run-outcome={run.outcome ?? undefined}>Outcome: <RunOutcome outcome={run.outcome} shown={run.outcomeShown} /></span>
       <span>Started by: {run.requestedBy ?? "unknown"}</span>
       {run.error ? <span data-automation-run-error>Error: {run.error}</span> : null}
       <span>{run.runId ? <>Run {run.runId} (<Link href={proceduresHref(demo)}>Procedures</Link>)</> : "No run id"}</span>

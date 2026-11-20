@@ -362,10 +362,12 @@ def _delete_published_media(client, lineage_id: str, rows: list[dict]) -> list[s
 
 
 def publish_item(
-    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None
+    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None, by_person: str | None = None
 ) -> PublishResult:
     """Publish an item. ``approved_by`` names the signed-in person whose action this is (the console editor); a site that requires
-    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version."""
+    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version.
+    ``by_person`` names the person publishing by hand (the console editor, the CLI in the signed-in lane): a pod-loaded, imported or translated Story
+    publishes only with it (``publish_by_person.py``). A schedule, an automation or an agent never passes it."""
     now = now or utc_now_iso()
     item = _load_item(client, item_id)
     lineage_id = item.get("lineageId") or item_id
@@ -393,9 +395,11 @@ def publish_item(
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
     from .localization_publish import original_of, require_publishable
+    from .publish_by_person import require_person_act
     from .publish_gate import ensure_publish_approval
     from .story_checklist import ChecklistError, require_checklist_closed
 
+    require_person_act(client, item, by_person=by_person)   # the one rule that keeps unreviewed pod, import and translation Stories from publishing by themselves
     original = original_of(client, item)
     if original is not None:
         require_publishable(client, item, original)   # a translation's checklist is its provenance; its gates are its original and any hold (localization_publish.py)

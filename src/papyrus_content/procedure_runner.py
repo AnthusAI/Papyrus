@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import agent_wakes, request_meter, run_outcomes, wake_keys
+from . import agent_wakes, request_meter, run_outcomes, spend_ledger, wake_keys
 from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
@@ -217,8 +217,33 @@ def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
     if not calls:
         return (extra or None), None
     estimate = estimate_cost(calls)
-    summary = {key: estimate[key] for key in ("complete", "unpricedModels", "calls", "promptTokens", "completionTokens", "models")}
+    summary = {key: estimate[key] for key in ("complete", "unpricedModels", "unpricedCalls", "calls", "promptTokens", "completionTokens", "models")}
+    tiers: dict[str, int] = {}
+    for call in calls:
+        if call.get("tier"):
+            tiers[str(call["tier"])] = tiers.get(str(call["tier"]), 0) + 1
+    if tiers:
+        summary["tiers"] = tiers   # the tier each model call was made for; the model is in `models` and on every call in `perCall`
     return {**summary, "perCall": calls[:MAX_RECORDED_CALLS], **extra}, estimate["costUsd"]
+
+
+def spend_of(request: dict, decision, usage: dict | None, cost_usd: float | None) -> dict | None:
+    """What the ledger needs to count this run: the site, the agent that made it, the budget period of the site's policy and the model calls with their cost.
+    None when the run made no model call. A site with no budget in its policy is counted by the month."""
+    if not usage or not usage.get("calls") or not request.get("tenantId"):
+        return None
+    site = (decision.state.document.get("site") or {}) if decision.state is not None else {}
+    return {"tenantId": request["tenantId"], "responsibility": decision.responsibility, "period": (site.get("budget") or {}).get("period", "month"),
+            "costUsd": cost_usd, "calls": usage["calls"], "unpricedCalls": usage.get("unpricedCalls", 0)}
+
+
+def record_spend(table, result: dict, *, moment: datetime | None = None) -> None:
+    """Add a finished run's cost to the spend ledger, once. A run that made no model call adds nothing."""
+    spend = result.get("spend")
+    if table is None or not spend:
+        return
+    spend_ledger.record_run(table, tenant_id=spend["tenantId"], responsibility=spend["responsibility"], run_id=result["runId"], period=spend["period"],
+                            cost_usd=spend["costUsd"], calls=spend["calls"], unpriced_calls=spend["unpricedCalls"], moment=moment or datetime.now(timezone.utc))
 
 
 def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], str]) -> dict:
@@ -336,7 +361,7 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         agent_assignments.finish(client, handoff["assignment"], handoff["agent"], run_id=run_id, outcome=ended["outcome"], reason=ended["outcomeReason"],
                                  summary=record["resultSummary"], error=None if succeeded else ended["error"], now=record["finishedAt"])
     return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "versionId": procedure["version"]["id"],
-            **decision.run_fields(),
+            **decision.run_fields(), "responsibility": decision.responsibility, "spend": spend_of(request, decision, usage, cost_usd),
             "runStatus": ended["runStatus"], "outcome": ended["outcome"], "outcomeReason": ended["outcomeReason"],
             "seconds": outcome.get("seconds"),
             "error": None if succeeded else ended["error"], "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
@@ -416,6 +441,7 @@ def handler(event, context):
     if result.get("duplicate"):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
+    record_spend(table, result)   # after the trigger row, so a ledger error never leaves a finished run's row looking unfinished
     if result.get("skipped"):
         return result   # the policy started nothing: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
