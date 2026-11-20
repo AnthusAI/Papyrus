@@ -6,17 +6,21 @@ import pytest
 from fake_client import FakeAuthoringClient
 from papyrus_content import graphql_authoring
 from papyrus_content import review_requests as rr
+from papyrus_content.registered_commands import run_registered_command
 
 
 @pytest.fixture
 def run(monkeypatch, capsys):
     client = FakeAuthoringClient()
-    monkeypatch.setattr(graphql_authoring, "create_authoring_client", lambda: (client,))
+    monkeypatch.setattr(graphql_authoring, "create_authoring_client", lambda: (client, {}))
     monkeypatch.setenv("PAPYRUS_ACTOR_LABEL", "tester")
 
     def invoke(command, *flags):
         capsys.readouterr()
-        rr.run_command(command, list(flags))
+        if command in ("list", "show", "answer"):
+            run_registered_command(f"reviews:{command}", list(flags))
+        else:
+            rr.run_command(command, list(flags))
         return capsys.readouterr().out
 
     invoke.client = client

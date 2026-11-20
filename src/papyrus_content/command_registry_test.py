@@ -244,3 +244,23 @@ def test_assignments_list_is_story_scoped_for_an_external_principal_and_wide_for
     operator = Principal("staff", "cli", is_operator=True)
     assert call_tool(operator, "assignments_list", {"queue": "q", "status": "open"}, staff=staff) == {"assignments": []}
     assert asked == [{"queue": "q", "status": "open", "assignment_type": None, "section": None}]
+
+
+def test_reviews_are_subject_scoped_for_an_external_principal_and_wide_for_the_operator(monkeypatch):
+    from .mcp_tools import call_tool
+
+    staff = StaffReads(client=object())
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "reviews_list", {}, staff=staff)
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "reviews_list", {"subjectType": "story", "subjectId": "s", "raisedBy": "someone"}, staff=staff)
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "reviews_answer", {"id": "r", "decision": "approve"}, staff=staff)
+
+    import papyrus_content.review_requests as review_requests
+
+    asked = []
+    monkeypatch.setattr(review_requests, "operator_reviews_list", lambda client, **filters: asked.append(filters) or {"reviews": []})
+    operator = Principal("staff", "cli", is_operator=True)
+    assert call_tool(operator, "reviews_list", {"raisedBy": "idea-pipeline", "state": "open"}, staff=staff) == {"reviews": []}
+    assert asked == [{"state": "open", "mode": None, "raised_by": "idea-pipeline", "subject_type": None, "subject_id": None}]
