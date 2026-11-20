@@ -142,7 +142,7 @@ def test_workflow_wiring():
     assert set(jobs["record"]["needs"]) == {"reuse", "ts", "python"}
     assert jobs["record"]["name"].startswith("tested-tree ")
     assert jobs["reuse"]["permissions"] == {"contents": "read", "actions": "read"}
-    assert tests["concurrency"]["group"] == "tests-${{ github.ref }}"
+    assert tests["concurrency"]["group"] == "tests-${{ github.workflow }}-${{ github.ref }}"
     deploy = yaml.safe_load((ROOT / ".github/workflows/stack-deploy.yml").read_text())["jobs"]
     assert deploy["tests"]["permissions"]["actions"] == "read"
     assert "tests" in deploy["deploy"]["needs"]

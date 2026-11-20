@@ -1,0 +1,42 @@
+# A pull request that changes only the board (project/) skips the test suite on purpose (tests.yml ignores project/**), but the branch rules
+# require checks named `ts` and `python`. A check that never runs would leave such a pull request waiting forever, so this workflow reports
+# both names, and only for a pull request whose every changed file is under project/. A pull request that also changes code gets the real
+# checks from tests.yml and is never covered by these.
+name: tests-board-only
+
+on:
+  pull_request:
+    paths:
+      - "project/**"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  only-board-files-changed:
+    runs-on: ubuntu-24.04
+    outputs:
+      board_only: ${{ steps.files.outputs.board_only }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          outside="$(gh api --paginate "repos/${{ github.repository }}/pulls/${PULL_REQUEST_NUMBER}/files" --jq '.[].filename' | grep -v '^project/' || true)"
+          if [ -z "$outside" ]; then echo "board_only=true" >> "$GITHUB_OUTPUT"; else echo "board_only=false" >> "$GITHUB_OUTPUT"; echo "Files outside project/ are tested by tests.yml:"; echo "$outside"; fi
+
+  ts:
+    needs: only-board-files-changed
+    if: needs.only-board-files-changed.outputs.board_only == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Only the board changed; there is no code to test."
+
+  python:
+    needs: only-board-files-changed
+    if: needs.only-board-files-changed.outputs.board_only == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Only the board changed; there is no code to test."

@@ -19,8 +19,16 @@ jobs:
       contents: read
     uses: ./.github/workflows/package-smoke.yml
 
+  # A package release waits for the full test suite on this commit, not only the smoke test. An earlier green run of a byte-identical tree
+  # counts (infra/pipeline/reuse_green_tests.py), so a merge that a pull request already tested does not run the suite twice.
+  tests:
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/tests.yml
+
   release:
-    needs: smoke
+    needs: [smoke, tests]
     if: ${{ vars.PUBLISH_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     permissions:
