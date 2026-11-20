@@ -1,4 +1,4 @@
-"""Excluded source hosts (features_backend/idea-excluded-source-hosts.feature). The backend, the pages and the model are fakes."""
+"""Excluded source hosts (features_backend/ideas/idea-excluded-source-hosts.feature). The backend, the pages and the model are fakes."""
 
 from __future__ import annotations
 

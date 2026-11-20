@@ -1,4 +1,4 @@
-"""An agent on the signed-in CLI relays an editor's decisions under a delegation (features_backend/cli-delegated-curation-signed-in.feature).
+"""An agent on the signed-in CLI relays an editor's decisions under a delegation (features_backend/cli/cli-delegated-curation-signed-in.feature).
 
 The CLI half runs the real commands against a stand-in HTTPS connection, so the headers they would send can be read. The Newsroom half
 runs the real category-action Lambda in `scripts/test-curation-delegation-signed-in.ts`, one named behaviour per scenario step. No network,

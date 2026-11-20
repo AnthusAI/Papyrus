@@ -2,7 +2,7 @@
 
 The shared tier is the same Papyrus backend deployed once with tenancy mode `shared` (see [multi-tenancy](multi-tenancy.md) and the [design note](plans/multi-tenant-architecture.md), "Isolation inside an existing account"). Ryan decided on 2026-11-13 that it lives in the account that already holds every dedicated site and Prospectus: no new account (D10) and no sandbox account (D9). So two stacks, **shared production** and **shared staging**, sit next to the dedicated sites, and five layers keep them apart. Every release lands on staging first; staging is also the only place the live halves of the auth spike (PPY-d4fe2a) and the CDN spike (PPY-2784d2) can run.
 
-This page is the runbook for the first create and the reference for what the templates build. Nothing on it has been created or deployed: it is templates and tests, checked by synthesis (the feature is [shared-stack-bootstrap.feature](../features_backend/shared-stack-bootstrap.feature)).
+This page is the runbook for the first create and the reference for what the templates build. Nothing on it has been created or deployed: it is templates and tests, checked by synthesis (the feature is [shared-stack-bootstrap.feature](../features_backend/platform/shared-stack-bootstrap.feature)).
 
 ## What exists in Git
 

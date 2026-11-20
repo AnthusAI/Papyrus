@@ -1,4 +1,4 @@
-// Resolves the labels of a Reference's links with a counting fake network and prints how many requests it made. Used by features_backend/related-links-requests.feature.
+// Resolves the labels of a Reference's links with a counting fake network and prints how many requests it made. Used by features_backend/site/related-links-requests.feature.
 import { createLinkResolver } from "../lib/reference-links-resolve";
 
 const input = JSON.parse(process.argv[2] ?? "{}") as { nodes: number; links: number; references: number };

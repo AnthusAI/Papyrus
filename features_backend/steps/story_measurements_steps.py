@@ -1,4 +1,4 @@
-"""`papyrus stories measure` and the measurements `stories save-version` prints and stores (features_backend/story-measurements.feature).
+"""`papyrus stories measure` and the measurements `stories save-version` prints and stores (features_backend/stories/story-measurements.feature).
 
 The authoring backend is the in-memory fake. Humanus is the real library: it computes every number.
 """

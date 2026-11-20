@@ -1,4 +1,4 @@
-"""The Item change feed (features_backend/item-change-feed.feature). A fake stream, a fake FIFO queue that follows SQS's rules and the real site store over fakes; no network."""
+"""The Item change feed (features_backend/agents/item-change-feed.feature). A fake stream, a fake FIFO queue that follows SQS's rules and the real site store over fakes; no network."""
 from __future__ import annotations
 
 import json

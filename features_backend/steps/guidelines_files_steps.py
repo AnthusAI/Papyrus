@@ -1,4 +1,4 @@
-"""The guideline file form and papyrus guidelines check (features_backend/guidelines-files.feature). Files in a temporary folder; the network is closed."""
+"""The guideline file form and papyrus guidelines check (features_backend/guidelines/guidelines-files.feature). Files in a temporary folder; the network is closed."""
 from __future__ import annotations
 
 import contextlib

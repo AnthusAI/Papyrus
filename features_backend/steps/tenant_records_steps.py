@@ -15,8 +15,8 @@ from papyrus_content import tenant_records as records  # noqa: E402
 from papyrus_content.tenant_records_test import FakeTable  # noqa: E402
 
 TENANCY_MODELS = ["Tenant", "TenantMembership", "TenantDomain"]
-# The group also holds the two site document models (features_backend/site-documents.feature) and TenantSelection
-# (features_backend/tenant-session-claims.feature).
+# The group also holds the two site document models (features_backend/site/site-documents.feature) and TenantSelection
+# (features_backend/tenancy/tenant-session-claims.feature).
 TENANCY_GROUP_SIZE = len(TENANCY_MODELS) + 3
 
 

@@ -1,4 +1,4 @@
-"""The three-star floor (features_backend/three-star-floor.feature): Stories through the projector, References through the home-page snapshot, the roundup draft."""
+"""The three-star floor (features_backend/references/three-star-floor.feature): Stories through the projector, References through the home-page snapshot, the roundup draft."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""``papyrus announcements correct`` (features_backend/announcements-correct-cli.feature).
+"""``papyrus announcements correct`` (features_backend/announcements/announcements-correct-cli.feature).
 
 The catalog, the Story and the Deliveries are made by announcement_records_steps.py, the worker and the channel by delivery_attempts_steps.py. The command is run through
 the real ``announcements.cli.command`` (flag parsing, ``--dry-run``, the JSON envelope) over the operation table's handler for ``announcements_correct``, with a fake judge

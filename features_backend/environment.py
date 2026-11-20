@@ -35,7 +35,7 @@ def _fake_client_modules():
 
 def _check_head_stage_keys(scenario) -> None:
     """After every backend scenario: each story lineage written through the shared fake has at most one head row, and it carries its stage
-    (features_backend/story-head-stage-index.feature). A writer that sets a stage or a version state without the head stage key fails here."""
+    (features_backend/platform/story-head-stage-index.feature). A writer that sets a stage or a version state without the head stage key fails here."""
     problems = []
     for module in _fake_client_modules():
         for client in module.INSTANCES:
@@ -84,7 +84,7 @@ def before_scenario(context, scenario):
 
         mock.patch("papyrus_content.story_checklist.require_checklist_closed", lambda client, item: None).start()
     if ISOLATION_PENDING_TAG in scenario.effective_tags:
-        scenario.skip("pending: needs the shared stack with two seeded tenants (features_backend/tenant-isolation-adversarial.feature)")
+        scenario.skip("pending: needs the shared stack with two seeded tenants (features_backend/tenancy/tenant-isolation-adversarial.feature)")
         return
     if REQUIRES_CYCLOTRON_TAG in scenario.effective_tags and importlib.util.find_spec(CYCLOTRON_MODULE) is None:
         scenario.skip("decision_flywheel not installed (poetry install --with cyclotron)")

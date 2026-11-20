@@ -1,4 +1,4 @@
-"""Daily monitor stories (features_backend/monitoring-daily-stories.feature). The model, the pages and the backends are fakes."""
+"""Daily monitor stories (features_backend/monitoring/monitoring-daily-stories.feature). The model, the pages and the backends are fakes."""
 from __future__ import annotations
 
 import json

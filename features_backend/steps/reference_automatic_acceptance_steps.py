@@ -1,4 +1,4 @@
-"""Automatic acceptance (features_backend/reference-automatic-acceptance.feature). The backend and the Cyclotron are fakes."""
+"""Automatic acceptance (features_backend/references/reference-automatic-acceptance.feature). The backend and the Cyclotron are fakes."""
 from __future__ import annotations
 
 import io

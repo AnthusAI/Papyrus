@@ -97,7 +97,7 @@ jobs:
       - run: npm run test:assignment-data-access
       - run: npm run test:public-forms
       - run: node scripts/test-edge-language-404.mjs
-      # One new index per table per release (features_backend/gsi-ledger.feature): compares every schema source with the last release tag.
+      # One new index per table per release (features_backend/platform/gsi-ledger.feature): compares every schema source with the last release tag.
       - run: npx tsx scripts/check-gsi-ledger.ts
       - run: npm run test:alexa
       - uses: actions/cache@v4
@@ -214,7 +214,7 @@ jobs:
             --ignore=procedures/newsroom/tests/test_papyrus_content.py
 
   # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
-  # Feature files sorted by name; shard N takes every third file starting at N, so the shards partition features_backend exactly.
+  # Feature files live in one directory per product area (features_backend/README.md). Sorted by path; shard N takes every third file starting at N, so the shards partition features_backend exactly.
   python-behave:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
@@ -233,7 +233,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: "3"
         run: |
-          mine=$(ls features_backend/*.feature | LC_ALL=C sort | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
+          mine=$(find features_backend -name '*.feature' | LC_ALL=C sort | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
           echo "$mine"
           poetry run behave --tags=~@live-agent $mine
 

@@ -1,4 +1,4 @@
-"""The minimum standard of an idea: more than a summary of its Reference (ideas/connections.py, features_backend/idea-more-than-summary.feature).
+"""The minimum standard of an idea: more than a summary of its Reference (ideas/connections.py, features_backend/ideas/idea-more-than-summary.feature).
 
 The backend, the pages and the model are fakes; nothing here reaches the network."""
 

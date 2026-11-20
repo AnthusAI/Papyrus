@@ -8,7 +8,7 @@ Feature: The router keeps each site's vector index current by reading only what 
   key; it never lists the Reference table, the vectors of the index, the concepts or the links. A vote, a star or a retitle changes a row's updatedAt too, and finds
   its vector as it is, so it writes nothing. A Reference accepted or sent back to pending has its stored status rewritten without a new embedding, and one rejected or
   archived loses its vectors, found by a query filtered to that Reference. A Reference whose summary vector is stored, new or rewritten because its text changed, makes
-  one related-items check (features_backend/suggest-once.feature); the pass has no suggestion step of its own. The router keeps its place in its own table: the
+  one related-items check (features_backend/knowledge/suggest-once.feature); the pass has no suggestion step of its own. The router keeps its place in its own table: the
   newest updatedAt it has indexed and the ids of the rows within ten minutes of it, so a row written late with an earlier clock is still read once and a row already
   done is not read twice. A page moves the place as soon as it is done, so a run the time or the cost stops resumes exactly there. A site with no saved place is
   indexed once by the full sync, and the place is set to the newest change read before it began. Link explanations have no changed-since index and are left to the

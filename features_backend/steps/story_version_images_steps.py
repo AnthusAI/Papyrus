@@ -1,4 +1,4 @@
-"""`papyrus stories save-version --images` (features_backend/story-version-images.feature).
+"""`papyrus stories save-version --images` (features_backend/stories/story-version-images.feature).
 
 The authoring backend is the in-memory fake; S3 and Cognito are fakes behind `boto3.client`, so the real store and
 lane code runs. Nothing here reaches AWS.
@@ -470,7 +470,7 @@ def step_no_operator(context):
     assert all(client.credentials is not None for client in context.s3_clients)
 
 
-# -- tenant sites (features_backend/tenant-story-images.feature) ---------------------------------------------------
+# -- tenant sites (features_backend/tenancy/tenant-story-images.feature) ---------------------------------------------------
 
 TENANT_KEY = "media/machines-on-machines/assets/hello/chart.png"
 ONE_KEY = "media/assets/hello/chart.png"

@@ -1,4 +1,4 @@
-"""Example pictures: the command line's upload steps, the file checks, the draft profile and the provider rule (features_backend/image-profile-examples.feature)."""
+"""Example pictures: the command line's upload steps, the file checks, the draft profile and the provider rule (features_backend/guidelines/image-profile-examples.feature)."""
 from __future__ import annotations
 
 import hashlib

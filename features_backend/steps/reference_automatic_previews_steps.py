@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-automatic-previews.feature. Router, store, Reference table and page fetch are all in memory."""
+"""Steps for features_backend/references/reference-automatic-previews.feature. Router, store, Reference table and page fetch are all in memory."""
 
 from __future__ import annotations
 

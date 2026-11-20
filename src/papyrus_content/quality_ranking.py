@@ -1,7 +1,7 @@
 """The time-bucketed quality ranking: the one order every list of Stories and References follows.
 
 Newest window first, and inside a window the human rating before the model's guess. The rules, with their reasons, are written once in
-``docs/quality-ranking.md`` and specified in ``features_backend/quality-ranking.feature``. This module is only the algorithm: it knows nothing of Stories,
+``docs/quality-ranking.md`` and specified in ``features_backend/references/quality-ranking.feature``. This module is only the algorithm: it knows nothing of Stories,
 References, pages or snapshots, and takes accessors for the four things it reads (stars, confidence, arrival, key) and one for the date an item is bucketed by.
 
 **The order inside a window** (:func:`rank`), smaller first:

@@ -1,4 +1,4 @@
-"""Generating, discarding and applying pictures (features_backend/image-generate.feature). A fake provider and in-memory stores; no network, no AWS."""
+"""Generating, discarding and applying pictures (features_backend/stories/image-generate.feature). A fake provider and in-memory stores; no network, no AWS."""
 from __future__ import annotations
 
 import sys

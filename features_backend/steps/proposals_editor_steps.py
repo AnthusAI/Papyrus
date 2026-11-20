@@ -1,4 +1,4 @@
-"""Steps for features_backend/proposals_editor.feature: the editor tier of proposals."""
+"""Steps for features_backend/readers/proposals-editor.feature: the editor tier of proposals."""
 
 from __future__ import annotations
 

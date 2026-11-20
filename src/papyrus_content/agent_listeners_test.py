@@ -1,4 +1,4 @@
-"""The listener index: derived from definitions, read by its live version (the behaviour is in features_backend/item-change-feed.feature)."""
+"""The listener index: derived from definitions, read by its live version (the behaviour is in features_backend/agents/item-change-feed.feature)."""
 from types import SimpleNamespace
 
 from papyrus_content import agent_listeners as listeners

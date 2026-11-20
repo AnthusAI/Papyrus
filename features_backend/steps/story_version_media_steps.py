@@ -1,4 +1,4 @@
-"""Saving a new story version keeps its images (features_backend/story-version-media.feature). The backend is the in-memory fake."""
+"""Saving a new story version keeps its images (features_backend/stories/story-version-media.feature). The backend is the in-memory fake."""
 
 from __future__ import annotations
 

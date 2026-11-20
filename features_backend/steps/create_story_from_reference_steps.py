@@ -1,4 +1,4 @@
-"""An editor creates a Story from any Reference in one tap (features_backend/create-story-from-reference.feature). The backend is a fake."""
+"""An editor creates a Story from any Reference in one tap (features_backend/references/create-story-from-reference.feature). The backend is a fake."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The monitor-stories step of the knowledge run (features_backend/knowledge-run-monitor-stories.feature). DynamoDB is moto; the command is a fake."""
+"""The monitor-stories step of the knowledge run (features_backend/knowledge/knowledge-run-monitor-stories.feature). DynamoDB is moto; the command is a fake."""
 
 from __future__ import annotations
 

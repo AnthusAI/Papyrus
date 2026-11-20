@@ -1,4 +1,4 @@
-"""The quality ranking module (features_backend/quality-ranking.feature)."""
+"""The quality ranking module (features_backend/references/quality-ranking.feature)."""
 
 from __future__ import annotations
 

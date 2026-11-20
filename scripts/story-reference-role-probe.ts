@@ -1,5 +1,5 @@
 // Runs the site's own setStoryReferenceRole code (amplify/functions/category-action/story-reference-role.ts) on one row in memory and prints
-// what it wrote. Used by features_backend/story-reference-role.feature, whose stand-in site hands every setStoryReferenceRole call here.
+// what it wrote. Used by features_backend/stories/story-reference-role.feature, whose stand-in site hands every setStoryReferenceRole call here.
 import { readFileSync } from "node:fs";
 import { setStoryReferenceRole, type StoryReferenceRow } from "../amplify/functions/category-action/story-reference-role";
 

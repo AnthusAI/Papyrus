@@ -1,4 +1,4 @@
-"""The image operation table, what is generated from it, and the adapters over it (features_backend/image-operations.feature has the narrative)."""
+"""The image operation table, what is generated from it, and the adapters over it (features_backend/stories/image-operations.feature has the narrative)."""
 
 from __future__ import annotations
 

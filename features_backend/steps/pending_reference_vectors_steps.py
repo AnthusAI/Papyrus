@@ -1,4 +1,4 @@
-"""features_backend/pending-reference-vectors.feature. Fakes only; the unit tests in procedures/newsroom/tests/test_pending_reference_vectors.py share them."""
+"""features_backend/knowledge/pending-reference-vectors.feature. Fakes only; the unit tests in procedures/newsroom/tests/test_pending_reference_vectors.py share them."""
 from __future__ import annotations
 
 import sys

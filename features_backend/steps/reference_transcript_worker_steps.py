@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-transcript-worker.feature. In memory: no site, no AWS, no YouTube, no sleeping."""
+"""Steps for features_backend/references/reference-transcript-worker.feature. In memory: no site, no AWS, no YouTube, no sleeping."""
 from __future__ import annotations
 
 import io

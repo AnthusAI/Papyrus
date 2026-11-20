@@ -1,4 +1,4 @@
-"""Steps for features_backend/tenant-listing-index.feature (PPY-1ce06f).
+"""Steps for features_backend/tenancy/tenant-listing-index.feature (PPY-1ce06f).
 
 The export scenario runs the tenant client against the in-memory AppSync and DynamoDB double of the tenant-client tests, which counts the
 rows each read touches. The ledger scenario runs the real check script on the reader steering schema, with ReaderVote's tenantId index

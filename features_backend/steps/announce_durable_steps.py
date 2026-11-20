@@ -1,4 +1,4 @@
-"""The announce agent's durable triggers (features_backend/announce-durable-triggers.feature, announce-agent-definition.feature).
+"""The announce agent's durable triggers (features_backend/announcements/announce-durable-triggers.feature, announce-agent-definition.feature).
 
 The pieces are the real ones: the shipped core definition, the listener index written from it, the Item change feed, the wake message and the runner's reading of it, and
 the worker (``list_cadence.story_wake``) over the real Announcement and Delivery records on their in-memory backend and the real list settings store. What is stood in

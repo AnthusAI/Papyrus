@@ -13,5 +13,5 @@ mkdir <simdir> && (cd <simdir> && npm init -y && npm i amplify-appsync-simulator
 SIM_DIR=<simdir> node spikes/tenant-claims-1/run-scenarios.cjs <outdir>
 ```
 
-The sandbox run was never done. Its scenarios had no steps and were removed from features_backend; the generated suite in features_backend/tenant-isolation-adversarial.feature replaces them. To try the spike by hand:
+The sandbox run was never done. Its scenarios had no steps and were removed from features_backend; the generated suite in features_backend/tenancy/tenant-isolation-adversarial.feature replaces them. To try the spike by hand:
 `docs/aws-sandbox-personal.md`, then `ampx sandbox` with this schema and the Lambda wired as in `synth.ts`.

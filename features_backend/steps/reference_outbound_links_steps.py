@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-outbound-links.feature. In memory: no network, no AWS, no model."""
+"""Steps for features_backend/references/reference-outbound-links.feature. In memory: no network, no AWS, no model."""
 from __future__ import annotations
 
 import json

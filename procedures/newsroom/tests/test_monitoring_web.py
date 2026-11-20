@@ -851,7 +851,7 @@ def test_a_new_drafted_query_has_no_high_water_so_its_first_search_is_one_reques
 
 
 
-# --- paid searches: never asked twice, counted, and watched (features_backend/monitoring-web-search-spend.feature) ---------------
+# --- paid searches: never asked twice, counted, and watched (features_backend/monitoring/monitoring-web-search-spend.feature) ---------------
 
 def payload_keys(tavily):
     return [(c["query"], c.get("start_date"), c.get("end_date")) for c in tavily.calls]
@@ -965,7 +965,7 @@ def test_when_every_provider_is_refused_the_run_fails_once_and_waits_for_the_nex
     assert kinds == {("tavily", "plan_exhausted"), ("perplexity", "auth")}
 
 
-# --- a fixed time of day (features_backend/monitoring-run-at.feature) --------------------------------------------------------------
+# --- a fixed time of day (features_backend/monitoring/monitoring-run-at.feature) --------------------------------------------------------------
 
 RUN_AT = {"time": "02:00", "timeZone": "America/New_York"}
 

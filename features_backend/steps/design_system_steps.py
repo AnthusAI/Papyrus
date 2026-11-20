@@ -1,4 +1,4 @@
-"""A site's design system as backend data (features_backend/design-system-records.feature). An in-memory backend that fails on any table scan; no network, no AWS.
+"""A site's design system as backend data (features_backend/guidelines/design-system-records.feature). An in-memory backend that fails on any table scan; no network, no AWS.
 
 The figures steps (figures_steps.py) draw folders and run the render command; this file stores, shows, pulls and reads the design system. Both reach the
 "signed-in site" through ``context.ds_store`` (see ``_site_opener`` in figures_steps.py).

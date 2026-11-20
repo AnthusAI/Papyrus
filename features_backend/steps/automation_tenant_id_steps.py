@@ -1,4 +1,4 @@
-"""Every automation carries its site's tenant, and rows written without one are stamped once (features_backend/automation-tenant-id.feature).
+"""Every automation carries its site's tenant, and rows written without one are stamped once (features_backend/tenancy/automation-tenant-id.feature).
 
 The site is the authoring client over an in-memory API whose `tenantId` index is sparse (a row without the field is not in it), so a row written
 without a tenant is invisible to `list_tenant_rows`, as it is on a live site. Every request is kept to be validated against the real schema.

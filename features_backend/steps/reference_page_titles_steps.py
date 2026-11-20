@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-page-titles.feature. In memory: no site, no AWS, no network, no model."""
+"""Steps for features_backend/references/reference-page-titles.feature. In memory: no site, no AWS, no network, no model."""
 from __future__ import annotations
 
 import importlib.util

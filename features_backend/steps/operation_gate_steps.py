@@ -1,4 +1,4 @@
-"""The one operation gate (features_backend/operation-gate.feature). The policy is the real agent policy store over in-memory storage."""
+"""The one operation gate (features_backend/agents/operation-gate.feature). The policy is the real agent policy store over in-memory storage."""
 from __future__ import annotations
 
 import sys

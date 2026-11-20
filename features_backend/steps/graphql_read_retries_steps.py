@@ -1,4 +1,4 @@
-"""A read that fails for a moment is sent again with a growing pause (features_backend/graphql-read-retries.feature)."""
+"""A read that fails for a moment is sent again with a growing pause (features_backend/platform/graphql-read-retries.feature)."""
 from __future__ import annotations
 
 import json

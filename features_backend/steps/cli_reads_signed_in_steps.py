@@ -1,4 +1,4 @@
-"""Steps for features_backend/cli-reads-signed-in.feature. Every client is an in-memory fake; nothing leaves the process."""
+"""Steps for features_backend/cli/cli-reads-signed-in.feature. Every client is an in-memory fake; nothing leaves the process."""
 
 from __future__ import annotations
 

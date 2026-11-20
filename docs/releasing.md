@@ -23,7 +23,7 @@ DynamoDB creates or deletes one global secondary index per table in one update, 
 - an index keeps its name but changes its keys (add a new index and remove the old one in a later release);
 - a table has more than 20 indexes, the DynamoDB limit per table.
 
-It reports how many index slots each changed table has left, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/gsi-ledger.feature`.
+It reports how many index slots each changed table has left, and prints the release order the pending indexes need: release 1 takes the first new index of each table, release 2 the second, and so on. A renamed index counts as a removal plus an addition. Rules and examples: `features_backend/platform/gsi-ledger.feature`.
 
 ### The release budget: how many index creations fit one build
 
@@ -39,7 +39,7 @@ A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack
 
 ## Pod-loaded, imported and translated Stories publish through their checklist (PPY-473f8f)
 
-Publishing checks the checklist of the lineage being published, so nothing reaches the site without it, whoever or whatever publishes (`publishing.publish_item`, `story_checklist.require_checklist_closed`; specs `features_backend/translation-language-checklist.feature`, `story-checklist.feature`, `pod-load-publish.feature`). The interim rule that only a person's own act could publish these kinds (`publish_by_person.py`, the `by_person` argument and the `person-publish-required` code, #1730) is gone.
+Publishing checks the checklist of the lineage being published, so nothing reaches the site without it, whoever or whatever publishes (`publishing.publish_item`, `story_checklist.require_checklist_closed`; specs `features_backend/translation/translation-language-checklist.feature`, `story-checklist.feature`, `pod-load-publish.feature`). The interim rule that only a person's own act could publish these kinds (`publish_by_person.py`, the `by_person` argument and the `person-publish-required` code, #1730) is gone.
 
 - A Story loaded from a pod (`papyrus pod load`) or imported (`papyrus ops content import-markus`) keeps its readers' review (`review_people`) open. An imported Story's other steps are marked not applicable ("imported from <source>"); a pod-loaded Story has the ordinary checklist. A person reads the Story and ticks the review (with a findings note) before it publishes; the site's procedure decides whether that step is required, and the default procedure requires it. The refusal is `checklist-open`, naming each open step and the command.
 - A translation (`{story}--{language}`) has its own checklist: translate, faithfulness, copy edit, human review, publish. The run, the imported copy or the correction that saves a version records the first three; human review is a person's, required where the site requires the review of readers, and done against one version (an edit afterwards drops it). Rating and the cover are the original's. See [Publishing a translation](story-translation-procedure.md#publishing-a-translation).
@@ -146,7 +146,7 @@ What a deploy cannot show, and a person checks once on a real site after the rel
 
 ## The first agent: rating on Machines on Machines (PPY-d85860)
 
-The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/rating-agent.feature`) is the first
+The rating agent (`core/rate.yaml`, procedure `rate_items`; [the agent](design/always-on-agents-architecture.md), specs `features_backend/agents/rating-agent.feature`) is the first
 always-on agent. Once a day it reads the published Stories nobody has rated and, at the rung `observe`, only records what it would rate and why: no rating is written,
 no review request is filed, and a five is only ever listed as a candidate. Nothing below has been run against a live site. Each step says who does it. **Ryan approves the rung;
 an engineer never picks it.**
@@ -181,7 +181,7 @@ papyrus --site machines-on-machines automations runs --id rate
 ```
 
 * `adopt` names the responsibility and sets no rung. Until a rung is set the policy says `off` for `rate`, and a wake is recorded as "Nothing to do (rung_off)", never run.
-* **`papyrus agents set-rung` sets the rung** (slice H3, PPY-e6f31e; spec `features_backend/agent-set-rung.feature`). It is admin-only (an admin who is a person, signed in with
+* **`papyrus agents set-rung` sets the rung** (slice H3, PPY-e6f31e; spec `features_backend/agents/agent-set-rung.feature`). It is admin-only (an admin who is a person, signed in with
   `papyrus login`; an editor is refused and an agent is blocked), always takes `--reason`, and is a dry run unless `--apply`: the dry run prints the agent's policy entry before and
   after and the version it would be, and writes nothing. `--apply` saves a new version of the site's policy document (who, when and why on the version; every older version stays) in
   the site's media bucket at `tenants/<tenant>/site/agents/<version>.json`, through the same site store the runner reads, so the next wake runs under it. It refuses a rung that is not on the

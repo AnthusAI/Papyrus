@@ -1,5 +1,5 @@
 """The dispatcher's stream handling: decoding a stream record and the function that wraps ``handle_changes`` (the rules are in
-features_backend/story-localize-on-publish.feature)."""
+features_backend/translation/story-localize-on-publish.feature)."""
 from __future__ import annotations
 
 import importlib.util

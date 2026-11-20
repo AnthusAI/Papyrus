@@ -1,4 +1,4 @@
-// Types a hashtag the way the backend sees it (in memory) and prints what was written. Used by features_backend/editor-concepts.feature.
+// Types a hashtag the way the backend sees it (in memory) and prints what was written. Used by features_backend/knowledge/editor-concepts.feature.
 import { actingFor, buildEventTenantContext } from "../amplify/functions/shared/tenant-context";
 import { createReferenceLink, describeEditorConcept, type ReferenceLinkStore } from "../amplify/functions/category-action/reference-links";
 

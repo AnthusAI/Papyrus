@@ -1,4 +1,4 @@
-"""The lens definition and what is generated from it (features_backend/audience-lenses.feature has the narrative)."""
+"""The lens definition and what is generated from it (features_backend/guidelines/audience-lenses.feature has the narrative)."""
 
 from pathlib import Path
 

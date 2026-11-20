@@ -1,6 +1,6 @@
 """An in-memory monitoring table shaped like the live one, for the Monitoring page's read path.
 
-Used by test_monitoring_view.py and features_backend/monitoring-view.feature. The router config
+Used by test_monitoring_view.py and features_backend/monitoring/monitoring-view.feature. The router config
 carries endpoints and a role ARN on purpose: the page must never return them.
 """
 from copy import deepcopy

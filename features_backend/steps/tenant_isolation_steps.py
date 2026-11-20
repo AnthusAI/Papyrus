@@ -1,4 +1,4 @@
-"""Steps for features_backend/tenant-isolation-adversarial.feature (PPY-65e5a9).
+"""Steps for features_backend/tenancy/tenant-isolation-adversarial.feature (PPY-65e5a9).
 
 The scenarios about the generator run the real generator (`scripts/generate-tenant-isolation-cases.ts`) against a copy of the committed case
 table with one case removed, added or changed. The generated outline scenarios need the shared stack with two seeded tenants and are tagged

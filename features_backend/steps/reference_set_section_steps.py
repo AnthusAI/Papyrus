@@ -1,4 +1,4 @@
-"""papyrus references set-section (features_backend/reference-set-section.feature). The commands run against an in-memory data client; the site's
+"""papyrus references set-section (features_backend/references/reference-set-section.feature). The commands run against an in-memory data client; the site's
 function runs in `scripts/test-reference-section.ts`. No network, login or AWS."""
 from __future__ import annotations
 

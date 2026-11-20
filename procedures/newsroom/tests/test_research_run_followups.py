@@ -1,4 +1,4 @@
-"""Five faults found on the first real worker run of research.multi (features_backend/research-run-followups.feature and the fact-check and worker features).
+"""Five faults found on the first real worker run of research.multi (features_backend/monitoring/research-run-followups.feature and the fact-check and worker features).
 Invented content only. No network, no AWS, no model."""
 from __future__ import annotations
 

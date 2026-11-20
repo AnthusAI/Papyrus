@@ -1,4 +1,4 @@
-"""The four lenses (features_backend/audience-lenses.feature). Nothing here calls a model or the network."""
+"""The four lenses (features_backend/guidelines/audience-lenses.feature). Nothing here calls a model or the network."""
 
 from __future__ import annotations
 

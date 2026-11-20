@@ -131,7 +131,7 @@ The rest of the list, in the same order, is cut into chunks of about `pageSize` 
 
 ## Ordering: human ratings, then Cyclotron confidence
 
-A human rating is a stronger signal than a prediction, so where an editor rated a Reference the rating overrides the Cyclotron's confidence. `confident`, `recommended` and every bucketed include use one order ([the algorithm](quality-ranking.md), `src/papyrus_content/quality_ranking.py`, tested in `quality_ranking_test.py` and `features_backend/home-page-human-ratings.feature`):
+A human rating is a stronger signal than a prediction, so where an editor rated a Reference the rating overrides the Cyclotron's confidence. `confident`, `recommended` and every bucketed include use one order ([the algorithm](quality-ranking.md), `src/papyrus_content/quality_ranking.py`, tested in `quality_ranking_test.py` and `features_backend/site/home-page-human-ratings.feature`):
 
 1. three, four and five stars, the most stars first;
 2. References nobody rated, the highest Cyclotron confidence first, then the ones with no confidence at all (an accepted Reference the Cyclotron never scored: it is not 0.5, so it ranks below every scored one and does not tie with a real 0.5), newest arrival then key within each;

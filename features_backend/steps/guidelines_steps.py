@@ -1,4 +1,4 @@
-"""Guideline documents: the store and the writing resolver (features_backend/guidelines-store.feature, guidelines-writing-resolve.feature). A fake
+"""Guideline documents: the store and the writing resolver (features_backend/guidelines/guidelines-store.feature, guidelines-writing-resolve.feature). A fake
 backend that fails on any table scan; no network."""
 from __future__ import annotations
 

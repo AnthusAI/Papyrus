@@ -1,4 +1,4 @@
-"""The living issue (features_backend/newsletter-living-issue.feature): the blocks, pins, exclusions, the floor and approval, through ``living_issue``."""
+"""The living issue (features_backend/readers/newsletter-living-issue.feature): the blocks, pins, exclusions, the floor and approval, through ``living_issue``."""
 
 from __future__ import annotations
 

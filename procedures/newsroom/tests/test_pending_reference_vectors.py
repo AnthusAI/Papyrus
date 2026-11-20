@@ -1,5 +1,5 @@
 """Pending References are indexed as context only (src/papyrus_knowledge_query/vector_index.py, monitoring_vectors.py, reference_suggestions.py;
-features_backend/pending-reference-vectors.feature). Fakes only; no AWS or OpenAI."""
+features_backend/knowledge/pending-reference-vectors.feature). Fakes only; no AWS or OpenAI."""
 from __future__ import annotations
 
 import json

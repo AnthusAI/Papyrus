@@ -1,4 +1,4 @@
-"""The router's daily vector pass (features_backend/monitoring-vector-pass.feature). The index, the embeddings and the backends are fakes; the call counts are real."""
+"""The router's daily vector pass (features_backend/monitoring/monitoring-vector-pass.feature). The index, the embeddings and the backends are fakes; the call counts are real."""
 from __future__ import annotations
 
 import json

@@ -1,4 +1,4 @@
-"""A site adds a feed host as data (features_backend/monitoring-site-feed-hosts.feature). Nothing is fetched: the config validation and the fetch guard only."""
+"""A site adds a feed host as data (features_backend/monitoring/monitoring-site-feed-hosts.feature). Nothing is fetched: the config validation and the fetch guard only."""
 from __future__ import annotations
 
 import sys

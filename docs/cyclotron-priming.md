@@ -399,7 +399,7 @@ source pin follows publication approval.
 publication's editor decisions as JSON Lines, one item per line, in the shape the lab's priming import takes. It only
 reads: use `PAPYRUS_GRAPHQL_AUTH=iam` and `PAPYRUS_GRAPHQL_ENDPOINT` for the site's backend (any credentials that can
 read it). The code is `papyrus_content.priming_export`; the behaviour is specified in
-`features_backend/cyclotron-priming-export.feature`.
+`features_backend/monitoring/cyclotron-priming-export.feature`.
 
 ```json
 {"id": "ref-<lineageId> | ttab-<proceeding>-<date>", "occurred_at": "<ISO 8601 source date>",

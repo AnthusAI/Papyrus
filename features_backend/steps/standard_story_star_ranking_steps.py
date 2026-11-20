@@ -1,4 +1,4 @@
-"""Published Stories rank by recency bucket and stars (features_backend/standard-story-star-ranking.feature)."""
+"""Published Stories rank by recency bucket and stars (features_backend/site/standard-story-star-ranking.feature)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""features_backend/link-explanation-vectors.feature. Fakes only; the unit tests in procedures/newsroom/tests/test_link_explanation_vectors.py share them."""
+"""features_backend/knowledge/link-explanation-vectors.feature. Fakes only; the unit tests in procedures/newsroom/tests/test_link_explanation_vectors.py share them."""
 from __future__ import annotations
 
 import json

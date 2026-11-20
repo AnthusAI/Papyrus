@@ -1,4 +1,4 @@
-"""Steps for features_backend/publish-prunes-unstamped-media.feature: a tenant client on the in-memory AppSync stand-in the tenancy tests use."""
+"""Steps for features_backend/stories/publish-prunes-unstamped-media.feature: a tenant client on the in-memory AppSync stand-in the tenancy tests use."""
 from __future__ import annotations
 
 import sys

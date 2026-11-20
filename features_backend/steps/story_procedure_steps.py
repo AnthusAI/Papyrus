@@ -1,4 +1,4 @@
-"""The Story procedure (features_backend/story-procedure.feature). The backend is the in-memory fake; nothing here calls AWS or a model."""
+"""The Story procedure (features_backend/stories/story-procedure.feature). The backend is the in-memory fake; nothing here calls AWS or a model."""
 
 from __future__ import annotations
 

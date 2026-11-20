@@ -1,4 +1,4 @@
-"""features_backend/announcements-appsync-requests.feature: the deployed handler, driven with the requests Amplify sends."""
+"""features_backend/announcements/announcements-appsync-requests.feature: the deployed handler, driven with the requests Amplify sends."""
 
 from __future__ import annotations
 

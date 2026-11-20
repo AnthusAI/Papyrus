@@ -1,4 +1,4 @@
-"""Checks drawn from writing guidelines (features_backend/guidelines-derived-policies.feature). An in-memory backend and files; no network."""
+"""Checks drawn from writing guidelines (features_backend/guidelines/guidelines-derived-policies.feature). An in-memory backend and files; no network."""
 from __future__ import annotations
 
 import copy

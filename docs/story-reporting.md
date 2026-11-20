@@ -49,8 +49,8 @@ those stored paths. What counts as a picture:
 
 - an `::image{src="..."}` line, or a Markdown `![...](...)`, whose `src` is a relative path that resolves to a file inside the folder (web addresses, absolute paths, and paths the folder does not hold are left alone; the latter are listed as `image-unresolved`);
 - its dark version, if any: a file named like the light one with `.dark` before the extension (`figure.png`, `figure.dark.png`), or the file named by `srcDark="..."`. It is uploaded too and the `::image{}` line gets an explicit `srcDark` with the stored path. `srcDark="none"` keeps pairing off. A Markdown `![]()` has no `srcDark`, so its dark file is uploaded but only an `::image{}` line can show it.
-- the card pictures in the front matter (`image`, `cover`, `ogImage`, `thumbnail` and their Night counterparts `imageDark`, `coverDark`, `thumbnailDark`): a file name found in the folder is uploaded and replaced by its stored path, and a stored path whose picture was numbered (`assets/<slug>/chart.png` became `chart-2.png` because the folder now holds a different `chart.png`) is moved to the new path, so the card and the social image name the file that was just uploaded. A web address and a rendition path are left alone. A dry run lists each move as `front-matter`. Spec: `features_backend/story-version-images.feature`.
-- on the site, a card, a hero or any `<img>` whose address is a stored picture with renditions shows the rendition the article page shows (`features_backend/card-rendition-images.feature`), so a card never depends on the original file being in the site store; the social image tags keep the picture as written.
+- the card pictures in the front matter (`image`, `cover`, `ogImage`, `thumbnail` and their Night counterparts `imageDark`, `coverDark`, `thumbnailDark`): a file name found in the folder is uploaded and replaced by its stored path, and a stored path whose picture was numbered (`assets/<slug>/chart.png` became `chart-2.png` because the folder now holds a different `chart.png`) is moved to the new path, so the card and the social image name the file that was just uploaded. A web address and a rendition path are left alone. A dry run lists each move as `front-matter`. Spec: `features_backend/stories/story-version-images.feature`.
+- on the site, a card, a hero or any `<img>` whose address is a stored picture with renditions shows the rendition the article page shows (`features_backend/site/card-rendition-images.feature`), so a card never depends on the original file being in the site store; the social image tags keep the picture as written.
 
 Everything is checked before any write: at most 10 MB per file; a PNG, JPEG, GIF, WebP, AVIF or SVG picture; and a dark
 version whose width-to-height ratio is within 0.5% of the light one's. A rejection names each bad file and saves
@@ -271,7 +271,7 @@ provenance and reference links cannot be rewritten from a browser or a signed-in
 changes the role through the site's `setStoryReferenceRole` mutation (editor and admin groups, `category-action` Lambda). It refuses any
 relation that is not a Story's `uses_evidence` source, writes only the role, the citation key, the note, `updatedBy` (from the sign-in)
 and `updatedVia`, and never weakens `based_on`. The IAM lane keeps writing the row directly. A site whose backend predates the mutation
-answers with a message that says to use the IAM lane until it is deployed ([spec](../features_backend/story-reference-role.feature)). The Reporting trail
+answers with a message that says to use the IAM lane until it is deployed ([spec](../features_backend/stories/story-reference-role.feature)). The Reporting trail
 shows each reference with its role, note and the person or agent who attached it, and marks a reference "in the text" when
 the latest draft's citations include its citation key.
 
@@ -325,7 +325,7 @@ Reference that is missing or not accepted, and any other story-to-Reference pred
 needs a backend change: a `status` (or `relationState: retired`) field written through a new route like `setStoryReferenceRole`
 (a mutation on the `category-action` Lambda, editor and admin groups, refusing any relation that is not an `item.link`), a reader that skips
 retired links, and an `unlink-story` command that calls it. Today an operator on the IAM lane (`PAPYRUS_GRAPHQL_AUTH=iam`) can delete the row, or an
-editor can ask an operator to; there is no editor-side retirement. Spec: `features_backend/story-links.feature`.
+editor can ask an operator to; there is no editor-side retirement. Spec: `features_backend/stories/story-links.feature`.
 
 ## Tagging with concepts
 
@@ -374,7 +374,7 @@ story-to-story, story-to-concept and Reference-to-concept relation that is not t
 is missing, not accepted or without a public page, a story target that is not published, a legacy `related_to` tag (`--legacy-only` lists only those and counts them; a `superseded` row is not reported), and duplicate pairs. `mentions` to an accepted
 concept is an accepted shape. Fixing is out of scope. Cost: the stories audit reads the published-story summaries once, then three index reads per story (25 keys to a
 request) and one batched concept read; the References audit reads the corpus's accepted References through `referencesByCurationStatusKey` and the same three index reads
-per Reference (827 References: about 100 relation requests), with no table scan. Specs: `features_backend/concept-tags.feature`.
+per Reference (827 References: about 100 relation requests), with no table scan. Specs: `features_backend/knowledge/concept-tags.feature`.
 
 ## Suggesting related content
 
@@ -415,7 +415,7 @@ that explanation instead of a raw HTTP 401. A server-side lane (a new query fiel
 `suggest-links` need no key. It says plainly when the index has no concept vectors or is missing some accepted concepts, and prints the `knowledge-vector-index --action sync` command that
 repairs it. `--list` prints every accepted concept alphabetically. Agent tools (read only, closed argument lists): `papyrus_suggest_links`, `papyrus_related_concepts`,
 `papyrus_search_concepts` (Tactus `tactus_tools.py` and `story_signals_mcp.py`). The story checklist has a **Related content** step (`related_content`, not required) that
-points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/suggest-links.feature`.
+points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/knowledge/suggest-links.feature`.
 
 **`suggest-associations` (no search phrases to invent).** `suggest-links` needs concepts the story already carries. `papyrus stories suggest-associations --story X` (or
 `--reference X`) builds one query from the item itself (title, summary, the first ~300 words of the body) and (1) finds the accepted concepts that text names: the
@@ -426,7 +426,7 @@ vector index, the concepts nearest the text by meaning are added, otherwise one 
 item. Every concept and candidate prints its exact `link-concept` / `link-story` command; a concept the item already carries is marked `already tagged`. For a Reference the
 related stories carry `papyrus stories link-story --story <candidate> --reference <id>`, and its own text comes from the curation card and stored text (title alone if those
 cannot be read). Read only: it never writes a relation (it does not use `references suggest-links`). Code: `src/papyrus_content/association_suggestions.py`; specs:
-`features_backend/suggest-associations.feature`.
+`features_backend/knowledge/suggest-associations.feature`.
 
 ## Notes: people write Messages, agents write agent notes
 
@@ -508,7 +508,7 @@ The run opens and reads the sources it finds; its packet lists any it could not 
 
 The same assignment can be made on the Story page, at every stage of the Story (components `assign-research-box.tsx`, `assign-research-client.ts`, `lib/assign-research.ts`). The Messages view's Work section starts with an Assign research box: one text area for what the research should find out, and one button. An empty direction is refused in words, before anything is written. Only editors and admins reach the editor, and the backend's own groups decide who may write an `Assignment`.
 
-The browser writes the same stored shape as the command: the `Assignment` row (type `research.multi`, `itemLineageId`, the Story's section when it is one of the site's sections, status `open`, queue `research:<section>:exploratory`), the first `AssignmentEvent`, and two `ModelAttachment`s owned by the Assignment. **The Assignment model has no `metadata`, `brief` or `instructions` column** (PR 1110 was a live bug from writing them as columns). The `metadata` attachment (`role` and `sortKey` `metadata`, JSON) holds `direction` and `contextProfile: reporter`, which the context pack and the research run read through `assignment_metadata`; the `assignment_instructions` attachment holds the direction as text. A Story at the `idea` stage then moves to `assignment` through `moveStoryStage`; if that move fails the assignment stays and the box says so. Specs: `features/newsroom-assign-research.feature` (the box), `features_backend/browser-assign-research.feature` (the pack is built from what the browser wrote; the browser's records are recorded in `features_backend/fixtures/browser-assign-research.json` by `scripts/test-assign-research.ts`, and `UPDATE_FIXTURES=1` rewrites it).
+The browser writes the same stored shape as the command: the `Assignment` row (type `research.multi`, `itemLineageId`, the Story's section when it is one of the site's sections, status `open`, queue `research:<section>:exploratory`), the first `AssignmentEvent`, and two `ModelAttachment`s owned by the Assignment. **The Assignment model has no `metadata`, `brief` or `instructions` column** (PR 1110 was a live bug from writing them as columns). The `metadata` attachment (`role` and `sortKey` `metadata`, JSON) holds `direction` and `contextProfile: reporter`, which the context pack and the research run read through `assignment_metadata`; the `assignment_instructions` attachment holds the direction as text. A Story at the `idea` stage then moves to `assignment` through `moveStoryStage`; if that move fails the assignment stays and the box says so. Specs: `features/newsroom-assign-research.feature` (the box), `features_backend/references/browser-assign-research.feature` (the pack is built from what the browser wrote; the browser's records are recorded in `features_backend/fixtures/browser-assign-research.json` by `scripts/test-assign-research.ts`, and `UPDATE_FIXTURES=1` rewrites it).
 
 The Work section shows each research assignment with the editor's direction, its state in words and with an icon, when it was made, and the packet once it is finished. A worker runs it: [the research-assignments task](monitoring-cloud.md#research-assignments).
 
@@ -788,4 +788,4 @@ papyrus references set-section --reference <lineage id> --clear
 
 It changes only `curationSectionId`, and records who and when in `curationSectionUpdatedBy` and `curationSectionUpdatedAt`. The acceptance (status, who voted and when, the note, the actor kind), the feedback and the star rating are not written, so the Cyclotron sees no new vote. `--section` takes a display name (`Security`), a slug (`security`) or the qualified form `machines-on-machines#security`; a name that is not an enabled section is an error that lists the accepted forms and the sections available, and nothing is written. A section can be set only on an accepted Reference; `--clear` works on any. Like the other commands it writes unless `--dry-run`, which reads the Reference and the sections, prints the change and sends nothing. A signed-in editor or admin session records the person (`<person> via cli (<agent>)`); an operator on `PAPYRUS_GRAPHQL_AUTH=iam` is recorded as `Papyrus operator (<role session>)`, never by a name it sends. The writer is the `setReferenceSection` mutation (`amplify/functions/category-action`, editor and admin groups, and IAM principals by IAM policy like the other curation mutations).
 
-The MCP tool `reference_set_section` (`lineageId`, `section` or `clear`, optional `dryRun`) is the same operation: `src/papyrus_content/reference_section.py` holds the one definition (`set_reference_section`), the CLI prints it as a line or `--json`, and the tool returns that JSON. Its `TOOLS` and `DESCRIPTIONS` entries have the shape of the MCP server's tables, as the image operations do; the server (the `feature/PPY-2bc3e8-authenticated-mcp` branch) adds them with `TOOLS.update(...)` when it merges. A change of section moves the Reference on the home page and on the videos grouping through the Reference stream, which already watches `curationSectionId` ([home page, Freshness](home-page.md#freshness)). Specs: `features_backend/reference-set-section.feature`, `scripts/test-reference-section.ts` (the function), `src/papyrus_content/reference_section_test.py`; `npm run test:reference-section`. Deploy: the backend (a new mutation and two optional `Reference` fields); no IAM change, no index change.
+The MCP tool `reference_set_section` (`lineageId`, `section` or `clear`, optional `dryRun`) is the same operation: `src/papyrus_content/reference_section.py` holds the one definition (`set_reference_section`), the CLI prints it as a line or `--json`, and the tool returns that JSON. Its `TOOLS` and `DESCRIPTIONS` entries have the shape of the MCP server's tables, as the image operations do; the server (the `feature/PPY-2bc3e8-authenticated-mcp` branch) adds them with `TOOLS.update(...)` when it merges. A change of section moves the Reference on the home page and on the videos grouping through the Reference stream, which already watches `curationSectionId` ([home page, Freshness](home-page.md#freshness)). Specs: `features_backend/references/reference-set-section.feature`, `scripts/test-reference-section.ts` (the function), `src/papyrus_content/reference_section_test.py`; `npm run test:reference-section`. Deploy: the backend (a new mutation and two optional `Reference` fields); no IAM change, no index change.

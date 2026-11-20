@@ -1,5 +1,5 @@
 """The monitor-stories queue: the daily task plans, a worker drafts one step per message (src/papyrus_content/ideas/story_plan.py,
-features_backend/monitoring-stories-queue.feature). The model, the pages, the backends, the queue and the clock are fakes; nothing here reaches the network."""
+features_backend/monitoring/monitoring-stories-queue.feature). The model, the pages, the backends, the queue and the clock are fakes; nothing here reaches the network."""
 from __future__ import annotations
 
 import io

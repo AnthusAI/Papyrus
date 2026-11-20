@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-list-paging.feature. Local directories only: no network, no AWS."""
+"""Steps for features_backend/references/reference-list-paging.feature. Local directories only: no network, no AWS."""
 from __future__ import annotations
 
 import json

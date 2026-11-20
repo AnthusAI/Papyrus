@@ -1,5 +1,5 @@
 """Every AppSync request is counted by caller; a process over its budget warns and goes on
-(features_backend/request-meter.feature)."""
+(features_backend/agents/request-meter.feature)."""
 from __future__ import annotations
 
 import json

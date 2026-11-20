@@ -363,7 +363,7 @@ def output_says(context, text):
     assert text in context.output, context.output
 
 
-# ---- Announcement and Delivery notes as history (features_backend/pod-load-announcements.feature, PPY-e78134) ---------------------------------------------------
+# ---- Announcement and Delivery notes as history (features_backend/announcements/pod-load-announcements.feature, PPY-e78134) ---------------------------------------------------
 
 def _delivery_rows(context, channel):
     rows = [row for row in _newsroom(context).list_records("Delivery") if row["channel"] == channel]

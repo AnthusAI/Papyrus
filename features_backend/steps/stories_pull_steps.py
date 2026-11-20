@@ -1,4 +1,4 @@
-"""Steps for features_backend/stories-pull.feature. The backend is the in-memory fake; nothing leaves the process."""
+"""Steps for features_backend/cli/stories-pull.feature. The backend is the in-memory fake; nothing leaves the process."""
 
 from __future__ import annotations
 

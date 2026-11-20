@@ -1,4 +1,4 @@
-"""The other tables' change feeds: normalization, who is woken and the relay (the behaviour is in features_backend/change-feeds.feature)."""
+"""The other tables' change feeds: normalization, who is woken and the relay (the behaviour is in features_backend/agents/change-feeds.feature)."""
 import json
 from types import SimpleNamespace
 

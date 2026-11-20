@@ -1,4 +1,4 @@
-"""The knowledge run on any site (features_backend/knowledge-run-any-site.feature). S3 and DynamoDB are moto; the tools are the recording fake shell."""
+"""The knowledge run on any site (features_backend/knowledge/knowledge-run-any-site.feature). S3 and DynamoDB are moto; the tools are the recording fake shell."""
 
 from __future__ import annotations
 

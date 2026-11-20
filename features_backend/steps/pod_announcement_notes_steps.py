@@ -1,4 +1,4 @@
-"""Steps for the Announcement and Delivery notes of a pod (features_backend/pod-announcement-delivery-notes.feature).
+"""Steps for the Announcement and Delivery notes of a pod (features_backend/announcements/pod-announcement-delivery-notes.feature).
 
 The pod is the folder pod_steps.py makes. A load goes through ``papyrus.pod.announcement_notes.read`` and ``PodHistory.load`` against the in-memory records backend
 and the in-memory store for the words, and the send path is the real ``AccountWorker`` over a channel that records every event handed to it. No network, no AWS, no

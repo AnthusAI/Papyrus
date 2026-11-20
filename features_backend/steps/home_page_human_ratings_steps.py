@@ -1,4 +1,4 @@
-"""The public home page puts rated References first and never prints the rating (features_backend/home-page-human-ratings.feature)."""
+"""The public home page puts rated References first and never prints the rating (features_backend/site/home-page-human-ratings.feature)."""
 
 from __future__ import annotations
 

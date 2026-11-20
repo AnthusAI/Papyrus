@@ -1,6 +1,6 @@
 /**
  * Announcements: the schema, the wiring and the page's plain-words helpers. The function's rules are in
- * features_backend/x-account-connection.feature and announcement-settings.feature; the page is in features/newsroom-announcements.feature.
+ * features_backend/announcements/x-account-connection.feature and announcement-settings.feature; the page is in features/newsroom-announcements.feature.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

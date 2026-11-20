@@ -1,4 +1,4 @@
-"""The adaptive trend window and the evidence-based repeat rule (features_backend/idea-trend-windows.feature, idea-trend-evidence.feature)."""
+"""The adaptive trend window and the evidence-based repeat rule (features_backend/ideas/idea-trend-windows.feature, idea-trend-evidence.feature)."""
 
 from __future__ import annotations
 

@@ -216,7 +216,7 @@ Scheduled publishing and the publish step of `papyrus stories next` read the sam
 ### A person's correction
 
 A person's fix to a published translation is a new version of the translation lineage, never an edit in place and never a new translation run
-(`localize/correct.py`; spec `features_backend/translation-correction.feature`; PPY-ef71cd, PPY-c0aebc):
+(`localize/correct.py`; spec `features_backend/translation/translation-correction.feature`; PPY-ef71cd, PPY-c0aebc):
 
 ```sh
 papyrus stories correct-translation --story LINEAGE --language es-419 --edits-file edits.json --edited-by "Person Name" --reason "why" --dry-run
@@ -239,7 +239,7 @@ papyrus stories correct-translation --story LINEAGE --language es-419 --edits-fi
 ### Finished copy written elsewhere
 
 Copy that people or other agents wrote separately, and that is already finished, is attached to a published English Story as its companion edition with
-one command (`localize/import_copy.py`; spec `features_backend/translation-import.feature`; PPY-b64b0b). It reuses the procedure's own record-writing path
+one command (`localize/import_copy.py`; spec `features_backend/translation/translation-import.feature`; PPY-b64b0b). It reuses the procedure's own record-writing path
 (`record.save`), so the version looks like any translation to the rest of Papyrus; what differs is who wrote it and that no model is involved.
 
 ```sh

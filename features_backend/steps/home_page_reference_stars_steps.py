@@ -1,4 +1,4 @@
-"""An accepted Reference's tile shows its stars by shape and in words (features_backend/home-page-reference-stars.feature)."""
+"""An accepted Reference's tile shows its stars by shape and in words (features_backend/site/home-page-reference-stars.feature)."""
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
-"""The router's daily vector pass (src/papyrus_content/monitoring_vectors.py, features_backend/monitoring-vector-pass.feature) and the one related-items check per
-Reference (src/papyrus_content/reference_suggest_once.py, features_backend/suggest-once.feature). The index, the embeddings, the S3 Vectors client, the queue and
+"""The router's daily vector pass (src/papyrus_content/monitoring_vectors.py, features_backend/monitoring/monitoring-vector-pass.feature) and the one related-items check per
+Reference (src/papyrus_content/reference_suggest_once.py, features_backend/knowledge/suggest-once.feature). The index, the embeddings, the S3 Vectors client, the queue and
 the backends are fakes; nothing here reaches the network. The pass reads what changed, so these tests count the calls it makes."""
 from __future__ import annotations
 

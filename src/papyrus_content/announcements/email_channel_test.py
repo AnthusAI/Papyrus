@@ -1,4 +1,4 @@
-"""The period a periodic Delivery names to Caducus (behaviour: features_backend/cadence-family.feature)."""
+"""The period a periodic Delivery names to Caducus (behaviour: features_backend/announcements/cadence-family.feature)."""
 from datetime import datetime, timezone
 
 import pytest

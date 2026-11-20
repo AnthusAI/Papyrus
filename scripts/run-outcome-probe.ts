@@ -1,4 +1,4 @@
-// Renders the run outcome component for each outcome on its server string and prints {outcome: html} as JSON. Used by features_backend/run-outcome-display.feature.
+// Renders the run outcome component for each outcome on its server string and prints {outcome: html} as JSON. Used by features_backend/agents/run-outcome-display.feature.
 import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";

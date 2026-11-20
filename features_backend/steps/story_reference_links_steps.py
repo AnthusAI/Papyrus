@@ -1,4 +1,4 @@
-"""An editor points a story to a Reference (features_backend/story-reference-links.feature): thin steps over the helpers of the unit tests."""
+"""An editor points a story to a Reference (features_backend/stories/story-reference-links.feature): thin steps over the helpers of the unit tests."""
 from __future__ import annotations
 
 import json

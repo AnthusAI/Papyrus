@@ -1,4 +1,4 @@
-"""The wake gate's arithmetic and refusals (the behaviour is in features_backend/coalescing-window.feature and agent-loop-guard.feature)."""
+"""The wake gate's arithmetic and refusals (the behaviour is in features_backend/agents/coalescing-window.feature and agent-loop-guard.feature)."""
 from datetime import datetime, timezone
 
 import pytest

@@ -1,4 +1,4 @@
-"""The roundup inserter's standing rules (features_backend/newsletter-roundup-inserter.feature): the pure selection and the draft that applies it."""
+"""The roundup inserter's standing rules (features_backend/readers/newsletter-roundup-inserter.feature): the pure selection and the draft that applies it."""
 
 from __future__ import annotations
 

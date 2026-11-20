@@ -8,7 +8,7 @@ Feature: The Amplify build applies the site's agent definitions after it registe
   `papyrus agents schedules --site <brand id>`, makes the site's schedule group agree with them (one entry for each switched-on agent that names a
   schedule, targeting the site's wake queue) and does need permissions the build role does not have yet: they are listed in docs/automations.md and are
   granted before the release that carries the step. It is held to the same rule and fails the build rather than fail quietly.
-  The step after it, `papyrus agents listeners`, writes the small listener index the Item change feed reads to find the agents that listen for a change (PPY-8a374e); it needs nothing the schedule step does not (docs/automations.md, "The listener index and the Item change feed"). Behaviour of the commands: features_backend/agent-definitions-on-release.feature, features_backend/schedule-trigger.feature and features_backend/item-change-feed.feature. Executable by scripts/test-infra-agent-sync.ts.
+  The step after it, `papyrus agents listeners`, writes the small listener index the Item change feed reads to find the agents that listen for a change (PPY-8a374e); it needs nothing the schedule step does not (docs/automations.md, "The listener index and the Item change feed"). Behaviour of the commands: features_backend/agents/agent-definitions-on-release.feature, features_backend/agents/schedule-trigger.feature and features_backend/agents/item-change-feed.feature. Executable by scripts/test-infra-agent-sync.ts.
 
   Scenario: The production build applies the agent definitions after the procedures are registered
     Given the generated production build spec of a site
