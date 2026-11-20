@@ -1,5 +1,5 @@
 Feature: An X announcement may carry hashtags from the Story's own concepts
-  The concepts tagged to a Story are the hashtags worth using when it is announced (PPY-d40025). The Story's hashtags are its accepted concepts, most-used
+  The concepts tagged to a Story are the hashtags worth using when it is announced. The Story's hashtags are its accepted concepts, most-used
   first, in CamelCase. The draft may choose at most two of them and puts them after its words; it may use no other hashtag, and it uses none when none fits.
   Nothing here reaches X or a model: the model and the site are stand-ins.
 
