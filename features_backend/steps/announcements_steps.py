@@ -1279,14 +1279,14 @@ def cli_judge(claim, cited, info=None):
     return {"verdict": "supported", "quotes": [" ".join(cited.values()).split("\n")[0]], "explanation": "", "attribution_lost": False, "claim_is_only_about_source_limits": False}
 
 
-def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind.", stdin=None, env=None, terminal=None):
+def run_cli(context, line, *, agent=False, guidelines="Voice: plain and kind.", stdin=None, env=None, terminal=None, preflight=None):
     words = shlex.split(line)
     assert words[:2] == ["papyrus", "announcements"], line
     handlers = signed_in_handlers(lambda: context.backend, {"SITE_ORIGIN": ORIGIN, "ITEM_URL_STYLE": "clean"}, llm=lambda system, user, schema: {"text": DEFAULT_DRAFT}, judge=cli_judge,
                                   guidelines_text=guidelines, files=context.files, functions=context.functions)
     out = io.StringIO()
     environ = {**({"PAPYRUS_ACTOR_KIND": "agent"} if agent else {}), **(env or {})}
-    status = announcements_cli.command(words[2:], handlers=handlers, environ=environ, stdout=out, stdin=terminal or io.StringIO(stdin if stdin is not None else ""))
+    status = announcements_cli.command(words[2:], handlers=handlers, environ=environ, stdout=out, stdin=terminal or io.StringIO(stdin if stdin is not None else ""), preflight=preflight)
     context.cli_status, context.cli_answer = status, json.loads(out.getvalue())
     return context.cli_answer
 
@@ -1347,6 +1347,29 @@ def _person_terminal(context, line, client_id, secret):
 
     with mock.patch.object(images_cli, "ask_visible", lambda question: client_id), mock.patch.object(images_cli, "ask_hidden", lambda question: secret):
         run_cli(context, line, terminal=Terminal())
+
+
+@when('a person types "{line}" at a terminal with no site selected')
+def _person_no_site(context, line):
+    from unittest import mock
+
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    asked = []
+
+    def refuse():
+        raise RuntimeError("No site is selected and there is no amplify_outputs.json.")
+
+    with mock.patch.object(images_cli, "ask_visible", lambda question: asked.append(question) or "id"), mock.patch.object(images_cli, "ask_hidden", lambda question: asked.append(question) or "secret"):
+        run_cli(context, line, terminal=Terminal(), preflight=refuse)
+    context.asked = asked
+
+
+@then("nothing was asked")
+def _nothing_asked(context):
+    assert context.asked == [], context.asked
 
 
 @then('the site saved the X app "{client_id}" with the secret "{secret}"')
