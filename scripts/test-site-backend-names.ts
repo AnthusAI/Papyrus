@@ -152,7 +152,7 @@ assert.equal(defaultsNewSite.storageBackups, false);
 assert.equal(defaultsNewSite.slack, false);
 const defaultsLegacy = resolveSiteBackendFeatureFlags(undefined, {}, legacyMain);
 for (const defaults of [defaultsNewSite, defaultsLegacy]) {
-  assert.deepEqual(defaults, { consoleResponder: false, inboundEmail: false, slack: false, storageBackups: false, cliRemoteLogin: false, cliOnFederationClient: false },
+  assert.deepEqual(defaults, { consoleResponder: false, inboundEmail: false, slack: false, storageBackups: false, cliRemoteLogin: false, cliOnFederationClient: false, mcp: false },
     "every optional feature is off when nothing says otherwise, for every site");
 }
 assert.equal(resolveSiteBackendFeatureFlags(undefined, { PAPYRUS_ENABLE_CONSOLE_RESPONDER: "true" }, newSiteMain).consoleResponder, true, "and on when the site says so");
