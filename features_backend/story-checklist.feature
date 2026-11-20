@@ -259,21 +259,34 @@ Feature: The editorial checklist of a Story
     And no page was published
     And the Story board lists only the Story, not its sub-tasks
 
-  Scenario: An imported Story has every step but publishing marked not applicable, with the source as the reason
+  Scenario: An imported Story has every step not applicable but publishing and the readers' review, with the source as the reason
     Given a Story at the "copywriting" stage
     When the Story is imported from "articles/hello.md"
-    Then the checklist item "review_people" is "not_applicable"
-    And the checklist item "review_people" has the reason "imported from articles/hello.md"
-    And the checklist item "review_people" was changed by the system "Automatically, from the import"
+    Then the checklist item "concepts" is "not_applicable"
+    And the checklist item "concepts" has the reason "imported from articles/hello.md"
+    And the checklist item "concepts" was changed by the system "Automatically, from the import"
+    And the checklist item "review_people" is "open"
     And the checklist item "publish" is "open"
+
+  Scenario: An imported Story is refused until a person ticks the review of readers
+    Given a Story at the "copywriting" stage
+    When the Story is imported from "articles/hello.md"
+    And the Story is published by an editor
+    Then publishing was refused with the code "checklist-open" saying "Reviewed for readers (review_people)"
+    And no page was published
+
+  Scenario: An imported Story publishes once a person has ticked the review of readers
+    Given a Story at the "copywriting" stage
+    When the Story is imported from "articles/hello.md"
+    Given the review step "review_people" is done with the note "Read it through; the claims match its source"
     When the Story is published by an editor
     Then publishing succeeded
 
-  Scenario: An imported Story is not published by an automation, only by a person
+  Scenario: An imported Story is not published by an automation while its review is open
     Given a Story at the "copywriting" stage
     When the Story is imported from "articles/hello.md"
     And the Story is published by an automation
-    Then publishing was refused with the code "person-publish-required" saying "publish it by hand"
+    Then publishing was refused with the code "checklist-open" saying "review_people"
     And no page was published
 
   Scenario: A note can be added to a step in any state and changes nothing else

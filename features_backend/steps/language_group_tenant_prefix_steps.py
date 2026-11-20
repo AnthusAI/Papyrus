@@ -101,16 +101,31 @@ def _marked(context):
     assert context.read[TRANSLATION] is not None and context.read[TRANSLATION].translation is True
 
 
-@then('publishing "{lineage}" by an automation is refused as a translation')
-def _refused(context, lineage):
-    from papyrus_content.publish_by_person import TRANSLATION as KIND, story_kind
-
-    assert story_kind(context.content, context.content.rows[lineage]) == KIND
+class ReadItsOwnChecklist(Exception):
+    pass
 
 
-@then('publishing "{lineage}" by an automation is not refused as a translation')
-def _not_refused(context, lineage):
-    from papyrus_content.publish_by_person import TRANSLATION as KIND, story_kind
+def _gate_route(context, lineage):
+    from papyrus_content import story_checklist
 
-    with mock.patch("papyrus_content.story_checklist.read_steps", return_value=[]):
-        assert story_kind(context.content, context.content.rows[lineage]) != KIND
+    with mock.patch.object(story_checklist, "procedure_of", return_value=mock.sentinel.procedure), \
+            mock.patch.object(story_checklist, "translation_procedure", return_value=mock.sentinel.translation_procedure), \
+            mock.patch.object(story_checklist, "_require_language_checklist_closed") as language_gate, \
+            mock.patch.object(story_checklist, "read_steps", side_effect=ReadItsOwnChecklist):
+        try:
+            story_checklist.require_checklist_closed(context.content, context.content.rows[lineage])
+        except ReadItsOwnChecklist:
+            return language_gate, True
+        return language_gate, False
+
+
+@then('publishing "{lineage}" is checked against its own language checklist')
+def _language_checklist(context, lineage):
+    language_gate, read_its_own = _gate_route(context, lineage)
+    assert language_gate.called and not read_its_own
+
+
+@then('publishing "{lineage}" is checked against the Story checklist')
+def _story_checklist(context, lineage):
+    language_gate, read_its_own = _gate_route(context, lineage)
+    assert read_its_own and not language_gate.called

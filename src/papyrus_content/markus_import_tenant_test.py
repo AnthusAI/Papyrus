@@ -94,7 +94,7 @@ def test_importing_the_same_content_again_for_a_tenant_changes_nothing(tmp_path)
 
 def legacy_import(backend, tmp_path, name="legacy"):
     """An import as it was before imported Stories were left as drafts: the items are published, which is the state a tenant import adopts."""
-    with mock.patch("papyrus_content.markus_import.is_story_item_type", return_value=False), mock.patch("papyrus_content.publish_by_person.story_kind", return_value=None):
+    with mock.patch("papyrus_content.markus_import.is_story_item_type", return_value=False):
         return import_for(None, content_directory(tmp_path, name, "Legacy"), tenant_client(backend, None), tmp_path / "bucket")
 
 

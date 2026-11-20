@@ -137,6 +137,9 @@ def correct_translation(client, *, story: str, language: str, edits: list[Edit],
                                                       "ownerVersionNumber": record["versionNumber"], "role": PROVENANCE_ROLE, "sortKey": PROVENANCE_ROLE,
                                                       "filename": "provenance.json", "content": provenance, "now": now})
     upload_attachment_body(client, attachment["attachment"], attachment["body"])
+    from ..story_checklist import record_translation_steps
+
+    record_translation_steps(client, record, provenance.get("checklist") or {}, now=now)   # the corrected version has its rows; a review recorded earlier is for an earlier version
     correction.record = record
     return correction
 
