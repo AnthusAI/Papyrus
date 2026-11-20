@@ -38,13 +38,27 @@ def render_assignment_show(command: RegisteredCommand, result: dict[str, Any]) -
     return assignment_show_rows(result)
 
 
+def render_reviews_list(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .review_requests import _line
+
+    return [_line(request) for request in result["reviews"]]
+
+
+def render_review(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .review_requests import _line, review_lines
+
+    request = result["review"]
+    return review_lines(request) if command.command == "show" else [_line(request)]
+
+
 def render_story_next(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
     from .story_commands import story_next_rows
 
     return story_next_rows(result)
 
 
-TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars, "assignments:list": render_assignments_list, "assignments:show": render_assignment_show}
+TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars, "assignments:list": render_assignments_list, "assignments:show": render_assignment_show, "reviews:list": render_reviews_list,
+                 "reviews:show": render_review, "reviews:answer": render_review}
 
 
 def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) -> dict[str, Any]:

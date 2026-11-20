@@ -341,6 +341,10 @@ class StaffReads(StaffStoryWrites):
         return {key: review[key] for key in ("id", "subject", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "answer", "updatedAt", "outcome")}
 
     def review_get(self, principal: Principal, *, id: str) -> dict:
+        if principal.is_operator:
+            from .review_requests import get_review
+
+            return {"review": get_review(self.client, id)}
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reviews lack a tenant ownership key.")
         row = self.client.get_record("ReviewRequest", id)
@@ -348,8 +352,14 @@ class StaffReads(StaffStoryWrites):
             raise ValueError("Review not found.")
         return {"review": self._scope_review(principal, row)}
 
-    def review_answer(self, principal: Principal, *, id: str, expectedRevision: str, decision: str,
+    def review_answer(self, principal: Principal, *, id: str, decision: str, expectedRevision: str | None = None,
                       feedback: str | None = None, steer: str | None = None) -> dict:
+        if principal.is_operator:
+            from .review_requests import operator_review_answer
+
+            return operator_review_answer(self.client, id, decision=decision, feedback=feedback, steer=steer)
+        if expectedRevision is None:
+            raise ValueError("Invalid tool arguments.")
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reviews lack a tenant ownership key.")
         from .review_requests import answer_review
@@ -386,7 +396,14 @@ class StaffReads(StaffStoryWrites):
         result = answer_review(ConditionalReviewClient(), id, decision=decision, by=f"agent:{principal.subject}", feedback=feedback, steer=steer, roles=["editor"])
         return {"review": {key: result[key] for key in ("id", "subject", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "answer", "updatedAt", "outcome")}}
 
-    def reviews_list(self, principal: Principal, *, subjectType: str, subjectId: str, state: str | None = None, mode: str | None = None, limit: int = 20, nextToken: str | None = None) -> dict:
+    def reviews_list(self, principal: Principal, *, subjectType: str | None = None, subjectId: str | None = None, state: str | None = None, mode: str | None = None,
+                     limit: int = 20, nextToken: str | None = None, raisedBy: str | None = None) -> dict:
+        if principal.is_operator:
+            from .review_requests import operator_reviews_list
+
+            return operator_reviews_list(self.client, state=state, mode=mode, raised_by=raisedBy, subject_type=subjectType, subject_id=subjectId)
+        if subjectType is None or subjectId is None or raisedBy is not None:
+            raise ValueError("Invalid tool arguments.")
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reviews lack a tenant ownership key.")
         filters = []
