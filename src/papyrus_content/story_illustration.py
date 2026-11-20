@@ -6,7 +6,7 @@ A cover is proved by records, never by hand:
 * the Story's front matter names a cover picture (``image``, or ``cover``) that is a stored asset (a ``MediaAsset`` row of the version, matched by ``srcPath``);
 * approval is NOT required by default. When a person has approved a cover, that is recorded as metadata in the front matter record ``coverImage`` for that picture
   (``srcPath``): ``approvedBy`` and ``approvedAt``, or ``pickedBy`` and ``pickedAt`` for a stock picture picked in the newsroom's Cover image; the evidence names
-  the approver when present. A generated cover carries no credit line and a third-party picture keeps its own;
+  the approver when present. A generated cover carries no credit line and a third-party picture keeps its own: a stock picture whose image line has no credit leaves the step open;
 * where the site requires dark figures (the design system's ``requireDarkFigures``), a figure cover also has a stored dark picture (``imageDark``/``coverDark``
   or the directive's ``srcDark``). A stock photograph has no dark twin and is never asked for one.
 
@@ -164,5 +164,7 @@ def cover_evidence(inputs: dict[str, Any] | None) -> tuple[str, str]:
         problem = alt_problem(alt, brief) if alt.strip() or alt is effective else ""
         if problem:
             return NOT_DONE, f"{label} {problem}: write the alt text from the picture itself (a person or agent who has seen it) and save a new version"
+    if picked_by and not (directive or {}).get("credit", "").strip():   # a third-party picture is always credited, wherever its credit is wanted
+        return NOT_DONE, f"the stock picture {cover} has no credit line, and a third-party picture is always credited: add credit=\"...\" to its image line"
     who = (f", stock picture picked by {approver}" if picked_by else f", approved by {approver}") + (f" on {approved_at}" if approved_at else "") if approver else ""
     return DONE, f"cover {cover}{who}" + (f", dark {dark}" if dark and not picked_by else "")

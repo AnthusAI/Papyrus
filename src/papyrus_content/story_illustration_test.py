@@ -12,6 +12,7 @@ def inputs(front_matter=None, body="", media=("assets/a/cover.png",), item_type=
 
 
 STOCK = {"image": "/assets/a/cover.png", "coverImage": {"srcPath": "assets/a/cover.png", "pickedBy": "Ryan", "pickedAt": "2026-11-11"}}
+STOCK_BODY = '::image{src="assets/a/cover.png" alt="A room" credit="Image: A. Photographer, CC BY 4.0"}'
 FIGURE_BODY = '::image{\n  src="assets/a/cover.png"\n  credit="Drafted by AI. Approved by Sierra."\n}'
 
 
@@ -21,8 +22,13 @@ def test_paths_are_compared_as_stored(raw, expected):
 
 
 def test_a_stock_cover_a_person_picked_is_proof():
-    state, text = cover_evidence(inputs(STOCK))
+    state, text = cover_evidence(inputs(STOCK, STOCK_BODY))
     assert state == DONE and "picked by Ryan" in text
+
+
+def test_a_stock_cover_with_no_credit_line_is_not_done():
+    state, text = cover_evidence(inputs(STOCK, BARE_BODY))
+    assert state == NOT_DONE and "credit" in text
 
 
 def test_a_stock_cover_record_for_another_picture_names_nobody():
@@ -65,12 +71,12 @@ def test_the_dark_picture_is_required_only_for_a_figure_where_the_site_says_so()
     assert cover_evidence(both)[0] == DONE
     dark_not_stored = inputs({**GENERATED, "imageDark": "/assets/a/cover.dark.png"}, BARE_BODY)
     assert cover_evidence(dark_not_stored)[0] == NOT_DONE   # a dark picture that is named must be stored, required or not
-    assert cover_evidence(inputs(STOCK, requireDark=True))[0] == DONE
+    assert cover_evidence(inputs(STOCK, STOCK_BODY, requireDark=True))[0] == DONE
 
 
 def test_an_unreadable_dark_setting_is_unknown_for_a_light_only_figure_and_not_for_a_photograph():
     assert cover_evidence(inputs(GENERATED, BARE_BODY, unreadable=True))[0] == UNKNOWN
-    assert cover_evidence(inputs(STOCK, unreadable=True))[0] == DONE
+    assert cover_evidence(inputs(STOCK, STOCK_BODY, unreadable=True))[0] == DONE
 
 
 def test_only_the_listed_types_and_stories_with_no_type_need_a_cover():
