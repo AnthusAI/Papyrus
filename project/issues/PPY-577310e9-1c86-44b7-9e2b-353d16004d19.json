@@ -3,7 +3,7 @@
   "title": "Run indexes: by agent, and 'needs attention'",
   "description": "Two indexes on `ProcedureRun`, added in two releases because a deploy adds one index per table: (1) `automationId` + `requestedAt`, so an agent's runs are one query; (2) a sparse `attentionKey` + `dueAt`, present only while a run is `waiting`, `unknown` or `failed` and unacknowledged, so Today and the overdue check read only what needs a person. Remove the code paths that load every `ProcedureRun` (`procedure-action` `listModelPages` and its full-list path when an index query is missing).\n\n**Acceptance criteria**\n- An agent's run history is one indexed query.\n- A run that needs nobody is not in the attention index.\n- No code path lists the whole `ProcedureRun` table.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- run-indexes.feature: an agent's runs are listed newest first by index; an acknowledged failure leaves the attention list; the run list never reads the whole table (request meter shows no unbounded list).\n\n**Infrastructure as code touched:** Amplify data schema: two GSIs on `ProcedureRun`, one per release.\n\n**Part of:** Wake contract and run outcomes. Slice code A5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "closed",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -26,11 +26,18 @@
       "text": "Closed in the in-progress sweep: work shipped on develop (#1719); any follow-ups are in the notes above and need their own records.",
       "created_at": "2026-11-20T14:03:43.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7f72cb05-6f22-4def-aae6-a75218530b7c",
+      "author": "claude",
+      "text": "Back in progress: part of the live always-on agents work.",
+      "created_at": "2026-11-20T14:19:17.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-16T22:43:01.577907Z",
-  "updated_at": "2026-11-20T14:03:43.000000Z",
-  "closed_at": "2026-11-20T14:03:43.000000Z",
+  "updated_at": "2026-11-20T14:19:17.000000Z",
+  "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

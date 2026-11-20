@@ -3,7 +3,7 @@
   "title": "Timers: the schedule trigger and follow-ups",
   "description": "A timer only raises a wake; the run re-reads the records and re-checks everything. Recurring schedules come from agent definitions; one-off follow-ups come from a due time on a record. Done when an agent can run daily or weekly from data alone, review request deadlines fire without anyone opening a page, and anything due and untouched shows as Overdue and raises one flag.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,9 +12,17 @@
     "always-on-agents"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0cb6fe70-5178-456c-82e3-f18325ac54a7",
+      "author": "claude",
+      "text": "Back in progress: timers work under the always-on agents initiative is live.",
+      "created_at": "2026-11-20T14:19:17.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:42:24.030699Z",
-  "updated_at": "2026-11-16T22:42:24.030739Z",
+  "updated_at": "2026-11-20T14:19:17.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
