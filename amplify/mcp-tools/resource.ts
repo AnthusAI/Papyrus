@@ -4,6 +4,7 @@ import { Architecture, Code, Function as LambdaFunction, Runtime } from 'aws-cdk
 import { execFileSync } from 'node:child_process';
 import { packageRoot, pythonLambdaCode } from '../functions/shared/python-bundle';
 import type { McpOAuthPlan } from '../mcp-oauth/resource';
+import { siteApiEnvironment } from '../site-api-access';
 
 /** Reader actions use the public site's host, not the CMS origin. */
 export function readerPublication(origin: string | undefined): string {
@@ -37,7 +38,7 @@ export function addMcpTools(stack: Stack, plan: McpOAuthPlan, options: { endpoin
     runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: 'handler.handler', code,
     timeout: Duration.seconds(25), memorySize: 256,
     environment: {
-      PAPYRUS_GRAPHQL_ENDPOINT: options.endpoint,
+      ...siteApiEnvironment(options.endpoint),
       // The same site backend provisions the conditional draft mutation and Item transaction grant.
       PAPYRUS_MCP_STORY_DRAFT_ENABLED: 'true',
       ...(options.tenant ? { PAPYRUS_TENANT_ID: options.tenant } : {}),
