@@ -9,10 +9,10 @@
 | `stacks.json` | The stacks, in deploy order: template, the paths that are their inputs, parameters, zone lookups, which `build.py` zips feed which code-key parameter, capabilities. |
 | `allowed-changes.json` | The Removes and Replaces a release may make on purpose, each with its reason. Empty it again once they have deployed. |
 | `stack_deploy.py` | The whole deploy, with its safety checks. Tested by `procedures/newsroom/tests/test_stack_deploy.py`. |
-| `papyrus-stack-pipeline.yaml` | The three IAM roles the release deploys with. Applied only by the approval-gated `role-stack-deploy` workflow. |
+| `papyrus-stack-pipeline.yaml` | The three IAM roles the release deploys with. Applied only by the `role-stack-deploy` workflow, after its automatic check. |
 | `papyrus-pipeline-approver.yaml` | The small stack with the roles that workflow runs as (and, on request, the account's GitHub OIDC provider). Applied once per account by a person. |
-| `role_stack.py`, `.github/workflows/role-stack-deploy.yml` | The plan and the approval-gated apply for the pipeline roles. |
-| `bootstrap.sh`, `create-environment.sh` | The one-time setup per account (and the emergency path), and the GitHub approval environment. |
+| `role_stack.py`, `.github/workflows/role-stack-deploy.yml` | The plan, the automatic check and the apply for the pipeline roles (`role-change-check.yml` runs the check on a pull request). |
+| `bootstrap.sh`, `create-environment.sh` | The one-time setup per account (and the emergency path), and the GitHub environment the apply role trusts. |
 
 ## How a release deploys
 
@@ -36,7 +36,7 @@
 
 - **A change set that cannot be created** (for example `AWS::EarlyValidation::ResourceExistenceCheck`): the job reads the change set's events before deleting it, and the job summary names the resource, the check and the reason. The usual cause is a resource with a fixed name that already exists outside the stack. `OperatorTable` uses `DeletionPolicy: RetainExceptOnCreate`, so a first create that rolls back removes its own empty table; any other leftover is deleted by a person (the pipeline never deletes data) or imported, then the release is re-run.
 - **A rollback that is refused for a permission**: the service role is changed only through `role-stack-deploy`. The release deploys the templates on `main`, so a template fix reaches AWS only with a release; a re-run of a failed run deploys the commit that run was for.
-- **Order after a fix to both**: merge the fix, approve the `role-stack-deploy` run if it asks, remove any leftover resource the summary names, then release (or re-run the release on `main`).
+- **Order after a fix to both**: merge the fix, check that the `role-stack-deploy` run applied, remove any leftover resource the summary names, then release (or re-run the release on `main`).
 
 ## The shared-tier stacks (PPY-daf673)
 
@@ -47,20 +47,22 @@
 - Edge stacks and per-site newsletter stacks are not in scope. The same file could carry them.
 - `papyrus-monitoring`'s `CodeBucket` is read from the live stack, and the template bucket for every stack comes from there. On a new account, before that stack exists, the CDK bootstrap bucket name is used (see "A new account, in order").
 
-## Changing the pipeline roles: merge, then approve in GitHub
+## Changing the pipeline roles: merge, and the automatic check applies
 
-The release deploys through IAM roles defined in `papyrus-stack-pipeline.yaml` (the `papyrus-stack-pipeline` stack). A pipeline must not be able to raise its own permissions, so the release never touches that stack. A **separate workflow** does, and only after a person approves.
+The release deploys through IAM roles defined in `papyrus-stack-pipeline.yaml` (the `papyrus-stack-pipeline` stack). A pipeline must not be able to raise its own permissions, so the release never touches that stack. A **separate workflow** does, and no person clicks anything: an automatic check stands where the approval used to be.
 
 **The normal path. Nobody runs a command.** After any change to `infra/pipeline/papyrus-stack-pipeline.yaml`, this is the whole process:
 
-1. Merge a change to `infra/pipeline/papyrus-stack-pipeline.yaml` into `develop` (or `main`). Develop is enough: roles often must change before the release that needs them, and only merged code ever runs the workflow.
-2. `.github/workflows/role-stack-deploy.yml` starts. Its `plan` job (no approval) makes a CloudFormation change set and prints all of it in the job summary, including an IAM view of every statement added or removed (role, policy, actions, resources, conditions). Anything failed stops there. If the deployed roles already match, it ends quietly and nobody is asked for anything.
-3. If something would change, the `apply` job waits in the protected GitHub environment `pipeline-roles`. The reviewer opens the run, reads the summary, and clicks **Approve**. That one click is the control.
-4. `apply` refuses if the template or the stack changed since the plan, executes that exact change set by name, polls it, and verifies the deployed template equals the repository. On a failure it prints the first failed resource and leaves the stack clean (an update rolls back; a first create that rolled back is deleted so the next run starts fresh).
+1. Open the pull request. `.github/workflows/role-change-check.yml` runs `python infra/pipeline/role_stack.py check` with no AWS access: it compares the template with its base branch and fails when the change breaks a hard rule or touches an IAM statement that `allowed-role-changes.json` does not list. The failure prints each statement's fingerprint; add `{"fingerprint": "...", "reason": "..."}` for it to `infra/pipeline/allowed-role-changes.json` in the same pull request.
+2. Merge to `develop` (or `main`). Develop is enough: roles often must change before the release that needs them, and only merged code ever runs the workflow.
+3. `.github/workflows/role-stack-deploy.yml` starts. Its `plan` job makes a CloudFormation change set against the live stack, prints all of it in the job summary with an IAM view of every statement added or removed, and runs the same check again, now against what is deployed, plus `allowed-changes.json` for any Remove or Replace. A refusal deletes the change set and stops the run, so nothing is applied. If the deployed roles already match, it ends quietly.
+4. Otherwise the `apply` job runs at once. It refuses if the template or the stack changed since the plan, executes that exact change set by name, polls it, and verifies the deployed template equals the repository. On a failure it prints the first failed resource and leaves the stack clean (an update rolls back; a first create that rolled back is deleted so the next run starts fresh).
 
-**What an agent does:** after merging a role change, or when a release says "The pipeline roles are out of date" or fails "not authorized" on a role, it finds the latest `role-stack-deploy` run on `develop` or `main` and gives the reviewer the link ([workflow runs](https://github.com/AnthusAI/Papyrus/actions/workflows/role-stack-deploy.yml)) saying a pipeline-roles change awaits approval. Agents never approve it, never apply the stack another way, and never work around a refusal.
+**The hard rules** (no list can allow them; fix the template): no AWS-managed `AdministratorAccess`, `PowerUserAccess` or `IAMFullAccess`; no Allow of `*`, `iam:*`, `sts:*`, `organizations:*` or `account:*`; no identity-changing IAM action (create or pass a role, attach or put a policy, create a user or key, change a trust policy or boundary) on a resource that is not named by a prefix; no `*` principal in a trust policy; and a GitHub OIDC trust must match an exact audience and an exact subject, never a pattern.
 
-**How the release tells you the roles are out of date.** The pull-request dry run and the release's deploy compare the template in the repository with the deployed `papyrus-stack-pipeline` stack. If they differ, the job summary has a heading "The pipeline roles are out of date" and a warning annotation linking the workflow. It is a notice, never a failure. A deployed role that cannot yet read that stack (roles from before this check) gets the same notice. A "not authorized" failure adds a hint naming the workflow.
+**What an agent does:** write the template change and the `allowed-role-changes.json` entries in one pull request, merge it when its checks are green, then read the `plan` and `apply` jobs of the `role-stack-deploy` run ([workflow runs](https://github.com/AnthusAI/Papyrus/actions/workflows/role-stack-deploy.yml)) to confirm the roles were applied. Agents never apply the stack another way and never work around a refusal.
+
+**Residual risk, plainly.** A pull request that changes the template can also change the check, its lists or this workflow, because they live in the same repository, so the check catches mistakes and unlisted changes, not a determined change to its own rules. The outer wall is the approver stack below: `papyrus-pipeline-roles-cloudformation` can only touch the three pipeline roles and their managed policies by name, and the approver stack itself is changed only by a person, never by the workflow. The branch ruleset (`protect-branches.sh`) requires green tests before any of it merges.
 
 ### The approval roles, and what they can do
 
@@ -83,8 +85,8 @@ This is the single step the workflow cannot do for itself: create the small appr
 export AWS_PROFILE=<profile for the account>      # log in first, for example aws sso login
 infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only
 
-# 2. In GitHub: the environment `pipeline-roles` with the reviewer and the develop/main branch limit.
-infra/pipeline/create-environment.sh --reviewer <github login>
+# 2. In GitHub: the environment `pipeline-roles` with the develop/main branch limit (no reviewer).
+infra/pipeline/create-environment.sh
 ```
 
 `bootstrap.sh` checks the account you named, shows a change set, asks you to type `yes`, applies it, sets the `AWS_ACCOUNT_ID` repository variable and verifies the roles. Re-run it only when `papyrus-pipeline-approver.yaml` changes. `create-environment.sh` needs the `gh` CLI signed in as a repository administrator; it is safe to run again. After these two commands, the first run of `role-stack-deploy` creates the `papyrus-stack-pipeline` stack the same way as any later change: plan, approve.

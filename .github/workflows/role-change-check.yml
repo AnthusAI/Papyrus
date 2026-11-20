@@ -1,0 +1,32 @@
+# The automatic check on the pipeline roles' template, before the merge (infra/pipeline/role_stack.py check). No AWS access: it compares the
+# template on the pull request with the one on its base branch. A change that breaks a hard rule, or touches an IAM statement that
+# allowed-role-changes.json does not list by fingerprint, fails here and prints the fingerprints to list. The same check runs again, against the
+# live stack, in role-stack-deploy.yml's plan job after the merge, and stops the apply.
+name: role-change-check
+
+on:
+  pull_request:
+    paths:
+      - "infra/pipeline/papyrus-stack-pipeline.yaml"
+      - "infra/pipeline/allowed-role-changes.json"
+      - "infra/pipeline/allowed-changes.json"
+      - "infra/pipeline/role_stack.py"
+      - ".github/workflows/role-change-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - name: The changed IAM statements are allowed
+        run: python infra/pipeline/role_stack.py check --base-ref "origin/${{ github.base_ref }}" | tee "$GITHUB_STEP_SUMMARY"
