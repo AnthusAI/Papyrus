@@ -40,8 +40,10 @@ _HOW_TO_PROCEED = {
 
 def story_kind(client, item: dict[str, Any]) -> str | None:
     """Which of the three kinds ``item`` is, or None for a Story that went through the newsroom (and for anything that is not a Story, unless it is a translation)."""
-    if localization_original(item, getattr(client, "tenant_id", None)) is not None:
-        return TRANSLATION
+    from .authored_editions import is_authored
+
+    if localization_original(item, getattr(client, "tenant_id", None)) is not None and not is_authored(item):
+        return TRANSLATION   # an independently authored companion is not a machine translation: it has its own checklist and the ordinary gates (PPY-219a24)
     from .content_item_lifecycle import is_story_item_type
 
     if not is_story_item_type(item.get("type")):
