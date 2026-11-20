@@ -168,7 +168,7 @@ jobs:
           echo "$RESULTS"
           for r in $RESULTS; do [ "$r" = success ] || { echo "a ts job did not succeed: $r"; exit 1; }; done
 
-  # ---- python: guards, unit tests (xdist) and the behave suite in three shards, then one aggregate named `python` ----
+  # ---- python: guards, unit tests (xdist) in two shards and the behave suite in three, then one aggregate named `python` ----
 
   python-checks:
     needs: reuse
@@ -190,24 +190,34 @@ jobs:
       - name: Pending Reference intake handler and concurrency
         run: poetry run pytest -vv procedures/newsroom/tests/test_reference_intake.py
 
+  # The unit tests as two jobs. A test file's path decides its job (conftest.py, `--shard`), so the two together run every file exactly once.
   python-unit:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    name: python-unit (shard ${{ matrix.shard }} of 2)
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/python-deps
       - uses: ./.github/actions/node-deps
       - name: MCP private services and domain behavior
+        if: matrix.shard == 0
         run: |
           poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py src/papyrus_content/mcp_story_atomic_test.py src/papyrus_content/mcp_story_transaction_test.py src/papyrus_content/mcp_publish_request_test.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
       # pytest-xdist: one worker per vCPU.
       - name: Python unit tests
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "2"
         run: |
-          poetry run pytest -q -n auto \
-            --ignore=procedures/newsroom/tests/test_content_cli_live.py \
+          poetry run pytest -q -n auto --shard "$SHARD/$SHARDS" \
+            --ignore=procedures/newsroom/tests/test_content_cli_live.py
 
   # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
   # Feature files live in one directory per product area (features_backend/README.md). infra/pipeline/behave_side_by_side.py deals them
