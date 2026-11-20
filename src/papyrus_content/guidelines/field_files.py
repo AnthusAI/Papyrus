@@ -157,9 +157,11 @@ def parse_set(files: dict[str, str], *, section: str | None = None, language: st
         if guideline is None:
             continue
         meta = guideline.meta
-        for key, wanted, label in (("kind", WRITING, "kind"), ("scope", scope, "scope")):
-            if meta[key] != wanted:
-                problems.append(guideline_files.Problem(name, key, f"must be {wanted} in this set of guidelines", "wrong_lineage"))
+        if meta["kind"] != WRITING:
+            problems.append(guideline_files.Problem(name, "kind", f"must be {WRITING} in this set of guidelines", "wrong_lineage"))
+        # A rule file (not a field file) may also be scoped to one channel (``channel/x``): the set's own scope is the layer it comes from, and the channel limits where the rule applies.
+        if meta["scope"] != scope and not (name not in KEY_OF and str(meta["scope"]).startswith("channel/")):
+            problems.append(guideline_files.Problem(name, "scope", f"must be {scope} (or channel/<name> for a rule file) in this set of guidelines", "wrong_lineage"))
         if guideline.language.lower() != want_language.lower():
             problems.append(guideline_files.Problem(name, "language", f"must be {want_language} in this set of guidelines", "wrong_lineage"))
         other = seen.setdefault(meta["id"], name)

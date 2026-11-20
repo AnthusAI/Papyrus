@@ -3,7 +3,7 @@
   "title": "The Translation lifecycle runs itself",
   "description": "A published Story in a site with other languages needs a translation per language: wanted, translating, held (a quotation or a check needs a person), ready, published, stale (the source changed). A new source version marks affected blocks stale and wakes the translator for those blocks only; blocks a person corrected are pinned and never overwritten. A held translation raises one flag and waits; the others proceed.\n\n**Acceptance criteria**\n- Every published Story has, per language, exactly one state.\n- A source edit re-translates only what changed.\n- A hold blocks one translation, never the queue.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- translation-lifecycle.feature: a publish wants one translation per language; an edit marks only changed blocks stale; a pinned block survives; a hold flags once and others proceed.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Lifecycles that run themselves: Reference, Idea, Translation, Illustration. Slice code K3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -21,9 +21,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "bbdea7ee-e310-42da-889d-c671057e9a75",
+      "author": "home",
+      "text": "Frozen by Ryan (always-on feature freeze). PR left open as a draft, not merged.",
+      "created_at": "2026-11-19T13:39:40.403890Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:43:12.412763Z",
-  "updated_at": "2026-11-19T11:59:53.662034Z",
+  "updated_at": "2026-11-19T13:39:40.404204Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

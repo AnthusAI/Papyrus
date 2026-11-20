@@ -53,7 +53,7 @@ Feature: A review stamp in a pod stays a claim after the load
     Given the pod is loaded
     And a person closes every required step of the story for the note "slow-water.md" except the rating
     And the newsroom requires a person's approval before anything publishes
-    When an automation publishes the story for the note "slow-water.md"
+    When a person without the site's approval publishes the story for the note "slow-water.md"
     Then the publish was refused with the code "approval-required"
     And no story is published
 

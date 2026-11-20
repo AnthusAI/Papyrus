@@ -116,7 +116,7 @@ def resolve_guidelines_for(client, arguments: dict, caller: Caller, files: Docum
             from papyrus_content.editorial_languages import canonical
 
             language = canonical(language)
-        answer = resolve_guidelines(GuidelineStore(client, files), kind, section, language)
+        answer = resolve_guidelines(GuidelineStore(client, files), kind, section, language, arguments.get("channel"))
     except LookupError as error:
         raise ImageOperationError("invalid_input", str(error)) from error
     except GuidelineError as error:

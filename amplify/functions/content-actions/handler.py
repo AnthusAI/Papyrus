@@ -786,7 +786,7 @@ def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None 
         },
     }
     if record["status"] == "published" and projection_configured():
-        published = publish_item(client, record["id"], actor=actor, approved_by=approved_by)
+        published = publish_item(client, record["id"], actor=actor, approved_by=approved_by, by_person=approved_by)
         response["item"]["versionNumber"] = published.version_number
         response.update(project_item_action(client, record["id"], unpublished=False))
     return response
@@ -881,7 +881,7 @@ def drain_publish_queue_action() -> dict:
     return {"ok": True, "scheduled": bool(schedule_projection_task({"task": "drain"}, "batch publish"))}
 
 
-def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
+def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None, by_person: str | None = None) -> dict:
     if arguments.get("jobStatus"):
         return projection_status_action(arguments)
     if arguments.get("drain") is True:
@@ -890,7 +890,7 @@ def publish_item_action(arguments: dict, actor: str, approved_by: str | None = N
     candidate = client.get_record("Item", arguments["id"]) or {}
     live = client.get_record("PublishedItem", published_item_id_for(candidate.get("lineageId") or arguments["id"]))
     render_preflight(client, arguments["id"])   # a page the site cannot render is refused before any published data is written
-    result = publish_item(client, arguments["id"], actor=actor, approved_by=approved_by)
+    result = publish_item(client, arguments["id"], actor=actor, approved_by=approved_by, by_person=by_person)
     response = {
         "ok": True,
         "changed": result.changed,
@@ -1168,7 +1168,8 @@ def _handle_field(event):
         if field == "saveItemDraft":
             return save_item_draft_action(arguments, actor, person_from_event(event))
         if field == "publishItem":
-            return publish_item_action(arguments, actor, person_from_event(event))
+            person = person_from_event(event)
+            return publish_item_action(arguments, actor, person, person)
         if field == "createStoryFromReference":
             return create_story_from_reference_action(arguments, actor)
         if field == "moveStoryStage":

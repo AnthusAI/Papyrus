@@ -141,7 +141,7 @@ def admin_resumes(context, responsibility, why):
 def admin_sets_site_values(context, why):
     context.window = {"start": "22:00", "end": "06:00", "timeZone": "America/New_York"}
     context.budget = {"amountUsd": 25, "period": "week"}
-    context.tiers = {"editorial": "model-a", "work": "model-b", "bulk": "model-c"}
+    context.tiers = {"editorial": "gpt-6-luna", "work": "gpt-6-luna", "bulk": "gpt-6-luna"}
     for field, value in (("quietWindow", context.window), ("budget", context.budget), ("tiers", context.tiers)):
         _policy(context).set_value(TENANT, ADMIN, field, value, reason=why)
 

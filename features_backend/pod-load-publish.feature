@@ -1,8 +1,9 @@
 @pod @checklist-gate
 Feature: A pod load publishes a Story whose front matter says it is published, through the site's publish step
   A note in a pod with a site that says `stage: published` is published after it is loaded, by the same publish step a person's `papyrus content publish` uses:
-  the newsroom's own rules still decide. A closed checklist, a rating where the site requires one, a person's approval where the site requires it and
-  every other publish rule apply as they always do, and a load never forces or bypasses one. When a rule refuses, the load reports the refusal for that
+  the newsroom's own rules still decide. A person's approval where the site requires it and every other publish rule apply as they always do, and a load
+  never forces or bypasses one. A Story (not a Page) loaded from a pod publishes only by a person's hand, so the load's publish of a Story is always refused
+  ([publish-person-only.feature](publish-person-only.feature)): the closed checklist and the rating are met by the person who publishes it. When a rule refuses, the load reports the refusal for that
   note and the note stays loaded as a draft; the other notes of the load go on. A note that does not say published stays unpublished, a private pod's
   notes are never published, and loading an unchanged file again does nothing. Every scenario runs against a fake newsroom and a fake page build: nothing
   is published on a live site.
@@ -58,7 +59,7 @@ Feature: A pod load publishes a Story whose front matter says it is published, t
     And the site's page build was asked for 0 times
     And the pod report says "nothing was published"
 
-  Scenario: A Story the checklist refuses is reported and stays a draft
+  Scenario: A Story is refused for want of a person's hand, reported, and stays a draft
     Given the pod file "slow-water.md" has this text:
       """
       ---
@@ -72,29 +73,10 @@ Feature: A pod load publishes a Story whose front matter says it is published, t
     And the pod is a git repository with everything committed
     When I load the pod with "papyrus pod load POD"
     Then the pod command exits with status 0
-    And the pod report says "slow-water.md: refused [checklist-open]"
+    And the pod report says "slow-water.md: refused [person-publish-required]"
     And the pod report says "0 published, 1 refused"
     And the story for the note "slow-water.md" is a draft that is not live
     And the site's page build was asked for 0 times
-
-  Scenario: A site that requires a rating refuses a Story a pod only claims is rated
-    Given the site requires a rating before publishing
-    And the pod file "slow-water.md" has this text:
-      """
-      ---
-      id: https://example.org/id/sample-0075
-      type: papyrus:Article
-      title: Slow water
-      stage: published
-      rating: 4
-      ---
-      Slow water keeps rain on the land a little longer.
-      """
-    And the pod is a git repository with everything committed
-    When I load the pod with "papyrus pod load POD"
-    Then the pod report says "slow-water.md: refused [checklist-open]"
-    And the pod report says "Rate the Story (rated)"
-    And no story is published
 
   Scenario: A site that requires a person's approval refuses a load's publish
     Given the newsroom requires a person's approval before anything publishes

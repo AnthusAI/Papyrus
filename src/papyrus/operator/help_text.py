@@ -20,7 +20,7 @@ Operator groups:
   sections      Newsroom section maintenance
   editions      Edition planning
   procedures    Tactus and policy commands
-  automations   Automation records: list, show, runs, run (now), create, update
+  automations   Automation records: list, show, runs, run (now), create, update, attention, acknowledge
   reviews       Human review points: list, show, raise, answer, withdraw, wait, steering, recipients
   analysis      Analysis and reindex tooling
   ops           Content, corpora, categories, messages, and site copy

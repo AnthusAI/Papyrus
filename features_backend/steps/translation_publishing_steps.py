@@ -98,11 +98,27 @@ def step_publish(context):
     version = _translation(context)
     context.publish_error = None
     try:
-        publish_item(context.client, version["id"], actor=PERSON)
+        publish_item(context.client, version["id"], actor=PERSON, by_person=PERSON)
     except PublishError as error:
         context.publish_error = error
         return
     _site(context).project(version["id"])
+
+
+@when("an automation publishes the translation")
+def step_automation_publish(context):
+    context.publish_error = None
+    try:
+        publish_item(context.client, _translation(context)["id"], actor="AI (translation on publish)")
+    except PublishError as error:
+        context.publish_error = error
+
+
+@then("the translation is still a ready draft")
+def step_ready_draft(context):
+    version = _translation(context)
+    assert version["status"] != "published", version
+    assert context.client.get_record("PublishedItem", published_item_id_for(LINEAGE)) is None
 
 
 @given("a person unpublishes the translation")

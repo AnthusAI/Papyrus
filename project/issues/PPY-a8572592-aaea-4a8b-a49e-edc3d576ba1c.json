@@ -37,10 +37,17 @@
       "text": "PPY-1081ad adds a required step to this story: a forced pause drill on a test configuration set with the SES mailbox simulator (turn sending off, send to the simulator's success mailbox, record the exact error code, see the delivery failed with the pause reason; turn sending on, see the next send go out). PR #1427's SiteMailer recognises only SendingPausedException; a different code makes the delivery retry into the dead letter queue (alarmed, nothing sent). No site turns its public send path On before this passes. Documented in docs/plans/public-audiences.md and Caducus docs/public-audiences.md.",
       "created_at": "2026-11-12T23:26:45.204413Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f4a581f0-c1b4-490d-a762-586d4a6fb837",
+      "author": "home",
+      "text": "lead8: not started. Blocked by open tickets PPY-819117 (SES events to EventBridge), PPY-c522bf (sending as each site) and PPY-6bcae9 (DMARC report mailbox, Ryan's choice); every item (DMARC template applied by the pipeline, simulator drill, pause drill, dead-letter alarm, warm-up and seed inboxes) needs a live SES account or DNS zone, so it cannot be built or verified without a deploy. Still open for Ryan from the ticket: (1) separate MoM onto its own SES account later, or keep shared reputation with these guardrails? (2) who owns the seed inboxes at Gmail, Outlook, Yahoo and Apple?",
+      "created_at": "2026-11-19T11:47:27.873338Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T12:46:03.581608Z",
-  "updated_at": "2026-11-12T23:26:58.205603Z",
+  "updated_at": "2026-11-19T11:47:27.874062Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
