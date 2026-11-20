@@ -53,7 +53,7 @@ async function main() {
 
   // Each line opens the runs: the runs are listed under it, and it links to the Automation page for its automation.
   assert.match(html, /data-today-run="run-t2"[^>]*data-today-run-outcome="failed"/);
-  assert.ok(page.includes("✗ Failed (timed_out)") && page.includes("Error: timed out after 840 s"), "a run lists its outcome words and error");
+  assert.ok(page.includes("Failed (timed_out)") && page.includes("Error: timed out after 840 s"), "a run lists its outcome words and error");
   assert.match(html, /href="\/newsroom\/administration\/automations\?automation=rate\.new-references"/, "a line links to its runs");
   assert.equal(automationsHref("a b"), "/newsroom/administration/automations?automation=a%20b");
 

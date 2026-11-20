@@ -147,7 +147,7 @@ def read_candidate(client: Any, lineage: str, issue_types: Collection[str] = ())
     version = int(published.get("versionNumber") or 1)
     return Candidate(story=StoryRef(lineage, head["id"], version), section=published.get("section") or None, story_type=published.get("type"), issue=published.get("type") in issue_types,
                      tags=tags_of(front_matter(published)), stars=int(effective_rating(head)["stars"]),
-                     reviewed_source=ChecklistReviewStamps(client).reviewed(lineage, version), translation=localization_original(published) is not None)
+                     reviewed_source=ChecklistReviewStamps(client).reviewed(lineage, version), translation=localization_original(published, getattr(client, "tenant_id", None)) is not None)
 
 
 def issue_types_of(document: Mapping[str, Any]) -> set[str]:

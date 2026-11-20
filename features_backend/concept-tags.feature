@@ -24,6 +24,19 @@ Feature: An editor or an agent tags a story or a Reference with an existing conc
     Then the tagging succeeds and prints "write" for "Voice Cloning" with a public page
     And the only story edge is on "item-big" and none is on the translation
 
+  Scenario: A story on a tenant backend is tagged although its stored language group carries the tenant prefix
+    Given the site is the tenant backend "machines-on-machines", whose stored language groups carry the tenant prefix
+    When a signed-in editor "Grace Editor" tags the story "big" with the concept "#voice-cloning"
+    Then the tagging succeeds and prints "write" for "Voice Cloning" with a public page
+    And the only story edge is on "item-big" and none is on the translation
+
+  Scenario: A translation on a tenant backend is tagged on its original, found through the prefixed language group
+    Given the story "big" has a Spanish translation "big--es-419"
+    And the site is the tenant backend "machines-on-machines", whose stored language groups carry the tenant prefix
+    When a signed-in editor "Grace Editor" tags the story "big--es-419" with the concept "#voice-cloning"
+    Then the tagging succeeds and prints "write" for "Voice Cloning" with a public page
+    And the only story edge is on "item-big" and none is on the translation
+
   Scenario: An editor tags a Reference the same way
     When a signed-in editor "Grace Editor" tags the Reference "reference-a" with "Voice Cloning"
     Then the tagging succeeds and prints "write" for "Voice Cloning" with a public page

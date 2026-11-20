@@ -1533,12 +1533,20 @@ const definitions = {
       newsroomFeedKey: a.string(),
       usage: a.json(),
       costUsd: a.float(),
+      /** `attention`, only while the run needs a person (it failed, or its outcome is unknown) and nobody has acknowledged it; absent otherwise, so the attention index is sparse (PPY-577310). A shared stack puts the tenant in front. */
+      attentionKey: a.string(),
+      /** When the run needed attention (its finish time). The sort key of the attention index; absent with `attentionKey`. */
+      dueAt: a.datetime(),
+      /** Who acknowledged the run and when. Acknowledging clears `attentionKey` and `dueAt`; the run stays as history. */
+      acknowledgedAt: a.datetime(),
+      acknowledgedBy: a.string(),
     })
     .secondaryIndexes((index) => [
       index("procedureId").sortKeys(["requestedAt"]).queryField("listProcedureRunsByProcedureAndRequestedAt"),
       index("assignmentId").sortKeys(["requestedAt"]).queryField("listProcedureRunsByAssignmentAndRequestedAt"),
       index("runStatus").sortKeys(["requestedAt"]).queryField("listProcedureRunsByStatusAndRequestedAt"),
       index("newsroomFeedKey").sortKeys(["requestedAt"]).queryField("listProcedureRunsByFeedAndRequestedAt"),
+      index("attentionKey").sortKeys(["dueAt"]).queryField("listProcedureRunsByAttentionKeyAndDueAt"),
     ])
     .authorization((allow) => [
       allow.group("editor").to(["read"]),

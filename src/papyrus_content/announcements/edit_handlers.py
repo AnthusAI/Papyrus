@@ -181,8 +181,27 @@ def example(client: Any, arguments: dict, caller: Caller, policy: AgentPolicySto
     return Outcome(result, _publication(client))
 
 
+def preferred(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None) -> Outcome:
+    from .deliveries import Deliveries
+    from .delivery_examples import Examples
+    from .delivery_versions import PREFERRED, Versions
+    from .records import RecordError
+
+    if caller.kind != "person" or not caller.subject:
+        raise ImageOperationError("human_required", "How a Delivery should have read is a person's: a preferred version teaches, and only a person teaches.")
+    deliveries = Deliveries(client, files)
+    row = _delivery(deliveries, arguments)
+    try:
+        saved = Versions(deliveries).save(row["id"], replaces=int(arguments["replaces"]), text=arguments["text"], by=caller.subject, owner="human", now=now, preferred_only=True)
+        if saved.status == PREFERRED and (arguments.get("scope") or arguments.get("reason")):
+            Examples(deliveries).record(row["id"], by=caller.subject, scope=arguments.get("scope"), reason=arguments.get("reason"), now=now)
+    except RecordError as refused:
+        raise _refused(refused) from refused
+    return Outcome(_result(deliveries.get(row["id"]) or saved.row, saved.status, saved.entry, saved.reason), _publication(client))
+
+
 EDIT_HANDLERS: dict[str, Callable[..., Outcome]] = {"announcements_draft": draft, "announcements_candidate_choose": candidate_choose, "announcements_pinned_change": pinned_change,
-                                                    "announcements_versions": versions_show, "announcements_unlock": unlock, "announcements_example": example}
+                                                    "announcements_versions": versions_show, "announcements_unlock": unlock, "announcements_example": example, "announcements_preferred": preferred}
 
 
 def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_factory: Callable[[Any], AgentPolicyStore] | None = None, files: Any = None,
