@@ -55,10 +55,11 @@ def test_source_guard(tenant, group, lineage, eligible):
     assert source_eligibility(tenant, group, lineage) is eligible
 
 
-def test_dedicated_site_does_not_inherit_worker_tenant_or_input_tenant(monkeypatch):
+def test_a_request_without_a_tenant_does_not_inherit_the_workers_or_the_inputs(monkeypatch):
     monkeypatch.setenv("PAPYRUS_TENANT_ID", TENANT)
-    request = launched_request(None)
+    request = launched_request()
     request["input"]["tenantId"] = "caller-controlled"
+    request.pop("tenantId")
     environment = pr.child_environment(pr.validate_request(request), None)
     assert "PAPYRUS_TENANT_ID" not in environment
     assert source_eligibility(environment.get("PAPYRUS_TENANT_ID"), "story-1")
@@ -72,6 +73,11 @@ def test_invalid_explicit_tenant_is_not_runnable(tenant):
         pr.validate_request(request)
 
 
+def wake_event(request):
+    from papyrus_content import agent_wakes
+    return {"Records": [{"eventSource": "aws:sqs", "messageId": "m-1", "body": agent_wakes.message_body(request)}]}
+
+
 def test_handler_scopes_parent_and_child_and_clears_warm_tenant(monkeypatch):
     monkeypatch.setenv("PAPYRUS_GRAPHQL_ENDPOINT", "https://unused.example/graphql")
     monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
@@ -83,11 +89,14 @@ def test_handler_scopes_parent_and_child_and_clears_warm_tenant(monkeypatch):
         observed.append(os.environ.get("PAPYRUS_TENANT_ID"))
         return object()
     with patch("papyrus_content.graphql_authoring.PapyrusGraphQLAuthoringClient", side_effect=client), \
-         patch.object(pr, "run_procedure_request", return_value={"runStatus": "completed", "runId": "test"}) as run:
+         patch.object(pr, "policy_for", return_value=None), \
+         patch.object(pr, "run_procedure_request", return_value={"runStatus": "completed", "runId": "test", "outcome": "acted"}) as run:
         for tenant in (TENANT, None):
-            request = launched_request(tenant)
-            request.pop("openaiKeyParameter")
-            pr.handler(request, None)
+            request = launched_request(TENANT)
+            request.pop("openaiKeyParameter", None)
+            if tenant is None:
+                request.pop("tenantId")
+            pr.handler(wake_event(request), None)
             assert run.call_args.kwargs["environment"].get("PAPYRUS_TENANT_ID") == tenant
     assert observed == [TENANT, None]
 

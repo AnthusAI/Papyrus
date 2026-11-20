@@ -66,12 +66,14 @@ def validate_request(request: dict) -> dict:
         raise ProcedureNotRunnable(str(invalid)) from invalid
     if not isinstance(request.get("input") or {}, dict):
         raise ProcedureNotRunnable("input must be an object")
-    tenant_id, site_bucket = str(request.get("tenantId") or ""), str(request.get("siteBucket") or "")
-    if tenant_id:
+    tenant_id, site_bucket = request.get("tenantId"), str(request.get("siteBucket") or "")
+    if tenant_id is not None:   # present means a publication tenant: a string that is a valid tenant id, never an empty or coerced value
         try:
-            validate_tenant_id(tenant_id)
-        except TenantError as invalid:
-            raise ProcedureNotRunnable(str(invalid)) from invalid
+            if not isinstance(tenant_id, str):
+                raise ValueError("tenant must be a string")
+            tenant_id = validate_tenant_id(tenant_id)
+        except (TenantError, ValueError) as invalid:
+            raise ProcedureNotRunnable("tenantId must be a valid publication tenant id") from invalid
     if site_bucket and not S3_BUCKET.match(site_bucket):
         raise ProcedureNotRunnable("siteBucket must be an S3 bucket name")
     timeout = request.get("timeoutSeconds")
