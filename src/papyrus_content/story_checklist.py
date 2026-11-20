@@ -124,6 +124,7 @@ def translation_procedure(site: Procedure) -> Procedure:
 
 def procedure_for_lineage(client, lineage: str) -> tuple[Procedure, bool]:
     """The procedure whose steps ``lineage``'s checklist has, and whether the lineage is a translation (its newest version names the original it translates)."""
+    from .authored_editions import is_authored
     from .item_language import localization_original
     from .story_reporting import latest_story_version
 
@@ -132,7 +133,7 @@ def procedure_for_lineage(client, lineage: str) -> tuple[Procedure, bool]:
         current = latest_story_version(client, lineage)
     except ValueError:   # no such Story: the caller's own error says so
         return site, False
-    if localization_original(current, getattr(client, "tenant_id", None)) is None:
+    if localization_original(current, getattr(client, "tenant_id", None)) is None or is_authored(current):
         return site, False
     return translation_procedure(site), True
 
@@ -594,6 +595,7 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
 
     A Story that has no checklist yet (made before this existed) gets one first, marked done where evidence exists, so nothing slips through
     for want of a record. Raises ``ChecklistError`` naming each open step and the command that closes it."""
+    from .authored_editions import is_authored
     from .content_item_lifecycle import is_story_item_type
     from .item_language import localization_original
 
@@ -601,7 +603,7 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
         return
     lineage = item.get("lineageId") or item["id"]
     procedure = procedure_of(client)   # a procedure that cannot be read stops the publish: nothing guesses which one the site has
-    if localization_original(item, getattr(client, "tenant_id", None)) is not None:
+    if localization_original(item, getattr(client, "tenant_id", None)) is not None and not is_authored(item):
         return _require_language_checklist_closed(client, item, lineage, translation_procedure(procedure))
     rows = read_steps(client, lineage)
     if not rows or any(step.key not in {row["stepKey"] for row in rows} for step in template_steps(procedure) if step.key != PUBLISH_KEY):

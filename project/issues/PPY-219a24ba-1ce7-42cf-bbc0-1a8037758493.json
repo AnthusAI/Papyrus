@@ -1,0 +1,28 @@
+{
+  "id": "PPY-219a24ba-1ce7-42cf-bbc0-1a8037758493",
+  "title": "Independently authored language companion Stories",
+  "description": "Provide a distinct authored-edition workflow retaining different structure and sources, truthful AI/person authorship, locale linkage, draft gates, and protection from localization overwrite. Preserve strict import-translation parity. Local tests only; no production changes.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9a4e9cae-63b8-497a-b13f-8d76ceb50b19",
+      "author": "home",
+      "text": "Local implementation on fix/authored-story-editions. 83 BDD scenarios/650 steps and 36 targeted unit tests pass; strict faithful importer regression also passed 25 scenarios. Actual private ES/ZH drafts tested offline, bytes preserved. No production writes or release. Pending independent review and root permission before push.",
+      "created_at": "2026-11-17T11:35:53.386622Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-17T11:25:44.852692Z",
+  "updated_at": "2026-11-17T11:35:53.387235Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
