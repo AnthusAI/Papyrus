@@ -3,16 +3,24 @@
   "title": "stories save-version drops MediaAsset rows, so versioned articles with images cannot publish",
   "description": "save_story_version creates a new Item id without MediaAsset rows; publish fails image-missing. Fix: copy MediaAsset rows for local images from the most recent earlier version that has them.",
   "type": "bug",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c38f2b9f-753c-441f-bf26-f7a8c9ce6536",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-10-31; paused, not being worked on.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T13:12:07.440767Z",
-  "updated_at": "2026-10-31T13:12:15.498138Z",
+  "updated_at": "2026-11-20T13:52:20.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

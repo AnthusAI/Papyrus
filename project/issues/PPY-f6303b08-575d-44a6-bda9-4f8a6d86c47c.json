@@ -3,7 +3,7 @@
   "title": "Restore editor Reference selection and truthful review feedback",
   "description": "As an editor, I can select pending References, inspect actual publication and Section prediction state, approve or reject with optional explanation, and revise persisted feedback through authorized existing APIs. Scope: editor UI and required API integration; no email intake (PPY-65026c), training, production labels, merge or deployment. Reuse existing curation/relevance work. Acceptance: executable Gherkin plus fixture unit/integration/browser coverage of selection, prediction absence/error, optional explanation, persistence, authorization, failure recovery and repeated-click protection.",
   "type": "bug",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -46,11 +46,18 @@
         "model": "gpt-6",
         "name": "editor-reference-review"
       }
+    },
+    {
+      "id": "d25929ad-75ba-4a3d-94a4-29c1095194bb",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: work shipped on develop (#658); any follow-ups are in the notes above and need their own records.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T14:05:57.311107Z",
-  "updated_at": "2026-10-23T14:38:54.457129Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "closed_at": "2026-11-20T14:03:43.000000Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6"

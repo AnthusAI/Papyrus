@@ -3,7 +3,7 @@
   "title": "Board, score and freshness client components",
   "description": "As a reader, I want a fast board that tells me how fresh its numbers are, so that I trust what I see.\n\nStandard components: ranked board (sortable table from snapshot JSON), score readout (5-segment meter, value, n; grey when below a threshold), vote control (part of the votes plugin), \"updated N min ago\" label. Content that matters to search engines and agents is rendered as text; the user's own vote updates optimistically.\n\n```gherkin\nFeature: Board components\n  Scenario: Render from JSON\n    Given a board JSON file\n    Then the board component renders ranked rows with scores and counts\n\n  Scenario: Freshness\n    Then the component shows how long ago the snapshot was generated\n\n  Scenario: Optimistic own vote\n    When the signed-in reader votes\n    Then the reader's own control updates at once, before the next snapshot\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -36,11 +36,18 @@
         "model": "Sonnet-5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "61cdae9c-c661-4bea-af08-23b13dd66dc1",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: work shipped on develop (commits); any follow-ups are in the notes above and need their own records.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:28.749659Z",
-  "updated_at": "2026-10-22T11:29:09.105389Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "closed_at": "2026-11-20T14:03:43.000000Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

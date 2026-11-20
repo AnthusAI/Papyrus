@@ -3,16 +3,38 @@
   "title": "Embed an S3-projected site under a host site's path",
   "description": "As a publication owner whose main website is a separate app, I want the projected article site to be served under a path of that website (for example dataparade.io/posts), so that publishing an article never needs a redeploy of the host app and readers stay on one domain.\n\nToday the s3-projection assumes it owns the whole domain: every object key and every generated link is rooted at /. A host can only mount it by routing many root paths (/css/, /assets/, /_data/, feeds, sitemap) to the Papyrus edge, and those collide with the host's own files.\n\nDefinition of done:\n- projection.json urls.basePath puts every projected page and file, and every URL Papyrus generates, under the prefix (story).\n- The hosting runbook documents mounting a projection on another CloudFront distribution (story).\n- First user: Data Parade (PPY-d74fb4) at dataparade.io/posts.\n\nNot included here (separate backlog stories): a core colour-scheme option, design-token themes, a headless JSON API with publish events, an MDX import command, redirecting the CMS host to the canonical public host. Host header, footer and theme toggle already work through the hooks module (masthead, footer, head_extra).",
   "type": "epic",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6989431d-2a97-4f50-8d0e-631cefc5a975",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no child is in progress and no activity since 2026-10-21; paused.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "9a8db7e2-b6fe-48a4-a7de-5b367bb991f4",
+      "author": "claude",
+      "text": "Back in progress: it has real partial work (some child records shipped and others remain); the earlier pause was wrong.",
+      "created_at": "2026-11-20T14:08:03.000000Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "9813a332-db82-4d3b-a12f-f625d6602532",
+      "author": "claude",
+      "text": "Moved to open: no merged pull request, no branch and nobody working on it.",
+      "created_at": "2026-11-20T14:10:14.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T20:29:48.650088Z",
-  "updated_at": "2026-10-21T20:31:05.282513Z",
+  "updated_at": "2026-11-20T14:10:14.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

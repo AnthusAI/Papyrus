@@ -3,7 +3,7 @@
   "title": "Message threads carry an optional section; threads include filters by section",
   "description": "Thread entries in threads.json and per-thread files get an optional section title (derived from the Reference or Story, overridden by MessageThread.sectionId). ::include{kind=threads section=...} filters; the Markdown twin applies the same filter. Docs in docs/home-page.md.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Branch feat/thread-sections, PR https://github.com/AnthusAI/Papyrus/pull/1298. Behave home-page features 150 scenarios pass, pytest 213 pass, schema parity ok, typecheck ok. Not merged, not released.",
       "created_at": "2026-11-08T16:36:19.068156Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e1a4088e-ae18-414b-ab0a-5c8c434d2d5f",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: work shipped on develop (commits); any follow-ups are in the notes above and need their own records.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T16:32:30.689882Z",
-  "updated_at": "2026-11-08T16:36:19.068371Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:03:43.000000Z",
+  "closed_at": "2026-11-20T14:03:43.000000Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

@@ -3,7 +3,7 @@
   "title": "Citation markers with no citations directive render numbered links to anchors that do not exist",
   "description": "A hacking article had [@key] citations but no ::citations{} directive. Papyrus rendered numbered links to anchors that did not exist. Before publication, flag a body with citation markers and no bibliography directive (the story checklist citation check), or supply the bibliography automatically. The standard bibliography also adds direct external links; make the format publication-configurable so a site with an internal-links-only policy (Machines on Machines) can render the bibliography without outbound hyperlinks (title, publisher and date as plain text, or links to the site's own Reference pages). Gherkin: marker without directive is flagged; a configured internal-only bibliography has no external href.",
   "type": "bug",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Branch fix/PPY-21bb36-citations, PR https://github.com/AnthusAI/Papyrus/pull/1303 (not merged, not released). Verified: test_citation_links.py 22 passed; behave citation-links, lens-check, section-fronts (existing fixtures byte-identical), markus-derive, markus-export, audience-lenses green. Not verified: unrelated suites needing latex2mathml, decision_flywheel, tsx, amplify_outputs.json. Deploy: engine release, then MoM version bump + citations.links=internal in its projection.json.",
       "created_at": "2026-11-08T17:39:50.180500Z",
       "comment_type": "default"
+    },
+    {
+      "id": "62300ed6-be3c-4020-bc04-76a54aef2112",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: merged to develop in #1303; no remaining work recorded.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T17:09:04.008357Z",
-  "updated_at": "2026-11-08T17:39:50.180745Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "closed_at": "2026-11-20T13:52:20.000000Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

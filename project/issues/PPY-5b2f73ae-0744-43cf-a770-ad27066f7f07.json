@@ -3,16 +3,24 @@
   "title": "Publishing a translation: its gates, the serving rule and the AI-translation label",
   "description": "As an editor, I want to publish a saved translation like any Story, with the translation's own gates, so a held or orphaned translation never goes live and every translated page says what it is. Shipped in PR #1518: a translation's checklist is its provenance; a held translation publishes only after a person answers its review request; it publishes and is served only while its original is published; no rating of its own; the label (interface strings translation.label and translation.original), JSON-LD translationOfWork and Markdown twin facts; its own address and pictures at first save; no new-story announcements. Spec: features_backend/translation-publishing.feature. Doc: docs/story-translation-procedure.md, Publishing a translation.",
   "type": "story",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-75649552-f242-4ed9-9b93-d27bbb29e4ce",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f4d422dc-f103-4a76-94ca-2baaab0bbc66",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: work not merged and not being worked on today (last activity 2026-11-14); back to the queue.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-14T17:29:07.508646Z",
-  "updated_at": "2026-11-14T17:29:13.758117Z",
+  "updated_at": "2026-11-20T14:03:43.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

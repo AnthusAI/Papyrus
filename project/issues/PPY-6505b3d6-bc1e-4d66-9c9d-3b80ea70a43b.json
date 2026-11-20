@@ -3,7 +3,7 @@
   "title": "Spend, budgets and model tiers",
   "description": "Money is a real constraint and the only cap on agent work. One ledger counts spend per site and budget cycle; at the budget, paid work waits for the next cycle and one flag is raised. Which model does which work is configuration. Done when every paid run is counted, a site at its budget stops paid work and says so, and no fixed dollar constant remains in code.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,9 +12,17 @@
     "always-on-agents"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b1cc7369-ac3f-4e39-993c-3f7db5a37a1a",
+      "author": "claude",
+      "text": "Back in progress: spend work under the always-on agents initiative is live.",
+      "created_at": "2026-11-20T14:19:17.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:42:24.705810Z",
-  "updated_at": "2026-11-16T22:42:24.705849Z",
+  "updated_at": "2026-11-20T14:19:17.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

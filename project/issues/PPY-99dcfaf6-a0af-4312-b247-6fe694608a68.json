@@ -3,16 +3,24 @@
   "title": "Images: srcDark / .dark pairing for light and dark article images",
   "description": "Ryan 2026-11-01: automatic light/dark support for article images. ::image{srcDark} (or figure.dark.png next to figure.png) renders light and dark variants; stock CSS follows data-theme on the root, OS preference as fallback. Docs: markus-content-markup.md, how-a-publish-flows.md. Specs: features_backend/image-dark-variant.feature.",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "45aa46b7-6c26-48bd-94ef-2750d29c62c6",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-11-01; paused, not being worked on.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-01T18:52:18.897540Z",
-  "updated_at": "2026-11-01T18:52:27.630582Z",
+  "updated_at": "2026-11-20T13:52:20.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

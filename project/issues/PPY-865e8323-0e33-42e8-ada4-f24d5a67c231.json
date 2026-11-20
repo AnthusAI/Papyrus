@@ -3,7 +3,7 @@
   "title": "Wake contract and run outcomes",
   "description": "Every run of every agent has the same shape: a wake comes in with a key, a short run happens, and one of five outcomes is recorded (acted, nothing, asked, failed, unknown). The run record (`ProcedureRun`) is extended; no new table. Done when every run on every site carries a wake key and an outcome, an interrupted run shows as Outcome unknown and is settled without doing the work twice, and run bodies are in S3.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,9 +12,17 @@
     "always-on-agents"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2678c510-a057-407f-9ecf-6c9b7ee489e5",
+      "author": "claude",
+      "text": "Back in progress: run outcomes work under the always-on agents initiative is live.",
+      "created_at": "2026-11-20T14:19:17.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-16T22:42:23.672208Z",
-  "updated_at": "2026-11-16T22:42:23.672242Z",
+  "updated_at": "2026-11-20T14:19:17.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
