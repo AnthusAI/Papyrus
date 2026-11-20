@@ -2755,16 +2755,21 @@ def copywriting_output(client: PapyrusGraphQLAuthoringClient, options: dict[str,
     print(f"assignments\tcopywriting-output\t{len(rows)}")
 
 
-def list_assignment_events(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
-    assignment_id = options.get("assignment")
-    if not assignment_id:
-        raise ValueError("assignments events requires --assignment.")
+def read_assignment_events(client: PapyrusGraphQLAuthoringClient, assignment_id: str) -> list[dict[str, Any]]:
     events = [
         event
         for event in client.list_records("AssignmentEvent")
         if event.get("assignmentId") == assignment_id
     ]
     events.sort(key=lambda event: str(event.get("createdAt") or ""))
+    return events
+
+
+def list_assignment_events(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
+    assignment_id = options.get("assignment")
+    if not assignment_id:
+        raise ValueError("assignments events requires --assignment.")
+    events = read_assignment_events(client, assignment_id)
     for event in events:
         print(
             "\t".join(

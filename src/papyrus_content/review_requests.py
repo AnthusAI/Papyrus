@@ -489,8 +489,29 @@ def _line(request: dict[str, Any]) -> str:
     return "\t".join(["reviews", request["id"], request["mode"], request["state"], f"{subject.get('type')}:{subject.get('id')}", when, request["reason"] or ""])
 
 
+def review_lines(request: dict[str, Any]) -> list[str]:
+    lines = [_line(request), f"ask\t{request['ask'] or '-'}\nraisedBy\t{request['raisedBy']} at {request['raisedAt']}"]
+    if request["answer"]:
+        answer = request["answer"]
+        lines.append(f"answer\t{answer['decision']}\t{answer.get('steer') or '-'}\t{answer.get('feedback') or '-'}\t{answer['by']} at {answer['at']}")
+    if request["appliedIn"]:
+        lines.append(f"applied\trun {request['appliedIn']['runId']} at {request['appliedIn']['at']}")
+    for entry in request["history"]:
+        lines.append(f"history\t{entry['at']}\t{entry['event']}\t{entry.get('by', '')}\t{entry.get('note', '')}")
+    return lines
+
+
+def operator_reviews_list(client, *, state=None, mode=None, raised_by=None, subject_type=None, subject_id=None) -> dict[str, Any]:
+    found = list_reviews(client, state=state, mode=mode, raised_by=raised_by, subject_id=subject_id)
+    return {"reviews": [request for request in found if subject_type is None or request["subject"].get("type") == subject_type]}
+
+
+def operator_review_answer(client, request_id: str, *, decision: str, feedback: str | None = None, steer: str | None = None) -> dict[str, Any]:
+    return {"review": answer_review(client, request_id, decision=decision, by=os.environ.get("PAPYRUS_ACTOR_LABEL") or "papyrus-cli", feedback=feedback, steer=steer)}
+
+
 def run_command(command: str, flags: list[str]) -> None:
-    """`papyrus reviews list|show|raise|answer|withdraw|wait|steering|applied|recipients`."""
+    """`papyrus reviews raise|withdraw|wait|steering|applied|recipients`; list, show and answer run through the command registry."""
     from .graphql_authoring import create_authoring_client
     from .options import parse_boolean_option, parse_options
 
@@ -511,28 +532,7 @@ def run_command(command: str, flags: list[str]) -> None:
             raise ReviewError(f"papyrus reviews {command} needs --{name}.")
         return value
 
-    if command == "list":
-        found = list_reviews(client, state=options.get("state") if isinstance(options.get("state"), str) else None,
-                             mode=options.get("mode") if isinstance(options.get("mode"), str) else None,
-                             raised_by=options.get("raised-by") if isinstance(options.get("raised-by"), str) else None)
-        show(found)
-        if not as_json:
-            for request in found:
-                print(_line(request))
-    elif command == "show":
-        request = get_review(client, need("id"))
-        show(request)
-        if not as_json:
-            print(_line(request))
-            print(f"ask\t{request['ask'] or '-'}\nraisedBy\t{request['raisedBy']} at {request['raisedAt']}")
-            if request["answer"]:
-                answer = request["answer"]
-                print(f"answer\t{answer['decision']}\t{answer.get('steer') or '-'}\t{answer.get('feedback') or '-'}\t{answer['by']} at {answer['at']}")
-            if request["appliedIn"]:
-                print(f"applied\trun {request['appliedIn']['runId']} at {request['appliedIn']['at']}")
-            for entry in request["history"]:
-                print(f"history\t{entry['at']}\t{entry['event']}\t{entry.get('by', '')}\t{entry.get('note', '')}")
-    elif command == "raise":
+    if command == "raise":
         subject = {"type": need("subject-type"), "id": need("subject-id")}
         links = json.loads(options["links"]) if isinstance(options.get("links"), str) else None
         arguments = dict(subject=subject, mode=need("mode"), reason=need("reason"), ask=options.get("ask") if isinstance(options.get("ask"), str) else None,
@@ -546,11 +546,6 @@ def run_command(command: str, flags: list[str]) -> None:
                                   **arguments)
         else:
             request = raise_review(client, **arguments)
-        show(request, _line(request))
-    elif command == "answer":
-        request = answer_review(client, need("id"), decision=need("decision"), by=actor,
-                                feedback=options.get("feedback") if isinstance(options.get("feedback"), str) else None,
-                                steer=options.get("steer") if isinstance(options.get("steer"), str) else None)
         show(request, _line(request))
     elif command == "withdraw":
         request = withdraw_review(client, need("id"), by=actor, note=options.get("note") if isinstance(options.get("note"), str) else None)

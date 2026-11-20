@@ -17,6 +17,7 @@ from fake_client import FakeAuthoringClient  # noqa: E402
 
 from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content import assignments_commands, media_store, site_document, story_commands, story_images  # noqa: E402
+from papyrus_content.registered_commands import run_registered_command  # noqa: E402
 from papyrus_content.operator_errors import OperatorError  # noqa: E402
 
 LINEAGE = "story-gap"
@@ -97,10 +98,10 @@ def show(metadata=None, attachment=None):
     if attachment is not None:
         tables["ModelAttachment"] = [{"id": "att-1", "ownerId": "as-1", "role": "metadata", "sortKey": "metadata", "status": "ready"}]
     out = io.StringIO()
-    with mock.patch.object(assignments_commands, "create_authoring_client", return_value=(Client(tables), {})), \
+    with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(Client(tables), {})), \
             mock.patch("papyrus_content.assignments.download_attachment_buffer", lambda client, a: json.dumps(attachment).encode()), \
             contextlib.redirect_stdout(out):
-        assignments_commands.assignments_show(["--assignment", "as-1"])
+        run_registered_command("assignments:show", ["--assignment", "as-1"])
     return [line.split("\t") for line in out.getvalue().splitlines()]
 
 

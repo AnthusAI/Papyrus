@@ -24,13 +24,53 @@ def render_story_stars(command: RegisteredCommand, result: dict[str, Any]) -> li
                        "write" if result["applied"] else "dry-run: nothing sent"])]
 
 
+def render_assignments_list(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .assignments_commands import assignments_list_rows
+
+    if all("queueKey" in row for row in result["assignments"]):
+        return assignments_list_rows(result)
+    return [json.dumps(result, indent=2, ensure_ascii=False)]
+
+
+def render_assignment_show(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .assignments_commands import assignment_show_rows
+
+    return assignment_show_rows(result)
+
+
+def render_reviews_list(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .review_requests import _line
+
+    return [_line(request) for request in result["reviews"]]
+
+
+def render_review(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .review_requests import _line, review_lines
+
+    request = result["review"]
+    return review_lines(request) if command.command == "show" else [_line(request)]
+
+
+def render_story_show(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .story_commands import story_show_rows
+
+    return story_show_rows(result)
+
+
 def render_story_next(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
     from .story_commands import story_next_rows
 
     return story_next_rows(result)
 
 
-TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars}
+def render_reference_search(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .references_search_cli import summarize
+
+    return [summarize(result)]
+
+
+TAB_RENDERERS = {"references:search": render_reference_search, "stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars, "assignments:list": render_assignments_list, "assignments:show": render_assignment_show, "reviews:list": render_reviews_list,
+                 "reviews:show": render_review, "stories:show": render_story_show, "reviews:answer": render_review}
 
 
 def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) -> dict[str, Any]:
@@ -50,6 +90,8 @@ def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) 
         if rule["type"] == "integer":
             try:
                 value = int(value)
+                if "minimum" in rule and "maximum" in rule and not rule["minimum"] <= value <= rule["maximum"]:
+                    raise ValueError
             except (TypeError, ValueError) as error:
                 raise ValueError(f"--{flag} must be a whole number" + (f" from {rule['minimum']} to {rule['maximum']}." if "minimum" in rule and "maximum" in rule else ".")) from error
         elif rule["type"] == "object":
@@ -63,22 +105,53 @@ def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) 
     return arguments
 
 
-def run_registered_command(route: str, flags: list[str]) -> None:
+def run_registered_command(route: str, flags: list[str], *, create_client=None) -> int:
     from .graphql_authoring import create_authoring_client
     from .mcp_tools import Principal, StaffReads, call_tool
+
+    create_authoring_client = create_client or create_authoring_client
 
     command = BY_ROUTE[route]
     options = parse_options(flags)
     as_json = bool(options.pop("json", False))
+    site = options.pop("site", None) if command.signed_in_only else None
     arguments = arguments_from_options(command, options)
+    if command.signed_in_only:
+        return _run_signed_in(command, arguments, site, as_json)
     client, _ = create_authoring_client()
     result = call_tool(Principal("staff", CLI_PRINCIPAL_SUBJECT, is_operator=True), command.tool_name, arguments, staff=StaffReads(client))
-    renderer = TAB_RENDERERS.get(route)
+    _print_result(command, result, as_json)
+    return 0
+
+
+def _print_result(command: RegisteredCommand, result: dict[str, Any], as_json: bool) -> None:
+    renderer = TAB_RENDERERS.get(command.route)
     if as_json or renderer is None:
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return
     for line in renderer(command, result):
         print(line)
+
+
+def _run_signed_in(command: RegisteredCommand, arguments: dict[str, Any], site: str | None, as_json: bool) -> int:
+    import os
+    import sys
+
+    from . import signed_in_lane
+    from .mcp_tools import Principal, StaffReads, call_tool
+
+    os.environ["PAPYRUS_GRAPHQL_AUTH"] = "user"
+    try:
+        try:
+            client = signed_in_lane.client(site)
+        except ValueError as error:
+            raise signed_in_lane.Refusal(f"Not signed in or session unusable: {str(error).splitlines()[0]}") from None
+        result = call_tool(Principal("staff", CLI_PRINCIPAL_SUBJECT, is_operator=True), command.tool_name, arguments, staff=StaffReads(client))
+    except signed_in_lane.Refusal as refusal:
+        print(str(refusal), file=sys.stderr)
+        return 2
+    _print_result(command, result, as_json)
+    return 0
 
 
 def usage_line(command: RegisteredCommand) -> str:

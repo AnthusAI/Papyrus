@@ -124,7 +124,15 @@ class StaffReads(StaffStoryWrites):
             raise ValueError("Reference has no unambiguous current version and revision.")
         return {"reference": rows[0]}
 
-    def reference_search(self, principal: Principal, *, query: str, limit: int = 20, nextToken: str | None = None) -> dict:
+    def reference_search(self, principal: Principal, *, query: str, limit: int | None = None, nextToken: str | None = None,
+                         show: str | None = None, cursor: str | None = None) -> dict:
+        if principal.is_operator:
+            from .references_search_cli import operator_reference_search
+
+            if nextToken is not None:
+                raise ValueError("Invalid argument: nextToken. Use --cursor to continue a References search.")
+            return operator_reference_search(self.client, query=query, show=show, limit=limit, cursor=cursor)
+        limit = limit or 20
         self._reference_scope()
         operation = """query SearchReferences($limit: Int!, $nextToken: String, $filter: ModelReferenceFilterInput) {
           listReferences(limit: $limit, nextToken: $nextToken, filter: $filter) {
@@ -172,7 +180,16 @@ class StaffReads(StaffStoryWrites):
             _check_tenant(self.client, row)
         return rows
 
-    def story_get(self, principal: Principal, *, lineageId: str) -> dict:
+    def story_get(self, principal: Principal, *, lineageId: str, bucket: str | None = None) -> dict:
+        if principal.is_operator:
+            from .story_commands import operator_story_show
+
+            return operator_story_show(self.client, lineageId, bucket)
+        if bucket is not None:
+            raise ValueError("Invalid tool arguments.")
+        return self._story_current(principal, lineageId=lineageId)
+
+    def _story_current(self, principal: Principal, *, lineageId: str) -> dict:
         rows = [row for row in self._story_versions(lineageId) if row.get("versionState") == "current"]
         if len(rows) != 1:
             raise ValueError("Story has no unambiguous current version.")
@@ -193,7 +210,7 @@ class StaffReads(StaffStoryWrites):
                 raise ValueError()
         except (ValueError, TypeError):
             raise ValueError("Invalid Story revision.") from None
-        current = self.story_get(principal, lineageId=lineageId)["story"]
+        current = self._story_current(principal, lineageId=lineageId)["story"]
         if current["id"] != expectedCurrentVersionId or current.get("revision") != expectedRevision:
             raise ValueError("stale_revision: The Story changed.")
         query = """mutation AgentStoryStars($itemId: ID!, $lineageId: ID!, $stars: Int!, $expectedUpdatedAt: String!, $expectedStarRevision: String) {
@@ -205,14 +222,14 @@ class StaffReads(StaffStoryWrites):
                                              "expectedUpdatedAt": revision[0], "expectedStarRevision": revision[1]})
         if not (result.get("agentSetItemStars") or {}).get("ok"):
             raise RuntimeError("The site did not confirm the Story rating.")
-        return self.story_get(principal, lineageId=lineageId)
+        return self._story_current(principal, lineageId=lineageId)
 
     def story_versions(self, principal: Principal, *, lineageId: str) -> dict:
         rows = self._story_versions(lineageId)
         return {"versions": [_story_fields(row) for row in sorted(rows, key=lambda r: int(r.get("versionNumber") or 0), reverse=True)]}
 
     def story_evidence(self, principal: Principal, *, lineageId: str, limit: int = 20, nextToken: str | None = None) -> dict:
-        self.story_get(principal, lineageId=lineageId)
+        self._story_current(principal, lineageId=lineageId)
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reference evidence has no tenant ownership key.")
         operation = """query StoryEvidence($subjectStateKey: String!, $limit: Int!, $nextToken: String) {
@@ -275,16 +292,27 @@ class StaffReads(StaffStoryWrites):
         return {key: row[key] for key in ("id", "itemLineageId", "title", "status", "assignmentTypeKey", "priority", "summary", "createdAt", "updatedAt") if key in row}
 
     def assignment_get(self, principal: Principal, *, id: str) -> dict:
+        if principal.is_operator:
+            from .assignments_commands import operator_assignment_show
+
+            return operator_assignment_show(self.client, id)
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Assignments lack a tenant ownership key.")
         row = self.client.get_record("Assignment", id)
         if row is None or not row.get("itemLineageId"):
             raise ValueError("Assignment has no scoped Story.")
-        self.story_get(principal, lineageId=row["itemLineageId"])
+        self._story_current(principal, lineageId=row["itemLineageId"])
         return {"assignment": self._assignment(row)}
 
-    def assignments_list(self, principal: Principal, *, storyLineageId: str, limit: int = 20, nextToken: str | None = None) -> dict:
-        self.story_get(principal, lineageId=storyLineageId)
+    def assignments_list(self, principal: Principal, *, storyLineageId: str | None = None, limit: int = 20, nextToken: str | None = None,
+                         queue: str | None = None, status: str | None = None, type: str | None = None, section: str | None = None) -> dict:
+        if principal.is_operator and storyLineageId is None:
+            from .assignments_commands import operator_assignments_list
+
+            return operator_assignments_list(self.client, queue=queue, status=status, assignment_type=type, section=section)
+        if storyLineageId is None or any(value is not None for value in (queue, status, type, section)):
+            raise ValueError("Invalid tool arguments.")
+        self._story_current(principal, lineageId=storyLineageId)
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Assignment indexes lack a tenant ownership key.")
         operation = """query StoryAssignments($itemLineageId: ID!, $limit: Int!, $nextToken: String) {
@@ -326,10 +354,14 @@ class StaffReads(StaffStoryWrites):
         if getattr(self.client, "tenant_id", None):
             if subject.get("type") != "story" or not subject.get("id"):
                 raise PermissionError("Review has no scoped Story.")
-            self.story_get(principal, lineageId=subject["id"])
+            self._story_current(principal, lineageId=subject["id"])
         return {key: review[key] for key in ("id", "subject", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "answer", "updatedAt", "outcome")}
 
     def review_get(self, principal: Principal, *, id: str) -> dict:
+        if principal.is_operator:
+            from .review_requests import get_review
+
+            return {"review": get_review(self.client, id)}
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reviews lack a tenant ownership key.")
         row = self.client.get_record("ReviewRequest", id)
@@ -337,8 +369,14 @@ class StaffReads(StaffStoryWrites):
             raise ValueError("Review not found.")
         return {"review": self._scope_review(principal, row)}
 
-    def review_answer(self, principal: Principal, *, id: str, expectedRevision: str, decision: str,
+    def review_answer(self, principal: Principal, *, id: str, decision: str, expectedRevision: str | None = None,
                       feedback: str | None = None, steer: str | None = None) -> dict:
+        if principal.is_operator:
+            from .review_requests import operator_review_answer
+
+            return operator_review_answer(self.client, id, decision=decision, feedback=feedback, steer=steer)
+        if expectedRevision is None:
+            raise ValueError("Invalid tool arguments.")
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reviews lack a tenant ownership key.")
         from .review_requests import answer_review
@@ -375,7 +413,14 @@ class StaffReads(StaffStoryWrites):
         result = answer_review(ConditionalReviewClient(), id, decision=decision, by=f"agent:{principal.subject}", feedback=feedback, steer=steer, roles=["editor"])
         return {"review": {key: result[key] for key in ("id", "subject", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "answer", "updatedAt", "outcome")}}
 
-    def reviews_list(self, principal: Principal, *, subjectType: str, subjectId: str, state: str | None = None, mode: str | None = None, limit: int = 20, nextToken: str | None = None) -> dict:
+    def reviews_list(self, principal: Principal, *, subjectType: str | None = None, subjectId: str | None = None, state: str | None = None, mode: str | None = None,
+                     limit: int = 20, nextToken: str | None = None, raisedBy: str | None = None) -> dict:
+        if principal.is_operator:
+            from .review_requests import operator_reviews_list
+
+            return operator_reviews_list(self.client, state=state, mode=mode, raised_by=raisedBy, subject_type=subjectType, subject_id=subjectId)
+        if subjectType is None or subjectId is None or raisedBy is not None:
+            raise ValueError("Invalid tool arguments.")
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reviews lack a tenant ownership key.")
         filters = []

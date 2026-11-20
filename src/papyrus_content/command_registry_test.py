@@ -225,3 +225,130 @@ def test_the_operator_rates_a_story_without_a_revision_and_may_clear_the_rating(
     operator = Principal("staff", "cli", is_operator=True)
     call_tool(operator, "stories_set-stars", {"lineageId": "story-1", "stars": 0, "dryRun": True, "agent": "an agent"}, staff=staff)
     assert asked == [("story-1", 0, False, "an agent")]
+
+
+def test_assignments_list_is_story_scoped_for_an_external_principal_and_wide_for_the_operator(monkeypatch):
+    from .mcp_tools import call_tool
+
+    staff = StaffReads(client=object())
+    for refused in ({"queue": "q"}, {"status": "open"}, {"type": "research"}, {"section": "news"}):
+        with pytest.raises(ValueError, match="Invalid tool arguments"):
+            call_tool(STAFF_PRINCIPAL, "assignments_list", {"storyLineageId": "story-1", **refused}, staff=staff)
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "assignments_list", {}, staff=staff)
+
+    import papyrus_content.assignments_commands as assignments_commands
+
+    asked = []
+    monkeypatch.setattr(assignments_commands, "operator_assignments_list", lambda client, **filters: asked.append(filters) or {"assignments": []})
+    operator = Principal("staff", "cli", is_operator=True)
+    assert call_tool(operator, "assignments_list", {"queue": "q", "status": "open"}, staff=staff) == {"assignments": []}
+    assert asked == [{"queue": "q", "status": "open", "assignment_type": None, "section": None}]
+
+
+def test_reviews_are_subject_scoped_for_an_external_principal_and_wide_for_the_operator(monkeypatch):
+    from .mcp_tools import call_tool
+
+    staff = StaffReads(client=object())
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "reviews_list", {}, staff=staff)
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "reviews_list", {"subjectType": "story", "subjectId": "s", "raisedBy": "someone"}, staff=staff)
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "reviews_answer", {"id": "r", "decision": "approve"}, staff=staff)
+
+    import papyrus_content.review_requests as review_requests
+
+    asked = []
+    monkeypatch.setattr(review_requests, "operator_reviews_list", lambda client, **filters: asked.append(filters) or {"reviews": []})
+    operator = Principal("staff", "cli", is_operator=True)
+    assert call_tool(operator, "reviews_list", {"raisedBy": "idea-pipeline", "state": "open"}, staff=staff) == {"reviews": []}
+    assert asked == [{"state": "open", "mode": None, "raised_by": "idea-pipeline", "subject_type": None, "subject_id": None}]
+
+
+def test_story_show_gives_the_operator_the_signals_view_and_an_external_principal_only_the_current_version(monkeypatch):
+    import papyrus_content.story_commands as story_commands
+    from .mcp_tools import call_tool
+
+    monkeypatch.setattr(story_commands, "operator_story_show", lambda client, lineage_id, bucket: {"lineageId": lineage_id, "bucket": bucket})
+
+    class CurrentVersionOnlyStaff(StaffReads):
+        def _story_versions(self, lineage_id):
+            return [{"id": f"{lineage_id}-v1", "versionState": "current", "versionNumber": 1}]
+
+    staff = CurrentVersionOnlyStaff(client=object())
+    operator = Principal("staff", "cli", is_operator=True)
+    assert call_tool(operator, "stories_show", {"lineageId": "story-1", "bucket": "week"}, staff=staff) == {"lineageId": "story-1", "bucket": "week"}
+    assert call_tool(STAFF_PRINCIPAL, "stories_show", {"lineageId": "story-1"}, staff=staff)["story"]["id"] == "story-1-v1"
+    with pytest.raises(ValueError, match="Invalid tool arguments"):
+        call_tool(STAFF_PRINCIPAL, "stories_show", {"lineageId": "story-1", "bucket": "week"}, staff=staff)
+
+
+def test_references_search_gives_the_operator_word_and_meaning_search_and_an_external_principal_only_the_title_match(monkeypatch):
+    import papyrus_content.references_search_cli as references_search_cli
+    from .mcp_tools import call_tool
+
+    operator_calls = []
+    monkeypatch.setattr(references_search_cli, "operator_reference_search",
+                        lambda client, **arguments: operator_calls.append(arguments) or {"items": [], "lanes": {}, "nextCursor": None})
+
+    class TitleMatchOnlyStaff(StaffReads):
+        def _reference_scope(self):
+            return None
+
+    staff = TitleMatchOnlyStaff(client=type("Client", (), {"graphql": lambda self, operation, variables: {"listReferences": {"items": [{"id": "r1"}], "nextToken": None}}})())
+    operator = Principal("staff", "cli", is_operator=True)
+    call_tool(operator, "references_search", {"query": "memory", "show": "rated", "cursor": "c-1"}, staff=staff)
+    assert operator_calls == [{"query": "memory", "show": "rated", "limit": None, "cursor": "c-1"}]
+    assert call_tool(STAFF_PRINCIPAL, "references_search", {"query": "memory"}, staff=staff) == {"references": [{"id": "r1"}], "nextToken": None}
+    for operator_only in ({"show": "rated"}, {"cursor": "c-1"}):
+        with pytest.raises(ValueError, match="Invalid tool arguments"):
+            call_tool(STAFF_PRINCIPAL, "references_search", {"query": "memory", **operator_only}, staff=staff)
+    with pytest.raises(ValueError, match="cursor"):
+        call_tool(operator, "references_search", {"query": "memory", "nextToken": "t"}, staff=staff)
+
+
+def test_a_search_given_as_plain_words_becomes_the_registry_query_option():
+    from .references_search_cli import registry_flags_from_words
+
+    assert registry_flags_from_words(["agent", "memory", "--limit", "5", "--json"]) == ["--query", "agent memory", "--limit", "5", "--json"]
+    assert registry_flags_from_words(["--query", "agent"]) == ["--query", "agent"]
+
+
+NAMED_EXCEPTIONS_TO_THE_SHARED_HANDLER = {
+    "references:show": "reads pod backends (local or cloud) through the operator transport, which has no GraphQL handler the hosted server could share",
+    "reader:comment": "reader steering is MCP-only: the reader is a site visitor, never the operator CLI",
+    "reader:submit": "reader steering is MCP-only: the reader is a site visitor, never the operator CLI",
+}
+
+
+def test_the_commands_that_do_not_run_through_the_shared_handler_are_the_named_exceptions():
+    from .command_registry import CLI_NATIVE_ROUTES_OUTSIDE_THE_REGISTRY_SCHEMA
+
+    outside_the_shared_handler = CLI_NATIVE_ROUTES_OUTSIDE_THE_REGISTRY_SCHEMA | COMMANDS_THAT_ARE_NOT_OPERATOR_COMMANDS
+    assert outside_the_shared_handler == set(NAMED_EXCEPTIONS_TO_THE_SHARED_HANDLER)
+    assert all(NAMED_EXCEPTIONS_TO_THE_SHARED_HANDLER.values())
+
+
+UNWIRED_TOOL_TABLES_THAT_ONLY_TESTS_AND_DOCS_USE = {
+    "story_signals_mcp.py": "stars and signals tools; not served by the hosted MCP",
+    "story_withdrawal_mcp.py": "withdrawal tools; not served by the hosted MCP",
+    "page_refresh/mcp.py": "page refresh tools; not served by the hosted MCP",
+    "images/mcp.py": "image tools; not served by the hosted MCP",
+    "images/generate.py": "writes the image tool schema file that images/mcp.py reads",
+}
+
+
+def test_no_mcp_tool_is_defined_outside_the_registry_except_the_shrink_only_list_of_unwired_tables():
+    from pathlib import Path
+
+    source_root = Path(__file__).resolve().parent
+    defining_tools = set()
+    for path in source_root.rglob("*.py"):
+        relative = path.relative_to(source_root).as_posix()
+        if relative.endswith("_test.py") or relative.startswith("test_") or relative in {"mcp_tools.py", "command_registry.py"}:
+            continue
+        text = path.read_text()
+        if re.search(r"^def (\w+_tools|call_\w+_tool)\(", text, re.MULTILINE) or '"inputSchema"' in text:
+            defining_tools.add(relative)
+    assert defining_tools <= set(UNWIRED_TOOL_TABLES_THAT_ONLY_TESTS_AND_DOCS_USE), sorted(defining_tools - set(UNWIRED_TOOL_TABLES_THAT_ONLY_TESTS_AND_DOCS_USE))

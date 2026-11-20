@@ -19,6 +19,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 import test_cli_reads as support  # noqa: E402
 from papyrus.operator.errors import OperatorError  # noqa: E402
 from papyrus_content import assignments_commands, projection_trigger, publication, steering, story_commands, story_reporting  # noqa: E402
+from papyrus_content.registered_commands import run_registered_command  # noqa: E402
 
 STORIES = {"idea": "a", "reporting": "b", "spiked": "c"}
 
@@ -198,8 +199,8 @@ def _assignment(context, identifier, holder):
 def _show_assignment(context, identifier):
     client = getattr(context, "client", None) or support.Client()
     out = io.StringIO()
-    with mock.patch.object(assignments_commands, "create_authoring_client", return_value=(client, {})), contextlib.redirect_stdout(out):
-        _call(context, lambda: assignments_commands.assignments_show(["--assignment", identifier]))
+    with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, {})), contextlib.redirect_stdout(out):
+        _call(context, lambda: run_registered_command("assignments:show", ["--assignment", identifier]))
     context.output = out.getvalue()
 
 

@@ -173,3 +173,11 @@ class FakeFunctions:
     def spent(self, account_id: str, start: Any) -> str | None:
         """What ``handlers.Functions.spent`` answers: the function reads the spend ledger a spec sets as ``ledger``."""
         return self.ledger.spent(account_id, start)
+
+    def save_app(self, client_id: str, client_secret: str) -> dict:
+        if not client_id.strip() or not client_secret.strip():
+            from .x_account import AnnouncementError
+
+            raise AnnouncementError("app_keys_missing", "Enter both the client ID and the client secret from your X developer app.")
+        self.saved_app = (client_id.strip(), client_secret.strip())
+        return dict(self.connected)

@@ -43,6 +43,7 @@ class RegisteredCommand:
     operator_extra: dict[str, dict] = field(default_factory=dict)
     operator_optional: tuple[str, ...] = ()
     operator_rules: dict[str, dict] = field(default_factory=dict)
+    signed_in_only: bool = False
 
     @property
     def route(self) -> str:
@@ -71,17 +72,20 @@ def _command(group: str, command: str, audience: str, handler: str, description:
 
 
 REGISTRY: tuple[RegisteredCommand, ...] = (
-    _command("references", "search", STAFF, "reference_search", "Find References matching a phrase.", {"query": STRING}, PAGE, cli_native=True),
+    _command("references", "search", STAFF, "reference_search", "Find References matching a phrase.", {"query": STRING}, PAGE,
+             signed_in_only=True, operator_extra={"show": {"type": "string", "enum": ["unrated", "rated", "accepted", "rejected", "all"]}, "cursor": STRING}),
     _command("references", "show", STAFF, "reference_get", "Read a current Reference.", LINEAGE, cli_native=True),
     _command("references", "concept-search", STAFF, "concept_search", "Find concepts matching a phrase.", {"query": STRING}, PAGE),
     _command("references", "concept-get", STAFF, "concept_get", "Read a concept.", {"id": STRING}),
     _command("stories", "search", STAFF, "story_search", "Find Stories matching a phrase.", {"query": STRING}, PAGE),
-    _command("stories", "show", STAFF, "story_get", "Read the current version of a Story.", LINEAGE, cli_native=True),
+    _command("stories", "show", STAFF, "story_get", "Read the current version of a Story.", LINEAGE, cli_flag_aliases=STORY_FLAG,
+             operator_extra={"bucket": {"type": "string", "enum": ["day", "week", "none"]}}),
     _command("stories", "versions", STAFF, "story_versions", "List a Story's saved versions.", LINEAGE, cli_flag_aliases=STORY_FLAG),
     _command("stories", "evidence", STAFF, "story_evidence", "Read the evidence linked to a Story.", LINEAGE, PAGE),
     _command("stories", "next", STAFF, "story_next", "Read the next steps in the Story procedure.", LINEAGE, cli_flag_aliases=STORY_FLAG),
-    _command("assignments", "list", STAFF, "assignments_list", "List Assignments.", {"storyLineageId": STRING}, PAGE, cli_native=True),
-    _command("assignments", "show", STAFF, "assignment_get", "Read an Assignment.", {"id": STRING}, cli_native=True),
+    _command("assignments", "list", STAFF, "assignments_list", "List Assignments.", {"storyLineageId": STRING}, PAGE, operator_optional=("storyLineageId",),
+             operator_extra={"queue": STRING, "status": STRING, "type": STRING, "section": STRING}),
+    _command("assignments", "show", STAFF, "assignment_get", "Read an Assignment.", {"id": STRING}, cli_flag_aliases={"id": "assignment"}),
     _command("stories", "save-draft", STAFF, "story_save_draft", "Save a new immutable Story draft.",
              {**VERSION, "body": STRING, "reason": STRING}, {"frontMatter": {"type": "string"}}, writes="writes"),
     _command("references", "decide", STAFF, "reference_decide", "Accept or reject a Reference.",
@@ -90,10 +94,11 @@ REGISTRY: tuple[RegisteredCommand, ...] = (
              writes="dry-run", operator_extra={"dryRun": {"type": "boolean"}, "agent": STRING}, operator_optional=("expectedCurrentVersionId", "expectedRevision"),
              operator_rules={"stars": {"type": "integer", "minimum": 0, "maximum": 5}}),
     _command("reviews", "list", STAFF, "reviews_list", "List review requests.", {"subjectType": STRING, "subjectId": STRING},
-             {"state": STRING, "mode": STRING, **PAGE}, cli_native=True),
-    _command("reviews", "show", STAFF, "review_get", "Read a review request.", {"id": STRING}, cli_native=True),
+             {"state": STRING, "mode": STRING, **PAGE}, operator_optional=("subjectType", "subjectId"), operator_extra={"raisedBy": STRING}),
+    _command("reviews", "show", STAFF, "review_get", "Read a review request.", {"id": STRING}),
     _command("reviews", "answer", STAFF, "review_answer", "Answer a review request.",
-             {"id": STRING, "expectedRevision": STRING, "decision": STRING}, {"feedback": STRING, "steer": STRING}, cli_native=True),
+             {"id": STRING, "expectedRevision": STRING, "decision": STRING}, {"feedback": STRING, "steer": STRING}, writes="writes",
+             operator_optional=("expectedRevision",)),
     _command("stories", "request-publish", STAFF, "story_request_publish", "Request a person's approval to publish a Story.", VERSION, writes="writes"),
     _command("reader", "comment", READER, "reader_comment", "Comment on a subject under the site's reader policy.",
              {"subject": STRING, "body": STRING}, {"parent": STRING, "ratingContext": {"type": "object"}}, cli_available=False, writes="writes"),
