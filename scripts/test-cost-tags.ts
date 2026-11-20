@@ -107,22 +107,32 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
   assert.notEqual(checkoutBundleInputsHash({ ...options, functionDir: "knowledge-query" }), before, "the hash names the function's own handler");
 }
 
-const synthBackend = (out: string, extra: Record<string, string>) => {
-  const environment: NodeJS.ProcessEnv = { ...process.env, ...extra };
-  for (const key of ["PAPYRUS_COST_TAGS", "PAPYRUS_SITE_ID", "PAPYRUS_COST_TAG_WAVE", "PAPYRUS_COST_TAG_PLAN_FILE"]) if (!(key in extra)) delete environment[key];
-  const run = spawnSync(process.execPath, ["--import", "tsx", path.join(repo, "scripts/synth-site-backend.mts"), out], { cwd: repo, encoding: "utf8", env: environment });
+const COST_TAG_VARIABLES = ["PAPYRUS_COST_TAGS", "PAPYRUS_SITE_ID", "PAPYRUS_COST_TAG_WAVE", "PAPYRUS_COST_TAG_PLAN_FILE"];
+// A whole-backend synth takes minutes, and the scenarios below need three that share nothing, so the three run side by side.
+const synthBackendsSideBySide = (wanted: { out: string; extra: Record<string, string> }[]) => {
+  const requested = wanted.map(({ out, extra }) => ({ out, environment: extra, without: COST_TAG_VARIABLES.filter((key) => !(key in extra)) }));
+  const run = spawnSync(process.execPath, ["--import", "tsx", path.join(repo, "scripts/synth-site-backends-side-by-side.mts"), JSON.stringify(requested)], { cwd: repo, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr || run.stdout);
-  const files = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));
-  assert.ok(files.length > 5, `expected the backend's nested stacks, got ${files.join(", ")}`);
-  return Object.fromEntries(files.map((file) => [file, JSON.parse(fs.readFileSync(path.join(out, file), "utf8"))]));
+  return wanted.map(({ out }) => {
+    const files = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));
+    assert.ok(files.length > 5, `expected the backend's nested stacks, got ${files.join(", ")}`);
+    return Object.fromEntries(files.map((file) => [file, JSON.parse(fs.readFileSync(path.join(out, file), "utf8"))]));
+  });
 };
 const waveOutput = (templates: Record<string, any>) =>
   Object.values<any>(templates).flatMap((template) => Object.entries<any>(template.Outputs ?? {})).find(([key]) => key === "PapyrusCostTagWave")?.[1]?.Value;
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-cost-"));
 process.on("exit", () => fs.rmSync(scratch, { recursive: true, force: true }));
 
+const waveOnePlanFile = path.join(scratch, "plan-1.json");
+const everyWaveOut = path.join(scratch, "all");
+const [offTemplates, waveOne, everyWave] = synthBackendsSideBySide([
+  { out: path.join(scratch, "off"), extra: {} },
+  { out: path.join(scratch, "wave-1"), extra: { PAPYRUS_COST_TAG_WAVE: "1", PAPYRUS_SITE_ID: "dataparade", PAPYRUS_COST_TAG_PLAN_FILE: waveOnePlanFile } },
+  { out: everyWaveOut, extra: { PAPYRUS_COST_TAG_WAVE: "all", PAPYRUS_SITE_ID: "dataparade" } },
+]);
+
 // Scenario: a build that does not ask for a wave (a plain ampx pipeline-deploy) synthesizes the backend it had before.
-const offTemplates = synthBackend(path.join(scratch, "off"), {});
 {
   assert.equal(waveOutput(offTemplates), undefined, "no wave output without a wave");
   for (const [file, template] of Object.entries<any>(offTemplates)) {
@@ -140,9 +150,7 @@ const offTemplates = synthBackend(path.join(scratch, "off"), {});
 
 // Scenario: the first wave's operation is under CloudFormation's limit, and the plan counts it as the templates do.
 {
-  const planFile = path.join(scratch, "plan-1.json");
-  const waveOne = synthBackend(path.join(scratch, "wave-1"), { PAPYRUS_COST_TAG_WAVE: "1", PAPYRUS_SITE_ID: "dataparade", PAPYRUS_COST_TAG_PLAN_FILE: planFile });
-  const plan = JSON.parse(fs.readFileSync(planFile, "utf8"));
+  const plan = JSON.parse(fs.readFileSync(waveOnePlanFile, "utf8"));
   assert.ok(plan.waves.length > 1, "a whole backend takes more than one wave");
   assert.equal(waveOutput(waveOne), `1/${plan.waves.length}`);
   const changed = Object.keys(waveOne).filter((file) => JSON.stringify(waveOne[file]) !== JSON.stringify(offTemplates[file]));
@@ -186,10 +194,9 @@ const offTemplates = synthBackend(path.join(scratch, "off"), {});
 // Scenario: once every wave is deployed, every stack of the site backend is tagged, and the model-calling functions may
 // send only to their own queue.
 {
-  const out = path.join(scratch, "all");
+  const out = everyWaveOut;
   {
-    const all = synthBackend(out, { PAPYRUS_COST_TAG_WAVE: "all", PAPYRUS_SITE_ID: "dataparade" });
-    assert.equal(waveOutput(all), "complete");
+    assert.equal(waveOutput(everyWave), "complete");
     const templates = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));
     assert.ok(templates.length > 5, `expected the backend's nested stacks, got ${templates.join(", ")}`);
     const senders: string[] = [];
