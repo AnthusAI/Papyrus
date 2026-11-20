@@ -307,7 +307,7 @@ The uv cache is kept under `.uv-cache/` and listed in the spec's cache paths.
 GitHub Actions in a publication repo reaches AWS with GitHub OIDC: no AWS
 access keys or tokens are stored anywhere. Two pieces:
 
-0. **Shared-stack pipeline roles, once per AWS account** (a person runs the one-time setup, `infra/pipeline/bootstrap.sh --approver-only`, which can also create the account's GitHub OIDC provider with `--create-oidc-provider`; later changes to the roles are merged, planned and approved in GitHub by the `role-stack-deploy` workflow, never run by hand). Required before any shared stack deploys: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github). If you use that, the provider below is already handled for the account.
+0. **Shared-stack pipeline roles, once per AWS account** (a person runs the one-time setup, `infra/pipeline/bootstrap.sh --approver-only`, which can also create the account's GitHub OIDC provider with `--create-oidc-provider`; later changes to the roles are merged, planned, checked automatically and applied in GitHub by the `role-stack-deploy` workflow, never run by hand). Required before any shared stack deploys: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-and-the-automatic-check-applies). If you use that, the provider below is already handled for the account.
 1. **Account-level provider, once per AWS account** (`GithubOidcProviderStack`
    in `@anthusai/papyrus/infra`). Run `aws iam list-open-id-connect-providers`
    first. If `token.actions.githubusercontent.com` is listed (account
@@ -783,6 +783,14 @@ A projected page, a section base or a `homePage` segment that starts with one of
    the template never writes Route 53 records, so MX stays untouched.
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
+
+## Scoping the Amplify build role
+
+Every site's production build has run as `AdministratorAccess` (`infra/amplify-app-shell/lib/amplify-app-shell.ts`). The site setting `cms.buildRole` in `infra/site.json` chooses: `"administrator"` (the default; nothing changes for a site that does not set it) or `"scoped"`. A scoped build role is AWS's `AmplifyBackendDeployFullAccess`, plus the grants this site's build commands use (its own `/papyrus/<siteId>/*` parameters, its wake queue, schedule group and scheduler role, its authoring statements) and an explicit deny on every IAM action and `sts:AssumeRole` for `papyrus-pipeline-*`, `papyrus-stack-*` and `papyrus-shared-*` roles and every CloudFormation action on the `papyrus-stack-pipeline` and `papyrus-pipeline-approver` stacks. Moving back is changing the value to `"administrator"` and letting the next build deploy the app shell.
+
+**What scoping does not do.** The backend deploy (`ampx pipeline-deploy`) and `papyrus-infra deploy` go through the account's CDK bootstrap roles (`cdk-hnb659fds-*`), whose CloudFormation execution role decides what a deployed template may create. If that role is `AdministratorAccess`, a build can still reach administrator-sized effects through it. Scoping the build role removes the direct reach (another site's tables and secrets, the pipeline roles); narrowing the execution role is the next, separate step.
+
+**Rollout, one site at a time, Machines on Machines first.** The site's own repository sets `cms.buildRole` to `"scoped"` on its `develop`, and the next release deploys the app shell, which swaps the role's policies. Watch the first build after it with `papyrus-infra amplify job-log --app-id <id> --latest-failed`; an `AccessDenied` names the missing action. Add the action to `scopedBuildRoleStatements` in `lib/build-role.ts` (named by the site's resources, never `*` over identity services), release, and rebuild. Only after Machines on Machines has built green on both `main` and `staging` does the next site move.
 
 ## Which account `papyrus-infra` targets
 

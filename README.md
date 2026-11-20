@@ -99,17 +99,17 @@ Details: [Releasing](docs/releasing.md), [Deploy on release to main](docs/site-h
 
 ## Set up a new AWS account or deployment (once), and how pipeline roles change
 
-Shared stacks (`papyrus-monitoring`, `papyrus-newsletter-sending-operators`) deploy from a release through IAM roles. Nobody applies those roles by hand. A merge to `develop` that changes `infra/pipeline/papyrus-stack-pipeline.yaml` starts the `role-stack-deploy` workflow: it plans the change in the job summary, and the reviewer approves it with one click in GitHub. After **any** change to that file, that is the whole process. Agents link the reviewer to the approval; they never approve it.
+Shared stacks (`papyrus-monitoring`, `papyrus-newsletter-sending-operators`) deploy from a release through IAM roles. Nobody applies those roles by hand. A merge to `develop` that changes `infra/pipeline/papyrus-stack-pipeline.yaml` starts the `role-stack-deploy` workflow: it plans the change in the job summary and runs an automatic check (hard rules, and every changed IAM statement listed in `infra/pipeline/allowed-role-changes.json`), then applies it with no click. After **any** change to that file, that is the whole process. A refused change applies nothing; agents fix the template or the list and never work around the check. Nobody has to approve it.
 
 On a **new AWS account** there is one setup step, once, run by a person, because the workflow cannot create the roles it runs as:
 
 ```bash
 export AWS_PROFILE=<profile for the account>
 infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only      # add --create-oidc-provider if the account has no GitHub OIDC provider
-infra/pipeline/create-environment.sh --reviewer <github login>                  # the GitHub approval environment
+infra/pipeline/create-environment.sh                                             # the GitHub environment the apply role trusts (no reviewer)
 ```
 
-If a release says "The pipeline roles are out of date" or fails "not authorized", an approval is waiting or the template change is not merged. What a new account needs besides this (CDK bootstrap, a hosted zone), what the roles can do, and the console alternative: [infra/pipeline/README.md](infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
+If a release says "The pipeline roles are out of date" or fails "not authorized", the `role-stack-deploy` run has not applied yet, its check refused the change, or the template change is not merged. What a new account needs besides this (CDK bootstrap, a hosted zone), what the roles can do, and the console alternative: [infra/pipeline/README.md](infra/pipeline/README.md#changing-the-pipeline-roles-merge-and-the-automatic-check-applies).
 
 ## Start a new Papyrus site
 
