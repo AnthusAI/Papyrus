@@ -6,7 +6,7 @@ Feature: One table of image operations that every front end is generated from
   generated from that table by one script, so an agent reading the skill, a person using the command and the newsroom calling the service cannot disagree.
   Both the command and the MCP tool only turn what they are given into the operation's input and pass it to the same function, which checks who is asking
   and whether the input fits and then calls the operation's handler. This first step builds the table, the generators and the checks. Handlers are built
-  one step at a time: the style profile operations are built (features_backend/image-profile.feature), and every other handler still answers that it is not
+  one step at a time: the style profile operations are built (features_backend/guidelines/image-profile.feature), and every other handler still answers that it is not
   built yet. Nothing here calls a model, an image provider or AWS.
 
   Scenario: The generated files are exactly what the table produces

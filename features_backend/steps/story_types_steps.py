@@ -1,4 +1,4 @@
-"""The Story types a site defines (features_backend/story-types.feature)."""
+"""The Story types a site defines (features_backend/stories/story-types.feature)."""
 
 from __future__ import annotations
 

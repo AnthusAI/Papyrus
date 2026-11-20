@@ -1,6 +1,6 @@
 /**
  * Drives the real Next curation route handlers against a live curation peer over loopback HTTP.
- * Used only by features_backend/newsroom_curation.feature. Prospectus is a synthetic transport;
+ * Used only by features_backend/monitoring/newsroom-curation.feature. Prospectus is a synthetic transport;
  * everything between the sealed cookie and the peer is the production code.
  * Usage: tsx scripts/curation-routes-bdd-harness.ts <peer-port> <member|viewer>
  */

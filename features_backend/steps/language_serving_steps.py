@@ -1,4 +1,4 @@
-"""Each language of a Story at its own address (features_backend/language-serving.feature).
+"""Each language of a Story at its own address (features_backend/translation/language-serving.feature).
 
 A synthetic site in a temporary directory: the in-memory fake CMS, the standard projector built from a written projection.json and interface
 strings, and a recording store. Nothing reaches AWS and no model runs."""
@@ -660,7 +660,7 @@ def step_ranked_date(context):
     assert card and card.group(1) == "2026-11-09", card and card.group(1)
 
 
-# ---- authored pages in editions (features_backend/language-authored-pages.feature)
+# ---- authored pages in editions (features_backend/translation/language-authored-pages.feature)
 
 def page_text(words: str) -> str:
     return '::band{size="bare"}\n\n::raw\n<p>' + words + '</p>\n::endraw\n'

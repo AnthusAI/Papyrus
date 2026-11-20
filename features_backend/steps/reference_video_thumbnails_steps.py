@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-video-thumbnails.feature. In memory: no site, no AWS, no platform, no sleeping."""
+"""Steps for features_backend/references/reference-video-thumbnails.feature. In memory: no site, no AWS, no platform, no sleeping."""
 from __future__ import annotations
 
 import io

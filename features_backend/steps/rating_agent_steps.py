@@ -1,4 +1,4 @@
-"""The rating agent through the procedure runner's own entry point (features_backend/rating-agent.feature).
+"""The rating agent through the procedure runner's own entry point (features_backend/agents/rating-agent.feature).
 
 The runner, the site's policy document, its run records, the shipped procedure file (through Tactus), the tool, the model call (its prompt, schema and usage)
 and the rating write (its handler, with the gate) are the real code. What is stood in for is the world: the site's Story index and Story store, the guidelines

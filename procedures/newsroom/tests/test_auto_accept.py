@@ -1,4 +1,4 @@
-"""The arithmetic behind automatic acceptance: the Wilson bound, the learned threshold and delay (features_backend/reference-automatic-acceptance.feature)."""
+"""The arithmetic behind automatic acceptance: the Wilson bound, the learned threshold and delay (features_backend/references/reference-automatic-acceptance.feature)."""
 import math
 
 from papyrus_content.auto_accept import learn_threshold, quantile, wilson_lower_bound

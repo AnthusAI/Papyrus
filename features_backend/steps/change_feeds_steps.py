@@ -1,4 +1,4 @@
-"""The change feeds of the other tables (features_backend/change-feeds.feature). A fake stream per table, the Item feed's fake FIFO queue and site store, and no network."""
+"""The change feeds of the other tables (features_backend/agents/change-feeds.feature). A fake stream per table, the Item feed's fake FIFO queue and site store, and no network."""
 from __future__ import annotations
 
 import json

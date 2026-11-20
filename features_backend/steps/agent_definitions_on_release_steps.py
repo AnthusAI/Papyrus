@@ -1,4 +1,4 @@
-"""A deploy applies the agent definitions (features_backend/agent-definitions-on-release.feature). A fake site; no network."""
+"""A deploy applies the agent definitions (features_backend/agents/agent-definitions-on-release.feature). A fake site; no network."""
 from __future__ import annotations
 
 import copy

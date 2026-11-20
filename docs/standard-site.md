@@ -474,7 +474,7 @@ Place it on any authored page (a `videos` page, a home page band, a section fron
 
 **Off by default, per site.** Nothing appears until a site adds the include to a page; a site without `homePage` fails the build naming the page, exactly as any references include does. To turn it on for a site: 1. have `homePage` in its `projection.json` (and `references.fields` either `"all"` or a list that includes `medium`, which is a public field now: the snapshot gains it, so the first snapshot after the engine ships rewrites every page that places a references include, once); 2. the engine release that carries the medium (the snapshot reads `medium` from the Reference, or from its address when the Reference has none stored yet, so **the block works before the backfill**); 3. add the include to a page, and a nav or section entry if it should be linked; 4. (optional) run `papyrus references backfill-medium` so the newsroom card shows the label and the medium index is filled. The home-page trigger watches `medium`, so a backfill reaches the pages through the usual debounce. No data API deploy is needed for the public block; it is needed for the stored fields and the index.
 
-Tests: `features_backend/reference-medium.feature` (the page lists only accepted videos, newest first; the stars never appear in any file; no embeds or scripts; unknown medium is a build error) and `src/papyrus_content/projection/standard` card markup in `procedures/newsroom/tests/test_home_page_references.py`.
+Tests: `features_backend/references/reference-medium.feature` (the page lists only accepted videos, newest first; the stars never appear in any file; no embeds or scripts; unknown medium is a build error) and `src/papyrus_content/projection/standard` card markup in `procedures/newsroom/tests/test_home_page_references.py`.
 
 ### Video embeds (`embeds`)
 
@@ -499,7 +499,7 @@ CloudFront response-headers policy) to include. A known provider that is not lis
 `_config/content-security-policy.txt` fragment (`frame-src https://www.instagram.com`) to the site's headers and drop Instagram's script and the `script-src` entries it needed,
 (5) check the Stories with `papyrus stories lens-check` (P16 and P18). Steps 1 to 3 go in one deploy, because a line without a credit is refused at save once Instagram is listed.
 
-Tests: `features_backend/video-embed.feature`.
+Tests: `features_backend/site/video-embed.feature`.
 
 ### Images and citations
 

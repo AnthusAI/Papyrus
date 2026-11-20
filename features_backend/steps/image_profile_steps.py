@@ -1,4 +1,4 @@
-"""The publication's visual style profile and image types (features_backend/image-profile.feature, image-types.feature). A fake backend; no network."""
+"""The publication's visual style profile and image types (features_backend/guidelines/image-profile.feature, image-types.feature). A fake backend; no network."""
 from __future__ import annotations
 
 import copy

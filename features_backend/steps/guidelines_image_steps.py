@@ -1,4 +1,4 @@
-"""Image guidelines in the guideline store (features_backend/image-profile.feature, guidelines-image-sections.feature). An in-memory backend and files; no network."""
+"""Image guidelines in the guideline store (features_backend/guidelines/image-profile.feature, guidelines-image-sections.feature). An in-memory backend and files; no network."""
 from __future__ import annotations
 
 import json

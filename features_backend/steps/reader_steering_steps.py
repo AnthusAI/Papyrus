@@ -731,7 +731,7 @@ def ai_saw_no_identity(context) -> None:
     assert not any(secret in text for secret in [*reader_ids, *handles, *[subject_for(name) for name in ("alice", "bob")]]), text
 
 
-# Votes and flags on any subject type (features_backend/reader-subject-votes.feature)
+# Votes and flags on any subject type (features_backend/readers/reader-subject-votes.feature)
 
 SUBJECT_TYPE_WORDS = {"item": "item", "submission": "submission", "story": "story", "proposal": "proposal", "concept": "concept", "person": "person"}
 

@@ -1,4 +1,4 @@
-"""A list carries its cadence, time, time zone and rule as data (features_backend/list-cadence.feature).
+"""A list carries its cadence, time, time zone and rule as data (features_backend/announcements/list-cadence.feature).
 
 A fake site (its API, its site store, its schedule group, its wake queue and its Announcement and Delivery records); no network, no AWS, nothing is sent. The
 schedules are reconciled by the command a deploy runs (``papyrus agents schedules``), a tick is the message the entry sends, and the wake is handled by the
@@ -491,7 +491,7 @@ def same_announcement_fields(context):
     assert sorted(row["kind"] for row in announcements) == ["roundup", "roundup", "story_published"]
 
 
-# --- period keys and what carries forward (features_backend/period-keys.feature) -------------------------------------------------------------------
+# --- period keys and what carries forward (features_backend/readers/period-keys.feature) -------------------------------------------------------------------
 
 
 @when('the Delivery of the list "{list_id}" is approved and sent at "{time}"')
@@ -560,7 +560,7 @@ def nothing_sent(context):
     assert all(row["state"] not in ("sending", "sent") and not json_list(row.get("attempts")) for row in rows(context, "Delivery"))
 
 
-# --- an empty period (features_backend/empty-period.feature) --------------------------------------------------------------------------------------
+# --- an empty period (features_backend/readers/empty-period.feature) --------------------------------------------------------------------------------------
 
 
 @given('a person {who} wrote the note "{text}" for the period at "{time}"')

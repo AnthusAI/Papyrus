@@ -1,4 +1,4 @@
-"""A Story keeps its star rating through every new version, and the rating is never published (features_backend/story-stars.feature)."""
+"""A Story keeps its star rating through every new version, and the rating is never published (features_backend/stories/story-stars.feature)."""
 
 from __future__ import annotations
 

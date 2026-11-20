@@ -1,4 +1,4 @@
-"""Reference previews (features_backend/reference-previews.feature). The HTTP layer and the store are fakes: no network, no AWS."""
+"""Reference previews (features_backend/references/reference-previews.feature). The HTTP layer and the store are fakes: no network, no AWS."""
 
 from __future__ import annotations
 

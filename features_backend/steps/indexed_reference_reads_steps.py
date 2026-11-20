@@ -1,4 +1,4 @@
-"""Steps for features_backend/indexed-reference-reads.feature. In memory; the client counts whole-table listings."""
+"""Steps for features_backend/references/indexed-reference-reads.feature. In memory; the client counts whole-table listings."""
 from __future__ import annotations
 
 import sys

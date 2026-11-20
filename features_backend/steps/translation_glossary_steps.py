@@ -1,4 +1,4 @@
-"""A publication decides how its terms are translated (features_backend/translation-glossary.feature). Humanus runs for real; no model, no network."""
+"""A publication decides how its terms are translated (features_backend/translation/translation-glossary.feature). Humanus runs for real; no model, no network."""
 
 from __future__ import annotations
 

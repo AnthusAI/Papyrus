@@ -139,7 +139,7 @@ class Harness:
 
 @contextmanager
 def running_harness() -> Iterator[Harness]:
-    """A Harness over moto's DynamoDB with the plugin's table layout. Also used by features_backend/newsletter-double-opt-in.feature."""
+    """A Harness over moto's DynamoDB with the plugin's table layout. Also used by features_backend/readers/newsletter-double-opt-in.feature."""
     saved = {name: os.environ.get(name) for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION")}
     os.environ.update(AWS_ACCESS_KEY_ID="x", AWS_SECRET_ACCESS_KEY="x", AWS_DEFAULT_REGION="us-east-1")
     try:

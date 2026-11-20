@@ -1,7 +1,7 @@
 // The GSI ledger: compares the secondary indexes of every data model in two copies of the schema sources: amplify/data/schema.ts and every
 // plugin's and function's schema.ts (SCHEMA_SOURCE), which together are the deployed tables.
 // DynamoDB lets one update create or delete one global secondary index on a table.
-// Rules (features_backend/gsi-ledger.feature):
+// Rules (features_backend/platform/gsi-ledger.feature):
 //   - a table that gains more than one index since the baseline fails;
 //   - an index that keeps its name but changes its keys fails;
 //   - a table with more than TABLE_LIMIT indexes fails;

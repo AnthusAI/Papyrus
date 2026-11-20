@@ -1,4 +1,4 @@
-"""Link exploration (features_backend/link-exploration.feature). The HTTP layer, the search provider and the store are fakes: no network."""
+"""Link exploration (features_backend/knowledge/link-exploration.feature). The HTTP layer, the search provider and the store are fakes: no network."""
 
 from __future__ import annotations
 

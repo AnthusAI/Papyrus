@@ -363,7 +363,7 @@ def second_editor_told(context, error: str) -> None:
     editor_told(context, error)
 
 
-# Operators: IAM callers of the function's own account (features_backend/proposals_operator.feature)
+# Operators: IAM callers of the function's own account (features_backend/readers/proposals-operator.feature)
 
 def operator_file(context, arguments: dict, **call) -> dict:
     answer = backend_of(context).operator_proposal_call("fileProposal", arguments, **call)

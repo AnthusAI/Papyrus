@@ -1,4 +1,4 @@
-"""A Reference whose article text cannot be filtered fails (features_backend/no-fallbacks-reference-text.feature)."""
+"""A Reference whose article text cannot be filtered fails (features_backend/references/no-fallbacks-reference-text.feature)."""
 
 from __future__ import annotations
 

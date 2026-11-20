@@ -8,7 +8,7 @@
 -- goes only through its own approval and attempt.
 --
 -- It runs only on an agent's wake adopted as the responsibility "announce": `papyrus automations adopt --id announce --responsibility announce`.
--- Specs: features_backend/announce-durable-triggers.feature, features_backend/announce-agent-definition.feature
+-- Specs: features_backend/announcements/announce-durable-triggers.feature, features_backend/announcements/announce-agent-definition.feature
 
 Toolset "papyrus_announce_story" {
     type = "plugin",

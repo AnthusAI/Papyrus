@@ -1,4 +1,4 @@
-"""Cards show the rendition the article page shows (features_backend/card-rendition-images.feature)."""
+"""Cards show the rendition the article page shows (features_backend/site/card-rendition-images.feature)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The deterministic lens checks (features_backend/lens-check.feature has the narrative)."""
+"""The deterministic lens checks (features_backend/stories/lens-check.feature has the narrative)."""
 
 import json
 

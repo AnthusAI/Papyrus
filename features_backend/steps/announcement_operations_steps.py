@@ -1,4 +1,4 @@
-"""The account's pace, the blocked list, the retry and the connect link (features_backend/announcement-operations.feature). The world is the one announcements_steps.py builds."""
+"""The account's pace, the blocked list, the retry and the connect link (features_backend/announcements/announcement-operations.feature). The world is the one announcements_steps.py builds."""
 from __future__ import annotations
 
 import sys
@@ -132,7 +132,7 @@ def _address(context, address):
     assert context.cli_answer["result"]["url"] == address, context.cli_answer
 
 
-# --- retiring a Story (features_backend/announcement-retire-withdraws.feature) ----------------------------------------------------------------------------
+# --- retiring a Story (features_backend/announcements/announcement-retire-withdraws.feature) ----------------------------------------------------------------------------
 
 
 @when("the Article is retired with `papyrus stories retire`")

@@ -1,4 +1,4 @@
-"""An Assignment is the request between agents (features_backend/assignment-handoff.feature, PPY-51f96f).
+"""An Assignment is the request between agents (features_backend/stories/assignment-handoff.feature, PPY-51f96f).
 
 Real code: the operation and its gate, the Assignment writer, the Assignment change feed, the listener index, the wake queue's key and deduplication rules, the
 procedure runner (its run record, its claim and its close) and the existing reopen. Stood in for: the site's tables (one in-memory site that also records the

@@ -1,4 +1,4 @@
-"""A run writes where it is told to, or stops (features_backend/no-fallbacks-run-directory.feature)."""
+"""A run writes where it is told to, or stops (features_backend/platform/no-fallbacks-run-directory.feature)."""
 
 from __future__ import annotations
 

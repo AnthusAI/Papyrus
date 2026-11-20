@@ -1,4 +1,4 @@
-"""features_backend/concept-label-triggers.feature: the triggers over an in-memory site; the naming procedure is a spy that records who asked."""
+"""features_backend/knowledge/concept-label-triggers.feature: the triggers over an in-memory site; the naming procedure is a spy that records who asked."""
 from __future__ import annotations
 
 import sys

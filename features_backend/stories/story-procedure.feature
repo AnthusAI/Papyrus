@@ -2,7 +2,7 @@ Feature: One definition of the Story procedure
   A Story moves through the newsroom in one ordered list of steps, defined once and read by the command line. Each step
   has a stage, a role, a command and a status: live, off or not built. A step is done, not done or unknown; unknown is
   honest, and a step with no record to read is never reported as done. A skipped step needs a recorded reason and an open
-  required step blocks publishing (features_backend/story-checklist.feature); there are no new stages, and human review is
+  required step blocks publishing (features_backend/stories/story-checklist.feature); there are no new stages, and human review is
   never a stage. Between the copy edit and publishing sit the four review lenses, done by hand with a findings note. People
   and agents read the same list: papyrus stories next shows where a Story stands and what comes next, and every write
   reminds the writer.

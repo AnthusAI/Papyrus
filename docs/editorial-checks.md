@@ -207,5 +207,5 @@ They are deterministic (no model is called) and read the text in its language: w
 `papyrus stories measure` works on a saved Story or on a draft file before it is saved, and `papyrus stories save-version` prints the same rows for the
 version it saved and stores them on the version record (`metadata.measurements`, with `humanusVersion`, `measure` and `changeFromPrevious`). They are
 guidance for an editor or an agent, never a gate: no limit is applied, nothing is blocked, and a check or a publish never reads them. Concept density,
-which would take the Story's concepts as input, is a later slice. Executable spec: `features_backend/story-measurements.feature`. Usage:
+which would take the Story's concepts as input, is a later slice. Executable spec: `features_backend/stories/story-measurements.feature`. Usage:
 [agent CLI guide](agent-cli-guide.md#measure-a-draft-or-a-story).

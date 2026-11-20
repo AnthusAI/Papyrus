@@ -1,4 +1,4 @@
-"""The attempt event id reaching the released Caducus (features_backend/attempt-event-id.feature).
+"""The attempt event id reaching the released Caducus (features_backend/announcements/attempt-event-id.feature).
 
 The channel is Caducus's own router, delivery log and ``XChannel`` (the pinned release), wired to in-memory stores and an in-process fake X account. The test
 Transport is the small adapter a site would write: hand the event to the router, let the x queue consumer send it, read the delivery log. Nothing leaves the machine.

@@ -1,4 +1,4 @@
-"""A translation is published as a person's act (features_backend/translation-publishing.feature).
+"""A translation is published as a person's act (features_backend/translation/translation-publishing.feature).
 
 The Story is translated by the scripted run of story_localize_steps.py (its given and when steps are used as written), then published through the real
 ``publish_item`` and projected by the real standard projector on the synthetic site of language_serving_steps.py. Everything runs on the in-memory fake

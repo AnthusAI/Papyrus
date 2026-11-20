@@ -1,5 +1,5 @@
 """A publish writes only its own records and tells no other function (PPY-e3bb2b). The newsletter and notifications functions are no longer invoked from a publish: the
-Story's own record entering the published stage reaches the announce agent through the Item change feed (``features_backend/announce-durable-triggers.feature``)."""
+Story's own record entering the published stage reaches the announce agent through the Item change feed (``features_backend/announcements/announce-durable-triggers.feature``)."""
 
 from __future__ import annotations
 

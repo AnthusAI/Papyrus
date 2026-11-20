@@ -1,4 +1,4 @@
-"""People's notes and AI agents' notes on a Story (features_backend/story-notes.feature and messages-only-from-people-writers.feature). The backend is a fake."""
+"""People's notes and AI agents' notes on a Story (features_backend/stories/story-notes.feature and messages-only-from-people-writers.feature). The backend is a fake."""
 
 from __future__ import annotations
 

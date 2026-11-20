@@ -1,4 +1,4 @@
-"""Steps for features_backend/monitoring-enrich-before-decide.feature. In memory: no network, no AWS, no model."""
+"""Steps for features_backend/monitoring/monitoring-enrich-before-decide.feature. In memory: no network, no AWS, no model."""
 
 import json
 import sys

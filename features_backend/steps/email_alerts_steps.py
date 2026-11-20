@@ -1,4 +1,4 @@
-"""An email alert is the email Delivery of a Story's Announcement (features_backend/email-alerts-on-the-new-records.feature).
+"""An email alert is the email Delivery of a Story's Announcement (features_backend/announcements/email-alerts-on-the-new-records.feature).
 
 The announce agent's decision (``list_cadence.announce.announce_story``) runs over the real Announcement and Delivery records on their in-memory backend with the real alert
 drafter; Caducus runs in memory with its mailer replaced by a recorder (``notifications_test.Site``), reached through the email channel. The kept alert rows are served by a

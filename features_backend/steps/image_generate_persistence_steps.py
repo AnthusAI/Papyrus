@@ -1,4 +1,4 @@
-"""The real candidate store and apply writer over an in-memory backend (features_backend/image-generate-persistence.feature). No AWS, no provider."""
+"""The real candidate store and apply writer over an in-memory backend (features_backend/stories/image-generate-persistence.feature). No AWS, no provider."""
 from __future__ import annotations
 
 import json

@@ -1,4 +1,4 @@
-"""An idea is more than a summary of its Reference (features_backend/idea-more-than-summary.feature and idea-more-than-summary-packs.feature).
+"""An idea is more than a summary of its Reference (features_backend/ideas/idea-more-than-summary.feature and idea-more-than-summary-packs.feature).
 The backend, the pages and the model are fakes."""
 
 from __future__ import annotations

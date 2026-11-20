@@ -1,4 +1,4 @@
-"""Steps for features_backend/story-stars-cli.feature. Every client is an in-memory fake; nothing leaves the process."""
+"""Steps for features_backend/stories/story-stars-cli.feature. Every client is an in-memory fake; nothing leaves the process."""
 
 from __future__ import annotations
 

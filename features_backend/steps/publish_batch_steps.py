@@ -1,4 +1,4 @@
-"""features_backend/publish-batch.feature: the batch publish of the signed-in lane (queue each Story, drain once) and the site's one-lease build of the queue."""
+"""features_backend/stories/publish-batch.feature: the batch publish of the signed-in lane (queue each Story, drain once) and the site's one-lease build of the queue."""
 
 from __future__ import annotations
 

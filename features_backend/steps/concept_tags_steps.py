@@ -1,4 +1,4 @@
-"""Tagging a story or a Reference with an existing concept (features_backend/concept-tags.feature). A stand-in site; no network, login or AWS."""
+"""Tagging a story or a Reference with an existing concept (features_backend/knowledge/concept-tags.feature). A stand-in site; no network, login or AWS."""
 from __future__ import annotations
 
 import contextlib

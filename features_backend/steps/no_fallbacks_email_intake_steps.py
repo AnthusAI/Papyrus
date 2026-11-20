@@ -1,4 +1,4 @@
-"""Inbound email reports a filing it could not do (features_backend/no-fallbacks-email-intake.feature). The backend and the filing are stand-ins."""
+"""Inbound email reports a filing it could not do (features_backend/references/no-fallbacks-email-intake.feature). The backend and the filing are stand-ins."""
 
 from __future__ import annotations
 

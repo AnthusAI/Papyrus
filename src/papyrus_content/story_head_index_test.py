@@ -1,4 +1,4 @@
-"""The head stage key rule and the backfill planner (features_backend/story-head-stage-index.feature has the narrative scenarios)."""
+"""The head stage key rule and the backfill planner (features_backend/platform/story-head-stage-index.feature has the narrative scenarios)."""
 
 from __future__ import annotations
 

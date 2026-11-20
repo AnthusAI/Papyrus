@@ -1,4 +1,4 @@
-"""The site's languages and a Story's language (features_backend/editorial-languages.feature has the narrative). No network, no model."""
+"""The site's languages and a Story's language (features_backend/translation/editorial-languages.feature has the narrative). No network, no model."""
 from __future__ import annotations
 
 import humanus

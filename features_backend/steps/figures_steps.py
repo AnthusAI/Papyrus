@@ -1,4 +1,4 @@
-"""Figures (features_backend/figures.feature): the commands, the design-system seam and the dark-picture warning. Rendering uses a real Chromium and skips without one."""
+"""Figures (features_backend/stories/figures.feature): the commands, the design-system seam and the dark-picture warning. Rendering uses a real Chromium and skips without one."""
 from __future__ import annotations
 
 import contextlib

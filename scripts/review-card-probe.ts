@@ -1,4 +1,4 @@
-// Renders the Needs me detail for one review request from JSON on argv and prints its text. Used by features_backend/review-card.feature.
+// Renders the Needs me detail for one review request from JSON on argv and prints its text. Used by features_backend/references/review-card.feature.
 import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";

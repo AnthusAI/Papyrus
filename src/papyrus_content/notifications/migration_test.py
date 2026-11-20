@@ -1,5 +1,5 @@
 """The newsletter-to-notifications migration on moto's DynamoDB (the newsletter's real rows) and Caducus's in-memory fakes. ``Move`` is also what
-features_backend/notifications-subscriber-migration.feature drives. Nothing here reaches AWS, SES or a real table."""
+features_backend/readers/notifications-subscriber-migration.feature drives. Nothing here reaches AWS, SES or a real table."""
 
 from __future__ import annotations
 

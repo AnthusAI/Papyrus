@@ -1,4 +1,4 @@
-"""The editorial check's reads (features_backend/editorial-check-input.feature): the real store over a recording transport that, like AppSync,
+"""The editorial check's reads (features_backend/stories/editorial-check-input.feature): the real store over a recording transport that, like AppSync,
 returns only the fields a query selects."""
 from __future__ import annotations
 

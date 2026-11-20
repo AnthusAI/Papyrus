@@ -1,5 +1,5 @@
 """An editor's explanation of an accepted link is in the vector index and found by the internal knowledge query, never by a public reader
-(src/papyrus_knowledge_query/vector_index.py, services.py, engine.py; features_backend/link-explanation-vectors.feature). Fakes only; no AWS or OpenAI."""
+(src/papyrus_knowledge_query/vector_index.py, services.py, engine.py; features_backend/knowledge/link-explanation-vectors.feature). Fakes only; no AWS or OpenAI."""
 from __future__ import annotations
 
 import json

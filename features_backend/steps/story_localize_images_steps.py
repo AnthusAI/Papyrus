@@ -1,4 +1,4 @@
-"""A translated Story may show a localized picture (features_backend/story-localize-images.feature). The saves run on the shared in-memory fake backend."""
+"""A translated Story may show a localized picture (features_backend/translation/story-localize-images.feature). The saves run on the shared in-memory fake backend."""
 from __future__ import annotations
 
 import json

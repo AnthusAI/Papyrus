@@ -1,4 +1,4 @@
-"""features_backend/localize-blocks.feature: how a body is cut into the blocks a translation works on."""
+"""features_backend/translation/localize-blocks.feature: how a body is cut into the blocks a translation works on."""
 
 from __future__ import annotations
 

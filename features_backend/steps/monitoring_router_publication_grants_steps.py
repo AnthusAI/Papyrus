@@ -1,4 +1,4 @@
-"""The router's per-publication AppSync grants (features_backend/monitoring-router-publication-grants.feature). Reads the template; no AWS."""
+"""The router's per-publication AppSync grants (features_backend/monitoring/monitoring-router-publication-grants.feature). Reads the template; no AWS."""
 from pathlib import Path
 import subprocess
 import sys

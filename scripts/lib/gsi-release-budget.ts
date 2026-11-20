@@ -1,7 +1,7 @@
 // The release budget of the GSI ledger: how many index creations one release may hold so its backend deploy fits Amplify's build timeout.
 // DynamoDB backfills a new global secondary index, and CloudFormation updates the model stacks in waves, so deploy time grows with the number of
 // tables that gain an index. The seconds per creation are MEASURED (scripts/data/gsi-deploy-measurements.json, appended after each release that
-// created indexes), never guessed. Rules: features_backend/gsi-ledger.feature.
+// created indexes), never guessed. Rules: features_backend/platform/gsi-ledger.feature.
 
 export interface Measurement {
   date: string;

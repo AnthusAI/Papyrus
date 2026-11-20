@@ -1,4 +1,4 @@
-"""The registered copy of a definition on the Automation record (features_backend/agent-definition-registered-copy.feature). A fake site; no network."""
+"""The registered copy of a definition on the Automation record (features_backend/agents/agent-definition-registered-copy.feature). A fake site; no network."""
 from __future__ import annotations
 
 import copy

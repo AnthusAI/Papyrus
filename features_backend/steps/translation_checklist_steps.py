@@ -1,4 +1,4 @@
-"""The language checklist (features_backend/translation-language-checklist.feature). Runs on the in-memory fake backend of the translation procedure's steps
+"""The language checklist (features_backend/translation/translation-language-checklist.feature). Runs on the in-memory fake backend of the translation procedure's steps
 and the synthetic multilingual site of translation_publishing_steps.py; nothing calls AWS or a model."""
 from __future__ import annotations
 

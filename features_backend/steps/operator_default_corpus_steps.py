@@ -1,4 +1,4 @@
-"""Default corpus of `papyrus references list|show` (features_backend/operator-default-corpus.feature). The backend is a fake; nothing leaves the process."""
+"""Default corpus of `papyrus references list|show` (features_backend/cli/operator-default-corpus.feature). The backend is a fake; nothing leaves the process."""
 
 from __future__ import annotations
 

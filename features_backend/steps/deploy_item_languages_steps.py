@@ -1,4 +1,4 @@
-"""A backend deploy gives older rows their language (features_backend/deploy-item-languages.feature).
+"""A backend deploy gives older rows their language (features_backend/translation/deploy-item-languages.feature).
 
 The real post-deploy task of the content-actions function (``run_deploy_render_task``) runs against the in-memory fake CMS, a standard projector
 built from a written projection.json and a recording site store. Only what reaches AWS is replaced: the publication record, the publish jobs table

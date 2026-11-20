@@ -1,4 +1,4 @@
-"""Post spacing on one channel account (features_backend/announcement-post-spacing.feature, PPY-97c0f2).
+"""Post spacing on one channel account (features_backend/announcements/announcement-post-spacing.feature, PPY-97c0f2).
 
 The catalog, the Stories, the decisions and the fake channel are the ones of the records and attempt specs. A Delivery is named by the decision that made it and its
 account, because spacing is about two Deliveries on one account.

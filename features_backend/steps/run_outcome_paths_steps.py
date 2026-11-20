@@ -1,4 +1,4 @@
-"""Run outcomes from the real paths (features_backend/run-outcome-paths.feature). The shared backend, policy and wake steps are in runner_reads_policy_steps.py."""
+"""Run outcomes from the real paths (features_backend/agents/run-outcome-paths.feature). The shared backend, policy and wake steps are in runner_reads_policy_steps.py."""
 from __future__ import annotations
 
 import json

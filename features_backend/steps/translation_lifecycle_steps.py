@@ -1,4 +1,4 @@
-"""Translation lifecycle (features_backend/translation-lifecycle.feature): the requests a run records, in a records fake that has only point reads and writes."""
+"""Translation lifecycle (features_backend/translation/translation-lifecycle.feature): the requests a run records, in a records fake that has only point reads and writes."""
 from __future__ import annotations
 
 import sys

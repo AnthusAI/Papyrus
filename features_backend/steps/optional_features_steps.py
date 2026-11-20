@@ -1,4 +1,4 @@
-"""Optional backend features are off by default (features_backend/optional-features-off.feature). Runs the real TypeScript through a small probe."""
+"""Optional backend features are off by default (features_backend/platform/optional-features-off.feature). Runs the real TypeScript through a small probe."""
 from __future__ import annotations
 
 import json

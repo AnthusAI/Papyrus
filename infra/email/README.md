@@ -132,7 +132,7 @@ this code. These activation steps remain separate from merging or publishing the
 
 `papyrus-dmarc.yaml` publishes the `_dmarc.<domain>` TXT record of one sending domain: `v=DMARC1; p=none; adkim=r; aspf=r; rua=mailto:<report address>`. The release deploys it as one
 stack for each sending domain from `infra/pipeline/stacks.json`: `papyrus-dmarc-anth-us` for `anth.us` and `papyrus-dmarc-mail-machines-on-machines` for
-`mail.machines-on-machines.anth.us`, both looking up the `anth.us` zone. Specs: `features_backend/dmarc-report-record.feature`.
+`mail.machines-on-machines.anth.us`, both looking up the `anth.us` zone. Specs: `features_backend/references/dmarc-report-record.feature`.
 
 - **The report address is a deployment parameter, never in Git.** The stack's `ReportAddress` parameter is an `AWS::SSM::Parameter::Value<String>` whose value in `stacks.json` is the
   parameter's NAME, `/papyrus/dmarc/report-address`. CloudFormation reads the address at deploy time (the deploy role already resolves parameters under `/papyrus/`). The mailbox is an

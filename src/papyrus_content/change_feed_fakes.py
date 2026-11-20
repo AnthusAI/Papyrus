@@ -1,4 +1,4 @@
-"""The fakes the change feeds' specs share (features_backend/item-change-feed.feature, features_backend/change-feeds.feature): a fake stream record, a fake FIFO
+"""The fakes the change feeds' specs share (features_backend/agents/item-change-feed.feature, features_backend/agents/change-feeds.feature): a fake stream record, a fake FIFO
 queue that follows SQS's rules, and the real site store over fakes, counting what the feed reads. No network."""
 from __future__ import annotations
 

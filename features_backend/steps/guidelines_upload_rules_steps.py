@@ -1,4 +1,4 @@
-"""The S3 fake applies the upload function's rules (features_backend/guidelines-upload-rules.feature). No network."""
+"""The S3 fake applies the upload function's rules (features_backend/guidelines/guidelines-upload-rules.feature). No network."""
 from __future__ import annotations
 
 import sys

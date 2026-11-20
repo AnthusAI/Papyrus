@@ -1,5 +1,5 @@
 """The router task with context packs on: one read of the publication, one ordered queue of packs and single items, one cost meter, one review
-(src/papyrus_content/monitoring_stories.py, features_backend/idea-context-packs.feature). The model, the pages and the backend are fakes; filing an
+(src/papyrus_content/monitoring_stories.py, features_backend/ideas/idea-context-packs.feature). The model, the pages and the backend are fakes; filing an
 idea as an Item is replaced by a recorder (it is tested in test_idea_pack_stories.py and test_idea_items.py)."""
 from __future__ import annotations
 

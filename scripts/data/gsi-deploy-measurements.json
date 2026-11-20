@@ -1,5 +1,5 @@
 {
-  "about": "Measured backend deploy time per global secondary index creation, read by scripts/check-gsi-ledger.ts to size a release (features_backend/gsi-ledger.feature). Append a measurement after each release that created indexes: npx tsx scripts/measure-gsi-deploy.ts --root-stack NAME --index-creations N --date YYYY-MM-DD --label TEXT --append (read-only CloudFormation access; docs/releasing.md).",
+  "about": "Measured backend deploy time per global secondary index creation, read by scripts/check-gsi-ledger.ts to size a release (features_backend/platform/gsi-ledger.feature). Append a measurement after each release that created indexes: npx tsx scripts/measure-gsi-deploy.ts --root-stack NAME --index-creations N --date YYYY-MM-DD --label TEXT --append (read-only CloudFormation access; docs/releasing.md).",
   "reservedMinutes": 10,
   "reservedMinutesNote": "What the frontend build and the steps around the deploy need inside one Amplify job; equal to RESERVED_MINUTES in packages/papyrus/src/backend-deploy.mjs (a test keeps them equal).",
   "safetyMargin": 0.25,

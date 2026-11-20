@@ -6,7 +6,7 @@ Feature: A large backend release is never killed by the build timeout
   cms.buildTimeoutMinutes (a whole number from 5 to 120, default 120). Nothing is set by hand. Changing the value on an
   existing site is a CloudFormation Modify of the Amplify app's EnvironmentVariables: no replacement, no new resource.
   The backend deploy command and the deploy workflow read the same limit. The second half, the release budget that keeps a
-  release inside the timeout, is in features_backend/gsi-ledger.feature.
+  release inside the timeout, is in features_backend/platform/gsi-ledger.feature.
   Executable by scripts/test-build-timeout.ts (and scripts/test-backend-deploy.mjs for the deploy time).
 
   Scenario: The app shell sets the build timeout in infrastructure as code

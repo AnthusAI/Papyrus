@@ -1,4 +1,4 @@
-"""What a person changed in a Delivery and how far it reaches (features_backend/delivery-edit-capture.feature, PPY-627bbc).
+"""What a person changed in a Delivery and how far it reaches (features_backend/announcements/delivery-edit-capture.feature, PPY-627bbc).
 
 The catalog, the Deliveries and the one door are built by announcement_records_steps.py and delivery_editing_steps.py; this file only records an edit and reads what was recorded.
 No network, no AWS.
@@ -146,7 +146,7 @@ def generation_still_example(context, generation, channel, account, article, sta
     assert rows and rows[0].get("exampleState") == state and rows[0].get("exampleScope") == scope, rows
 
 
-# --- the drafter reads the examples (features_backend/drafter-examples.feature, PPY-d99bd0) -------------------------------------------------------------
+# --- the drafter reads the examples (features_backend/guidelines/drafter-examples.feature, PPY-d99bd0) -------------------------------------------------------------
 
 
 def _announced_rewritten(context, who, text, scope, reason):

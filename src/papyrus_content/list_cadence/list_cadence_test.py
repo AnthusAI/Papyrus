@@ -1,4 +1,4 @@
-"""The parts of the list cadence that need no site: the clock expression, the local period, the floor and the rung (the behaviour is features_backend/list-cadence.feature)."""
+"""The parts of the list cadence that need no site: the clock expression, the local period, the floor and the rung (the behaviour is features_backend/announcements/list-cadence.feature)."""
 import pytest
 
 from papyrus_content.announcements.links import StoryRef

@@ -1,4 +1,4 @@
-"""The monitor-stories queue (features_backend/monitoring-stories-queue.feature). The model, the pages, the backends and the queue are fakes."""
+"""The monitor-stories queue (features_backend/monitoring/monitoring-stories-queue.feature). The model, the pages, the backends and the queue are fakes."""
 from __future__ import annotations
 
 import json

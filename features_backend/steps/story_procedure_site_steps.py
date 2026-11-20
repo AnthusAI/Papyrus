@@ -1,4 +1,4 @@
-"""A site's own Story procedure (features_backend/story-procedure-site.feature). The backend and the documents' files are in memory; nothing calls AWS."""
+"""A site's own Story procedure (features_backend/stories/story-procedure-site.feature). The backend and the documents' files are in memory; nothing calls AWS."""
 
 from __future__ import annotations
 
