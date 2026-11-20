@@ -132,6 +132,12 @@ on attempt 2, and the run ends with its own outcome. If the trigger says `false`
 Today reads, runs nothing, and returns so the queue deletes the message. A record that already has an outcome, or a first delivery, is the `duplicate` answer as before. If settling itself raises, the message stays and its
 third receive goes to the dead-letter queue. A wake that does not come from the change feed (a timer) does not carry `safeToRepeat` yet, so an interrupted timer run is settled `unknown`, never repeated.
 
+**Continuation (slice A6, `run_continuation.py`).** A unit of work that cannot finish in one run saves its progress on the records it changes and ends `acted` with
+`run_next_wake_at` (a UTC instant) in its output. Before the run's record is written, the runner sets one follow-up timer for that time (`FollowUpTimers.schedule_continuation`; the runner role may create or move
+`follow-up-*` entries in a site's `agent-schedules` group and pass that site's scheduler role, and nothing else of the scheduler). The next run is a wake of its own: key `<owner>|<subject>|<chain's first run id>|c<n>`, the same
+trigger (so the same gate decides it, including the budget), its own run record and cost. A chain may continue `MAXIMUM_CONTINUATIONS` (8) times; the run that asks for a ninth ends `failed` with `continuation_limit_reached`. A
+run whose timer cannot be set ends `failed` with `continuation_not_scheduled`, and a time that is not a UTC instant ends `failed` with `invalid_continuation`.
+
 **Times that come from the runner, not from a guess.** The queue hides a received message for 960 seconds: the Lambda's 900 seconds (which hold the 60
 seconds the runner keeps at the end to record the outcome) plus that margin once more, so a live run is never delivered to a second runner. A wake is
 delivered at most twice (once to run, once to settle a run that died, slice A3); the third receive moves it to the dead-letter queue. Messages are kept 14 days.
