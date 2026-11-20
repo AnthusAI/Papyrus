@@ -16,6 +16,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 OPERATOR_FIXTURE_ROOT = REPO_ROOT / "features_backend" / "fixtures" / "operator-cli"
 
 
+def _look_steps_up_by_opening_words() -> None:
+    """behave loads this file before the step files, so every definition is registered through the faster registry."""
+    module_path = Path(__file__).resolve().parent / "step_registry_indexed_by_opening_words.py"
+    module_spec = importlib.util.spec_from_file_location("step_registry_indexed_by_opening_words", module_path)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    module.look_steps_up_by_opening_words()
+
+
+_look_steps_up_by_opening_words()
+
+
 def before_all(context):
     context.repo_root = REPO_ROOT
     context.fixture_root = OPERATOR_FIXTURE_ROOT
