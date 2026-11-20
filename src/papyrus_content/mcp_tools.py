@@ -172,7 +172,16 @@ class StaffReads(StaffStoryWrites):
             _check_tenant(self.client, row)
         return rows
 
-    def story_get(self, principal: Principal, *, lineageId: str) -> dict:
+    def story_get(self, principal: Principal, *, lineageId: str, bucket: str | None = None) -> dict:
+        if principal.is_operator:
+            from .story_commands import operator_story_show
+
+            return operator_story_show(self.client, lineageId, bucket)
+        if bucket is not None:
+            raise ValueError("Invalid tool arguments.")
+        return self._story_current(principal, lineageId=lineageId)
+
+    def _story_current(self, principal: Principal, *, lineageId: str) -> dict:
         rows = [row for row in self._story_versions(lineageId) if row.get("versionState") == "current"]
         if len(rows) != 1:
             raise ValueError("Story has no unambiguous current version.")
@@ -193,7 +202,7 @@ class StaffReads(StaffStoryWrites):
                 raise ValueError()
         except (ValueError, TypeError):
             raise ValueError("Invalid Story revision.") from None
-        current = self.story_get(principal, lineageId=lineageId)["story"]
+        current = self._story_current(principal, lineageId=lineageId)["story"]
         if current["id"] != expectedCurrentVersionId or current.get("revision") != expectedRevision:
             raise ValueError("stale_revision: The Story changed.")
         query = """mutation AgentStoryStars($itemId: ID!, $lineageId: ID!, $stars: Int!, $expectedUpdatedAt: String!, $expectedStarRevision: String) {
@@ -205,14 +214,14 @@ class StaffReads(StaffStoryWrites):
                                              "expectedUpdatedAt": revision[0], "expectedStarRevision": revision[1]})
         if not (result.get("agentSetItemStars") or {}).get("ok"):
             raise RuntimeError("The site did not confirm the Story rating.")
-        return self.story_get(principal, lineageId=lineageId)
+        return self._story_current(principal, lineageId=lineageId)
 
     def story_versions(self, principal: Principal, *, lineageId: str) -> dict:
         rows = self._story_versions(lineageId)
         return {"versions": [_story_fields(row) for row in sorted(rows, key=lambda r: int(r.get("versionNumber") or 0), reverse=True)]}
 
     def story_evidence(self, principal: Principal, *, lineageId: str, limit: int = 20, nextToken: str | None = None) -> dict:
-        self.story_get(principal, lineageId=lineageId)
+        self._story_current(principal, lineageId=lineageId)
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reference evidence has no tenant ownership key.")
         operation = """query StoryEvidence($subjectStateKey: String!, $limit: Int!, $nextToken: String) {
@@ -284,7 +293,7 @@ class StaffReads(StaffStoryWrites):
         row = self.client.get_record("Assignment", id)
         if row is None or not row.get("itemLineageId"):
             raise ValueError("Assignment has no scoped Story.")
-        self.story_get(principal, lineageId=row["itemLineageId"])
+        self._story_current(principal, lineageId=row["itemLineageId"])
         return {"assignment": self._assignment(row)}
 
     def assignments_list(self, principal: Principal, *, storyLineageId: str | None = None, limit: int = 20, nextToken: str | None = None,
@@ -295,7 +304,7 @@ class StaffReads(StaffStoryWrites):
             return operator_assignments_list(self.client, queue=queue, status=status, assignment_type=type, section=section)
         if storyLineageId is None or any(value is not None for value in (queue, status, type, section)):
             raise ValueError("Invalid tool arguments.")
-        self.story_get(principal, lineageId=storyLineageId)
+        self._story_current(principal, lineageId=storyLineageId)
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Assignment indexes lack a tenant ownership key.")
         operation = """query StoryAssignments($itemLineageId: ID!, $limit: Int!, $nextToken: String) {
@@ -337,7 +346,7 @@ class StaffReads(StaffStoryWrites):
         if getattr(self.client, "tenant_id", None):
             if subject.get("type") != "story" or not subject.get("id"):
                 raise PermissionError("Review has no scoped Story.")
-            self.story_get(principal, lineageId=subject["id"])
+            self._story_current(principal, lineageId=subject["id"])
         return {key: review[key] for key in ("id", "subject", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "answer", "updatedAt", "outcome")}
 
     def review_get(self, principal: Principal, *, id: str) -> dict:

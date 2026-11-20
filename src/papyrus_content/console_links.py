@@ -127,13 +127,17 @@ def console_rows(group: str, command: str, links: list[ConsoleLink]) -> list[str
     return ["\t".join([group, command, "console", link.kind, link.url]) for link in links]
 
 
-def print_console_rows(group: str, command: str, build, *, override: str | None = None) -> None:
-    """Print the console rows built by `build(base)`. A command's own result is never lost to a link problem: an unknown console prints one row saying so."""
+def console_row_lines(group: str, command: str, build, *, override: str | None = None) -> list[str]:
+    """The console rows built by `build(base)`. A command's own result is never lost to a link problem: an unknown console is one row saying so."""
     try:
-        for row in console_rows(group, command, build(resolve_console_url(override))):
-            print(row)
+        return console_rows(group, command, build(resolve_console_url(override)))
     except ConsoleLinkError as error:
-        print("\t".join([group, command, "console", "unavailable", str(error)]))
+        return ["\t".join([group, command, "console", "unavailable", str(error)])]
+
+
+def print_console_rows(group: str, command: str, build, *, override: str | None = None) -> None:
+    for row in console_row_lines(group, command, build, override=override):
+        print(row)
 
 
 def render_json(base: str, links: list[ConsoleLink]) -> str:

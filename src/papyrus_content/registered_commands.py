@@ -51,6 +51,12 @@ def render_review(command: RegisteredCommand, result: dict[str, Any]) -> list[st
     return review_lines(request) if command.command == "show" else [_line(request)]
 
 
+def render_story_show(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .story_commands import story_show_rows
+
+    return story_show_rows(result)
+
+
 def render_story_next(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
     from .story_commands import story_next_rows
 
@@ -58,7 +64,7 @@ def render_story_next(command: RegisteredCommand, result: dict[str, Any]) -> lis
 
 
 TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next, "stories:set-stars": render_story_stars, "assignments:list": render_assignments_list, "assignments:show": render_assignment_show, "reviews:list": render_reviews_list,
-                 "reviews:show": render_review, "reviews:answer": render_review}
+                 "reviews:show": render_review, "stories:show": render_story_show, "reviews:answer": render_review}
 
 
 def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) -> dict[str, Any]:
@@ -91,9 +97,11 @@ def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) 
     return arguments
 
 
-def run_registered_command(route: str, flags: list[str]) -> None:
+def run_registered_command(route: str, flags: list[str], *, create_client=None) -> None:
     from .graphql_authoring import create_authoring_client
     from .mcp_tools import Principal, StaffReads, call_tool
+
+    create_authoring_client = create_client or create_authoring_client
 
     command = BY_ROUTE[route]
     options = parse_options(flags)
