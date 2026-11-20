@@ -1,8 +1,9 @@
 @backend @reference-curation-preview
 Feature: The curation preview picks References and tries each curation stage in order
-  `papyrus references curate-recent` curates the References a publication took in lately. Before it queues any work it previews the run: it picks the
-  References, then for each one it tries the four stages of curation in a fixed order (find the identifier, resolve the title and subtitle, write the
-  summary, assess the source quality) without saving anything. The preview is what `--dry-run` prints, and it is the subject of this feature.
+  `papyrus references curate-recent --dry-run` previews a curation run over the References a publication took in lately. It picks the References, then
+  for each one it tries the four stages of curation in a fixed order (find the identifier, resolve the title and subtitle, write the summary, assess
+  the source quality) without saving anything. A real run does none of this work itself: it queues an assignment for each Reference
+  (reference-curation-queue.feature).
 
   By default the preview picks every Reference that arrived in the last 48 hours, whatever its curation status, newest first. `--since` moves the start
   of the window, `--all` drops the window, `--max-count` keeps only the newest few, and `--reference` names References outright and ignores the window.

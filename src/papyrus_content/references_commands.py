@@ -1105,6 +1105,11 @@ def references_curate_recent(flags: list[str]) -> None:
     if since:
         args.extend(["--since", since])
     resume = normalize_string(options.get("resume"))
+    if resume and apply:
+        raise ValueError(
+            "references curate-recent --resume continues a --dry-run preview. "
+            "A real run queues assignments and has nothing to resume."
+        )
     if resume:
         args.extend(["--resume", resume])
     for reference_id in references:
@@ -1112,6 +1117,8 @@ def references_curate_recent(flags: list[str]) -> None:
     if parse_boolean_option(options.get("refresh-summary"), False, "--refresh-summary"):
         args.append("--refresh-summary")
     args.append("--dry-run")
+    if apply:
+        args.append("--pick-only")
     completed = subprocess.run(["poetry", *args], cwd=PAPYRUS_ROOT, capture_output=True, text=True, check=False)
     payload = extract_last_json_object(completed.stdout or "")
     if not payload:
