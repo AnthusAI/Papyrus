@@ -160,3 +160,43 @@ def test_versions_print_one_tab_separated_row_each_and_json_prints_what_the_tool
     assert capsys.readouterr().out.splitlines() == ["stories\tversions\t2\tcurrent\t2026-11-02\tana\tedit\tstory-1-v2", "stories\tversions\t1\tsuperseded\t2026-11-01\t\t\tstory-1-v1"]
     run_registered_command("stories:versions", ["--story", "story-1", "--json"])
     assert '"versions"' in capsys.readouterr().out
+
+
+def test_story_next_gives_the_operator_the_full_procedure_and_an_external_principal_only_the_story_scoped_one(monkeypatch):
+    import papyrus_content.story_commands as story_commands
+
+    monkeypatch.setattr(story_commands, "operator_story_next", lambda client, lineage_id: {"operator_view": lineage_id})
+
+    class CurrentVersionOnlyStaff(StaffReads):
+        def _story_versions(self, lineage_id):
+            return [{"id": f"{lineage_id}-v1", "versionState": "current", "versionNumber": 1, "stage": "idea", "bodyMarkus": "", "metadata": "{}"}]
+
+    staff = CurrentVersionOnlyStaff(client=object())
+    operator = Principal("staff", "cli", is_operator=True)
+    assert staff.story_next(operator, lineageId="story-1") == {"operator_view": "story-1"}
+    external_view = staff.story_next(STAFF_PRINCIPAL, lineageId="story-1")
+    assert "operator_view" not in external_view
+    assert external_view["procedure"]
+
+
+def test_the_command_line_runs_every_registered_command_as_the_operator(monkeypatch):
+    seen = []
+
+    class RecordingStaff:
+        available_tools = frozenset({"stories_versions"})
+
+        def __init__(self, client):
+            pass
+
+        def story_versions(self, principal, **arguments):
+            seen.append(principal.is_operator)
+            return {"versions": []}
+
+    import papyrus_content.graphql_authoring as graphql_authoring
+    import papyrus_content.mcp_tools as mcp_tools
+
+    monkeypatch.setattr(graphql_authoring, "create_authoring_client", lambda *a, **k: (object(), {}))
+    monkeypatch.setattr(mcp_tools, "StaffReads", RecordingStaff)
+    run_registered_command("stories:versions", ["--story", "story-1"])
+    assert seen == [True]
+    assert STAFF_PRINCIPAL.is_operator is False

@@ -68,7 +68,7 @@ REGISTRY: tuple[RegisteredCommand, ...] = (
     _command("stories", "show", STAFF, "story_get", "Read the current version of a Story.", LINEAGE, cli_native=True),
     _command("stories", "versions", STAFF, "story_versions", "List a Story's saved versions.", LINEAGE, cli_flag_aliases=STORY_FLAG),
     _command("stories", "evidence", STAFF, "story_evidence", "Read the evidence linked to a Story.", LINEAGE, PAGE),
-    _command("stories", "next", STAFF, "story_next", "Read the next steps in the Story procedure.", LINEAGE, cli_native=True),
+    _command("stories", "next", STAFF, "story_next", "Read the next steps in the Story procedure.", LINEAGE, cli_flag_aliases=STORY_FLAG),
     _command("assignments", "list", STAFF, "assignments_list", "List Assignments.", {"storyLineageId": STRING}, PAGE, cli_native=True),
     _command("assignments", "show", STAFF, "assignment_get", "Read an Assignment.", {"id": STRING}, cli_native=True),
     _command("stories", "save-draft", STAFF, "story_save_draft", "Save a new immutable Story draft.",

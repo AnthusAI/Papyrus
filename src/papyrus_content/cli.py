@@ -36,7 +36,7 @@ from .analysis_commands import (
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
-from .story_commands import stories_link_reference, stories_link_story, stories_next, stories_note, stories_save_version, stories_show
+from .story_commands import stories_link_reference, stories_link_story, stories_note, stories_save_version, stories_show
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
@@ -379,7 +379,6 @@ PORTED_COMMANDS = GENERATED_CLI_ROUTES | frozenset(
         "stories:agent-note",
         "stories:show",
         "stories:list",
-        "stories:next",
         "stories:step",
         "stories:checklist-backfill",
         "stories:lens-check",
@@ -932,8 +931,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_list
 
         stories_list(flags)
-    elif route == "stories:next":
-        stories_next(flags)
     elif route == "stories:step":
         from .story_commands import stories_step
 

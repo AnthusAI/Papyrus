@@ -19,7 +19,13 @@ def render_story_versions(command: RegisteredCommand, result: dict[str, Any]) ->
     ]
 
 
-TAB_RENDERERS = {"stories:versions": render_story_versions}
+def render_story_next(command: RegisteredCommand, result: dict[str, Any]) -> list[str]:
+    from .story_commands import story_next_rows
+
+    return story_next_rows(result)
+
+
+TAB_RENDERERS = {"stories:versions": render_story_versions, "stories:next": render_story_next}
 
 
 def arguments_from_options(command: RegisteredCommand, options: dict[str, Any]) -> dict[str, Any]:
@@ -58,7 +64,7 @@ def run_registered_command(route: str, flags: list[str]) -> None:
     as_json = bool(options.pop("json", False))
     arguments = arguments_from_options(command, options)
     client, _ = create_authoring_client()
-    result = call_tool(Principal("staff", CLI_PRINCIPAL_SUBJECT), command.tool_name, arguments, staff=StaffReads(client))
+    result = call_tool(Principal("staff", CLI_PRINCIPAL_SUBJECT, is_operator=True), command.tool_name, arguments, staff=StaffReads(client))
     renderer = TAB_RENDERERS.get(route)
     if as_json or renderer is None:
         print(json.dumps(result, indent=2, ensure_ascii=False))

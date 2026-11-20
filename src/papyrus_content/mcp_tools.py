@@ -17,6 +17,7 @@ class Principal:
     site_subject: str | None = None
     is_agent: bool = False
     delegated_by: str | None = None
+    is_operator: bool = False
 
 
 from .command_registry import BY_TOOL_NAME, REGISTRY, STAFF
@@ -242,6 +243,10 @@ class StaffReads(StaffStoryWrites):
         return {"stories": rows, "nextToken": page.get("nextToken")}
 
     def story_next(self, principal: Principal, *, lineageId: str) -> dict:
+        if principal.is_operator:
+            from .story_commands import operator_story_next
+
+            return operator_story_next(self.client, lineageId)
         from .newsroom_process import _metadata_of, assess
         rows = [row for row in self._story_versions(lineageId) if row.get("versionState") == "current"]
         if len(rows) != 1:
