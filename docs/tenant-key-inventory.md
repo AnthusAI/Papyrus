@@ -17,8 +17,8 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Counts
 
-- 73 models, 229 indexes.
-- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 71, global 101.
+- 73 models, 230 indexes.
+- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 71, global 102.
 - Indexes that list a tenant once prefixed: 75; dense indexes: 106.
 - Models: 60 with an index that lists a tenant, 5 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
