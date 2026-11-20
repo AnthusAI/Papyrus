@@ -47,6 +47,12 @@ def _identity(principal: Principal) -> None:
         raise PermissionError("A verified site subject is required.")
 
 
+def _range_hint(rule: dict) -> str:
+    if "minimum" in rule and "maximum" in rule:
+        return f" (a whole number from {rule['minimum']} to {rule['maximum']})"
+    return ""
+
+
 def _validate(schema: dict, args: Any) -> None:
     if not isinstance(args, dict) or set(args) - set(schema["properties"]) or set(schema["required"]) - set(args):
         raise ValueError("Invalid tool arguments.")
@@ -56,8 +62,9 @@ def _validate(schema: dict, args: Any) -> None:
         if ((kind == "string" and (not isinstance(value, str) or len(value) < rule.get("minLength", 0)))
             or (kind == "integer" and (type(value) is not int or value < rule.get("minimum", value) or value > rule.get("maximum", value)))
             or (kind == "object" and not isinstance(value, dict))
+            or (kind == "boolean" and type(value) is not bool)
             or ("enum" in rule and value not in rule["enum"])):
-            raise ValueError(f"Invalid argument: {key}.")
+            raise ValueError(f"Invalid argument: {key}{_range_hint(rule)}.")
 
 
 def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
@@ -72,7 +79,7 @@ def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
     command = BY_TOOL_NAME.get(name)
     if command is None or command.audience != principal.kind:
         raise PermissionError("Tool is unavailable to this identity.")
-    _validate(command.input_schema, arguments)
+    _validate(command.schema_for(principal.is_operator), arguments)
     if principal.kind == "reader":
         if reader is None:
             raise RuntimeError("Reader Steering is unavailable.")
@@ -171,9 +178,15 @@ class StaffReads(StaffStoryWrites):
             raise ValueError("Story has no unambiguous current version.")
         return {"story": _story_fields(rows[0])}
 
-    def story_star(self, principal: Principal, *, lineageId: str, expectedCurrentVersionId: str,
-                   expectedRevision: str, stars: int) -> dict:
+    def story_star(self, principal: Principal, *, lineageId: str, stars: int, expectedCurrentVersionId: str | None = None,
+                   expectedRevision: str | None = None, dryRun: bool = False, agent: str | None = None) -> dict:
         import json
+        if principal.is_operator:
+            from .story_signals import set_story_stars
+
+            return set_story_stars(self.client, lineageId, stars, apply=not dryRun, agent=agent)
+        if expectedCurrentVersionId is None or expectedRevision is None or dryRun or agent is not None:
+            raise ValueError("Invalid tool arguments.")
         try:
             revision = json.loads(expectedRevision)
             if not isinstance(revision, list) or len(revision) != 2 or not isinstance(revision[0], str) or (revision[1] is not None and not isinstance(revision[1], str)):

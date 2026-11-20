@@ -19,6 +19,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 import test_story_stars_cli as support  # noqa: E402
 
 from papyrus_content import story_commands  # noqa: E402
+from papyrus_content.registered_commands import run_registered_command  # noqa: E402
 
 # Ranking buckets by rolling week from today, so the dates are days before the run, not calendar dates: "a" and "c" are in the last seven days, "b" the week
 # before and "d" long before. Fixed dates would drift out of their buckets as the days pass.
@@ -31,7 +32,8 @@ def _date(name):
 
 def _run(context, function, flags):
     context.failure, out = None, io.StringIO()
-    with mock.patch.object(story_commands, "create_authoring_client", return_value=(context.client, {})), contextlib.redirect_stdout(out):
+    with mock.patch.object(story_commands, "create_authoring_client", return_value=(context.client, {})), \
+            mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(context.client, {})), contextlib.redirect_stdout(out):
         try:
             function(flags)
         except ValueError as error:
@@ -94,12 +96,12 @@ def _shown_unrated(context, stars, source):
 
 @when('an editor sets the stars of the Story "{lineage}" to "{stars}"')
 def _set(context, lineage, stars):
-    _run(context, story_commands.stories_set_stars, ["--story", lineage, "--stars", stars])
+    _run(context, lambda flags: run_registered_command("stories:set-stars", flags), ["--story", lineage, "--stars", stars])
 
 
 @when('an editor sets the stars of the Story "{lineage}" to "{stars}" as a dry run')
 def _set_dry(context, lineage, stars):
-    _run(context, story_commands.stories_set_stars, ["--story", lineage, "--stars", stars, "--dry-run"])
+    _run(context, lambda flags: run_registered_command("stories:set-stars", flags), ["--story", lineage, "--stars", stars, "--dry-run"])
 
 
 @then("the output says previous {previous:d} and stars {stars:d} and the newsroom was asked to set the stars to {asked:d}")

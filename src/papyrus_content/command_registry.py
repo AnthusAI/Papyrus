@@ -40,6 +40,9 @@ class RegisteredCommand:
     cli_available: bool = True
     writes: str = "reads"
     cli_flag_aliases: dict[str, str] = field(default_factory=dict)
+    operator_extra: dict[str, dict] = field(default_factory=dict)
+    operator_optional: tuple[str, ...] = ()
+    operator_rules: dict[str, dict] = field(default_factory=dict)
 
     @property
     def route(self) -> str:
@@ -49,9 +52,17 @@ class RegisteredCommand:
     def tool_name(self) -> str:
         return f"{self.group}_{self.command}"
 
+    def schema_for(self, is_operator: bool) -> dict[str, Any]:
+        properties = {**self.required, **self.optional}
+        required = list(self.required)
+        if is_operator:
+            properties = {**properties, **self.operator_extra, **self.operator_rules}
+            required = [name for name in required if name not in self.operator_optional]
+        return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+
     @property
     def input_schema(self) -> dict[str, Any]:
-        return {"type": "object", "properties": {**self.required, **self.optional}, "required": list(self.required), "additionalProperties": False}
+        return self.schema_for(False)
 
 
 def _command(group: str, command: str, audience: str, handler: str, description: str, required: dict | None = None, optional: dict | None = None,
@@ -75,7 +86,9 @@ REGISTRY: tuple[RegisteredCommand, ...] = (
              {**VERSION, "body": STRING, "reason": STRING}, {"frontMatter": {"type": "string"}}, writes="writes"),
     _command("references", "decide", STAFF, "reference_decide", "Accept or reject a Reference.",
              {**REVISION, "decision": {"type": "string", "enum": ["accept", "reject"]}}, {"note": STRING}, writes="writes"),
-    _command("stories", "set-stars", STAFF, "story_star", "Rate a Story with stars.", {**REVISION, "stars": STARS}, cli_native=True),
+    _command("stories", "set-stars", STAFF, "story_star", "Rate a Story with stars.", {**REVISION, "stars": STARS}, cli_flag_aliases=STORY_FLAG,
+             writes="dry-run", operator_extra={"dryRun": {"type": "boolean"}, "agent": STRING}, operator_optional=("expectedCurrentVersionId", "expectedRevision"),
+             operator_rules={"stars": {"type": "integer", "minimum": 0, "maximum": 5}}),
     _command("reviews", "list", STAFF, "reviews_list", "List review requests.", {"subjectType": STRING, "subjectId": STRING},
              {"state": STRING, "mode": STRING, **PAGE}, cli_native=True),
     _command("reviews", "show", STAFF, "review_get", "Read a review request.", {"id": STRING}, cli_native=True),

@@ -407,7 +407,6 @@ PORTED_COMMANDS = GENERATED_CLI_ROUTES | frozenset(
         "stories:schedule-list",
         "stories:schedule-suggest",
         "stories:set-type",
-        "stories:set-stars",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
         "assignments:cleanup-automatic",
@@ -955,10 +954,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_writing import stories_draft
 
         stories_draft(flags)
-    elif route == "stories:set-stars":
-        from .story_commands import stories_set_stars
-
-        stories_set_stars(flags)
     elif route == "stories:retire":
         from .story_retire import stories_retire
 
