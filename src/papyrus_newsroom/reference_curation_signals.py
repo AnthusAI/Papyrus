@@ -2289,7 +2289,7 @@ def _select_references_for_curate_recent(
     scan_limit: int,
 ) -> list[dict[str, Any]]:
     references = list_references_by_corpus(_knowledge_corpus_id(corpus_key), limit=max(scan_limit, max_count or 1))
-    references.sort(key=_reference_chrono_key, reverse=True)
+    references.sort(key=_dated_references_before_undated_then_chronological_key, reverse=True)
     selected: list[dict[str, Any]] = []
     for reference in references:
         if not curate_all and since_dt is not None:
@@ -2438,7 +2438,7 @@ def _select_references_for_curation_batch(
     if status and str(status).strip().lower() not in {"all", "*"}:
         normalized_status = status.strip().lower()
         references = [reference for reference in references if str(reference.get("curationStatus") or "").lower() == normalized_status]
-    references.sort(key=_reference_chrono_key, reverse=True)
+    references.sort(key=_dated_references_before_undated_then_chronological_key, reverse=True)
     return references[:max(int(max_count or 10), 1)]
 
 
@@ -4328,6 +4328,10 @@ def _reference_chrono_key(reference: dict[str, Any]) -> str:
         or reference.get("id")
         or ""
     )
+
+
+def _dated_references_before_undated_then_chronological_key(reference: dict[str, Any]) -> tuple[bool, str]:
+    return (_reference_datetime(reference) is not None, _reference_chrono_key(reference))
 
 
 def _catalog_entry_chrono_key(item: dict[str, Any]) -> str:
