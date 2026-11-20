@@ -3,7 +3,7 @@
   "title": "Collaborative steering: votes from editors and signed-in readers (optional)",
   "description": "Optional Papyrus features for 'web 2' style collaborative steering; editors-only stays the default for every existing site. Pilot publication: Shipped (shipped.anth.us, repo AnthusAI/Shipped-web).\n\nMilestones: (1) steering policy as publication data (who may vote: editors, members, signed-in readers; on what: references, story ideas, articles); (2) reader accounts (Google sign-in via Prospectus accounts, per publication; guests still read); (3) Vote model (subject, voter, value up/down or rating per dimension, timestamp; one per person per subject; materialised tallies; audit); (4) aggregation and ranking (editor quorum/majority/weighted, disagreement queue; reader ranking blending Cyclotron relevance, votes and time decay; editor override/hide); (5) Cyclotron feedback (aggregated labels with per-person attribution; editor and reader signals separate; per-publication choice whether reader votes train; disagreement as a hard-item signal); (6) standard front-end components (vote button, submit-a-link form, new/rising queue page, leaderboards; static pages with an authenticated vote API and periodically refreshed count JSON); (7) moderation and abuse controls (rate limits, account age, report/hide/ban, Humanus on submissions, moderation queue in Administration); (8) monitoring feeds straight into the reader queue. Scoring dimensions for Shipped: real, useful, notable, novel. Document on the Papyrus marketing site when live.",
   "type": "initiative",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -43,11 +43,18 @@
       "text": "Back in progress: it has real partial work (some child records shipped and others remain); the earlier pause was wrong.",
       "created_at": "2026-11-20T14:08:03.000000Z",
       "comment_type": "default"
+    },
+    {
+      "id": "24809509-3225-40e4-80aa-dffd1916c437",
+      "author": "claude",
+      "text": "Closed: the work this record tracked has merged to develop (its pull requests and branches are merged, some as squashes). Anything still open under it is its own child record and stays on the board.",
+      "created_at": "2026-11-20T14:10:14.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T11:39:25.403593Z",
-  "updated_at": "2026-11-20T14:08:03.000000Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T14:10:14.000000Z",
+  "closed_at": "2026-11-20T14:10:14.000000Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
