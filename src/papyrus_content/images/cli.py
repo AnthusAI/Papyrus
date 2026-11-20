@@ -154,7 +154,7 @@ def ask_hidden(question: str) -> str:
 
 def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None,
             stdout: TextIO | None = None, previews: Mapping[str, str] | None = None, uploader: Callable[[str, str], str] | None = None,
-            stdin: TextIO | None = None) -> int:
+            stdin: TextIO | None = None, preflight: Callable[[], None] | None = None) -> int:
     """Run ``papyrus <group> <argv>`` and print the JSON envelope. ``handlers``, ``environ`` and ``uploader`` are for tests and later front ends.
 
     ``previews`` maps a write operation to the read operation its ``--dry-run`` runs, so a dry run shows what would change instead of echoing the input.
@@ -180,6 +180,11 @@ def command(argv: list[str], *, group: str = "images", handlers: dict[str, Handl
         return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": bad.path}))
     caller = caller_from(environ)
     secret = SECRET_INPUTS.get(spec["op"])
+    if preflight is not None and not dry_run and (secret or spec["op"] in PROMPTED_INPUTS):
+        try:
+            preflight()   # the site and the sign-in, checked before anything is asked: no one types a secret for a command that cannot run
+        except Exception as unavailable:
+            return finish(error_envelope(spec["op"], "service_unavailable", str(unavailable)))
     source = stdin if stdin is not None else sys.stdin
     asked = PROMPTED_INPUTS.get(spec["op"])
     if asked and asked[0] not in arguments and source.isatty():

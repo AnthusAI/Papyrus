@@ -1,7 +1,7 @@
 """``papyrus announcements where|recent|explain|dry-run|pause|resume|withdraw|settings show|settings set|account status|review ...``: a thin adapter over the operation table, like ``papyrus guidelines``."""
 from __future__ import annotations
 
-from typing import Mapping, TextIO
+from typing import Callable, Mapping, TextIO
 
 from papyrus_content.images import cli as images_cli
 from papyrus_content.images.handlers import Handler
@@ -27,7 +27,16 @@ def default_handlers() -> dict[str, Handler]:
     return {name: handler for name, handler in HANDLERS.items() if name in names}
 
 
-def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None, stdout: TextIO | None = None, stdin: TextIO | None = None) -> int:
+def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None, stdout: TextIO | None = None, stdin: TextIO | None = None,
+            preflight: Callable[[], None] | None = None) -> int:
     if handlers is None:
         handlers = default_handlers()
-    return images_cli.command(argv, group=GROUP, handlers=handlers, environ=environ, stdout=stdout, stdin=stdin)
+        preflight = preflight or signed_in_preflight
+    return images_cli.command(argv, group=GROUP, handlers=handlers, environ=environ, stdout=stdout, stdin=stdin, preflight=preflight)
+
+
+def signed_in_preflight() -> None:
+    """Resolve the site and the sign-in as the handlers will, so a command that asks for a secret is refused first when it cannot run."""
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    create_authoring_client()

@@ -86,3 +86,11 @@ Feature: People and agents at a terminal manage announcements
     Then the announcement command succeeds
     And the site saved the X app "id-9" with the secret "secret-9"
     And the announcement answer does not contain "secret-9"
+
+
+  Scenario: With no site or sign-in the command refuses before asking for anything
+    When a person types "papyrus announcements account set-app" at a terminal with no site selected
+    Then the announcement command fails with "service_unavailable"
+    And the announcement answer says "No site is selected"
+    And nothing was asked
+    And the site saved no X app keys
