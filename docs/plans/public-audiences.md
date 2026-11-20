@@ -105,7 +105,7 @@ Old links in mail already sent keep working for a dated period: the migration wr
 ## Increments
 
 1. **Caducus**: public audience model, subscribe, confirm, preferences, unsubscribe, suppression, erasure, export, import and aliases, learned limits, fan-out by list, RFC 8058 headers. Behave features on fakes and a fake SES; moto for the store. Merged to develop, then released (a minor version).
-2. **Papyrus**: pin the Caducus release; the plugin's settings, GSI and dispatch; renderer and headers; SES events; Gherkin (`features_backend/notifications-public-audience.feature`); docs. Builds on PR #1427.
+2. **Papyrus**: pin the Caducus release; the plugin's settings, GSI and dispatch; renderer and headers; SES events; Gherkin (`features_backend/readers/notifications-public-audience.feature`); docs. Builds on PR #1427.
 3. **Pages**: PR #1430 connected to the real routes and merged after increment 2.
 4. Then, outside this story: the migration (PPY-6b2d35), the issue kind (PPY-4108ef), readiness (PPY-a85725), the MoM launch (PPY-f4b164).
 

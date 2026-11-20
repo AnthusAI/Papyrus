@@ -76,7 +76,7 @@ How a deferred item is retried:
 
 A bot acts when a story moves between stages (PPY-f0914799). Human input is never a stage: wherever a person is wanted, the
 engine raises a [review request](review-requests.md). The code is `src/papyrus_content/story_triggers.py`; the behaviour is
-specified in `features_backend/story-state-triggers.feature`.
+specified in `features_backend/agents/story-state-triggers.feature`.
 
 The example chain is `reporting` then `distinctive.ruling.fact-check`, then `copywriting`, then `distinctive.ruling.copy-edit`,
 then `typesetting`, where no bot waits:
@@ -340,7 +340,7 @@ A site's Amplify build runs `papyrus agents apply` right after it registers the 
 role on the operator lane, from the site's checkout. The core definitions are the files in the wheel; a site's own, and its additions to a core one, are in
 the folder `papyrus-site-agents` at the checkout root (a site without it has the core ones only; `--dir` names another folder). Nothing is done by hand.
 
-* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table. The index lists only rows that carry a `tenantId`: every write by a client that has the site's tenant stamps it (`features_backend/automation-tenant-id.feature`), and rows written before that are stamped once by `papyrus content backfill-tenant-id --tenant <id>` (a dry run unless `--apply`; [multi-tenancy](multi-tenancy.md#stamping-tenantid-on-rows-written-without-one)). Until then a definition whose automation exists without a `tenantId` stops the step, naming that command, and nothing is written, because the create it would otherwise try fails on a row that is already there.
+* **Reads by index.** It lists the site's automations through the Automation `tenantId` index (one Query, as Today does), to find the ones whose definition left Git; it needs the site's tenant id (`PAPYRUS_TENANT_ID`) and never reads the whole table. The index lists only rows that carry a `tenantId`: every write by a client that has the site's tenant stamps it (`features_backend/tenancy/automation-tenant-id.feature`), and rows written before that are stamped once by `papyrus content backfill-tenant-id --tenant <id>` (a dry run unless `--apply`; [multi-tenancy](multi-tenancy.md#stamping-tenantid-on-rows-written-without-one)). Until then a definition whose automation exists without a `tenantId` stops the step, naming that command, and nothing is written, because the create it would otherwise try fails on a row that is already there.
 * **Checked first.** Every definition is validated exactly as `papyrus agents validate` does, each named procedure must be registered (a core kind or one
   in the site's `papyrus-site-procedures.json`), and the automation a definition lands on must be its own. Any failure stops the step with a plain error
   naming each problem **before anything is written**, and fails the build. Nothing falls back.
@@ -494,7 +494,7 @@ A lost timer is never silent. Every record that waits keeps a named due time in 
 - **A record that ran late** has a new due time or none, so it leaves the index and is no longer Overdue.
 - Only Deliveries have a due index today. A kind of record that waits adds its source to `overdue.py` when its own due index exists (review request deadlines, PPY-9b8e59). The operations hygiene agent itself is PPY-50445c; until it exists nothing calls `recover` on a schedule.
 
-Specs: `features_backend/overdue.feature`.
+Specs: `features_backend/agents/overdue.feature`.
 
 ## Runs that need a person (PPY-577310)
 
@@ -506,7 +506,7 @@ A finished run needs a person when its outcome is `failed` or `unknown` and nobo
 - The second index of the design (`automationId` + `requestedAt`, an agent's runs in one query) is added in the release after this one: a deploy adds one index to a table.
 - Release order: the site backend (it carries the fields and the index) before the runner image and the CLI, which write and read them. A runner that writes `attentionKey` to a backend that lacks it is refused.
 
-Specs: `features_backend/run-indexes.feature`.
+Specs: `features_backend/agents/run-indexes.feature`.
 
 ## Console
 

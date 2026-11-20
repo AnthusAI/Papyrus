@@ -46,4 +46,4 @@ A rating change rebuilds the pages that list the item through the existing path 
 - Alerts and announcements keep their own hard floor of three (no setting lowers it); a list's `minStars` can raise it per list. A site-wide raise reaching the announcement lists is not wired.
 - The public Reference snapshot still publishes `stars` on accepted References (PPY-ba2f19, since 2026-11-04) and the `minStars` include reads it; that is separate from this floor.
 
-Specs: `features_backend/three-star-floor.feature`.
+Specs: `features_backend/references/three-star-floor.feature`.

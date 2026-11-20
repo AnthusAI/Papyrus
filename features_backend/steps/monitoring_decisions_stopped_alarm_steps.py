@@ -35,7 +35,7 @@ def step_template(context):
 
 @then("every alarm in the stack notifies the one alarm topic")
 def step_notifies(context):
-    # The operator listener's own alarms (papyrus-operator-*, features_backend/operator-alerts.feature) and its test alarm
+    # The operator listener's own alarms (papyrus-operator-*, features_backend/platform/operator-alerts.feature) and its test alarm
     # sit beside these six (the suggestion dead-letter alarm is the sixth, the story dead-letter alarm the seventh); the seven monitoring alarms still each notify the one topic.
     alarms = [r["Properties"] for r in context.resources.values() if r["Type"] == "AWS::CloudWatch::Alarm"
               and not r["Properties"]["AlarmName"].startswith(("papyrus-operator-", "papyrus-notify-test-"))]

@@ -1,5 +1,5 @@
 """Auto-accept reads the relations of 25 References per request, so a pass costs a fixed number of requests plus one per 25 References
-(features_backend/batched-reads.feature), and decides exactly what the one-Reference-at-a-time pass decided."""
+(features_backend/platform/batched-reads.feature), and decides exactly what the one-Reference-at-a-time pass decided."""
 from __future__ import annotations
 
 import math

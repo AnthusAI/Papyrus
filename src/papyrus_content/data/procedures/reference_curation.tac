@@ -10,7 +10,7 @@
 --   papyrus procedures register --file procedures/newsroom/reference_curation.tac --key papyrus.reference.curate
 -- and give the publication a trigger:
 --   {"procedureKey": "papyrus.reference.curate", "input": {"reference_id": "{referenceId}"}}
--- Specs: features_backend/reference-curation-before-review.feature
+-- Specs: features_backend/references/reference-curation-before-review.feature
 
 -- The toolset is named after its tool because `Tool.get(name)` looks a toolset up by the name it is called with,
 -- and this procedure has no agent: the tool runs deterministically, with no model deciding anything.

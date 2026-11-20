@@ -1,4 +1,4 @@
-"""Knowledge queries count tokens exactly or stop (features_backend/no-fallbacks-knowledge-query.feature)."""
+"""Knowledge queries count tokens exactly or stop (features_backend/platform/no-fallbacks-knowledge-query.feature)."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 """A router publication that names its tenant reads and writes its backend with a tenant client (papyrus_content/tenancy.py). That client asks for some AppSync
 fields an untenanted one does not (the slug lookup becomes ``itemByTenantSlug``), and the router role is allowed an explicit list of fields. Record every field the
 whole idea path asks for on the real client with its transport replaced, once with a tenant and once without, and check the template grants each one on that
-publication's API (features_backend/router-tenant-grants.feature)."""
+publication's API (features_backend/tenancy/router-tenant-grants.feature)."""
 from __future__ import annotations
 
 import sys

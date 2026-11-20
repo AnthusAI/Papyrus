@@ -1,4 +1,4 @@
-"""A person's correction of a translation (features_backend/translation-correction.feature). Runs on the shared in-memory fake backend of the translation
+"""A person's correction of a translation (features_backend/translation/translation-correction.feature). Runs on the shared in-memory fake backend of the translation
 procedure's steps; the command's own function is called with the signed-in session faked."""
 from __future__ import annotations
 

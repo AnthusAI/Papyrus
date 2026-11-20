@@ -10,7 +10,7 @@ A file lists the record's stages in order. For each stage:
 | `person` | `never`; `by_policy` (a person is asked below the rung named in `rung`); or `always` (whatever the rung, with `why`). The way to ask is a review request. |
 | `nobodyActs.kind` | `moves_on` (nothing waits), `stays` (the record stays and is counted, `counted: true`), `retries` (one retry at a due time, then `then`: `flags` or `stays`) or `flags` (one flag, and the record waits). |
 
-The loader refuses a file that breaks a rule and names every problem: an unknown mover, a person as a mover, a stage asked by policy with no rung, a record that stays without being counted, a kind that spikes, rejects or removes a record for its age. `features_backend/reference-lifecycle.feature` holds the rules; each record's own feature holds its file.
+The loader refuses a file that breaks a rule and names every problem: an unknown mover, a person as a mover, a stage asked by policy with no rung, a record that stays without being counted, a kind that spikes, rejects or removes a record for its age. `features_backend/references/reference-lifecycle.feature` holds the rules; each record's own feature holds its file.
 
 ## Reference (PPY-bea2bf)
 

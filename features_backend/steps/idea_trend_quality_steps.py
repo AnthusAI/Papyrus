@@ -1,4 +1,4 @@
-"""Cited Trends picks news, not volume: signal selection and the published trending order (features_backend/idea-trend-quality.feature)."""
+"""Cited Trends picks news, not volume: signal selection and the published trending order (features_backend/ideas/idea-trend-quality.feature)."""
 
 from __future__ import annotations
 

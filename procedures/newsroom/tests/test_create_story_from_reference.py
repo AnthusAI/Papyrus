@@ -1,4 +1,4 @@
-"""The editor's one-tap Create Story from a Reference (PPY-3c11bd; features_backend/create-story-from-reference.feature). The backend is a fake."""
+"""The editor's one-tap Create Story from a Reference (PPY-3c11bd; features_backend/references/create-story-from-reference.feature). The backend is a fake."""
 
 from __future__ import annotations
 

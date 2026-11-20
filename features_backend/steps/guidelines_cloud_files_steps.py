@@ -578,7 +578,7 @@ def step_old_refused(context):
     assert not context.old["ok"] and "before guidelines became files" in context.old["error"]["message"], context.old
 
 
-# --- a rule scoped to a channel (features_backend/guidelines-channel-layering.feature, PPY-9c6b89) -----------------------------------------------------
+# --- a rule scoped to a channel (features_backend/guidelines/guidelines-channel-layering.feature, PPY-9c6b89) -----------------------------------------------------
 
 @given('the site\'s writing guidelines also hold the rule "{name}" scoped to the channel "{channel}" at severity {severity} limited to {limit:d} characters')
 def step_site_channel_rule(context, name, channel, severity, limit):

@@ -1,4 +1,4 @@
-"""A backend that lacks a model is an error (features_backend/no-fallbacks-missing-models.feature). The GraphQL client is a stand-in."""
+"""A backend that lacks a model is an error (features_backend/platform/no-fallbacks-missing-models.feature). The GraphQL client is a stand-in."""
 
 from __future__ import annotations
 

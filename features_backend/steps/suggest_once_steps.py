@@ -1,4 +1,4 @@
-"""features_backend/suggest-once.feature. Fakes only; the unit tests in procedures/newsroom/tests/test_monitoring_vectors.py share them."""
+"""features_backend/knowledge/suggest-once.feature. Fakes only; the unit tests in procedures/newsroom/tests/test_monitoring_vectors.py share them."""
 from __future__ import annotations
 
 import json

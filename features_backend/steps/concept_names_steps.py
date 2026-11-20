@@ -1,4 +1,4 @@
-"""features_backend/concept-names.feature: the concept name rows, with an in-memory site (no network, no AWS)."""
+"""features_backend/knowledge/concept-names.feature: the concept name rows, with an in-memory site (no network, no AWS)."""
 from __future__ import annotations
 
 import sys

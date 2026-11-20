@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-curation-before-review.feature. Everything is in memory: no network, no AWS, no model."""
+"""Steps for features_backend/references/reference-curation-before-review.feature. Everything is in memory: no network, no AWS, no model."""
 
 from __future__ import annotations
 

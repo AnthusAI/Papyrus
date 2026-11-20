@@ -1,4 +1,4 @@
-"""Cadence families without a site: the list settings that name them and the period a periodic issue covers (behaviour: features_backend/cadence-family.feature)."""
+"""Cadence families without a site: the list settings that name them and the period a periodic issue covers (behaviour: features_backend/announcements/cadence-family.feature)."""
 from datetime import datetime, timezone
 
 import pytest

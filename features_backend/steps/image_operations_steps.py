@@ -1,4 +1,4 @@
-"""The image operation table and its generated front ends (features_backend/image-operations.feature). Nothing here calls a model or the network."""
+"""The image operation table and its generated front ends (features_backend/stories/image-operations.feature). Nothing here calls a model or the network."""
 
 from __future__ import annotations
 

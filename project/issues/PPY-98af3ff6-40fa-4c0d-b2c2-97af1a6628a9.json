@@ -3,7 +3,7 @@
   "title": "Newsroom runtime ignores the selected publication root during attachment hydration",
   "description": "The newsroom runtime hard-codes its shared code checkout as PAPYRUS_ROOT, ignoring the explicit publication root already supported by papyrus_content.env. In the TI OpenCode trial, genuine matching outputs exist in the publication checkout and assignment text attachments are byte-verified, but runtime hydration returns no text because it looks in the shared checkout. Reuse the existing root resolver; preserve the configured Biblicus directory. No tenant adoption, schema fallback, budget implementation, deployment or paid execution.\n\nFeature: Selected publication root for newsroom runtime\n  Scenario: Hydrate stored assignment text from the selected publication\n    Given an explicit publication root with genuine storage configuration\n    And stored brief and instructions for an assignment\n    When the newsroom runtime reads assignment context\n    Then it reads text from that publication storage\n    And it uses the configured knowledge work directory\n  Scenario: Preserve default root behavior\n    Given no explicit publication root\n    When the newsroom runtime starts\n    Then it uses the existing content runtime root resolution\n\nScope: minimal constant binding correction and isolated regression tests; non-paid live verification using the existing TI records and outputs. Keep procedure disabled, preserve all draft versions and legacy data. No merges or deployments.",
   "type": "bug",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -80,10 +80,17 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "b5879e73-0011-4c19-9919-809f9c6eebcd",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-10-19; paused, not being worked on.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-18T23:57:51.136729Z",
-  "updated_at": "2026-10-19T09:46:47.794318Z",
+  "updated_at": "2026-11-20T13:52:20.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

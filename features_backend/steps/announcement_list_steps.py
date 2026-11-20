@@ -242,13 +242,7 @@ def overdue_holds(context, channel, account):
     assert _overdue(context, channel, account), context.result["overdue"]
 
 
-@then('the overdue list does not hold the Delivery "{channel:L}" "{account:L}"')
-def overdue_does_not_hold(context, channel, account):
-    assert not _overdue(context, channel, account), context.result["overdue"]
-
-
 @then('the overdue list holds {count:d} Deliveries')
-@then('the overdue list holds {count:d} Delivery')
 def overdue_count(context, count):
     assert len(context.result["overdue"]) == count, context.result["overdue"]
 
@@ -288,7 +282,6 @@ def no_flag(context):
 
 
 @then("exactly {count:d} review request exists")
-@then("exactly {count:d} review requests exist")
 def requests_exist(context, count):
     assert len(context.backend.rows("ReviewRequest")) == count, context.backend.rows("ReviewRequest")
 
@@ -377,11 +370,6 @@ def default_handler(context, name):
 def read_once(context, index):
     made = [read for read in context.backend.reads[context.reads_before:] if read[0] == index]
     assert len(made) == 1, context.backend.reads[context.reads_before:]
-
-
-@then('the door never read the index "{index:L}"')
-def never_read(context, index):
-    assert not [read for read in context.backend.reads[context.reads_before:] if read[0] == index]
 
 
 @then('the command failed with "{code:L}"')

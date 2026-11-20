@@ -1,4 +1,4 @@
-"""A story based on a Reference (features_backend/story-from-reference.feature). The backend is the in-memory fake."""
+"""A story based on a Reference (features_backend/stories/story-from-reference.feature). The backend is the in-memory fake."""
 
 from __future__ import annotations
 

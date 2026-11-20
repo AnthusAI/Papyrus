@@ -1,4 +1,4 @@
-"""features_backend/item-deck.feature and deploy-item-decks.feature: the deck column is the dek of the front matter, and the backfill that repairs old rows."""
+"""features_backend/stories/item-deck.feature and deploy-item-decks.feature: the deck column is the dek of the front matter, and the backfill that repairs old rows."""
 from __future__ import annotations
 
 import sys

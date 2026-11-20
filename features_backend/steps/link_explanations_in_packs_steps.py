@@ -1,4 +1,4 @@
-"""An editor's explanation of an accepted link reaches the idea writer (features_backend/link-explanations-in-packs.feature)."""
+"""An editor's explanation of an accepted link reaches the idea writer (features_backend/knowledge/link-explanations-in-packs.feature)."""
 
 from __future__ import annotations
 

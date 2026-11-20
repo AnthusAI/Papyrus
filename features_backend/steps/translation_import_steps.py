@@ -1,4 +1,4 @@
-"""Finished copy attached as a Story's translation (features_backend/translation-import.feature). Runs on the shared in-memory fake backend of the
+"""Finished copy attached as a Story's translation (features_backend/translation/translation-import.feature). Runs on the shared in-memory fake backend of the
 translation procedure's steps; the command's own function is called with the signed-in session faked. No model is scripted for the import: it calls none."""
 from __future__ import annotations
 

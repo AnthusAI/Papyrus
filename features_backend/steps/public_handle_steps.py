@@ -1,4 +1,4 @@
-"""Public handle (features_backend/public-handle.feature): the Python twin of the rules, and the console's resolver tests."""
+"""Public handle (features_backend/readers/public-handle.feature): the Python twin of the rules, and the console's resolver tests."""
 
 from __future__ import annotations
 

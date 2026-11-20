@@ -1,4 +1,4 @@
-"""Steps for features_backend/story-withdraw-restore.feature. The data client, the site's function and the edge are in-memory stand-ins."""
+"""Steps for features_backend/stories/story-withdraw-restore.feature. The data client, the site's function and the edge are in-memory stand-ins."""
 
 from __future__ import annotations
 

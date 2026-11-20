@@ -210,7 +210,6 @@ def step_story(context, tenant):
 
 
 @given('an "{tenant}" editor')
-@given('a "{tenant}" editor')
 def step_editor(context, tenant):
     context.identity = _user(**{EDITOR_ROLES['editor']: tenant})
 

@@ -90,5 +90,4 @@ Controls: the same calls on alpha's own row work. A token with no tenant claim i
 ## Next step for whoever has sandbox access
 
 `docs/aws-sandbox-personal.md`; deploy `spikes/tenant-claims-1/schema.ts` with the V2 trigger wired as in `synth.ts`, sign in two
-Google test users (their addresses in the Lambda's table via env, never committed), run `features_backend/tenant-claims-spike.feature`
-(@sandbox) by hand, then destroy the sandbox.
+Google test users (their addresses in the Lambda's table via env, never committed), try each case of `features_backend/tenancy/tenant-isolation-adversarial.feature` by hand (the spike's own step-less scenarios were removed), then destroy the sandbox.

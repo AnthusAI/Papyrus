@@ -243,7 +243,7 @@ Items, not Stories, and is not a rating path.
 
 **Stars are never published.** (A Reference's stars are: see [Home page](home-page.md). A Story's are not.) They order things for editors and, privately, public listings (below), and never reach `PublishedItem`, a projection or any page: the three fields are not on the
 `PublishedItem` model in either schema file, `project_item_to_published` writes an explicit field list and then runs `assert_no_item_stars` on the row, and
-`GraphQLItem`, the type draft previews are built from, does not carry them. `scripts/test-story-stars-api.ts` and `features_backend/story-stars.feature` fail if a
+`GraphQLItem`, the type draft previews are built from, does not carry them. `scripts/test-story-stars-api.ts` and `features_backend/stories/story-stars.feature` fail if a
 star reaches published output.
 
 On the newsroom side the drawer and the Story editor show `components/star-rating.tsx` (label "Rating · optional") and the Stories board card shows the rating read-only, one solid star and the number in its top row: optimistic, kept in one

@@ -1,6 +1,6 @@
 # The time-bucketed quality ranking
 
-One module, `src/papyrus_content/quality_ranking.py`, orders every list of Stories and References that ranks by quality. It knows nothing of pages, snapshots or records: it takes accessors for what it reads. Specified in `features_backend/quality-ranking.feature`, tested in `src/papyrus_content/quality_ranking_test.py` (including properties over seeded random inputs).
+One module, `src/papyrus_content/quality_ranking.py`, orders every list of Stories and References that ranks by quality. It knows nothing of pages, snapshots or records: it takes accessors for what it reads. Specified in `features_backend/references/quality-ranking.feature`, tested in `src/papyrus_content/quality_ranking_test.py` (including properties over seeded random inputs).
 
 ## Inputs
 

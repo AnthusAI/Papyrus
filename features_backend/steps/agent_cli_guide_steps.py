@@ -1,4 +1,4 @@
-"""The agent CLI guide and the usage `--help` prints (features_backend/agent-cli-guide.feature). No network, login or AWS."""
+"""The agent CLI guide and the usage `--help` prints (features_backend/cli/agent-cli-guide.feature). No network, login or AWS."""
 from __future__ import annotations
 
 import io

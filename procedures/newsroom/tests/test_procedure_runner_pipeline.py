@@ -1,6 +1,6 @@
 """The procedure runner is deployed by the release: its image is built from this commit and its role may call every site's API.
 
-Nothing here calls AWS. features_backend/procedure-runner-in-the-pipeline.feature tells the same story in prose.
+Nothing here calls AWS. features_backend/agents/procedure-runner-in-the-pipeline.feature tells the same story in prose.
 """
 from __future__ import annotations
 

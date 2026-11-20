@@ -123,8 +123,6 @@ def only_new_run_counts(context):
     assert len(context.started) == 1 and context.counts["procedureDeferred"] == 1
 
 
-
-
 @then("no procedure starts")
 def none_start(context):
     assert context.started == [] and context.counts["proceduresStarted"] == 0
@@ -182,7 +180,6 @@ def statuses(context):
 
 
 @then("{count:d} procedures start")
-@then("{count:d} procedure starts")
 def n_start(context, count):
     assert len(context.started) == count, len(context.started)
     context.all_started += context.started

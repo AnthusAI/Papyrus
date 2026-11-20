@@ -1,4 +1,4 @@
-"""Web search providers are named in one place (features_backend/no-fallbacks-web-search.feature)."""
+"""Web search providers are named in one place (features_backend/platform/no-fallbacks-web-search.feature)."""
 
 from __future__ import annotations
 

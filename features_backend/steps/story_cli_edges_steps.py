@@ -1,4 +1,4 @@
-"""Story CLI edges (features_backend/story-cli-edges.feature). The backend is a fake."""
+"""Story CLI edges (features_backend/cli/story-cli-edges.feature). The backend is a fake."""
 
 from __future__ import annotations
 

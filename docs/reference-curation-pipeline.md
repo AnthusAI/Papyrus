@@ -92,7 +92,7 @@ the Reference stays pending; the editor sees the card and decides
 
 Code: `src/papyrus_content/reference_capture.py` (stage 1), `reference_grobid.py` (stage 3),
 `reference_curation.py` (orchestration, summary, backfill, CLI), `reference_curation_store.py` (storage,
-status, editor corrections). Specs: `features_backend/reference-curation-before-review.feature`.
+status, editor corrections). Specs: `features_backend/references/reference-curation-before-review.feature`.
 
 ### Stage 1: capture
 
@@ -200,7 +200,7 @@ records the Cyclotron's prediction on it. A rejected Reference, or one a person 
 citation lists of the papers that cite it (the lists read `cites` relations, which this does not touch); it is labelled with its title when the page holds
 the Reference and with its lineage id otherwise, and the link opens it.
 
-Spec: `features_backend/reference-citation-stubs.feature`.
+Spec: `features_backend/references/reference-citation-stubs.feature`.
 
 ### Idempotence, leases, retries
 
@@ -429,7 +429,7 @@ Some accepted References are only a title and an address: the page was behind an
 
 ## 4b. `Reference.medium`: what kind of thing the address is (2026-11-04)
 
-A third attribute of a Reference, separate from its evidence level and its voice (PPY-f8ff49): the **medium**. It is set by rule from the address alone, by no model, and **only where the address is certain**. Today the one value is `video`; any other address has no medium (empty means "not known", never "not a video"). The code is `src/papyrus_content/reference_medium.py`, a pure function from address to `(medium, evidence level, playlist address)`, tested by exact shape in `reference_medium_test.py` and `features_backend/reference-medium.feature`.
+A third attribute of a Reference, separate from its evidence level and its voice (PPY-f8ff49): the **medium**. It is set by rule from the address alone, by no model, and **only where the address is certain**. Today the one value is `video`; any other address has no medium (empty means "not known", never "not a video"). The code is `src/papyrus_content/reference_medium.py`, a pure function from address to `(medium, evidence level, playlist address)`, tested by exact shape in `reference_medium_test.py` and `features_backend/references/reference-medium.feature`.
 
 **Exact shapes, never substrings.** The host and the whole path are matched; a channel page, a user page, a Vimeo category or `youtube.com/about` is not a video.
 
@@ -597,7 +597,7 @@ Nothing to turn on for the fields: they are written when the site's backend has 
 ## 6a. Stories based on a Reference (core rules)
 
 A Reference is where a story can start. Whichever path makes a story from one, two rules hold. They are part of the automated
-newsroom process, not a convention of one command. Executable specs: `features_backend/story-from-reference.feature` (the process),
+newsroom process, not a convention of one command. Executable specs: `features_backend/stories/story-from-reference.feature` (the process),
 `features/newsroom-story-references.feature` (the newsroom views); tests: `procedures/newsroom/tests/test_story_from_reference.py`.
 Code: `src/papyrus_content/story_from_reference.py`.
 

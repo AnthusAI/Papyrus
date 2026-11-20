@@ -1,5 +1,5 @@
-"""Each language checked against its own rules (features_backend/editorial-languages.feature) and the language overlay of the writing guidelines
-(features_backend/guidelines-language-overlay.feature). In-memory stores; the rules lane only; no model, no network."""
+"""Each language checked against its own rules (features_backend/translation/editorial-languages.feature) and the language overlay of the writing guidelines
+(features_backend/guidelines/guidelines-language-overlay.feature). In-memory stores; the rules lane only; no model, no network."""
 from __future__ import annotations
 
 import contextlib
@@ -651,7 +651,7 @@ def step_register_notes(context, note):
     assert note in register_notes(context.answer), (register_notes(context.answer), context.answer)
 
 
-# --- the bilingual judge reads the language overlay's notes (features_backend/localize-judge-notes.feature) ---
+# --- the bilingual judge reads the language overlay's notes (features_backend/translation/localize-judge-notes.feature) ---
 
 
 @given('a Spanish overlay for "{tag}" sets the tone "{tone}"')

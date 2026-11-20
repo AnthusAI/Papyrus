@@ -3,7 +3,7 @@
   "title": "The per-site app shell is deployed by the account pipeline",
   "description": "For a deployment such as Humorus, the app-shell CDK stack (Amplify CMS app, roles, edge) is deployed from Git on merge, not by a person running cdk deploy. The Amplify GitHub connection and the Google OAuth client are the person-only parts. Plan in the comments.\n\n```gherkin\nFeature: The app shell is deployed by the account pipeline\n\n  Scenario: A merge to main deploys the app shell\n    Given a deployment repository with infra/site.json\n    When a change is merged to main\n    Then the pipeline synthesizes the app-shell stack without AWS access\n    And it asserts the manifest holds exactly the expected stack\n    And it deploys it with the main-only deploy role through the CDK bootstrap roles\n    And the stack output with the CMS app id is available to later steps\n\n  Scenario: A pull request never needs AWS access to be checked\n    Given a pull request that changes infra/site.json\n    When CI runs\n    Then the stack is synthesized and checked with no AWS credentials\n\n  Scenario: The CMS never takes the public apex\n    Given a site whose public domain is served by another stack\n    When the app shell is deployed without a domain name\n    Then the CMS is served on the Amplify default URL only",
   "type": "story",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -24,10 +24,17 @@
       "text": "Decision update 2026-11-12: Ryan rejected any long-lived GitHub token and any hand step. Finding: Machines on Machines works as follows (read-only): the stack creates the Amplify app with NO repository; the app is connected once in the console by an administrator authorizing the Amplify GitHub App (repositoryCloneMethod TOKEN: Amplify holds the installation access, we hold nothing); autoBuild off, no webhooks; each deploy is an OIDC StartJob RELEASE with the commit id. So the one hand step is the connection (an authorization). AWS says Amplify Hosting does not support manual deploys for SSR apps, so a Git-less route is unavailable; the token-free alternative to spike is a CodeCommit mirror. PAT-in-SSM plan removed. Build: PR 1412 (no change to infra/amplify-app-shell).",
       "created_at": "2026-11-12T04:14:47.882927Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b224cf06-de0a-4917-a67e-a96c572959c0",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: work not merged and not being worked on today (last activity 2026-11-12); back to the queue.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T03:59:57.152297Z",
-  "updated_at": "2026-11-12T04:14:47.883178Z",
+  "updated_at": "2026-11-20T14:03:43.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

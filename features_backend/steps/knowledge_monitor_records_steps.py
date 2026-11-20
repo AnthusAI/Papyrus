@@ -408,7 +408,7 @@ def step_not_raised(context):
     assert context.suggestion["status"] == "not_raised"
 
 
-# The incremental import: the monitor ledger of what was written before (features_backend/knowledge-monitor-records.feature)
+# The incremental import: the monitor ledger of what was written before (features_backend/knowledge/knowledge-monitor-records.feature)
 
 def import_with_ledger(context, *extra) -> None:
     context.ledger_file = getattr(context, "ledger_file", None) or context.work / "corpus" / "monitor-import-ledger.json"

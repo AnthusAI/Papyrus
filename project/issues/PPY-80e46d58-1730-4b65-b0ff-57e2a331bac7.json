@@ -3,16 +3,24 @@
   "title": "Translate the whole site, and translate on publish",
   "description": "",
   "type": "story",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-25115792-da24-43d7-993a-ffec69adff32",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "27e73b46-ab86-46de-8acb-a8dd918689ae",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: work not merged and not being worked on today (last activity 2026-11-15); back to the queue.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-15T07:19:26.246471Z",
-  "updated_at": "2026-11-15T07:19:35.057825Z",
+  "updated_at": "2026-11-20T14:03:43.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

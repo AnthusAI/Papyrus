@@ -1,4 +1,4 @@
-"""Example pictures and the drafted starting profile (features_backend/image-profile-examples.feature). A fake backend; no network, no files."""
+"""Example pictures and the drafted starting profile (features_backend/guidelines/image-profile-examples.feature). A fake backend; no network, no files."""
 from __future__ import annotations
 
 import json

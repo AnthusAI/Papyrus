@@ -1,4 +1,4 @@
-"""A set of guideline files has no made-up limit (features_backend/guidelines-no-caps.feature). In-memory; the paging is the real client's own paging loop."""
+"""A set of guideline files has no made-up limit (features_backend/guidelines/guidelines-no-caps.feature). In-memory; the paging is the real client's own paging loop."""
 from __future__ import annotations
 
 import sys

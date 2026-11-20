@@ -1,4 +1,4 @@
-"""The publication's visual style profile and image types (features_backend/image-profile.feature, image-types.feature). A fake backend; no network."""
+"""The publication's visual style profile and image types (features_backend/guidelines/image-profile.feature, image-types.feature). A fake backend; no network."""
 from __future__ import annotations
 
 import copy
@@ -138,7 +138,6 @@ def step_request_generation(context):
 
 
 @given('the request is for the section "{section}"')
-@when('the request is for the section "{section}"')
 def step_request_section(context, section):
     request(context)["sectionId"] = section
 

@@ -1,4 +1,4 @@
-"""The Story checklist (docs/story-procedure.md, features_backend/story-checklist.feature): the creation paths, the rules and the sweep. The backend is a fake."""
+"""The Story checklist (docs/story-procedure.md, features_backend/stories/story-checklist.feature): the creation paths, the rules and the sweep. The backend is a fake."""
 
 from __future__ import annotations
 

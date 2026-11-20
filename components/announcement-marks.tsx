@@ -7,7 +7,7 @@ import {
 
 /**
  * Each mark the backend names (`lines.py`, `approval_words.py`) is a Lucide icon drawn beside the words, never in place of them. The backend and this table are kept in step by
- * `features_backend/announcement-list-marks.feature`: a mark the backend can say that is not here fails that spec, so no line ever shows an icon of a different meaning.
+ * `features_backend/announcements/announcement-list-marks.feature`: a mark the backend can say that is not here fails that spec, so no line ever shows an icon of a different meaning.
  */
 export const MARK_ICONS: Record<string, LucideIcon> = {
   "pencil-line": PencilLine,

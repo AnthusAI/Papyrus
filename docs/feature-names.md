@@ -28,7 +28,7 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 
 **Not.** It is not a story that publishes itself, and the check does not prove a sentence reads its evidence correctly, so an editor reads every idea. It is not "AI summaries of the news": it only writes about movement in the publication's own weekly counts.
 
-**Where.** `papyrus ideas trends` (`src/papyrus_content/ideas/trends.py`); [idea-pipeline.md](idea-pipeline.md#trend-stories); the weekly job step in [knowledge-cloud-run.md](knowledge-cloud-run.md#trend-drafts-optional-off-by-default). Specs: `features_backend/idea-trend-stories.feature`.
+**Where.** `papyrus ideas trends` (`src/papyrus_content/ideas/trends.py`); [idea-pipeline.md](idea-pipeline.md#trend-stories); the weekly job step in [knowledge-cloud-run.md](knowledge-cloud-run.md#trend-drafts-optional-off-by-default). Specs: `features_backend/ideas/idea-trend-stories.feature`.
 
 **Demo.** The Idea column of the Stories board on Shipped holds the generated trend ideas. Worked example: the Shipped recipe in the p.apyr.us cookbook.
 
@@ -59,7 +59,7 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 
 **Not.** A bot never publishes and never decides that a human is not needed: where a person is wanted, the engine raises a Review Request. Human input is never a stage.
 
-**Where.** `papyrus automations create --on-stage ...` (`src/papyrus_content/story_triggers.py`); [automations.md](automations.md#story-state-triggers). Specs: `features_backend/story-state-triggers.feature`.
+**Where.** `papyrus automations create --on-stage ...` (`src/papyrus_content/story_triggers.py`); [automations.md](automations.md#story-state-triggers). Specs: `features_backend/agents/story-state-triggers.feature`.
 
 **Demo.** [Distinctive Mark](https://distinctive-mark.com): TTAB ruling analysis, then fact-check, then copy-edit (which runs the Editorial Checks), then typesetting, where an editor publishes. The procedures are in the open repository.
 

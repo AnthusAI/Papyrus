@@ -1,5 +1,5 @@
 // Resolves the optional backend features for an environment, and checks a site.json's cms.environment, and prints the outcome as JSON.
-// Used by features_backend/optional-features-off.feature. Input: {"environment": {...}, "features": {...}?, "site": {...}?} where "site" is an example file name
+// Used by features_backend/platform/optional-features-off.feature. Input: {"environment": {...}, "features": {...}?, "site": {...}?} where "site" is an example file name
 // and its cms.environment is extended with "environment".
 import fs from "node:fs";
 import path from "node:path";

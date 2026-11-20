@@ -52,7 +52,7 @@ stored finding names one. The stored
 check does not keep character spans, the detecting lane per finding, or
 suggested fixes. The loop is: check, fix with `papyrus_save_story_version`,
 check the new version id, stop when `clean` is true. Specs:
-`features_backend/tactus-check-story-version.feature`.
+`features_backend/agents/tactus-check-story-version.feature`.
 
 Coverage Theme orchestration is Python-first. `signals trend-report` is the
 assignment-section signal feed, `editions plan` turns signals plus section slots

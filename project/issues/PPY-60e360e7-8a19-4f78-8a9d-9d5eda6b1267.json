@@ -3,16 +3,24 @@
   "title": "Retire a story and redirect its address to another story",
   "description": "Merging two Stories into one article leaves the retired Stories' public addresses with no redirect. Add papyrus stories retire --story X --redirect-to Y [--dry-run] [--undo].",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3ada39e4-5878-4dfe-92eb-a7819c99b976",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: work not merged and not being worked on today (last activity 2026-11-11); back to the queue.",
+      "created_at": "2026-11-20T14:03:43.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-11T23:00:16.100909Z",
-  "updated_at": "2026-11-11T23:16:44.286168Z",
+  "updated_at": "2026-11-20T14:03:43.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

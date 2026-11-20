@@ -1,4 +1,4 @@
-"""Follow-up timers (features_backend/follow-up-timers.feature). A fake EventBridge Scheduler group that fires entries when a time arrives, a fake FIFO wake queue
+"""Follow-up timers (features_backend/agents/follow-up-timers.feature). A fake EventBridge Scheduler group that fires entries when a time arrives, a fake FIFO wake queue
 with content-based deduplication, and a record store; no network. Scheduled publishing's own steps are reused for the last scenario."""
 from __future__ import annotations
 

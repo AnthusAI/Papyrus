@@ -1,4 +1,4 @@
-"""Manual mode (features_backend/delivery-manual-mode.feature): a person posts a Delivery's words by hand and records the address.
+"""Manual mode (features_backend/announcements/delivery-manual-mode.feature): a person posts a Delivery's words by hand and records the address.
 
 The catalog, the Story and the Deliveries are made by announcement_records_steps.py; the worker and the channel by delivery_attempts_steps.py. The words are checked by the
 real announcement checks (``drafting.check_draft``) with a judge that supports what the Story says. The record is made through the operation table
@@ -144,6 +144,5 @@ def attempt_names(context, channel, account, who):
 
 
 @step('the attempt log of the Delivery "{channel:M}" "{account:M}" has {count:d} entry')
-@step('the attempt log of the Delivery "{channel:M}" "{account:M}" has {count:d} entries')
 def attempt_count(context, channel, account, count):
     assert len(attempt_log(delivery(context, channel, account))) == count

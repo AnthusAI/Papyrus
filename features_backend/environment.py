@@ -10,8 +10,6 @@ from pathlib import Path
 REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
 CYCLOTRON_MODULE = "decision_flywheel"
 OPERATOR_TAG = "operator"
-WORK_IN_PROGRESS_TAG = "wip"
-SANDBOX_TAG = "sandbox"
 ISOLATION_PENDING_TAG = "isolation-pending"
 CHECKLIST_GATE_TAG = "checklist-gate"
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +35,7 @@ def _fake_client_modules():
 
 def _check_head_stage_keys(scenario) -> None:
     """After every backend scenario: each story lineage written through the shared fake has at most one head row, and it carries its stage
-    (features_backend/story-head-stage-index.feature). A writer that sets a stage or a version state without the head stage key fails here."""
+    (features_backend/platform/story-head-stage-index.feature). A writer that sets a stage or a version state without the head stage key fails here."""
     problems = []
     for module in _fake_client_modules():
         for client in module.INSTANCES:
@@ -85,14 +83,8 @@ def before_scenario(context, scenario):
         from unittest import mock
 
         mock.patch("papyrus_content.story_checklist.require_checklist_closed", lambda client, item: None).start()
-    if WORK_IN_PROGRESS_TAG in scenario.effective_tags:
-        scenario.skip("work in progress: waits for a task that has not landed")
-        return
-    if SANDBOX_TAG in scenario.effective_tags:
-        scenario.skip("needs an ampx sandbox with Google test users: run by hand (spikes/tenant-claims-1/README.md)")
-        return
     if ISOLATION_PENDING_TAG in scenario.effective_tags:
-        scenario.skip("pending: needs the shared stack with two seeded tenants (features_backend/tenant-isolation-adversarial.feature)")
+        scenario.skip("pending: needs the shared stack with two seeded tenants (features_backend/tenancy/tenant-isolation-adversarial.feature)")
         return
     if REQUIRES_CYCLOTRON_TAG in scenario.effective_tags and importlib.util.find_spec(CYCLOTRON_MODULE) is None:
         scenario.skip("decision_flywheel not installed (poetry install --with cyclotron)")

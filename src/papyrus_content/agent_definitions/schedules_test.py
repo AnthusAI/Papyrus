@@ -1,4 +1,4 @@
-"""Names, the cron translation and the wake an entry sends (the behaviour is features_backend/schedule-trigger.feature)."""
+"""Names, the cron translation and the wake an entry sends (the behaviour is features_backend/agents/schedule-trigger.feature)."""
 import json
 
 import pytest

@@ -1,6 +1,6 @@
 # Fact checking and hallucination defence
 
-Epic PPY-b32e85, first story PPY-d4d5bd. Everything a model writes that a person or another agent will rely on goes through one shared check, in layers from cheap and certain to costly and judged. The module is `src/papyrus_content/fact_check.py` (contract `fact-check/v1`); it is pure except for the judge it is handed, so any generator can use it. Specs: `features_backend/fact-check.feature`.
+Epic PPY-b32e85, first story PPY-d4d5bd. Everything a model writes that a person or another agent will rely on goes through one shared check, in layers from cheap and certain to costly and judged. The module is `src/papyrus_content/fact_check.py` (contract `fact-check/v1`); it is pure except for the judge it is handed, so any generator can use it. Specs: `features_backend/stories/fact-check.feature`.
 
 A prompt that says "use only the sources" is not a safeguard. A real research packet wrote a first name the source did not give, and a state of residence the source did not give, under exactly that rule.
 

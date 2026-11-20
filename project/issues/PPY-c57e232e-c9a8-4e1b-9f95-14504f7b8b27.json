@@ -3,16 +3,24 @@
   "title": "Story-type filter for listing selections: types= and notTypes= (Papyrus #912)",
   "description": "In flight: Papyrus PR #912 (feat/listing-story-types), open at planning time. Filed so the epic shows it; the Anth.us follow-up task depends on its release.\n\n## What it does\n`types=` and `notTypes=` on listing selections (include attributes, `collection` and `tagSelect` selections): comma lists, case-insensitive, unknown keys still rejected, the page digest accounts for the filter (`include_inputs` lists only matching entries). Sites that do not use it render byte-identically.\n\n## Files (already in the PR)\n- `src/papyrus_content/projection/standard/includes.py`, `src/papyrus_content/projection/standard/select.py`\n- `features_backend/standard-listing-story-types.feature`\n- `procedures/newsroom/tests/test_standard_frontend_includes.py`, `test_standard_frontend_collections.py`\n- `docs/building-a-papyrus-static-site.md`, `docs/home-page.md`\n\n## Acceptance\n- CI green, merged to develop, released (`npm view @anthusai/papyrus version` shows the release that contains it; record the version here).\n- `::include{kind=\"listing\" sections=\"articles\" types=\"article\" count=\"1\"}` on an authored page renders the newest article even when a `page` is newer.",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c59bbfa0-8c77-4825-a0ff-2a839377ca99",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-10-31; paused, not being worked on.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T12:30:42.915689Z",
-  "updated_at": "2026-10-31T12:30:58.140070Z",
+  "updated_at": "2026-11-20T13:52:20.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

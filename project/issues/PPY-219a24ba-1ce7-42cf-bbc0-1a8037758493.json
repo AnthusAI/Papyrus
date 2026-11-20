@@ -3,7 +3,7 @@
   "title": "Independently authored language companion Stories",
   "description": "Provide a distinct authored-edition workflow retaining different structure and sources, truthful AI/person authorship, locale linkage, draft gates, and protection from localization overwrite. Preserve strict import-translation parity. Local tests only; no production changes.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Local implementation on fix/authored-story-editions. 83 BDD scenarios/650 steps and 36 targeted unit tests pass; strict faithful importer regression also passed 25 scenarios. Actual private ES/ZH drafts tested offline, bytes preserved. No production writes or release. Pending independent review and root permission before push.",
       "created_at": "2026-11-17T11:35:53.386622Z",
       "comment_type": "default"
+    },
+    {
+      "id": "bd1fa20b-4264-4981-a06d-b55d5a05420a",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: merged to develop in #1738; no remaining work recorded.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-17T11:25:44.852692Z",
-  "updated_at": "2026-11-17T11:35:53.387235Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "closed_at": "2026-11-20T13:52:20.000000Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

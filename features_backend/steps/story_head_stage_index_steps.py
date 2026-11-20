@@ -1,4 +1,4 @@
-"""A story has exactly one row in the stage head index (features_backend/story-head-stage-index.feature).
+"""A story has exactly one row in the stage head index (features_backend/platform/story-head-stage-index.feature).
 
 The writers run against the shared in-memory fake; the tenant prefix and the capability check run through the real authoring client with a
 recording transport. Nothing here reaches a network."""

@@ -36,7 +36,7 @@ from .analysis_commands import (
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
-from .story_commands import stories_link_reference, stories_link_story, stories_next, stories_note, stories_save_version, stories_show, stories_versions
+from .story_commands import stories_link_reference, stories_link_story, stories_note, stories_save_version, stories_show
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
@@ -234,6 +234,8 @@ from .tenant_adoption_commands import content_adopt_tenant_data
 from .tenant_field_backfill_commands import content_backfill_tenant_id
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
+from .command_registry import GENERATED_CLI_ROUTES
+from .registered_commands import run_registered_command
 from .knowledge_snapshot.commands import KNOWLEDGE_COMMANDS
 from .knowledge_wiki.commands import WIKI_COMMANDS
 from .renditions_commands import content_renditions
@@ -241,7 +243,7 @@ from .publish_commands import content_publish, content_rebuild, content_unpublis
 from .markus_renderer.commands import markus_build
 
 
-PORTED_COMMANDS = frozenset(
+PORTED_COMMANDS = GENERATED_CLI_ROUTES | frozenset(
     {
         "content:inspect",
         "content:schema-check",
@@ -366,7 +368,6 @@ PORTED_COMMANDS = frozenset(
         "assignments:backfill-section-indexes",
         "items:link-references",
         "stories:save-version",
-        "stories:versions",
         "stories:pull",
         "stories:link-reference",
         "stories:link-story",
@@ -378,7 +379,6 @@ PORTED_COMMANDS = frozenset(
         "stories:agent-note",
         "stories:show",
         "stories:list",
-        "stories:next",
         "stories:step",
         "stories:checklist-backfill",
         "stories:lens-check",
@@ -407,7 +407,6 @@ PORTED_COMMANDS = frozenset(
         "stories:schedule-list",
         "stories:schedule-suggest",
         "stories:set-type",
-        "stories:set-stars",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
         "assignments:cleanup-automatic",
@@ -606,6 +605,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     route = f"{group}:{command}"
     if not is_ported_command(group, command):
         raise unsupported_command(f"command: {group} {command}")
+    if route in GENERATED_CLI_ROUTES:
+        run_registered_command(route, flags)
+        return
     if route == "content:inspect":
         content_inspect(flags)
     elif route == "content:schema-check":
@@ -899,8 +901,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         items_link_references(flags)
     elif route == "stories:save-version":
         stories_save_version(flags)
-    elif route == "stories:versions":
-        stories_versions(flags)
     elif route == "stories:pull":
         from .story_commands import stories_pull
 
@@ -930,8 +930,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_list
 
         stories_list(flags)
-    elif route == "stories:next":
-        stories_next(flags)
     elif route == "stories:step":
         from .story_commands import stories_step
 
@@ -956,10 +954,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_writing import stories_draft
 
         stories_draft(flags)
-    elif route == "stories:set-stars":
-        from .story_commands import stories_set_stars
-
-        stories_set_stars(flags)
     elif route == "stories:retire":
         from .story_retire import stories_retire
 

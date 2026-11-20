@@ -1,4 +1,4 @@
-"""`papyrus editorial languages` and the describeEditorialLanguages query (features_backend/editorial-languages-setting.feature). In-memory store; no network."""
+"""`papyrus editorial languages` and the describeEditorialLanguages query (features_backend/translation/editorial-languages-setting.feature). In-memory store; no network."""
 
 from __future__ import annotations
 
@@ -262,7 +262,7 @@ def step_segment_listing(context, text, tag):
     assert any(line == f"segment\t{tag}\t{text}" for line in context.output.splitlines()), context.output
 
 
-# --- enabling and disabling a language (features_backend/editorial-languages-enable.feature) ---
+# --- enabling and disabling a language (features_backend/translation/editorial-languages-enable.feature) ---
 
 
 @given('the stored languages write in "{tags}" with "{primary}" as the primary')

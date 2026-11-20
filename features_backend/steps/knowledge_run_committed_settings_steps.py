@@ -1,4 +1,4 @@
-"""A site's committed knowledge run settings (features_backend/knowledge-run-committed-settings.feature). S3 is moto; the tools are the recording fake shell."""
+"""A site's committed knowledge run settings (features_backend/knowledge/knowledge-run-committed-settings.feature). S3 is moto; the tools are the recording fake shell."""
 
 from __future__ import annotations
 

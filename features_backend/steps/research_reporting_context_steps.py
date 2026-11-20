@@ -5,7 +5,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-import yaml
 from behave import given, then, when
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -14,75 +13,6 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from papyrus_content.cloud_procedures import write_llm_context_trace_artifacts
-
-
-@given("the newsroom sections seed file")
-def step_given_newsroom_sections_seed(context):
-    sections_path = REPO_ROOT / "corpora" / "example-newsroom-sections.yml"
-    parsed = yaml.safe_load(sections_path.read_text(encoding="utf-8"))
-    sections = parsed.get("sections") if isinstance(parsed, dict) else None
-    assert isinstance(sections, list) and sections, "sections seed must contain non-empty sections list"
-    context.sections_seed = sections
-
-
-@when('I read the section with id "{section_id}"')
-def step_when_read_section(context, section_id):
-    section = next((entry for entry in context.sections_seed if str(entry.get("id")) == section_id), None)
-    assert section is not None, f"section {section_id} not found in seed"
-    context.selected_section = section
-
-
-@then(
-    "its editorial policy prefers journalistic and official sources over academic papers as the default"
-)
-def step_then_section_policy_prefers_journalistic_sources(context):
-    policy = context.selected_section.get("editorialPolicy") or context.selected_section.get("policies") or []
-    if isinstance(policy, str):
-        policy_text = policy
-    elif isinstance(policy, list):
-        policy_text = "\n".join(str(line) for line in policy)
-    else:
-        policy_text = str(policy)
-    required_fragments = [
-        "journalistic",
-        "official",
-        "academic",
-        "background",
-    ]
-    for fragment in required_fragments:
-        assert fragment in policy_text.lower(), f"expected '{fragment}' in news section policy"
-
-
-@given("the seeded newsroom procedure sources")
-def step_given_seeded_newsroom_procedure_sources(context):
-    context.research_procedure_source = (REPO_ROOT / "procedures" / "newsroom" / "research_explorer.tac").read_text(
-        encoding="utf-8"
-    )
-    context.reporting_procedure_source = (REPO_ROOT / "procedures" / "newsroom" / "reporter.tac").read_text(
-        encoding="utf-8"
-    )
-
-
-@then("the research explorer procedure requires one broad knowledge_query before web search")
-def step_then_research_requires_broad_knowledge_first(context):
-    source = context.research_procedure_source
-    broad_index = source.find("Run one broad knowledge_query")
-    web_index = source.find("web.search")
-    assert broad_index >= 0, "research_explorer.tac must require one broad knowledge_query"
-    assert web_index >= 0, "research_explorer.tac must define web search guidance"
-    assert broad_index < web_index, "knowledge_query orientation must appear before web search guidance"
-
-
-@then("the reporter procedure requires one broad knowledge_query before optional web checks")
-def step_then_reporter_requires_broad_knowledge_first(context):
-    source = context.reporting_procedure_source
-    broad_index = source.find("one broad knowledge_query")
-    web_index = source.find("web freshness checks")
-    if web_index < 0:
-        web_index = source.find("web.search")
-    assert broad_index >= 0, "reporter.tac must require one broad knowledge_query"
-    assert web_index >= 0, "reporter.tac must define optional web checks guidance"
-    assert broad_index < web_index, "knowledge_query orientation must appear before optional web checks"
 
 
 @given("sample cloud procedure stdout with one LLM payload and one execute_tactus call")

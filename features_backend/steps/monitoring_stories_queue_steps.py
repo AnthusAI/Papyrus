@@ -1,4 +1,4 @@
-"""The monitor-stories queue (features_backend/monitoring-stories-queue.feature). The model, the pages, the backends and the queue are fakes."""
+"""The monitor-stories queue (features_backend/monitoring/monitoring-stories-queue.feature). The model, the pages, the backends and the queue are fakes."""
 from __future__ import annotations
 
 import json
@@ -190,7 +190,6 @@ def step_planned_line(context, publication, count):
 
 
 @then("{count:d} story drafts are filed by the workers, one per Reference")
-@then("{count:d} story draft is filed by the workers, one per Reference")
 def step_filed(context, count):
     client = state(context).client
     assert len(client.filed) == count, len(client.filed)

@@ -1,4 +1,4 @@
-"""A translated Story may show a localized picture (features_backend/story-localize-images.feature). The saves run on the shared in-memory fake backend."""
+"""A translated Story may show a localized picture (features_backend/translation/story-localize-images.feature). The saves run on the shared in-memory fake backend."""
 from __future__ import annotations
 
 import json
@@ -52,7 +52,6 @@ def step_no_variant(context):
     assert "imageVariants" not in _front_matter(_latest(context)), _front_matter(_latest(context))
 
 
-@then("the run reports {count:d} picture(s) that hold words")
 @then("the run reports {count:d} pictures that hold words")
 @then("the run reports {count:d} picture that holds words")
 def step_reports(context, count):

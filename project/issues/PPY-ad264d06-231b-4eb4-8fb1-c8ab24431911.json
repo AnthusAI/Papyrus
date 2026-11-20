@@ -3,7 +3,7 @@
   "title": "Auto-accept confident unvoted References after a learned delay; monitor stories draft only from accepted",
   "description": "Ryan (owner): (1) papyrus ideas monitor-stories reads only accepted References by default (--status accepted[,pending] overrides). (2) The router accepts a pending Reference automatically when its Cyclotron verdict is positive, its confidence reaches a threshold learned per publication (Wilson 95% lower bound of the editors' accept rate >= target precision), and nobody voted within a delay learned from editor vote latency (q-quantile). Writes curationStatusUpdatedBy auto:cyclotron, never sent to Cyclotron as a human label; the newsroom shows Accepted automatically with an icon. Config autoAccept on router publications; off when absent.",
   "type": "story",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "Ryan 11-02: the target stays at 90% until votes clear it. Editors can confirm or reject auto-accepted items from a new list (PR 1048, on develop, not released).",
       "created_at": "2026-11-02T18:44:19.101119Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d9f8bf84-2255-4ad0-9eaa-4cdfd505ca7e",
+      "author": "claude",
+      "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-11-02; paused, not being worked on.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-29T10:38:53.687796Z",
-  "updated_at": "2026-11-02T18:44:19.101964Z",
+  "updated_at": "2026-11-20T13:52:20.000000Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

@@ -1,4 +1,4 @@
-"""Translating a whole site, and translating on publish (features_backend/story-localize-all.feature, story-localize-on-publish.feature).
+"""Translating a whole site, and translating on publish (features_backend/translation/story-localize-all.feature, story-localize-on-publish.feature).
 
 A synthetic site on the shared in-memory fake backend: published Stories, their desired-state records, saved translations and the monitoring table the
 automations use. The translation procedure itself is not run here (its own feature does that): a run is a function that records what the real run

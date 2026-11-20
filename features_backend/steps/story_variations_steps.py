@@ -1,4 +1,4 @@
-"""Story variations (features_backend/story-variations.feature). The backend is a small in-memory stand-in holding only the variation rows."""
+"""Story variations (features_backend/stories/story-variations.feature). The backend is a small in-memory stand-in holding only the variation rows."""
 
 from __future__ import annotations
 

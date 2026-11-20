@@ -1,4 +1,4 @@
-"""Monitor stories (features_backend/idea-monitor-stories.feature). The backend, the pages and the model are fakes."""
+"""Monitor stories (features_backend/ideas/idea-monitor-stories.feature). The backend, the pages and the model are fakes."""
 
 from __future__ import annotations
 

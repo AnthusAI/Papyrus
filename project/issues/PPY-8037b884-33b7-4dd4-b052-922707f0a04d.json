@@ -3,7 +3,7 @@
   "title": "Announcement cost: budget, spend, suggested budget and automatic pause",
   "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"Cost control\").\n\nGoal: a site never spends more on X than its owner allowed, sees what it has spent, and gets a budget suggestion from its own pace; no fixed numbers in code.\n\nShape: per-site settings: prices (copied from docs.x.com pricing with their date; verified 2026-11-12: post with link $0.200, post $0.015, delete $0.010, read $0.005) and budget per X billing cycle (a plain site setting, required, no default; MoM: $10, the same as the spending limit Ryan sets in X's console); a spend counter row per account per cycle incremented once per post, delete or read with the price used; before each paid call, counter + price > budget -> `blocked: budget reached` and pause with that reason; suggestion = the site's own rate of eligible Stories (counted once per eligibility event) x price per post; X's daily usage counts (`GET /2/usage/tweets`) shown beside our counter; the owner told to set X's console spending limit.\n\nDepends on: the channel framework story.\n\n```gherkin\nFeature: Announcements never cost more than the owner allowed\n  Every post with a link costs money at X. The owner sets the budget and can always\n  see the spend.\n\n  Scenario: No budget, no announcements\n    Given an owner who has not entered a budget\n    When the owner tries to turn announcements on\n    Then the page asks for a budget for each X billing cycle first\n\n  Scenario: Spend is counted per post\n    Given a price of $0.20 per post with a link\n    When three announcements are posted this cycle\n    Then the page shows \"$0.60 spent of $10.00 this cycle\"\n\n  Scenario: Reaching the budget pauses\n    Given $9.90 spent of a $10.00 budget\n    When an announcement is due\n    Then it is not posted\n    And announcements pause with \"Budget reached for this cycle\"\n    And the waiting Story is listed as \"Blocked: budget reached\"\n\n  Scenario: A new cycle or a bigger budget resumes\n    Given announcements paused for budget\n    When the owner raises the budget to $20.00\n    Then the waiting announcement posts\n\n  Scenario: A budget suggestion from our own pace\n    Given MoM had 4 Stories meet its announcement rules in the last two months\n    Then the page suggests \"At your pace, about 2 posts and $0.40 per month\"\n\n  Scenario: Our count and X's count side by side\n    Then the page shows our post count and X's own usage count for the same days\n    And says where they differ\n```\n\nOpen questions: none (MoM: $10 per cycle).",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -29,10 +29,17 @@
       "text": "Built (PR #1714): papyrus announcements account status now shows our post count for the current billing cycle (every sent attempt counts, a deleted post included, because X charged for it) and the budget suggestion from the site's own pace (Stories with an Announcement in the last 60 days x 30/60 x the link price, as a pace never a limit; left out until prices are entered). Standing.sentence was already shown as standing. Specs: features_backend/announcement-operations.feature. Still open: X's own usage count (GET /2/usage/tweets) beside ours, and the guard's live call path; both need a live X account and a deploy. The console page still has to draw the two new fields (needs the TypeScript door; not done here).",
       "created_at": "2026-11-19T10:21:54.113325Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8d4d859f-844c-4e6e-a77b-88833b84c27c",
+      "author": "claude",
+      "text": "Back in progress: it is on the always-on agents track (X announcements, ratings suggestions).",
+      "created_at": "2026-11-20T14:08:15.000000Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-12T18:41:39.280312Z",
-  "updated_at": "2026-11-19T10:21:54.113552Z",
+  "updated_at": "2026-11-20T14:08:15.000000Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

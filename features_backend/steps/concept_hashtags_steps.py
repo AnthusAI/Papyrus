@@ -1,4 +1,4 @@
-"""Concept hashtags (features_backend/concept-hashtags.feature)."""
+"""Concept hashtags (features_backend/knowledge/concept-hashtags.feature)."""
 
 from __future__ import annotations
 

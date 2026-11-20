@@ -37,8 +37,15 @@ class Client(support.Client):
         return {"setItemStars": {"ok": True, "itemId": variables["itemId"], "lineageId": "a", "stars": variables["stars"]}}
 
 
+def registered(route):
+    from papyrus_content.registered_commands import run_registered_command
+
+    return lambda flags: run_registered_command(route, flags)
+
+
 def lines(client, function, *flags):
-    with mock.patch.object(story_commands, "create_authoring_client", return_value=(client, {})):
+    with mock.patch.object(story_commands, "create_authoring_client", return_value=(client, {})), \
+            mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, {})):
         return [line.split("\t") for line in support.run(function, list(flags)).splitlines()]
 
 
@@ -96,24 +103,24 @@ def test_show_prints_signals_and_the_editor_rating():
 
 def test_set_stars_calls_setItemStars_and_prints_previous_and_new():
     client = fleet()
-    rows = lines(client, story_commands.stories_set_stars, "--story", "a", "--stars", "4")
+    rows = lines(client, registered("stories:set-stars"), "--story", "a", "--stars", "4")
     assert rows == [["stories", "set-stars", "a", "previous 2", "stars 4", "editor value", "write"]]
     assert "setItemStars" in client.sent[0][0] and client.sent[0][1]["itemId"] == "a-v1" and client.sent[0][1]["stars"] == 4
 
 
 def test_set_stars_zero_clears_and_dry_run_sends_nothing():
     client = fleet()
-    lines(client, story_commands.stories_set_stars, "--story", "a", "--stars", "0")
+    lines(client, registered("stories:set-stars"), "--story", "a", "--stars", "0")
     assert client.sent[0][1]["stars"] is None
     client.sent.clear()
-    assert lines(client, story_commands.stories_set_stars, "--story", "a", "--stars", "3", "--dry-run")[0][-1].startswith("dry-run") and client.sent == []
+    assert lines(client, registered("stories:set-stars"), "--story", "a", "--stars", "3", "--dry-run")[0][-1].startswith("dry-run") and client.sent == []
 
 
 @pytest.mark.parametrize("value", ["6", "-1", "x"])
 def test_set_stars_rejects_out_of_range(value):
     client = fleet()
     with pytest.raises(ValueError, match="0 to 5"):
-        lines(client, story_commands.stories_set_stars, "--story", "a", "--stars", value)
+        lines(client, registered("stories:set-stars"), "--story", "a", "--stars", value)
     assert client.sent == []
 
 

@@ -1,9 +1,11 @@
 import json
 import os
 import pathlib
+import shutil
 import sys
 import tempfile
 import unittest
+import urllib.error
 from unittest import mock
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -114,7 +116,7 @@ class PapyrusContentTests(unittest.TestCase):
         self.assertEqual(plan["itemCount"], 1)
         models = {entry["modelName"] for entry in plan["records"]}
         self.assertIn("Reference", models)
-        self.assertIn("Assignment", models)
+        self.assertNotIn("Assignment", models)
         self.assertIn("KnowledgeImportRun", models)
         self.assertNotIn("Message", models)
         reference = next(entry["expected"] for entry in plan["records"] if entry["modelName"] == "Reference")
@@ -198,19 +200,22 @@ class PapyrusContentTests(unittest.TestCase):
         self.assertEqual(uri, "https://www.youtube.com/watch?v=jGwO_UgTS7I")
 
     def test_resolve_corpus_local_path_ignores_process_cwd(self) -> None:
-        steering_config = load_steering_config("corpora/papyrus-steering.yml")
-        self.assertIsNotNone(steering_config)
-        corpus_config = require_corpus_config(steering_config, "threat-intelligence", "--corpus-key")
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory() as steering_root, tempfile.TemporaryDirectory() as unrelated_working_directory:
+            steering_directory = pathlib.Path(steering_root).resolve() / "corpora"
+            corpus_directory = steering_directory / "threat-intelligence"
+            corpus_directory.mkdir(parents=True)
+            steering_path = steering_directory / "papyrus-steering.yml"
+            shutil.copyfile("corpora/papyrus-steering.yml", steering_path)
+            steering_config = load_steering_config(str(steering_path))
+            self.assertIsNotNone(steering_config)
+            corpus_config = require_corpus_config(steering_config, "threat-intelligence", "--corpus-key")
             previous_cwd = pathlib.Path.cwd()
             try:
-                os.chdir(temp_dir)
+                os.chdir(unrelated_working_directory)
                 resolved = resolve_corpus_local_path(corpus_config, steering_config)
             finally:
                 os.chdir(previous_cwd)
-        self.assertTrue(resolved.exists())
-        self.assertIn("threat-intelligence", resolved.as_posix())
-        self.assertNotIn(temp_dir, resolved.as_posix())
+        self.assertEqual(resolved, corpus_directory)
 
     def test_run_biblicus_reindex_for_accession_records_logs_and_raises_on_failure(self) -> None:
         from papyrus_content import biblicus_runner
@@ -255,13 +260,17 @@ class PapyrusContentTests(unittest.TestCase):
     def test_source_download_uri_for_reference_uses_acm_pdf_url(self) -> None:
         from papyrus_content.accession import source_download_uri_for_reference
 
-        download_uri = source_download_uri_for_reference(
-            {
-                "id": "reference-acm",
-                "title": "ACM test paper",
-                "sourceUri": "https://dl.acm.org/doi/10.1145/122344.122377",
-            }
-        )
+        nothing_reachable = urllib.error.URLError("no network in tests")
+        with mock.patch("papyrus_content.source_site_plugins.urllib.request.urlopen", side_effect=nothing_reachable), mock.patch(
+            "papyrus_content.source_site_plugins._metadata_pdf_candidates", return_value=[]
+        ):
+            download_uri = source_download_uri_for_reference(
+                {
+                    "id": "reference-acm",
+                    "title": "ACM test paper",
+                    "sourceUri": "https://dl.acm.org/doi/10.1145/122344.122377",
+                }
+            )
         self.assertEqual(
             download_uri,
             "https://dl.acm.org/doi/pdf/10.1145/122344.122377?download=true",
@@ -298,7 +307,7 @@ class PapyrusContentTests(unittest.TestCase):
         self.assertEqual(config["publicSite"]["baseUrl"], "https://p.apyr.us")
 
     def test_build_newsroom_reference_public_url(self) -> None:
-        with mock.mock.patch.dict(
+        with mock.patch.dict(
             os.environ,
             {"PAPYRUS_PUBLIC_SITE_BASE_URL": "https://staging.example.com"},
             clear=False,
@@ -315,7 +324,7 @@ class PapyrusContentTests(unittest.TestCase):
                 "schemaVersion: 1\npublicSite:\n  baseUrl: https://from-config.example.com\n",
                 encoding="utf-8",
             )
-            with mock.mock.patch.dict(os.environ, {}, clear=False):
+            with mock.patch.dict(os.environ, {}, clear=False):
                 os.environ.pop("PAPYRUS_PUBLIC_SITE_BASE_URL", None)
                 os.environ["PAPYRUS_CONFIG"] = str(config_path)
                 try:
@@ -353,7 +362,7 @@ class PapyrusContentTests(unittest.TestCase):
                 "schemaVersion: 1\nopenai:\n  api_key: from-config\n",
                 encoding="utf-8",
             )
-            with mock.mock.patch.dict(
+            with mock.patch.dict(
                 os.environ,
                 {"PAPYRUS_CONFIG": str(config_path), "OPENAI_API_KEY": "from-env"},
                 clear=False,

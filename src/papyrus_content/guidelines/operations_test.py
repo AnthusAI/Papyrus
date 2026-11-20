@@ -1,4 +1,4 @@
-"""The guideline operations: the table they are generated from, the handlers, the door and the command line (features_backend/guidelines-door.feature and
+"""The guideline operations: the table they are generated from, the handlers, the door and the command line (features_backend/guidelines/guidelines-door.feature and
 guidelines-cli.feature have the narrative). A fake backend and in-memory files; no network, no AWS."""
 from __future__ import annotations
 

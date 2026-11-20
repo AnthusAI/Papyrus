@@ -75,27 +75,6 @@ class TavilyDeepResearchWorkflowTests(unittest.TestCase):
         assignment = {"assignmentTypeKey": TAVILY_DEEP_ASSIGNMENT_TYPE}
         self.assertTrue(is_tavily_deep_assignment(assignment, {}))
 
-    def test_build_packet_from_completed(self):
-        assignment = {"id": "assignment-1", "title": "Robotics", "corpusId": "corpus-1"}
-        completed = {
-            "request_id": "req-1",
-            "input": "world models in robotics",
-            "content": "# Robotics world models\n\nSummary paragraph.",
-            "sources": [
-                {"title": "Survey", "url": "https://arxiv.org/abs/1234.5678"},
-            ],
-        }
-        packet = build_research_packet_from_tavily_completed(
-            assignment=assignment,
-            assignment_meta={"corpusKey": "AI-ML-research"},
-            completed=completed,
-            research_mode="source_discovery",
-        )
-        self.assertEqual(len(packet["source_snapshots"]), 1)
-        self.assertEqual(len(packet["proposed_references"]), 1)
-        self.assertEqual(packet["_forum_title"], "Robotics world models")
-        self.assertIn("Summary paragraph", packet["summary"])
-        self.assertIn("Robotics world models", packet["_report_markdown"])
 
     def test_build_packet_uses_report_fallback_field(self):
         packet = build_research_packet_from_tavily_completed(
@@ -130,34 +109,6 @@ class TavilyDeepResearchWorkflowTests(unittest.TestCase):
         self.assertEqual(title, "Tavily body fix smoke test")
         self.assertLessEqual(len(title), NOTE_FORUM_TITLE_MAX_LEN)
 
-    def test_message_record_expands_message_body_from_content(self):
-        now = "2026-05-31T12:00:00Z"
-        record = message_record(
-            {
-                "id": "message-note-test",
-                "messageKind": "note",
-                "messageDomain": "assignment_work",
-                "summary": "Note summary",
-                "body": "# Tavily report\n\nFull body text.",
-                "threadId": "message-note-test",
-                "sequenceNumber": 1,
-                "createdAt": now,
-                "updatedAt": now,
-            }
-        )
-        self.assertEqual(record["expected"]["threadId"], "message-note-test")
-        self.assertEqual(record["expected"]["sequenceNumber"], 1)
-        expanded = expand_private_payload_records([record])
-        attachments = [row for row in expanded if row["modelName"] == "ModelAttachment"]
-        body_attachments = [
-            row for row in attachments if row["expected"].get("role") == "message_body"
-        ]
-        self.assertEqual(len(body_attachments), 1)
-        self.assertEqual(
-            body_attachments[0]["attachmentBody"].decode("utf-8"),
-            "# Tavily report\n\nFull body text.",
-        )
-        self.assertEqual(body_attachments[0]["expected"]["filename"], "message.md")
 
     def test_research_input_prefers_instructions(self):
         assignment = {

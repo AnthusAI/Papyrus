@@ -1,4 +1,4 @@
-"""A list carries its cadence, time, time zone and rule as data (features_backend/list-cadence.feature).
+"""A list carries its cadence, time, time zone and rule as data (features_backend/announcements/list-cadence.feature).
 
 A fake site (its API, its site store, its schedule group, its wake queue and its Announcement and Delivery records); no network, no AWS, nothing is sent. The
 schedules are reconciled by the command a deploy runs (``papyrus agents schedules``), a tick is the message the entry sends, and the wake is handled by the
@@ -127,7 +127,6 @@ def agent_row(context, agent, procedure):
     context.api.rows[agent] = au.stored_payload(record)
 
 
-@given('the agent "{agent}" is switched off')
 @when('the agent "{agent}" is switched off')
 def switch_off(context, agent):
     context.api.rows[agent] = {**context.api.rows[agent], "enabled": False}
@@ -492,10 +491,9 @@ def same_announcement_fields(context):
     assert sorted(row["kind"] for row in announcements) == ["roundup", "roundup", "story_published"]
 
 
-# --- period keys and what carries forward (features_backend/period-keys.feature) -------------------------------------------------------------------
+# --- period keys and what carries forward (features_backend/readers/period-keys.feature) -------------------------------------------------------------------
 
 
-@given('the Delivery of the list "{list_id}" is approved and sent at "{time}"')
 @when('the Delivery of the list "{list_id}" is approved and sent at "{time}"')
 def approved_and_sent(context, list_id, time):
     deliveries = context.announcements.deliveries
@@ -507,7 +505,6 @@ def approved_and_sent(context, list_id, time):
     attempts.close(approved["id"], entry["number"], "sent", by="sender", now=time)
 
 
-@given('the due Announcements are released at "{time}"')
 @when('the due Announcements are released at "{time}"')
 def release_due(context, time):
     assert context.announcements.release_due(time), "no Announcement was due"
@@ -563,7 +560,7 @@ def nothing_sent(context):
     assert all(row["state"] not in ("sending", "sent") and not json_list(row.get("attempts")) for row in rows(context, "Delivery"))
 
 
-# --- an empty period (features_backend/empty-period.feature) --------------------------------------------------------------------------------------
+# --- an empty period (features_backend/readers/empty-period.feature) --------------------------------------------------------------------------------------
 
 
 @given('a person {who} wrote the note "{text}" for the period at "{time}"')

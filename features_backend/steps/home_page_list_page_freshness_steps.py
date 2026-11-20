@@ -1,4 +1,4 @@
-"""Steps for features_backend/home-page-list-page-freshness.feature. Synthetic data in local directories only: no network, no AWS."""
+"""Steps for features_backend/site/home-page-list-page-freshness.feature. Synthetic data in local directories only: no network, no AWS."""
 from __future__ import annotations
 
 import json

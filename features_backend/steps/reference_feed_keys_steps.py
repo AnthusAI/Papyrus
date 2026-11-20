@@ -1,4 +1,4 @@
-"""Steps for features_backend/reference-feed-keys.feature. Everything is in memory: no network, no AWS, no model."""
+"""Steps for features_backend/references/reference-feed-keys.feature. Everything is in memory: no network, no AWS, no model."""
 from __future__ import annotations
 
 import json
@@ -131,7 +131,6 @@ def step_key(context, prefix):
 
 
 @then("it is still in the unrated feed")
-@then("it is in the unrated feed of its corpus")
 def step_unrated(context):
     assert stored(context)["feedStateKey"] == f"{CORPUS}#unrated", stored(context)
 

@@ -3,17 +3,25 @@
   "title": "Image toolchain step 3: Profile editing, example uploads and the Machines on Machines profile",
   "description": "Build step 3 of the image toolchain (design: project/wiki/image-toolchain.md, section 9). Revised 2026-11-07 for named image types.\n\nFirst commit: the upload function's new roles, image media types and 10 MB cap (5.8). Then Administration > Policies > Visual style with Brand, Image types (list, add with \"Start from\", retire, per-type page with sources order and effective rules) and per-type Examples, `image_profile_example_add`/`_remove` with `imageType`, `profile diff`/`init`. Then write MoM's profile from the starter types in 5.10 (after Ryan corrects them), its examples per type and `imageReview: after_the_fact`, through the signed-in CLI.\n\nSpecs: `features/newsroom/visual-style-admin.feature` and `image-profile-examples.feature`: add and retire a type; upload to a type, wrong type or size refused; a child type does not inherit examples; removing an example keeps it in older versions; identifiable pictures not sent unless a person allows it.\n\nWhat deploys: Upload function + UI. MoM data write after Ryan reviews the document.\n\nFulfils or changes: e4bdd096.\n\nGherkin specs are required. Style guidance is data, never code. Spending is only approved for step 6.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": "Papyrus newsroom automation",
   "creator": null,
   "parent": "PPY-1f68bf26-6671-4514-a2b2-3cb220a33d96",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a4752357-db5c-48c4-8940-f4cbf3a89744",
+      "author": "claude",
+      "text": "Closed in the in-progress sweep: merged to develop in #1290, #1291, #1292; no remaining work recorded.",
+      "created_at": "2026-11-20T13:52:20.000000Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T18:39:03.637535Z",
-  "updated_at": "2026-11-07T22:14:14.183909Z",
-  "closed_at": null,
+  "updated_at": "2026-11-20T13:52:20.000000Z",
+  "closed_at": "2026-11-20T13:52:20.000000Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

@@ -1,4 +1,4 @@
-"""The announce agent's worker, the parts that need no site (the behaviour is features_backend/announce-durable-triggers.feature)."""
+"""The announce agent's worker, the parts that need no site (the behaviour is features_backend/announcements/announce-durable-triggers.feature)."""
 import json
 
 import pytest

@@ -23,7 +23,7 @@ Story's version history carries on from the one an editor accepts.
 
 Nothing is deleted: the model has no delete access, and an editor rejects with a reason, so what was turned down and why stays readable by people and by the Story's conversation.
 
-`papyrus_content.story_variations` has `offer_variation`, `variations_of` and `decide_variation`. Specs: `features_backend/story-variations.feature`.
+`papyrus_content.story_variations` has `offer_variation`, `variations_of` and `decide_variation`. Specs: `features_backend/stories/story-variations.feature`.
 
 ## What this does not do yet
 

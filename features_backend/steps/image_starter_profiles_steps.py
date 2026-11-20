@@ -1,4 +1,4 @@
-"""The draft starter profiles (features_backend/image-starter-profiles.feature). A fake backend; reads files only."""
+"""The draft starter profiles (features_backend/guidelines/image-starter-profiles.feature). A fake backend; reads files only."""
 from __future__ import annotations
 
 import json

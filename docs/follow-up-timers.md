@@ -1,6 +1,6 @@
 # Follow-up timers
 
-A record that waits names the time it waits for: `dueAt`, with `waitingFor` (a Delivery already carries both). One helper turns that time into a timer, and a timer does one thing: it puts a wake on the site's wake queue. Nothing polls. This is slice C2 (PPY-3ff011) of [the always-on agents design](design/always-on-agents-architecture.md#35-timers-are-events); its spec is `features_backend/follow-up-timers.feature`.
+A record that waits names the time it waits for: `dueAt`, with `waitingFor` (a Delivery already carries both). One helper turns that time into a timer, and a timer does one thing: it puts a wake on the site's wake queue. Nothing polls. This is slice C2 (PPY-3ff011) of [the always-on agents design](design/always-on-agents-architecture.md#35-timers-are-events); its spec is `features_backend/agents/follow-up-timers.feature`.
 
 ## The contract
 

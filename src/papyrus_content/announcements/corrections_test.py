@@ -1,5 +1,5 @@
 """The checks and the plan of ``papyrus announcements correct`` (PPY-3e0a8a). The command, its refusals and its result are specified in
-features_backend/announcements-correct-cli.feature; these tests hold the parts that need no catalog beyond the fakes."""
+features_backend/announcements/announcements-correct-cli.feature; these tests hold the parts that need no catalog beyond the fakes."""
 import json
 
 import pytest

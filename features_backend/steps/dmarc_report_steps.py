@@ -12,7 +12,7 @@ from behave import given, then, when
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = REPO_ROOT / 'infra' / 'pipeline'
 TEMPLATE = REPO_ROOT / 'infra' / 'email' / 'papyrus-dmarc.yaml'
-SPECS = [REPO_ROOT / 'features_backend' / 'dmarc-report-record.feature', Path(__file__)]
+SPECS = [REPO_ROOT / 'features_backend' / 'references' / 'dmarc-report-record.feature', Path(__file__)]
 DMARC_STACK = re.compile(r'stack/papyrus-dmarc-\*/\*')
 
 _spec = importlib.util.spec_from_file_location('stack_deploy', PIPELINE / 'stack_deploy.py')

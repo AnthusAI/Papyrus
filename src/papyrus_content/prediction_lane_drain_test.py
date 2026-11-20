@@ -1,4 +1,4 @@
-"""Every partition a site backend queues prediction requests into has a schedule that drains it (features_backend/reference-prediction-on-create.feature).
+"""Every partition a site backend queues prediction requests into has a schedule that drains it (features_backend/references/reference-prediction-on-create.feature).
 
 On 2026-11-06 Machines on Machines had 366 requests queued in the shared ``hn`` partition (every site's ``monitoring.emailMonitorId`` defaults to it,
 amplify/site-backend.ts) and the only ``email-references`` schedule drained ``p-apyr-us-email``: no request was ever read. This reads the two files that must

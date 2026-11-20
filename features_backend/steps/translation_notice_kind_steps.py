@@ -1,4 +1,4 @@
-"""A translated page says what it is, and never claims AI for copy a person wrote (features_backend/translation-notice-kind.feature).
+"""A translated page says what it is, and never claims AI for copy a person wrote (features_backend/translation/translation-notice-kind.feature).
 
 Machine translations come from the scripted run of story_localize_steps.py, imported ones from the real ``stories import-translation`` of
 translation_import_steps.py; both are published through the real ``publish_item`` and projected by the real standard projector on the synthetic site of

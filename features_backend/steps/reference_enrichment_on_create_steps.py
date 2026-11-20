@@ -1,4 +1,4 @@
-"""features_backend/reference-enrichment-on-create.feature. Fakes only; procedures/newsroom/tests/test_reference_enrichment_on_create.py shares them."""
+"""features_backend/references/reference-enrichment-on-create.feature. Fakes only; procedures/newsroom/tests/test_reference_enrichment_on_create.py shares them."""
 from __future__ import annotations
 
 import json

@@ -1,4 +1,4 @@
-"""Publishing a translation: the rules that are not a page (features_backend/translation-publishing.feature has the pages end to end).
+"""Publishing a translation: the rules that are not a page (features_backend/translation/translation-publishing.feature has the pages end to end).
 
 Synthetic rows on the in-memory fake backend; no model, no network."""
 

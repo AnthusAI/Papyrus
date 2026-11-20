@@ -1,4 +1,4 @@
-"""A site's figure rules (features_backend/site-figure-rules.feature). The backend and the files are in-memory fakes."""
+"""A site's figure rules (features_backend/guidelines/site-figure-rules.feature). The backend and the files are in-memory fakes."""
 from __future__ import annotations
 
 import sys

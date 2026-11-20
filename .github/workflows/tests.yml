@@ -97,7 +97,7 @@ jobs:
       - run: npm run test:assignment-data-access
       - run: npm run test:public-forms
       - run: node scripts/test-edge-language-404.mjs
-      # One new index per table per release (features_backend/gsi-ledger.feature): compares every schema source with the last release tag.
+      # One new index per table per release (features_backend/platform/gsi-ledger.feature): compares every schema source with the last release tag.
       - run: npx tsx scripts/check-gsi-ledger.ts
       - run: npm run test:alexa
       - uses: actions/cache@v4
@@ -107,6 +107,15 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Shared chat browser acceptance
         run: npm run test:shared-chat
+      - name: MCP transport, OAuth and Apps
+        run: |
+          npm run test:mcp-integration
+          npx tsx scripts/test-mcp-transport.ts
+          npx tsx scripts/test-mcp-oauth-runtime.ts
+          npx tsx scripts/test-mcp-oauth-browser.ts
+          npx cucumber-js --profile mcpCards
+          npx cucumber-js --profile mcpTransport
+          npx cucumber-js --profile mcpOAuth
 
   # `npm test` as three shards. The file list is the same set of globs package.json's `test` script uses, sorted, and shard N takes every
   # third file starting at N; the three shards together are exactly the files `npm test` would run, none dropped, none repeated.
@@ -188,31 +197,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/python-deps
+      - uses: ./.github/actions/node-deps
+      - name: MCP private services and domain behavior
+        run: |
+          poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py src/papyrus_content/mcp_story_atomic_test.py src/papyrus_content/mcp_story_transaction_test.py src/papyrus_content/mcp_publish_request_test.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
-      #   test_references_commands       PPY-c22e1c (stale assertions)
-      #   test_tavily_research           PPY-c22e1c (stale assertions)
-      #   test_relations_commands        PPY-c22e1c (stale assertions)
-      #   test_analysis_entity_graph_bridge  PPY-c22e1c (stale assertions)
-      #   test_cloud_procedure_execution PPY-c22e1c (stale assertions)
-      #   test_newsroom_tools            PPY-7e2ca6 (needs local poetry/Biblicus/corpora)
-      #   test_papyrus_content           PPY-7e2ca6 (needs local uv/corpora)
       # pytest-xdist: one worker per vCPU.
       - name: Python unit tests
         run: |
           poetry run pytest -q -n auto \
             --ignore=procedures/newsroom/tests/test_content_cli_live.py \
-            --ignore=procedures/newsroom/tests/test_references_commands.py \
-            --ignore=procedures/newsroom/tests/test_tavily_research.py \
-            --ignore=procedures/newsroom/tests/test_relations_commands.py \
-            --ignore=procedures/newsroom/tests/test_analysis_entity_graph_bridge.py \
-            --ignore=procedures/newsroom/tests/test_cloud_procedure_execution.py \
-            --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
-            --ignore=procedures/newsroom/tests/test_papyrus_content.py
 
-  # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
   # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
-  # Feature files sorted by name; shard N takes every third file starting at N, so the shards partition features_backend exactly.
+  # Feature files live in one directory per product area (features_backend/README.md). Sorted by path; shard N takes every third file starting at N, so the shards partition features_backend exactly.
   python-behave:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
@@ -231,9 +229,9 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: "3"
         run: |
-          mine=$(ls features_backend/*.feature | LC_ALL=C sort | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
+          mine=$(find features_backend -name '*.feature' | LC_ALL=C sort | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
           echo "$mine"
-          poetry run behave --tags=~@live-agent --exclude 'research-reporting-context' $mine
+          poetry run behave --tags=~@live-agent $mine
 
   python:
     needs: [reuse, python-checks, python-unit, python-behave]

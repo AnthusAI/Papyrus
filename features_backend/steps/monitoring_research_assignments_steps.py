@@ -1,4 +1,4 @@
-"""The router's research-assignments task (features_backend/monitoring-research-assignments.feature). Fakes for the backend, the clock and the research."""
+"""The router's research-assignments task (features_backend/monitoring/monitoring-research-assignments.feature). Fakes for the backend, the clock and the research."""
 from __future__ import annotations
 
 import json

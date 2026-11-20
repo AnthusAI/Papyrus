@@ -508,11 +508,24 @@ def _legacy(path: list[str]) -> Usage | None:
   return Usage(" ".join(path), "", text, "unverified", "unknown")
 
 
+def _registered(key: str) -> Usage | None:
+  from papyrus_content.command_registry import GENERATED_CLI_COMMANDS
+  from papyrus_content.registered_commands import usage_line
+
+  for command in GENERATED_CLI_COMMANDS:
+    if f"{command.group} {command.command}" == key:
+      return Usage(key, command.description, usage_line(command), "both", command.writes)
+  return None
+
+
 def usage_for_path(path: list[str]) -> Usage | None:
   """The usage entry of the command named by `path` (`["knowledge", "concepts", "search"]`), or None for a group or an unknown word."""
   key = " ".join(path)
   if key in _ENTRIES:
     return _ENTRIES[key]
+  registered = _registered(key)
+  if registered is not None:
+    return registered
   legacy = _legacy(path)
   if legacy is not None:
     return legacy

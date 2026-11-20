@@ -668,7 +668,6 @@ def _caducus_posts_given(context, amount):
     _caducus_delivers(context, amount)
 
 
-@when('Caducus\'s guard refuses it with "{reason}"')
 @given('Caducus\'s guard refuses it with "{reason}"')
 def _guard_refuses(context, reason):
     _caducus_delivers(context, refusal=reason)

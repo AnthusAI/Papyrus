@@ -1,4 +1,4 @@
-"""Link suggestions, related concepts and concept search (features_backend/suggest-links.feature). A stand-in site and index; no network, login, model or AWS."""
+"""Link suggestions, related concepts and concept search (features_backend/knowledge/suggest-links.feature). A stand-in site and index; no network, login, model or AWS."""
 from __future__ import annotations
 
 import sys

@@ -50,7 +50,7 @@ This wiring covers the Papyrus sweep request constructors. A separately composed
 
 ## Verification
 
-- `PYTHONPATH=src:. python -m behave features_backend/editorial-context.feature`
+- `PYTHONPATH=src:. python -m behave features_backend/stories/editorial-context.feature`
 - `PYTHONPATH=src python -m pytest procedures/newsroom/tests/test_editorial_context.py`
 - `node --import tsx scripts/test-editorial-context-api.ts`
 

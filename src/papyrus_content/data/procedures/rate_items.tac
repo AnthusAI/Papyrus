@@ -9,7 +9,7 @@
 --
 -- It runs only on an agent's wake adopted as the responsibility "rate": `papyrus automations adopt --id rate --responsibility rate`. The model work is in the
 -- tool (papyrus_content/rating_agent.py), which reports each call's usage to the run, so the run's cost counts it.
--- Specs: features_backend/rating-agent.feature
+-- Specs: features_backend/agents/rating-agent.feature
 
 Toolset "papyrus_rate_items" {
     type = "plugin",

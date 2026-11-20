@@ -29,11 +29,11 @@ A refusal names the setting, the roles, the theme and the measured ratio, for ex
 
 ## Tests and shared vectors
 
-`scripts/fixtures/brand-pack-vectors.json` holds valid and refused packs (invented brand, `Lantern Quay`) with the messages each must produce. The Python tests (`src/papyrus_content/brand_pack/brand_pack_test.py`) and the behave feature (`features_backend/brand-pack-validator.feature`) read it, and the newsroom's TypeScript validator will reuse it.
+`scripts/fixtures/brand-pack-vectors.json` holds valid and refused packs (invented brand, `Lantern Quay`) with the messages each must produce. The Python tests (`src/papyrus_content/brand_pack/brand_pack_test.py`) and the behave feature (`features_backend/guidelines/brand-pack-validator.feature`) read it, and the newsroom's TypeScript validator will reuse it.
 
 ```
 poetry run pytest src/papyrus_content/brand_pack -q
-poetry run behave features_backend/brand-pack-validator.feature
+poetry run behave features_backend/guidelines/brand-pack-validator.feature
 ```
 
 ## How the standard front end applies a pack
@@ -42,7 +42,7 @@ A site names its pack in `projection.json` (`"brandPack": "brand.json"`, a file 
 
 `site.notice` (`{"label": "Satire", "text": "..."}`) is a publication-wide statement: one small quiet line (no fill, no box) under the masthead on every page; a site with no notice shows nothing, a quote in every Markdown twin and in `llms.txt`, a lead in each feed entry's summary and `genre` in the structured data. A language edition may give its own words in the interface strings `notice.label` and `notice.text`.
 
-Plan: `docs/plans/shared-publication-front-end.md`. Features: `features_backend/brand-pack-applied.feature`, `features_backend/front-end-tokens.feature`.
+Plan: `docs/plans/shared-publication-front-end.md`. Features: `features_backend/guidelines/brand-pack-applied.feature`, `features_backend/guidelines/front-end-tokens.feature`.
 
 ### Notice placement and prominence, and one column
 

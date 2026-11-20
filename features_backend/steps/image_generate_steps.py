@@ -1,4 +1,4 @@
-"""Generating, discarding and applying pictures (features_backend/image-generate.feature). A fake provider and in-memory stores; no network, no AWS."""
+"""Generating, discarding and applying pictures (features_backend/stories/image-generate.feature). A fake provider and in-memory stores; no network, no AWS."""
 from __future__ import annotations
 
 import sys
@@ -110,11 +110,6 @@ def generate(context, caller, use, image_type, brief, *, story=None, section=Non
 @when('a person generates a "{use}" picture of type "{image_type}" with no Story and no section with the brief "{brief}"')
 def step_gen_private(context, use, image_type, brief):
     generate(context, PERSON, use, image_type, brief)
-
-
-@when('a person generates a "{use}" picture of type "{image_type}" for the section "{section}" with the brief "{brief}"')
-def step_gen_section(context, use, image_type, section, brief):
-    generate(context, PERSON, use, image_type, brief, section=section)
 
 
 @when('a person generates as request "{request_id}" a "{use}" picture of type "{image_type}" for the section "{section}" with the brief "{brief}"')

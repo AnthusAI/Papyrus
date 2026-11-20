@@ -138,25 +138,6 @@ Given("the newsroom uses mocked reference-curation message detail data", async f
   this.newsroomMessageDetailMock = "reference-curation";
 });
 
-Given("the newsroom uses mocked reference summaries with leading source URI", async function () {
-  this.testEditorReader = true;
-  this.newsroomReferenceSummaryPayloadMock = "dedup";
-});
-
-Given("the newsroom uses mocked extracted text payload for reference detail", async function () {
-  this.testEditorReader = true;
-  this.newsroomReferenceExtractedTextMock = "history-001-filtered-and-original";
-});
-
-Given("the newsroom uses mocked filtered extracted text payload for reference detail", async function () {
-  this.testEditorReader = true;
-  this.newsroomReferenceExtractedTextMock = "history-002-filtered-only";
-});
-
-Given("the reference quality mutation fails", async function () {
-  this.newsroomQualityMutationMock = "fail";
-});
-
 Given("I open the edition path {string} at {int} by {int}", async function (routePath, width, height) {
   await this.openPath(routePath, width, height);
 });
@@ -251,21 +232,6 @@ When("I follow the newsroom navigation link for {string}", async function (label
   await link.waitFor({ state: "visible", timeout: 10_000 });
   await link.click();
   await waitForNewsroomSection(page, sectionId);
-});
-
-When("I update the first newsroom category name to {string}", async function (name) {
-  const page = requirePage(this);
-  const firstNameInput = page.locator(".category-steering-category-card label", { hasText: "Name" }).first().locator("input");
-  if (!(await firstNameInput.isVisible())) {
-    await page.locator("[data-newsroom-card]").first().click();
-    await firstNameInput.waitFor({ state: "visible", timeout: 10_000 });
-  }
-  await firstNameInput.fill(name);
-  await page.locator(".category-steering-category-card button", { hasText: "Save" }).first().click();
-  await page.waitForFunction((expectedName) => {
-    const card = document.querySelector(".category-steering-category-card");
-    return card?.getAttribute("data-saved-display-name") === expectedName;
-  }, name);
 });
 
 When("I claim assignment {string} with note {string}", async function (assignmentId, note) {
@@ -473,157 +439,6 @@ Then("the newsroom ops desks should not render on overview-only surfaces", async
   assert.equal(await page.locator("[data-newsroom-ops-desks]").count(), 0);
 });
 
-Then("newsroom overview section headers should follow the vertical rhythm", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const newsDeskPage = document.querySelector(".news-desk-page");
-    const rhythm = parseFloat(getComputedStyle(newsDeskPage ?? document.documentElement).getPropertyValue("--paper-rhythm")) || 0;
-    return ["messages", "assignments", "references"].map((section) => {
-      const header = document.querySelector(`[data-newsroom-overview-section="${section}"] .newsroom-overview-section__header`);
-      const rect = header?.getBoundingClientRect();
-      return {
-        section,
-        height: rect?.height ?? 0,
-        rows: rhythm > 0 && rect ? rect.height / rhythm : 0,
-      };
-    });
-  });
-  for (const entry of report) {
-    assert.ok(entry.height > 0, `Expected ${entry.section} overview header to render`);
-    assert.ok(Math.abs(entry.rows - Math.round(entry.rows)) <= 0.02, `Expected ${entry.section} overview header to align to whole rhythm rows, got ${entry.rows}`);
-  }
-});
-
-Then("newsroom overview section cards should not overlap or clip", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const cards = Array.from(document.querySelectorAll("[data-newsroom-overview-section-card]"))
-      .map((card) => {
-        const rect = card.getBoundingClientRect();
-        return {
-          id: card.getAttribute("data-newsroom-card-id") ?? "",
-          clipped: card.scrollHeight > card.clientHeight + 2 || card.scrollWidth > card.clientWidth + 2,
-          rect: { bottom: rect.bottom, height: rect.height, left: rect.left, right: rect.right, top: rect.top, width: rect.width },
-        };
-      })
-      .filter((card) => card.rect.width > 0 && card.rect.height > 0);
-    const overlaps = [];
-    for (let leftIndex = 0; leftIndex < cards.length; leftIndex += 1) {
-      for (let rightIndex = leftIndex + 1; rightIndex < cards.length; rightIndex += 1) {
-        const left = cards[leftIndex].rect;
-        const right = cards[rightIndex].rect;
-        const horizontal = Math.min(left.right, right.right) - Math.max(left.left, right.left);
-        const vertical = Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top);
-        if (horizontal > 1.5 && vertical > 1.5) overlaps.push(`${cards[leftIndex].id}/${cards[rightIndex].id}`);
-      }
-    }
-    const childOverflow = Array.from(document.querySelectorAll("[data-newsroom-overview-section-card] .newsroom-card__title, [data-newsroom-overview-section-card] .newsroom-card__body, [data-newsroom-overview-section-card] .newsroom-card__meta"))
-      .filter((node) => {
-        const card = node.closest("[data-newsroom-overview-section-card]");
-        if (!card) return false;
-        const cardRect = card.getBoundingClientRect();
-        const rect = node.getBoundingClientRect();
-        return rect.left < cardRect.left - 2 || rect.right > cardRect.right + 2 || rect.top < cardRect.top - 2 || rect.bottom > cardRect.bottom + 2;
-      })
-      .map((node) => node.textContent?.trim().slice(0, 80));
-    return {
-      cardCount: cards.length,
-      clipped: cards.filter((card) => card.clipped).map((card) => card.id),
-      childOverflow,
-      overlaps,
-    };
-  });
-  assert.ok(report.cardCount > 0, "Expected visible newsroom overview cards");
-  assert.deepEqual(report.overlaps, [], `Expected overview cards not to overlap: ${report.overlaps.join(", ")}`);
-  assert.deepEqual(report.clipped, [], `Expected overview cards not to clip: ${report.clipped.join(", ")}`);
-  assert.deepEqual(report.childOverflow, [], `Expected overview card text to stay inside cards: ${report.childOverflow.join(", ")}`);
-});
-
-Then("the newsroom section rail should show canonical sections in rank order", async function () {
-  const page = requirePage(this);
-  await page.locator("[data-newsroom-section-rail]").waitFor({ state: "visible", timeout: 10_000 });
-  const ids = await page.locator("[data-newsroom-section-type='canonical'][data-newsroom-section-link]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-newsroom-section-link")));
-  assert.deepEqual(ids, ["news", "business", "technology", "science", "methods", "history", "opinion"]);
-});
-
-Then("the newsroom section rail should keep canonical sections after {int} milliseconds", async function (delayMs) {
-  const page = requirePage(this);
-  await page.waitForTimeout(delayMs);
-  await page.locator("[data-newsroom-section-rail]").waitFor({ state: "visible", timeout: 10_000 });
-  const ids = await page.locator("[data-newsroom-section-type='canonical'][data-newsroom-section-link]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-newsroom-section-link")));
-  assert.deepEqual(ids, ["news", "business", "technology", "science", "methods", "history", "opinion"]);
-});
-
-Then("the newsroom section rail should show rotating section choices", async function () {
-  const page = requirePage(this);
-  const toggle = page.locator("[data-newsroom-rotating-expander-toggle]");
-  await toggle.waitFor({ state: "visible", timeout: 10_000 });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-    await toggle.click();
-  }
-  await page.locator("[data-newsroom-rotating-expander-panel]").waitFor({ state: "visible", timeout: 10_000 });
-  const options = await page.locator("[data-newsroom-rotating-option]").evaluateAll((nodes) => nodes.map((node) => ({
-    label: node.textContent?.trim(),
-    value: node.getAttribute("data-newsroom-rotating-option"),
-  })));
-  assert.ok(options.length >= 1, "Expected at least one rotating section option");
-  assert.deepEqual(
-    options.map((option) => option.value),
-    ["world", "arts", "sports", "education", "health", "security", "law-policy", "labor"],
-  );
-});
-
-Then("the newsroom rotating expander should be collapsed by default", async function () {
-  const page = requirePage(this);
-  const toggle = page.locator("[data-newsroom-rotating-expander-toggle]");
-  await toggle.waitFor({ state: "visible", timeout: 10_000 });
-  assert.equal(await toggle.getAttribute("aria-expanded"), "false");
-  const hidden = await page.locator("[data-newsroom-rotating-expander-panel]").getAttribute("hidden");
-  assert.notEqual(hidden, null);
-});
-
-When("I open the newsroom rotating expander", async function () {
-  const page = requirePage(this);
-  const toggle = page.locator("[data-newsroom-rotating-expander-toggle]");
-  await toggle.waitFor({ state: "visible", timeout: 10_000 });
-  await toggle.click();
-});
-
-Then("the newsroom rotating expander should be expanded", async function () {
-  const page = requirePage(this);
-  const toggle = page.locator("[data-newsroom-rotating-expander-toggle]");
-  assert.equal(await toggle.getAttribute("aria-expanded"), "true");
-  await page.locator("[data-newsroom-rotating-expander-panel]").waitFor({ state: "visible", timeout: 10_000 });
-});
-
-Then("the newsroom section rail should occupy one wide column", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const overview = document.querySelector("[data-news-desk-section='overview']");
-    const rail = document.querySelector("[data-newsroom-section-rail]");
-    if (!overview || !rail) return null;
-    const overviewStyle = getComputedStyle(overview);
-    const columns = overviewStyle.gridTemplateColumns.split(" ").map((value) => Number.parseFloat(value)).filter(Number.isFinite);
-    const railRect = rail.getBoundingClientRect();
-    const overviewRect = overview.getBoundingClientRect();
-    return {
-      columnCount: columns.length,
-      firstColumnWidth: columns[0] ?? 0,
-      overviewRight: overviewRect.right,
-      railRight: railRect.right,
-      railWidth: railRect.width,
-    };
-  });
-  assert.ok(report, "Expected section rail geometry report");
-  assert.equal(report.columnCount, 6);
-  assert.ok(report.railWidth >= report.firstColumnWidth * 0.75, `Expected rail ${report.railWidth} to fit one column ${report.firstColumnWidth}`);
-  assert.ok(report.railWidth <= report.firstColumnWidth * 1.25, `Expected rail ${report.railWidth} to fit one column ${report.firstColumnWidth}`);
-  assert.ok(Math.abs(report.overviewRight - report.railRight) <= 1, "Expected section rail to sit on the right edge of the overview grid");
-});
-
-Then("the newsroom section rail should not render", async function () {
-  const page = requirePage(this);
-  await page.locator("[data-news-desk]").waitFor({ state: "visible", timeout: 10_000 });
-  assert.equal(await page.locator("[data-newsroom-section-rail]").count(), 0);
-});
-
 Then("the topics desk should render", async function () {
   const page = requirePage(this);
   await page.locator("[data-news-desk]").waitFor({ state: "visible", timeout: 10_000 });
@@ -649,107 +464,6 @@ Then("the reference detail should render the curation cluster", async function (
   await page.locator("[data-review-row='you']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-review-row='you'] [data-review-choice='accept']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-review-row='you'] [data-review-choice='reject']").waitFor({ state: "visible", timeout: 10_000 });
-});
-
-Then("the reference detail curation controls should share one height", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const selectors = [
-      ["accept", "[data-news-desk-reference-accept]"],
-      ["reject", "[data-news-desk-reference-reject]"],
-      ["stars", ".news-desk-reference-curation-cluster__stars"],
-      ["menu", "[data-news-desk-reference-actions]"],
-    ];
-    return selectors.map(([label, selector]) => {
-      const node = document.querySelector(selector);
-      const rect = node?.getBoundingClientRect();
-      return { label, height: rect?.height ?? 0, visible: Boolean(rect && rect.width > 0 && rect.height > 0) };
-    });
-  });
-  const visible = report.filter((entry) => entry.visible);
-  assert.equal(visible.length, report.length, `Expected all reference curation controls to be visible: ${JSON.stringify(report)}`);
-  const heights = visible.map((entry) => entry.height);
-  const min = Math.min(...heights);
-  const max = Math.max(...heights);
-  assert.ok(max - min <= 0.75, `Expected matching control heights, found ${JSON.stringify(report)}`);
-});
-
-Then("the reference detail curation cluster should align with the top toolbar", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const toNumber = (value) => {
-      const parsed = Number.parseFloat(value ?? "");
-      return Number.isFinite(parsed) ? parsed : 0;
-    };
-    const rectFor = (selector) => {
-      const node = document.querySelector(selector);
-      const rect = node?.getBoundingClientRect();
-      return rect ? { left: rect.left, right: rect.right, width: rect.width } : null;
-    };
-    const cluster = document.querySelector("[data-news-desk-reference-curation-cluster]");
-    const clusterStyle = cluster ? window.getComputedStyle(cluster) : null;
-    const headerFlow = document.querySelector("[data-news-desk-reference-detail] .news-desk-reference-detail__header-flow");
-    const headerFlowStyle = headerFlow ? window.getComputedStyle(headerFlow) : null;
-    const detail = document.querySelector("[data-news-desk-reference-detail]");
-    const detailStyle = detail ? window.getComputedStyle(detail) : null;
-    return {
-      cluster: rectFor("[data-news-desk-reference-curation-cluster]"),
-      toolbar: rectFor(".newsroom-list-detail-shell__detail-toolbar"),
-      trailing: rectFor(".newsroom-list-detail-shell__detail-toolbar-trailing"),
-      detail: rectFor("[data-news-desk-reference-detail]"),
-      headerFlow: rectFor("[data-news-desk-reference-detail] .news-desk-reference-detail__header-flow"),
-      headerFlowMarginTop: toNumber(headerFlowStyle?.marginTop),
-      clusterPaddingTop: toNumber(clusterStyle?.paddingTop),
-      rhythm: toNumber(detailStyle?.getPropertyValue("--paper-rhythm")),
-    };
-  });
-  assert.ok(report.cluster, "Expected curation cluster rect");
-  if (report.toolbar && report.trailing) {
-    assert.ok(Math.abs(report.cluster.right - report.toolbar.right) <= 1, `Expected curation cluster to align to toolbar right edge: ${JSON.stringify(report)}`);
-    assert.ok(report.cluster.left <= report.trailing.right, `Expected curation cluster to sit under the toolbar controls: ${JSON.stringify(report)}`);
-  } else {
-    assert.ok(report.detail, `Expected detail panel rect when toolbar is hidden: ${JSON.stringify(report)}`);
-    assert.ok(Math.abs(report.cluster.right - report.detail.right) <= 1, `Expected curation cluster to align to detail panel right edge: ${JSON.stringify(report)}`);
-  }
-  const topOffset = report.headerFlowMarginTop + report.clusterPaddingTop;
-  assert.ok(Math.abs(topOffset - report.rhythm) <= 0.75, `Expected curation cluster top offset to equal one rhythm row: ${JSON.stringify(report)}`);
-});
-
-Then("the reference detail should not show the lower curation selector", async function () {
-  const count = await requirePage(this).locator(
-    "[data-news-desk-reference-detail] .news-desk-detail-block",
-    { hasText: "Reference Curation" },
-  ).count();
-  assert.equal(count, 0, "Expected lower Reference Curation block to be removed from detail body");
-});
-
-When("I open the reference detail curation actions", async function () {
-  const page = requirePage(this);
-  await page.locator("[data-news-desk-reference-actions]").click();
-  await page.locator(".newsroom-list-detail-shell__action-menu").waitFor({ state: "visible", timeout: 10_000 });
-});
-
-Then("the reference detail actions menu should offer {string} and {string}", async function (firstLabel, secondLabel) {
-  const page = requirePage(this);
-  const labels = await page.locator(".newsroom-list-detail-shell__action-menu button").evaluateAll((nodes) => (
-    nodes.map((node) => node.textContent?.trim()).filter(Boolean)
-  ));
-  assert.ok(labels.includes(firstLabel), `Expected actions menu to include ${firstLabel}, found ${labels.join(", ")}`);
-  assert.ok(labels.includes(secondLabel), `Expected actions menu to include ${secondLabel}, found ${labels.join(", ")}`);
-});
-
-Then("the reference detail actions menu should not offer {string}", async function (label) {
-  const labels = await requirePage(this).locator(".newsroom-list-detail-shell__action-menu button").evaluateAll((nodes) => (
-    nodes.map((node) => node.textContent?.trim()).filter(Boolean)
-  ));
-  assert.ok(!labels.includes(label), `Expected actions menu to exclude ${label}, found ${labels.join(", ")}`);
-});
-
-Then("the reference detail actions menu should show an icon for {string}", async function (label) {
-  const hasIcon = await requirePage(this)
-    .locator(".newsroom-list-detail-shell__action-menu button", { hasText: label })
-    .first()
-    .locator(".newsroom-list-detail-shell__action-menu-icon svg")
-    .count();
-  assert.ok(hasIcon > 0, `Expected actions menu item ${label} to include an icon`);
 });
 
 Then("semantic reference links should use canonical path URLs", async function () {
@@ -836,207 +550,6 @@ Then("the selected reference detail should return to the original selection", as
     const detail = document.querySelector("[data-news-desk-reference-detail]");
     return detail?.getAttribute("data-news-desk-reference-detail") === expectedId;
   }, this.previousReferenceDetailId, { timeout: 10_000 });
-});
-
-When("I set the selected reference quality to {int} stars", async function (rating) {
-  const page = requirePage(this);
-  await page.locator(`[data-news-desk-reference-quality-star="${rating}"]`).click();
-});
-
-Then("the reference detail should immediately show {int} filled quality stars", async function (filledStars) {
-  const page = requirePage(this);
-  const cluster = page.locator("[data-news-desk-reference-curation-cluster]");
-  await cluster.waitFor({ state: "visible", timeout: 10_000 });
-  const actualStars = Number(await cluster.getAttribute("data-reference-quality-stars") ?? "-1");
-  assert.equal(actualStars, filledStars);
-});
-
-Then("the reference detail curation status should be {string}", async function (status) {
-  await requirePage(this).waitForFunction((expectedStatus) => {
-    const cluster = document.querySelector("[data-news-desk-reference-curation-cluster]");
-    return cluster?.getAttribute("data-reference-curation-status") === expectedStatus;
-  }, status, { timeout: 10_000 });
-});
-
-Then("the reference detail should show {int} filled quality stars", async function (filledStars) {
-  await requirePage(this).waitForFunction((expectedStars) => {
-    const cluster = document.querySelector("[data-news-desk-reference-curation-cluster]");
-    return Number(cluster?.getAttribute("data-reference-quality-stars") ?? "-1") === expectedStars;
-  }, filledStars, { timeout: 10_000 });
-});
-
-Then("the reference detail quality save state should become {string}", async function (tone) {
-  await requirePage(this).waitForFunction((expectedTone) => {
-    const cluster = document.querySelector("[data-news-desk-reference-curation-cluster]");
-    return cluster?.getAttribute("data-reference-quality-tone") === expectedTone;
-  }, tone, { timeout: 10_000 });
-});
-
-Then("the reference detail quality message should mention {string}", async function (message) {
-  const page = requirePage(this);
-  await page.waitForFunction((expectedMessage) => {
-    const state = document.querySelector("[data-reference-quality-state-message]");
-    return state?.textContent?.toLowerCase().includes(String(expectedMessage).toLowerCase());
-  }, message, { timeout: 10_000 });
-});
-
-When("I open the reference detail note composer", async function () {
-  const page = requirePage(this);
-  await page.locator("[data-news-desk-reference-note-trigger]").click();
-});
-
-When("I switch the reference detail extracted text tab to {string}", async function (tabName) {
-  const normalized = String(tabName).trim().toLowerCase();
-  assert.ok(["filtered", "original"].includes(normalized), `Unsupported extracted text tab: ${tabName}`);
-  const page = requirePage(this);
-  const tab = page
-    .locator(`[data-news-desk-reference-extracted-text-tab='${normalized}']`)
-    .first();
-  await tab.waitFor({ state: "visible", timeout: 10_000 });
-  await tab.click();
-});
-
-Then("the reference detail should render topic workflow and corpus selector", async function () {
-  const page = requirePage(this);
-  await page.locator("[data-reference-topic-workflow]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-reference-topic-state]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-reference-topic-input]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-reference-corpus-input]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-reference-corpus-input] select").waitFor({ state: "visible", timeout: 10_000 });
-});
-
-Then("the reference detail note composer should be visible", async function () {
-  await requirePage(this).locator("[data-news-desk-reference-note-form]").waitFor({ state: "visible", timeout: 10_000 });
-});
-
-Then("the reference detail should place extracted text below metadata", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const metadata = document.querySelector("[data-news-desk-reference-metadata-expander]");
-    const extracted = document.querySelector("[data-news-desk-reference-extracted-text-section]");
-    if (!metadata || !extracted) return null;
-    return {
-      order: metadata.compareDocumentPosition(extracted),
-    };
-  });
-  assert.ok(report, "Expected metadata and extracted text sections in reference detail");
-  assert.equal(
-    Boolean(report.order & 4),
-    true,
-    `Expected extracted text section to render after metadata: ${JSON.stringify(report)}`,
-  );
-});
-
-Then("the reference detail should render extracted text tabs", async function () {
-  const page = requirePage(this);
-  const tabs = page.locator("[data-news-desk-reference-extracted-text-tabs]").first();
-  await tabs.waitFor({ state: "visible", timeout: 10_000 });
-});
-
-Then("the reference detail extracted text active tab should be {string}", async function (expectedTab) {
-  const expected = String(expectedTab).trim().toLowerCase();
-  const report = await requirePage(this).evaluate(() => {
-    const content = document.querySelector("[data-news-desk-reference-extracted-text-content]");
-    return {
-      activeTab: content?.getAttribute("data-news-desk-reference-extracted-text-active-tab") ?? null,
-      hasTabs: Boolean(document.querySelector("[data-news-desk-reference-extracted-text-tabs]")),
-    };
-  });
-  assert.equal(report.hasTabs, true, `Expected extracted text tabs to render: ${JSON.stringify(report)}`);
-  assert.equal(report.activeTab, expected, `Expected extracted text active tab to be "${expected}": ${JSON.stringify(report)}`);
-});
-
-Then("the reference detail extracted text tab {string} should be visible", async function (tabName) {
-  const normalized = String(tabName).trim().toLowerCase();
-  const page = requirePage(this);
-  await page.locator(`[data-news-desk-reference-extracted-text-tab='${normalized}']`).first().waitFor({ state: "visible", timeout: 10_000 });
-});
-
-Then("the reference detail extracted text tab {string} should be hidden", async function (tabName) {
-  const normalized = String(tabName).trim().toLowerCase();
-  const count = await requirePage(this).locator(`[data-news-desk-reference-extracted-text-tab='${normalized}']`).count();
-  assert.equal(count, 0, `Expected extracted text tab "${normalized}" to be hidden.`);
-});
-
-Then("the reference detail extracted text should include {string}", async function (expectedText) {
-  const page = requirePage(this);
-  const content = page.locator("[data-news-desk-reference-extracted-text-content]").first();
-  await content.waitFor({ state: "visible", timeout: 10_000 });
-  const text = (await content.textContent()) ?? "";
-  assert.ok(text.includes(expectedText), `Expected extracted text content to include "${expectedText}", received: ${text}`);
-});
-
-Then("the reference detail should show extracted text empty state when both tabs are missing", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const state = document.querySelector("[data-news-desk-reference-extracted-text-empty-state='both-missing']");
-    const tabs = document.querySelector("[data-news-desk-reference-extracted-text-tabs]");
-    return {
-      message: state?.textContent?.trim() ?? "",
-      stateExists: Boolean(state),
-      tabsExist: Boolean(tabs),
-    };
-  });
-  assert.equal(report.stateExists, true, `Expected extracted text both-missing state block: ${JSON.stringify(report)}`);
-  assert.equal(report.tabsExist, false, `Expected no extracted text tabs when both modes are missing: ${JSON.stringify(report)}`);
-  assert.ok(report.message.length > 0, `Expected concise empty-state copy when extracted text is unavailable: ${JSON.stringify(report)}`);
-});
-
-Then("the reference detail source URI should be clickable", async function () {
-  const page = requirePage(this);
-  const link = page.locator("[data-news-desk-reference-detail] .news-desk-reference-detail__source-meta-row--uri a").first();
-  await link.waitFor({ state: "visible", timeout: 10_000 });
-  const href = await link.getAttribute("href");
-  assert.ok(href && /^(https?|s3):\/\//.test(href), `Expected clickable Source URI href, received: ${href}`);
-});
-
-Then("the reference detail should use link-standard value typography for source URI and attachments", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const expectedClass = "news-desk-reference-detail__link-value";
-    const source = document.querySelector("[data-news-desk-reference-source-uri-value]");
-    const attachmentPaths = Array.from(
-      document.querySelectorAll("[data-news-desk-reference-attachment-path]"),
-    );
-    return {
-      attachmentCount: attachmentPaths.length,
-      sourceHasClass: source?.classList.contains(expectedClass) ?? false,
-      sourceValue: source?.textContent?.trim() ?? "",
-      attachmentMissingClassCount: attachmentPaths.filter((node) => !node.classList.contains(expectedClass)).length,
-    };
-  });
-  assert.equal(report.sourceHasClass, true, `Expected Source URI value to use link value class: ${JSON.stringify(report)}`);
-  assert.ok(report.sourceValue.length > 0, `Expected Source URI value text: ${JSON.stringify(report)}`);
-  assert.ok(report.attachmentCount > 0, `Expected attachment path rows in reference detail: ${JSON.stringify(report)}`);
-  assert.equal(report.attachmentMissingClassCount, 0, `Expected all attachment paths to use link value class: ${JSON.stringify(report)}`);
-});
-
-Then("the reference detail summary should not start with source URI", async function () {
-  const page = requirePage(this);
-  await page.locator("[data-news-desk-reference-detail] .news-desk-semantic-detail__summary").first().waitFor({ state: "visible", timeout: 10_000 });
-  const report = await page.evaluate(() => {
-    const summary = document.querySelector("[data-news-desk-reference-detail] .news-desk-semantic-detail__summary")?.textContent?.trim() ?? "";
-    const sourceUri = document.querySelector("[data-news-desk-reference-detail] .news-desk-reference-detail__source-meta-row--uri a")?.textContent?.trim() ?? "";
-    return { summary, sourceUri };
-  });
-  assert.ok(report.summary.length > 0, "Expected non-empty reference summary text");
-  assert.ok(report.sourceUri.length > 0, "Expected source URI text to be present");
-  assert.equal(report.summary.startsWith(report.sourceUri), false, `Expected summary not to start with source URI, got: ${report.summary}`);
-});
-
-Then("the reference detail should not show source URI above the summary", async function () {
-  const page = requirePage(this);
-  const report = await page.evaluate(() => {
-    const sourceUri = document.querySelector("[data-news-desk-reference-detail] .news-desk-reference-detail__source-meta-row--uri a")?.textContent?.trim() ?? "";
-    const subheading = document.querySelector("[data-news-desk-reference-detail] .news-desk-semantic-detail__subheading")?.textContent?.trim() ?? "";
-    return { sourceUri, subheading };
-  });
-  assert.ok(report.sourceUri.length > 0, "Expected source URI text to be present");
-  assert.notEqual(report.subheading, report.sourceUri, "Expected source URI not to render as the reference detail subheading");
-});
-
-Then("the reference detail summary should be {string}", async function (expectedSummary) {
-  const page = requirePage(this);
-  await page.locator("[data-news-desk-reference-detail] .news-desk-semantic-detail__summary").waitFor({ state: "visible", timeout: 10_000 });
-  const actual = (await page.locator("[data-news-desk-reference-detail] .news-desk-semantic-detail__summary").first().textContent())?.trim() ?? "";
-  assert.equal(actual, expectedSummary);
 });
 
 Then("the selected reference deep link URL should be {string}", async function (referenceId) {
@@ -1165,21 +678,6 @@ When("I open the first newsroom card detail", async function () {
     animated = false;
   }
   this.newsroomInitialDetailOpen = { animated, wasOpen };
-  await page.waitForFunction(() => document.querySelector("[data-newsroom-list-detail-shell]")?.getAttribute("data-detail-open") === "true");
-});
-
-When("I open newsroom detail from the card list", async function () {
-  const page = requirePage(this);
-  const isOpen = await page.evaluate(() => document.querySelector("[data-newsroom-list-detail-shell]")?.getAttribute("data-detail-open") === "true");
-  if (isOpen) return;
-  const cards = page.locator("[data-newsroom-card]");
-  const count = await cards.count();
-  assert.ok(count > 0, "Expected at least one newsroom card to open detail");
-  if (count > 1) {
-    await cards.nth(1).click();
-  } else {
-    await cards.first().click();
-  }
   await page.waitForFunction(() => document.querySelector("[data-newsroom-list-detail-shell]")?.getAttribute("data-detail-open") === "true");
 });
 
@@ -1809,15 +1307,6 @@ Then("the newsroom should offer accept reject defer and edit actions", async fun
   await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='edit']").first().waitFor({ state: "visible", timeout: 10_000 });
 });
 
-Then("the first newsroom category name should be {string}", async function (expectedName) {
-  const value = await requirePage(this)
-    .locator(".category-steering-category-card label", { hasText: "Name" })
-    .first()
-    .locator("input")
-    .inputValue();
-  assert.equal(value, expectedName);
-});
-
 Then("assignment {string} should be claimed", async function (assignmentId) {
   const page = requirePage(this);
   await page.locator(`.news-desk-assignment-row[data-assignment-candidate="${assignmentId}"][data-assignment-status="claimed"]`).waitFor({ state: "visible", timeout: 10_000 });
@@ -2144,13 +1633,6 @@ Then("the browser hash should be {string}", async function (expectedHash) {
   assert.equal(actualHash, expectedHash);
 });
 
-When("I switch presentation to {string}", async function (label) {
-  const page = requirePage(this);
-  const button = page.locator(".presentation-switcher__button", { hasText: label }).first();
-  await button.waitFor({ state: "visible", timeout: 10_000 });
-  await button.click();
-});
-
 When("I choose reader format {string}", async function (label) {
   const page = requirePage(this);
   if (!this.capabilities?.allowsPresentationChoice) {
@@ -2420,42 +1902,6 @@ Then("the masthead should use {int} rhythm rows with {int} title rows and fit th
   );
 });
 
-Then("the newsroom masthead should fit width and align to rhythm rows", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const masthead = document.querySelector(".news-desk-masthead");
-    const title = masthead?.querySelector("h1");
-    const titleInner = masthead?.querySelector("h1 span, h1 a");
-    if (!masthead || !title || !titleInner) return null;
-    const mastheadRect = masthead.getBoundingClientRect();
-    const titleRectOuter = title.getBoundingClientRect();
-    const titleRect = titleInner.getBoundingClientRect();
-    const style = getComputedStyle(masthead);
-    const rhythm = Number.parseFloat(style.getPropertyValue("--paper-rhythm")) || 19;
-    const heightRows = mastheadRect.height / rhythm;
-    const titleRows = titleRectOuter.height / rhythm;
-    return { heightRows, mastheadWidth: mastheadRect.width, rhythm, titleRows, titleWidth: titleRect.width };
-  });
-  assert.ok(report, "Expected newsroom masthead rhythm report");
-  const tolerance = 0.08;
-  assert.ok(Math.abs(report.heightRows - Math.round(report.heightRows)) <= tolerance, `Expected masthead height rows integer, got ${report.heightRows}`);
-  assert.ok(Math.abs(report.titleRows - Math.round(report.titleRows)) <= tolerance, `Expected masthead title rows integer, got ${report.titleRows}`);
-  assert.ok(report.titleWidth <= report.mastheadWidth + 0.75, `Expected masthead title width ${report.titleWidth} to fit within ${report.mastheadWidth}`);
-});
-
-Then("the newsroom tabs should use {int} columns", async function (expectedColumns) {
-  const report = await requirePage(this).evaluate(() => {
-    const tabs = Array.from(document.querySelectorAll("[data-news-desk-tab]"));
-    if (!tabs.length) return null;
-    const rects = tabs.map((tab) => tab.getBoundingClientRect()).filter((rect) => rect.width > 0 && rect.height > 0);
-    if (!rects.length) return null;
-    const firstTop = rects[0].top;
-    const firstRow = rects.filter((rect) => Math.abs(rect.top - firstTop) <= 0.75);
-    return { firstRowCount: firstRow.length };
-  });
-  assert.ok(report, "Expected newsroom tabs column report");
-  assert.equal(report.firstRowCount, expectedColumns, `Expected newsroom tabs first row to have ${expectedColumns} columns`);
-});
-
 Then("no continuation column should be dead", async function () {
   const report = await getActivePageReport(requirePage(this));
   assert.deepEqual(report.deadColumns, []);
@@ -2563,16 +2009,6 @@ Then("the {string} section should not show a responsive image inset", async func
   const solverSection = await getSolvedSection(requirePage(this), articleId);
   assert.ok(solverSection, `Expected solved section for ${articleId}`);
   assert.equal(solverSection.image, null);
-});
-
-Then("the {string} section image should span between {int} and {int} columns", async function (articleId, minSpan, maxSpan) {
-  const solverSection = await getSolvedSection(requirePage(this), articleId);
-  assert.ok(solverSection, `Expected solved section for ${articleId}`);
-  const actualSpan = solverSection.image?.columnSpan;
-  assert.ok(
-    actualSpan >= minSpan && actualSpan <= maxSpan,
-    `Expected ${articleId} image span between ${minSpan} and ${maxSpan}; found ${actualSpan}`,
-  );
 });
 
 Then("the {string} section image should be centered at the top", async function (articleId) {
