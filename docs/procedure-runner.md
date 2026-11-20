@@ -346,3 +346,7 @@ No image rebuild is needed for a grant. The first run of a procedure on a newly 
 - **Records.** Logs go to CloudWatch (`/aws/lambda/papyrus-procedure-runner`). The ProcedureRun keeps the
   output, the error and its log tail, and the run's model usage and estimated cost (`usage`, `costUsd`).
 - **Interactive runs.** A procedure that waits for a human is not supported. It fails.
+
+### Publication tenant context
+
+Run now and the automatic localization dispatcher take `tenantId` from the configured router publication, never from procedure input. The runner validates this optional request field and applies it to both its own GraphQL client and the child process. A dedicated-site request without a tenant clears any previous worker tenant. Localization still rejects a tenant-prefixed source when the matching tenant context is absent, as well as actual translations and another tenant's group; it does not strip arbitrary prefixes.

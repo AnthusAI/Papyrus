@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from ..follow_up_timers import FollowUpTimers
+from ..follow_up_timers import FollowUpTimers, follow_up_request
 
 OWNER = "deliver"
 RECORD_KIND = "Delivery"
@@ -20,11 +20,18 @@ class DeliveryTimers:
     def __init__(self, timers: FollowUpTimers, base: Mapping[str, Any] | Callable[[Mapping[str, Any]], Mapping[str, Any]]):
         self.timers, self._base = timers, base
 
-    def sync(self, row: Mapping[str, Any]) -> None:
-        due = row.get("dueAt")
+    def _base_request(self, row: Mapping[str, Any]) -> dict[str, Any]:
         request = dict(self._base(row) if callable(self._base) else self._base)
         request["input"] = {**(request.get("input") if isinstance(request.get("input"), dict) else {}), "deliveryId": row["id"]}
-        self.timers.sync(RECORD_KIND, row["id"], due, owner=OWNER, base=request, waiting_for=waiting_for(row) if due else None)
+        return request
+
+    def sync(self, row: Mapping[str, Any]) -> None:
+        due = row.get("dueAt")
+        self.timers.sync(RECORD_KIND, row["id"], due, owner=OWNER, base=self._base_request(row), waiting_for=waiting_for(row) if due else None)
+
+    def wake_request(self, row: Mapping[str, Any]) -> dict[str, Any]:
+        """The runner request this Delivery's timer sends for the time it waits for, with the same wake key. Overdue recovery sends it again (overdue.py)."""
+        return follow_up_request(self._base_request(row), owner=OWNER, record_id=row["id"], due_at=row["dueAt"], waiting_for=waiting_for(row))
 
 
 def waiting_for(row: Mapping[str, Any]) -> str:

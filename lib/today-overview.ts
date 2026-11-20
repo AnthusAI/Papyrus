@@ -62,6 +62,18 @@ export type TodaySend = {
   cost: string | null;
 };
 
+/** A record whose due time passed long enough ago that no wake is in flight and that nothing ran for (src/papyrus_content/overdue.py). */
+export type TodayOverdue = {
+  kind: string;
+  id: string;
+  dueAt: string;
+  waitingFor: string | null;
+  /** The one flag raised for this record and the time it missed. */
+  flagId: string;
+  /** The words with their mark, as the command line prints it. */
+  shown: string;
+};
+
 export type TodayOverview = {
   state: "ready";
   asOf: string;
@@ -69,6 +81,7 @@ export type TodayOverview = {
   timeZone: string;
   start: string;
   end: string;
+  overdue: TodayOverdue[];
   rows: TodayRow[];
   didNotRun: TodayDidNotRun[];
   sends: TodaySend[];

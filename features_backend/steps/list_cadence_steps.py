@@ -646,6 +646,8 @@ class TodayClient:
         self.runs = runs
 
     def list_by_index(self, index, key, *, sort_condition=None, **_):
+        if "between" not in (sort_condition or {}):
+            return []   # the overdue reads (what is due and untouched): nothing is in this fixture
         low, high = sort_condition["between"]
         return [dict(row) for row in self.runs if row["runStatus"] == key and low <= row["requestedAt"] <= high]
 

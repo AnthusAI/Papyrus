@@ -141,6 +141,9 @@ def survey(client, settings: dict[str, Any], languages: list[str], *, now: float
     requests = {row["id"]: row for state in desired_state.STATES for row in client.list_by_index("localizationRequestsByState", state)}
     with request_meter.sweep("localize-all"):
         summaries = client.list_published_item_summaries()
+    from ..authored_editions import is_authored
+    authored = {(bare_group_id(row.get("languageGroupId"), tenant_id), row.get("language"))
+                for row in summaries if is_authored(row)}
     jobs: list[Job] = []
     for summary in sorted(summaries, key=lambda row: str(row.get("itemLineageId") or row.get("id"))):
         lineage = summary.get("itemLineageId")
@@ -151,6 +154,9 @@ def survey(client, settings: dict[str, Any], languages: list[str], *, now: float
             continue
         source_hash = str(_metadata(summary).get("sourceContentHash") or "")
         for language in languages:
+            if (lineage, language) in authored:
+                jobs.append(Job(lineage, language, status=UP_TO_DATE, detail="independently authored edition; not a translation"))
+                continue
             record = requests.get(desired_state.request_id(lineage, language))
             current = record is not None and str(record.get("sourceContentHash") or "") == source_hash
             job = Job(story=lineage, language=language, title=summary.get("title") or "", sourceHash=source_hash)
