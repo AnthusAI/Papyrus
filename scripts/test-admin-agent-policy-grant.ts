@@ -27,7 +27,7 @@ assert.deepEqual(
     {
       Sid: ADMIN_AGENT_POLICY_GRANT_SID,
       Effect: "Allow",
-      Action: ["s3:GetObject"],
+      Action: "s3:GetObject",
       Resource: `${BUCKET_ARN}/tenants/*/site/agents/*`,
     },
   ],

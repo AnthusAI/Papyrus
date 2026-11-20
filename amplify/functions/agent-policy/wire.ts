@@ -8,7 +8,7 @@ import { ADMIN_AGENT_POLICY_KEY_PATTERN } from "../../agents/admin-policy-grant"
  * media bucket (no delete, so every version stays), and the person-only app clients it checks the token against.
  * A first (bootstrap) deploy leaves the tenancy models out, so with no site document tables there is nothing to wire and the function is not yet callable.
  */
-export function wireAgentPolicy(backend: any, bucketName: string, bucketArn: string, personOnlyClientIds: string[], tenantId: string): void {
+export function wireAgentPolicy(backend: any, bucketName: string, bucketArn: string, personOnlyClientIds: string[]): void {
   const lambda = backend.agentPolicy.resources.lambda as LambdaFunction;
   const tables = backend.data.resources.tables as Record<string, ITable>;
   if (tables.SiteDocument === undefined || tables.SiteDocumentVersion === undefined) return;
@@ -23,5 +23,4 @@ export function wireAgentPolicy(backend: any, bucketName: string, bucketArn: str
   lambda.addEnvironment("SITE_DOCUMENT_TABLE", tables.SiteDocument.tableName);
   lambda.addEnvironment("SITE_DOCUMENT_VERSION_TABLE", tables.SiteDocumentVersion.tableName);
   lambda.addEnvironment("PERSON_ONLY_CLIENT_IDS", personOnlyClientIds.join(","));
-  lambda.addEnvironment("PAPYRUS_TENANT_ID", tenantId);
 }

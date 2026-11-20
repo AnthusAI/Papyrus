@@ -549,7 +549,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
     // editorialChecks too: it compares the site's editorial context (a tenant's publication) with its own tenant and refuses a mismatch,
     // so without the variable every check after a save-version on a tenant site fails with "Editorial context tenant mismatch" (PPY-49303f).
     // tenantClaims: a dedicated stack's fixed tenant is the one its session claims name (PPY-0bb0fd).
-    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda, backend.tenantClaims.resources.lambda]) {
+    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda, backend.tenantClaims.resources.lambda, backend.agentPolicy.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
   }
@@ -1032,7 +1032,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
       backend.auth.resources.groups[ADMIN_AGENT_POLICY_GROUP].role,
       storageBucket.bucketArn,
     );
-    wireAgentPolicy(backend, storageBucket.bucketName, storageBucket.bucketArn, [backend.auth.resources.userPoolClient.userPoolClientId], backendTenantId);
+    wireAgentPolicy(backend, storageBucket.bucketName, storageBucket.bucketArn, [backend.auth.resources.userPoolClient.userPoolClientId]);
   }
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
   if (feedStreams !== undefined) {

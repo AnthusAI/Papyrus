@@ -7,7 +7,7 @@ from papyrus_content.agent_policy.function import handle
 from papyrus_content.agent_policy.remote import RemoteAgentPolicyStore
 from papyrus_content.site_store import SiteStore
 
-ENVIRONMENT = {"PERSON_ONLY_CLIENT_IDS": "console-client", "PAPYRUS_TENANT_ID": "alpha"}
+ENVIRONMENT = {"PERSON_ONLY_CLIENT_IDS": "console-client"}
 
 
 class Bucket:
@@ -60,7 +60,7 @@ RAISE = {"op": "set_rung", "responsibility": "improve", "rung": "prepare", "reas
 
 def test_an_admin_on_a_person_client_changes_the_policy_and_the_version_is_theirs():
     policy = store()
-    answer = handle(event(RAISE), policy, ENVIRONMENT)
+    answer = handle(event(RAISE), policy, ENVIRONMENT, "alpha")
     assert answer["ok"] is True and answer["version"] == 1 and answer["document"]["agents"]["improve"]["rung"] == "prepare"
     assert policy.read("alpha").document["agents"]["improve"]["rung"] == "prepare"
     assert policy.version_record("alpha", 1)["by"] == "ryan@example.test"
@@ -68,41 +68,41 @@ def test_an_admin_on_a_person_client_changes_the_policy_and_the_version_is_their
 
 def test_a_credential_from_another_client_changes_nothing():
     policy = store()
-    answer = handle(event(RAISE, client="cli-client"), policy, ENVIRONMENT)
+    answer = handle(event(RAISE, client="cli-client"), policy, ENVIRONMENT, "alpha")
     assert answer["error"] == "human_required" and policy.read("alpha").version == 0
 
 
 def test_with_no_person_client_configured_nobody_changes_the_policy():
     policy = store()
-    assert handle(event(RAISE), policy, {"PAPYRUS_TENANT_ID": "alpha"})["error"] == "human_required"
+    assert handle(event(RAISE), policy, {}, "alpha")["error"] == "human_required"
     assert policy.read("alpha").version == 0
 
 
 def test_an_editor_cannot_change_the_policy():
-    assert handle(event(RAISE, groups=("editor",)), store(), ENVIRONMENT)["error"] == "not_authorized"
+    assert handle(event(RAISE, groups=("editor",)), store(), ENVIRONMENT, "alpha")["error"] == "not_authorized"
 
 
 def test_another_sites_tenant_is_refused():
     other = {"identity": event(RAISE)["identity"], "arguments": {"input": json.dumps({**RAISE, "tenantId": "beta"})}}
-    assert handle(other, store(), ENVIRONMENT)["error"] == "not_authorized"
+    assert handle(other, store(), ENVIRONMENT, "alpha")["error"] == "not_authorized"
 
 
 def test_publish_auto_is_refused_while_the_floor_stands():
     policy = store()
-    answer = handle(event({**RAISE, "rung": "publish_auto"}), policy, ENVIRONMENT)
+    answer = handle(event({**RAISE, "rung": "publish_auto"}), policy, ENVIRONMENT, "alpha")
     assert answer["error"] == "constraint_conflict" and policy.read("alpha").version == 0
 
 
 def test_an_unknown_operation_and_a_missing_reason_are_refused():
-    assert handle(event({"op": "delete_everything", "reason": "x"}), store(), ENVIRONMENT)["error"] == "invalid_input"
-    assert handle(event({**RAISE, "reason": " "}), store(), ENVIRONMENT)["error"] == "invalid_input"
+    assert handle(event({"op": "delete_everything", "reason": "x"}), store(), ENVIRONMENT, "alpha")["error"] == "invalid_input"
+    assert handle(event({**RAISE, "reason": " "}), store(), ENVIRONMENT, "alpha")["error"] == "invalid_input"
 
 
 def test_every_change_the_local_store_makes_can_be_sent_through_the_function():
     policy = store()
 
     def send(request):
-        return handle({"identity": event({})["identity"], "arguments": {"input": json.dumps(request)}}, policy, ENVIRONMENT)
+        return handle({"identity": event({})["identity"], "arguments": {"input": json.dumps(request)}}, policy, ENVIRONMENT, "alpha")
 
     remote = RemoteAgentPolicyStore(policy._store, send)
     from papyrus_content.images.handlers import Caller

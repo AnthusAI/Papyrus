@@ -21,7 +21,7 @@ def refusal(code: str, message: str) -> dict[str, Any]:
     return {"ok": False, "error": code, "message": message}
 
 
-def handle(event: dict[str, Any], store: AgentPolicyStore, environ: Mapping[str, str]) -> dict[str, Any]:
+def handle(event: dict[str, Any], store: AgentPolicyStore, environ: Mapping[str, str], site_tenant_id: str) -> dict[str, Any]:
     identity = event.get("identity") or {}
     groups = identity.get("groups") if isinstance(identity.get("groups"), list) else []
     claims = identity.get("claims") or {}
@@ -35,8 +35,7 @@ def handle(event: dict[str, Any], store: AgentPolicyStore, environ: Mapping[str,
         if not isinstance(request, dict):
             return refusal("invalid_input", "The request input must be a JSON object.")
         tenant_id = validate_tenant_id(str(request.get("tenantId") or ""))
-        fixed = environ.get("PAPYRUS_TENANT_ID", "").strip()
-        if fixed and fixed != tenant_id:
+        if tenant_id != site_tenant_id:
             return refusal("not_authorized", "That tenant is not this site's.")
         caller = Caller(kind="person", subject=str(claims.get("email") or identity.get("username") or "console")[:100], is_admin=True)
         state = apply_request(store, tenant_id, caller, request)
