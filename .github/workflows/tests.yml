@@ -210,8 +210,9 @@ jobs:
             --ignore=procedures/newsroom/tests/test_content_cli_live.py \
 
   # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
-  # Feature files live in one directory per product area (features_backend/README.md). Sorted by path; shard N takes every third file starting at N, so the shards partition features_backend exactly.
-  # Inside a shard the files run in one behave process per processor (infra/pipeline/behave_side_by_side.py).
+  # Feature files live in one directory per product area (features_backend/README.md). infra/pipeline/behave_side_by_side.py deals them
+  # out to the shards by how long each takes, so no shard holds all the slow ones; the shards partition features_backend exactly.
+  # Inside a shard the files run in one behave process per processor.
   python-behave:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
@@ -230,9 +231,8 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: "3"
         run: |
-          mine=$(find features_backend -name '*.feature' | LC_ALL=C sort | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
-          echo "$mine"
-          echo "$mine" | poetry run python infra/pipeline/behave_side_by_side.py --tags=~@live-agent
+          find features_backend -name '*.feature' | LC_ALL=C sort \
+            | poetry run python infra/pipeline/behave_side_by_side.py --shard "$SHARD" --of "$SHARDS" --tags=~@live-agent
 
   python:
     needs: [reuse, python-checks, python-unit, python-behave]

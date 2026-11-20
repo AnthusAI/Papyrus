@@ -1,5 +1,5 @@
 name: python-deps
-description: Python 3.12 with the project's poetry environment installed (poetry cache keyed on poetry.lock).
+description: Python 3.12 with the project's poetry environment installed. Only the virtual environment is cached, keyed on poetry.lock; poetry's own download folders doubled the cache to 10 GB and every job spent three and a half minutes restoring it.
 runs:
   using: composite
   steps:
@@ -10,7 +10,7 @@ runs:
       run: pip install poetry
     - uses: actions/cache@v4
       with:
-        path: ~/.cache/pypoetry
-        key: poetry-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+        path: ~/.cache/pypoetry/virtualenvs
+        key: poetry-virtualenv-${{ runner.os }}-python3.12-${{ hashFiles('poetry.lock') }}
     - shell: bash
       run: poetry install --no-interaction --extras "newsroom markus priming" --with cyclotron

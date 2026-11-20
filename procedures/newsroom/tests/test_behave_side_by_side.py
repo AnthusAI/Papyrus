@@ -33,9 +33,52 @@ def start_a_stand_in_for_behave(exit_code_for_each_share, started_commands):
 
 def test_the_processes_together_run_every_file_exactly_once():
     for process_count in (1, 2, 3, 4, 16):
-        shares = side_by_side.feature_files_for_each_process(FEATURE_FILES, process_count)
+        shares = side_by_side.feature_files_for_each_process(FEATURE_FILES, process_count, {FEATURE_FILES[3]: 120, FEATURE_FILES[7]: 40})
         assert sorted(feature_file for share in shares for feature_file in share) == FEATURE_FILES
         assert len(shares) == min(process_count, len(FEATURE_FILES))
+
+
+def test_the_shards_together_run_every_backend_feature_exactly_once():
+    every_backend_feature = sorted(str(path.relative_to(ROOT)) for path in (ROOT / "features_backend").glob("*/*.feature"))
+    shards = side_by_side.deal_out_evenly(every_backend_feature, 3, side_by_side.seconds_of_known_slow_features())
+    assert sorted(feature_file for shard in shards for feature_file in shard) == every_backend_feature
+    assert all(shards)
+
+
+def test_the_slow_features_are_spread_and_not_left_to_one_share():
+    seconds = {"slow-a.feature": 120, "slow-b.feature": 120, "slow-c.feature": 90}
+    quick_features = [f"quick-{number:02}.feature" for number in range(30)]
+    shares = side_by_side.deal_out_evenly(list(seconds) + quick_features, 3, seconds)
+    assert sorted(len([feature_file for feature_file in share if feature_file in seconds]) for share in shares) == [1, 1, 1]
+    seconds_in_each_share = [sum(seconds.get(feature_file, 1) for feature_file in share) for share in shares]
+    assert max(seconds_in_each_share) - min(seconds_in_each_share) <= 1
+
+
+def test_the_same_files_are_dealt_the_same_way_whatever_order_they_arrive_in():
+    seconds = {FEATURE_FILES[2]: 50}
+    assert side_by_side.deal_out_evenly(FEATURE_FILES, 3, seconds) == side_by_side.deal_out_evenly(FEATURE_FILES[::-1], 3, seconds)
+
+
+def test_every_feature_the_seconds_list_names_exists():
+    listed_features_that_are_gone = sorted(
+        feature_file for feature_file in side_by_side.seconds_of_known_slow_features() if not (ROOT / feature_file).is_file()
+    )
+    assert listed_features_that_are_gone == [], "Remove these from infra/pipeline/backend-feature-seconds.json"
+
+
+def test_measured_seconds_are_read_from_behave_reports_and_only_slow_features_are_kept(monkeypatch, tmp_path):
+    report_path = tmp_path / "process-0.json"
+    report_path.write_text(
+        """[
+          {"location": "features_backend/a/slow.feature:1", "elements": [{"steps": [{"result": {"duration": 30.2}}, {"result": {"duration": 12}}]}]},
+          {"location": "features_backend/a/quick.feature:1", "elements": [{"steps": [{"result": {"duration": 0.5}}, {}]}]}
+        ]"""
+    )
+    seconds = side_by_side.seconds_each_feature_took([str(report_path)])
+    assert seconds == {"features_backend/a/slow.feature": 42.2, "features_backend/a/quick.feature": 0.5}
+    monkeypatch.setattr(side_by_side, "SECONDS_OF_KNOWN_SLOW_FEATURES_PATH", tmp_path / "seconds.json")
+    side_by_side.write_seconds_of_slow_features(seconds)
+    assert side_by_side.seconds_of_known_slow_features() == {"features_backend/a/slow.feature": 42}
 
 
 def test_every_process_starts_with_the_same_behave_arguments(monkeypatch, capsys):
@@ -65,8 +108,9 @@ def test_no_feature_files_is_a_failure_and_not_a_quiet_pass(monkeypatch, capsys)
     assert side_by_side.main() == 1
 
 
-def test_each_behave_shard_hands_its_files_to_the_side_by_side_runner():
+def test_each_behave_shard_hands_every_backend_feature_to_the_side_by_side_runner_and_names_its_shard():
     jobs = yaml.safe_load((ROOT / ".github/workflows/tests.yml").read_text())["jobs"]
-    shard_command = jobs["python-behave"]["steps"][-1]["run"]
-    assert "find features_backend -name '*.feature'" in shard_command
-    assert "infra/pipeline/behave_side_by_side.py --tags=~@live-agent" in shard_command
+    shard_step = jobs["python-behave"]["steps"][-1]
+    assert "find features_backend -name '*.feature'" in shard_step["run"]
+    assert 'infra/pipeline/behave_side_by_side.py --shard "$SHARD" --of "$SHARDS" --tags=~@live-agent' in shard_step["run"]
+    assert int(shard_step["env"]["SHARDS"]) == len(jobs["python-behave"]["strategy"]["matrix"]["shard"])
