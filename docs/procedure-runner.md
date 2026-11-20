@@ -321,6 +321,16 @@ timeout goes with the request), and falls back to starting as described here whe
 To run a procedure again for an item, delete its `TRIGGER#` row and invoke the runner with the request
 stored on that row.
 
+## The spend brake and the halt switch
+
+Spend is checked before a run, not only counted after it (`src/papyrus_content/spend_brake.py`). After the site's policy says a run may start and before anything is loaded, the runner asks the spend ledger. A run is refused, recorded as `nothing` with a reason code, and never executed when:
+
+* `halted`: a halt row is set for every site or for this site. This is the kill switch. Set it with `spend_ledger.set_halt(table, tenant_id=None | "<site>", reason=..., by=...)` or by putting an item with `pk = SPEND#HALT#ALL` (or `SPEND#HALT#<site>`), `sk = HALT` and a `reason` into the monitoring table; delete the item (`spend_ledger.clear_halt`) to start runs again.
+* `budget_reached`: the ledger's `ai` total for the site's current cycle is at or over `site.budget.amountUsd` in the agent policy. A site with no budget gets $100 a month (`PROCEDURE_RUNNER_DEFAULT_BUDGET_USD` changes the default), so no site is unlimited.
+* `spend_unreadable`: the ledger cannot be read or the runner has no table. The brake fails closed.
+
+The check is before the run, so a run that starts under the budget can end over it by what was in flight. A site's own pause (`site.paused` in the agent policy) remains the per-site stop that needs no table access.
+
 ## Deploying
 
 The release deploys the runner, like every shared stack: a merge to `main` builds the image and updates the stack (`.github/workflows/stack-deploy.yml`, `infra/pipeline/stacks.json`). Nothing is built, pushed or applied by hand.

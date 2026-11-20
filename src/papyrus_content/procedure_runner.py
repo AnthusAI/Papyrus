@@ -25,6 +25,8 @@ from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
 from .agent_policy import Gate, PolicyGate, PolicyNotLocated, PolicyUnreadable, UnlocatedPolicy
+from .agent_policy.run_gate import RunDecision
+from .spend_brake import SpendBrake
 from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
@@ -279,7 +281,7 @@ def handoff_of(request: dict) -> dict[str, str] | None:
 
 def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
-                          run_started: Callable[[str], None] | None = None, receive_count: int = 1) -> dict:
+                          run_started: Callable[[str], None] | None = None, receive_count: int = 1, spend_brake: Any = None) -> dict:
     request = validate_request(request)
     started = start_run_record(client, request)   # the record exists, `started`, before any procedure is loaded
     run_id = started["runId"]
@@ -302,6 +304,10 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         raise not_started from error
     if not decision.start:
         return skip_run(client, run_id, request, decision, now=now)
+    stop = spend_brake.stop_for(request, decision) if spend_brake is not None else None
+    if stop is not None:
+        print(json.dumps({"spendBrake": stop.reason_code, "tenantId": request.get("tenantId"), "runId": run_id, "wakeKey": request.get("wakeKey")}))
+        return skip_run(client, run_id, request, RunDecision(False, decision.responsibility, decision.rung, decision.policy_version, stop.reason_code, stop.reason), now=now)
     started_at = now()
     handoff = handoff_of(request) if decision.state is not None else None   # an agent's run for an Assignment another responsibility filed (PPY-51f96f)
     if handoff:
@@ -446,7 +452,7 @@ def handler(event, context):
                                        seconds_available=seconds_available,
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
                                        run_started=lambda run_id: record_trigger_run(table, trigger, run_id),
-                                       receive_count=agent_wakes.receive_count(event))
+                                       receive_count=agent_wakes.receive_count(event), spend_brake=SpendBrake(table))
     except ProcedureNotRunnable as error:
         result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
                   "error": str(error)}

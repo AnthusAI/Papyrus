@@ -6,5 +6,8 @@
       "Read(./project/events/**)",
       "Edit(./project/events/**)"
     ]
+  },
+  "env": {
+    "PAPYRUS_ACTOR_KIND": "agent"
   }
 }
