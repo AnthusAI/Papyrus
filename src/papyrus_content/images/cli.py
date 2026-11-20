@@ -11,10 +11,11 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping, TextIO
 
+from papyrus_content.actor_identity import ACTOR_KIND_VARIABLE, actor_kind
+
 from .cli_generated import COMMANDS
 from .handlers import Caller, Handler, Outcome, error_envelope, execute
 
-ACTOR_KIND_VARIABLE = "PAPYRUS_ACTOR_KIND"   # "agent" for procedures, automations and agent shells; anything else is a person (design section 3.6)
 ERROR_EXIT_CODE = 2
 PICTURE_KEY = "_picture"   # parse() keeps the path --file names here for an operation that uploads a picture; command() replaces it with the attachment id
 
@@ -41,7 +42,7 @@ def usage_for(words: list[str], group: str = "images") -> str | None:
 
 
 def caller_from(environ: Mapping[str, str]) -> Caller:
-    return Caller(kind="agent" if environ.get(ACTOR_KIND_VARIABLE, "").strip().lower() == "agent" else "person")
+    return Caller(kind=actor_kind(environ))
 
 
 class _BadFlags(Exception):

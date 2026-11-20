@@ -491,3 +491,20 @@ def test_the_runner_hook_never_raises_when_delivery_fails(monkeypatch, capsys):
     monkeypatch.setattr(story_triggers, "deliver_after_run", boom)
     procedure_runner.fire_story_triggers_after_run(object(), None, {"runStatus": "completed", "output": {"story": "s"}})
     assert "could not be delivered" in capsys.readouterr().out
+
+
+def test_a_run_the_spend_brake_stops_is_recorded_as_nothing_and_never_executed(tmp_path):
+    from papyrus_content.spend_brake import BUDGET_REACHED, Stop
+
+    class Brake:
+        def stop_for(self, request, decision):
+            return Stop(BUDGET_REACHED, "The site's budget for this month is reached.")
+
+    def never_executed(*arguments, **keywords):
+        raise AssertionError("a run the brake stopped was executed")
+
+    client = NewsroomClient()
+    result = pr.run_procedure_request(REQUEST, policy=PersonStart(), client=client, execute=never_executed, seconds_available=900, environment={},
+                                      workroot=tmp_path, spend_brake=Brake())
+    assert result["skipped"] is True and result["outcome"] == "nothing" and result["outcomeReason"] == BUDGET_REACHED
+    assert client.updates[0]["outcomeReason"] == BUDGET_REACHED

@@ -47,6 +47,17 @@ def _signed_out_by_default(monkeypatch, tmp_path_factory):
     monkeypatch.setenv("PAPYRUS_CLI_STATE_DIR", str(tmp_path_factory.mktemp("papyrus-state")))
 
 
+@pytest.fixture(autouse=True)
+def _a_person_at_a_terminal_by_default(monkeypatch):
+    """Commands are run as an agent unless a person's terminal is evidence (actor_identity.py). Tests start as a person at a terminal, in an environment with no
+    agent runtime in it; a test about the fail-closed rule sets what it needs."""
+    from papyrus_content import actor_identity
+
+    monkeypatch.setattr(actor_identity, "terminal_is_interactive", lambda: True)
+    for name in (actor_identity.ACTOR_KIND_VARIABLE, *actor_identity.AGENT_RUNTIME_MARKERS):
+        monkeypatch.delenv(name, raising=False)
+
+
 def shard_that_runs(test_file_path: str, shard_count: int) -> int:
     """CI runs the unit tests as several jobs. A test file's path alone decides its job, so the jobs together run every file exactly once."""
     import zlib

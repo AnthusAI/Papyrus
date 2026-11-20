@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .actor_identity import actor_kind
 from .responsibilities import BY_KEY
 from .automations import AutomationError, read_record, stored_payload, build_record
 from .images.handlers import Caller
@@ -47,7 +48,7 @@ def run_command(options: dict[str, Any], *, as_json: bool, apply: bool) -> None:
     if not isinstance(automation_id, str) or not isinstance(responsibility, str):
         raise AutomationError("papyrus automations adopt needs --id <automation id> --responsibility <responsibility>.")
     client = create_authoring_client()[0]
-    kind = "agent" if os.environ.get("PAPYRUS_ACTOR_KIND", "").strip().lower() == "agent" else "person"
+    kind = actor_kind()
     caller = identify(client, Caller(kind=kind))
     result = adopt(client, caller, automation_id, responsibility, apply=apply)
     if as_json:

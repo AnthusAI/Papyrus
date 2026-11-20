@@ -78,8 +78,17 @@ def _restore_sign_in(context):
             os.environ[name] = value
 
 
+def _start_as_a_person_at_a_terminal():
+    from papyrus_content import actor_identity
+
+    actor_identity.terminal_is_interactive = lambda: True
+    for name in (actor_identity.ACTOR_KIND_VARIABLE, *actor_identity.AGENT_RUNTIME_MARKERS):
+        os.environ.pop(name, None)
+
+
 def before_scenario(context, scenario):
     _start_signed_out(context)
+    _start_as_a_person_at_a_terminal()
     for module in _fake_client_modules():
         module.INSTANCES.clear()
     from papyrus_content import cli_user_auth

@@ -21,7 +21,7 @@ export const announcementsParameterPrefix = (siteId: string) => `/papyrus/${site
  * SecureString parameters under the site's announcements path. The tables are written directly with the function's role,
  * so the console reads them only through the function.
  */
-export function wireAnnouncements(backend: any, siteId: string): void {
+export function wireAnnouncements(backend: any, siteId: string, personOnlyClientIds: string[]): void {
   const lambda = backend.announcements.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
   const tables = backend.data.resources.tables as Record<string, ITable>;
@@ -30,6 +30,7 @@ export function wireAnnouncements(backend: any, siteId: string): void {
   settings.grantReadWriteData(lambda);
   connection.grantReadWriteData(lambda);
   lambda.addEnvironment("SITE_ID", siteId);
+  lambda.addEnvironment("PERSON_ONLY_CLIENT_IDS", personOnlyClientIds.join(","));
   lambda.addEnvironment("ANNOUNCEMENT_SETTINGS_TABLE", settings.tableName);
   lambda.addEnvironment("X_CONNECTION_TABLE", connection.tableName);
   lambda.addEnvironment("X_REFRESH_LEASE_SECONDS", String(ANNOUNCEMENTS_TIMEOUT_SECONDS));

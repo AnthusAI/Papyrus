@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
+from papyrus_content.actor_identity import actor_kind
 from papyrus_content.agent_rungs import RUNGS
 from papyrus_content.images.cli import ERROR_EXIT_CODE
 from papyrus_content.images.handlers import error_envelope
@@ -350,7 +351,7 @@ def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_facto
         core = Path(values["--core"]) if "--core" in values else definition.CORE_DIRECTORY
         definitions = release.load(site_folder if site_folder.is_dir() else None, core)
         client = (client_factory or _client)()
-        kind = "agent" if os.environ.get("PAPYRUS_ACTOR_KIND", "").strip().lower() == "agent" else "person"
+        kind = actor_kind()
         caller = (caller_factory or identify)(client, Caller(kind=kind))
         tenant_id = getattr(client, "tenant_id", None)
         if not tenant_id:

@@ -129,3 +129,32 @@ def add_charge(table: Any, *, tenant_id: str, scope: str, start: date, amount: A
         raise SpendError(f"A charge could not be added to the ledger: {error}") from error
     item = answer.get("Attributes") or {}
     return Spent(int(item.get("microUsd", 0)), int(item.get("calls", 0)), int(item.get("unpricedCalls", 0)))
+
+
+HALT_PREFIX = f"{KEY_PREFIX}HALT#"
+HALT_SORT_KEY = "HALT"
+EVERY_SITE = "ALL"
+
+
+def halt_key(tenant_id: str | None) -> str:
+    return f"{HALT_PREFIX}{tenant_id or EVERY_SITE}"
+
+
+def halt_reason(table: Any, tenant_id: str | None) -> str | None:
+    """Why runs are halted for this site, or None. A halt row for every site stops every run; a halt row for one site stops that site's."""
+    for key in dict.fromkeys([halt_key(None), halt_key(tenant_id)] if tenant_id else [halt_key(None)]):
+        item = table.get_item(Key={"pk": key, "sk": HALT_SORT_KEY}, ConsistentRead=True).get("Item")
+        if item:
+            return str(item.get("reason") or "no reason was recorded")
+    return None
+
+
+def set_halt(table: Any, *, tenant_id: str | None, reason: str, by: str, moment: datetime) -> None:
+    """The kill switch: from now no run starts for the site (or for every site when ``tenant_id`` is None) until ``clear_halt``."""
+    if not reason.strip() or not by.strip():
+        raise SpendError("A halt says why and who set it.")
+    table.put_item(Item={"pk": halt_key(tenant_id), "sk": HALT_SORT_KEY, "reason": reason.strip(), "by": by.strip(), "at": moment.astimezone(timezone.utc).isoformat()})
+
+
+def clear_halt(table: Any, *, tenant_id: str | None) -> None:
+    table.delete_item(Key={"pk": halt_key(tenant_id), "sk": HALT_SORT_KEY})
