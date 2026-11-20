@@ -98,12 +98,17 @@ def _chooses_none(context):
     _draft(context, [])
 
 
-def _draft(context, chosen):
+@when("words that leave no room are drafted and the hashtags {tags} are chosen")
+def _chooses_without_room(context, tags):
+    _draft(context, _words(tags), text="Newsrooms are learning what programmers learned. " + "x" * (drafting.DRAFT_WEIGHT - 51))
+
+
+def _draft(context, chosen, text="Newsrooms are learning what programmers learned."):
     seen = {}
 
     def llm(system, user, schema):
         seen["system"] = system
-        return {"text": "Newsrooms are learning what programmers learned.", "hashtags": chosen}
+        return {"text": text, "hashtags": chosen}
 
     context.model_saw = seen
     context.draft = drafting.draft_announcement(STORY, "https://example.test/story-1", guidelines="Voice: plain.", llm=llm, judge=_judge, hashtags=context.offered)

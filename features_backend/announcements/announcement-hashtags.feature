@@ -30,6 +30,12 @@ Feature: An X announcement may carry hashtags from the Story's own concepts
     When the draft chooses the hashtags "#Newsrooms", "#VoiceCloning" and "#Agents"
     Then the post text ends with "#Newsrooms #VoiceCloning"
 
+  Scenario: A hashtag that does not fit is left off and the post still passes
+    Given the Story offers the hashtags "#Newsrooms"
+    When words that leave no room are drafted and the hashtags "#Newsrooms" are chosen
+    Then the post text has no hashtag
+    And every check passes
+
   Scenario: A hashtag the Story's concepts do not hold fails the draft
     Given the Story offers the hashtags "#Newsrooms"
     When the draft chooses the hashtags "#Politics"

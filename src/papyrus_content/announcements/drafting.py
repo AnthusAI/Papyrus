@@ -39,7 +39,7 @@ SYSTEM = (
 )
 HASHTAGS_WITH_CHOICES = (
     "\n\nHashtags: the Story's own concepts are offered as hashtagChoices. Put at most {maximum} of them in `hashtags`, copied exactly, and only those a reader would search for "
-    "to find this Story. Return an empty list when none fits: no hashtag is better than a forced one. Never write a hashtag in `text`."
+    "to find this Story. Return an empty list when none fits: no hashtag is better than a forced one. Never write a hashtag in `text`. A hashtag is added after your text and its letters count toward the limit, so a text that leaves no room for one is posted without it."
 )
 HASHTAGS_NONE = "\n\nThe Story offers no hashtags: return an empty `hashtags` list."
 #: How many hashtags a post may carry. Derived from practice on X (more than two reads as spam), not from the API.
@@ -100,8 +100,9 @@ def with_hashtags(text: str, chosen: list[str]) -> str:
     return f"{text} {' '.join(chosen)}" if chosen else text
 
 
-def choose_hashtags(answer: Mapping[str, Any], offered: list[str]) -> tuple[list[str], list[str]]:
-    """``(the hashtags to post, the ones the draft chose that were not offered)``: each offered hashtag once, in the order chosen, at most ``MAX_HASHTAGS``."""
+def choose_hashtags(answer: Mapping[str, Any], offered: list[str], *, room: int | None = None) -> tuple[list[str], list[str]]:
+    """``(the hashtags to post, the ones the draft chose that were not offered)``: each offered hashtag once, in the order chosen, at most ``MAX_HASHTAGS``.
+    ``room`` is the weight left after the drafted words: a hashtag that does not fit is left off (it is optional, so it never fails the post)."""
     allowed = {tag.lower(): tag for tag in offered}
     kept: list[str] = []
     refused: list[str] = []
@@ -112,7 +113,13 @@ def choose_hashtags(answer: Mapping[str, Any], offered: list[str]) -> tuple[list
                 kept.append(allowed[tag.lower()])
         else:
             refused.append(tag)
-    return kept[:MAX_HASHTAGS], refused
+    fitting: list[str] = []
+    for tag in kept[:MAX_HASHTAGS]:
+        cost = weighted_length(f" {tag}")
+        if room is None or cost <= room:
+            fitting.append(tag)
+            room = None if room is None else room - cost
+    return fitting, refused
 
 
 def sentences(text: str) -> list[str]:
@@ -156,6 +163,6 @@ def draft_announcement(story: StoryFacts, link: str, *, guidelines: str, llm: Ll
     system, user = prompt(story, guidelines, learned, hashtags)
     answer = llm(system, user, SCHEMA)
     text = str((answer or {}).get("text") or "").strip()
-    chosen, refused = choose_hashtags(answer or {}, hashtags or [])
+    chosen, refused = choose_hashtags(answer or {}, hashtags or [], room=DRAFT_WEIGHT - weighted_length(text))
     return Draft(text=with_hashtags(text, chosen), link=link, model=model, hashtags=chosen,
                  checks=check_draft(text, link, story, judge=judge, rule_lane=rule_lane, hashtags=chosen, refused_hashtags=refused))
