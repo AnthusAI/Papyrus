@@ -169,3 +169,11 @@ class FakeFunctions:
 
     def status(self) -> dict:
         return dict(self.connected)
+
+    def save_app(self, client_id: str, client_secret: str) -> dict:
+        if not client_id.strip() or not client_secret.strip():
+            from .x_account import AnnouncementError
+
+            raise AnnouncementError("app_keys_missing", "Enter both the client ID and the client secret from your X developer app.")
+        self.saved_app = (client_id.strip(), client_secret.strip())
+        return dict(self.connected)

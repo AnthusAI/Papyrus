@@ -27,7 +27,7 @@ def default_handlers() -> dict[str, Handler]:
     return {name: handler for name, handler in HANDLERS.items() if name in names}
 
 
-def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None, stdout: TextIO | None = None) -> int:
+def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None, stdout: TextIO | None = None, stdin: TextIO | None = None) -> int:
     if handlers is None:
         handlers = default_handlers()
-    return images_cli.command(argv, group=GROUP, handlers=handlers, environ=environ, stdout=stdout)
+    return images_cli.command(argv, group=GROUP, handlers=handlers, environ=environ, stdout=stdout, stdin=stdin)
