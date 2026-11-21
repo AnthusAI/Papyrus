@@ -435,6 +435,11 @@ def child_environment(request: dict, openai_api_key: str | None) -> dict:
     if request.get("tenantId") and request.get("siteBucket"):
         environment["PAPYRUS_SITE_BUCKET"] = request["siteBucket"]
     # The site's public address, for a procedure that links to a Story (the announce agent's X post). Only a plain https origin is passed on.
+    # The site's broadcast function, for a procedure that posts to X (the announce agent): named after the publication, which is the notifications plugin's site id.
+    environment.pop("X_BROADCAST_FUNCTION", None)
+    publication = str(request.get("publicationId") or "")
+    if re.fullmatch(r"[a-z0-9-]{1,40}", publication):
+        environment["X_BROADCAST_FUNCTION"] = f"papyrus-notifications-broadcast-{publication}"
     environment.pop("SITE_ORIGIN", None)
     if is_plain_https_origin(request.get("siteOrigin")):
         environment["SITE_ORIGIN"] = request["siteOrigin"]

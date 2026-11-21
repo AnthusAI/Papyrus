@@ -30,3 +30,9 @@ def test_validation_keeps_the_site_origin_and_refuses_one_with_a_path():
     assert validate_request(base)["siteOrigin"] is None
     with pytest.raises(ProcedureNotRunnable):
         validate_request({**base, "siteOrigin": "https://news.example/x"})
+
+
+def test_the_runner_names_the_sites_broadcast_function_after_the_publication(monkeypatch):
+    monkeypatch.setenv("X_BROADCAST_FUNCTION", "papyrus-notifications-broadcast-someone-else")
+    assert child_environment(request(publicationId="machines-on-machines"), None)["X_BROADCAST_FUNCTION"] == "papyrus-notifications-broadcast-machines-on-machines"
+    assert "X_BROADCAST_FUNCTION" not in child_environment(request(publicationId="Not A Site!"), None)
