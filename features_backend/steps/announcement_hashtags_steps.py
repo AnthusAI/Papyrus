@@ -138,3 +138,51 @@ def _fails(context, name, words):
 @then("the model was told the Story offers no hashtags")
 def _told_none(context):
     assert "offers no hashtags" in context.model_saw["system"], context.model_saw["system"]
+
+
+# --- the one redraft for a draft that is only too long ---------------------------------------------------------------------------------------------------------
+
+SHORT = "Newsrooms are learning what programmers learned."
+LONG = SHORT + " " + "x" * (drafting.DRAFT_WEIGHT + 20)
+
+
+@given("the model's first text is too long and its second is short enough")
+def _long_then_short(context):
+    context.texts, context.hashtags_chosen = [LONG, SHORT], []
+
+
+@given("the model's texts are both too long")
+def _long_twice(context):
+    context.texts, context.hashtags_chosen = [LONG, LONG], []
+
+
+@given('the model chooses the hashtags "{tag}" in a short text')
+def _wrong_tag(context, tag):
+    context.texts, context.hashtags_chosen = [SHORT, SHORT], [tag]
+
+
+@when("the announcement draft is written")
+def _written(context):
+    context.requests = []
+
+    def llm(system, user, schema):
+        context.requests.append(user)
+        text = context.texts[min(len(context.requests), len(context.texts)) - 1]
+        return {"text": text, "hashtags": context.hashtags_chosen}
+
+    context.draft = drafting.draft_announcement(STORY, "https://example.test/story-1", guidelines="Voice: plain.", llm=llm, judge=_judge, hashtags=context.offered)
+
+
+@then("the draft model was asked twice and the second request named the overrun")
+def _asked_twice_with_overrun(context):
+    assert len(context.requests) == 2 and "tooLongBy" in context.requests[1] and "tooLongBy" not in context.requests[0], context.requests
+
+
+@then("the draft model was asked two times")
+def _asked_twice(context):
+    assert len(context.requests) == 2, len(context.requests)
+
+
+@then("the draft model was asked one time")
+def _asked_once(context):
+    assert len(context.requests) == 1, len(context.requests)
