@@ -1445,3 +1445,24 @@ def _cli_none(context):
 def _cli_refused_preview(context, message):
     result = context.cli_answer["result"]
     assert result["passed"] is False and message in result["failures"][0], result
+
+
+@when('"{person}" approves the current words of the X Delivery')
+def _approves_blocked(context, person):
+    context.deliveries.change_approval(x_row_fresh(context), "none", by=person)
+
+
+@when('"{person}" tries to set the review of the X Delivery to "{approval}"')
+def _tries_review(context, person, approval):
+    from papyrus_content.announcements.records import RecordError
+
+    try:
+        context.deliveries.change_approval(x_row_fresh(context), approval, by=person)
+    except RecordError as refused:
+        context.refusal = refused
+
+
+@then('the X Delivery is ready and approved by "{person}"')
+def _ready_and_approved(context, person):
+    row = x_row_fresh(context)
+    assert row["state"] == "ready" and row.get("blockedReason") is None and context.deliveries.is_approved(row) and row["approvedBy"] == person, row
