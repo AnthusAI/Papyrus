@@ -1,6 +1,7 @@
 """Hashtags for X announcements (features_backend/announcements/announcement-hashtags.feature): the concept reader over an in-memory client, and the draft with a stand-in model."""
 from __future__ import annotations
 
+import json
 import re
 
 from behave import given, then, when
@@ -111,7 +112,8 @@ def _draft(context, chosen, text="Newsrooms are learning what programmers learne
         return {"text": text, "hashtags": chosen}
 
     context.model_saw = seen
-    context.draft = drafting.draft_announcement(STORY, "https://example.test/story-1", guidelines="Voice: plain.", llm=llm, judge=_judge, hashtags=context.offered)
+    context.draft = drafting.draft_announcement(STORY, "https://example.test/story-1", guidelines="Voice: plain.", llm=llm, judge=getattr(context, "judge", _judge),
+                                                hashtags=context.offered)
 
 
 @then('the post text ends with "{ending}"')
@@ -170,7 +172,8 @@ def _written(context):
         text = context.texts[min(len(context.requests), len(context.texts)) - 1]
         return {"text": text, "hashtags": context.hashtags_chosen}
 
-    context.draft = drafting.draft_announcement(STORY, "https://example.test/story-1", guidelines="Voice: plain.", llm=llm, judge=_judge, hashtags=context.offered)
+    context.draft = drafting.draft_announcement(STORY, "https://example.test/story-1", guidelines="Voice: plain.", llm=llm, judge=getattr(context, "judge", _judge),
+                                                hashtags=context.offered)
 
 
 @then("the draft model was asked twice and the second request named the overrun")
@@ -186,3 +189,35 @@ def _asked_twice(context):
 @then("the draft model was asked one time")
 def _asked_once(context):
     assert len(context.requests) == 1, len(context.requests)
+
+
+OVERSTATED = "All newsrooms are learning what programmers learned."
+
+
+def _judge_refusing_overstatement(claim, cited, info=None):
+    if claim.startswith("All "):
+        return {"verdict": "not_supported", "quotes": [], "explanation": "The Story does not say all newsrooms.", "attribution_lost": False, "claim_is_only_about_source_limits": False}
+    return _judge(claim, cited, info)
+
+
+@given("the model's first text overstates the Story and its second keeps the Story's words")
+def _overstated_then_faithful(context):
+    context.texts, context.hashtags_chosen, context.judge = [OVERSTATED, SHORT], [], _judge_refusing_overstatement
+
+
+@then("the draft model was asked twice and the second request named the unsupported sentence")
+def _asked_twice_with_unsupported(context):
+    assert len(context.requests) == 2, context.requests
+    second = json.loads(context.requests[1])
+    assert any(OVERSTATED in problem for problem in second["unsupported"]) and "unsupported" not in json.loads(context.requests[0]), second
+
+
+@when("the announcement prompt is built")
+def _prompt_built(context):
+    context.system, context.user = drafting.prompt(STORY, "Voice: plain.", hashtags=context.offered)
+
+
+@then('the weight limit given to the model leaves room for "{tag}"')
+def _limit_leaves_room(context, tag):
+    limit = drafting.DRAFT_WEIGHT - drafting.weighted_length(f" {tag}") - drafting.COUNTING_MARGIN
+    assert f"at most {limit} on X" in context.system, context.system

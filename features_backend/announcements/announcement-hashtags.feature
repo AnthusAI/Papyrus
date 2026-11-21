@@ -71,3 +71,15 @@ Feature: An X announcement may carry hashtags from the Story's own concepts
     And the model chooses the hashtags "#Politics" in a short text
     When the announcement draft is written
     Then the draft model was asked one time
+
+  Scenario: A draft whose words say more than the Story is written once more, told which sentences
+    Given the Story offers no hashtags
+    And the model's first text overstates the Story and its second keeps the Story's words
+    When the announcement draft is written
+    Then the draft model was asked twice and the second request named the unsupported sentence
+    And every check passes
+
+  Scenario: The words are given room for the longest hashtag offered, so whichever is chosen fits
+    Given the Story offers the hashtags "#AiAgent" and "#SoftwareSupplyChainSecurity"
+    When the announcement prompt is built
+    Then the weight limit given to the model leaves room for "#SoftwareSupplyChainSecurity"
