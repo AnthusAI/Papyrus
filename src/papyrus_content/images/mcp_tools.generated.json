@@ -4470,6 +4470,21 @@
               "hard"
             ],
             "description": "none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it."
+          },
+          "onInstructionOf": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts."
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: that person's own words."
+          },
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: its name, recorded as the one who entered the change."
           }
         },
         "required": [

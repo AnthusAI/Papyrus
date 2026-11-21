@@ -521,3 +521,20 @@ def saved_by_with_reason(context, by, words):
 @then('the policy still has no announce rung')
 def no_rung(context):
     assert context.policy.read(TENANT).document["agents"].get(review_policy.RESPONSIBILITY) is None
+
+
+@when('an agent in ada\'s session changes the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def delegated_delivery_review(context, channel, account, approval, person, quote):
+    _call(context, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval, "onInstructionOf": person, "quote": quote, "agent": "Claude"},
+          SESSION_AGENT)
+
+
+@when('an agent in ada\'s session changes the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" naming no one')
+def delegated_delivery_review_nobody(context, channel, account, approval):
+    _call(context, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval}, SESSION_AGENT)
+
+
+@then('the Delivery "{channel:R}" "{account:R}" is approved by someone recorded as "{words:R}"')
+def delivery_approved_by_record(context, channel, account, words):
+    row = _row(context, channel, account)
+    assert context.deliveries.is_approved(row) and words in str(row["approvedBy"]), (row.get("approvedBy"), row.get("approvedVersion"))

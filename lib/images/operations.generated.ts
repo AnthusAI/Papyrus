@@ -1276,6 +1276,12 @@ export type AnnouncementsDeliveryReviewSetInput = {
   delivery: string;
   /** none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it. */
   approval: "none" | "soft" | "hard";
+  /** For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts. */
+  onInstructionOf?: string;
+  /** For an agent only: that person's own words. */
+  quote?: string;
+  /** For an agent only: its name, recorded as the one who entered the change. */
+  agent?: string;
 };
 
 export type AnnouncementsDeliveryReviewSetResult = {
