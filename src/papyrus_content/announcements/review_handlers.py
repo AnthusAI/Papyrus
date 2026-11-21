@@ -52,6 +52,18 @@ def review_set(client: Any, arguments: dict, caller: Caller, policy: AgentPolicy
 
     approval, scope, reason = arguments["approval"], _scope(arguments), arguments["reason"]
     tenant = _tenant(client)
+    if caller.kind == "agent":
+        # An agent on a named person's instruction, in that person's admin session (agent_policy/delegation.py): recorded as theirs, entered by the agent.
+        from papyrus_content.agent_policy import PolicyError
+        from papyrus_content.agent_policy.delegation import delegated_caller
+        from papyrus_content.images.profile_handlers import identify
+
+        try:
+            caller, added = delegated_caller(identify(client, caller), person=arguments.get("onInstructionOf", ""), quote=arguments.get("quote", ""), agent=arguments.get("agent", ""),
+                                             rung=review_policy.RUNG_OF.get(approval) or "off")
+        except PolicyError as error:
+            raise ImageOperationError(error.code, error.message) from error
+        reason = f"{reason.strip()} {added}"
     before = policy.read(tenant)
     try:
         if approval == "inherit":
