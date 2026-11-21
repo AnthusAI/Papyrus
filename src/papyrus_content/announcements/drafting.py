@@ -9,7 +9,8 @@ The draft is then checked automatically, and a draft that fails any check is not
 * ``rules``: the editorial rule lane (``papyrus editorial check``), when the site has it wired;
 * ``facts``: the layered fact check (``fact_check.check_claims``) with the Story's own text as the only source. Every sentence of the draft must be verified.
 
-Nothing here trims, rewrites or retries a failed draft: the failure and its reason are recorded, and the editors are told.
+Nothing here trims or rewrites a draft. One thing is retried: a draft whose only failed check is ``length`` is drafted once more, with the model told its own text and by how
+much it ran over (the model cannot count X's weight exactly). Any other failure, and a second failure, is recorded with its reason and the editors are told.
 """
 from __future__ import annotations
 
@@ -65,6 +66,7 @@ class Draft:
     model: str
     checks: list[dict[str, Any]] = field(default_factory=list)
     hashtags: list[str] = field(default_factory=list)
+    redrafts: int = 0   # 1 when the first draft ran over the limit and this is the second try
 
     @property
     def post(self) -> str:
@@ -166,8 +168,28 @@ def draft_announcement(story: StoryFacts, link: str, *, guidelines: str, llm: Ll
     if not guidelines.strip():
         raise DraftRefused("This publication has no writing guidelines, so there is no voice to draft in. Save them with papyrus guidelines save --kind writing.")
     system, user = prompt(story, guidelines, learned, hashtags)
+    draft = _draft_once(story, link, system, user, llm=llm, judge=judge, rule_lane=rule_lane, model=model, hashtags=hashtags)
+    over = _only_too_long(draft)
+    if not over:
+        return draft
+    # The one retry: the same Story and rules, plus the model's own text and how far over it ran.
+    again = json.dumps({**json.loads(user), "previousText": draft.text, "tooLongBy": over,
+                        "instruction": f"Your previous text was {over} too long for X. Write it again, shorter, from the same Story."}, ensure_ascii=False)
+    second = _draft_once(story, link, system, again, llm=llm, judge=judge, rule_lane=rule_lane, model=model, hashtags=hashtags)
+    second.redrafts = 1
+    return second
+
+
+def _draft_once(story: StoryFacts, link: str, system: str, user: str, *, llm: Llm, judge: fact_check.Judge, rule_lane: RuleLane | None, model: str,
+                hashtags: list[str] | None) -> Draft:
     answer = llm(system, user, SCHEMA)
     text = str((answer or {}).get("text") or "").strip()
     chosen, refused = choose_hashtags(answer or {}, hashtags or [], room=DRAFT_WEIGHT - weighted_length(text))
     return Draft(text=with_hashtags(text, chosen), link=link, model=model, hashtags=chosen,
                  checks=check_draft(text, link, story, judge=judge, rule_lane=rule_lane, hashtags=chosen, refused_hashtags=refused))
+
+
+def _only_too_long(draft: Draft) -> int:
+    """How far over the limit the draft runs when ``length`` is the only check that failed; 0 otherwise."""
+    failed = [check["name"] for check in draft.checks if not check["passed"]]
+    return too_long_by(draft.post) if failed == ["length"] else 0

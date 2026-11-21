@@ -51,3 +51,23 @@ Feature: An X announcement may carry hashtags from the Story's own concepts
     Given the Story offers no hashtags
     When the draft chooses no hashtags
     Then the model was told the Story offers no hashtags
+
+  Scenario: A draft that is only too long is written once more, told how far over it ran
+    Given the Story offers no hashtags
+    And the model's first text is too long and its second is short enough
+    When the announcement draft is written
+    Then the draft model was asked twice and the second request named the overrun
+    And every check passes
+
+  Scenario: A draft that is too long twice is not retried again
+    Given the Story offers no hashtags
+    And the model's texts are both too long
+    When the announcement draft is written
+    Then the draft model was asked two times
+    And the check "length" fails saying "Too long for X"
+
+  Scenario: A draft that fails a check other than length is not written again
+    Given the Story offers the hashtags "#Newsrooms"
+    And the model chooses the hashtags "#Politics" in a short text
+    When the announcement draft is written
+    Then the draft model was asked one time
