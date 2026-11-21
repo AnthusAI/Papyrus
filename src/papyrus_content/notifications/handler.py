@@ -3,6 +3,8 @@
 * ``router``     direct (asynchronous) invocations: Caducus events handed over by an email Delivery's attempt (``announcements/email_channel.py``), reader actions from the CMS routes (Caducus's public audience)
 * ``email``      the site's email queue: one queued delivery, or one fan-out page of a public kind, per message
 * ``x``         the site's x queue: one queued announcement post per message (``x_sender.py``); only where the site is wired for X
+* ``broadcast``  direct (synchronous) invocations by the shared procedure runner: submit, read or withdraw one X announcement through this site's Caducus wiring
+                 (``announcements/remote_broadcaster.py``); only where the site is wired for X
 * ``flush``      every minute: groups whose window ended
 * ``ses_events`` EventBridge, SES events of the site's configuration set for mail this site sent
 * ``pause``      EventBridge, the bounce and complaint alarms: turns sending off (only on a site without the newsletter)
@@ -59,6 +61,36 @@ def x(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
     from .runtime import runtime
 
     return x_with(runtime(), event)
+
+
+def broadcast_with(rt: Runtime, event: Mapping[str, Any]) -> dict[str, Any]:
+    """One Broadcaster call for the runner. A refusal is an answer (``ok`` false, with its kind), so the runner raises the same error the in-process Broadcaster would."""
+    from papyrus_content.announcements.caducus_errors import error_code
+    from papyrus_content.announcements.records import RecordError
+    from papyrus_content.announcements.remote_broadcaster import view_payload
+
+    if rt.broadcaster is None:
+        return {"ok": False, "error": "record", "message": "This site is not wired for X (X_QUEUE_URL is not set), so nothing can be posted."}
+    operation = event.get("operation")
+    try:
+        if operation == "submit":
+            rt.broadcaster.submit(account_id=str(event["accountId"]), event_id=str(event["eventId"]), text=str(event["text"]), url=str(event["url"]))
+            return {"ok": True}
+        if operation == "delivery":
+            return {"ok": True, "delivery": view_payload(rt.broadcaster.delivery(str(event["eventId"])))}
+        if operation == "withdraw":
+            return {"ok": True, "delivery": view_payload(rt.broadcaster.withdraw(str(event["eventId"]), by=str(event.get("by") or "the procedure runner")))}
+    except KeyError as missing:
+        return {"ok": False, "error": "record", "message": f"The request is missing {missing.args[0]}."}
+    except RecordError as error:
+        return {"ok": False, "error": error_code(error), "message": str(error)}
+    return {"ok": False, "error": "record", "message": f"Unknown broadcast operation {operation!r}."}
+
+
+def broadcast(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
+    from .runtime import runtime
+
+    return broadcast_with(runtime(), event)
 
 
 def flush(event: Any = None, context: Any = None) -> dict[str, int]:

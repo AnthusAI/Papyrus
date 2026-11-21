@@ -155,6 +155,10 @@ Resources:
                 Condition:
                   StringEquals:
                     iam:PassedToService: scheduler.amazonaws.com
+              - Sid: SiteBroadcastFunctions
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-notifications-broadcast-*"
               - Sid: PublicationNewsrooms
                 Effect: Allow
                 Action: appsync:GraphQL
