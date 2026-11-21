@@ -121,3 +121,25 @@ def test_the_spend_query_reads_the_ledger_and_says_when_there_is_none():
     refused = actions.handle("announcementsXSpend", ask, ["editor"], "ed", accounts, None, None)
     assert refused["ok"] is False and refused["error"] == "not_configured"
     assert actions.handle("announcementsXSpend", ask, [], "nobody", accounts, None, lambda: Ledger())["error"] == "forbidden"
+
+
+RUNNER_IDENTITY = {"userArn": "arn:aws:sts::712236451410:assumed-role/papyrus-procedure-runner/runner", "accountId": "712236451410"}
+
+
+def runner_event(field):
+    return amplify_function_event("Mutation" if field in actions.CHANGES else "Query", field, {"input": json.dumps({"paused": True} if field == "announcementsPause" else {})}, dict(RUNNER_IDENTITY))
+
+
+def test_a_role_of_the_functions_own_account_reads_the_settings():
+    answer = actions.handle_event(runner_event("announcementsSettings"), ConnectedAccounts(), SettingsInMode("on"), account_id="712236451410")
+    assert answer["ok"] is True
+
+
+def test_a_role_of_the_functions_own_account_changes_nothing():
+    answer = actions.handle_event(runner_event("announcementsPause"), ConnectedAccounts(), SettingsInMode("on"), account_id="712236451410")
+    assert answer == {"ok": False, "error": "forbidden", "message": "Your role cannot do this."}
+
+
+def test_a_role_of_another_account_reads_nothing():
+    answer = actions.handle_event(runner_event("announcementsSettings"), ConnectedAccounts(), SettingsInMode("on"), account_id="111111111111")
+    assert answer["error"] == "forbidden"
