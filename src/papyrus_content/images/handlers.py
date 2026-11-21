@@ -122,7 +122,7 @@ def execute(name: str, arguments: Any, caller: Caller | None = None, handlers: d
         answer = caller.gate_run.ask(name)
         if not answer.allowed:
             return error_envelope(name, answer.answer, answer.reason, details={"gate": answer.as_record()})
-    elif caller.kind == "agent" and not item.agent_allowed:
+    elif caller.kind == "agent" and not item.agent_allowed and not item.delegable:
         return error_envelope(name, item.agent_refusal, f"{name} needs a person; an agent may not call it.")
     problem = check(item.input, arguments if arguments is not None else {})
     if problem:

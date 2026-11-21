@@ -135,6 +135,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
+    delegable: bool = False                # an agent working in a person's own signed-in session (no run gate) may call it on that person's named instruction; a gated run never may
     group: Literal["images", "guidelines", "announcements", "ratings", "handoffs"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     def __post_init__(self) -> None:
@@ -775,11 +776,14 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "announcements_review_set", ("review", "set"), "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "write",
         obj({"approval": choice("none", "soft", "hard", "inherit", description=f"{_APPROVAL['description']} inherit takes an override away, so that scope follows the next wider one."), **_REVIEW_SCOPE,
-             "reason": REASON}, ("approval", "reason")),
+             "reason": REASON,
+             "onInstructionOf": text("For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts."),
+             "quote": text("For an agent only: that person's own words."), "agent": text("For an agent only: its name, recorded as the one who entered the change.")}, ("approval", "reason")),
         _REVIEW_RESULT, ("constraint_conflict",),
         (Example({"approval": "hard", "kind": "roundup", "reason": "Roundups wait for a person."}, {"policyVersion": 4, "approval": "hard", "rung": "prepare", "scope": {"kind": "roundup"}, "changed": True}),),
-        group="announcements", agent_rung=PERSON_ONLY, agent_refusal="blocked",
-        notes="An admin who is a person only; an agent is blocked at every rung. Each change is a new version of the agent policy with who, when and why. An Announcement already planned keeps the review it was "
+        group="announcements", agent_rung=PERSON_ONLY, agent_refusal="blocked", delegable=True,
+        notes="An admin who is a person, or an agent in that person's own session on that person's instruction (never an agent run under the ladder's gate, which is blocked at every rung): it gives onInstructionOf (the person whose admin session it runs in), quote and agent, and may go no higher than hard (prepare); "
+              "the change is recorded as the person's via the agent, with their words in the reason. An agent that gives none of them is blocked. Each change is a new version of the agent policy with who, when and why. An Announcement already planned keeps the review it was "
               "made under unless an editor changes that one (announcements_delivery_review_set). none is the rung publish_auto, which the ladder's hard floor refuses until the doubt gate exists (PPY-36e7c9).",
     ),
     Operation(

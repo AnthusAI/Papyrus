@@ -124,3 +124,32 @@ Feature: What an agent may do with an announcement is one table, answered by one
       | announcements_review_set           | person       |
       | announcements_delivery_review_set  | person       |
       | announcements_settings_set         | person       |
+
+  Scenario: An agent in an admin's own session may set the review to hard on that person's instruction, and the record names both
+    Given a publication with no announcement review set
+    When an agent in ada's session sets the publication's announcement review to "hard" on the instruction of "ada" who said "make it work"
+    Then the policy was saved by "ada via cli (Claude)" with a reason holding "entered by Claude on the instruction of ada"
+    And the policy was saved by "ada via cli (Claude)" with a reason holding "make it work"
+
+  Scenario: An agent may not set the review to soft, which is a rung above prepare
+    Given a publication with no announcement review set
+    When an agent in ada's session sets the publication's announcement review to "soft" on the instruction of "ada" who said "go further"
+    Then the change is refused as "blocked"
+    And the policy still has no announce rung
+
+  Scenario: An agent may not name a person other than the one whose session it runs in
+    Given a publication with no announcement review set
+    When an agent in ada's session sets the publication's announcement review to "hard" on the instruction of "bea" who said "do it"
+    Then the change is refused as "not_authorized"
+    And the policy still has no announce rung
+
+  Scenario: An agent in an editor's session cannot change the review on anyone's instruction
+    Given a publication with no announcement review set
+    When an agent in ellie's session sets the publication's announcement review to "hard" on the instruction of "ellie" who said "do it"
+    Then the change is refused as "not_authorized"
+
+  Scenario: An agent that names no one is blocked
+    Given a publication with no announcement review set
+    When an agent in ada's session sets the publication's announcement review to "hard" naming no one
+    Then the change is refused as "blocked"
+    And the policy still has no announce rung
