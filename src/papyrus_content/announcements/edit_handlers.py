@@ -214,10 +214,19 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_f
 
         return create_authoring_client()[0]
 
-    def wrap(function):
+    from .review_handlers import DOOR_WRITE_OPERATIONS, signed_in_lane, through_write_door
+
+    def wrap(function, name):
         def handler(arguments: dict, caller: Caller) -> Outcome:
             client = factory()
+            if name in DOOR_WRITE_OPERATIONS and client_factory is None and signed_in_lane():
+                # A person's credential may not write Delivery records (PPY-e7a232): the announcements write door writes them with its own role.
+                return through_write_door(name, arguments, caller, client)
             return function(client, arguments, caller, policy_factory(client) if policy_factory else None, files, clock() if clock else None)
         return handler
 
-    return {name: wrap(function) for name, function in EDIT_HANDLERS.items()}
+    return {name: wrap(function, name) for name, function in EDIT_HANDLERS.items()}
+
+
+#: The editing-window operations the write door serves: they write only the Delivery and its words file.
+DOOR_EDIT_OPERATIONS = ("announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_unlock")

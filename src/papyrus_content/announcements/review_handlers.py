@@ -247,17 +247,23 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_f
     return {name: wrap(partial(function, **extras[function]) if function in extras else function, name) for name, function in REVIEW_HANDLERS.items()}
 
 
-#: What the announcements write door (``announcementsWrite``) serves: a person's decision about one Delivery. The person's own credential may not write Delivery records,
+#: What the announcements write door (``announcementsWrite``) serves: a person's decision about one Delivery, and the edits of its words (PPY-e7a232). The person's own credential may not write Delivery records,
 #: so the door checks who is asking and the image service function writes with its own role.
-DOOR_WRITE_OPERATIONS = ("announcements_delivery_review_set",)
+DOOR_WRITE_OPERATIONS = ("announcements_delivery_review_set", "announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_unlock")
 WRITE_DOOR = "announcementsWrite"
 WRITE_DOOR_MUTATION = ("mutation AnnouncementsWrite($op: String!, $input: AWSJSON, $requestId: ID!, $actorKind: String) "
                        "{ announcementsWrite(op: $op, input: $input, requestId: $requestId, actorKind: $actorKind) }")
 
 
-def door_write_handlers(client: Any) -> dict[str, Handler]:
-    """The door's handlers over the service function's own client. ``delivery_review_set`` reads no agent policy, so no policy store is opened."""
-    return {name: (lambda function: lambda arguments, caller: function(client, arguments, caller, None))(REVIEW_HANDLERS[name]) for name in DOOR_WRITE_OPERATIONS}
+def door_write_handlers(client: Any, files: Any = None) -> dict[str, Handler]:
+    """The door's handlers over the service function's own client. None of them reads the agent policy, so no policy store is opened; a Delivery's words are its own
+    attachments (``deliveries.AttachmentFiles``), uploaded through presigned slots."""
+    from .edit_handlers import DOOR_EDIT_OPERATIONS, EDIT_HANDLERS
+
+    handlers: dict[str, Handler] = {"announcements_delivery_review_set": lambda arguments, caller: REVIEW_HANDLERS["announcements_delivery_review_set"](client, arguments, caller, None)}
+    for name in DOOR_EDIT_OPERATIONS:
+        handlers[name] = (lambda function: lambda arguments, caller: function(client, arguments, caller, None, files))(EDIT_HANDLERS[name])
+    return handlers
 
 
 def through_write_door(name: str, arguments: dict, caller: Caller, client: Any) -> Outcome:

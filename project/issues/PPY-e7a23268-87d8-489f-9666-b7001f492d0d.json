@@ -10,9 +10,22 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "abbaca71-d9c5-4c7b-b21d-05d3f81c31ce",
+      "author": "ryan",
+      "text": "Fixed by extending the announcements write door: draft, candidate choose, pinned change and unlock are served there, and the signed-in CLI hands them to it. The image service role gains the attachment upload, complete and download slot fields. example and preferred write learned-example data and are left on the CLI lane for now.",
+      "created_at": "2026-11-21T23:13:02.478472Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "Claude Code handoff session"
+      }
+    }
+  ],
   "created_at": "2026-11-21T18:17:20.126330Z",
-  "updated_at": "2026-11-21T18:17:20.126349Z",
+  "updated_at": "2026-11-21T23:13:02.479023Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
