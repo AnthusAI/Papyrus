@@ -849,7 +849,8 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
         "announcements_release", ("release",), "Release a Delivery: hand it to its channel now.", "write",
         obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
         group="announcements", positional=("delivery",), agent_rung="publish_auto",
-        notes="Under none the policy released it, so an agent at publish_auto may. Under soft or hard an agent is told human_required: a person releases it. A person always may. Built with the channel transport.",
+        notes="Under none the policy released it, so an agent at publish_auto may. Under soft or hard an agent is told human_required: a person releases it. A person always may. "
+              "Releasing approves the version that would go, as the caller; the announce agent wakes for that approval and sends it through the channel. Releasing one already approved changes nothing.",
     ),
     Operation(
         "announcements_unlock", ("unlock",), "Unlock a Delivery after its lock time, so it can be edited again.", "write",

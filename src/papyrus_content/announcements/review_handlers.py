@@ -212,7 +212,26 @@ def withdraw(client: Any, arguments: dict, caller: Caller, policy: AgentPolicySt
     return Outcome({"id": written["id"], "state": written["state"], "withdrawnBy": by, "cost": written.get("cost"), "announcementState": state}, _publication(client))
 
 
-REVIEW_HANDLERS: dict[str, Callable[..., Outcome]] = {"announcements_review_show": review_show, "announcements_review_set": review_set, "announcements_delivery_review_set": delivery_review_set,
+def release(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore) -> Outcome:
+    """Release a Delivery (PPY-65d8b6): approve the version that would go, as the caller. The approval is a change the announce agent wakes for (PPY-1de948), and that run
+    sends what is due, so a released Delivery goes now, through its channel's own attempt. Releasing one already approved changes nothing."""
+    from .deliveries import Deliveries
+    from .records import NONE, RecordError
+
+    deliveries = Deliveries(client)
+    row = deliveries.get(arguments["delivery"])
+    if row is None:
+        raise ImageOperationError("not_found", f"No Delivery {arguments['delivery']!r} on this site.")
+    if deliveries.is_approved(row):
+        return Outcome({"id": row["id"]}, _publication(client))
+    try:
+        changed = deliveries.change_approval(row, NONE, by=caller.subject or "an editor")
+    except RecordError as error:
+        raise ImageOperationError("constraint_conflict", str(error)) from error
+    return Outcome({"id": changed["id"]}, _publication(client))
+
+
+REVIEW_HANDLERS: dict[str, Callable[..., Outcome]] = {"announcements_release": release, "announcements_review_show": review_show, "announcements_review_set": review_set, "announcements_delivery_review_set": delivery_review_set,
                                                  "announcements_record_manual": record_manual, "announcements_correct": correct, "announcements_withdraw": withdraw}
 
 
@@ -249,7 +268,7 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_f
 
 #: What the announcements write door (``announcementsWrite``) serves: a person's decision about one Delivery, and the edits of its words (PPY-e7a232). The person's own credential may not write Delivery records,
 #: so the door checks who is asking and the image service function writes with its own role.
-DOOR_WRITE_OPERATIONS = ("announcements_delivery_review_set", "announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_unlock")
+DOOR_WRITE_OPERATIONS = ("announcements_delivery_review_set", "announcements_release", "announcements_draft", "announcements_candidate_choose", "announcements_pinned_change", "announcements_unlock")
 WRITE_DOOR = "announcementsWrite"
 WRITE_DOOR_MUTATION = ("mutation AnnouncementsWrite($op: String!, $input: AWSJSON, $requestId: ID!, $actorKind: String) "
                        "{ announcementsWrite(op: $op, input: $input, requestId: $requestId, actorKind: $actorKind) }")
@@ -260,7 +279,8 @@ def door_write_handlers(client: Any, files: Any = None) -> dict[str, Handler]:
     attachments (``deliveries.AttachmentFiles``), uploaded through presigned slots."""
     from .edit_handlers import DOOR_EDIT_OPERATIONS, EDIT_HANDLERS
 
-    handlers: dict[str, Handler] = {"announcements_delivery_review_set": lambda arguments, caller: REVIEW_HANDLERS["announcements_delivery_review_set"](client, arguments, caller, None)}
+    handlers: dict[str, Handler] = {name: (lambda function: lambda arguments, caller: function(client, arguments, caller, None))(REVIEW_HANDLERS[name])
+                                    for name in ("announcements_delivery_review_set", "announcements_release")}
     for name in DOOR_EDIT_OPERATIONS:
         handlers[name] = (lambda function: lambda arguments, caller: function(client, arguments, caller, None, files))(EDIT_HANDLERS[name])
     return handlers
