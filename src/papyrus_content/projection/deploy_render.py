@@ -68,6 +68,25 @@ def deploy_render(context: ProjectionContext) -> DeployRenderReport:
     return DeployRenderReport(render=render, drift=drift)
 
 
+def skipped_metric_line(reason: str) -> str:
+    """The metric line of a render that did not run because another projection holds the site's lease. It counts as one drift, so the alarm that watches the drift
+    count names the deploy that left the site's pages as they were; the deploy itself is not failed, because the render only refreshes pages (the site's data is
+    already deployed) and the projection that holds the lease is writing the same site."""
+    return json.dumps(
+        {
+            "_aws": {
+                "Timestamp": int(time.time() * 1000),
+                "CloudWatchMetrics": [
+                    {"Namespace": METRIC_NAMESPACE, "Dimensions": [["FunctionName"]], "Metrics": [{"Name": DRIFT_METRIC_NAME, "Unit": "Count"}]}
+                ],
+            },
+            "FunctionName": os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "unknown"),
+            DRIFT_METRIC_NAME: 1,
+            "deployRender": {"ok": True, "skipped": reason},
+        }
+    )
+
+
 def drift_metric_line(report: DeployRenderReport) -> str:
     """A CloudWatch embedded-metric-format log line: it becomes the metric the drift alarm watches."""
     return json.dumps(
