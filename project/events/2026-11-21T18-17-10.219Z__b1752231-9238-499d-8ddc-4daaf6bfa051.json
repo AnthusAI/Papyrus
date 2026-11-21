@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b1752231-9238-499d-8ddc-4daaf6bfa051",
+  "issue_id": "PPY-b7321442-debc-4a5c-aff1-6bc3d146570d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-21T18:17:10.219Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "Check X's terms and our app's declared use case before reading X for hashtags",
+    "description": "Confirm with X's Developer Policy and Guidelines that ranking hashtags for our own posts from counts and search is allowed, and whether the app's declared use case must be updated first. Record the answer before any of the other tasks ship.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-dbb654c0-262a-4bc4-80a8-d68eb160ca62",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude Code handoff session"
+    }
+  }
+}
