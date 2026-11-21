@@ -28,3 +28,10 @@ Feature: The post-deploy render waits for the live schema
     When the deploy-render task runs
     Then the deploy-render task failed saying "Item.versionPublishedAt, PublishedItem.versionPublishedBy"
     And the site was not rendered
+
+  Scenario: A projection already running does not fail the deploy
+    Given another projection holds the site's lease
+    When the deploy render task meets it
+    Then the deploy-render task did not fail
+    And the result says the render was skipped
+    And the drift alarm is told once

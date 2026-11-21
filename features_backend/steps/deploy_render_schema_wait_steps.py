@@ -119,3 +119,42 @@ def not_rendered(context) -> None:
 @then('the deploy-render task failed saying "{text}"')
 def failed(context, text: str) -> None:
     assert context.failure is not None and text in context.failure, context.failure
+
+
+@given("another projection holds the site's lease")
+def lease_held(context) -> None:
+    from papyrus_content.projection.lease import ProjectionLeaseHeld
+
+    context.held = ProjectionLeaseHeld("bucket", "locks", {"owner": "lambda-1", "purpose": "lambda projection", "expiresAt": 1795320000}, 120)
+
+
+@when("the deploy render task meets it")
+def meet_lease(context) -> None:
+    handler = handler_module()
+    context.failure, context.skipped_result = None, None
+    printed: list[str] = []
+    with mock.patch.object(handler, "ensure_publication_from_environment"), mock.patch.object(handler, "projection_context", return_value=mock.Mock(invalidate=None)), \
+            mock.patch.object(handler, "ensure_item_languages", return_value={}), mock.patch.object(handler, "ensure_item_decks", return_value={}), \
+            mock.patch.object(handler, "ensure_default_editorial_policies"), mock.patch.object(handler, "targeted_invalidation", return_value=False), \
+            mock.patch.object(handler, "deploy_render", side_effect=context.held), mock.patch("builtins.print", side_effect=lambda *args, **kwargs: printed.append(" ".join(map(str, args)))):
+        try:
+            context.skipped_result = handler.run_deploy_render_task(mock.Mock())
+        except Exception as error:  # noqa: BLE001
+            context.failure = str(error)
+    context.printed = printed
+
+
+@then("the deploy-render task did not fail")
+def did_not_fail(context) -> None:
+    assert context.failure is None, context.failure
+
+
+@then("the result says the render was skipped")
+def says_skipped(context) -> None:
+    assert context.skipped_result["ok"] is True and "another projection holds the lease" in context.skipped_result["skipped"], context.skipped_result
+
+
+@then("the drift alarm is told once")
+def alarm_told(context) -> None:
+    lines = [json.loads(line) for line in context.printed if line.startswith("{") and "DeployRenderDrift" in line]
+    assert len(lines) == 1 and lines[0]["DeployRenderDrift"] == 1, context.printed
