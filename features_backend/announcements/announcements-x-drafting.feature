@@ -114,3 +114,17 @@ Feature: The words of an X post say only what the Story says, and a draft that f
 
   Scenario: The link keeps the Story's own query and gets the tags
     Then the link "https://example.org/a?x=1&utm_source=old" becomes "https://example.org/a?x=1&utm_source=x&utm_medium=social&utm_campaign=announcement"
+
+  Scenario: A person who approves a blocked draft's words lets it go, and the block is lifted
+    Given the model drafts "The first proof ever that a system can keep a secret."
+    When a 5-star Article is published
+    Then the X Delivery reads "Blocked: check failed"
+    When "ryan" approves the current words of the X Delivery
+    Then the X Delivery is ready and approved by "ryan"
+
+  Scenario: Only letting the words go lifts a failed check; asking for more review leaves the block
+    Given the model drafts "The first proof ever that a system can keep a secret."
+    When a 5-star Article is published
+    Then the X Delivery reads "Blocked: check failed"
+    When "ryan" tries to set the review of the X Delivery to "hard"
+    Then the X Delivery reads "Blocked: check failed"
