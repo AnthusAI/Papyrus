@@ -1254,6 +1254,12 @@ export type AnnouncementsReviewSetInput = {
   list?: string;
   /** Why, in plain words. It is recorded with who and when. */
   reason: string;
+  /** For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts. */
+  onInstructionOf?: string;
+  /** For an agent only: that person's own words. */
+  quote?: string;
+  /** For an agent only: its name, recorded as the one who entered the change. */
+  agent?: string;
 };
 
 export type AnnouncementsReviewSetResult = {

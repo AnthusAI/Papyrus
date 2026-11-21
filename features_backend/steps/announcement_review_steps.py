@@ -484,3 +484,40 @@ def table_needs(context, name, rung):
     from papyrus_content.images.operations import operation
 
     assert operation(name).agent_rung == rung, operation(name).agent_rung
+
+
+# --- an agent in a person's own admin session, on that person's instruction (agent_policy/delegation.py) -----------------------------------------------------
+
+SESSION_AGENT = Caller(kind="agent", subject="ada", is_admin=True)   # what identify() makes of an agent in ada's admin session
+EDITOR_SESSION_AGENT = Caller(kind="agent", subject="ellie", is_admin=False)
+
+
+def _delegated(context, caller, approval, person, quote):
+    _call(context, "announcements_review_set", {"approval": approval, "reason": "Test", "onInstructionOf": person, "quote": quote, "agent": "Claude"}, caller)
+
+
+@when('an agent in ada\'s session sets the publication\'s announcement review to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def delegated_ada(context, approval, person, quote):
+    _delegated(context, SESSION_AGENT, approval, person, quote)
+
+
+@when('an agent in ellie\'s session sets the publication\'s announcement review to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def delegated_ellie(context, approval, person, quote):
+    _delegated(context, EDITOR_SESSION_AGENT, approval, person, quote)
+
+
+@when('an agent in ada\'s session sets the publication\'s announcement review to "{approval:R}" naming no one')
+def delegated_nobody(context, approval):
+    _call(context, "announcements_review_set", {"approval": approval, "reason": "Test"}, SESSION_AGENT)
+
+
+@then('the policy was saved by "{by}" with a reason holding "{words:R}"')
+def saved_by_with_reason(context, by, words):
+    state = context.policy.read(TENANT)
+    record = context.policy.version_record(TENANT, state.version)
+    assert record["by"] == by and words in record["reason"], record
+
+
+@then('the policy still has no announce rung')
+def no_rung(context):
+    assert context.policy.read(TENANT).document["agents"].get(review_policy.RESPONSIBILITY) is None
