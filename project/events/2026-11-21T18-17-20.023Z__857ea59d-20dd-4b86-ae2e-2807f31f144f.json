@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "857ea59d-20dd-4b86-ae2e-2807f31f144f",
+  "issue_id": "PPY-1905cc7e-c4d2-4179-ac2f-5c3738aaf801",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-21T18:17:20.023Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "Announcement and newsletter links ignore the site's URL structure and point at 404s",
+    "description": "item_front_matter.item_path builds /<section>/<slug>.html (or the directory or clean form) from the section and ITEM_URL_STYLE. On Machines on Machines, Stories live at /articles/<slug>/ (the type's segment), so the announce agent drafted https://machines-on-machines.anth.us/security/the-eternal-october.html, which redirects to a 404. The newsletter roundup uses the same builder. The link must come from the projection's own address for the Story (its link map), not be rebuilt.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude Code handoff session"
+    }
+  }
+}
