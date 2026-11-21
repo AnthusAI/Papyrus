@@ -27,6 +27,9 @@ export const IMAGE_SERVICE_FUNCTION_FIELDS = [
   "Query/fields/listSemanticRelationsBySubjectState",
   "Query/fields/getItem",
   "Query/fields/getReviewRequest",
+  // The announcements write door: one Delivery read and its review changed (a person's approval), with the row's own revision as the condition.
+  "Query/fields/getDelivery",
+  "Mutation/fields/updateDelivery",
   "Mutation/fields/createItem",
   "Mutation/fields/updateItem",
   "Mutation/fields/createModelAttachment",

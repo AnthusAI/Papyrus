@@ -388,6 +388,13 @@ class Deliveries:
         approval (``system``) of the current version, so it waits for a person; an approval a person gave stays."""
         if approval not in APPROVALS:
             raise RecordError(f"approval is one of {', '.join(APPROVALS)}; not {approval!r}.")
+        blocked_for_check = row.get("state") == BLOCKED and row.get("blockedReason") == CHECK_FAILED_CODE
+        if approval == NONE and blocked_for_check and row.get("textKey"):
+            # A person read the words the checks refused and lets them go: that answer is what moves a blocked draft on (``block_draft``).
+            now = now or now_iso()
+            changes = {"state": READY, "blockedReason": None, "approval": approval, "approvalPolicy": f"set for this Delivery by {by}",
+                       "approvedVersion": int(row["version"]), "approvedBy": by, "approvedAt": now}
+            return self._change(row, changes, by=by, note=f"approved version {row['version']} over its failed checks, and unblocked", now=now)
         if row.get("state") not in BEFORE_SEND_STATES:
             raise RecordError(f"{row['id']} is {row.get('state')}; the review of a Delivery changes only before it goes.")
         if approval == row.get("approval"):

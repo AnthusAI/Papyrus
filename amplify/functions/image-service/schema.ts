@@ -38,6 +38,16 @@ export const imageServiceSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("imageService", imageService)),
+  /**
+   * The announcements write door: a person's decision about one Delivery (its review, which approves its words), which the person's own credential may not write. Editors and
+   * admins at the door; the function takes who is asking from the verified identity, refuses an agent that names no person, and writes with its own role.
+   */
+  announcementsWrite: a
+    .mutation()
+    .arguments({ op: a.string().required(), input: a.json(), requestId: a.id().required(), actorKind: a.string() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("imageService", imageService)),
   imageRead: a
     .query()
     .arguments({ op: a.string().required(), input: a.json(), actorKind: a.string() })

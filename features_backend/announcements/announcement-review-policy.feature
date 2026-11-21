@@ -347,3 +347,29 @@ Feature: Human review of announcements is a setting of each publication
     Then the change is refused as "not_authorized"
     When an agent in ada's session changes the review of the Delivery "x" "handle-1" to "none" naming no one
     Then the change is refused as "blocked"
+
+  Scenario: A person approves one Delivery through the announcements write door, which writes with the service's own role
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When "ada" asks the announcements write door to change the review of the Delivery "x" "handle-1" to "none"
+    Then the Delivery "x" "handle-1" is approved by "ada"
+
+  Scenario: An agent in an admin's session approves through the write door only on that admin's named instruction
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When an agent in ada's session asks the announcements write door to change the review of the Delivery "x" "handle-1" to "none" naming no one
+    Then the write door refuses with "blocked"
+    When an agent in ada's session asks the announcements write door to change the review of the Delivery "x" "handle-1" to "none" on the instruction of "ada" who said "post it"
+    Then the Delivery "x" "handle-1" is approved by someone recorded as "ada via cli (Claude)"
+
+  Scenario: The write door admits staff only and serves only a person's decision about a Delivery
+    When a signed-in reader asks the announcements write door to "announcements_delivery_review_set"
+    Then the write door refuses with "not_authorized"
+    When "ada" asks the announcements write door to "announcements_pause"
+    Then the write door refuses with "invalid_input"

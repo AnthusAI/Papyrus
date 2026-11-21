@@ -538,3 +538,53 @@ def delegated_delivery_review_nobody(context, channel, account, approval):
 def delivery_approved_by_record(context, channel, account, words):
     row = _row(context, channel, account)
     assert context.deliveries.is_approved(row) and words in str(row["approvedBy"]), (row.get("approvedBy"), row.get("approvedVersion"))
+
+
+# --- the announcements write door (image_service.announcementsWrite) --------------------------------------------------------------------------------------
+
+ADMIN_DOOR_IDENTITY = {"claims": {"name": "ada"}, "groups": ["admin"], "username": "ada"}
+READER_DOOR_IDENTITY = {"claims": {"name": "rae"}, "groups": [], "username": "rae"}
+
+
+def _write_door(context, identity, op, payload, actor_kind=None):
+    import json as _json
+
+    from papyrus_content.image_service import handle
+
+    review_handlers._publication = lambda client: "publication"
+    arguments = {"op": op, "input": _json.dumps(payload), "requestId": "request-1", **({"actorKind": actor_kind} if actor_kind else {})}
+    context.envelope = handle({"fieldName": "announcementsWrite", "identity": identity, "arguments": arguments}, client_factory=lambda: context.backend,
+                              files_factory=lambda client: None)
+
+
+@when('"ada" asks the announcements write door to change the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}"')
+def door_person_review(context, channel, account, approval):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval})
+    assert context.envelope["ok"], context.envelope
+
+
+@when('an agent in ada\'s session asks the announcements write door to change the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" naming no one')
+def door_agent_nobody(context, channel, account, approval):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval}, "agent")
+
+
+@when('an agent in ada\'s session asks the announcements write door to change the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def door_agent_instructed(context, channel, account, approval, person, quote):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_delivery_review_set",
+                {"delivery": _row(context, channel, account)["id"], "approval": approval, "onInstructionOf": person, "quote": quote, "agent": "Claude"}, "agent")
+    assert context.envelope["ok"], context.envelope
+
+
+@when('a signed-in reader asks the announcements write door to "{op:R}"')
+def door_reader(context, op):
+    _write_door(context, READER_DOOR_IDENTITY, op, {})
+
+
+@when('"ada" asks the announcements write door to "{op:R}"')
+def door_admin_other(context, op):
+    _write_door(context, ADMIN_DOOR_IDENTITY, op, {})
+
+
+@then('the write door refuses with "{code:R}"')
+def door_answers(context, code):
+    assert not context.envelope["ok"] and context.envelope["error"]["code"] == code, context.envelope
