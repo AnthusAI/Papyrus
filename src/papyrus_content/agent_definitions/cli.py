@@ -58,6 +58,7 @@ SCHEDULES_USAGE = ("Usage: papyrus agents schedules --site SITE [--dry-run | --c
 
 
 SET_RUNG_USAGE = ("Usage: papyrus --site SITE agents set-rung --id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE ...] [--apply]\n"
+                  "  [--on-instruction-of PERSON --quote WORDS --agent NAME]  (an agent, on the instruction of the person whose admin session it runs in, up to rung prepare; recorded as theirs, entered by the agent)\n"
                   "  Set how far one agent may go on this site: write its rung into the agent policy document as a new version that records who, when and why.\n"
                   "  Admin only, and only a person: sign in with `papyrus login` as an admin. A dry run unless --apply: it prints the agent's policy entry before and after and\n"
                   "  the version it would be, and writes nothing. --apply saves it; the old version stays in the history. Raising and lowering are the same command.\n"
@@ -307,6 +308,34 @@ def _lists_for_site(client, site_store_for=None) -> dict:
     return list_schedule.wanted(ListSettingsStore((site_store_for or _site_store_for)(client)).read(tenant_id).document)
 
 
+#: The highest rung an agent may set on a person's instruction. Anything above it stays a person's own change.
+DELEGATED_RUNG_CEILING = "prepare"
+
+
+def delegated_caller(caller, values: dict[str, str]):
+    """An agent changing the policy on a named person's instruction, the way ``stories set-stars --agent`` rates for the signed-in person: the signed-in session is that
+    person's (an admin, from the token), the agent is named and recorded, and the person's own words are kept in the reason. The agent must name the person the session
+    belongs to and quote them; it may not raise a rung above ``DELEGATED_RUNG_CEILING``. Anything else is the person's own change, as before."""
+    from dataclasses import replace
+
+    from papyrus_content.agent_policy import PolicyError
+    from papyrus_content.agent_rungs import RUNGS
+
+    person, quote, agent = (values.get(flag, "").strip() for flag in ("--on-instruction-of", "--quote", "--agent"))
+    if not (person and quote and agent):
+        raise PolicyError("blocked", "An agent changes the agent policy only on a named person's instruction: give --on-instruction-of PERSON, --quote THEIR WORDS and --agent YOUR NAME.")
+    if not caller.is_admin or not caller.subject:
+        raise PolicyError("not_authorized", "The signed-in session is not an admin's, so nothing can be changed on anyone's instruction.")
+    if caller.subject.strip().lower() != person.lower():
+        raise PolicyError("not_authorized", f"This session belongs to {caller.subject}, not {person}: an agent may act only on the instruction of the person whose session it runs in.")
+    rung = values.get("--rung", "")
+    if rung not in RUNGS:
+        raise PolicyError("invalid_input", f"rung is one of: {', '.join(RUNGS)}.")
+    if RUNGS.index(rung) > RUNGS.index(DELEGATED_RUNG_CEILING):
+        raise PolicyError("blocked", f"An agent may set a rung up to {DELEGATED_RUNG_CEILING} on a person's instruction; {rung} is the person's own change.")
+    return replace(caller, kind="person", subject=f"{caller.subject} via cli ({agent})"), f"(entered by {agent} on the instruction of {person}: \"{quote}\")"
+
+
 def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, policy_factory=None, caller_factory=None) -> int:
     out = stdout or sys.stdout
     if argv in (["--help"], ["-h"]):
@@ -333,7 +362,7 @@ def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_facto
             if not value:
                 return refuse("--scope takes DIMENSION=VALUE, for example --scope channel=linkedin.", path="--scope")
             scope[dimension] = value
-        elif word in ("--id", "--rung", "--reason", "--dir", "--core") and rest:
+        elif word in ("--id", "--rung", "--reason", "--dir", "--core", "--on-instruction-of", "--quote", "--agent") and rest:
             values[word] = rest.pop(0)
         else:
             return refuse(f"{word} is not a flag of agents set-rung, or has no value.", path=word)
@@ -353,6 +382,9 @@ def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_facto
         client = (client_factory or _client)()
         kind = actor_kind()
         caller = (caller_factory or identify)(client, Caller(kind=kind))
+        if caller.kind == "agent":
+            caller, delegated = delegated_caller(caller, values)
+            values["--reason"] = f"{values['--reason'].strip()} {delegated}"
         tenant_id = getattr(client, "tenant_id", None)
         if not tenant_id:
             return refuse("The site's tenant is not known: pass --site, or sign in to the site, so the policy of one site is changed.", path="--site")
