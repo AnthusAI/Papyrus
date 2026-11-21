@@ -788,11 +788,15 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "announcements_delivery_review_set", ("delivery", "review"), "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "write",
-        obj({"delivery": text("The Delivery's id."), "approval": _APPROVAL}, ("delivery", "approval")),
+        obj({"delivery": text("The Delivery's id."), "approval": _APPROVAL,
+             "onInstructionOf": text("For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts."),
+             "quote": text("For an agent only: that person's own words."), "agent": text("For an agent only: its name, recorded as the one who entered the change.")}, ("delivery", "approval")),
         record({"id": text(), "approval": text(), "approvalPolicy": text(), "approvedBy": {"type": ["string", "null"]}}, ("id", "approval", "approvalPolicy")), ("not_found",),
         (Example({"delivery": "announcement-1#linkedin#page#g1", "approval": "hard"}, {"id": "announcement-1#linkedin#page#g1", "approval": "hard", "approvalPolicy": "set for this Delivery by Ada Admin", "approvedBy": None}),),
-        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
-        notes="A person only (an editor or an admin). An agent gets human_required: it may not choose how much review a Delivery gets.",
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY, delegable=True,
+        notes="A person (an editor or an admin), or an agent in an admin's own session on that person's named instruction (onInstructionOf, quote, agent; never a gated run): "
+              "the person chose this one Delivery's review, recorded as theirs via the agent with their words. none approves the current version, so the person should have read it. "
+              "An agent that names nobody gets human_required.",
     ),
     Operation(
         "announcements_draft", ("draft",), "Save a Delivery's words as the next version, or keep a text or picture beside the draft as a candidate.", "write",

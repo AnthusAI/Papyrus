@@ -78,13 +78,16 @@ def validate_request(request: dict) -> dict:
             raise ProcedureNotRunnable("tenantId must be a valid publication tenant id") from invalid
     if site_bucket and not S3_BUCKET.match(site_bucket):
         raise ProcedureNotRunnable("siteBucket must be an S3 bucket name")
+    site_origin = request.get("siteOrigin")
+    if site_origin is not None and not is_plain_https_origin(site_origin):
+        raise ProcedureNotRunnable("siteOrigin must be a plain https origin")
     timeout = request.get("timeoutSeconds")
     if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout < 1):
         raise ProcedureNotRunnable("timeoutSeconds must be a positive whole number")
     return {"appsyncEndpoint": endpoint, "procedureKey": key, "wakeKey": wake_key, "openaiKeyParameter": parameter or None,
             "timeoutSeconds": None if timeout is None else min(timeout, MAX_TIMEOUT_SECONDS),
             "input": dict(request.get("input") or {}), "publicationId": str(request.get("publicationId") or ""),
-            "tenantId": tenant_id or None, "siteBucket": site_bucket or None,
+            "tenantId": tenant_id or None, "siteBucket": site_bucket or None, "siteOrigin": site_origin or None,
             "actorLabel": str(request.get("actorLabel") or "Papyrus procedure runner"),
             "trigger": request.get("trigger") if isinstance(request.get("trigger"), dict) else None}
 
@@ -431,7 +434,20 @@ def child_environment(request: dict, openai_api_key: str | None) -> dict:
     environment.pop("PAPYRUS_SITE_BUCKET", None)   # the tenant id above is the request's own or absent; the bucket only goes with a tenant
     if request.get("tenantId") and request.get("siteBucket"):
         environment["PAPYRUS_SITE_BUCKET"] = request["siteBucket"]
+    # The site's public address, for a procedure that links to a Story (the announce agent's X post). Only a plain https origin is passed on.
+    # The site's broadcast function, for a procedure that posts to X (the announce agent): named after the publication, which is the notifications plugin's site id.
+    environment.pop("X_BROADCAST_FUNCTION", None)
+    publication = str(request.get("publicationId") or "")
+    if re.fullmatch(r"[a-z0-9-]{1,40}", publication):
+        environment["X_BROADCAST_FUNCTION"] = f"papyrus-notifications-broadcast-{publication}"
+    environment.pop("SITE_ORIGIN", None)
+    if is_plain_https_origin(request.get("siteOrigin")):
+        environment["SITE_ORIGIN"] = request["siteOrigin"]
     return environment
+
+
+def is_plain_https_origin(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"https://[A-Za-z0-9.-]+(:[0-9]+)?", value) is not None
 
 
 def record_trigger_run(table, trigger: dict | None, run_id: str) -> None:

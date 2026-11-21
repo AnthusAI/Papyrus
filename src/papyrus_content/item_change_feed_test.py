@@ -173,3 +173,11 @@ def test_the_wake_of_a_rating_says_why_in_words_and_never_wakes_the_agent_that_r
     assert "rated 3 stars" in request["trigger"]["summary"] and request["input"]["stars"] == 3
     [draft_rating] = feed.changes_of(story(stage="copywriting"), story(stage="copywriting", starRating=3, starRatedAt="t", starRatedBy="ada"), "MODIFY")
     assert [wake["wakeKey"].split("|")[0] for wake in feed.wakes_for(draft_rating, index, SITE)] == ["rate"]   # the announce agent listens for published Stories only
+
+
+def test_the_sites_public_address_goes_on_the_wake_when_the_stack_sets_it():
+    site = feed.Site.from_environment({"PAPYRUS_AGENT_PUBLICATION_ID": "sample", "PAPYRUS_GRAPHQL_ENDPOINT": SITE.appsync_endpoint, "PAPYRUS_TENANT_ID": "alpha",
+                                       "PAPYRUS_SITE_BUCKET": "bucket", "PAPYRUS_SITE_ORIGIN": "https://news.example"})
+    [change] = feed.changes_of(story(), story(stage="draft"), "MODIFY")
+    assert feed.wake_request(change, listener("announce"), site)["siteOrigin"] == "https://news.example"
+    assert "siteOrigin" not in feed.wake_request(change, listener("announce"), SITE)

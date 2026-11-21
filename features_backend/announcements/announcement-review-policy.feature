@@ -325,3 +325,25 @@ Feature: Human review of announcements is a setting of each publication
       | channel | account  |
       | x       | handle-1 |
     Then the Delivery "x" "handle-1" has the review "soft" from "publication policy"
+
+  Scenario: An agent in an admin's own session approves one held Delivery on that person's instruction, and the approval names both
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When an agent in ada's session changes the review of the Delivery "x" "handle-1" to "none" on the instruction of "ada" who said "post that text"
+    Then the Delivery "x" "handle-1" is approved by someone recorded as "ada via cli (Claude)"
+    And the Delivery "x" "handle-1" is approved by someone recorded as "on the instruction of ada"
+    And the Delivery "x" "handle-1" is approved by someone recorded as "post that text"
+
+  Scenario: An agent in an admin's own session cannot approve a held Delivery naming no one, or naming someone else
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When an agent in ada's session changes the review of the Delivery "x" "handle-1" to "none" on the instruction of "bea" who said "post it"
+    Then the change is refused as "not_authorized"
+    When an agent in ada's session changes the review of the Delivery "x" "handle-1" to "none" naming no one
+    Then the change is refused as "blocked"

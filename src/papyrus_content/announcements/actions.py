@@ -32,7 +32,22 @@ def credential_is_person(claims: Mapping[str, Any], environ: Mapping[str, str] |
     return bool(issued_to & person_client_ids(environ))
 
 
-def handle_event(event: Mapping[str, Any], accounts: XAccounts, settings: AnnouncementSettings, ledger: Callable[[], Any] | None = None) -> dict[str, Any]:
+#: The group an IAM role of the function's own AWS account acts in: the shared procedure runner that runs the announce agent signs its calls with its role, which carries no
+#: Cognito group. It may make the read operations only; every change stays an admin's.
+OPERATOR = "operator"
+
+
+def is_operator_of_this_account(identity: Mapping[str, Any], account_id: str | None) -> bool:
+    """An IAM principal (a role or user) of ``account_id``. A Cognito user, or an identity-pool user, is not one."""
+    if not account_id:
+        return False
+    arn = identity.get("userArn")
+    return (isinstance(arn, str) and arn.startswith("arn:") and identity.get("accountId") == account_id
+            and not identity.get("cognitoIdentityId") and not identity.get("sub") and not identity.get("claims"))
+
+
+def handle_event(event: Mapping[str, Any], accounts: XAccounts, settings: AnnouncementSettings, ledger: Callable[[], Any] | None = None,
+                 *, account_id: str | None = None) -> dict[str, Any]:
     """What the function does with one AppSync request: the operation is the GraphQL field (``appsync_event.operation_name``),
     the payload is the ``input`` argument, and the caller's groups and name come from the identity."""
     try:
@@ -43,6 +58,8 @@ def handle_event(event: Mapping[str, Any], accounts: XAccounts, settings: Announ
     groups = identity.get("groups") if isinstance(identity.get("groups"), list) else []
     claims = identity.get("claims") or {}
     actor = str(claims.get("email") or identity.get("username") or "console")[:100]
+    if is_operator_of_this_account(identity, account_id):
+        groups, actor = [OPERATOR], str(identity.get("userArn"))[:100]
     try:
         payload = _payload((event.get("arguments") or {}).get("input"))
     except ValueError:
@@ -72,7 +89,7 @@ def handle(operation: str, payload: dict[str, Any], groups: list[str], actor: st
     try:
         if operation not in READS | CHANGES:
             raise AnnouncementError("unknown_operation", f"Unknown operation {operation}.")
-        allowed = {"admin"} if operation in CHANGES else {"admin", "editor"}
+        allowed = {"admin"} if operation in CHANGES else {"admin", "editor", OPERATOR}
         if not allowed.intersection(groups):
             raise AnnouncementError("forbidden", "Your role cannot do this.")
         if not person_credential and turns_announcements_on(operation, payload, settings):

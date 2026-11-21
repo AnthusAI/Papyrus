@@ -195,13 +195,21 @@ def default_services(environ: Mapping[str, str]) -> Services:
     control = SpendControl(settings=functions, connection=functions.status, ledger=ledger_from_environment(environ))
     # The site's Broadcaster is the one its config provides (the notifications function's X queue); a site without one has None, and a site set to On without it refuses to run.
     wired = build_runtime(environ) if environ.get("EMAIL_QUEUE_URL") else None
-    broadcaster = wired.broadcaster if wired is not None else None
+    broadcaster = wired.broadcaster if wired is not None else remote_broadcaster(environ)
     # Email goes to Caducus through the router and delivery log of the site's own notifications function; a site without its email queue has no email channel.
     email = CaducusEmail(wired.router, wired.log, wired.settings.site_id, alert_facts, lists=settings.read(tenant).document["lists"]) if wired is not None else None
     return Services(state=lambda: settings.read(tenant), announcements=announcements, read_story=lambda lineage: read_candidate(client, lineage, issue_types_of(settings.read(tenant).document)), draft=draft,
                     account_id=tenant, x=x_services(client, environ, model=True, functions=functions), stamps=ChecklistReviewStamps(client), edit_settings=functions.read,
                     send_x=lambda now: send_due(Deliveries(client), announcements, control, broadcaster, now),
                     send_email=lambda now: send_due_email(Deliveries(client), email, now))
+
+
+def remote_broadcaster(environ: Mapping[str, str]) -> Any:
+    """In the shared procedure runner, which holds none of the site's Caducus wiring: the site's broadcast function, named by the runner (``X_BROADCAST_FUNCTION``). None elsewhere."""
+    from papyrus_content.announcements.remote_broadcaster import ENVIRONMENT, RemoteBroadcaster
+
+    name = (environ.get(ENVIRONMENT) or "").strip()
+    return RemoteBroadcaster(name) if name else None
 
 
 def policy_rung_of(run: Any) -> Callable[[str], str]:

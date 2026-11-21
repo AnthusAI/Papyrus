@@ -163,6 +163,7 @@ class Site:
     tenant_id: str | None = None
     site_bucket: str | None = None
     openai_key_parameter: str | None = None
+    site_origin: str | None = None
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str]) -> "Site":
@@ -170,7 +171,8 @@ class Site:
             return (environment.get(name) or "").strip() or None
 
         return cls(publication_id=value("PAPYRUS_AGENT_PUBLICATION_ID") or "", appsync_endpoint=value("PAPYRUS_GRAPHQL_ENDPOINT") or "",
-                   tenant_id=value("PAPYRUS_TENANT_ID"), site_bucket=value("PAPYRUS_SITE_BUCKET"), openai_key_parameter=value("PAPYRUS_OPENAI_KEY_PARAMETER"))
+                   tenant_id=value("PAPYRUS_TENANT_ID"), site_bucket=value("PAPYRUS_SITE_BUCKET"), openai_key_parameter=value("PAPYRUS_OPENAI_KEY_PARAMETER"),
+                   site_origin=value("PAPYRUS_SITE_ORIGIN"))
 
 
 def _reason(change: Change, agent: str) -> str:
@@ -204,7 +206,8 @@ def wake_request(change: Change, listener: Mapping[str, Any], site: Site) -> dic
                     "paid": bool(listener.get("paid")), "serialBy": listener.get("serialBy"), "safeToRepeat": bool(listener.get("safeToRepeat")), "responsibility": listener.get("responsibility"), "actorKind": change.actor_kind,
                     "actorLabel": change.actor_label, "at": change.at},
     }
-    for name, value in (("tenantId", site.tenant_id), ("siteBucket", site.site_bucket), ("openaiKeyParameter", site.openai_key_parameter)):
+    for name, value in (("tenantId", site.tenant_id), ("siteBucket", site.site_bucket), ("openaiKeyParameter", site.openai_key_parameter),
+                        ("siteOrigin", site.site_origin)):
         if value:
             request[name] = value
     return request

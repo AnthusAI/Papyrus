@@ -83,12 +83,23 @@ def delivery_review_set(client: Any, arguments: dict, caller: Caller, policy: Ag
     from .deliveries import Deliveries   # the records read the relation types (yaml); the image service function imports this module with the standard library only
     from .records import RecordError
 
+    instruction = ""
+    if caller.kind == "agent":
+        # An agent on a named admin's instruction, in that person's own session (agent_policy/delegation.py): the person chose this one Delivery's review, the agent entered it.
+        from papyrus_content.agent_policy import PolicyError
+        from papyrus_content.agent_policy.delegation import on_instruction_of
+        from papyrus_content.images.profile_handlers import identify
+
+        try:
+            caller, instruction = on_instruction_of(identify(client, caller), person=arguments.get("onInstructionOf", ""), quote=arguments.get("quote", ""), agent=arguments.get("agent", ""))
+        except PolicyError as error:
+            raise ImageOperationError(error.code, error.message) from error
     deliveries = Deliveries(client)
     row = deliveries.get(arguments["delivery"])
     if row is None:
         raise ImageOperationError("not_found", f"No Delivery {arguments['delivery']!r} on this site.")
     try:
-        changed = deliveries.change_approval(row, arguments["approval"], by=caller.subject or "an editor")
+        changed = deliveries.change_approval(row, arguments["approval"], by=f"{caller.subject} {instruction}".strip() if instruction else (caller.subject or "an editor"))
     except RecordError as error:
         raise ImageOperationError("constraint_conflict", str(error)) from error
     return Outcome({"id": changed["id"], "approval": changed["approval"], "approvalPolicy": changed["approvalPolicy"], "approvedBy": changed.get("approvedBy")}, _publication(client))
