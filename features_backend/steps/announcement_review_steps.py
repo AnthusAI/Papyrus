@@ -588,3 +588,9 @@ def door_admin_other(context, op):
 @then('the write door refuses with "{code:R}"')
 def door_answers(context, code):
     assert not context.envelope["ok"] and context.envelope["error"]["code"] == code, context.envelope
+
+
+@when('"ada" asks the announcements write door to release the Delivery "{channel:R}" "{account:R}"')
+def door_person_release(context, channel, account):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_release", {"delivery": _row(context, channel, account)["id"]})
+    assert context.envelope["ok"], context.envelope
