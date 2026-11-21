@@ -100,6 +100,36 @@ Feature: An admin sets an agent's rung with papyrus agents set-rung
     Then the command is refused as blocked
     And the site's policy is version 1 and "rate" is at "draft"
 
+  Scenario: An agent in an admin's session may set a rung up to prepare on that person's instruction, and the record names both
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "rate" to "draft" on the instruction of "ada" who said "turn the rating agent on"
+    Then the command succeeds and applied the change
+    And the policy version 1 says it was saved by "ada via cli (Claude)" and its reason holds "entered by Claude on the instruction of ada"
+    And the policy version 1 says it was saved by "ada via cli (Claude)" and its reason holds "turn the rating agent on"
+
+  Scenario: An agent may not name someone other than the person whose session it runs in
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "rate" to "draft" on the instruction of "bea" who said "do it"
+    Then the command is refused as not authorized
+    And the site's policy is still version 0
+
+  Scenario: An agent in an editor's session cannot change the policy on anyone's instruction
+    Given a site with no agent policy saved yet
+    When an agent in ed's session sets "rate" to "draft" on the instruction of "ed" who said "do it"
+    Then the command is refused as not authorized
+
+  Scenario: An agent that names no one is blocked as before
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "rate" to "draft" without naming anyone
+    Then the command is refused as blocked
+    And the site's policy is still version 0
+
+  Scenario: An agent may not raise a rung above prepare, whoever told it to
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "announce" to "publish_soft" on the instruction of "ada" who said "go all the way"
+    Then the command is refused as blocked
+    And the site's policy is still version 0
+
   Scenario: A change made while another admin saved is refused, not overwritten
     Given a site with no agent policy saved yet
     And another admin saves the policy while the change is being made
