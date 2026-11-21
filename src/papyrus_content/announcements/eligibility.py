@@ -9,6 +9,8 @@ the announcement id (``<accountId>#<lineageId>``) is what keeps a second event, 
 """
 from __future__ import annotations
 
+import os
+
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -17,6 +19,7 @@ from papyrus_content.item_stars import effective_rating
 from papyrus_content.item_front_matter import front_matter as _front_matter, item_path
 from papyrus_content.story_reporting import current_story_version, published_story_version
 
+from .public_paths import published_path
 from .rules import OFF
 
 
@@ -71,7 +74,8 @@ def load_story(client: Any, lineage_id: str, *, item_url_style: str) -> StoryFac
         dek=_line(source.get("deck") or front.get("dek") or front.get("deck") or ""),
         summary=summary,
         body=str(source.get("bodyMarkus") or ""),
-        path=item_path(source.get("section") or None, str(source.get("slug") or ""), item_url_style),
+        path=published_path(os.environ.get("SITE_ORIGIN", "").strip(), str(source.get("slug") or ""),
+                            item_path(source.get("section") or None, str(source.get("slug") or ""), item_url_style)),
         rated_by=str(head.get("starRatedBy") or ""),
     )
 
