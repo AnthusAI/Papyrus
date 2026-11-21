@@ -232,12 +232,45 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_f
 
         return _policy_store_for_site(client)
 
-    def wrap(function):
+    def wrap(function, name=None):
         def handler(arguments: dict, caller: Caller) -> Outcome:
             client = factory()
+            if name in DOOR_WRITE_OPERATIONS and client_factory is None and signed_in_lane():
+                return through_write_door(name, arguments, caller, client)
             return function(client, arguments, caller, store(client))
         return handler
 
     extras = {record_manual: {"files": files}, correct: {"files": files, "judge": judge, "story": story, "environ": environ, "removers": removers},
               withdraw: {"files": files, "removers": removers, "environ": environ}}
-    return {name: wrap(partial(function, **extras[function]) if function in extras else function) for name, function in REVIEW_HANDLERS.items()}
+    return {name: wrap(partial(function, **extras[function]) if function in extras else function, name) for name, function in REVIEW_HANDLERS.items()}
+
+
+#: What the announcements write door (``announcementsWrite``) serves: a person's decision about one Delivery. The person's own credential may not write Delivery records,
+#: so the door checks who is asking and the image service function writes with its own role.
+DOOR_WRITE_OPERATIONS = ("announcements_delivery_review_set",)
+WRITE_DOOR = "announcementsWrite"
+WRITE_DOOR_MUTATION = ("mutation AnnouncementsWrite($op: String!, $input: AWSJSON, $requestId: ID!, $actorKind: String) "
+                       "{ announcementsWrite(op: $op, input: $input, requestId: $requestId, actorKind: $actorKind) }")
+
+
+def door_write_handlers(client: Any) -> dict[str, Handler]:
+    """The door's handlers over the service function's own client. ``delivery_review_set`` reads no agent policy, so no policy store is opened."""
+    return {name: (lambda function: lambda arguments, caller: function(client, arguments, caller, None))(REVIEW_HANDLERS[name]) for name in DOOR_WRITE_OPERATIONS}
+
+
+def through_write_door(name: str, arguments: dict, caller: Caller, client: Any) -> Outcome:
+    """On the signed-in lane: hand the call to the site's ``announcementsWrite`` door, declaring an agent as one, and read its envelope back as the local handler's answer."""
+    import json
+    import uuid
+
+    variables = {"op": name, "input": json.dumps(arguments), "requestId": caller.request_id or str(uuid.uuid4()), "actorKind": "agent" if caller.kind == "agent" else None}
+    raw = client.graphql(WRITE_DOOR_MUTATION, variables)[WRITE_DOOR]
+    envelope = json.loads(raw) if isinstance(raw, str) else raw
+    if not envelope.get("ok"):
+        error = envelope.get("error") or {}
+        raise ImageOperationError(str(error.get("code") or "service_unavailable"), str(error.get("message") or "The announcements door refused the request."))
+    return Outcome(envelope.get("result"), str(envelope.get("publication") or _publication(client)))
+
+
+def signed_in_lane() -> bool:
+    return (os.environ.get("PAPYRUS_GRAPHQL_AUTH") or "").strip().lower() != "iam"

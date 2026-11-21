@@ -6044,6 +6044,14 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "operation:announcementsWrite",
+      "kind": "operation",
+      "subject": "announcementsWrite",
+      "operation": "call-with-foreign-ids",
+      "probe": "alpha calls announcementsWrite with \"beta\"'s ids for requestId",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "operation:announcementsXBegin",
       "kind": "operation",
       "subject": "announcementsXBegin",
