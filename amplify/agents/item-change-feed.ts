@@ -92,6 +92,9 @@ export function itemChangeFeedPiece(brandId: string, source: ItemChangeFeedSourc
       feed.addEnvironment("PAPYRUS_AGENT_PUBLICATION_ID", brandId);
       feed.addEnvironment("PAPYRUS_TENANT_ID", source.tenantId);
       feed.addEnvironment("PAPYRUS_SITE_BUCKET", source.bucketName);
+      // The site's public address goes on each wake, so the runner can give it to a procedure that links to a Story (the announce agent's X post).
+      const siteOrigin = (process.env.PAPYRUS_SITE_ORIGIN ?? "").trim();
+      if (siteOrigin) feed.addEnvironment("PAPYRUS_SITE_ORIGIN", siteOrigin);
       setModelKeyParameter(feed, source.openAiKeyParameter);
       feed.addToRolePolicy(
         new PolicyStatement({
