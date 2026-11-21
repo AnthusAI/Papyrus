@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8c74d53f-0f1a-4f2e-bc43-065db544bce7",
+  "issue_id": "PPY-ba263523-28d1-4d9c-880a-28f961d3e6a4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-21T18:17:10.324Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "Rank hashtag candidates by X volume (counts/recent), cached weekly per concept",
+    "description": "One counts/recent call per candidate (#tag -is:retweet lang:en), $0.005 each, cached on the concept for a week, charged to the X spend ledger under the budget guard. Drop tags with no use. The drafting model sees each tag's volume.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-dbb654c0-262a-4bc4-80a8-d68eb160ca62",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude Code handoff session"
+    }
+  }
+}

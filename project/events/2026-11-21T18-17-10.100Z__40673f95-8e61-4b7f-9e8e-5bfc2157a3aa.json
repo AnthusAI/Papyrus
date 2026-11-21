@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "40673f95-8e61-4b7f-9e8e-5bfc2157a3aa",
+  "issue_id": "PPY-dbb654c0-262a-4bc4-80a8-d68eb160ca62",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-21T18:17:10.100Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "X hashtags from X data as well as our knowledge base",
+    "description": "Owner (Ryan, 2026-11-21): we need hashtags for marketing. Today the candidates are the Story's accepted concepts ranked by use on our own site, and the drafting model picks up to two; nothing reads X. Research (X docs read 2026-11-21): no official hashtag suggestion endpoint; counts/recent costs $0.005 per request (7-day volume per hashtag); recent search $0.005 per post returned with entities.hashtags and public_metrics; trends list only topics with 1,000+ posts a day; our own posts' non_public_metrics.url_link_clicks are readable for 30 days at $0.001 per owned read. A post with a URL costs $0.20. Terms: the Developer Policy forbids measuring X usage for benchmarking, competitive or commercial purposes (internal hashtag choice is not addressed); the declared use case binds the app; posting to trending topics for visibility is not allowed, so every tag must fit the Story. Design: our concepts propose, X co-occurrence adds, X volume ranks, the model picks, our click data teaches.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude Code handoff session"
+    }
+  }
+}

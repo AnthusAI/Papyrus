@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "c5b468b8-6d85-46b2-88ad-63da2a64a83a",
+  "issue_id": "PPY-e7a23268-87d8-489f-9666-b7001f492d0d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-21T18:17:20.126Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "announcements draft fails on the signed-in lane: Delivery records are writable only by AWS roles",
+    "description": "papyrus announcements draft (and the other editing-window writes) runs locally with the person's client and fails with Not Authorized to access updateDelivery. The announcementsWrite door (PPY PR 1807) serves only delivery review set; the editing-window operations need the same door, or a person cannot edit an announcement's words from the CLI or console.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude Code handoff session"
+    }
+  }
+}
