@@ -78,3 +78,9 @@ Feature: Editing a Delivery is one set of operations that the newsroom, the comm
   Scenario: A Delivery that is not there is not found
     When the person "ellie" asks the door for the versions of a Delivery that is not there
     Then the door answers "not_found"
+
+  Scenario: A person saves new words through the announcements write door, which writes with the service's own role
+    When the person "ellie" saves the words "Slow water, said plainly." over version 1 of the Delivery "x" "handle-1" through the announcements write door
+    Then the write door answered ok
+    When the person "ellie" asks the door for version 2 of the Delivery "x" "handle-1"
+    Then the door gives the words "Slow water, said plainly."

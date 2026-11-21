@@ -66,7 +66,8 @@ def _arguments(raw: Any) -> Any:
     return raw if raw is not None else {}
 
 
-def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | None = None, files_factory: Callable[[Any], Any] | None = None) -> dict:
+def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | None = None, files_factory: Callable[[Any], Any] | None = None,
+           delivery_files_factory: Callable[[Any], Any] | None = None) -> dict:
     """AppSync resolver entry for the four door fields. Returns the envelope as the field's JSON.
 
     ``files_factory(client)`` supplies where guideline documents are kept (S3 by default); tests pass an in-memory one."""
@@ -109,7 +110,7 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
             # asking and writes with this function's role (announcements/review_handlers.door_write_handlers).
             from .announcements.review_handlers import door_write_handlers
 
-            return execute(name, payload, caller, door_write_handlers(client))
+            return execute(name, payload, caller, door_write_handlers(client, delivery_files_factory(client) if delivery_files_factory else None))
         if DOOR_GROUP[door] == "announcements":
             from .announcements.list_handlers import with_client as announcements_with_client
 

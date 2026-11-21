@@ -373,3 +373,14 @@ Feature: Human review of announcements is a setting of each publication
     Then the write door refuses with "not_authorized"
     When "ada" asks the announcements write door to "announcements_pause"
     Then the write door refuses with "invalid_input"
+
+  Scenario: A person releases a held Delivery, which approves the version that would go
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When "ada" asks the announcements write door to release the Delivery "x" "handle-1"
+    Then the Delivery "x" "handle-1" is approved by "ada"
+    When "ada" asks the announcements write door to release the Delivery "x" "handle-1"
+    Then the Delivery "x" "handle-1" is approved by "ada"

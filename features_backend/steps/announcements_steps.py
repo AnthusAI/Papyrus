@@ -851,14 +851,19 @@ def _added(context, channel):
     assert context.last is not None and context.last.added == (channel,), (context.last, context.failure)
 
 
-@then("the model was asked once")
+def _drafts_asked_for(context) -> int:
+    """Fresh drafts the model was asked for: a draft that says more than the Story gets one retry inside the same attempt (``previousText``), which is not a new draft."""
+    return sum(1 for call in context.model_calls if "previousText" not in json.loads(call))
+
+
+@then("the model was asked for one draft")
 def _asked_once(context):
-    assert len(context.model_calls) == 1, context.model_calls
+    assert _drafts_asked_for(context) == 1, context.model_calls
 
 
-@then("the model was asked twice")
+@then("the model was asked for two drafts")
 def _asked_twice(context):
-    assert len(context.model_calls) == 2, context.model_calls
+    assert _drafts_asked_for(context) == 2, context.model_calls
 
 
 @then("the model was given only the title, the dek and the summary")

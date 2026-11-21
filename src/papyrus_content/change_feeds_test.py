@@ -209,3 +209,17 @@ def test_the_relay_has_nobody_to_tell_before_the_agents_stack_exists_and_nothing
     environment = {change_feed_relay.FUNCTION_ENVIRONMENT: "feed", change_feed_relay.STREAMS_ENVIRONMENT: json.dumps(["arn:a"])}
     assert change_feed_relay.relay({"Records": []}, environment=environment, invoke=never) == []
     assert change_feed_relay.relay({"Records": [{"eventSourceARN": "arn:b"}]}, environment=environment, invoke=never) == []
+
+
+def test_a_version_approved_by_a_person_is_its_own_change_so_the_announce_agent_can_send_it():
+    held = delivery("ready", 3)
+    approved = {**delivery("ready", 4), "approvedVersion": 2}
+    [change] = feeds.changes_of("Delivery", held, approved, "MODIFY")
+    assert (change.change, change.what, change.attributes["approvedVersion"]) == ("approved", "approved.2", 2)
+    assert feeds.changes_of("Delivery", approved, {**approved, "revision": 5}, "MODIFY") == []   # the same approval again is not a new change
+
+
+def test_an_approval_that_also_lifts_a_block_is_both_a_state_change_and_an_approval():
+    blocked = delivery("blocked", 3)
+    unblocked = {**delivery("ready", 4), "approvedVersion": 3}
+    assert [change.change for change in feeds.changes_of("Delivery", blocked, unblocked, "MODIFY")] == ["state_changed", "approved"]

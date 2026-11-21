@@ -7,6 +7,7 @@ wakes:
   changes:
     - {kind: Item, change: stage_entered, filter: {stage: published}}
     - {kind: Item, change: rated, filter: {stage: published}}
+    - {kind: Delivery, change: approved}
 serialBy: agent
 paid: false
 safeToRepeat: true
@@ -16,7 +17,7 @@ operations:
   announcements_draft: draft
 tier: work
 template:
-  trigger: A Story's page goes live (its Item record enters the published stage) or a published Story's rating is set, changed or cleared. Both arrive from the Item change feed through the site's wake queue; nothing a publish does calls this agent, so a missed call cannot lose either one.
+  trigger: A Story's page goes live (its Item record enters the published stage) or a published Story's rating is set, changed or cleared, both from the Item change feed; or a person approves a version of a Delivery, from the Delivery change feed, and then the run only sends what is due. All arrive through the site's wake queue; nothing a publish does calls this agent, so a missed call cannot lose one.
   inputs: The Story as it is now, re-read at the start of the run (its published copy, its rating, its section, type and tags, and whether a person reviewed its source), the site's list settings, and the site policy's rung for each list. The wake says only which of the two things happened.
   decision: For every every-item list, whether the Story qualifies now (the list's rule and a rating of at least three stars, never a five a machine gave) and at which rung the site lets the agent go; and whether the Story qualifies on X (the site's X rules and bar, the same floors, a connected account and the rung). A Story that qualifies on at least one channel gets one Announcement, keyed story-published:<Story>, with one email Delivery for all of the lists that carry it and an X Delivery; a channel that qualifies later, a rating that reached the X bar, adds its Delivery to that Announcement. A Story that qualifies on none gets nothing. An X draft that fails a check is a blocked Delivery with one review request, and is drafted again only when the Story or the guidelines change.
   mayWrite:

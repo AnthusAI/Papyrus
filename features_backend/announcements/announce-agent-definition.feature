@@ -13,10 +13,11 @@ Feature: The announce agent is a core agent definition that listens for the Item
     And the definition "announce" names the procedure "announce_story"
     And the procedure "announce_story" is registered with its file
 
-  Scenario: It listens for the page going live and for a rating change, and for nothing else
+  Scenario: It listens for the page going live, a rating change and a Delivery's approval, and for nothing else
     When the engine's core definitions are validated
     Then the definition "announce" listens for the Item change "stage_entered" with the filter "stage" "published"
     And the definition "announce" listens for the Item change "rated" with the filter "stage" "published"
+    And the definition "announce" listens for the Delivery change "approved"
     And the definition "announce" listens for no other change
 
   Scenario: It runs one wake at a time, on the work tier

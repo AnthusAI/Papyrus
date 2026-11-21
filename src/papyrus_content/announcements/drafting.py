@@ -35,7 +35,8 @@ DRAFT_WEIGHT = MAXIMUM_WEIGHT - LINK_WEIGHT - len(SEPARATOR)
 SYSTEM = (
     "You write one short post for a publication's X account announcing a Story that was just published. Use only what the title, dek and summary below say: add no fact, "
     "number, name, quotation or claim that is not in them, and make no claim of firstness, proof or certainty they do not make. Do not include a link, a mention, a hashtag "
-    "or a cashtag in your text; the link is added after your text. The post must weigh at most {limit} on X (most letters count 1, emoji and many non-Latin characters count 2). "
+    "or a cashtag in your text; the link is added after your text. Keep every qualifier and attribution the Story uses (many, some, most, may, officials say): leaving one out "
+    "changes the claim, and a shorter post is better than an overstated one. The post must weigh at most {limit} on X (most letters count 1, emoji and many non-Latin characters count 2). "
     "Write it in the publication's voice, following the guidelines.\n\n{guidelines}"
 )
 HASHTAGS_WITH_CHOICES = (
@@ -93,8 +94,9 @@ def story_source(story: StoryFacts) -> str:
 def prompt(story: StoryFacts, guidelines: str, learned: str = "", hashtags: list[str] | None = None) -> tuple[str, str]:
     """``learned`` is what people's edits taught (``learned_examples.Read.prompt``): it goes after the guidelines, so a rule in them still outranks an example.
     ``hashtags`` are the Story's own concepts the draft may choose from."""
-    # A hashtag takes room from the words, and the model counts weight loosely: the limit it is given leaves room for the shortest hashtag offered and a margin.
-    limit = DRAFT_WEIGHT - min(weighted_length(f" {tag}") for tag in hashtags) - COUNTING_MARGIN if hashtags else DRAFT_WEIGHT
+    # A hashtag takes room from the words, and the model counts weight loosely: the limit it is given leaves room for the longest hashtag offered and a margin,
+    # so whichever it chooses still fits and the words need not be squeezed (squeezed words drop qualifiers, which the facts check then refuses; PPY-1dd783).
+    limit = DRAFT_WEIGHT - max(weighted_length(f" {tag}") for tag in hashtags) - COUNTING_MARGIN if hashtags else DRAFT_WEIGHT
     system = SYSTEM.format(limit=limit, guidelines=guidelines) + (f"\n\n{learned}" if learned else "")
     system += HASHTAGS_WITH_CHOICES.format(maximum=MAX_HASHTAGS) if hashtags else HASHTAGS_NONE
     content: dict[str, Any] = {"title": story.title, "dek": story.dek, "summary": story.summary}
@@ -170,11 +172,17 @@ def draft_announcement(story: StoryFacts, link: str, *, guidelines: str, llm: Ll
     system, user = prompt(story, guidelines, learned, hashtags)
     draft = _draft_once(story, link, system, user, llm=llm, judge=judge, rule_lane=rule_lane, model=model, hashtags=hashtags)
     over = _only_too_long(draft)
-    if not over:
+    unsupported = _only_unsupported(draft)
+    if not over and not unsupported:
         return draft
-    # The one retry: the same Story and rules, plus the model's own text and how far over it ran.
-    again = json.dumps({**json.loads(user), "previousText": draft.text, "tooLongBy": over,
-                        "instruction": f"Your previous text was {over} too long for X. Write it again, shorter, from the same Story."}, ensure_ascii=False)
+    # The one retry: the same Story and rules, plus the model's own text and what was wrong with it (how far over it ran, or the sentences the Story does not support).
+    feedback: dict[str, Any] = {"previousText": draft.text}
+    if over:
+        feedback.update(tooLongBy=over, instruction=f"Your previous text was {over} too long for X. Write it again, shorter, from the same Story.")
+    if unsupported:
+        feedback.update(unsupported=unsupported, instruction=(feedback.get("instruction", "") + " " if over else "") +
+                        "These sentences of your previous text say more than the Story does. Write it again from the same Story, keeping its qualifiers and attributions.")
+    again = json.dumps({**json.loads(user), **feedback}, ensure_ascii=False)
     second = _draft_once(story, link, system, again, llm=llm, judge=judge, rule_lane=rule_lane, model=model, hashtags=hashtags)
     second.redrafts = 1
     return second
@@ -189,7 +197,15 @@ def _draft_once(story: StoryFacts, link: str, system: str, user: str, *, llm: Ll
                  checks=check_draft(text, link, story, judge=judge, rule_lane=rule_lane, hashtags=chosen, refused_hashtags=refused))
 
 
+def _only_unsupported(draft: Draft) -> list[str]:
+    """The facts check's problems when it, and at most the length check, failed; empty otherwise. Any other failure (markup, an invented hashtag, a rule) is a person's to see."""
+    failed = {check["name"] for check in draft.checks if not check["passed"]}
+    if "facts" not in failed or not failed <= {"facts", "length"}:
+        return []
+    return [problem for check in draft.checks if check["name"] == "facts" for problem in check["problems"]]
+
+
 def _only_too_long(draft: Draft) -> int:
-    """How far over the limit the draft runs when ``length`` is the only check that failed; 0 otherwise."""
-    failed = [check["name"] for check in draft.checks if not check["passed"]]
-    return too_long_by(draft.post) if failed == ["length"] else 0
+    """How far over the limit the draft runs when ``length`` failed and nothing but the facts check failed with it; 0 otherwise."""
+    failed = {check["name"] for check in draft.checks if not check["passed"]}
+    return too_long_by(draft.post) if "length" in failed and failed <= {"length", "facts"} else 0

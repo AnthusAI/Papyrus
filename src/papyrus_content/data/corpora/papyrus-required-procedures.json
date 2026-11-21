@@ -37,13 +37,13 @@
     "announce_story": {
       "title": "Announce a Story",
       "category": "newsroom",
-      "description": "The announce agent's run for one wake: a Story's page went live or its rating changed. It re-reads the Story and decides from the records as they are now; it makes one Announcement and one email Delivery for the Story at a rung the site's agent policy allows, and never sends.",
+      "description": "The announce agent's run for one wake: a Story's page went live or its rating changed. It re-reads the Story and decides from the records as they are now; it makes one Announcement and one email Delivery for the Story at a rung the site's agent policy allows, and sends what is due; a Delivery's approval wakes it to send only.",
       "parameterSchema": {
         "type": "object",
         "properties": {
           "story": {
             "type": "string",
-            "description": "The Story's lineage id, from the wake"
+            "description": "The Story's lineage id, from a Story's wake; empty on a Delivery's approval, which only sends"
           },
           "version": {
             "type": "string",
@@ -51,7 +51,7 @@
           },
           "change": {
             "type": "string",
-            "description": "stage_entered (the page went live) or rated, from the wake"
+            "description": "stage_entered (the page went live), rated, or approved (a person approved a Delivery), from the wake"
           },
           "what": {
             "type": "string",
@@ -63,12 +63,12 @@
           }
         },
         "required": [
-          "story",
           "version",
           "change"
         ]
       },
       "defaults": {
+        "story": "",
         "what": "",
         "stage": ""
       }

@@ -117,3 +117,21 @@ def test_the_deliver_step_for_x_runs_after_the_decision_and_its_refusal_stands()
 def test_the_issue_types_are_the_story_types_the_lists_write_their_issues_as():
     document = {"lists": {"weekly": {"issueType": "issue"}, "daily": {}, "each": {}}}
     assert worker.issue_types_of(document) == {"issue"}
+
+
+def test_a_deliverys_approval_only_sends_what_is_due_and_reads_no_story():
+    from papyrus_content.list_cadence import story_wake
+
+    sent_rows = [{"id": "announcement-1#x#handle#g1"}]
+
+    class SendOnly:
+        send_x = staticmethod(lambda now: sent_rows)
+        send_email = staticmethod(lambda now: [])
+
+        def __getattr__(self, name):
+            raise AssertionError(f"an approval reads nothing else: {name}")
+
+    out = story_wake.send_only(SendOnly())
+    assert out["x_sent"] == ["announcement-1#x#handle#g1"] and (out["run_outcome"], out["run_outcome_reason"]) == ("acted", "sent")
+    sent_rows.clear()
+    assert (story_wake.send_only(SendOnly())["run_outcome"], story_wake.send_only(SendOnly())["run_outcome_reason"]) == ("nothing", "nothing_due")

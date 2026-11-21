@@ -212,6 +212,20 @@ def remote_broadcaster(environ: Mapping[str, str]) -> Any:
     return RemoteBroadcaster(name) if name else None
 
 
+#: The Delivery change feed's change when a person approved a version: the run sends what is due and decides nothing (PPY-1de948).
+APPROVED = "approved"
+
+
+def send_only(services: Services, now: str | None = None) -> dict[str, Any]:
+    """A Delivery's approval: send every Delivery that is due (its approval is now in place) and report what went. No Story is read and nothing is decided."""
+    sent = services.send_x(now) if services.send_x is not None else []
+    emailed = services.send_email(now) if services.send_email is not None else []
+    went = [row["id"] for row in sent] + [row["id"] for row in emailed]
+    return {"story": "", "x_sent": [row["id"] for row in sent], "email_sent": [row["id"] for row in emailed], "lists": [], "notes": [], "announcement": None, "created": False,
+            "summary": f"Sent {len(went)} approved Delivery(ies)." if went else "An approval woke the agent; nothing was due to send.",
+            "run_outcome": "acted" if went else "nothing", "run_outcome_reason": "sent" if went else "nothing_due"}
+
+
 def policy_rung_of(run: Any) -> Callable[[str], str]:
     """The site policy's rung of the announce responsibility for one list's email Deliveries, as the run was started under it (``agent_policy.resolve``)."""
     from papyrus_content.agent_policy.resolve import effective
@@ -232,6 +246,8 @@ def announce_story(story: str, version: str, change: str, what: str = "", stage:
     if run is None or run.responsibility != RESPONSIBILITY:
         raise StoryWakeError('The announce agent runs only on an agent\'s wake, adopted as the responsibility "announce": it needs the policy the runner read for the run.')
     services = services or default_services(environment)
+    if change == APPROVED or not story:
+        return send_only(services, now)
     request = {"input": {"story": story, "version": version, "change": change, "what": what, "stage": stage or None}}
     x = XAnnouncer(services.x, services.announcements, run.policy, services.stamps) if services.x is not None else None
     try:

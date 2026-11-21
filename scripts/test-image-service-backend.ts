@@ -48,9 +48,9 @@ assert.match(announcementsMutation, /groups: \["editor", "admin"\]|groups: \["ed
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(announcementsMutation), "no public, API-key or guest access");
 assert.match(announcementsMutation, /requestId: ID!/, "a write carries a request id");
 
-// The function writes Item versions, the attachment rows of guideline documents and one Delivery's review: no other model is created or updated.
+// The function writes Item versions, the attachment rows of guideline documents, and one Delivery with its words: no other model is created or updated.
 const mutations = IMAGE_SERVICE_FUNCTION_FIELDS.filter((field) => field.startsWith("Mutation/"));
-assert.deepEqual(mutations.sort(), ["Mutation/fields/createItem", "Mutation/fields/createModelAttachment", "Mutation/fields/updateDelivery", "Mutation/fields/updateItem"]);
+assert.deepEqual(mutations.sort(), ["Mutation/fields/completeModelAttachmentUpload", "Mutation/fields/createItem", "Mutation/fields/createModelAttachment", "Mutation/fields/createModelAttachmentDownload", "Mutation/fields/createModelAttachmentUpload", "Mutation/fields/updateDelivery", "Mutation/fields/updateItem"]);
 
 // Its role reaches only the payloads of Item versions in the bucket, to read and write, never delete or list.
 assert.equal(IMAGE_SERVICE_BUCKET_PREFIX, "newsroom/payloads/item/");
