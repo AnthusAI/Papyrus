@@ -58,6 +58,7 @@ SCHEDULES_USAGE = ("Usage: papyrus agents schedules --site SITE [--dry-run | --c
 
 
 SET_RUNG_USAGE = ("Usage: papyrus --site SITE agents set-rung --id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE ...] [--apply]\n"
+                  "  [--on-instruction-of PERSON --quote WORDS --agent NAME]  (an agent, on the instruction of the person whose admin session it runs in, up to rung prepare; recorded as theirs, entered by the agent)\n"
                   "  Set how far one agent may go on this site: write its rung into the agent policy document as a new version that records who, when and why.\n"
                   "  Admin only, and only a person: sign in with `papyrus login` as an admin. A dry run unless --apply: it prints the agent's policy entry before and after and\n"
                   "  the version it would be, and writes nothing. --apply saves it; the old version stays in the history. Raising and lowering are the same command.\n"
@@ -333,7 +334,7 @@ def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_facto
             if not value:
                 return refuse("--scope takes DIMENSION=VALUE, for example --scope channel=linkedin.", path="--scope")
             scope[dimension] = value
-        elif word in ("--id", "--rung", "--reason", "--dir", "--core") and rest:
+        elif word in ("--id", "--rung", "--reason", "--dir", "--core", "--on-instruction-of", "--quote", "--agent") and rest:
             values[word] = rest.pop(0)
         else:
             return refuse(f"{word} is not a flag of agents set-rung, or has no value.", path=word)
@@ -353,6 +354,12 @@ def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_facto
         client = (client_factory or _client)()
         kind = actor_kind()
         caller = (caller_factory or identify)(client, Caller(kind=kind))
+        if caller.kind == "agent":
+            from papyrus_content.agent_policy.delegation import delegated_caller
+
+            caller, delegated = delegated_caller(caller, person=values.get("--on-instruction-of", ""), quote=values.get("--quote", ""), agent=values.get("--agent", ""),
+                                                 rung=values.get("--rung", ""))
+            values["--reason"] = f"{values['--reason'].strip()} {delegated}"
         tenant_id = getattr(client, "tenant_id", None)
         if not tenant_id:
             return refuse("The site's tenant is not known: pass --site, or sign in to the site, so the policy of one site is changed.", path="--site")

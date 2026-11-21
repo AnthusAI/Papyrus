@@ -90,7 +90,7 @@ caducus = {version = "==0.4.0", extras = ["notify"]}
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
-testpaths = ["procedures/newsroom/tests", "publications/threat_intelligence/tests", "src", "infra/knowledge-run", "amplify/plugins/home-page"]
+testpaths = ["procedures/newsroom/tests", "publications/threat_intelligence/tests", "src", "infra/knowledge-run", "infra/procedures", "amplify/plugins/home-page"]
 python_files = ["test_*.py", "*_test.py"]
 
 [build-system]

@@ -24,7 +24,9 @@ from papyrus_content.site_store_test import FakeS3  # noqa: E402
 
 TENANT, BUCKET = "alpha", "site-bucket"
 PEOPLE = {"admin": Caller(kind="person", subject="ada", is_admin=True), "editor": Caller(kind="person", subject="ed"),
-          "agent": Caller(kind="agent", subject="rating-agent")}
+          "agent": Caller(kind="agent", subject="rating-agent"),
+          # An agent running in a person's signed-in session: identify() gives it the session's label and whether the token is an admin's.
+          "agent in ada's session": Caller(kind="agent", subject="ada", is_admin=True), "agent in ed's session": Caller(kind="agent", subject="ed")}
 SITE_DEFINITIONS = REPO_ROOT / "src" / "papyrus_content" / "agent_definitions" / "core"
 
 
@@ -88,8 +90,8 @@ def _fresh(context):
     context.exit_code = None
 
 
-def _run(context, who, agent, rung, *, reason, apply=False, scope=None):
-    argv = ["--id", agent, "--rung", rung]
+def _run(context, who, agent, rung, *, reason, apply=False, scope=None, extra=()):
+    argv = ["--id", agent, "--rung", rung, *extra]
     if reason is not None:
         argv += ["--reason", reason]
     for item in (scope.split(",") if scope else []):
@@ -315,3 +317,29 @@ def requests_match_schema(context):
 @then("the requests include a conditional update, a create and a latest-version query")
 def requests_cover_kinds(context):
     assert {"UpdateSiteDocumentIf", "CreateSiteDocument", "CreateSiteDocumentVersion", "LatestSiteDocumentVersion"} <= context.verdict_operations, context.verdict_operations
+
+
+def _delegated(context, session, agent, rung, person, quote, *, name="Claude"):
+    _run(context, f"agent in {session}'s session", agent, rung, reason="Test", apply=True, extra=["--on-instruction-of", person, "--quote", quote, "--agent", name])
+
+
+@when('an agent in ada\'s session sets "{agent}" to "{rung}" on the instruction of "{person}" who said "{quote}"')
+def delegated_ada(context, agent, rung, person, quote):
+    _delegated(context, "ada", agent, rung, person, quote)
+
+
+@when('an agent in ed\'s session sets "{agent}" to "{rung}" on the instruction of "{person}" who said "{quote}"')
+def delegated_ed(context, agent, rung, person, quote):
+    _delegated(context, "ed", agent, rung, person, quote)
+
+
+@when('an agent in ada\'s session sets "{agent}" to "{rung}" without naming anyone')
+def delegated_nobody(context, agent, rung):
+    _run(context, "agent in ada's session", agent, rung, reason="Test", apply=True)
+
+
+@then('the policy version {version:d} says it was saved by "{by}" and its reason holds "{words}"')
+def saved_by(context, version, by, words):
+    record = context.store.version_record(TENANT, version)
+    assert record["by"] == by and words in record["reason"], record
+
