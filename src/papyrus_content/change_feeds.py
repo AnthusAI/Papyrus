@@ -15,6 +15,7 @@ ReviewRequest               answered    an open request was answered. The change
 Message                     posted      a comment was posted. The wake is for the listeners of the subject the comment is on (the anchor of its thread)
 LocalizationRequest         wanted      a translation was asked for (a request inserted ``wanted``, or put back to ``wanted``)
 Delivery                    state_changed  a Delivery was drafted or its state changed (the state is in the wake key)
+                            approved    a version of a Delivery was approved (the version is in the wake key); the announce agent sends on it (PPY-1de948)
 Assignment                  created     a request for a responsibility's work was filed (``agent_assignments.py``); only ``responsibility.*`` Assignments are changes
                             reopened    a closed (completed, canceled or failed) request was put back to ``open``; the key names the reopening
                             completed   the responsible agent finished the work. The change is addressed to the agent that asked, and to no other
@@ -202,16 +203,25 @@ def _localization_changes(old: Mapping[str, Any] | None, new: Mapping[str, Any])
 def _delivery_changes(old: Mapping[str, Any] | None, new: Mapping[str, Any], inserted: bool) -> list[Change]:
     state, row_id = _text(new.get("state")), new.get("id")
     before = _text((old or {}).get("state"))
-    if not state or not row_id or (not inserted and state == before):
+    approved, approved_before = new.get("approvedVersion"), (old or {}).get("approvedVersion")
+    newly_approved = approved is not None and approved != approved_before
+    if not state or not row_id or (not inserted and state == before and not newly_approved):
         return []
     history = [line for line in _json(new.get("history"), []) if isinstance(line, dict)]
     last = history[-1] if history else {}
     who, label = _actor(last.get("by") or new.get("draftedBy"))
-    return [Change("state_changed", row_id, row_id, str(new.get("revision") if new.get("revision") is not None else "unversioned"), f"state_changed.{state}", who, label,
-                   _text(last.get("at")) or _text(new.get("updatedAt")),
-                   {"state": state, "from": before, "channel": new.get("channel"), "accountId": new.get("accountId"), "announcementId": new.get("announcementId"),
-                    "mode": new.get("mode"), "approval": new.get("approval"), "actorKind": who},
-                   DELIVERY, DELIVERY, {"kind": DELIVERY, "id": row_id})]
+    version = str(new.get("revision") if new.get("revision") is not None else "unversioned")
+    at = _text(last.get("at")) or _text(new.get("updatedAt"))
+    attributes = {"state": state, "from": before, "channel": new.get("channel"), "accountId": new.get("accountId"), "announcementId": new.get("announcementId"),
+                  "mode": new.get("mode"), "approval": new.get("approval"), "actorKind": who}
+    subject = {"kind": DELIVERY, "id": row_id}
+    changes = []
+    if inserted or state != before:
+        changes.append(Change("state_changed", row_id, row_id, version, f"state_changed.{state}", who, label, at, attributes, DELIVERY, DELIVERY, subject))
+    if newly_approved:
+        # A person let a version go (PPY-1de948): its own change, so the agent that sends can wake for it rather than wait for an unrelated Story change.
+        changes.append(Change("approved", row_id, row_id, version, f"approved.{approved}", who, label, at, {**attributes, "approvedVersion": approved}, DELIVERY, DELIVERY, subject))
+    return changes
 
 
 # --- Assignment ----------------------------------------------------------------------------------------------------------------------------------

@@ -86,7 +86,7 @@ def papyrus_rate_items() -> dict:
     return rate_items()
 
 
-def papyrus_announce_story(story: str, version: str, change: str, what: str = "", stage: str = "") -> dict:
+def papyrus_announce_story(story: str = "", version: str = "", change: str = "", what: str = "", stage: str = "") -> dict:
     """The announce agent's run for one wake: a Story's page went live (stage_entered into published) or its rating changed (rated). Re-reads the Story as it is now and
     decides from the records, never from the wake: one Announcement and one email Delivery for the Story at a rung the site's policy allows, once however many wakes
     arrive. At observe it writes nothing. Never sends. Returns the Story, the lists that carry it and what was decided."""

@@ -251,9 +251,14 @@ def listens(context, name, change, field, value):
     _listens(context, "Item", change, field, value)
 
 
+@then('the definition "{name}" listens for the Delivery change "{change}"')
+def listens_for_delivery(context, name, change):
+    assert any(entry["kind"] == "Delivery" and entry["change"] == change for entry in context.loaded.get(name).data["wakes"]["changes"])
+
+
 @then('the definition "{name}" listens for no other change')
 def listens_for_no_other(context, name):
-    assert {(entry["kind"], entry["change"]) for entry in context.loaded.get(name).data["wakes"]["changes"]} == {("Item", "stage_entered"), ("Item", "rated")}
+    assert {(entry["kind"], entry["change"]) for entry in context.loaded.get(name).data["wakes"]["changes"]} == {("Item", "stage_entered"), ("Item", "rated"), ("Delivery", "approved")}
     assert "schedule" not in context.loaded.get(name).data["wakes"]
 
 

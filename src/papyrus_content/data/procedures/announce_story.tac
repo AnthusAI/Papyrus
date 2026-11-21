@@ -5,7 +5,8 @@
 -- through the site's wake queue, and from nowhere else. The wake only says what happened: the run re-reads the Story as it is now and decides from that, so a
 -- late, repeated or out-of-order wake changes nothing it should not. It makes one Announcement for the Story (the once-only key story-published:<Story>) and one
 -- email Delivery for the every-item lists that carry it, at a rung that allows it. At observe it writes nothing but its run record. It never sends: a Delivery
--- goes only through its own approval and attempt.
+-- goes only through its own approval and attempt. A Delivery's approval (the Delivery change feed's "approved") wakes it too: that run decides nothing and only
+-- sends what is due, so an approved post goes when it is approved and does not wait for an unrelated Story change (PPY-1de948).
 --
 -- It runs only on an agent's wake adopted as the responsibility "announce": `papyrus automations adopt --id announce --responsibility announce`.
 -- Specs: features_backend/announcements/announce-durable-triggers.feature, features_backend/announcements/announce-agent-definition.feature
@@ -17,9 +18,9 @@ Toolset "papyrus_announce_story" {
 
 Procedure {
     input = {
-        story = field.string{required = true, description = "The Story's lineage id, from the wake"},
+        story = field.string{default = "", description = "The Story's lineage id, from a Story's wake; empty on a Delivery's approval, which only sends"},
         version = field.string{required = true, description = "The version row the change was made on, from the wake"},
-        change = field.string{required = true, description = "stage_entered (the page went live) or rated, from the wake"},
+        change = field.string{required = true, description = "stage_entered (the page went live), rated, or approved (a person approved a Delivery), from the wake"},
         what = field.string{default = "", description = "What changed, as the wake key names it"},
         stage = field.string{default = "", description = "The stage the Story entered, from the wake"}
     },

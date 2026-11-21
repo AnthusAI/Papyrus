@@ -21,7 +21,7 @@ CHANGES: dict[str, tuple[str, ...]] = {
     "ReviewRequest": ("answered",),
     "Message": ("posted",),
     "LocalizationRequest": ("wanted",),
-    "Delivery": ("state_changed",),
+    "Delivery": ("state_changed", "approved"),
     "Assignment": ("created", "reopened", "completed"),
 }
 
