@@ -90,8 +90,10 @@ def delivery_review_set(client: Any, arguments: dict, caller: Caller, policy: Ag
         from papyrus_content.agent_policy.delegation import on_instruction_of
         from papyrus_content.images.profile_handlers import identify
 
+        # Behind the announcements write door the caller is already who the verified identity says; only a local command line reads its own login (identify).
+        known = caller if caller.subject else identify(client, caller)
         try:
-            caller, instruction = on_instruction_of(identify(client, caller), person=arguments.get("onInstructionOf", ""), quote=arguments.get("quote", ""), agent=arguments.get("agent", ""))
+            caller, instruction = on_instruction_of(known, person=arguments.get("onInstructionOf", ""), quote=arguments.get("quote", ""), agent=arguments.get("agent", ""))
         except PolicyError as error:
             raise ImageOperationError(error.code, error.message) from error
     deliveries = Deliveries(client)
