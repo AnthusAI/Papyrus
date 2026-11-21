@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "027a3b20-b23f-47b1-a863-a7c41bc8f6fc",
+  "issue_id": "PPY-e7a23268-87d8-489f-9666-b7001f492d0d",
+  "event_type": "comment_added",
+  "occurred_at": "2026-11-21T23:13:02.478Z",
+  "actor_id": "ryan",
+  "payload": {
+    "comment_id": "abbaca71-d9c5-4c7b-b21d-05d3f81c31ce",
+    "comment_author": "ryan",
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude Code handoff session"
+    }
+  }
+}
