@@ -90,12 +90,13 @@ def preview(services: Services, lineage_id: str) -> dict[str, Any]:
     learned = services.x.learned() if services.x.learned is not None else None
     try:
         draft = draft_announcement(story, link, guidelines=services.x.guidelines_for(story), llm=services.x.llm, judge=services.x.judge, rule_lane=services.x.rule_lane,
-                                   model=services.x.model, learned=learned.prompt if learned else "")
+                                   model=services.x.model, learned=learned.prompt if learned else "",
+                                   hashtags=services.x.hashtags(story.lineage_id) if services.x.hashtags else None)
     except DraftRefused as refused:
         return {"lineageId": lineage_id, "eligible": eligible, "reason": reason, "text": "", "post": "", "link": link, "weight": 0, "checks": [], "passed": False,
                 "failures": [str(refused)], "sent": False}
     return {"lineageId": lineage_id, "eligible": eligible, "reason": reason, "text": draft.text, "post": draft.post, "link": link,
-            "weight": draft.weight, "checks": draft.checks, "passed": draft.passed, "failures": draft.failures, "sent": False}
+            "weight": draft.weight, "checks": draft.checks, "passed": draft.passed, "failures": draft.failures, "sent": False, "hashtags": draft.hashtags}
 
 
 #: The window the budget suggestion reads: the site's own pace over the last two months (the design's "last two months").

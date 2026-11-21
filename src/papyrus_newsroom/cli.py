@@ -24,6 +24,7 @@ from .newsroom import (
 )
 from .reference_curation_signals import (
     reference_curate_recent,
+    reference_pick_for_curation,
     reference_title_subtitle_batch,
     reference_title_subtitle_enrich_catalog_file,
     reference_title_subtitle_resolve,
@@ -136,6 +137,11 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     curate_recent_parser.add_argument("--actor-label", default="papyrus")
     curate_recent_parser.add_argument("--resume", default="")
     curate_recent_parser.add_argument("--dry-run", action="store_true")
+    curate_recent_parser.add_argument(
+        "--pick-only",
+        action="store_true",
+        help="With --dry-run, list the References a run would queue without previewing the curation stages.",
+    )
     curate_recent_parser.add_argument("--json", action="store_true")
 
     summaries_parser = references_subparsers.add_parser(
@@ -625,22 +631,36 @@ def _run_references_command(args: argparse.Namespace) -> dict:
     if args.references_command == "curate-recent":
         if args.all and (args.since or args.reference):
             raise ValueError("--all cannot be combined with --since or --reference.")
-        selection = reference_curate_recent(
-            corpus_key=args.corpus_key,
-            reference_ids=args.reference,
-            since_hours=args.since_hours,
-            since=args.since,
-            curate_all=args.all,
-            max_count=args.max_count,
-            scan_limit=args.scan_limit,
-            max_parallel=args.max_parallel,
-            model=args.model,
-            summary_max_tokens=args.summary_max_tokens,
-            refresh_summary=args.refresh_summary,
-            refresh_quality=False,
-            apply=False,
-            resume=args.resume,
-        )
+        preview_every_stage = bool(args.dry_run and not args.pick_only)
+        if args.resume and not preview_every_stage:
+            raise ValueError("--resume continues a --dry-run preview. A real run queues assignments and has nothing to resume.")
+        if preview_every_stage:
+            selection = reference_curate_recent(
+                corpus_key=args.corpus_key,
+                reference_ids=args.reference,
+                since_hours=args.since_hours,
+                since=args.since,
+                curate_all=args.all,
+                max_count=args.max_count,
+                scan_limit=args.scan_limit,
+                max_parallel=args.max_parallel,
+                model=args.model,
+                summary_max_tokens=args.summary_max_tokens,
+                refresh_summary=args.refresh_summary,
+                refresh_quality=False,
+                apply=False,
+                resume=args.resume,
+            )
+        else:
+            selection = reference_pick_for_curation(
+                corpus_key=args.corpus_key,
+                reference_ids=args.reference,
+                since_hours=args.since_hours,
+                since=args.since,
+                curate_all=args.all,
+                max_count=args.max_count,
+                scan_limit=args.scan_limit,
+            )
         selected_reference_ids: list[str] = []
         for item in selection.get("items") or []:
             if not isinstance(item, dict) or item.get("failed"):
@@ -673,6 +693,7 @@ def _run_references_command(args: argparse.Namespace) -> dict:
             "kind": "reference.curate-recent",
             "command": "references curate-recent",
             "mode": "assignment_dispatch",
+            "previewedEveryStage": preview_every_stage,
             "ok": bool(selection.get("ok", True)),
             "degraded": bool(selection.get("degraded", False)),
             "apply": bool(not args.dry_run),

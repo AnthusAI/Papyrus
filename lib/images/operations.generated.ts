@@ -41,6 +41,7 @@ export type ImageOperationName =
   | "announcements_account_status"
   | "announcements_account_connect"
   | "announcements_account_set_app"
+  | "announcements_hashtags"
   | "announcements_blocked"
   | "announcements_retry"
   | "announcements_review_show"
@@ -1183,6 +1184,17 @@ export type AnnouncementsAccountSetAppResult = {
   saved: boolean;
 };
 
+/** List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first. */
+export type AnnouncementsHashtagsInput = {
+  /** The lineage id of the Story. */
+  story: string;
+};
+
+export type AnnouncementsHashtagsResult = {
+  lineageId: string;
+  hashtags: string[];
+};
+
 /** List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check). */
 export type AnnouncementsBlockedInput = Record<string, unknown>;
 
@@ -1786,6 +1798,7 @@ export interface ImageOperations {
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
   announcements_account_connect: { input: AnnouncementsAccountConnectInput; result: AnnouncementsAccountConnectResult };
   announcements_account_set_app: { input: AnnouncementsAccountSetAppInput; result: AnnouncementsAccountSetAppResult };
+  announcements_hashtags: { input: AnnouncementsHashtagsInput; result: AnnouncementsHashtagsResult };
   announcements_blocked: { input: AnnouncementsBlockedInput; result: AnnouncementsBlockedResult };
   announcements_retry: { input: AnnouncementsRetryInput; result: AnnouncementsRetryResult };
   announcements_review_show: { input: AnnouncementsReviewShowInput; result: AnnouncementsReviewShowResult };
@@ -1849,6 +1862,7 @@ export const IMAGE_OPERATIONS = {
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
   announcements_account_connect: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account connect" },
   announcements_account_set_app: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements account set-app" },
+  announcements_hashtags: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements hashtags" },
   announcements_blocked: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements blocked" },
   announcements_retry: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements retry" },
   announcements_review_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements review show" },

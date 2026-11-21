@@ -529,10 +529,16 @@ def newsroom_prune_attachments(flags: list[str]) -> None:
     client, _ = create_authoring_client()
     attachments = client.list_records("ModelAttachment")
     owner_ids_by_kind = _load_model_attachment_owner_ids(client, attachments)
+    attachments_of_an_unknown_owner_kind = [
+        attachment
+        for attachment in attachments
+        if str(attachment.get("ownerKind") or "") not in MODEL_ATTACHMENT_OWNER_MODELS
+    ]
     orphan_attachment_records = [
         attachment
         for attachment in attachments
-        if not _attachment_owner_exists(attachment, owner_ids_by_kind)
+        if str(attachment.get("ownerKind") or "") in MODEL_ATTACHMENT_OWNER_MODELS
+        and not _attachment_owner_exists(attachment, owner_ids_by_kind)
     ]
     orphan_attachment_ids = {attachment["id"] for attachment in orphan_attachment_records}
     valid_attachment_storage_paths = {
@@ -556,6 +562,9 @@ def newsroom_prune_attachments(flags: list[str]) -> None:
         print(f"attachment-prune\tmodelAttachments\t{len(attachments)}")
         print(f"attachment-prune\torphanAttachmentRecords\t{len(orphan_attachment_records)}")
         print(f"attachment-prune\torphanStorageObjects\t{len(orphan_storage_paths)}")
+        print(f"attachment-prune\tkeptUnknownOwnerKind\t{len(attachments_of_an_unknown_owner_kind)}")
+        for attachment in attachments_of_an_unknown_owner_kind:
+            print(f"attachment-prune\tkept-unknown-owner-kind\t{attachment['id']}\t{attachment.get('ownerKind')}\t{attachment.get('ownerId')}")
     if apply and record_storage_paths_to_delete:
         delete_result = delete_attachment_storage_paths(record_storage_paths_to_delete, bucket=storage_listing["bucket"])
         deleted["attachmentRecordObjects"] += delete_result.get("deleted", 0)
@@ -589,7 +598,12 @@ def newsroom_prune_attachments(flags: list[str]) -> None:
                         "modelAttachments": len(attachments),
                         "orphanAttachmentRecords": len(orphan_attachment_records),
                         "orphanStorageObjects": len(orphan_storage_paths),
+                        "keptUnknownOwnerKind": len(attachments_of_an_unknown_owner_kind),
                     },
+                    "keptUnknownOwnerKind": [
+                        {"id": attachment["id"], "ownerKind": attachment.get("ownerKind"), "ownerId": attachment.get("ownerId")}
+                        for attachment in attachments_of_an_unknown_owner_kind
+                    ],
                     "deleted": deleted,
                     "next": None if apply else "poetry run papyrus sections prune-attachments",
                 },

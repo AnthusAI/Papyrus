@@ -69,6 +69,8 @@ class XServices:
     learned: Callable[[], Read] | None = None
     #: ``story -> the guideline layers the draft was written under`` (``{scope, itemId, versionNumber, contentHash}``), recorded so the draft is explainable. None when unknown.
     guideline_layers: Callable[[StoryFacts], list[dict[str, Any]]] | None = None
+    #: ``lineage -> the hashtags the draft may choose from`` (``hashtags.story_hashtags``: the Story's own accepted concepts, most-used first). None for a site that has none.
+    hashtags: Callable[[str], list[str]] | None = None
 
 
 @dataclass
@@ -122,7 +124,8 @@ def _draft(services: XServices, story: StoryFacts, link: str, guidelines: str, l
     if services.llm is None or services.judge is None:
         raise RuntimeError("Drafting needs a model: the X part of the announce agent was built without one.")
     try:
-        draft = draft_announcement(story, link, guidelines=guidelines, llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model, learned=learned.prompt)
+        draft = draft_announcement(story, link, guidelines=guidelines, llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model, learned=learned.prompt,
+                                 hashtags=services.hashtags(story.lineage_id) if services.hashtags else None)
     except DraftRefused as refused:
         return None, [str(refused)]
     return draft, ([] if draft.passed else draft.failures)

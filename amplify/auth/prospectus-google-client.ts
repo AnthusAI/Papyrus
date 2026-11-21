@@ -7,13 +7,13 @@ import { CfnIdentityPool, CfnIdentityPoolRoleAttachment, CfnUserPoolClient, CfnU
  * It lives on the site's existing user pool next to the email + Google web
  * client, but admits only the built-in Google provider through code + PKCE from
  * the site server, with every native, SRP, custom and client-credentials path
- * left off. Sessions last one access token: the server keeps no refresh token.
+ * left off. The site server keeps no refresh token; the CLI is the only client that holds one, and it keeps it for seven days.
  * `extraCallbackUrls` is how a site that moved the CLI onto this client (`cliOnFederationClient`) adds the CLI's fixed
  * loopback callback and `<console origin>/cli/callback` (the console origin when the console has its own host, else the site origin); without it the client is exactly what it was.
  */
 export const PROSPECTUS_SIGN_IN_CALLBACK_PATH = "/api/auth/prospectus/callback";
 export const PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES = 60;
-/** A site that moves the CLI onto this client keeps CLI sessions for seven days; access and ID tokens stay at 60 minutes. */
+/** Every site's federation client keeps refresh tokens for seven days, whether or not the CLI has moved onto it yet; access and ID tokens stay at 60 minutes. */
 export const CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS = 7;
 /** Same value as lib/cli-loopback-callback.ts (the site cannot be imported from the packaged backend); a test keeps them equal. */
 export const CLI_LOOPBACK_CALLBACK = "http://127.0.0.1:38947/cli/callback";
@@ -70,7 +70,6 @@ export function addProspectusGoogleOnlyClient(
   userPool: IUserPool,
   redirectUrls: readonly string[],
   extraCallbackUrls: readonly string[] = [],
-  refreshTokenValidityDays?: number,
 ): CfnUserPoolClient {
   const callbackUrls = [...prospectusSignInCallbackUrls(redirectUrls)];
   if (callbackUrls.length === 0) throw new Error("The Prospectus Google-only client needs at least one site origin.");
@@ -90,8 +89,8 @@ export function addProspectusGoogleOnlyClient(
     preventUserExistenceErrors: "ENABLED",
     accessTokenValidity: PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES,
     idTokenValidity: PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES,
-    refreshTokenValidity: refreshTokenValidityDays ?? PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES,
-    tokenValidityUnits: { accessToken: "minutes", idToken: "minutes", refreshToken: refreshTokenValidityDays === undefined ? "minutes" : "days" },
+    refreshTokenValidity: CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS,
+    tokenValidityUnits: { accessToken: "minutes", idToken: "minutes", refreshToken: "days" },
   });
   const googleIdentityProviders = authStack.node
     .findAll()

@@ -721,6 +721,13 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
               "Connecting the account itself is still the browser step (`announcements account connect`).",
     ),
     Operation(
+        "announcements_hashtags", ("hashtags",), "List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"lineageId": text(), "hashtags": many(text("A hashtag with its #, in CamelCase, for example #VoiceCloning."))}, ("lineageId", "hashtags")), (),
+        (Example({"story": "story-1"}, {"lineageId": "story-1", "hashtags": ["#VoiceCloning", "#Newsrooms"]}),), positional=("story",), group="announcements",
+        notes="Reads only. The announcement draft may add at most two of these and no other hashtag; a Story with no accepted concept has none. The order is how many Stories use the concept.",
+    ),
+    Operation(
         "announcements_blocked", ("blocked",), "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).", "read",
         obj({}), record({"blocked": many(record({"delivery": text(), "announcementId": text(), "stories": many(record({"lineageId": text()}, ("lineageId",))), "reason": text(), "words": text(),
                                                   "since": text()}, ("delivery", "announcementId", "stories", "reason", "words")))}, ("blocked",)), (),

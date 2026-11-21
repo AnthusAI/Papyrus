@@ -336,6 +336,7 @@ _ENTRIES = dict([
   _e("announcements account connect", "Print the newsroom page where the X account is connected. Connecting is a browser step; nothing is connected from here.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements account set-app", "Save the X app's client ID and secret together (a person only; admins save). At a terminal it asks for the ID and the hidden secret; otherwise the secret is read from PAPYRUS_X_CLIENT_SECRET or standard input, never a flag.",
      "[--client-id ID] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements hashtags", "List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first.", "STORY [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements blocked", "List the Stories that qualified for X and are waiting, each with its reason.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements retry", "Try a failed Delivery again: back to ready, and the next try is the next attempt. A person only.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements review show", "Show the publication's announcement review and each override, and what a channel and kind would get.", "[--channel TEXT] [--kind TEXT] [--list TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
