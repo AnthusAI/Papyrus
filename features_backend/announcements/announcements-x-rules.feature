@@ -108,7 +108,7 @@ Feature: X is one channel of an Announcement, and the channel's own rules decide
     And a published 5-star Article that the announce agent already looked at
     When the announce agent wakes for the Article
     Then the catalog holds 1 Announcement and 1 Delivery
-    And the model was asked once
+    And the model was asked for one draft
 
   Scenario: A corrected version never announces again
     Given the site announces Articles rated 5 stars, in Dry run
