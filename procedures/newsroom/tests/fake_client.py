@@ -10,6 +10,7 @@ from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
 from papyrus_content.item_language import with_item_language
 
 INDEX_MODELS = {
+    "userIdentitiesByCognitoSub": "UserIdentity",
     "procedureRunsByAutomation": "ProcedureRun",
     "referencesByCorpusAndExternalItem": "Reference",
     "knowledgeCorporaByRoleAndName": "KnowledgeCorpus",
@@ -131,6 +132,9 @@ class FakeAuthoringClient:
         self.calls.append(("get", model_name, record_id))
         row = self._table(model_name).get(record_id)
         return copy.deepcopy(row) if row is not None else None
+
+    def get_record_with_fields(self, model_name: str, record_id: str, _extra_fields: str) -> dict[str, Any] | None:
+        return self.get_record(model_name, record_id)
 
     def list_records(self, model_name: str) -> list[dict[str, Any]]:
         self.calls.append(("list", model_name, None))

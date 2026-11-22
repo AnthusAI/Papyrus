@@ -484,6 +484,8 @@ ITEM_DECK_ROW_FIELDS = "id tenantId lineageId versionNumber versionState type up
 ITEM_LANGUAGE_ROW_FIELDS = "id tenantId lineageId versionNumber versionState type updatedAt language languageGroupId"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    # A signed-in person's identity by their token's subject, to read their own profile's display name (signed_in_person.py). Global, never tenant-scoped.
+    "userIdentitiesByCognitoSub": {"field": "userIdentityByCognitoSub", "partitionKey": "cognitoSub", "fields": "id userProfileId cognitoSub status"},
     "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
     # One row per story: only the head row of a lineage carries headStageKey (docs/plans/story-head-stage-index.md). Tenant-prefixed (tenancy.py).
     "itemsByHeadStage": {"field": "listItemsByHeadStageAndUpdatedAt", "partitionKey": "headStageKey", "fields": STORY_SECTION_LINK_FIELDS},

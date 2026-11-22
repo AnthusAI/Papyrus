@@ -14,6 +14,7 @@ from ..markus_export import EXPORTED_TYPES, item_output_path
 from ..markus_renderer.build import page_slug
 from ..markus_renderer.derive import compose_source
 from ..publishing import published_item_id_for
+from ..published_reviewer import front_matter_with_recorded_reviewer
 from .body_cache import BodyCache, version_fingerprint
 from .model import ItemSummary, ProjectedItem, SiteIndex
 from .story_stars import known_stars, stars_of_lineage
@@ -87,7 +88,7 @@ def summary_from_row(row: dict, *, item_id: str | None = None, tenant_id: str | 
         version_number=row.get("versionNumber"),
         title=row.get("title"),
         page_title=stored.get("pageTitle"),
-        front_matter=dict(stored.get("frontMatter") or {}),
+        front_matter=front_matter_with_recorded_reviewer(stored.get("frontMatter") or {}, metadata),
         aliases=tuple(row.get("aliases") or ()),
         published_at=row.get("publishedAt"),
         lineage_id=row.get("itemLineageId") or row.get("lineageId") or None,
