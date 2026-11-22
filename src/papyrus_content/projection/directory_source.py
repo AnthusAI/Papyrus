@@ -22,6 +22,7 @@ import yaml
 from ..markus_export import EXPORTED_TYPES
 from .model import ProjectedItem, SiteIndex
 from .site_relations import EMPTY as EMPTY_RELATIONS, SiteRelations
+from ..published_reviewer import REVIEWED_BY_KEY
 from .source import ProjectionSourceError, projected_item_from_row, summary_from_row
 
 _FRONT_MATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?(.*)\Z", re.S)
@@ -60,6 +61,7 @@ class DirectoryContentSource:
             if kind not in EXPORTED_TYPES and kind not in self.extra_types:
                 raise ProjectionSourceError(f"{relative.as_posix()}: type {kind!r} is not one of {', '.join((*EXPORTED_TYPES, *self.extra_types))}")
             aliases = [str(alias) for alias in data.pop("aliases", None) or []]
+            reviewed_by = data.pop(REVIEWED_BY_KEY, None)   # a file is its own record of review: carried as the published record's reviewer
             front_matter = yaml.safe_dump(data, sort_keys=False, allow_unicode=True) if data else None
             item_id = f"file:{relative.as_posix()}"
             rows[item_id] = {
@@ -75,7 +77,7 @@ class DirectoryContentSource:
                 "publishedAt": None,
                 "aliases": aliases,
                 "bodyMarkus": body,
-                "metadata": {"frontMatterYaml": front_matter, "source": {"path": relative.as_posix()}},
+                "metadata": {"frontMatterYaml": front_matter, "source": {"path": relative.as_posix()}, **({REVIEWED_BY_KEY: reviewed_by} if reviewed_by else {})},
             }
         self._rows = rows
         return rows
