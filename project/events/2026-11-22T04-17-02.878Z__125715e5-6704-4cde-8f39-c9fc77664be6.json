@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "125715e5-6704-4cde-8f39-c9fc77664be6",
+  "issue_id": "PPY-ca57a5cf-4178-4fc9-9cd5-52d0695c8530",
+  "event_type": "comment_added",
+  "occurred_at": "2026-11-22T04:17:02.878Z",
+  "actor_id": "ryan",
+  "payload": {
+    "comment_id": "417b0fb1-bb3e-48e3-9823-f05a6b12049a",
+    "comment_author": "ryan",
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "claude"
+    }
+  }
+}

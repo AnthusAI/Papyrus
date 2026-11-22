@@ -3,7 +3,7 @@
   "title": "First agent: rating and curation on one site",
   "description": "The first real daily agent, end to end, at the lowest rung. It rates what is unrated at three or four stars and lists five-star candidates for a person. Chosen because stars decide everything downstream (home pages, newsletters, announcements), the rule is already written (default three, machines never five), a person's rating always wins, and the model is the cheapest tier. Done when it runs daily on Machines on Machines, was promoted rung by rung on evidence, and its agreement with people is reported.\n\n**Design:** `docs/design/always-on-agents-architecture.md`. Companion: `docs/design/announcement-delivery-design.md`.\n\n**Acceptance for the epic:** every child is closed with its acceptance criteria met; Gherkin specs (narrative, complete) for every behaviour change; nothing created by hand in AWS.",
   "type": "epic",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,12 +17,24 @@
       "id": "4ad37d5f-5b81-4c31-a95b-ccf94f621c76",
       "author": "claude",
       "text": "Back in progress: the first agent (rating) is live work on the always-on agents track.",
-      "created_at": "2026-11-20T14:19:17.000000Z",
+      "created_at": "2026-11-20T14:19:17Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4137f532-21ea-4641-b0a6-1347efb6eee7",
+      "author": "ryan",
+      "text": "Back to open 2026-11-22: no task under it is in progress; it closes when its open tasks do.",
+      "created_at": "2026-11-22T04:38:10.841431Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:42:25.547499Z",
-  "updated_at": "2026-11-20T14:19:17.000000Z",
+  "updated_at": "2026-11-22T04:38:10.959882Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
