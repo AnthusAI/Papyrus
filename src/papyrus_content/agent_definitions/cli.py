@@ -75,7 +75,7 @@ SET_BUDGET_USAGE = ("Usage: papyrus --site SITE agents set-budget --amount USD -
                     "  does not run: its run record waits for the next cycle and one flag a cycle tells the admins; free checks, reading, editing and serving continue.\n"
                     "  Admin only, and only a person: sign in with `papyrus login` as an admin; an agent may never change the budget. A dry run unless --apply: it prints\n"
                     "  the budget before and after, the version it would be and the wakes that wait now, and writes nothing. --apply saves it as a new version of the\n"
-                    "  agent policy (who, when and why) and then puts every waiting wake back on the site's queue, oldest first; each re-checks the new budget when it\n"
+                    "  agent policy (who, when and why; signed in, the site's agent-policy function saves it, and refuses a token that is not a person's) and then puts every waiting wake back on the site's queue, oldest first; each re-checks the new budget when it\n"
                     "  arrives, so a budget still too small leaves it waiting. Releasing the wakes needs the operator's AWS credentials for the site's wake queue.")
 
 
@@ -302,10 +302,23 @@ def _site_store_for(client):
     return SiteStore(s3, bucket, SiteCatalogueTable(client))
 
 
+def _policy_function_sender(client):
+    def send(request: dict) -> dict:
+        answer = client.graphql("mutation AgentPolicyChange($input: AWSJSON) { agentPolicyChange(input: $input) }", {"input": json.dumps(request)})["agentPolicyChange"]
+        return json.loads(answer) if isinstance(answer, str) else answer
+
+    return send
+
+
 def _policy_store_for_site(client):
     from papyrus_content.agent_policy import AgentPolicyStore
+    from papyrus_content.agent_policy.remote import RemoteAgentPolicyStore
+    from papyrus_content.user_auth_mode import user_auth_requested
 
-    return AgentPolicyStore(_site_store_for(client))
+    site_store = _site_store_for(client)
+    if user_auth_requested():
+        return RemoteAgentPolicyStore(site_store, _policy_function_sender(client))
+    return AgentPolicyStore(site_store)
 
 
 def _lists_for_site(client, site_store_for=None) -> dict:
