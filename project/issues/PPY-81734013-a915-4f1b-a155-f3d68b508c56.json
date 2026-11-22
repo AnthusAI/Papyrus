@@ -3,7 +3,7 @@
   "title": "Run the wake guard check on a real site (PPY-a5513c live proof)",
   "description": "Live proof of the once-only create, waiting for Ryan's approval and a site on a release with wake keys (5.130 or later). Code and procedure merged in PR #1639 (PPY-a5513c): see docs/procedure-runner.md, section 'Proving the once-only create on a real site'. Acceptance: on one site, 'papyrus --site <site> procedures check-wake-guard --procedure-key <key without required parameters> --json' prints status proved (first answer duplicate false, second duplicate true, same run id); one run record for the wake key, outcome nothing, reason wake_guard_check. Record the JSON on this task and on PPY-567bf9. Blocks PPY-567bf9 (B1).",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,10 +12,23 @@
     "always-on-agents"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2db8d584-1437-4073-90a5-f4e6eaad6227",
+      "author": "ryan",
+      "text": "Proved on Machines on Machines 2026-11-22 (Ryan approved): papyrus procedures check-wake-guard --procedure-key rate_items -> status proved; first duplicate false, second duplicate true, same runId procedure-run-wake-4f3495692675988dbc639e0cc7697d7e; wake key procedure:rate_items|manual|wake-guard-check-20261122t221439z.",
+      "created_at": "2026-11-22T22:23:47.847494Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-17T02:56:43.860783Z",
-  "updated_at": "2026-11-17T02:56:43.860877Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T22:23:47.938138Z",
+  "closed_at": "2026-11-22T22:23:47.937777Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

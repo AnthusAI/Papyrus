@@ -1,6 +1,6 @@
 {
   "id": "PPY-e2829f3e-4037-4f38-bf98-beb8af3dad9d",
-  "title": "M2: A five-star Story is announced on X after one approval, within budget (MoM)",
+  "title": "M2: A five-star Story is announced on X automatically on a schedule, within budget (MoM)",
   "description": "**Tasks:** PPY-9376f8 (budget stop, $10 default, merged #1840); PPY-9b8e59 (review deadline timers and the engine's own follow-up wakes, #1842); PPY-6af46b (model key rotation; the key expires about 1-4 December); PPY-1ea28b (#1777); PPY-817340 (wake guard live proof); the channel pause of PPY-3f68f4. Also: record the owner decisions in the design doc and board (suggestions only, $10 monthly default, system wakes without adoption) and re-parent PPY-eef85d, PPY-c023ab and PPY-8195a4 so their epics can close.\n\n**Exit test (on MoM):** Ryan publishes a five-star Story; the draft is waiting, and overdue after its deadline with nobody looking; he approves and it is on @0nmachines within minutes; the Delivery reads sent; the spend page count rises by one; with the budget set below spend a paid run waits and one flag appears. Closes epic PPY-4bc313.",
   "type": "story",
   "status": "in_progress",
@@ -51,10 +51,34 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "cb518c24-81a6-4c48-82c3-f526780e03dd",
+      "author": "ryan",
+      "text": "Owner decision 2026-11-22 (Ryan): announcements are drafted and scheduled automatically; a person may tweak or stop one before it posts, or not. Configurable per site (others keep hard review). For Machines on Machines: X story posts go 60 minutes after drafting and lock 5 minutes before (editWindows windowMinutes 60, lockLeadMinutes 5; review soft). Needs the scheduled send (the deliver engine follow-up), being built for this milestone; MoM's settings are changed after that release.",
+      "created_at": "2026-11-22T22:22:49.576500Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    },
+    {
+      "id": "ec07667e-be50-42f9-bd79-935b6ac55615",
+      "author": "ryan",
+      "text": "Exit test revised 2026-11-22 (Ryan): Ryan publishes a five-star article on MoM; an X draft appears and is scheduled 60 minutes out; he may edit or stop it, or do nothing; with nothing done it posts on schedule; the Delivery reads sent; the spend page count rises by one; with the budget set below spend, a paid run waits and one flag appears. Tasks now: scheduled send (deliver engine follow-up), PR #1777 (PPY-1ea28b), the channel pause of PPY-3f68f4, doc and board wording for the owner decisions; then one release and MoM settings (soft review, editWindows 60/5). PPY-817340 (wake guard live proof) is done: status proved on MoM, run procedure-run-wake-4f3495692675988dbc639e0cc7697d7e.",
+      "created_at": "2026-11-22T22:23:47.754257Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-22T19:02:56.071717Z",
-  "updated_at": "2026-11-22T21:48:10.863736Z",
+  "updated_at": "2026-11-22T22:23:47.754603Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
