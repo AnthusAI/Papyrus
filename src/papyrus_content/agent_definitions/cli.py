@@ -75,7 +75,7 @@ SET_BUDGET_USAGE = ("Usage: papyrus --site SITE agents set-budget --amount USD -
                     "  does not run: its run record waits for the next cycle and one flag a cycle tells the admins; free checks, reading, editing and serving continue.\n"
                     "  Admin only, and only a person: sign in with `papyrus login` as an admin; an agent may never change the budget. A dry run unless --apply: it prints\n"
                     "  the budget before and after, the version it would be and the wakes that wait now, and writes nothing. --apply saves it as a new version of the\n"
-                    "  agent policy (who, when and why) and then puts every waiting wake back on the site's queue, oldest first; each re-checks the new budget when it\n"
+                    "  agent policy (who, when and why; signed in, the site's agent-policy function saves it, and refuses a token that is not a person's) and then puts every waiting wake back on the site's queue, oldest first; each re-checks the new budget when it\n"
                     "  arrives, so a budget still too small leaves it waiting. Releasing the wakes needs the operator's AWS credentials for the site's wake queue.")
 
 

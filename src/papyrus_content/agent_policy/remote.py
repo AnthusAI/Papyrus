@@ -32,6 +32,10 @@ class RemoteAgentPolicyStore(AgentPolicyStore):
             raise PolicyError(str(answer.get("error") or "invalid_input"), str(answer.get("message") or "The agent policy function refused the change."))
         return PolicyState(int(answer["version"]), answer["document"])
 
+    def change(self, tenant_id, caller, reason, edit):
+        """A free-form edit would be written with the caller's own credentials, which hold no write on the policy: only the named changes exist here."""
+        raise PolicyError("invalid_input", "On the signed-in lane the agent policy changes only through the agent-policy function's named changes.")
+
     def set_rung(self, tenant_id, caller, responsibility, rung, *, reason, scope=None):
         return self._change_by_request(tenant_id, {"op": "set_rung", "responsibility": responsibility, "rung": rung, "reason": reason, "scope": dict(scope) if scope else None})
 

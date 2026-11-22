@@ -128,3 +128,52 @@ def test_a_refusal_from_the_function_reaches_the_caller_as_a_policy_error():
         assert error.code == "human_required"
         return
     raise AssertionError("a refused change was accepted")
+
+
+def test_a_budget_from_another_client_changes_nothing_and_a_persons_is_recorded():
+    budget = {"op": "set_value", "field": "budget", "value": {"amountUsd": 50, "period": "week"}, "reason": "launch week"}
+    policy = store()
+    assert handle(event(budget, client="cli-client"), policy, ENVIRONMENT, "alpha")["error"] == "human_required"
+    assert policy.read("alpha").version == 0
+    answer = handle(event(budget), policy, ENVIRONMENT, "alpha")
+    assert answer["ok"] is True and answer["document"]["site"]["budget"] == {"amountUsd": 50, "period": "week"}
+    record = policy.version_record("alpha", 1)
+    assert (record["by"], record["reason"]) == ("ryan@example.test", "launch week") and record["at"]
+
+
+def test_the_signed_in_store_makes_no_free_form_write_of_its_own():
+    from papyrus_content.agent_policy import PolicyError
+    from papyrus_content.images.handlers import Caller
+
+    policy = store()
+    remote = RemoteAgentPolicyStore(policy._store, lambda request: {"ok": True, "version": 1, "document": {}})
+    try:
+        remote.change("alpha", Caller(kind="person", is_admin=True), "r", lambda document: document["site"].update(budget={"amountUsd": 9, "period": "day"}))
+    except PolicyError:
+        assert policy.read("alpha").version == 0
+        return
+    raise AssertionError("the signed-in store wrote the policy itself")
+
+
+def test_the_cli_sends_policy_changes_to_the_function_on_the_signed_in_lane(monkeypatch):
+    from papyrus_content.agent_definitions import cli
+    from papyrus_content import user_auth_mode
+
+    class Client:
+        sent = []
+
+        def graphql(self, query, variables):
+            self.sent.append((query, json.loads(variables["input"])))
+            return {"agentPolicyChange": json.dumps({"ok": True, "version": 1, "document": {"schemaVersion": 1, "site": {}, "agents": {}}})}
+
+    monkeypatch.setattr(cli, "_site_store_for", lambda client: store()._store)
+    monkeypatch.setattr(user_auth_mode, "user_auth_requested", lambda: True)
+    policy = cli._policy_store_for_site(Client())
+    assert isinstance(policy, RemoteAgentPolicyStore)
+    from papyrus_content.images.handlers import Caller
+
+    policy.set_value("alpha", Caller(kind="person", is_admin=True), "budget", {"amountUsd": 5, "period": "week"}, reason="r")
+    (query, request), = Client.sent
+    assert "agentPolicyChange" in query and request["op"] == "set_value" and request["field"] == "budget"
+    monkeypatch.setattr(user_auth_mode, "user_auth_requested", lambda: False)
+    assert type(cli._policy_store_for_site(Client())) is AgentPolicyStore
