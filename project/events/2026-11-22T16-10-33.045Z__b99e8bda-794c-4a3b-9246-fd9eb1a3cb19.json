@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b99e8bda-794c-4a3b-9246-fd9eb1a3cb19",
+  "issue_id": "PPY-e7bb6e85-bef4-45ab-98df-d08e791ef52d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-22T16:10:33.045Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "A sent X post never marks its Delivery sent",
+    "description": "Found 2026-11-22 on Machines on Machines: both live X posts left their Delivery at sending with attempt 1 started, though X charged for each. The announce agent hands the attempt to Caducus and reads back queued; the site's X function posts it later; nothing read Caducus's record afterwards (XRunner.settle existed but nothing called it). Effects: the Announcements list shows a sent post as sending / Outcome unknown, no result URL is kept, and the settings page's post count for the cycle reads 0 (PPY-8037b8).\n\nFix: PR #1834. The X function settles the Delivery from Caducus's record right after the post (announcements/settle_after_post.py), with getDelivery and updateDelivery granted to its role; a repeated queue message settles again and never posts twice. After release, the two Deliveries already sent on Machines on Machines need a one-time settle through the operator lane.\n\n**Acceptance criteria**\n- A post the X function makes leaves its Delivery sent, with the post id.\n- A repeated queue message posts once.\n- The two existing Machines on Machines Deliveries read sent.\n\n**Gherkin:** attempt-event-id.feature (the site's X function posts a queued attempt and the Delivery is marked sent; the same message twice posts once).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a3649276-9382-47de-8155-ed4be27dd791",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "claude"
+    }
+  }
+}
