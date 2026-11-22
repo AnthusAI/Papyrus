@@ -3,17 +3,30 @@
   "title": "Checklist steps skipped for one edit keep that edit's reason when carried onto later versions",
   "description": "Found 2026-11-08: a bulk run skipped the open review steps on 76 legacy published stories with the reason 'Legacy story published before the checklist; this edit only removes an AI-drafted disclaimer'. The skipped state (with that reason) is carried forward onto later versions, so papyrus stories next now shows it for stories whose later edits were NOT disclaimer removals: the reason is false for them. Each skip must record the version it was made for and the kind of change (text unchanged, picture only, text edited); a carried-forward skip is shown as 'skipped on vN: <reason>' and a later text edit reopens the steps whose lens reads text (see PPY-a2c230 for the scoping rules), instead of silently inheriting. Gherkin: skip recorded with its version, carried forward label, reopened by a text edit, not reopened by a picture-only edit. Also consider a command to list stories whose open or skipped steps carry a reason from an older version.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2deac356-7bfa-4787-99ec-2a50bb24adb9",
+      "author": "ryan",
+      "text": "Released in Papyrus 5.147.0 (#1846) and live on Machines on Machines (Amplify job 155). Verified: stories next on content-item-can-a-system-keep-a-secret-from-its-own-agent shows its review skips as 'carried: skipped on v33; it stands until an edit changes the text (a picture-only change keeps it)'. The list command was not built (no index finds steps by state; it would be a sweep).",
+      "created_at": "2026-11-22T21:28:33.900751Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-08T22:07:26.619281Z",
-  "updated_at": "2026-11-08T22:07:26.619309Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T21:28:34.199109Z",
+  "closed_at": "2026-11-22T21:28:34.198749Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
