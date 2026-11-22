@@ -3,7 +3,7 @@
   "title": "M1: No Story reaches the public site around its checklist (MoM)",
   "description": "Use case (next arc, 2026-11-22, Ryan): an imported, pod-loaded or translated Story on Machines on Machines cannot be published until its own checklist is closed, and the refusal names the open step.\n\n**Tasks:** verify the per-language checklist gate (#1731) live on MoM; PPY-473f8f PR 2 (review stamp and delegation); PPY-cc6a0f. The translation agent stays in PPY-98f88e.\n\n**Exit test (on MoM):** Ryan tries to publish an imported Story and a translation with an open step; both are refused naming the step; a Story with a closed checklist publishes. Then close PPY-473f8f.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -31,11 +31,23 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "611c5d51-4f54-473e-afe2-b24ec2b9ee6a",
+      "author": "ryan",
+      "text": "Closed 2026-11-22: Ryan reviewed and accepted M1. Follow-up from his review: translations on MoM need no human review (#1851, ships with M2's release, then MoM's procedure document sets translationHumanReview false).",
+      "created_at": "2026-11-22T21:48:10.609802Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-22T19:02:55.934175Z",
-  "updated_at": "2026-11-22T21:28:34.371768Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T21:48:10.694004Z",
+  "closed_at": "2026-11-22T21:48:10.693982Z",
   "agent": {
     "platform": "claude-code",
     "model": "claude-opus-5-5",
