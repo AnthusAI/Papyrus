@@ -445,6 +445,8 @@ def resolve(assessment: dict[str, Any], stored: list[dict[str, Any]], facts: dic
                 row["freshness"] = "current"
             elif number is None:
                 row["freshness"] = "current (the version it was recorded against is unknown)"
+            elif row["versioned"] and row["state"] == SKIPPED:
+                row["freshness"] = f"carried: skipped on v{number}; it stands until an edit changes the text (a picture-only change keeps it)"
             elif row["versioned"]:
                 row["freshness"] = f"current (recorded against v{number}; a {row['state'].replace('_', ' ')} answer is not tied to one version)"
             else:

@@ -770,7 +770,7 @@ def operator_story_next(client, lineage_id: str) -> dict:
     raw = read_steps(client, lineage_id)
     assessment = resolve(assess(facts), raw, facts)
     procedure = Procedure.from_spec(facts.get("procedureSpec"))
-    stored = steps_for_display(raw, lineage_id, procedure)
+    stored = steps_for_display(raw, lineage_id, procedure, current_version=int(facts["versionNumber"]))
     states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}
     return {"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
             "currentVersion": facts["versionNumber"], "checklist": stored,
