@@ -126,7 +126,7 @@ def seeded(context, agent, rung):
 def top_definition(context, name):
     folder = Path(tempfile.mkdtemp(prefix="set-rung-"))
     text = (SITE_DEFINITIONS / "rate.yaml").read_text(encoding="utf-8")
-    text = text.replace("id: rate\n", f"id: {name}\n", 1).replace("ratings_set: draft", "ratings_set: publish_auto")
+    text = text.replace("id: rate\n", f"id: {name}\n", 1).replace("ratings_suggest: propose", "ratings_suggest: publish_auto")
     (folder / f"{name}.yaml").write_text(text, encoding="utf-8")
     context.definitions_dir = folder
 
