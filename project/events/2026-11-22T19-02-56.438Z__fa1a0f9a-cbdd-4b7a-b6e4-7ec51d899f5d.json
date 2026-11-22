@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "fa1a0f9a-cbdd-4b7a-b6e4-7ec51d899f5d",
+  "issue_id": "PPY-d548b404-39a7-4b86-8a05-fb07cc6baf25",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-22T19:02:56.438Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "M5: The MoM weekly newsletter assembles itself and goes out after one approval",
+    "description": "**Tasks:** a bug for the broadcast function's delivery read returning null in Lambda; PPY-4108ef; PPY-cb3cc9; PPY-2c29e5; PPY-1e75aa (new-records half); PPY-6bcae9 (DMARC: records live, waiting for a first report); PPY-c522bf; PPY-819117; PPY-a85725; PPY-f4b164.\n\n**Exit test (on MoM):** two Mondays of a dry-run issue to the operator allow-list with counts matching the transport, then one live issue after Ryan's approval with one Today line.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "claude"
+    }
+  }
+}

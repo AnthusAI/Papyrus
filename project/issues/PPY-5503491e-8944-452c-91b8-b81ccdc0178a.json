@@ -1,0 +1,38 @@
+{
+  "id": "PPY-5503491e-8944-452c-91b8-b81ccdc0178a",
+  "title": "M3: Every published Story gets a star suggestion that feeds announcements (MoM)",
+  "description": "**Tasks:** PPY-924693 (suggest on publish and on Reference accept); PPY-89f253 (agreement report; drop its dependency on PPY-994ff6).\n\n**Exit test (on MoM):** Ryan publishes a Story; a suggestion appears within the quiet window and joins the day's one review; confirming a five-star candidate produces an X draft with no other action; papyrus reports agreement by section. Closes epic PPY-24b2ac.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-e2829f3e-4037-4f38-bf98-beb8af3dad9d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-924693bd-df0d-4bb1-85ba-145cb6cf0417",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-89f2538a-9e8c-4af7-8e50-ce236ff34c8e",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-22T19:02:56.194438Z",
+  "updated_at": "2026-11-22T19:02:57.858936Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
