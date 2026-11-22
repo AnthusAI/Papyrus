@@ -91,6 +91,8 @@ export function createDemoAnnouncementsDoor(now: () => number = Date.now): Annou
     const base = { ok: true as const, op, publication: "demo", warnings: [] };
     if (op === "announcements_where") return { ...base, result: whereDemo(String(input.story ?? ""), now()) };
     if (op === "announcements_recent") return { ...base, result: recentDemo(now()) };
+    if (op === "announcements_account_status") return { ...base, result: { mode: "on", paused: false, standing: "$0.60 spent of $10.00 this cycle", postCount: 3,
+      suggestion: { eligibleCount: 4, windowDays: 60, postsPerMonth: 2, dollarsPerMonth: 0.4, sentence: "At your pace, about 2 posts and $0.40 per month" } } };
     return { ok: false as const, op, error: { code: "unknown_operation", message: `The demo has no ${op}.`, retryable: false, details: {} } };
   }) as unknown as AnnouncementsDoor;
 }
