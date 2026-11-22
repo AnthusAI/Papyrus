@@ -52,3 +52,41 @@ def reads(context):
 @then('the dry run is in the tenant "{tenant}"')
 def in_tenant(context, tenant):
     assert context.dry_run.tenant_id == tenant
+
+
+@when("the operator previews a publish through a dry run that fetches the Story's stored body")
+def preview_with_body(context):
+    from papyrus_content.publishing import DryRunClient
+
+    class StoredBody:
+        tenant_id = "machines-on-machines"
+
+        def __init__(self):
+            self.downloads, self.writes = [], []
+
+        def create_model_attachment_download(self, attachment_id):
+            self.downloads.append(attachment_id)
+            return {"url": "https://example.invalid/body"}
+
+        def publish_published_item(self, payload):   # a write the dry run has no rule for
+            self.writes.append(payload)
+
+    context.stored_body = StoredBody()
+    context.dry_run = DryRunClient(context.stored_body)
+    context.dry_run.create_model_attachment_download("body-1")
+
+
+@then("the dry run asked for a download slot of the stored body")
+def asked_for_slot(context):
+    assert context.stored_body.downloads == ["body-1"], context.stored_body.downloads
+
+
+@then("a write the dry run does not know is refused, not performed")
+def unknown_write_refused(context):
+    try:
+        context.dry_run.publish_published_item({"id": "x"})
+    except AttributeError as refusal:
+        assert "not a read" in str(refusal), refusal
+    else:
+        raise AssertionError("the dry run passed a write through")
+    assert context.stored_body.writes == []

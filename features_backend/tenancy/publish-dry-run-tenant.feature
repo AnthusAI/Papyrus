@@ -13,3 +13,9 @@ Feature: A publish dry run reads a tenant's records in the tenant's own scope
     Given a site with no tenant has saved writing guidelines
     When the operator previews a publish through a dry run
     Then the dry run reads the saved writing guidelines
+
+  Scenario: A dry run fetches a Story's stored body and never passes a write through
+    Given a site whose tenant is "machines-on-machines" has saved writing guidelines
+    When the operator previews a publish through a dry run that fetches the Story's stored body
+    Then the dry run asked for a download slot of the stored body
+    And a write the dry run does not know is refused, not performed

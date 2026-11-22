@@ -532,3 +532,13 @@ class DryRunClient:
     def delete_lineage_row(self, model_name: str, record_id: str, lineage_id: str) -> bool:
         self.planned.append({"operation": "delete", "model": model_name, "id": record_id})
         return True
+
+    #: Reads a publish makes beyond the ones above, passed through as they are. A download slot is a read: it names a file to fetch and changes nothing. Any other
+    #: method, a write among them, is not passed through, so a dry run never performs a write it does not know about.
+    READ_METHOD_PREFIXES = ("get_", "list_", "iterate_", "graphql_read")
+    READ_METHODS = ("create_model_attachment_download", "download_attachment", "has_head_stage_key")
+
+    def __getattr__(self, name: str):
+        if name.startswith(self.READ_METHOD_PREFIXES) or name in self.READ_METHODS:
+            return getattr(self._client, name)
+        raise AttributeError(f"A dry run of a publish does not pass {name} through: it is not a read.")
