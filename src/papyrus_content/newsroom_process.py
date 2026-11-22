@@ -82,9 +82,10 @@ STEPS: tuple[Step, ...] = (
          versioned=True),
     Step("editor_review", "copywriting", "Editor agent", "Editor review", "", OFF, False,
          "Off: needs the editor_review.tac procedure, which no site has on."),
-    Step("review_people", "copywriting", "Editor or reviewing agent", "Reviewed for readers",
+    Step("review_people", "copywriting", "A person, or an agent on a person's instruction", "Reviewed for readers",
          "papyrus stories step --story {story} --step review_people --state done --note <findings>", LIVE, False,
-         "Human readers: a person or agent reads the Story as a reader would and records the findings. What each lens checks is a later design (PPY-59c772df).", True, versioned=True),
+         "Human readers: a person reads the Story as a reader would and records the findings; this is the Story's human review stamp. An agent records it only on a "
+         "person's instruction (--on-instruction-of and --quote). What each lens checks is a later design (PPY-59c772df).", True, versioned=True),
     Step("review_reader_agents", "copywriting", "Editor or reviewing agent", "Reviewed for AI reader agents",
          "papyrus stories step --story {story} --step review_reader_agents --state done --note <findings>", LIVE, False,
          "AI agents that read the page for a person. Findings are recorded by hand for now (PPY-59c772df).", True, versioned=True),

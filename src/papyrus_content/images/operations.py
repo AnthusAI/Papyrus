@@ -676,8 +676,8 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
              "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
              "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
-             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review "
-                                          "(a person marked the Story's review step done on its current version) is not confirmed."),
+             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version (its review step done by a person, or by an agent "
+                                          "on a person's recorded instruction). Off by default."),
              "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
              "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
              "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account."),

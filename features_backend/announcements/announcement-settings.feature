@@ -49,7 +49,7 @@ Feature: The site owner decides what is announced
     When ellie reads the announcement settings
     Then reviewed Stories are not required
 
-  # PROVISIONAL: what counts as a person having reviewed a Story is defined in announcement-human-review-stamp.feature, and Ryan has not confirmed it.
+  # What counts as a person having reviewed a Story is defined in announcement-human-review-stamp.feature and story-review-stamp.feature.
   Scenario: The owner can require that a person reviewed a Story before it is announced
     When ryan saves the announcement settings requiring reviewed Stories
     Then reviewed Stories are required

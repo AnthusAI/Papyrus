@@ -20,7 +20,7 @@ from typing import Any, Callable, Mapping
 from papyrus_content.agent_policy.resolve import PolicyState
 
 from .eligibility import StoryFacts, refusal
-from .intake import NOT_REVIEWED, PROVISIONAL_NOTE, ReviewStamps, floor_refusal
+from .intake import NOT_REVIEWED, ReviewStamps, floor_refusal
 from .lines import STATE_SHOWN
 from .review_policy import choose
 
@@ -63,7 +63,7 @@ def _answer(channel: str, story: StoryFacts, settings: Mapping[str, Any], policy
         return {"announced": False, "rule": floor.code, "words": floor.reason}
     if settings.get("requireReviewedSource") and not stamps.reviewed(story.lineage_id, story.version_number):
         return {"announced": False, "rule": NOT_REVIEWED,
-                "words": f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories. {PROVISIONAL_NOTE}"}
+                "words": f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories."}
     choice = choose(policy, channel=channel, kind=STORY_PUBLISHED)
     if not choice.prepares:
         return {"announced": False, "rule": "no_delivery", "words": str(choice.reason)}

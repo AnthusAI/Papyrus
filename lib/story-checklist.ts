@@ -42,6 +42,9 @@ export interface StoryStepRecord {
   state: StoryStepState;
   actorKind?: string | null;
   actorLabel?: string | null;
+  /** For an agent's change on a person's recorded instruction: the person, and their words. */
+  onBehalfOf?: string | null;
+  instruction?: string | null;
   changedAt?: string | null;
   reason?: string | null;
   note?: string | null;
@@ -106,7 +109,7 @@ export function storyStepsFromItems(items: readonly SubTaskItemRecord[]): StoryS
     return {
       id: item.lineageId, storyLineageId: item.parentLineageId ?? "", stepKey: text(meta.stepKey) ?? item.lineageId, stepOrder: count(meta.stepOrder),
       templateVersion: count(meta.templateVersion), title: item.title ?? null, command: text(meta.command), state: item.status as StoryStepState,
-      actorKind: text(entry.actorKind), actorLabel: text(entry.actorLabel), changedAt: text(entry.at) ?? item.versionCreatedAt ?? null,
+      actorKind: text(entry.actorKind), actorLabel: text(entry.actorLabel), onBehalfOf: text(entry.onBehalfOf), instruction: text(entry.instruction), changedAt: text(entry.at) ?? item.versionCreatedAt ?? null,
       reason: text(entry.reason), note: text(entry.note), evidence: text(entry.evidence),
       storyVersion: typeof entry.storyVersion === "number" ? entry.storyVersion : null, changeKind: text(entry.changeKind), notes: storyStepNotes(meta.notes),
     };
@@ -209,9 +212,10 @@ export function formatStepTime(iso: string | null | undefined): string {
   return parsed && !Number.isNaN(parsed.getTime()) ? `${STEP_TIME.format(parsed)} UTC` : "";
 }
 
-/** The words that say who changed a step: `Ryan`, `AI (agent)`, or `evidence` for a step the records proved. */
-export function stepActorText(step: Pick<StoryStepRecord, "actorKind" | "actorLabel">): string {
+/** The words that say who changed a step: `Ryan`, `AI (agent)`, `AI (agent, on the instruction of Ryan)` for a delegated change, or `evidence` for a step the records proved. */
+export function stepActorText(step: Pick<StoryStepRecord, "actorKind" | "actorLabel" | "onBehalfOf">): string {
   if (!step.actorLabel) return "";
   if (step.actorKind === "system") return step.actorLabel;
-  return step.actorKind === "agent" ? `${step.actorLabel} (agent)` : step.actorLabel;
+  if (step.actorKind !== "agent") return step.actorLabel;
+  return step.onBehalfOf ? `${step.actorLabel} (agent, on the instruction of ${step.onBehalfOf})` : `${step.actorLabel} (agent)`;
 }

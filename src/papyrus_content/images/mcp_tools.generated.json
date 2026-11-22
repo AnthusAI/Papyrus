@@ -3800,7 +3800,7 @@
           },
           "requireReviewedSource": {
             "type": "boolean",
-            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed."
+            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version (its review step done by a person, or by an agent on a person's recorded instruction). Off by default."
           },
           "budget": {
             "type": "string",

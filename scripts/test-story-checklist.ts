@@ -63,6 +63,7 @@ test("steps are Kanbus sub-tasks of the Story card, in template order, with thei
 
 test("who and when read in plain words", () => {
   assert.equal(stepActorText({ actorKind: "agent", actorLabel: "AI" }), "AI (agent)");
+  assert.equal(stepActorText({ actorKind: "agent", actorLabel: "Claude", onBehalfOf: "Ryan" }), "Claude (agent, on the instruction of Ryan)");
   assert.equal(stepActorText({ actorKind: "person", actorLabel: "Ryan" }), "Ryan");
   assert.equal(stepActorText({ actorKind: "system", actorLabel: "evidence" }), "evidence");
   assert.equal(stepActorText({}), "");
