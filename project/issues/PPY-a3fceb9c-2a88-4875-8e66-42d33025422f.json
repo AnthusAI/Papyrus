@@ -3,7 +3,7 @@
   "title": "Always-on agents: one standard for every standing responsibility",
   "description": "**Design:** `docs/design/always-on-agents-architecture.md` (2026-11-16, for Ryan). Companion: `docs/design/announcement-delivery-design.md`.\n\n**The problem.** Today only what a person drives forward in a coding session gets done. The goal is a newsroom that keeps operating when people step back, and that people can steer at any moment.\n\n**The standard, in one paragraph.** A standing responsibility (translate, illustrate, generate ideas, research, rate, take in References, improve, fact-check, announce, send newsletters, keep operations tidy) is an **agent**: one definition file in Git (which procedure, what wakes it, what it may do at each rung), one line of site policy (how far it may go on this site: observe, propose, draft, prepare, publish with soft review, publish automatically), and a short run each time something wakes it. A wake is a change to a record or a timer. Every wake has a key, so nothing runs twice. Every run ends with one of five outcomes: acted, nothing, asked, failed, unknown. Agents never chat with each other. They change records; the change wakes the next agent. People use the same records: a flag, an answer, a comment, a pause.\n\n**Vocabulary** (from Anthropic's \"Building always-on agents\"): inbox = change feeds plus a per-site wake queue plus the run record; timers = EventBridge Scheduler entries that only raise a wake; memory = the records themselves; permissions = the autonomy ladder and one gate at the operation table; outbox = review requests (to people in the newsroom) and Deliveries through Caducus (to readers).\n\n**Canon.** No fallbacks, no interim systems, no arbitrary caps, no text in DynamoDB, indexes over scans, no AppSync subscriptions, nothing created by hand in AWS, Messages come only from people, three stars is the floor and a machine never gives five.\n\n**Clients of the standard (existing epics, re-parented here):** PPY-a36492 (Announcement and Delivery), PPY-959e41 (the Story checklist that runs itself), PPY-9ff95b (background automation, the precursor whose open stories this standard completes).\n\n**Done when** every epic under this initiative is closed, every standing responsibility in the inventory runs as an agent on at least one site, the old trigger row families and per-feature switches are gone, and the p.apyr.us page is published.",
   "type": "initiative",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -83,10 +83,22 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "cf83fa8e-b26f-4109-8744-a7908fb8c000",
+      "author": "ryan",
+      "text": "Back to in progress 2026-11-22 (Ryan): it is partly done and the work continues; moving it to open only changed how the board looked.",
+      "created_at": "2026-11-22T16:17:49.789619Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:42:23.490946Z",
-  "updated_at": "2026-11-22T04:38:11.693528Z",
+  "updated_at": "2026-11-22T16:17:50.207702Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

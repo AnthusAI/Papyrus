@@ -3,7 +3,7 @@
   "title": "Hosted MCP server for staff and readers",
   "description": "Authenticated Streamable HTTP with site-bound rotating OAuth grants, typed staff tools and existing reader actions. Public discovery stays on HTTP. Verify with the seeded protocol harness before host trials.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -57,10 +57,22 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "a4a55ac7-e55b-4f65-a385-027ea8747b90",
+      "author": "ryan",
+      "text": "Back to in progress 2026-11-22 (Ryan): it is partly done and the work continues; moving it to open only changed how the board looked.",
+      "created_at": "2026-11-22T16:17:51.648252Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-10-21T02:29:00.676541Z",
-  "updated_at": "2026-11-22T04:17:03.735207Z",
+  "updated_at": "2026-11-22T16:17:51.780083Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
