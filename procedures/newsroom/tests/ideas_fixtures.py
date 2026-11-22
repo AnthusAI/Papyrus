@@ -93,6 +93,8 @@ class FakeClient:
         if index == "referencesByCurationStatusKey":
             corpus, _, status = key.rpartition("#")
             return [row for row in self.references if row["corpusId"] == corpus and row["curationStatus"] == status]
+        if index == "reviewRequestsByState":
+            return [dict(row) for row in self.reviews.values() if row.get("reviewStateKey") == key]
         if index == "itemBySlug" and key in self.doctrine:
             return [{"type": "doctrine", "status": "private", "versionState": "current", "body": [self.doctrine[key]]}]
         return []

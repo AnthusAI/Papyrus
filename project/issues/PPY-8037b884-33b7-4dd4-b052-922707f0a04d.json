@@ -3,7 +3,7 @@
   "title": "Announcement cost: budget, spend, suggested budget and automatic pause",
   "description": "Part of the scheduled publishing and announcements epic. Design: docs/plans/scheduled-publishing-and-announcements.md (\"Cost control\").\n\nGoal: a site never spends more on X than its owner allowed, sees what it has spent, and gets a budget suggestion from its own pace; no fixed numbers in code.\n\nShape: per-site settings: prices (copied from docs.x.com pricing with their date; verified 2026-11-12: post with link $0.200, post $0.015, delete $0.010, read $0.005) and budget per X billing cycle (a plain site setting, required, no default; MoM: $10, the same as the spending limit Ryan sets in X's console); a spend counter row per account per cycle incremented once per post, delete or read with the price used; before each paid call, counter + price > budget -> `blocked: budget reached` and pause with that reason; suggestion = the site's own rate of eligible Stories (counted once per eligibility event) x price per post; X's daily usage counts (`GET /2/usage/tweets`) shown beside our counter; the owner told to set X's console spending limit.\n\nDepends on: the channel framework story.\n\n```gherkin\nFeature: Announcements never cost more than the owner allowed\n  Every post with a link costs money at X. The owner sets the budget and can always\n  see the spend.\n\n  Scenario: No budget, no announcements\n    Given an owner who has not entered a budget\n    When the owner tries to turn announcements on\n    Then the page asks for a budget for each X billing cycle first\n\n  Scenario: Spend is counted per post\n    Given a price of $0.20 per post with a link\n    When three announcements are posted this cycle\n    Then the page shows \"$0.60 spent of $10.00 this cycle\"\n\n  Scenario: Reaching the budget pauses\n    Given $9.90 spent of a $10.00 budget\n    When an announcement is due\n    Then it is not posted\n    And announcements pause with \"Budget reached for this cycle\"\n    And the waiting Story is listed as \"Blocked: budget reached\"\n\n  Scenario: A new cycle or a bigger budget resumes\n    Given announcements paused for budget\n    When the owner raises the budget to $20.00\n    Then the waiting announcement posts\n\n  Scenario: A budget suggestion from our own pace\n    Given MoM had 4 Stories meet its announcement rules in the last two months\n    Then the page suggests \"At your pace, about 2 posts and $0.40 per month\"\n\n  Scenario: Our count and X's count side by side\n    Then the page shows our post count and X's own usage count for the same days\n    And says where they differ\n```\n\nOpen questions: none (MoM: $10 per cycle).",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -34,13 +34,25 @@
       "id": "8d4d859f-844c-4e6e-a77b-88833b84c27c",
       "author": "claude",
       "text": "Back in progress: it is on the always-on agents track (X announcements, ratings suggestions).",
-      "created_at": "2026-11-20T14:08:15.000000Z",
+      "created_at": "2026-11-20T14:08:15Z",
       "comment_type": "default"
+    },
+    {
+      "id": "95279b73-15f9-4a8e-805c-5c6bff74b999",
+      "author": "ryan",
+      "text": "Closed 2026-11-22. Live on Machines on Machines: the settings page reads the cycle's spend, our post count and the budget suggestion through the read door (5.146.0, #1828); the guard runs before every post; X's own count is beside ours. With PPY-e7bb6e fixed, the status reads '$0.40 spent of $5.00 this cycle' and our count 2, matching the two posts X charged for.",
+      "created_at": "2026-11-22T17:33:32.727027Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-12T18:41:39.280312Z",
-  "updated_at": "2026-11-20T14:08:15.000000Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T17:33:32.809908Z",
+  "closed_at": "2026-11-22T17:33:32.809886Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

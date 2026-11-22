@@ -418,7 +418,7 @@ GENERATED: dict[str, tuple[str | None, str]] = {
   'stories set-slug': ('--story <lineage|id> --slug <new> [--force] [--no-trigger] [--dry-run]', 'writes'),
   'stories set-stars': ('--story <lineage> --stars <0-5> [--agent <your name>] [--dry-run]', 'writes'),
   'stories show': ('--story <lineage> [--bucket day|week|none] [--json]', 'reads'),
-  'stories step': ('--story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]', 'writes'),
+  'stories step': ('--story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--on-instruction-of PERSON --quote TEXT] [--dry-run]', 'writes'),
   'stories suggest-links': ('--story LINEAGE|SLUG [--kinds articles,posts,references] [--limit N] [--min-score S] [--include-linked] [--json]', '?'),
   'stories versions': ('--story <lineage>', 'reads'),
   'videos attach': (None, '?'),

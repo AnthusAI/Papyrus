@@ -740,7 +740,7 @@ def judge_plan(run: Run, plan: dict) -> "preview_gate.GateResult":
 
     def read_request(request_id: str) -> dict:
         try:
-            return review_requests.get_review(client, request_id, sweep=False)
+            return review_requests.get_review(client, request_id)
         except review_requests.ReviewError:  # deleted by an admin: not an approval
             return {"state": "withdrawn"}
 

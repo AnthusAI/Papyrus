@@ -136,7 +136,7 @@ AUTOMATION_FIELDS = (
     "createdBy createdAt updatedBy updatedAt"
 )
 REVIEW_REQUEST_FIELDS = (
-    "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
+    "id subject mode reason ask raisedBy raisedAt deadline state reviewStateKey dueAt answer links history appliedIn updatedAt"
 )
 REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
 LOCALIZATION_REQUEST_FIELDS = (
@@ -496,6 +496,9 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     # A Story's language group: every version of the primary and of each localization, one language with sortEq (item_language.py). Tenant-prefixed.
     # Today (docs/design/always-on-agents-architecture.md section 7.1): the runs of one status inside a time range.
     "procedureRunsByStatus": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_TODAY_FIELDS},
+    # The runs that wait for the budget cycle (PPY-9376f8, spend_stop.py): the same status index, with the wake each one keeps to run again.
+    "procedureRunsWaiting": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt",
+                             "fields": "id tenantId procedureKey runStatus automationId requestedAt wakeKey waitingFor dueAt wake"},
     # The runs that need a person: failed or outcome unknown, not acknowledged (sparse; run_attention.py). Sorted by when they needed attention.
     "procedureRunsByAttention": {"field": "listProcedureRunsByAttentionKeyAndDueAt", "partitionKey": "attentionKey", "sortKey": "dueAt", "fields": PROCEDURE_RUN_ATTENTION_FIELDS},
     # One procedure's runs, newest last, and the definitions of one procedure key (the priming export reads a monitor's runs this way).
@@ -662,6 +665,13 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "accountKey",
         "sortKey": "createdAt",
         "fields": DELIVERY_FIELDS,
+    },
+    # The review requests in one state (review_requests.review_state_key), most recently changed last: open ones for the Notification Center, answered ones for steering (PPY-9b8e59).
+    "reviewRequestsByState": {
+        "field": "listReviewRequestsByReviewStateKeyAndUpdatedAt",
+        "partitionKey": "reviewStateKey",
+        "sortKey": "updatedAt",
+        "fields": REVIEW_REQUEST_FIELDS,
     },
     "deliveriesByDue": {
         "field": "listDeliveriesByDueKeyAndDueAt",

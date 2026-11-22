@@ -4,7 +4,7 @@
     "models": 73,
     "globalModels": 3,
     "modelCases": 505,
-    "indexCases": 231,
+    "indexCases": 232,
     "subscriptionCases": 9,
     "operationCases": 142,
     "functionCases": 76,
@@ -5524,6 +5524,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listReviewRequestsByReviewStateKeyAndUpdatedAt",
+      "kind": "index",
+      "subject": "listReviewRequestsByReviewStateKeyAndUpdatedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listReviewRequestsByReviewStateKeyAndUpdatedAt on ReviewRequest with reviewStateKey at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listSemanticNodesByTenant",
       "kind": "index",
       "subject": "listSemanticNodesByTenant",
@@ -8548,6 +8556,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listReferencesByVersionStateAndUpdatedAt",
       "note": "partition key versionState on Reference is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listReviewRequestsByReviewStateKeyAndUpdatedAt",
+      "note": "partition key reviewStateKey on ReviewRequest is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",

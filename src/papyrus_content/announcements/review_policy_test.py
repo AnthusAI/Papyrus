@@ -57,6 +57,29 @@ def test_an_agent_or_an_open_step_is_no_stamp():
     assert not (stamps.reviewed("by-agent", 3) or stamps.reviewed("still-open", 3) or stamps.reviewed("other-step", 3))
 
 
+def test_an_agent_on_a_persons_recorded_instruction_is_a_delegated_stamp():
+    client = StepsClient()
+    row = checklist._apply(checklist._new_row("slow-water", intake.REVIEW_STEP), "done", {"kind": "agent", "label": "Claude"}, "2026-11-16T10:00:00Z", note="read it",
+                           story_version=3, instruction={"person": "ellie", "quote": "Mark it reviewed"})
+    checklist._write(client, row)
+    assert intake.ChecklistReviewStamps(client).reviewed("slow-water", 3)
+    stamp = checklist.lineage_review_stamp(client, "slow-water", 3)
+    assert (stamp["by"], stamp["delegated"], stamp["agent"], stamp["instruction"]) == ("ellie", True, "Claude", "Mark it reviewed")
+
+
+def test_a_translation_is_stamped_by_its_own_human_review_not_the_review_of_readers():
+    client = StepsClient()
+    procedure = checklist.translation_procedure(checklist.DEFAULT_PROCEDURE)
+    for key, state_ in (("translate", "done"), ("human_review", "open")):
+        checklist._write(client, checklist._apply(checklist._new_row("slow-water--es-419", key, procedure), state_, {"kind": "system", "label": "run"}, "2026-11-16T10:00:00Z",
+                                                  story_version=1))
+    mark(client, "slow-water--es-419", intake.REVIEW_STEP, "done", "person", 1)   # a row of the old Story template on a translation is not its review
+    assert not intake.ChecklistReviewStamps(client).reviewed("slow-water--es-419", 1)
+    checklist._write(client, checklist._apply(checklist.read_steps(client, "slow-water--es-419")[1], "done", {"kind": "person", "label": "Ana"}, "2026-11-16T11:00:00Z",
+                                              note="read it", story_version=1))
+    assert checklist.lineage_review_stamp(client, "slow-water--es-419", 1)["step"] == "human_review"
+
+
 def test_the_rung_gives_the_approval_and_a_missing_entry_prepares_nothing():
     assert [review_policy.choose(state({"rung": rung}), channel="x", kind="k").approval for rung in ("prepare", "publish_soft", "publish_auto")] == ["hard", "soft", "none"]
     for rung in ("off", "observe", "propose", "draft"):

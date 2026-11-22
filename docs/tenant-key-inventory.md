@@ -17,8 +17,8 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 
 ## Counts
 
-- 73 models, 231 indexes.
-- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 71, global 103.
+- 73 models, 232 indexes.
+- Indexes by class: tenant-prefixed 42, corpus-prefixed 15, record-id 71, global 104.
 - Indexes that list a tenant once prefixed: 75; dense indexes: 106.
 - Models: 60 with an index that lists a tenant, 5 that need a tenantId index (the list for PPY-1ce06f), 3 global by design, 5 with no tenantId field.
 
@@ -80,7 +80,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `ReferenceAttachment` | 5 | yes | `listReferenceAttachmentsByTenant` |
 | `ReviewReadMark` | 1 | yes | `listReviewReadMarksByTenant` |
 | `ReviewRecipientRule` | 1 | yes | `listReviewRecipientRulesByTenant` |
-| `ReviewRequest` | 1 | yes | `listReviewRequestsByTenant` |
+| `ReviewRequest` | 2 | yes | `listReviewRequestsByTenant` |
 | `SemanticNode` | 7 | yes | `listSemanticNodesByTenant` |
 | `SemanticRelation` | 10 | yes | `listSemanticRelationsByTenant` |
 | `SemanticRelationType` | 3 | yes | `listSemanticRelationTypesByDomainAndLabel`, `listSemanticRelationTypesByStatusAndLabel` |
@@ -189,6 +189,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `relationDomain` | global | closed | `SemanticRelation` |
 | `relationTypeKey` | global | closed | `SemanticRelation` |
 | `responseTarget` | global | closed | `Message` |
+| `reviewStateKey` | global | closed | `ReviewRequest` |
 | `reviewedFeedKey` | global | one | `Reference` |
 | `role` | global | closed | `KnowledgeCorpus`, `MediaAsset`, `ModelAttachment`, `PublishedMediaAsset`, `UserRoleAssignment` |
 | `runStatus` | global | closed | `ProcedureRun` |
@@ -413,6 +414,7 @@ An index lists a tenant when its keys cover every row of the tenant and one or a
 | `ReviewReadMark` | `listReviewReadMarksByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ReviewRecipientRule` | `listReviewRecipientRulesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `ReviewRequest` | `listReviewRequestsByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
+| `ReviewRequest` | `listReviewRequestsByReviewStateKeyAndUpdatedAt` | `reviewStateKey` | `updatedAt` | global | closed | no | no |
 | `SemanticNode` | `listSemanticNodesByTenant` | `tenantId` | `id` | tenant-prefixed | one | no | yes |
 | `SemanticNode` | `listSemanticNodesByLineageAndVersion` | `lineageId` | `versionNumber` | record-id | open | yes | no |
 | `SemanticNode` | `listSemanticNodesByVersionStateAndUpdatedAt` | `versionState` | `updatedAt` | global | closed | no | no |

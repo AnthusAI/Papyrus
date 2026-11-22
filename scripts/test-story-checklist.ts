@@ -6,6 +6,7 @@ import {
   checklistProgressText,
   formatStepTime,
   projectStoryStepIssues,
+  skipVersionText,
   stepActorText,
   stepChangeProblem,
   noteProblem,
@@ -62,9 +63,12 @@ test("steps are Kanbus sub-tasks of the Story card, in template order, with thei
 
 test("who and when read in plain words", () => {
   assert.equal(stepActorText({ actorKind: "agent", actorLabel: "AI" }), "AI (agent)");
+  assert.equal(stepActorText({ actorKind: "agent", actorLabel: "Claude", onBehalfOf: "Ryan" }), "Claude (agent, on the instruction of Ryan)");
   assert.equal(stepActorText({ actorKind: "person", actorLabel: "Ryan" }), "Ryan");
   assert.equal(stepActorText({ actorKind: "system", actorLabel: "evidence" }), "evidence");
   assert.equal(stepActorText({}), "");
+  assert.equal(skipVersionText({ state: "skipped", storyVersion: 3, changeKind: "picture_only" }), "Skipped on v3 (picture only): ");
+  assert.equal(skipVersionText({ state: "not_applicable", storyVersion: 3 }), "Reason: ");
   assert.equal(formatStepTime("2026-11-07T10:00:00.000Z"), "7 Nov 2026, 10:00 UTC");
   assert.equal(formatStepTime(null), "");
   assert.equal(formatStepTime("nonsense"), "");

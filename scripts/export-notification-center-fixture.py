@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Read-only export of one site's review requests, for the local Notification Center preview.
 
-Reads ReviewRequests through the AppSync API with IAM (SigV4). Nothing is written to AWS. The
+Reads ReviewRequests through the AppSync API with IAM (SigV4), one state at a time from the review request state index (never by
+listing the table; pass --tenant on a shared stack, whose state keys have the tenant in front). Nothing is written to AWS. The
 fixture holds no people: who answered, who decided and the history of every request are dropped, and the export refuses to write
 if anything that looks like an email address or an AWS ARN is left in it. The pending References, their pictures and the
 Cyclotron's predictions come from the References fixture (scripts/export-reference-feed-fixture.py). A batch of ideas links to the
@@ -27,6 +28,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REQUEST_FIELDS = "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
+STATES = ("open", "answered", "timed_out", "withdrawn")
+STATE_FIELD = "listReviewRequestsByReviewStateKeyAndUpdatedAt"
 JSON_FIELDS = ("subject", "answer", "links", "history", "appliedIn")
 PERSON = "an editor"
 SENSITIVE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+|arn:aws[\w:/.-]*")
@@ -70,10 +73,23 @@ def anonymous_request(row: dict) -> dict:
     return out
 
 
+def requests_in_state(export, session, url: str, region: str, state_key: str) -> list[dict]:
+    query = (f"query($k:String!,$t:String){{ {STATE_FIELD}(reviewStateKey:$k,limit:1000,nextToken:$t){{ items{{ {REQUEST_FIELDS} }} nextToken }} }}")
+    rows: list[dict] = []
+    token = None
+    while True:
+        page = export.signed_graphql(session, url, region, query, {"k": state_key, "t": token})[STATE_FIELD]
+        rows += [row for row in page["items"] if row]
+        token = page["nextToken"]
+        if not token:
+            return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--graphql-url", required=True)
     parser.add_argument("--region", default="us-east-1")
+    parser.add_argument("--tenant", default="", help="the tenant in front of the state keys on a shared stack")
     parser.add_argument("--output", default=str(ROOT / ".local-preview" / "notification-center-fixture.json"))
     args = parser.parse_args()
     if not args.graphql_url.startswith("https://") or "appsync-api" not in args.graphql_url:
@@ -86,7 +102,8 @@ def main() -> None:
     account = session.client("sts").get_caller_identity()["Account"]
     print(f"read-only export as account {account}", file=sys.stderr)
 
-    rows = export.list_all(session, args.graphql_url, args.region, "listReviewRequests", REQUEST_FIELDS)
+    prefix = f"{args.tenant}#" if args.tenant else ""
+    rows = [row for state in STATES for row in requests_in_state(export, session, args.graphql_url, args.region, f"{prefix}review#{state}")]
     fixture = {
         "schema": "papyrus-notification-center-fixture/1",
         "exportedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),

@@ -47,6 +47,7 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_rate_items",
                 "papyrus_record_editor_review",
                 "papyrus_related_concepts",
+                "papyrus_review_deadline",
                 "papyrus_save_story_version",
                 "papyrus_search_concepts",
                 "papyrus_set_story_slug",

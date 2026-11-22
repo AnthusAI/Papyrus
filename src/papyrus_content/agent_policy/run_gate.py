@@ -9,12 +9,15 @@
 * **The policy is read at the start of every run**, the live version only: one get of the catalogue row, one get of the version
   row, one read of the body from S3 (``SiteStore``). A policy that cannot be read raises ``PolicyUnreadable``; the runner records the
   run as failed. Nothing starts as before.
+* **The engine's own follow-ups are not an agent's wake** (``engine_follow_ups.py``): a soft review's deadline wake starts with no adopted
+  automation and no rung; only the site's pause stops it.
 * **A person's own command is not an agent's wake.** ``PersonStart`` is the gate for a run a person starts in their own session
   (``papyrus stories localize``): a person's action is never limited by an agent's rung (architecture section 5.4). It records no
   responsibility, rung or policy version, because none applied.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
@@ -44,12 +47,25 @@ class RunDecision:
     reason_code: str | None = None     # not_adopted, rung_off or paused when nothing starts
     reason: str | None = None          # the same in words, for the run record and the person reading it
     state: Any = field(default=None, compare=False, repr=False)   # the policy as read for this run: the run's gate answers come from it
+    paid: bool | None = None           # the registered definition's `paid`; None when no definition says, which the spend brake counts as paid (PPY-9376f8)
 
     def run_fields(self) -> dict[str, Any]:
         """What the run's record carries, started or skipped. Absent for a person's own run."""
         if self.responsibility is None and self.rung is None:
             return {}
         return {"responsibility": self.responsibility, "rung": self.rung, "policyVersion": self.policy_version}
+
+
+def registered_paid(row: dict[str, Any]) -> bool | None:
+    """Whether the automation's registered definition calls a paid model (``paid`` in agent_definitions), or None when it has no registered definition."""
+    definition = row.get("definition")
+    if isinstance(definition, str):
+        try:
+            definition = json.loads(definition)
+        except ValueError:
+            return None
+    paid = definition.get("paid") if isinstance(definition, dict) else None
+    return paid if isinstance(paid, bool) else None
 
 
 class Gate(Protocol):
@@ -97,6 +113,10 @@ class PolicyGate:
         return cls(client, policy=AgentPolicyStore(SiteStore(s3, bucket, SiteCatalogue(client))), tenant_id=tenant_id)
 
     def decide(self, request: dict) -> RunDecision:
+        from ..engine_follow_ups import engine_follow_up_of
+
+        if engine_follow_up_of(request):
+            return self._decide_engine_follow_up()
         automation_id = (request.get("trigger") or {}).get("automationId")
         if not automation_id:
             return RunDecision(False, reason_code=NOT_ADOPTED, reason="This run names no automation, so no responsibility is adopted for it.")
@@ -111,6 +131,17 @@ class PolicyGate:
             raise PolicyUnreadable(f"The agent policy could not be read: {type(error).__name__}: {error}") from error
         decision = decide_start(state, responsibility, {})
         if decision.start:
-            return RunDecision(True, responsibility, decision.rung, decision.policy_version, state=state)
+            return RunDecision(True, responsibility, decision.rung, decision.policy_version, state=state, paid=registered_paid(row))
         code = PAUSED if decision.reason_code == "paused" else RUNG_OFF
         return RunDecision(False, responsibility, decision.rung, decision.policy_version, code, decision.reason)
+
+    def _decide_engine_follow_up(self) -> RunDecision:
+        """One of the engine's own follow-ups (engine_follow_ups.py): no agent is adopted for it and no rung applies; only the site's pause stops it."""
+        try:
+            state = self._policy.read(self._tenant_id)
+        except Exception as error:
+            raise PolicyUnreadable(f"The agent policy could not be read: {type(error).__name__}: {error}") from error
+        site = state.document.get("site", {})
+        if site.get("paused"):
+            return RunDecision(False, reason_code=PAUSED, reason=f"The site is paused: {site.get('pausedReason')}")
+        return RunDecision(True)

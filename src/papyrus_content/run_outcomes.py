@@ -35,6 +35,8 @@ BEFORE_OUTCOMES = "Recorded before outcomes"
 NOT_FINISHED = "Not finished yet"
 NO_RUN_RECORD = "No run record"
 FINISHED_STATUSES = ("completed", "failed")
+# A run that has not started because it waits (for the budget cycle, spend_stop.py): no outcome yet, a reason and a time instead.
+WAITING, WAITING_MARK = "waiting", "‖"
 
 PROCEDURE_ERROR, TIMED_OUT, INVALID_OUTCOME, NOT_RUNNABLE = "procedure_error", "timed_out", "invalid_outcome", "not_runnable"
 # A run the runner did not start because the site's policy could not be read is `failed` for this reason. A policy that says not to
@@ -104,4 +106,7 @@ def outcome_shown(run: dict | None, row: dict | None = None) -> str:
         return outcome_text(str(outcome), source.get("outcomeReason"))
     if run is None:
         return NO_RUN_RECORD
+    if run.get("runStatus") == WAITING:
+        due = f" until {run['dueAt']}" if run.get("dueAt") else ""
+        return f"{WAITING_MARK} Waiting ({run.get('waitingFor') or 'no reason recorded'}){due}"
     return BEFORE_OUTCOMES if run.get("runStatus") in FINISHED_STATUSES else NOT_FINISHED

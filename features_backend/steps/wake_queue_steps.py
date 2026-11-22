@@ -100,6 +100,10 @@ class SiteBackend(tpr.NewsroomClient):
             self.records[variables["input"]["id"]].update(variables["input"])
         return result
 
+    def get_record(self, model, record_id):   # the runner reads a duplicate wake's record: it may be waiting for the budget cycle (spend_stop.py)
+        assert model == "ProcedureRun", model
+        return self.records.get(record_id)
+
 
 class Lambda:
     def get_remaining_time_in_millis(self):

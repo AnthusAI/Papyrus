@@ -770,7 +770,7 @@ def operator_story_next(client, lineage_id: str) -> dict:
     raw = read_steps(client, lineage_id)
     assessment = resolve(assess(facts), raw, facts)
     procedure = Procedure.from_spec(facts.get("procedureSpec"))
-    stored = steps_for_display(raw, lineage_id, procedure)
+    stored = steps_for_display(raw, lineage_id, procedure, current_version=int(facts["versionNumber"]))
     states = {row["key"]: row["state"] for row in assessment["steps"] if row["source"] == "checklist"}
     return {"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
             "currentVersion": facts["versionNumber"], "checklist": stored,
@@ -788,12 +788,15 @@ def story_next_rows(result: dict) -> list[str]:
 
 
 def stories_step(flags: list[str]) -> None:
-    """papyrus stories step --story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]
+    """papyrus stories step --story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME]
+                           [--on-instruction-of PERSON --quote TEXT] [--dry-run]
 
     Marks one step of the Story's checklist and records who did it and when. A skipped or not-applicable step needs --reason; a review step needs --note
     (the findings) to be done; only a person reopens a step (--state open). With --note and no --state it adds a note to the step and changes nothing
     else: notes accumulate (who, when, text), can be added to any step in any state, and are never edited or deleted. The change records the Story version it was made against;
-    a done review or copy edit reads STALE in `stories next` once the Story has a newer version, until you record it again. --agent NAME says an agent made the change; without it the actor is a person."""
+    a done review or copy edit reads STALE in `stories next` once the Story has a newer version, until you record it again. --agent NAME says an agent made the change; without it the actor is a person.
+    An agent closes the review step (review_people; a translation's human_review) only on a person's instruction: --on-instruction-of names the person and --quote
+    gives their words, both recorded with the change; without them it is refused (delegation-required)."""
     from .story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
 
     options = parse_options(flags)
@@ -820,9 +823,10 @@ def stories_step(flags: list[str]) -> None:
         return
     try:
         row = set_step(client, lineage_id, key, state, actor=actor, reason=normalize_string(options.get("reason")),
-                       note=normalize_string(options.get("note")), evidence=normalize_string(options.get("evidence")))
+                       note=normalize_string(options.get("note")), evidence=normalize_string(options.get("evidence")),
+                       instruction={"person": normalize_string(options.get("on-instruction-of")), "quote": normalize_string(options.get("quote"))})
     except ChecklistError as error:
-        raise ValueError(str(error)) from error
+        raise ValueError(f"{error.code}: {error}" if error.code else str(error)) from error
     print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\t{row['state']}\twrite")
 
 
