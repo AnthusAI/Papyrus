@@ -23,7 +23,7 @@ from typing import Any, Callable
 from . import spend_ledger
 
 HALTED, BUDGET_REACHED, SPEND_UNREADABLE = "halted", "budget_reached", "spend_unreadable"
-DEFAULT_BUDGET_USD = Decimal("100")
+DEFAULT_BUDGET_USD = Decimal("10")   # Ryan 2026-11-22: a site with no budget gets $10 a month
 DEFAULT_PERIOD = "month"
 DEFAULT_BUDGET_VARIABLE = "PROCEDURE_RUNNER_DEFAULT_BUDGET_USD"
 
