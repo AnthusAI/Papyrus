@@ -300,6 +300,8 @@ _ENTRIES = dict([
      "[--dir DIR] [--core DIR] [--root DIR] [--dry-run | --check]", "operator", "dry-run"),
   _e("agents set-rung", "Set how far one agent may go on this site (off, observe, propose, draft, prepare, publish_soft, publish_auto): writes its rung into the agent policy document as a new version with who, when and why. Admin who is a person only. A dry run that prints the policy entry before and after unless --apply. Refuses an unknown rung, a rung above what the agent's definition needs, and publish_auto while a hard floor forbids it.",
      "--id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE]... [--dir DIR] [--core DIR] [--apply]", "editor", "apply", ""),
+  _e("agents set-budget", "Set the site's AI budget for paid agent work (an amount in US dollars for each day, week or month): a new version of the agent policy with who, when and why. Admin who is a person only. At the budget paid wakes wait for the next cycle and one flag a cycle is raised; --apply also puts the waiting wakes back on the queue, oldest first, and each re-checks the new budget. A dry run that prints the budget before and after and the waiting wakes unless --apply.",
+     "--amount USD --period day|week|month --reason TEXT [--apply]", "editor", "apply", ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
@@ -467,7 +469,7 @@ GROUP_ORDER = {
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "schedule-suggest", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "pod": ["init", "id", "check", "build", "load"],
-  "agents": ["validate", "apply", "schedules", "listeners", "set-rung"],
+  "agents": ["validate", "apply", "schedules", "listeners", "set-rung", "set-budget"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],

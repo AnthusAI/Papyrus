@@ -160,6 +160,17 @@ class FollowUpTimers:
         return str(request["wakeKey"])
 
 
+    def wake_again_at(self, record_kind: str, record_id: str, request: Mapping[str, Any], *, due_at: str) -> str:
+        """Set the one timer of a record whose message is a wake that already has its run record (``request``, with its own key), due at ``due_at``. A later call
+        for the same record moves the entry and replaces its message. The budget's cycle timer (spend_stop.py, PPY-9376f8) is one per site and cycle."""
+        parse_utc(due_at)
+        wake = agent_wakes.wake_of(dict(request))
+        target = {"Arn": self.queue_arn, "RoleArn": self.role_arn, "Input": agent_wakes.message_body(dict(request)),
+                  "SqsParameters": {"MessageGroupId": agent_wakes.group_id(wake)}}
+        self.schedules.set(entry_name(record_kind, record_id), due_at, target, description=f"Wakes {wake['agent']} for {record_kind} {record_id} at {due_at}")
+        return str(request["wakeKey"])
+
+
 # --- the run's first check -----------------------------------------------------------------------------------------------------
 
 

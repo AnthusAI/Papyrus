@@ -98,11 +98,13 @@ def message_body(request: dict) -> str:
     return json.dumps({"wake": wake, "request": {name: value for name, value in request.items() if name != "wakeKey"}}, sort_keys=True, default=str)
 
 
-def send_wake(sqs, queue_url: str, request: dict) -> dict[str, str]:
+def send_wake(sqs, queue_url: str, request: dict, *, deduplication: str | None = None) -> dict[str, str]:
     """Puts one wake on the queue and returns it. A wake whose key is already on the queue inside SQS's five-minute window is dropped by the queue;
-    after that the run record's own condition drops it (the runner answers `duplicate`)."""
+    after that the run record's own condition drops it (the runner answers `duplicate`). ``deduplication`` names a sending of a wake that already has its run
+    record, such as releasing a wake that waited for the budget (spend_stop.py): that sending is its own message, and the record still makes it one run."""
     wake = wake_of(request)
-    sqs.send_message(QueueUrl=queue_url, MessageBody=message_body(request), MessageGroupId=group_id(wake), MessageDeduplicationId=deduplication_id(wake))
+    sqs.send_message(QueueUrl=queue_url, MessageBody=message_body(request), MessageGroupId=group_id(wake),
+                     MessageDeduplicationId=digest(deduplication) if deduplication else deduplication_id(wake))
     return wake
 
 
@@ -111,7 +113,7 @@ def wake_sender(sqs: Any = None) -> Callable[[dict], None]:
     from the request's publication id and looked up once. A site whose queue does not exist yet raises, and the caller records the start as failed."""
     urls: dict[str, str] = {}
 
-    def send(request: dict) -> None:
+    def send(request: dict, deduplication: str | None = None) -> None:
         client = sqs
         if client is None:
             import boto3  # provided by the Lambda runtime and the operator's environment
@@ -119,7 +121,7 @@ def wake_sender(sqs: Any = None) -> Callable[[dict], None]:
         name = queue_name(request.get("publicationId"))
         if name not in urls:
             urls[name] = client.get_queue_url(QueueName=name)["QueueUrl"]
-        send_wake(client, urls[name], request)
+        send_wake(client, urls[name], request, deduplication=deduplication)
     return send
 
 
