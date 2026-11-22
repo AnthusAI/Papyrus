@@ -57,15 +57,15 @@ class ChecklistClient:
 
 
 class ChecklistStamps(intake.ChecklistReviewStamps):
-    """PROVISIONAL human review stamp, read the way production reads it (``intake.ChecklistReviewStamps``): a Story's checklist step ``review_people`` done by a person
-    against the Story's current version. Ryan has not confirmed this definition. ``mark`` is what a person or an agent does to the step."""
+    """The human review stamp, read the way production reads it (``intake.ChecklistReviewStamps``): a Story's checklist step ``review_people`` done against the
+    Story's current version by a person, or by an agent on a person's recorded instruction. ``mark`` writes the step's row as a person or an agent left it."""
 
     def __init__(self) -> None:
         super().__init__(ChecklistClient())
 
-    def mark(self, lineage_id: str, version: int, state: str, actor_kind: str) -> None:
+    def mark(self, lineage_id: str, version: int, state: str, actor_kind: str, instruction: dict | None = None) -> None:
         row = checklist._apply(checklist._new_row(lineage_id, intake.REVIEW_STEP), state, {"kind": actor_kind, "label": "Someone"}, "2026-11-16T10:00:00Z",
-                               note="read it", story_version=version)
+                               note="read it", story_version=version, instruction=instruction)
         checklist._write(self.client, row)
 
 
@@ -201,6 +201,11 @@ def person_reviews(context, version, lineage):
 @given('an agent has marked the review step done on version {version:d} of the Story "{lineage:R}"')
 def agent_reviewed(context, version, lineage):
     context.stamps.mark(lineage, version, "done", "agent")
+
+
+@given('an agent on the instruction of "{person}" has marked the review step done on version {version:d} of the Story "{lineage:R}"')
+def agent_reviewed_on_instruction(context, person, version, lineage):
+    context.stamps.mark(lineage, version, "done", "agent", {"person": person, "quote": "I read it; mark it reviewed"})
 
 
 @given('a person has opened the review step again on version {version:d} of the Story "{lineage:R}"')

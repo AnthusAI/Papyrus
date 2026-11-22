@@ -165,8 +165,10 @@ _ENTRIES = dict([
      "[--story LINEAGE] [--body-file FILE] [--front-matter-file FILE] [--language TAG] [--json]  (--story alone: the current version against the one before it; --body-file: a draft before it is saved, against the story's current version when --story is given; a draft with no --story needs --language)", "both", "reads", "checks"),
   _e("stories next", "Print each procedure step with its state, then what is next (the checklist).", "--story LINEAGE [--json]", "both", "reads", "checks"),
   _e("stories step", "Set one checklist step's state, or add a note to it.",
-     "--story LINEAGE --step KEY [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]  "
-     "(skipped and not_applicable need --reason; a review step needs --note with the findings)", "both", _DRY, "checks"),
+     "--story LINEAGE --step KEY [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] "
+     "[--on-instruction-of PERSON --quote TEXT] [--dry-run]  "
+     "(skipped and not_applicable need --reason; a review step needs --note with the findings; an agent closes review_people or human_review only with --on-instruction-of and --quote)",
+     "both", _DRY, "checks"),
   _e("stories note", "Add a person's note to a Story.",
      "--story LINEAGE (--body TEXT | --body-file FILE) [--summary TEXT] [--kind note|research_packet|reporting_context_packet|draft_note|editor_note] [--reference LINEAGE] [--version N] [--author-label NAME] [--dry-run]",
      "both", _DRY, ""),
