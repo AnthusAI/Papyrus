@@ -8,18 +8,19 @@ procedure. Any other wake, follow-up or not, goes through the policy as before.
 What still applies: the site's pause (``site.paused`` in the agent policy, the "pause every agent on a site" switch). A paused site starts no engine follow-up either; the
 request keeps its due time and is shown as Overdue until the site resumes. A per-agent pause and a rung do not apply: there is no agent.
 
-A Delivery's ``deliver`` owner is not on the list: no production code sets a Delivery's timer yet (``DeliveryTimers`` is constructed only in specs) and its handler,
-``delivery_lock.on_wake``, locks but does not send. It joins the list with the procedure that does both.
+The list: a soft review's deadline (``review-deadline`` -> ``review_deadline``, review_deadline_timers.py) and a Delivery's due time, the scheduled send (``deliver`` ->
+``deliver_due``, announcements/delivery_timers.py and announcements/deliver_due.py, PPY-e2829f).
 """
 from __future__ import annotations
 
 from typing import Any, Mapping
 
 from . import follow_up_timers, wake_keys
+from .announcements.delivery_timers import OWNER as DELIVER_OWNER, PROCEDURE_KEY as DELIVER_PROCEDURE
 from .review_deadline_timers import OWNER as REVIEW_DEADLINE_OWNER, PROCEDURE_KEY as REVIEW_DEADLINE_PROCEDURE
 
 #: Owner in the wake key -> the one procedure that handles its wakes.
-ENGINE_FOLLOW_UPS: Mapping[str, str] = {REVIEW_DEADLINE_OWNER: REVIEW_DEADLINE_PROCEDURE}
+ENGINE_FOLLOW_UPS: Mapping[str, str] = {REVIEW_DEADLINE_OWNER: REVIEW_DEADLINE_PROCEDURE, DELIVER_OWNER: DELIVER_PROCEDURE}
 
 
 def engine_follow_up_of(request: Mapping[str, Any]) -> str | None:

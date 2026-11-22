@@ -1,6 +1,6 @@
 /**
- * Locks the signed-in admin's grant on the agent policy document (amplify/agents/admin-policy-grant.ts; docs/release-5-130-plan.md, 1.5):
- * put and get on `tenants/*\/site/agents/*` in the media bucket, on the admin group's role only, in a stack of its own.
+ * Locks the signed-in admin's read on the agent policy document (amplify/agents/admin-policy-grant.ts; docs/release-5-130-plan.md, 1.5):
+ * get on `tenants/*\/site/agents/*` in the media bucket, on the admin group's role only, in a stack of its own.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,11 +27,11 @@ assert.deepEqual(
     {
       Sid: ADMIN_AGENT_POLICY_GRANT_SID,
       Effect: "Allow",
-      Action: ["s3:GetObject", "s3:PutObject"],
+      Action: "s3:GetObject",
       Resource: `${BUCKET_ARN}/tenants/*/site/agents/*`,
     },
   ],
-  "exactly one statement: get and put on the agent policy prefix, no delete, no list, nothing else",
+  "exactly one statement: get on the agent policy prefix, no put, no delete, no list, nothing else",
 );
 assert.equal(policy.Properties.Roles.length, 1, "attached to one role");
 const attached = JSON.stringify(policy.Properties.Roles);

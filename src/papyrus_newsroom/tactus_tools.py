@@ -96,6 +96,16 @@ def papyrus_review_deadline(review_request_id: str, due_at: str) -> dict:
     return deadline_run(create_authoring_client()[0], review_request_id, due_at)
 
 
+def papyrus_deliver_due(delivery_id: str, due_at: str) -> dict:
+    """The engine's run for a Delivery's due time (the scheduled send): read the Delivery again and, if it still waits for exactly ``due_at``, raise its lock when the lock
+    time has come (soft review: approved by the policy when nobody acted; hard review with no approval: one flag, nothing sent), then send what is due through the
+    announce agent's deliver steps, with their guards (mode, account, pause, budget). A moved or cleared time means it does nothing."""
+
+    from papyrus_content.announcements.deliver_due import deliver_due
+
+    return deliver_due(delivery_id, due_at)
+
+
 def papyrus_announce_story(story: str = "", version: str = "", change: str = "", what: str = "", stage: str = "") -> dict:
     """The announce agent's run for one wake: a Story's page went live (stage_entered into published) or its rating changed (rated). Re-reads the Story as it is now and
     decides from the records, never from the wake: one Announcement and one email Delivery for the Story at a rung the site's policy allows, once however many wakes

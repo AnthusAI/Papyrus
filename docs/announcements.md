@@ -4,6 +4,8 @@ Status: X is built on the Announcement and Delivery records (PPY-efd06c, slice 3
 
 A Story that qualifies is announced once on the publication's own X account, automatically. X is **one channel of the Story's Announcement**: the announce agent (woken by the Item change feed when a page goes live or a rating changes) asks whether the Story qualifies on X, and the Announcement is made together with its first Delivery, or the X Delivery is added to the Announcement that already exists. How much human review a Delivery gets is the announce rung of the agent policy ([review policy](announcement-records.md#review-policy-ppy-97c0f2)); the text itself passes the automatic checks or is not sent.
 
+**When it posts.** A Delivery is drafted with an edit window (`editWindows` in the announcement settings) and posts by itself at its time: under `soft` review it goes unless a person edits, stops or holds it first; under `hard` it waits for a person's release, and its lock time with no approval raises one flag. The engine's `deliver_due` run does it, woken by the Delivery's own timer, with the same guards as every send. How to configure "post N minutes after drafting unless a person steps in": [the scheduled send](announcement-records.md#the-scheduled-send-ppy-e2829f).
+
 ## What decides
 
 `src/papyrus_content/announcements/`:

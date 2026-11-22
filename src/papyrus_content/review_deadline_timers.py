@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from .follow_up_timers import FollowUpTimers, follow_up_request
+from .follow_up_timers import FollowUpTimers, SiteNotNamed, follow_up_request, site_follow_ups
 
 OWNER = "review-deadline"
 RECORD_KIND = "ReviewRequest"
@@ -33,20 +33,11 @@ class ReviewDeadlineTimers:
     def from_environment(cls, environment: Mapping[str, str], *, appsync_endpoint: str, client: Any = None) -> ReviewDeadlineTimers:
         """The timers of the site this process works for, named as the site's functions name them: ``PAPYRUS_AGENT_PUBLICATION_ID``, ``PAPYRUS_AWS_ACCOUNT_ID`` and
         ``AWS_REGION`` are required (``PAPYRUS_AWS_PARTITION``, ``PAPYRUS_TENANT_ID`` and ``PAPYRUS_SITE_BUCKET`` are carried when set)."""
-        def value(name: str) -> str:
-            return str(environment.get(name) or "").strip()
-
-        missing = [name for name in ("PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_AWS_ACCOUNT_ID", "AWS_REGION") if not value(name)]
-        if missing:
-            raise ReviewDeadlineTimerError(f"a soft review with a deadline sets a follow-up timer on the site's schedule group, which needs {', '.join(missing)}")
-        publication = value("PAPYRUS_AGENT_PUBLICATION_ID")
-        timers = FollowUpTimers.for_site(publication, account=value("PAPYRUS_AWS_ACCOUNT_ID"), region=value("AWS_REGION"),
-                                         partition=value("PAPYRUS_AWS_PARTITION") or "aws", client=client)
-        base: dict[str, Any] = {"publicationId": publication, "appsyncEndpoint": appsync_endpoint, "procedureKey": PROCEDURE_KEY,
-                                "actorLabel": "Papyrus review deadline"}
-        for name, variable in (("tenantId", "PAPYRUS_TENANT_ID"), ("siteBucket", "PAPYRUS_SITE_BUCKET")):
-            if value(variable):
-                base[name] = value(variable)
+        try:
+            timers, base = site_follow_ups(environment, appsync_endpoint=appsync_endpoint, procedure_key=PROCEDURE_KEY, actor_label="Papyrus review deadline",
+                                           needed_for="a soft review with a deadline", client=client)
+        except SiteNotNamed as missing:
+            raise ReviewDeadlineTimerError(str(missing)) from missing
         return cls(timers, base)
 
     def _base_request(self, row: Mapping[str, Any]) -> dict[str, Any]:

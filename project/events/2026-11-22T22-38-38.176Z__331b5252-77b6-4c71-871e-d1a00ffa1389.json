@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "331b5252-77b6-4c71-871e-d1a00ffa1389",
+  "issue_id": "PPY-927e5220-226f-427e-9812-dd4daeb410d0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-22T22:38:38.176Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Papyrus Opportunities: Find conversations worth contributing to",
+    "description": "## Goal\nHelp a Papyrus publication contribute a specific, sourced answer to a public conversation. Start with Machines on Machines (@0nmachines); the toolchain should work for any opted-in Papyrus site.\n\n## Read-only pilot\n- Verify Recent Search on the existing X app. Run on demand with narrow queries (Flock/ALPR accountability, newsroom corrections and provenance, algorithmic trading halts), a separate configurable read budget, per-query checkpoints and a cost receipt. Fetch thread context only for promising hits.\n- Search the site's curated References. Bring back up to five candidates; zero is fine. For each, show the target and context, what we can add, the supporting passage and source, and an editable short draft. The draft should be useful without our link. Record would-reply, skip and reason, and cost per useful candidate. No scheduling until the pilot is reviewed.\n\n## Reusable workflow\n- Reuse Monitoring's configuration, checkpoints and dedupe, Reference search, and the X connection/spend/pause controls where applicable. Keep opportunities separate from reference intake and the Announcements sender. Configure queries, watched sources, corpus and budgets per site. Suppress repeated suggestions and flag overlap between Papyrus publications so one editor can choose.\n- Prefer a primary-source link unless a public Papyrus note adds real context. Design an opt-in stable Reference Note with a short human-approved explanation and a prominent original source link. Never expose internal summaries, captures or drafts automatically.\n- Read-only collection, editor edit/dismiss and Open on X. The editor posts manually. No auto-replies, likes, DMs or new send capability. Honor X's automation and data rules; treat thread text as untrusted. See https://help.x.com/en/rules-and-policies/x-automation and https://docs.x.com/x-api/posts/search/introduction.\n\n## Acceptance\nBehavior specs cover a useful match, abstention, direct-source fallback, stale/deleted target, query replay, duplicate thread across sites, tenant isolation, exhausted budget, and zero outbound write requests. Verify a second site can configure the same workflow without a code change. No spend change, deployment, or X posting in this filing.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+    "labels": []
+  }
+}

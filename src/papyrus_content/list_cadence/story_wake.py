@@ -176,12 +176,6 @@ def default_services(environ: Mapping[str, str]) -> Services:
     from papyrus_content.announcements.eligibility import load_story
     from papyrus_content.announcements.handlers import ORIGIN_ENV, STYLE_ENV, Functions, x_services
     from papyrus_content.announcements.intake import ChecklistReviewStamps
-    from papyrus_content.announcements.spend import ledger_from_environment
-    from papyrus_content.announcements.x_delivery import send_due
-    from papyrus_content.announcements.x_runner import SpendControl
-    from papyrus_content.announcements.email_channel import CaducusEmail
-    from papyrus_content.announcements.email_delivery import send_due_email
-    from papyrus_content.notifications.runtime import build_runtime
 
     def origin() -> str:
         value = (environ.get(ORIGIN_ENV) or "").strip()
@@ -191,17 +185,47 @@ def default_services(environ: Mapping[str, str]) -> Services:
 
     draft = alert_drafter(lambda lineage: load_story(client, lineage, item_url_style=environ.get(STYLE_ENV, "html")), origin)
     functions = Functions(client)
-    announcements = Announcements(client)
+    # Every Delivery this run writes sets its follow-up timer, so a Delivery that may not go yet (its edit window, its review) is sent at its time with nobody looking (deliver_due.py).
+    deliveries = Deliveries(client, timers=site_delivery_timers(environ, client))
+    announcements = Announcements(client, deliveries)
+    send_x, send_email = deliver_steps(client, environ, deliveries, announcements, lists=lambda: settings.read(tenant).document["lists"], functions=functions)
+    return Services(state=lambda: settings.read(tenant), announcements=announcements, read_story=lambda lineage: read_candidate(client, lineage, issue_types_of(settings.read(tenant).document)), draft=draft,
+                    account_id=tenant, x=x_services(client, environ, model=True, functions=functions), stamps=ChecklistReviewStamps(client), edit_settings=functions.read,
+                    send_x=send_x, send_email=send_email)
+
+
+def site_delivery_timers(environ: Mapping[str, str], client: Any) -> Any:
+    """The site's follow-up timers for its Deliveries (``delivery_timers.DeliveryTimers``), named by the runner's environment (``procedure_runner.child_environment``). A run that
+    writes Deliveries without them would leave a Delivery that nobody sends at its time, so a run that does not have them stops."""
+    from papyrus_content.announcements.delivery_timers import DeliveryTimers
+    from papyrus_content.follow_up_timers import SiteNotNamed
+
+    try:
+        return DeliveryTimers.from_environment(environ, appsync_endpoint=client.endpoint)
+    except SiteNotNamed as missing:
+        raise StoryWakeError(str(missing)) from missing
+
+
+def deliver_steps(client: Any, environ: Mapping[str, str], deliveries: Any, announcements: Announcements, *, lists: Callable[[], Mapping[str, Any]],
+                  functions: Any = None) -> tuple[Callable[[str | None], list[dict[str, Any]]], Callable[[str | None], list[dict[str, Any]]]]:
+    """The deliver steps of a real run, X then email, over ``deliveries`` (which hold the site's timers): ``now -> the Deliveries handed over``. The announce agent runs them after it
+    decides, and the engine's ``deliver_due`` run when a Delivery's time comes. ``lists`` reads the lists' settings, which only the email channel needs."""
+    from papyrus_content.announcements.handlers import Functions
+    from papyrus_content.announcements.spend import ledger_from_environment
+    from papyrus_content.announcements.x_delivery import send_due
+    from papyrus_content.announcements.x_runner import SpendControl
+    from papyrus_content.announcements.email_channel import CaducusEmail
+    from papyrus_content.announcements.email_delivery import send_due_email
+    from papyrus_content.notifications.runtime import build_runtime
+
+    functions = functions or Functions(client)
     control = SpendControl(settings=functions, connection=functions.status, ledger=ledger_from_environment(environ))
     # The site's Broadcaster is the one its config provides (the notifications function's X queue); a site without one has None, and a site set to On without it refuses to run.
     wired = build_runtime(environ) if environ.get("EMAIL_QUEUE_URL") else None
     broadcaster = wired.broadcaster if wired is not None else remote_broadcaster(environ)
     # Email goes to Caducus through the router and delivery log of the site's own notifications function; a site without its email queue has no email channel.
-    email = CaducusEmail(wired.router, wired.log, wired.settings.site_id, alert_facts, lists=settings.read(tenant).document["lists"]) if wired is not None else None
-    return Services(state=lambda: settings.read(tenant), announcements=announcements, read_story=lambda lineage: read_candidate(client, lineage, issue_types_of(settings.read(tenant).document)), draft=draft,
-                    account_id=tenant, x=x_services(client, environ, model=True, functions=functions), stamps=ChecklistReviewStamps(client), edit_settings=functions.read,
-                    send_x=lambda now: send_due(Deliveries(client), announcements, control, broadcaster, now),
-                    send_email=lambda now: send_due_email(Deliveries(client), email, now))
+    email = CaducusEmail(wired.router, wired.log, wired.settings.site_id, alert_facts, lists=lists()) if wired is not None else None
+    return (lambda now: send_due(deliveries, announcements, control, broadcaster, now)), (lambda now: send_due_email(deliveries, email, now))
 
 
 def remote_broadcaster(environ: Mapping[str, str]) -> Any:

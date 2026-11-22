@@ -343,9 +343,13 @@ Spend is checked before a run, not only counted after it (`src/papyrus_content/s
 * One follow-up timer per site and cycle (`follow-up-<digest of budget-cycle:<tenant>|<dueAt>>` in the site's schedule group) is due at that start; its message is the latest wake that waited.
 * One flag per cycle tells the admins: the ReviewRequest `rr-budget-<period>-<cycle start>` (mode `flag`). Every later wake in the cycle finds it and raises no other.
 * **Release.** When the timer's wake arrives and the budget allows paid work, it runs nothing itself: it reads the site's waiting runs from the run status index (`runStatus = waiting`, oldest request first) and puts each wake back on the queue, marked `trigger.releasedFrom: budget cycle`, in that order, each with its own deduplication id. A released wake finds its record waiting, sets it back to `started` and runs under its own key; a copy delivered again finds the record no longer waiting and is a duplicate. A released wake re-checks the budget, so one that is still reached waits again for the next cycle.
-* **Raising the budget** is `papyrus --site SITE agents set-budget --amount USD --period day|week|month --reason TEXT [--apply]` (an admin who is a person; an agent is `blocked`). `--apply` saves the budget as a new policy version and releases the waiting wakes the same way; it needs the operator's AWS credentials for the site's wake queue. A dry run names the waiting wakes.
+* **Raising the budget** is `papyrus --site SITE agents set-budget --amount USD --period day|week|month --reason TEXT [--apply]` (an admin who is a person; an agent is `blocked`). `--apply` saves the budget as a new policy version (signed in, through the `agent-policy` function, below) and releases the waiting wakes the same way; it needs the operator's AWS credentials for the site's wake queue. A dry run names the waiting wakes.
 
 The check is before the run, so a run that starts under the budget can end over it by what was in flight. A site's own pause (`site.paused` in the agent policy) remains the per-site stop that needs no table access.
+
+## Who changes the agent policy
+
+A signed-in admin changes the agent policy (`papyrus agents set-rung --apply`, pause, resume, budget, loop limit, overrides) only through the site's `agent-policy` function (`agentPolicyChange`). The function checks that the caller is an admin and that the token was issued to a person-only app client (`PERSON_ONLY_CLIENT_IDS`); with none configured nobody qualifies. It refuses `publish_auto` while the hard floor stands, and it writes the version object and catalogue rows with its own role. The admin group's S3 grant on the policy objects is read-only. A CLI token still passes the client check while the CLI signs in on the console's own app client (`cliOnFederationClient` separates them). Operators with AWS credentials write directly, as the deploy does.
 
 ## Deploying
 

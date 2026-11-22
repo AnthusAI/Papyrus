@@ -145,8 +145,9 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:papyrus-*-agent-wakes.fifo"
               - Sid: ContinuationTimers
                 Effect: Allow
-                Action: [scheduler:CreateSchedule, scheduler:UpdateSchedule]
-                # A run that cannot finish sets one follow-up timer for its next run (PPY-c023ab): create or move an entry named follow-up-* in a site's agent-schedules group, nothing else of the scheduler.
+                Action: [scheduler:CreateSchedule, scheduler:UpdateSchedule, scheduler:DeleteSchedule]
+                # A run that cannot finish sets one follow-up timer for its next run (PPY-c023ab), and a run that writes a Delivery's release or lock time, or a soft review's deadline,
+                # sets, moves or clears that record's timer (PPY-e2829f, PPY-9b8e59): create, move or delete an entry named follow-up-* in a site's agent-schedules group, nothing else of the scheduler.
                 Resource: !Sub "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/papyrus-*-agent-schedules/follow-up-*"
               - Sid: PassSchedulerRole
                 Effect: Allow
@@ -202,6 +203,9 @@ Resources:
       Environment:
         Variables:
           TRIGGER_TABLE_NAME: !Ref MonitoringTableName
+          # The account and partition a procedure's follow-up timers name (the site's schedule group, scheduler role and wake queue); the site comes from each wake.
+          PAPYRUS_AWS_ACCOUNT_ID: !Ref AWS::AccountId
+          PAPYRUS_AWS_PARTITION: !Ref AWS::Partition
 
   RunnerInvokeConfig:
     Type: AWS::Lambda::EventInvokeConfig

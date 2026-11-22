@@ -19,6 +19,7 @@ from .authors import author_names
 from .machine_writes import apply_stamp
 from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
+from .published_reviewer import REVIEWED_BY_KEY, reviewed_by_for_publish
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
 from .content_item_lifecycle import UNTYPED_ITEM_TYPE, head_stage_fields
 from .item_stars import assert_no_item_stars
@@ -292,12 +293,17 @@ def project_item_to_published(
     version_published_at: str,
     version_published_by: str,
     version_number: int,
+    reviewed_by: dict | None = None,
 ) -> tuple[dict, list[dict]]:
     lineage_id = item.get("lineageId") or item["id"]
     published_id = published_item_id_for(lineage_id)
     section = item.get("section")
     metadata = _parse_json_object(item.get("metadata"))
     metadata["sourceContentHash"] = item.get("contentHash")
+    # The person who reviewed this version (published_reviewer.py), or nothing: never carried over from an Item's own metadata.
+    metadata.pop(REVIEWED_BY_KEY, None)
+    if reviewed_by:
+        metadata[REVIEWED_BY_KEY] = reviewed_by
     metadata[PROJECTION_METADATA_KEY] = projection_metadata(metadata.get("frontMatterYaml"), item.get("bodyMarkus"))
     published = {
         "id": published_id,
@@ -389,9 +395,11 @@ def publish_item(
     _require_images_present(envelope, media)
 
     existing = client.get_record("PublishedItem", published_id)
-    existing_hash = _parse_json_object((existing or {}).get("metadata")).get("sourceContentHash")
-    already_projected = existing is not None and existing_hash == item.get("contentHash")
-    if already_projected and item.get("status") == "published":
+    existing_metadata = _parse_json_object((existing or {}).get("metadata"))
+    already_projected = existing is not None and existing_metadata.get("sourceContentHash") == item.get("contentHash")
+    reviewed_by = reviewed_by_for_publish(client, item)
+    # A review recorded after the version went live is carried by publishing it again: the same version, with its reviewer.
+    if already_projected and item.get("status") == "published" and existing_metadata.get(REVIEWED_BY_KEY) == reviewed_by:
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
     from .localization_publish import original_of, require_publishable
     from .publish_gate import ensure_publish_approval
@@ -430,6 +438,7 @@ def publish_item(
         version_published_at=now,
         version_published_by=actor,
         version_number=version_number,
+        reviewed_by=reviewed_by,
     )
 
     for row in published_media:

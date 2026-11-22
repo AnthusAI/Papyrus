@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "4881dd79-7527-486f-91d6-253eaf264cc2",
+  "issue_id": "PPY-e2829f3e-4037-4f38-bf98-beb8af3dad9d",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-22T22:23:47.652Z",
+  "actor_id": "ryan",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "M2: A five-star Story is announced on X after one approval, within budget (MoM)",
+        "to": "M2: A five-star Story is announced on X automatically on a schedule, within budget (MoM)"
+      }
+    }
+  }
+}

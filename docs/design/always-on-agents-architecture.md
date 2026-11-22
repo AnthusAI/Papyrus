@@ -292,7 +292,7 @@ Each responsibility says what each rung means for it, in its definition. Some ex
 
 | Responsibility | `propose` | `draft` | `prepare` | `publish_soft` | `publish_auto` |
 |---|---|---|---|---|---|
-| Rate | Suggest stars | Write 3 or 4 as a machine rating | (same as draft) | (same) | (same; never a five) |
+| Rate | Suggest stars | (same as propose: a machine never writes a rating) | (same) | (same) | (same; a rating is a person's alone) |
 | Ideate | Recommend | File ideas | (same) | (same) | (same) |
 | Write and improve | Suggest edits | Save draft versions | Ready to publish; hard gate | Publish, then soft review | Publish |
 | Translate | — | Translation drafts | Ready; a person publishes | Publish unless held | Publish unless held |
@@ -759,7 +759,7 @@ The change from the order in section 13.4 of the announcement design: the review
 | I. Infrastructure as code and the shared tier | PPY-33e622 | 4 | Everything the standard needs is in templates applied by the release: queues, dead-letter queues, alarms, the schedule group and its role, change feed mappings, indexes. Nothing is created by hand, including the procedure runner, which today is updated with a hand-run change set. |
 | J. Observability, safety and release readiness | PPY-b7039f | 6 | Prove what an agent did and did not do; stop anything fast; turn things on in a safe order. |
 | K. Lifecycles that run themselves: Reference, Idea, Translation, Illustration | PPY-462d6e | 4 | For each record type: its stages, which agent moves each stage, which stage needs a person by policy, and what happens when nobody acts. (Story is PPY-959e41; Announcement, Delivery and newsletter issues are PPY-a36492 and the newsletters epic.) |
-| L. First agent: rating and curation on one site | PPY-24b2ac | 4 | The first real daily agent, end to end, at the lowest rung. It rates what is unrated at three or four stars and lists five-star candidates for a person. Chosen because stars decide everything downstream (home pages, newsletters, announcements), the rule is already written (default three, machines never five), a person's rating always wins, and the model is the cheapest tier. |
+| L. First agent: rating and curation on one site | PPY-24b2ac | 4 | The first real daily agent, end to end, at the lowest rung. It suggests stars for what is unrated (three or four, or five as a candidate) beside the rating; a person rates. Chosen because stars decide everything downstream (home pages, newsletters, announcements), the rule is already written (default three, machines never five), a person's rating always wins, and the model is the cheapest tier. |
 | M. Every other responsibility as an agent | PPY-11b33b | 9 | Move each existing automated process onto the standard and add the missing ones: intake and capture, ideation, research, translation, illustration, improvement and copy-edit, fact-check, operations hygiene, the knowledge run. Each task ends with the agent running on one site at the rung its site policy names, with its 11-point definition and generated runbook. |
 | N. Newsletters and subscriptions: weekly, daily and every new item | PPY-79c915 | 10 | One system produces a weekly Distinctive Mark email, a weekly and a daily Machines on Machines newsletter, and a message for every new item, all as Announcements and Deliveries sent through Caducus. What differs between them is list data: cadence, time, time zone, rule, working document, rung. |
 | O. Announcements learn from a person's edits | PPY-f51641 | 6 | When a person rewrites how something is announced, future announcements change, and never silently. An edit becomes an example only when a person says so; a pattern becomes a proposed guideline file an admin accepts; every draft names the guideline versions and examples it read; every learned thing can be turned off. |
@@ -1311,7 +1311,7 @@ For each record type: its stages, which agent moves each stage, which stage need
 
 #### Epic L. First agent: rating and curation on one site (PPY-24b2ac)
 
-The first real daily agent, end to end, at the lowest rung. It rates what is unrated at three or four stars and lists five-star candidates for a person. Chosen because stars decide everything downstream (home pages, newsletters, announcements), the rule is already written (default three, machines never five), a person's rating always wins, and the model is the cheapest tier. Done when it runs daily on Machines on Machines, was promoted rung by rung on evidence, and its agreement with people is reported.
+The first real daily agent, end to end, at the lowest rung. It suggests stars for what is unrated (three or four, or five as a candidate) beside the rating; a person rates. Chosen because stars decide everything downstream (home pages, newsletters, announcements), the rule is already written (default three, machines never five), a person's rating always wins, and the model is the cheapest tier. Done when it runs daily on Machines on Machines, was promoted rung by rung on evidence, and its agreement with people is reported.
 
 **L1 (PPY-d85860): Rating agent at observe on Machines on Machines**  · first week
 
@@ -1331,14 +1331,12 @@ The first real daily agent, end to end, at the lowest rung. It rates what is unr
 - *Blocked by.* L1 (PPY-d85860), E2 (PPY-611397)
 - *Unblocks.* L3 (PPY-924693), L4 (PPY-89f253)
 
-**L3 (PPY-924693): Rating agent writes three or four when promoted, and reacts to changes**
+**L3 (PPY-924693): Rating agent suggests when a Story is published or a Reference accepted**
 
-- *Purpose.* At `draft` and above the agent writes its rating as a machine rating (actor recorded), still three or four only, and adds change triggers: a Story published, a Reference accepted. A machine rating is replaced by any person's rating. Five-star candidates still go to a person. With this, `publishRequiresRating` can be on without a person rating everything.
-- *Acceptance.* A newly published Story is rated within the quiet window. A five is never written by the agent at any rung. A person's later rating replaces the machine's.
-- *Gherkin.* rating-writes.feature: a publish is rated three or four; the actor is the agent; a person's rating replaces it; an attempt at five is refused by the gate.
-- *Infrastructure as code.* None.
-- *Blocked by.* L2 (PPY-e61642), PPY-8a374e, B3 (PPY-9b9e64), E4 (PPY-36e7c9)
-- *Unblocks.* —
+- *Owner decision (Ryan, 2026-11-22).* Suggestions only: a machine never writes a rating, at any rung (L2, PPY-e61642). L3 keeps the change triggers.
+- *Purpose.* Besides its daily schedule, the rating agent wakes when a Story is published and when a Reference is accepted, and writes its suggestion (`ratings_suggest`, rung `propose`) beside the rating within the quiet window, adding the Story to the day's one review.
+- *Acceptance.* A newly published Story gets a suggestion within the quiet window at `propose`. A Story a person rated before the wake gets none. The day's review gains the Story instead of a second review being raised.
+- *Gherkin.* rating-suggestion-triggers.feature: a publish wakes the agent and the Story gets a suggestion; a rated Story is skipped; the day's review gains it.
 
 **L4 (PPY-89f253): Measure the rating agent against people**
 
@@ -1603,7 +1601,11 @@ Each has a default. Silence means the default.
 | 6 | A mailbox object for agents | No. Records are the mailbox. |
 | 7 | An interrupted run that is not safe to repeat | Mark it Outcome unknown and flag once. Never run it again by itself. |
 | 8 | The loop limit per Story | Keep today's default of 5 as the starting owner setting; at the limit a hard gate. It is a safety guard, set by the owner, not by code. |
-| 9 | The site's AI budget and cycle | Weekly, per site, set by the owner. At the budget, paid work waits. No default amount: a site with no budget set runs no paid agent above `observe`. |
+| 9 | The site's AI budget and cycle | **Decided (Ryan, 2026-11-22):** monthly, per site, set by the owner; a site with no budget gets $10 a month. At the budget, paid work waits (PPY-9376f8). |
+| 9a | System wakes with no adopted agent | **Decided (Ryan, 2026-11-22):** the engine's own follow-up wakes (`review-deadline`, `deliver`) run with no adopted Automation, on an explicit engine list only (`engine_follow_ups.py`); a paused site still stops them. |
+| 9b | Machine ratings | **Decided (Ryan, 2026-11-22):** a machine never writes a rating; the rating agent suggests and a person rates. |
+| 9c | Human review on Machines on Machines | **Decided (Ryan, 2026-11-22):** not required, for posts or translations (the procedure document makes `review_people` and `rated` optional). Configurable per site. When a person does review, they join the byline. |
+| 9d | Announcement schedule | **Decided (Ryan, 2026-11-22):** an announcement is drafted and scheduled automatically and posts on schedule unless a person steps in (review `soft`, edit window per kind and channel); Machines on Machines: 60 minutes, locked 5 before. Sites that need approval keep `hard`. |
 | 10 | Which model each tier uses | `work`: GPT-6 Luna (today's default). `bulk`: the cheapest available. `editorial`: Ryan chooses; it needs an API key and budget of its own. `decision`: Jev. |
 | 11 | Machines on Machines daily summary: time and rung | 6:00 AM Eastern; `publish_soft` (every source is already reviewed and three stars or better; silence sends it). |
 | 12 | Every-item email on Machines on Machines: floor and rung | Three stars, reviewed source required, `publish_auto` (this is "announced right away"). X stays five stars and off. |
@@ -2009,7 +2011,7 @@ Close behind: two parallel tasks adding an index to the same table in one releas
 Only what truly blocks:
 
 1. **A working model key for Machines on Machines**, and a go on PPY-6af46b before 1 December. Without a key the first agent cannot run.
-2. **The weekly AI budget for Machines on Machines**, as a dollar figure. No default: with no budget the site runs no paid agent above `observe`. (At `observe` the rating agent costs cents a day on the cheapest tier.)
+2. **The AI budget for Machines on Machines.** Decided 2026-11-22: monthly; with no budget set a site gets $10 a month. (At `observe` the rating agent costs cents a day on the cheapest tier.)
 3. **The approval for the pipeline-roles change** that I1 (PPY-624dab) needs, when its run asks.
 4. **A yes or no on the first agent and site**: rating on Machines on Machines. Silence means yes.
 

@@ -47,7 +47,6 @@ import { agentPieces } from "./agents/pieces";
 import { enableItemStream } from "./agents/item-change-feed";
 import { allowChangeFeedRelay, enableFeedStreams } from "./agents/change-feeds";
 import { planFeeds, type FeedTable, type StreamReaderId } from "./agents/stream-readers";
-import { ADMIN_AGENT_POLICY_GRANT_STACK_NAME, ADMIN_AGENT_POLICY_GROUP, addAdminAgentPolicyGrant } from "./agents/admin-policy-grant";
 import { addAgentsStack } from "./agents/stack";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
@@ -59,6 +58,9 @@ import { wireEntityLabelSync } from "./functions/entity-label-sync/wire";
 import { wireLocalizationDispatch } from "./functions/localization-dispatch/wire";
 import { announcements } from "./functions/announcements/resource";
 import { wireAnnouncements } from "./functions/announcements/wire";
+import { ADMIN_AGENT_POLICY_GRANT_STACK_NAME, ADMIN_AGENT_POLICY_GROUP, addAdminAgentPolicyGrant } from "./agents/admin-policy-grant";
+import { agentPolicy } from "./functions/agent-policy/resource";
+import { wireAgentPolicy } from "./functions/agent-policy/wire";
 import { proposalActions } from "./functions/proposal-actions/resource";
 import { wireProposalActions } from "./functions/proposal-actions/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
@@ -185,6 +187,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   const cliFederationCallbackUrls = cliFederationClientCallbackUrls(featureFlags.cliOnFederationClient, process.env);
   const backend = defineBackend({
     ...pluginFunctions,
+    agentPolicy,
     announcements,
     assignmentAction,
     automationView,
@@ -546,7 +549,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
     // editorialChecks too: it compares the site's editorial context (a tenant's publication) with its own tenant and refuses a mismatch,
     // so without the variable every check after a save-version on a tenant site fails with "Editorial context tenant mismatch" (PPY-49303f).
     // tenantClaims: a dedicated stack's fixed tenant is the one its session claims name (PPY-0bb0fd).
-    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda, backend.tenantClaims.resources.lambda]) {
+    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda, backend.tenantClaims.resources.lambda, backend.agentPolicy.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
   }
@@ -967,7 +970,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   if (tenancyMode !== "shared") wireLocalizationDispatch(backend, contentActionsLambda, siteBackendIdentity.brandId);
   // The names of concepts in each language: a stream consumer on the SemanticNode records writes every concept's primary-language label rows.
   if (tenancyMode !== "shared") wireEntityLabelSync(backend);
-  wireImageService(backend);
+  wireImageService(backend, tenancyMode !== "shared" ? { brandId: siteBackendIdentity.brandId, tenantId: backendTenantId } : undefined);
   wireProposalActions(backend);
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
   wireAnnouncements(backend, siteBackendIdentity.brandId, [backend.auth.resources.userPoolClient.userPoolClientId]);
@@ -1021,14 +1024,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
     }),
     bootstrapStage,
   );
-  // The signed-in admin may put and get the agent policy document's versions (`papyrus agents set-rung --apply`). A dedicated site only: the grant names every
-  // tenant's prefix, which a shared stack's admin must not hold.
+  // A signed-in admin reads the agent policy document's versions directly and changes it only through the agent-policy function, which refuses a credential that is not
+  // a person's. A dedicated site only: both grants name every tenant's prefix, which a shared stack must not hold.
   if (tenancyMode !== "shared") {
     addAdminAgentPolicyGrant(
       backend.createStack(ADMIN_AGENT_POLICY_GRANT_STACK_NAME),
       backend.auth.resources.groups[ADMIN_AGENT_POLICY_GROUP].role,
       storageBucket.bucketArn,
     );
+    wireAgentPolicy(backend, storageBucket.bucketName, storageBucket.bucketArn, [backend.auth.resources.userPoolClient.userPoolClientId]);
   }
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
   if (feedStreams !== undefined) {

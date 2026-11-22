@@ -457,7 +457,9 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     assert consume["Action"] == ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"] and consume["Resource"][1].endswith(queues)
     assert send["Action"] == ["sqs:GetQueueUrl", "sqs:SendMessage"] and send["Resource"][1].endswith(queues)
     timers, pass_role = by_sid["ContinuationTimers"], by_sid["PassSchedulerRole"]   # PPY-c023ab: follow-up entries only, and the scheduler's own role only, handed to the scheduler alone
-    assert timers["Action"] == ["scheduler:CreateSchedule", "scheduler:UpdateSchedule"] and timers["Resource"][1].endswith("schedule/papyrus-*-agent-schedules/follow-up-*")
+    assert timers["Action"] == ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule"] and timers["Resource"][1].endswith("schedule/papyrus-*-agent-schedules/follow-up-*")
+    variables = function["Environment"]["Variables"]   # PPY-e2829f: a procedure's follow-up timers name the runner's own account and partition
+    assert variables["PAPYRUS_AWS_ACCOUNT_ID"] == ("Ref", "AWS::AccountId") and variables["PAPYRUS_AWS_PARTITION"] == ("Ref", "AWS::Partition")
     assert pass_role["Action"] == "iam:PassRole" and pass_role["Resource"][1].endswith(":role/papyrus-*-agent-scheduler")
     assert pass_role["Condition"]["StringEquals"]["iam:PassedToService"] == "scheduler.amazonaws.com"
     assert not any("lambda:" in str(statement["Action"]) for statement in statements if statement["Sid"] != "SiteBroadcastFunctions"), \
