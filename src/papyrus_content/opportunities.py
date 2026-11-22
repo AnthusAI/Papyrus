@@ -79,7 +79,7 @@ def search_x(query: str, count: int, token: str) -> object:
     params = urlencode({
         "query": query,
         "max_results": count,
-        "tweet.fields": "conversation_id,created_at,entities",
+        "post.fields": "conversation_id,created_at,entities",
     })
     request = Request(f"{SEARCH_URL}?{params}", method="GET", headers={
         "Authorization": f"Bearer {token}",
@@ -161,7 +161,7 @@ def find_opportunities(references, read_limit, candidate_limit, fetch, price=Non
         reads += len(rows)
         meta = payload.get("meta")
         search_receipts.append({"query": query, "post_reads": len(rows),
-                                "more_available": bool(meta.get("next_token")) if isinstance(meta, Mapping) else False})
+                                "more_available": bool(meta.get("next_token") or meta.get("more_available")) if isinstance(meta, Mapping) else False})
         for row in rows:
             post = ids_and_text(row)
             if post is None:

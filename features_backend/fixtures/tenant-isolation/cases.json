@@ -6,7 +6,7 @@
     "modelCases": 505,
     "indexCases": 232,
     "subscriptionCases": 9,
-    "operationCases": 143,
+    "operationCases": 144,
     "functionCases": 78,
     "surfaceCases": 9
   },
@@ -6777,6 +6777,14 @@
       "subject": "newsletterTestSend",
       "operation": "call-scope",
       "probe": "alpha calls newsletterTestSend with input chosen to reach \"beta\"",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:opportunitiesXSearch",
+      "kind": "operation",
+      "subject": "opportunitiesXSearch",
+      "operation": "call-scope",
+      "probe": "alpha calls opportunitiesXSearch with input chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

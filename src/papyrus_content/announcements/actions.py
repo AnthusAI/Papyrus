@@ -11,12 +11,14 @@ from typing import Any, Callable, Mapping
 from ..actor_identity import PERSON_CLIENT_IDS_VARIABLE, credential_is_person, person_client_ids  # noqa: F401
 from ..appsync_event import NoOperation, operation_name
 from .settings import AnnouncementSettings
+from . import opportunity_search
 from .x_account import AnnouncementError, XAccounts
 
 READS = {"announcementsSettings", "announcementsXStatus", "announcementsXUsage", "announcementsXSpend"}
 CHANGES = {"announcementsSaveSettings", "announcementsPause", "announcementsXSaveApp", "announcementsXBegin",
            "announcementsXComplete", "announcementsXDisconnect"}
-OPERATIONS = sorted(READS | CHANGES)
+PAID_SEARCH = "opportunitiesXSearch"
+OPERATIONS = sorted(READS | CHANGES | {PAID_SEARCH})
 
 
 #: The group an IAM role of the function's own AWS account acts in: the shared procedure runner that runs the announce agent signs its calls with its role, which carries no
@@ -51,7 +53,17 @@ def handle_event(event: Mapping[str, Any], accounts: XAccounts, settings: Announ
         payload = _payload((event.get("arguments") or {}).get("input"))
     except ValueError:
         return {"ok": False, "error": "invalid_input", "message": "The request input must be a JSON object."}
-    return handle(operation, payload, [g for g in groups if isinstance(g, str)], actor, accounts, settings, ledger, person_credential=credential_is_person(claims))
+    if operation == PAID_SEARCH:
+        try:
+            if not {"editor", "admin"}.intersection(groups):
+                raise AnnouncementError("forbidden", "Your role cannot search for this site.")
+            opportunity_search.authorize(identity, credential_is_person(claims))
+            return {"ok": True, **opportunity_search.search(payload, accounts, settings, ledger)}
+        except AnnouncementError as error:
+            return {"ok": False, "error": error.code, "message": error.message}
+    person = credential_is_person(claims)
+    return handle(operation, payload, [g for g in groups if isinstance(g, str)], actor, accounts, settings, ledger,
+                  person_credential=person, authorize_search_settings=lambda: opportunity_search.authorize(identity, person))
 
 
 def _payload(raw: Any) -> dict[str, Any]:
@@ -71,8 +83,18 @@ def turns_announcements_on(operation: str, payload: dict[str, Any], settings: An
     return isinstance(proposed, dict) and proposed.get("mode") == "on" and settings.read().get("mode") != "on"
 
 
+def changes_search_settings(proposed: Any, current: Mapping[str, Any]) -> bool:
+    if not isinstance(proposed, dict):
+        return False
+    options = current.get("opportunities") or {}
+    if "opportunities" in proposed and proposed["opportunities"] != options:
+        return True
+    return bool(options.get("enabled") and "billingCycleDay" in proposed and proposed["billingCycleDay"] != current.get("billingCycleDay"))
+
+
 def handle(operation: str, payload: dict[str, Any], groups: list[str], actor: str, accounts: XAccounts, settings: AnnouncementSettings,
-           ledger: Callable[[], Any] | None = None, *, person_credential: bool = True) -> dict[str, Any]:
+           ledger: Callable[[], Any] | None = None, *, person_credential: bool = True,
+           authorize_search_settings: Callable[[], None] | None = None) -> dict[str, Any]:
     try:
         if operation not in READS | CHANGES:
             raise AnnouncementError("unknown_operation", f"Unknown operation {operation}.")
@@ -81,6 +103,10 @@ def handle(operation: str, payload: dict[str, Any], groups: list[str], actor: st
             raise AnnouncementError("forbidden", "Your role cannot do this.")
         if not person_credential and turns_announcements_on(operation, payload, settings):
             raise AnnouncementError("person_only", "Only a person signed in to the console can turn announcements On. This credential is not one. Nothing was saved.")
+        if operation == "announcementsSaveSettings" and changes_search_settings(payload.get("settings"), settings.read()):
+            if authorize_search_settings is None:
+                raise AnnouncementError("person_only", "Only an admin signed in to the newsroom can change X search settings.")
+            authorize_search_settings()
         return {"ok": True, **_run(operation, payload, actor, accounts, settings, ledger)}
     except KeyError as error:
         return {"ok": False, "error": "missing_field", "message": f"The request is missing {error.args[0]}."}
