@@ -6,6 +6,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { callAnnouncements, type AnnouncementsApi } from "../lib/announcements-client";
 import { announcementsDoor } from "../lib/announcements-door-client";
+import { readDoor } from "../lib/announcement-lines";
+import type { AnnouncementsAccountStatusResult } from "../lib/images/operations.generated";
 import { createDemoAnnouncementsDoor } from "../lib/announcements-demo";
 import { createFixtureApi } from "../lib/announcements-fixture";
 import {
@@ -47,6 +49,8 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   const [status, setStatus] = useState<XStatus | null>(null);
   const [usage, setUsage] = useState<XUsage | null>(null);
   const [usageProblem, setUsageProblem] = useState<string | null>(null);
+  const [spend, setSpend] = useState<AnnouncementsAccountStatusResult | null>(null);
+  const [spendProblem, setSpendProblem] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -72,7 +76,15 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
       if (!live.current) return;
       if (isFailure(used)) { setUsage(null); setUsageProblem(failureText(used)); } else { setUsage(used.usage); setUsageProblem(null); }
     } else { setUsage(null); setUsageProblem(null); }
-  }, [api]);
+    try {
+      const counted = await readDoor(door, "announcements_account_status", {});
+      if (!live.current) return;
+      setSpend(counted); setSpendProblem(null);
+    } catch (failure) {
+      if (!live.current) return;
+      setSpend(null); setSpendProblem(failure instanceof Error ? failure.message : "The spend could not be read.");
+    }
+  }, [api, door]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -330,6 +342,12 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
             onChange={(event) => patch({ budget: event.target.value === "" ? null : Number(event.target.value) })} />
         </label>
         <p className="announcements__quiet">Announcements pause on their own before a post would pass this. There is no default: it depends on your wallet.</p>
+        <dl className="announcements__facts" data-announcements-spend>
+          <div><dt>This cycle</dt><dd data-announcements-standing>{spend?.standing ?? spendProblem ?? "No budget or billing day entered yet"}</dd></div>
+          <div><dt>Posts we counted this cycle</dt><dd data-announcements-post-count>{spend?.postCount ?? (spendProblem ? "unknown" : "none yet")}</dd></div>
+          <div><dt>Suggested budget</dt><dd data-announcements-suggestion>{spend?.suggestion?.sentence ?? "Enter the prices to see a suggestion from your own pace"}</dd></div>
+        </dl>
+        <p className="announcements__quiet">The suggestion is your pace, never a limit. Compare our count with X&apos;s count under Connected account.</p>
         <table className="announcements__prices" data-announcements-prices>
           <caption>X&apos;s prices as of {formatDate(draft.prices.asOf)}. <a href={X_PRICING_URL} target="_blank" rel="noreferrer">X&apos;s price list</a></caption>
           <thead><tr><th scope="col">What</th><th scope="col">Price (US dollars)</th></tr></thead>

@@ -7,8 +7,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from .env import resolve_corpora_file
 from .ids import safe_id
 
@@ -77,9 +75,17 @@ def normalize_semantic_relation_type_seed(entry: dict[str, Any], index: int, fil
     }
 
 
+def _load_yaml(path: Path) -> Any:
+    """PyYAML is imported only when a relation-types file is read: the functions that import this module only to read (Today, the automation view) carry
+    no PyYAML, and a module-level import stopped them from starting (5.131.0 to 5.145.0)."""
+    import yaml
+
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
 def load_semantic_relation_type_seeds(filepath: str | Path | None = None) -> list[dict[str, Any]]:
     path = Path(filepath) if filepath else DEFAULT_RELATION_TYPES_PATH
-    parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
+    parsed = _load_yaml(path)
     if not isinstance(parsed, dict) or parsed.get("schemaVersion") != 1 or not isinstance(parsed.get("relationTypes"), list):
         raise ValueError(f"Invalid semantic relation type seed file: {path}")
     return [
@@ -92,7 +98,7 @@ def load_semantic_relation_type_seeds(filepath: str | Path | None = None) -> lis
 def load_vocabulary_namespace(filepath: str | Path | None = None) -> str:
     """The address the Papyrus pod vocabulary is published at, as the relation-types file declares it."""
     path = Path(filepath) if filepath else DEFAULT_RELATION_TYPES_PATH
-    parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
+    parsed = _load_yaml(path)
     namespace = parsed.get("vocabularyNamespace") if isinstance(parsed, dict) else None
     if not isinstance(namespace, str) or not namespace:
         raise ValueError(f"The relation-types file {path} does not name its vocabularyNamespace.")

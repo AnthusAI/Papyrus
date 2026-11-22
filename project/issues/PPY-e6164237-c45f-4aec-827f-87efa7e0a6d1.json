@@ -3,7 +3,7 @@
   "title": "Rating agent at propose: suggested stars a person confirms",
   "description": "At `propose` the agent stores its suggestion beside the record as a machine suggestion (never in the rating field) and raises one grouped soft review per day: 'N ratings suggested, M five-star candidates'. A person confirms, changes or ignores; a person's rating always wins and is never overwritten.\n\n**Acceptance criteria**\n- Suggestions are visible and separate from ratings.\n- One grouped request per day.\n- A person's rating is never changed by the agent.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-suggestions.feature: a suggestion appears beside the item; confirming makes it the person's rating; an item a person rated is skipped; candidates are listed, not rated.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** First agent: rating and curation on one site. Slice code L2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -26,13 +26,25 @@
       "id": "d4d8cce2-0e89-4944-a08f-ef9091ccdb14",
       "author": "claude",
       "text": "Back in progress: it is on the always-on agents track (X announcements, ratings suggestions).",
-      "created_at": "2026-11-20T14:08:15.000000Z",
+      "created_at": "2026-11-20T14:08:15Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5a49e92f-944c-4e3f-a933-54fa3c732829",
+      "author": "ryan",
+      "text": "Released in Papyrus 5.145.0 (#1824) and live on Machines on Machines: the Item fields starSuggestion, starSuggestedAt, starSuggestedBy and starSuggestionRun are in the site's schema; rate.yaml v2 (ratings_suggest and ratings_suggestions_review at propose); ratings_set is person-only. MoM's rate agent is at observe, so it writes nothing until an admin raises it to propose.",
+      "created_at": "2026-11-22T04:38:10.603780Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:43:13.216240Z",
-  "updated_at": "2026-11-20T14:08:15.000000Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T04:38:10.721958Z",
+  "closed_at": "2026-11-22T04:38:10.721919Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
