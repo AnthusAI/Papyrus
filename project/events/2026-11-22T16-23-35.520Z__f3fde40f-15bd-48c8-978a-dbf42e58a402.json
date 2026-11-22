@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f3fde40f-15bd-48c8-978a-dbf42e58a402",
+  "issue_id": "PPY-924693bd-df0d-4bb1-85ba-145cb6cf0417",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-22T16:23:35.520Z",
+  "actor_id": "ryan",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Rating agent writes three or four when promoted, and reacts to changes",
+        "to": "Rating agent suggests when a Story is published or a Reference accepted"
+      },
+      "description": {
+        "from": "At `draft` and above the agent writes its rating as a machine rating (actor recorded), still three or four only, and adds change triggers: a Story published, a Reference accepted. A machine rating is replaced by any person's rating. Five-star candidates still go to a person. With this, `publishRequiresRating` can be on without a person rating everything.\n\n**Acceptance criteria**\n- A newly published Story is rated within the quiet window.\n- A five is never written by the agent at any rung.\n- A person's later rating replaces the machine's.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-writes.feature: a publish is rated three or four; the actor is the agent; a person's rating replaces it; an attempt at five is refused by the gate.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** First agent: rating and curation on one site. Slice code L3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
+        "to": "Owner decision 2026-11-22 (Ryan): suggestions only; a machine never writes a rating at any rung (PPY-e61642). This task keeps the other half of slice L3: change triggers. Besides its daily schedule, the rating agent wakes when a Story is published and when a Reference is accepted, and writes its suggestion (ratings_suggest, rung propose) beside the rating within the quiet window, adding the Story to the day's one review. A five stays a candidate for a person; a Story somebody rated is skipped.\n\n**Acceptance criteria**\n- A newly published Story gets a suggestion within the quiet window, at propose.\n- A Story a person rated before the wake gets none.\n- The day's review gains the Story instead of a second review being raised.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- rating-suggestion-triggers.feature: a publish wakes the agent and the Story gets a suggestion; a rated Story is skipped; the day's review gains it.\n\n**Infrastructure as code touched:** None (the change feeds already wake agents; rate.yaml gains wakes on stage_entered published and the Reference accepted change).\n\n**Part of:** First agent: rating and curation on one site. Slice code L3 in docs/design/always-on-agents-architecture.md (section 12)."
+      }
+    }
+  }
+}
