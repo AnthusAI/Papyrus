@@ -30,6 +30,6 @@ template:
   seenAndReversed: Beside each Story's rating in its editor, on the day's one soft review, and in the run record, which lists every Story with the stars and the reason. A person confirms a suggestion (it becomes their rating), rates other stars, or ignores it.
   records: One run record per wake, with the policy version and rung it ran under, the items it looked at and what it decided for each.
   fails: Closed. A failed run rates nothing and ends failed; a run that finds nothing unrated ends nothing with the reason nothing_unrated.
-  costAndBound: One call to the bulk-tier model for each unrated Story the run reads, inside the site's weekly budget. No limit on the number of Stories; the run's own deadline ends the reading, and the run says so.
+  costAndBound: One call to the bulk-tier model for each unrated Story the run reads, inside the site's monthly budget ($10 when the site sets none). No limit on the number of Stories; the run's own deadline ends the reading, and the run says so.
   measured: How often a person confirms a suggestion and how often they change it, and in which direction. The measure is a later task and has no spec yet.
   gherkin: [rating-agent-definition.feature, rating-agent.feature, rating-suggestions.feature]
