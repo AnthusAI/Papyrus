@@ -195,6 +195,8 @@ _ENTRIES = dict([
      "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
   _e("stories decks", "Bring every Item's and published row's deck column to the dek its front matter holds. Writes only the derived column.",
      "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
+  _e("reviews index-backfill", "Write the review state key on every review request stored before the state index existed, once, after the deploy that adds it. A dry run unless --apply.",
+     "[--apply]", "operator", "apply"),
   _e("stories backfill-published-dates", "Give published Stories their first publication time and the served version's publish time, from what their versions recorded. A dry run unless --apply.",
      "[--apply] [--dry-run] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories repair-image-paths", "Repair image paths in a Story's versions. Read only unless you pass --write.", "--story LINEAGE [--write] [--bucket B] [--identity-pool-id ID]", "operator", "reads", ""),
