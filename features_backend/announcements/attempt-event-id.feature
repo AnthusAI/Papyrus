@@ -34,3 +34,19 @@ Feature: An attempt is handed to Caducus under its attempt event id
       | delivery:<the Delivery id>:a2    | sent   |
     And no event id Caducus recorded carries a round suffix
     And the fake X account received 1 post with the text "First words"
+
+  Scenario: The site's X function posts a queued attempt and the Delivery is marked sent
+    Given the channel leaves each post on the X queue for the site's X function
+    When the worker sends the Delivery "x" "handle-1"
+    Then the Delivery "x" "handle-1" is "sending"
+    When the site's X function takes the queued post
+    Then the Delivery "x" "handle-1" is "sent"
+    And the fake X account received 1 post with the text "First words"
+
+  Scenario: The same queue message taken twice settles again and never posts twice
+    Given the channel leaves each post on the X queue for the site's X function
+    When the worker sends the Delivery "x" "handle-1"
+    And the site's X function takes the queued post
+    And the site's X function takes the queued post
+    Then the Delivery "x" "handle-1" is "sent"
+    And the fake X account received 1 post with the text "First words"
