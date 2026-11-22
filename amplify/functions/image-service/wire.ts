@@ -1,5 +1,7 @@
+import { Stack } from "aws-cdk-lib";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
+import { allowFollowUpTimers } from "../../agents/schedule-group";
 import { connectToSiteApi } from "../../site-api-access";
 
 /**
@@ -43,8 +45,15 @@ export const IMAGE_SERVICE_FUNCTION_FIELDS = [
 export const IMAGE_SERVICE_BUCKET_PREFIX = "newsroom/payloads/item/";
 export const IMAGE_SERVICE_BUCKET_ACTIONS = ["s3:GetObject", "s3:PutObject"];
 
+/**
+ * Where the announcements write door sets a Delivery's follow-up timer (PPY-e2829f): a person's review change, release, edit or unlock moves the Delivery's due time, and its
+ * timer moves with it, so the scheduled send goes at the new time. Only a dedicated site with a tenant: the wake names the tenant and bucket where the runner reads the site's
+ * agent policy, and a shared stack's function acts for many tenants.
+ */
+export type ImageServiceFollowUps = { brandId: string; tenantId: string };
+
 /** The function's environment: the site's own API. It holds no secret and calls no provider in this step. */
-export function wireImageService(backend: any): void {
+export function wireImageService(backend: any, followUps?: ImageServiceFollowUps): void {
   const lambda = backend.imageService.resources.lambda as LambdaFunction;
   connectToSiteApi(lambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   // Read and write of the guideline documents, on the payload prefix of Item versions only (the role, not a bucket policy, as the other functions do it,
@@ -59,4 +68,14 @@ export function wireImageService(backend: any): void {
   );
   lambda.addEnvironment("PAPYRUS_MEDIA_BUCKET_NAME", bucket.bucketName);
   lambda.addEnvironment("papyrusMedia_BUCKET_NAME", bucket.bucketName);
+  if (followUps !== undefined && followUps.tenantId !== "") {
+    const stack = Stack.of(lambda);
+    allowFollowUpTimers(lambda, followUps.brandId);
+    lambda.addEnvironment("PAPYRUS_AGENT_PUBLICATION_ID", followUps.brandId);
+    // The tenant goes on each wake only: PAPYRUS_TENANT_ID would make the function read and write as that tenant, which it does not today.
+    lambda.addEnvironment("PAPYRUS_AGENT_TENANT_ID", followUps.tenantId);
+    lambda.addEnvironment("PAPYRUS_SITE_BUCKET", bucket.bucketName);
+    lambda.addEnvironment("PAPYRUS_AWS_ACCOUNT_ID", stack.account);
+    lambda.addEnvironment("PAPYRUS_AWS_PARTITION", stack.partition);
+  }
 }

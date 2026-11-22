@@ -967,7 +967,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   if (tenancyMode !== "shared") wireLocalizationDispatch(backend, contentActionsLambda, siteBackendIdentity.brandId);
   // The names of concepts in each language: a stream consumer on the SemanticNode records writes every concept's primary-language label rows.
   if (tenancyMode !== "shared") wireEntityLabelSync(backend);
-  wireImageService(backend);
+  wireImageService(backend, tenancyMode !== "shared" ? { brandId: siteBackendIdentity.brandId, tenantId: backendTenantId } : undefined);
   wireProposalActions(backend);
   // Announcements are off until the owner turns them on; the parameters and the lease are per site (the brand id names the site).
   wireAnnouncements(backend, siteBackendIdentity.brandId, [backend.auth.resources.userPoolClient.userPoolClientId]);

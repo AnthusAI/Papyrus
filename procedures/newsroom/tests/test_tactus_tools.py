@@ -36,6 +36,7 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_copy_edit_story_version",
                 "papyrus_create_story",
                 "papyrus_curate_reference",
+                "papyrus_deliver_due",
                 "papyrus_editor_review_inputs",
                 "papyrus_editorial_context",
                 "papyrus_fetch_pdf_text",
