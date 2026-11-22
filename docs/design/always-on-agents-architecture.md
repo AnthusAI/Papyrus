@@ -1097,6 +1097,7 @@ Money is a real constraint and the only cap on agent work. One ledger counts spe
 - *Purpose.* Before a paid run starts, the gate reads the cycle total. At or over the site's budget the wake is not run: its record becomes `waiting` with `waitingFor: budget cycle` and a due time at the next cycle start, and one flag per cycle tells the admins. Free work continues. Reading, editing and serving are never stopped. Raising the budget is an admin operation and releases the waiting wakes.
 - *Acceptance.* A site at its budget starts no paid run and loses none. One flag per cycle. Waiting wakes run when the cycle turns or the budget is raised.
 - *Gherkin.* spend-stop.feature: at the budget a paid wake waits; a free check still runs; the flag is raised once; the next cycle runs the waiting wakes in order; raising the budget releases them.
+- *Built* (PPY-9376f8): `spend_stop.py` with the spend brake (`spend_brake.py`): the waiting run record keeps its wake (`waitingFor`, `dueAt`, `wake` on ProcedureRun), one cycle timer per site, the flag `rr-budget-<period>-<start>`, release read from the run status index, and `papyrus agents set-budget`. See [procedure runner](../procedure-runner.md#at-the-budget-paid-work-waits-ppy-9376f8-slice-g2). The $100 monthly default for a site with no budget (from the spend brake) is kept; decision 9 (no default) is still open.
 - *Infrastructure as code.* None.
 - *Blocked by.* G1 (PPY-fa165c), B1 (PPY-567bf9), C2 (PPY-3ff011), E1 (PPY-51ea61)
 - *Unblocks.* —

@@ -496,6 +496,9 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     # A Story's language group: every version of the primary and of each localization, one language with sortEq (item_language.py). Tenant-prefixed.
     # Today (docs/design/always-on-agents-architecture.md section 7.1): the runs of one status inside a time range.
     "procedureRunsByStatus": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_TODAY_FIELDS},
+    # The runs that wait for the budget cycle (PPY-9376f8, spend_stop.py): the same status index, with the wake each one keeps to run again.
+    "procedureRunsWaiting": {"field": "listProcedureRunsByStatusAndRequestedAt", "partitionKey": "runStatus", "sortKey": "requestedAt",
+                             "fields": "id tenantId procedureKey runStatus automationId requestedAt wakeKey waitingFor dueAt wake"},
     # The runs that need a person: failed or outcome unknown, not acknowledged (sparse; run_attention.py). Sorted by when they needed attention.
     "procedureRunsByAttention": {"field": "listProcedureRunsByAttentionKeyAndDueAt", "partitionKey": "attentionKey", "sortKey": "dueAt", "fields": PROCEDURE_RUN_ATTENTION_FIELDS},
     # One procedure's runs, newest last, and the definitions of one procedure key (the priming export reads a monitor's runs this way).

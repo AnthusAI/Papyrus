@@ -332,8 +332,18 @@ stored on that row.
 Spend is checked before a run, not only counted after it (`src/papyrus_content/spend_brake.py`). After the site's policy says a run may start and before anything is loaded, the runner asks the spend ledger. A run is refused, recorded as `nothing` with a reason code, and never executed when:
 
 * `halted`: a halt row is set for every site or for this site. This is the kill switch. Set it with `spend_ledger.set_halt(table, tenant_id=None | "<site>", reason=..., by=...)` or by putting an item with `pk = SPEND#HALT#ALL` (or `SPEND#HALT#<site>`), `sk = HALT` and a `reason` into the monitoring table; delete the item (`spend_ledger.clear_halt`) to start runs again.
-* `budget_reached`: the ledger's `ai` total for the site's current cycle is at or over `site.budget.amountUsd` in the agent policy. A site with no budget gets $100 a month (`PROCEDURE_RUNNER_DEFAULT_BUDGET_USD` changes the default), so no site is unlimited.
+* `budget_reached`: the ledger's `ai` total for the site's current cycle is at or over `site.budget.amountUsd` in the agent policy. A site with no budget gets $100 a month (`PROCEDURE_RUNNER_DEFAULT_BUDGET_USD` changes the default), so no site is unlimited. Only paid work reads the budget: a run whose registered definition says `paid: false` starts at the budget (a run with no registered definition counts as paid). A paid wake at the budget is not recorded as `nothing`: it waits (below).
 * `spend_unreadable`: the ledger cannot be read or the runner has no table. The brake fails closed.
+
+### At the budget, paid work waits (PPY-9376f8, slice G2)
+
+`src/papyrus_content/spend_stop.py`. A paid wake at the budget is held, not lost:
+
+* Its run record becomes `runStatus: waiting` with `waitingFor: budget cycle`, `dueAt` at the next cycle start (the next day, the next Monday or the first of the next month, UTC) and `wake`, the runner's request, so it can run again. The run list shows `‖ Waiting (budget cycle) until <dueAt>`.
+* One follow-up timer per site and cycle (`follow-up-<digest of budget-cycle:<tenant>|<dueAt>>` in the site's schedule group) is due at that start; its message is the latest wake that waited.
+* One flag per cycle tells the admins: the ReviewRequest `rr-budget-<period>-<cycle start>` (mode `flag`). Every later wake in the cycle finds it and raises no other.
+* **Release.** When the timer's wake arrives and the budget allows paid work, it runs nothing itself: it reads the site's waiting runs from the run status index (`runStatus = waiting`, oldest request first) and puts each wake back on the queue, marked `trigger.releasedFrom: budget cycle`, in that order, each with its own deduplication id. A released wake finds its record waiting, sets it back to `started` and runs under its own key; a copy delivered again finds the record no longer waiting and is a duplicate. A released wake re-checks the budget, so one that is still reached waits again for the next cycle.
+* **Raising the budget** is `papyrus --site SITE agents set-budget --amount USD --period day|week|month --reason TEXT [--apply]` (an admin who is a person; an agent is `blocked`). `--apply` saves the budget as a new policy version and releases the waiting wakes the same way; it needs the operator's AWS credentials for the site's wake queue. A dry run names the waiting wakes.
 
 The check is before the run, so a run that starts under the budget can end over it by what was in flight. A site's own pause (`site.paused` in the agent policy) remains the per-site stop that needs no table access.
 

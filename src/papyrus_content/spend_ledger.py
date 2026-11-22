@@ -44,6 +44,16 @@ def cycle_start(period: str, moment: datetime) -> date:
     return day.replace(day=1)
 
 
+def next_cycle_start(period: str, moment: datetime) -> date:
+    """The first day of the budget cycle after the one that contains ``moment``: when the waiting paid work of a site at its budget runs (PPY-9376f8)."""
+    start = cycle_start(period, moment)
+    if period == "day":
+        return start + timedelta(days=1)
+    if period == "week":
+        return start + timedelta(days=7)
+    return (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+
 def scopes_of(responsibility: str | None) -> list[str]:
     """The scopes a run's spend is added to: the site's, and the agent's when an agent made the run."""
     return ["ai", f"ai:{responsibility}"] if responsibility else ["ai"]

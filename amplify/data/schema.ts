@@ -1573,8 +1573,12 @@ const definitions = {
       costUsd: a.float(),
       /** `attention`, only while the run needs a person (it failed, or its outcome is unknown) and nobody has acknowledged it; absent otherwise, so the attention index is sparse (PPY-577310). A shared stack puts the tenant in front. */
       attentionKey: a.string(),
-      /** When the run needed attention (its finish time). The sort key of the attention index; absent with `attentionKey`. */
+      /** When the run needed attention (its finish time), the sort key of the attention index; or, on a run that is `waiting`, when it runs again (the next budget cycle's start, PPY-9376f8). Absent otherwise. */
       dueAt: a.datetime(),
+      /** Why a `waiting` run waits: `budget cycle` (the site was at its AI budget when the paid wake came; spend_stop.py). Absent once it runs. */
+      waitingFor: a.string(),
+      /** The wake a `waiting` run runs again: the runner's request, kept on the run record (the wake ledger) until it is released. Absent once it runs. */
+      wake: a.json(),
       /** Who acknowledged the run and when. Acknowledging clears `attentionKey` and `dueAt`; the run stays as history. */
       acknowledgedAt: a.datetime(),
       acknowledgedBy: a.string(),

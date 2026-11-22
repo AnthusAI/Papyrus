@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
@@ -44,12 +45,25 @@ class RunDecision:
     reason_code: str | None = None     # not_adopted, rung_off or paused when nothing starts
     reason: str | None = None          # the same in words, for the run record and the person reading it
     state: Any = field(default=None, compare=False, repr=False)   # the policy as read for this run: the run's gate answers come from it
+    paid: bool | None = None           # the registered definition's `paid`; None when no definition says, which the spend brake counts as paid (PPY-9376f8)
 
     def run_fields(self) -> dict[str, Any]:
         """What the run's record carries, started or skipped. Absent for a person's own run."""
         if self.responsibility is None and self.rung is None:
             return {}
         return {"responsibility": self.responsibility, "rung": self.rung, "policyVersion": self.policy_version}
+
+
+def registered_paid(row: dict[str, Any]) -> bool | None:
+    """Whether the automation's registered definition calls a paid model (``paid`` in agent_definitions), or None when it has no registered definition."""
+    definition = row.get("definition")
+    if isinstance(definition, str):
+        try:
+            definition = json.loads(definition)
+        except ValueError:
+            return None
+    paid = definition.get("paid") if isinstance(definition, dict) else None
+    return paid if isinstance(paid, bool) else None
 
 
 class Gate(Protocol):
@@ -111,6 +125,6 @@ class PolicyGate:
             raise PolicyUnreadable(f"The agent policy could not be read: {type(error).__name__}: {error}") from error
         decision = decide_start(state, responsibility, {})
         if decision.start:
-            return RunDecision(True, responsibility, decision.rung, decision.policy_version, state=state)
+            return RunDecision(True, responsibility, decision.rung, decision.policy_version, state=state, paid=registered_paid(row))
         code = PAUSED if decision.reason_code == "paused" else RUNG_OFF
         return RunDecision(False, responsibility, decision.rung, decision.policy_version, code, decision.reason)
