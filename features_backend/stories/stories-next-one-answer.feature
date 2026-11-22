@@ -49,14 +49,14 @@ Feature: "papyrus stories next" gives one answer about what remains
     And the procedure output has an "item" line for "review_people" showing "done"
     And the procedure output mentions "1 stale"
 
-  Scenario: A skipped or not-applicable answer is not stale after a new version
+  Scenario: A skipped or not-applicable answer is not stale after a new version, and a skip says which version it was made on
     Given a Story at the "copywriting" stage
     And the Story's checklist exists
     And the checklist item "review_search" is marked "skipped" by the person "Ryan" with the reason "Not for search"
     And a new version of the Story is saved
     When I run "stories next" with "--story story-1"
     Then the procedure output has a "step" line for "review_search" showing "skipped"
-    And the procedure output has a "version" line for "review_search" saying "current"
+    And the procedure output has a "version" line for "review_search" saying "carried: skipped on v1"
     And the procedure output has no "remaining" line for "review_search"
 
   Scenario: A copy edit recorded for an earlier version is stale until the check of the current version passes

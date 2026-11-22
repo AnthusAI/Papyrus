@@ -203,7 +203,7 @@ def _flat(group: list[dict[str, Any]]) -> dict[str, Any]:
         "state": current.get("status"), "actorKind": entry.get("actorKind"), "actorLabel": entry.get("actorLabel"), "actorSub": entry.get("actorSub"),
         "onBehalfOf": entry.get("onBehalfOf"), "instruction": entry.get("instruction"),
         "changedAt": entry.get("at") or current.get("versionCreatedAt"), "reason": entry.get("reason"), "note": entry.get("note"),
-        "evidence": entry.get("evidence"), "storyVersion": entry.get("storyVersion"), "history": _history_of(ordered), "versionNumber": int(current.get("versionNumber") or len(ordered)),
+        "evidence": entry.get("evidence"), "storyVersion": entry.get("storyVersion"), "changeKind": entry.get("changeKind"), "history": _history_of(ordered), "versionNumber": int(current.get("versionNumber") or len(ordered)),
         "notes": [note for note in (meta.get("notes") or []) if isinstance(note, dict)],
     }
 
@@ -262,13 +262,14 @@ def refresh_summary(client, lineage: str, rows: list[dict[str, Any]], *, now: st
     return summary
 
 
-def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None, instruction=None) -> dict[str, Any]:
-    """``instruction`` is the person an agent acted for and that person's words (``{"person", "quote"}``), recorded with the change."""
+def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None, instruction=None, change_kind=None) -> dict[str, Any]:
+    """``instruction`` is the person an agent acted for and that person's words (``{"person", "quote"}``), recorded with the change. ``change_kind`` is, for a skip,
+    the kind of change the version it was made for is against the version before it (``story_change_kind``)."""
     instruction = instruction or {}
     return {key: value for key, value in {
         "at": now, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
         "onBehalfOf": instruction.get("person"), "instruction": instruction.get("quote"),
-        "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version,
+        "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version, "changeKind": change_kind,
     }.items() if value not in (None, "")}
 
 
@@ -281,13 +282,14 @@ def _new_row(lineage: str, key: str, procedure: Procedure = DEFAULT_PROCEDURE) -
     }
 
 
-def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None, instruction=None) -> dict[str, Any]:
+def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None, instruction=None,
+           change_kind=None) -> dict[str, Any]:
     """``story_version`` is the number of the Story version the change was made against (see ``newsroom_process.resolve`` for what goes stale)."""
-    entry = _entry(state, actor, now, reason=reason, note=note, evidence=evidence, story_version=story_version, instruction=instruction)
+    entry = _entry(state, actor, now, reason=reason, note=note, evidence=evidence, story_version=story_version, instruction=instruction, change_kind=change_kind)
     return {
         **row, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
         "onBehalfOf": entry.get("onBehalfOf"), "instruction": entry.get("instruction"),
-        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version, "history": [*row.get("history", []), entry],
+        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version, "changeKind": entry.get("changeKind"), "history": [*row.get("history", []), entry],
         "versionNumber": int(row.get("versionNumber") or 0) + 1, "written": {"by": entry.get("actorLabel") or entry.get("actorSub"), "at": now, "reason": reason or note or state},
     }
 
@@ -372,6 +374,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     kept_as_record = facts["stage"] == "published" and bool(rows)   # a published Story that has a checklist gets no new template steps
     created, completed = [], []
+    reopened = reopen_skips_after_text_edit(client, lineage, rows, procedure, version, now=now, story=story, supersede=write_summary)
     for step in template_steps(procedure):
         existing = rows.get(step.key)
         if existing is None:
@@ -405,7 +408,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     ordered = sorted(rows.values(), key=lambda row: (int(row.get("stepOrder") or 0), row["stepKey"]))
     # The research worker's role may create Items but not update them: it leaves the card summary (and the old version's mark) for the next change by an editor.
     summary = refresh_summary(client, lineage, ordered, now=now, procedure=procedure, latest=story) if write_summary else summary_of(ordered, procedure)
-    return {"created": created, "completed": completed, "summary": summary}
+    return {"created": created, "completed": completed, "reopened": reopened, "summary": summary}
 
 
 def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_summary: bool = True, read_cover: bool = True) -> dict[str, Any] | None:
@@ -430,6 +433,70 @@ def _current_version_number(client, lineage: str) -> int | None:
         return int(current_story_version(client, lineage).get("versionNumber") or 0) or None
     except Exception:  # noqa: BLE001
         return None
+
+
+def skipped_version_and_change_kind(client, lineage: str) -> tuple[int, str]:
+    """``(the current version's number, the kind of change it is against the version before it)`` for a skip: one index read of the lineage's versions."""
+    from .story_change_kind import change_kind
+    from .story_reporting import _current_of, story_versions
+
+    versions = story_versions(client, lineage)
+    if not versions:
+        raise ChecklistError(f"No story found for lineage {lineage}.")
+    current = _current_of(versions)
+    number = int(current.get("versionNumber") or 1)
+    previous = next((row for row in versions if int(row.get("versionNumber") or 0) == number - 1), None)
+    return number, change_kind(previous, current)
+
+
+def skip_label(row: dict[str, Any], current_version: int | None) -> str | None:
+    """How a skip carried onto a later version is shown: ``skipped on v3 (picture only): <reason>``, so its reason is never read as one about the current
+    version. None for a skip made on the current version, or for a row that is not skipped."""
+    from .story_change_kind import CHANGE_KIND_WORDS
+
+    if row.get("state") != SKIPPED or current_version is None or row.get("storyVersion") == current_version:
+        return None
+    version = row.get("storyVersion")
+    kind = CHANGE_KIND_WORDS.get(row.get("changeKind") or "")
+    on = f"v{version}" if version is not None else "an earlier version (not recorded)"
+    return f"skipped on {on}{f' ({kind})' if kind else ''}: {row.get('reason') or ''}"
+
+
+#: Who reopens a skipped step whose version's text was edited afterwards.
+TEXT_EDIT_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, the text was edited after the skip"}
+
+
+def reopen_skips_after_text_edit(client, lineage: str, rows: dict[str, dict[str, Any]], procedure: Procedure, number: int, *, now: str,
+                                 story: dict[str, Any] | None = None, supersede: bool = True) -> list[str]:
+    """Reopens each skipped step that reads the text (a ``versioned`` step: the copy edit, the review lenses, a translation's human review) when the current
+    version edits the text of the version the skip was made for (PPY-cc6a0f, scoped as PPY-a2c230 says: a picture-only change keeps the skip). A skip with no
+    recorded version cannot be compared and stays, shown as carried. ``number`` is the current version's; ``story`` is its row when the caller has just written
+    it (the lineage index may not hold it yet). ``rows`` is changed in place; returns the keys reopened. One index read of the versions, made only when there is
+    a carried skip to judge."""
+    from .story_change_kind import TEXT_EDITED, change_kind
+    from .story_reporting import story_versions
+
+    carried = [row for key, row in rows.items() if row.get("state") == SKIPPED and key in procedure.by_key and procedure.by_key[key].versioned
+               and row.get("storyVersion") is not None and int(row["storyVersion"]) != number]
+    if not carried:
+        return []
+    by_number = {int(row.get("versionNumber") or 0): row for row in story_versions(client, lineage)}
+    if story is not None:
+        by_number[int(story.get("versionNumber") or number)] = story
+    current = by_number.get(number)
+    if current is None:
+        return []
+    reopened = []
+    for row in carried:
+        skipped_on = by_number.get(int(row["storyVersion"]))
+        if skipped_on is None or change_kind(skipped_on, current) != TEXT_EDITED:
+            continue
+        changed = _apply(row, OPEN, TEXT_EDIT_ACTOR, now, story_version=number,
+                         note=f"Reopened: version {number} edits the text that the skip on version {row['storyVersion']} was for (reason given then: {row.get('reason') or 'none'}).")
+        _write(client, changed, supersede=supersede)
+        rows[row["stepKey"]] = changed
+        reopened.append(row["stepKey"])
+    return reopened
 
 
 ILLUSTRATION_KEY = "illustration"
@@ -545,8 +612,12 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     existing = rows.get(key)
     if existing is None and step.status != LIVE:
         raise ChecklistError(f"Step '{key}' is not live in the procedure yet, so it has no checklist item.")
-    row = _apply(existing or _new_row(lineage, key, procedure), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=_current_version_number(client, lineage),
-                 instruction=instruction)
+    if state == SKIPPED:   # a skip records the version it was made for and what kind of change that version was
+        story_version, change_kind = skipped_version_and_change_kind(client, lineage)
+    else:
+        story_version, change_kind = _current_version_number(client, lineage), None
+    row = _apply(existing or _new_row(lineage, key, procedure), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=story_version,
+                 instruction=instruction, change_kind=change_kind)
     _write(client, row)
     rows[key] = row
     if not translation:   # a translation has no board card to show progress on
@@ -737,6 +808,7 @@ def record_translation_steps(client, record: dict[str, Any], checklist: dict[str
     version = int(record["versionNumber"])
     procedure = translation_procedure(procedure_of(client))
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
+    reopen_skips_after_text_edit(client, lineage, rows, procedure, version, now=now, story=record)
     for step in procedure.steps:
         existing = rows.get(step.key)
         if step.key in TRANSLATION_PROOF_KEYS:
@@ -790,14 +862,15 @@ def mark_published(client, lineage: str, *, actor_label: str) -> None:
         print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
 
 
-def steps_for_display(rows: list[dict[str, Any]], lineage: str, procedure: Procedure = DEFAULT_PROCEDURE) -> list[dict[str, Any]]:
-    """Each stored step with its title and the command that moves it on, for ``stories next`` and for a panel."""
+def steps_for_display(rows: list[dict[str, Any]], lineage: str, procedure: Procedure = DEFAULT_PROCEDURE, current_version: int | None = None) -> list[dict[str, Any]]:
+    """Each stored step with its title and the command that moves it on, for ``stories next`` and for a panel. ``carriedSkip`` is how a skip made on an
+    earlier version than ``current_version`` reads (``skip_label``)."""
     shown = []
     for row in rows:
         step = procedure.by_key.get(row["stepKey"])
         if step is None:
             continue
-        shown.append({**row, "title": step.title, "role": step.role, "command": step.command.replace("{story}", lineage)})
+        shown.append({**row, "title": step.title, "role": step.role, "command": step.command.replace("{story}", lineage), "carriedSkip": skip_label(row, current_version)})
     return shown
 
 
@@ -861,7 +934,7 @@ def checklist_lines(shown: list[dict[str, Any]], stale: int = 0) -> list[str]:
         who = f"{row.get('actorKind')}:{row.get('actorLabel')}" if row.get("actorKind") else ""
         if row.get("onBehalfOf"):
             who += f" on the instruction of {row['onBehalfOf']}: \"{row.get('instruction') or ''}\""
-        detail = row.get("reason") or row.get("note") or row.get("evidence") or ""
+        detail = row.get("carriedSkip") or row.get("reason") or row.get("note") or row.get("evidence") or ""
         lines.append("\t".join(["item", row["stepKey"], row["state"], row["title"], who, str(row.get("changedAt") or ""), detail]))
         for note in row.get("notes") or []:
             lines.append("\t".join(["note", row["stepKey"], f"{note.get('actorKind')}:{note.get('actorLabel') or note.get('actorSub')}", str(note.get("at") or ""), str(note.get("text") or "").replace("\n", " ")]))
