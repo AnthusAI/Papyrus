@@ -86,6 +86,16 @@ def papyrus_rate_items() -> dict:
     return rate_items()
 
 
+def papyrus_review_deadline(review_request_id: str, due_at: str) -> dict:
+    """The engine's run for a soft review's deadline wake: read the review request again and, if it still waits for exactly ``due_at``, record "proceeded without
+    review" in one conditional write. An answer, a withdrawal or a moved deadline means it does nothing. Never answers, approves or publishes anything."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.review_requests import deadline_run
+
+    return deadline_run(create_authoring_client()[0], review_request_id, due_at)
+
+
 def papyrus_announce_story(story: str = "", version: str = "", change: str = "", what: str = "", stage: str = "") -> dict:
     """The announce agent's run for one wake: a Story's page went live (stage_entered into published) or its rating changed (rated). Re-reads the Story as it is now and
     decides from the records, never from the wake: one Announcement and one email Delivery for the Story at a rung the site's policy allows, once however many wakes

@@ -295,6 +295,18 @@ def on_deadline_wake(client, wake_key: str, *, now: datetime | None = None) -> d
     return {"action": "timed_out", "requestId": record_id, "reason": None}
 
 
+def deadline_run(client, review_request_id: str, due_at: str, *, now: datetime | None = None) -> dict[str, Any]:
+    """The ``review_deadline`` procedure's one step: the wake for this request's deadline, with the outcome the runner records (``acted`` when the request
+    timed out, ``nothing`` with the reason when it no longer waited for that time)."""
+    from .review_deadline_timers import OWNER
+
+    done = on_deadline_wake(client, follow_up_timers.follow_up_key(OWNER, review_request_id, due_at), now=now)
+    if done["action"] == "timed_out":
+        return {"summary": f"Review request {review_request_id} reached its deadline {due_at} with no answer: {PROCEEDED_WITHOUT_REVIEW}.", "result": done,
+                "run_outcome": "acted", "run_outcome_reason": "timed_out"}
+    return {"summary": done["reason"], "result": done, "run_outcome": "nothing", "run_outcome_reason": "not_waiting"}
+
+
 def _clear_deadline(deadline_timers: Any, request: dict[str, Any]) -> None:
     """An answered or withdrawn request has no due time: its entry is deleted when the caller holds the site's timers. A caller without them (the console)
     leaves the entry to fire once, and its wake does nothing, because the request no longer carries the time it names (``follow_up_timers.check_wake``)."""

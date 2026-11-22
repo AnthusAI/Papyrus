@@ -23,7 +23,8 @@ class ReviewDeadlineTimerError(ValueError):
 
 
 class ReviewDeadlineTimers:
-    """``base`` is the runner request every start carries (procedure, publication, policy location), as for any follow-up; the request's id is added as the input."""
+    """``base`` is the runner request every start carries (procedure, publication, policy location), as for any follow-up; the request's id and the deadline it waits for
+    are added as the input, which is what the ``review_deadline`` procedure reads. The runner starts that procedure with no adopted agent (``engine_follow_ups``)."""
 
     def __init__(self, timers: FollowUpTimers, base: Mapping[str, Any] | Callable[[Mapping[str, Any]], Mapping[str, Any]]):
         self.timers, self._base = timers, base
@@ -50,7 +51,8 @@ class ReviewDeadlineTimers:
 
     def _base_request(self, row: Mapping[str, Any]) -> dict[str, Any]:
         request = dict(self._base(row) if callable(self._base) else self._base)
-        request["input"] = {**(request.get("input") if isinstance(request.get("input"), dict) else {}), "reviewRequestId": row["id"]}
+        request["input"] = {**(request.get("input") if isinstance(request.get("input"), dict) else {}), "reviewRequestId": row["id"],
+                            **({"dueAt": row["dueAt"]} if row.get("dueAt") else {})}
         return request
 
     def sync(self, row: Mapping[str, Any]) -> str | None:

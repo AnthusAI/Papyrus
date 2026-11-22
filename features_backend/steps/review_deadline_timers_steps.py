@@ -64,7 +64,7 @@ def one_entry(context):
     assert name == fu.entry_name("ReviewRequest", context.request_id), name
     assert entry["ScheduleExpression"] == f"at({stored(context)['deadline'][:-1]})", entry["ScheduleExpression"]
     request = json.loads(entry["Target"]["Input"])["request"]
-    assert request["input"] == {"reviewRequestId": context.request_id} and request["trigger"]["waitingFor"] == "deadline", request
+    assert request["input"] == {"reviewRequestId": context.request_id, "dueAt": stored(context)["deadline"]} and request["trigger"]["waitingFor"] == "deadline", request
 
 
 @then("the site's timers hold no entry")
@@ -267,3 +267,72 @@ def resent_wake_runs(context, note):
     assert outcome["action"] == "timed_out", outcome
     current = rr.get_review(context.client, context.request_id)
     assert current["state"] == "timed_out" and current["history"][-1]["note"] == note
+
+
+# --- the engine's own follow-ups, through the runner -----------------------------------------------------------------------------------------------
+
+
+def runner_request(context, request_id: str, *, owner: str | None = None, procedure: str | None = None) -> dict:
+    """The request the deadline timer sends (``ReviewDeadlineTimers.wake_request``), with the site's tenant and bucket, as the queue hands it to the runner."""
+    from papyrus_content.review_deadline_timers import ReviewDeadlineTimers
+    from runner_reads_policy_steps import BUCKET, TENANT
+    from schedule_fakes import ENDPOINT
+
+    base = {"appsyncEndpoint": ENDPOINT, "publicationId": "review-site", "procedureKey": procedure or "review_deadline", "tenantId": TENANT, "siteBucket": BUCKET}
+    timers = ReviewDeadlineTimers(fu.FollowUpTimers.for_site("review-site", account="123456789012", region="us-east-1", client=object()), base)
+    request = timers.wake_request(context.reviews.tables["ReviewRequest"][request_id])
+    if owner is not None:
+        request["wakeKey"] = fu.follow_up_key(owner, request_id, request["input"]["dueAt"])
+    return request
+
+
+def start_runner(context, request: dict) -> None:
+    from papyrus_content import procedure_runner as pr
+
+    def execute(workdir, source_path, inputs, **_):
+        context.executed.append(request["wakeKey"])
+        return {"success": True, "output": rr.deadline_run(context.reviews, inputs["reviewRequestId"], inputs["dueAt"], now=instant("2026-11-20T09:00:00Z")), "seconds": 1}
+
+    policy = pr.policy_for(request, context.client, lambda: context.s3)
+    context.result = pr.run_procedure_request(request, policy=policy, client=context.client, execute=execute, seconds_available=900, environment={})
+
+
+@given('the open soft review "{request_id}" waits for its deadline "{deadline}"')
+def open_soft_review(context, request_id, deadline):
+    deadline_site = DeadlineSite(RequestsReadOnlyByIndex())
+    context.reviews = deadline_site.client
+    rr.raise_review(context.reviews, subject={"type": "story", "id": "story-1"}, mode="soft_review", reason="Please review", raised_by="ideas",
+                    request_id=request_id, deadline=deadline, now=RAISED_AT, deadline_timers=deadline_site.timers)
+
+
+@when('the deadline timer\'s wake for "{request_id}" reaches the runner')
+def deadline_wake_reaches_runner(context, request_id):
+    start_runner(context, runner_request(context, request_id))
+
+
+@when('the deadline timer\'s wake for "{request_id}" reaches the runner naming the procedure "{procedure}"')
+def deadline_wake_other_procedure(context, request_id, procedure):
+    start_runner(context, runner_request(context, request_id, procedure=procedure))
+
+
+@when('a follow-up wake for "{request_id}" from the owner "{owner}" reaches the runner')
+def other_owner_wake(context, request_id, owner):
+    start_runner(context, runner_request(context, request_id, owner=owner))
+
+
+@then('the run record is acted with the reason "{reason}" and names no responsibility and no rung')
+def acted_without_agent(context, reason):
+    (stored,) = context.client.records.values()
+    assert (stored["outcome"], stored["outcomeReason"]) == ("acted", reason), stored
+    assert not any(stored.get(key) for key in ("responsibility", "rung", "policyVersion", "automationId")), stored
+
+
+@then('the review request "{request_id}" proceeded without review')
+def proceeded(context, request_id):
+    request = rr.get_review(context.reviews, request_id)
+    assert request["state"] == "timed_out" and request["outcome"] == "proceeded_without_review", request
+
+
+@then('the review request "{request_id}" is still open')
+def still_open_request(context, request_id):
+    assert rr.get_review(context.reviews, request_id)["state"] == "open"

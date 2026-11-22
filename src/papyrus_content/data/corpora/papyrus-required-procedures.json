@@ -29,6 +29,7 @@
     "ontology.relationship-explainer": "ontology_relationship_explainer.tac",
     "rate_items": "rate_items.tac",
     "references.curate": "reference_curation.tac",
+    "review_deadline": "review_deadline.tac",
     "story.editor-review": "editor_review.tac",
     "story.localize": "story_localize.tac",
     "submissions.email.process": "email_submission_processor.tac"
@@ -553,6 +554,20 @@
         "type": "object",
         "properties": {},
         "required": []
+      },
+      "defaults": {}
+    },
+    "review_deadline": {
+      "title": "Review Request Deadline",
+      "category": "newsroom",
+      "description": "The engine's run for a soft review's deadline wake: it reads the review request again and, if it still waits for that deadline, records that it proceeded without review. Started by the request's follow-up timer with no adopted agent; an answer or withdrawal before the deadline means it does nothing.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "reviewRequestId": {"type": "string", "description": "The review request whose deadline came"},
+          "dueAt": {"type": "string", "description": "The deadline the wake was set for, a UTC instant"}
+        },
+        "required": ["reviewRequestId", "dueAt"]
       },
       "defaults": {}
     },

@@ -22,7 +22,7 @@ def test_a_due_time_sets_one_entry_whose_wake_names_the_request_and_its_deadline
     (entry,) = api.entries.values()
     assert entry["Name"] == fu.entry_name("ReviewRequest", "rr-1") and entry["ScheduleExpression"] == "at(2026-11-20T09:00:00)"
     request = json.loads(entry["Target"]["Input"])["request"]
-    assert request["procedureKey"] == PROCEDURE_KEY and request["input"] == {"reviewRequestId": "rr-1"}
+    assert request["procedureKey"] == PROCEDURE_KEY and request["input"] == {"reviewRequestId": "rr-1", "dueAt": "2026-11-20T09:00:00Z"}
     assert (request["tenantId"], request["siteBucket"], request["appsyncEndpoint"]) == ("site", "site-bucket", ENDPOINT)
     assert request["trigger"]["waitingFor"] == "deadline"
 

@@ -146,12 +146,13 @@ What a deploy cannot show, and a person checks once on a real site after the rel
 
 ## Review request deadlines are timers; the state index (PPY-9b8e59)
 
-The release that carries slice C3 adds one index to `ReviewRequest` (`listReviewRequestsByReviewStateKeyAndUpdatedAt`, partition `reviewStateKey`, sort `updatedAt`) and the field `dueAt`; nothing else in the release may add an index to that table.
+The release that carries slice C3 adds one index to `ReviewRequest` (`listReviewRequestsByReviewStateKeyAndUpdatedAt`, partition `reviewStateKey`, sort `updatedAt`) and the field `dueAt`; nothing else in the release may add an index to that table. It also registers the engine procedure `review_deadline` with the other core procedures.
 
 1. **Backfill the index once, after the deploy has finished** (Engineer, per site, operator credentials for the site): requests stored before the index have no `reviewStateKey`, so the Notification Center, `papyrus reviews list`, steering and the curation flag do not see them until they do. `papyrus reviews index-backfill` lists what it would write; `papyrus reviews index-backfill --apply` writes `reviewStateKey` on every request and `dueAt` on each open soft review with a deadline. It is the one read of the whole table and writes nothing a second time. An open soft review written before this release has no follow-up timer: once its `dueAt` is written it is shown as Overdue after its deadline, and the hygiene wake re-sends its deadline wake with the timer's own key (overdue.py).
 2. **A soft review with a deadline needs the site's timers.** `papyrus reviews raise --mode soft_review --deadline ...` builds them from `PAPYRUS_AGENT_PUBLICATION_ID`, `PAPYRUS_AWS_ACCOUNT_ID` and `AWS_REGION` (and carries `PAPYRUS_TENANT_ID` and `PAPYRUS_SITE_BUCKET`, which the runner needs to start the wake), and refuses without them. The caller needs `allowFollowUpTimers` on its role, as for any follow-up (docs/follow-up-timers.md).
+3. **The deadline wake runs with no adopted agent** (`engine_follow_ups.py`): nothing to adopt and no rung to set. A paused site skips it, and the request is Overdue until the site resumes.
 
-What a deploy cannot show, and a person checks once on a real site: a soft review raised with a deadline a few minutes ahead has one `follow-up-*` entry in the site's schedule group; at the deadline the request is timed out and the Notification Center shows the request as proceeded without review; the entry is gone.
+What a deploy cannot show, and a person checks once on a real site: a soft review raised with a deadline a few minutes ahead has one `follow-up-*` entry in the site's schedule group; at the deadline the runner records one `review_deadline` run, `acted` (`timed_out`), and the Notification Center shows the request as proceeded without review; the entry is gone.
 
 ## The announce agent's definition (PPY-e3bb2b)
 
