@@ -24,10 +24,22 @@
       "text": "Stage 2 PR 1 of 3 (per-language checklist gate): PR 1731 against develop, branch feat/PPY-473f8f-lang-checklist. Language lineages get translate, faithfulness, copy_edit, human_review and publish rows; publish_item checks the lineage being published; publish_by_person.py and by_person are deleted; imported Stories keep review_people open. Specs: translation-language-checklist.feature and updated story-checklist, pod-load and translation-publishing features. Not merged; stamp/delegation and the translation agent are PRs 2 and 3.",
       "created_at": "2026-11-19T16:41:00.450310Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5908ca1a-8eef-4e7b-99b1-043780ce0779",
+      "author": "ryan",
+      "text": "PR 2 released in Papyrus 5.147.0 (#1845) and live on Machines on Machines. Verified live: (1) a publish dry run of the es-419 draft content-item-when-the-machine-hands-control-back-...--es-419 is refused 'checklist-open' naming human_review; (2) an agent ticking that human_review with no instruction is refused 'delegation-required' and the step stays open; (3) a zh-Hans draft held for faithfulness is refused 'translation-held'. Not checked live: a delegated tick (it would close a real review), and an imported Story (none in draft). Remaining for Ryan: close here with the translation agent left to PPY-98f88e (PR 3), or keep open for it; standing revocable delegation vs per-change instructions; whether an original's republish requires a fresh review.",
+      "created_at": "2026-11-22T21:28:34.286056Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-19T11:38:50.837652Z",
-  "updated_at": "2026-11-19T16:41:00.451293Z",
+  "updated_at": "2026-11-22T21:28:34.286226Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
