@@ -1,19 +1,21 @@
-"""The rating agent's daily work (PPY-d85860, slice L1; definition ``agent_definitions/core/rate.yaml``, procedure ``rate_items``).
+"""The rating agent's daily work (PPY-d85860 slice L1, PPY-e61642 slice L2; definition ``agent_definitions/core/rate.yaml``, procedure ``rate_items``).
 
-It reads the published Stories nobody has rated, newest first, by the site's head stage index, and asks the bulk-tier model one question about each:
-three stars (the default), four (clearly better than the usual Story) or five. A five is never a rating: it is listed as a candidate for a person and
-nothing more. A model answer that is none of these is listed as unjudged and never becomes a rating.
+It reads the published Stories nobody has rated and nobody has suggested stars for, newest first, by the site's head stage index, and asks the bulk-tier
+model one question about each: three stars (the default), four (clearly better than the usual Story) or five, a five-star candidate. Every answer is a
+suggestion for a person, never a rating: a machine never writes ``starRating`` (``rating_suggestions.py``). A model answer that is none of these is listed
+as unjudged and suggests nothing.
 
-What the agent may *write* is the site's agent policy, never this module. The run asks the one gate whether it may call ``ratings_set`` (the rung the
-operation table names, ``draft``). At ``observe`` the gate says a person would have to; the run then records what it would rate and why, writes no rating
-and files no review request. When the site's policy later raises the rung, this same code writes the threes and fours through the same gate, with no
-change here. Every read and write goes through ``images.handlers.execute`` with the run's own ``GateRun``, so each answer is kept for the run record.
+What the agent may *write* is the site's agent policy, never this module. The run asks the one gate whether it may call ``ratings_suggest`` (the rung the
+operation table names, ``propose``). At ``observe`` the gate says a person would have to; the run then records what it would suggest and why, writes
+nothing and raises no review. At ``propose`` it writes each suggestion beside the Story's rating and then raises the day's one soft review of them,
+"N ratings suggested, M five-star candidates". Every read and write goes through ``images.handlers.execute`` with the run's own ``GateRun``, so each
+answer is kept for the run record.
 
 Reading is bounded by the run, not by a count: Stories come one page at a time until the index ends or the run's own deadline is near, and the run
 says which. The index is a partition read of the published head rows, newest first; a table is never scanned.
 
 Outcome: ``nothing`` (reason ``nothing_unrated``) when no Story needed a rating; otherwise ``acted`` (reason ``proposed`` when nothing was written,
-``rated`` when ratings were written) with the counts. A run in which the model failed for every Story it asked about fails: nothing half-done is left
+``suggested`` when suggestions were written) with the counts. A run in which the model failed for every Story it asked about fails: nothing half-done is left
 looking done.
 """
 from __future__ import annotations
@@ -36,10 +38,10 @@ from papyrus_content.item_stars import item_stars
 RESPONSIBILITY = "rate"
 INDEX = "itemsByHeadStageForRating"   # graphql_authoring.INDEX_DEFINITIONS: one row per Story, the published partition, newest first
 PUBLISHED = "published"
-WRITE_OPERATION, GUIDELINES_OPERATION = "ratings_set", "guidelines_resolve"
+WRITE_OPERATION, REVIEW_OPERATION, GUIDELINES_OPERATION = "ratings_suggest", "ratings_suggestions_review", "guidelines_resolve"
 MACHINE_STARS = (3, 4)
 FIVE = 5
-NOTHING_UNRATED, PROPOSED, RATED = "nothing_unrated", "proposed", "rated"
+NOTHING_UNRATED, PROPOSED, SUGGESTED = "nothing_unrated", "proposed", "suggested"
 
 INSTRUCTIONS = """You rate published Stories for a publication, one at a time, with a star rating that people later rely on to decide what the site features.
 
@@ -74,6 +76,7 @@ class Services:
     execute: Callable[..., dict[str, Any]]                          # images.handlers.execute: the one door every operation goes through
     clock: Callable[[], float] = time.time
     handlers: dict[str, Any] | None = None                          # the operation handlers to run; None means the real ones
+    today: Callable[[], str] | None = None                          # the site's day, YYYY-MM-DD, that names the day's one review; None means the schedule's zone
 
 
 @dataclass
@@ -85,12 +88,14 @@ class Tally:
     failed: list[dict[str, Any]] = field(default_factory=list)
     left_alone: list[dict[str, Any]] = field(default_factory=list)
     written: list[dict[str, Any]] = field(default_factory=list)
+    review: dict[str, Any] | None = None
     stopped: str | None = None
 
 
 def eligible(row: Mapping[str, Any]) -> bool:
-    """A published Story that nobody has rated and that is not a translation (a translation is judged through its source)."""
-    return (is_story_item_type(row.get("type")) and row.get("stage") == PUBLISHED and not row.get("sourceLineageId") and item_stars(row) is None)
+    """A published Story that nobody has rated, that has no suggestion waiting, and that is not a translation (a translation is judged through its source)."""
+    return (is_story_item_type(row.get("type")) and row.get("stage") == PUBLISHED and not row.get("sourceLineageId") and item_stars(row) is None
+            and row.get("starSuggestion") is None)
 
 
 def published_unrated(client: Any) -> Iterator[dict[str, Any]]:
@@ -170,14 +175,34 @@ def _read_guidelines(services: Services, caller: Caller) -> str:
     return writing_text(result["document"]) if result.get("found") else ""
 
 
-def _write(services: Services, caller: Caller, row: Mapping[str, Any], proposal: dict[str, Any], tally: Tally) -> None:
+def _suggest(services: Services, caller: Caller, proposal: dict[str, Any], tally: Tally) -> None:
     answer = services.execute(WRITE_OPERATION, {"story": proposal["story"], "stars": proposal["stars"]}, caller, services.handlers)
     if answer.get("ok"):
-        tally.written.append({"story": proposal["story"], "stars": proposal["stars"], "ratedBy": answer["result"]["ratedBy"]})
+        tally.written.append({"story": proposal["story"], "title": proposal["title"], "stars": proposal["stars"], "suggestedBy": answer["result"]["suggestedBy"]})
     elif answer["error"]["code"] == "constraint_conflict":   # a person rated it while the run was working: theirs stands
         tally.left_alone.append({"story": proposal["story"], "reason": "already_rated"})
     else:
-        raise RatingError(f"The rating of {proposal['story']} was refused: {answer['error']['code']}: {answer['error']['message']}")
+        raise RatingError(f"The suggestion for {proposal['story']} was refused: {answer['error']['code']}: {answer['error']['message']}")
+
+
+def site_day(time_zone: str, now: float) -> str:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.fromtimestamp(now, ZoneInfo(time_zone)).strftime("%Y-%m-%d")
+
+
+def _raise_review(services: Services, caller: Caller, tally: Tally) -> None:
+    """The day's one soft review of every suggestion this run wrote."""
+    if services.today is not None:
+        day = services.today()
+    else:
+        day = site_day(core_definition(RESPONSIBILITY)["wakes"]["schedule"]["timeZone"], time.time())
+    suggestions = [{"story": entry["story"], "title": entry["title"], "stars": entry["stars"]} for entry in tally.written]
+    answer = services.execute(REVIEW_OPERATION, {"day": day, "suggestions": suggestions}, caller, services.handlers)
+    if not answer.get("ok"):
+        raise RatingError(f"The suggestions were written but the day's review could not be raised: {answer['error']['code']}: {answer['error']['message']}")
+    tally.review = {"request": answer["result"]["request"], "reason": answer["result"]["reason"]}
 
 
 def work(run: AgentRun, services: Services) -> tuple[Tally, GateRun, bool]:
@@ -201,22 +226,26 @@ def work(run: AgentRun, services: Services) -> tuple[Tally, GateRun, bool]:
         longest = max(longest, services.clock() - started)
         stars, reason = decided.get("stars"), str(decided.get("reason") or "")
         entry = {"story": story_id(row), "title": _title(row), "reason": reason}
-        if stars == FIVE:
-            tally.candidates.append(entry)   # a person decides a five: listed, never proposed, never written
+        if stars == FIVE and not isinstance(stars, bool):
+            tally.candidates.append(entry)   # a person decides a five: suggested as a candidate, never a rating
+            if may_write:
+                _suggest(services, caller, {**entry, "stars": FIVE}, tally)
         elif stars in MACHINE_STARS and not isinstance(stars, bool):
             proposal = {**entry, "stars": stars}
             tally.proposals.append(proposal)
             if may_write:
-                _write(services, caller, row, proposal, tally)
+                _suggest(services, caller, proposal, tally)
         else:
             tally.unjudged.append({**entry, "reason": "model_answer_invalid"})
+    if tally.written:
+        _raise_review(services, caller, tally)
     return tally, gate_run, may_write
 
 
 def summary_of(tally: Tally, rung: str | None) -> str:
     parts = [f"{len(tally.proposals)} {'rating' if len(tally.proposals) == 1 else 'ratings'}", f"{len(tally.candidates)} five-star "
              f"{'candidate' if len(tally.candidates) == 1 else 'candidates'} for a person"]
-    done = f"wrote {len(tally.written)}" if tally.written else "wrote none"
+    done = f"suggested {len(tally.written)}" if tally.written else "wrote none"
     problems = len(tally.failed) + len(tally.unjudged)
     return (f"Looked at {tally.looked_at} unrated {'Story' if tally.looked_at == 1 else 'Stories'}: {', '.join(parts)}; {done} (rung {rung})."
             + (f" {problems} could not be judged." if problems else "") + (" Stopped at the run's deadline." if tally.stopped else ""))
@@ -240,11 +269,11 @@ def rate_items(environ: Mapping[str, str] | None = None, services: Services | No
     services = services or default_services(environment)
     tally, gate_run, _ = work(run, services)
     rung = next((answer.rung for answer in gate_run.answers if answer.rung), None)
-    result = {"rung": rung, "looked_at": tally.looked_at, "proposed": len(tally.proposals), "candidates": len(tally.candidates), "written": len(tally.written),
+    result = {"rung": rung, "looked_at": tally.looked_at, "proposed": len(tally.proposals), "candidates": len(tally.candidates), "written": len(tally.written), "review": tally.review,
               "proposals": tally.proposals, "five_star_candidates": tally.candidates, "unjudged": tally.unjudged, "failed": tally.failed,
-              "left_alone": tally.left_alone, "written_ratings": tally.written, "stopped": tally.stopped, "gate_answers": compact_record(gate_run)}
+              "left_alone": tally.left_alone, "written_suggestions": tally.written, "stopped": tally.stopped, "gate_answers": compact_record(gate_run)}
     if tally.looked_at and not (tally.proposals or tally.candidates or tally.unjudged or tally.left_alone):
         raise RatingError(f"The model failed for every one of the {tally.looked_at} Stories it was asked about ({tally.failed[0]['reason']}), so nothing was rated.")
     if not tally.looked_at:
         return {**result, "summary": "No published Story is waiting for a rating.", "run_outcome": "nothing", "run_outcome_reason": NOTHING_UNRATED}
-    return {**result, "summary": summary_of(tally, rung), "run_outcome": "acted", "run_outcome_reason": RATED if tally.written else PROPOSED}
+    return {**result, "summary": summary_of(tally, rung), "run_outcome": "acted", "run_outcome_reason": SUGGESTED if tally.written else PROPOSED}

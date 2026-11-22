@@ -62,6 +62,9 @@ export type ImageOperationName =
   | "announcements_recent"
   | "announcements_explain"
   | "ratings_set"
+  | "ratings_suggest"
+  | "ratings_confirm"
+  | "ratings_suggestions_review"
   | "handoffs_request"
 ;
 
@@ -1735,11 +1738,11 @@ export type AnnouncementsExplainResult = {
   })[];
 };
 
-/** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
+/** Give a Story a star rating, 1 to 5. Only a person rates; an agent suggests with ratings_suggest. */
 export type RatingsSetInput = {
   /** The lineage id of the Story. */
   story: string;
-  /** The rating, 1 to 5. An agent may only give 3 or 4. */
+  /** The rating, 1 to 5. */
   stars: number;
 };
 
@@ -1749,6 +1752,59 @@ export type RatingsSetResult = {
   previous?: number;
   stars: number;
   ratedBy?: string;
+};
+
+/** Suggest stars for a Story nobody has rated: three or four, or five for a five-star candidate. It sits beside the rating and is never the rating. */
+export type RatingsSuggestInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** 3 or 4, or 5 for a five-star candidate a person decides. */
+  stars: number;
+};
+
+export type RatingsSuggestResult = {
+  lineageId: string;
+  stars: number;
+  candidate: boolean;
+  suggestedBy?: string;
+  run?: string | null;
+};
+
+/** Make a Story's suggested stars your rating, or give other stars instead. */
+export type RatingsConfirmInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** Other stars, 1 to 5, instead of the suggested ones. Leave out to confirm the suggestion. */
+  stars?: number;
+};
+
+export type RatingsConfirmResult = {
+  lineageId: string;
+  stars: number;
+  suggested: number;
+  changed: boolean;
+  ratedBy?: string;
+};
+
+/** Raise the day's one review of suggested ratings, or add Stories to it while it is open. */
+export type RatingsSuggestionsReviewInput = {
+  /** The day, YYYY-MM-DD, in the site's time zone. */
+  day: string;
+  /** The Stories suggested, with their stars. */
+  suggestions: {
+    /** The lineage id of the Story. */
+    story: string;
+    title?: string;
+    stars: number;
+  }[];
+};
+
+export type RatingsSuggestionsReviewResult = {
+  request: string;
+  reason: string;
+  state: string;
+  /** Every Story the request links. */
+  stories: string[];
 };
 
 /** Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once. */
@@ -1831,6 +1887,9 @@ export interface ImageOperations {
   announcements_recent: { input: AnnouncementsRecentInput; result: AnnouncementsRecentResult };
   announcements_explain: { input: AnnouncementsExplainInput; result: AnnouncementsExplainResult };
   ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
+  ratings_suggest: { input: RatingsSuggestInput; result: RatingsSuggestResult };
+  ratings_confirm: { input: RatingsConfirmInput; result: RatingsConfirmResult };
+  ratings_suggestions_review: { input: RatingsSuggestionsReviewInput; result: RatingsSuggestionsReviewResult };
   handoffs_request: { input: HandoffsRequestInput; result: HandoffsRequestResult };
 }
 
@@ -1894,7 +1953,10 @@ export const IMAGE_OPERATIONS = {
   announcements_where: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements where" },
   announcements_recent: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements recent" },
   announcements_explain: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements explain" },
-  ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
+  ratings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
+  ratings_suggest: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings suggest" },
+  ratings_confirm: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings confirm" },
+  ratings_suggestions_review: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings suggestions-review" },
   handoffs_request: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "handoffs", command: "papyrus handoffs request" },
 } as const;
 

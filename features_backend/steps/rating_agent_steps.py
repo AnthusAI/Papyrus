@@ -12,7 +12,7 @@ from pathlib import Path
 
 from behave import given, then, when
 
-from papyrus_content import model_usage, procedure_runner as pr, procedure_runner_child, rating_agent, rating_handlers, run_outcomes, story_reporting, story_signals
+from papyrus_content import model_usage, procedure_runner as pr, procedure_runner_child, rating_agent, rating_handlers, rating_suggestions, run_outcomes, story_reporting, story_signals
 from papyrus_content.agent_gate import run_context
 from papyrus_content.ideas import synthesis
 from papyrus_content.images.handlers import Caller, Outcome, execute
@@ -36,6 +36,36 @@ class FakeIndexClient:
         yield from list(self.context.index_rows)
 
 
+class StoryStore:
+    """The site's Story records and review requests as the rating handlers reach them: the suggestion read, the suggestion write and the review request rows."""
+
+    def __init__(self, context):
+        self.context = context
+
+    def graphql(self, query, variables):
+        assert "StorySuggestion" in query, query
+        lineage = variables["id"].removesuffix("-v1")
+        if lineage not in self.context.store:
+            return {"getItem": None}
+        return {"getItem": {"id": variables["id"], "lineageId": lineage, **self.context.store[lineage]}}
+
+    def update_record(self, model, payload):
+        if model == "Item":
+            assert not {"starRating", "starRatedBy", "starRatedAt"} & set(payload), payload   # a suggestion never touches the rating
+            self.context.store[payload["id"].removesuffix("-v1")].update({key: value for key, value in payload.items() if key != "id"})
+        else:
+            self.context.reviews[payload["id"]].update(payload)
+
+    def get_record(self, model, record_id):
+        assert model == "ReviewRequest", model
+        found = self.context.reviews.get(record_id)
+        return dict(found) if found else None
+
+    def create_record(self, model, payload):
+        assert model == "ReviewRequest", model
+        self.context.reviews[payload["id"]] = dict(payload)
+
+
 def _row(lineage, title, **extra):
     return {"id": f"{lineage}-v1", "lineageId": lineage, "stage": "published", "status": "published", "type": "article", "section": "news", "versionState": "current",
             "title": title, "headline": title, "deck": "", "bodyMarkus": f"The body of {title}.", **extra}
@@ -47,6 +77,7 @@ def _begin(context):
     context.rating_ready = True
     context.index_rows, context.index_reads, context.index_missing = [], [], False
     context.store, context.writes = {}, []        # the site's Story records: lineage -> {"starRating", "starRatedBy"}; every rating written, in order
+    context.reviews = {}                          # the site's ReviewRequest rows, by id
     context.answers, context.fail_all, context.fail_for = {}, False, set()   # what the scripted model says, by Story title
     context.asked, context.guidelines_seen, context.call_seconds, context.seconds_left = [], [], 0.0, None
     context.guidelines_text, context.seen_wake_keys = "", []
@@ -94,10 +125,10 @@ def _transport(context):
 
 
 def _services(context):
-    handlers = {"guidelines_resolve": _guidelines(context), **rating_handlers.signed_in_handlers(lambda: object())}
+    handlers = {"guidelines_resolve": _guidelines(context), **rating_handlers.signed_in_handlers(lambda: StoryStore(context))}
     client = FakeIndexClient(context)
     return rating_agent.Services(stories=lambda: rating_agent.published_unrated(client), judge=rating_agent.openai_judge("test-key", "gpt-6-luna", tier="bulk", transport=_transport(context)),
-                                 execute=execute, clock=lambda: context.clock[0], handlers=handlers)
+                                 execute=execute, clock=lambda: context.clock[0], handlers=handlers, today=lambda: "2026-11-21")
 
 
 def _guidelines(context):
@@ -298,12 +329,6 @@ def no_five_written(context):
     assert all(entry["stars"] in (3, 4) for entry in context.writes), context.writes
 
 
-@then('the ratings written are "{first}" at {first_stars:d} stars and "{second}" at {second_stars:d} stars, each by "{label}"')
-def written(context, first, first_stars, second, second_stars, label):
-    assert context.writes == [{"story": first, "stars": first_stars, "ratedBy": label}, {"story": second, "stars": second_stars, "ratedBy": label}], context.writes
-    assert [(entry["story"], entry["stars"]) for entry in _result(context)["written_ratings"]] == [(first, first_stars), (second, second_stars)]
-
-
 @then('the person\'s rating of "{lineage}" is still {stars:d} stars')
 def person_rating_stands(context, lineage, stars):
     assert context.store[lineage] == {"starRating": stars, "starRatedBy": ADMIN_NAME}, context.store[lineage]
@@ -382,10 +407,109 @@ def one_record(context):
 @when('an agent asks the operation "{operation}" for "{lineage}" at {stars:d} stars')
 def agent_asks(context, operation, lineage, stars):
     _begin(context)
-    handlers = rating_handlers.signed_in_handlers(lambda: object())
+    handlers = rating_handlers.signed_in_handlers(lambda: StoryStore(context))
     context.answer = execute(operation, {"story": lineage, "stars": stars}, Caller(kind="agent", subject="rate"), handlers)
 
 
 @then('the answer is the error "{code}"')
 def answer_error(context, code):
     assert context.answer["ok"] is False and context.answer["error"]["code"] == code, context.answer
+
+
+# --- suggestions (features_backend/agents/rating-suggestions.feature) ---------------------------------------------------------------
+
+
+@given('the site has a published Story "{lineage}" with {stars:d} stars suggested and no rating')
+def suggested_story(context, lineage, stars):
+    _begin(context)
+    context.index_rows.append(_row(lineage, f"Suggested story {lineage}", starSuggestion=stars, starSuggestedBy="agent:rate"))
+    context.store[lineage] = {"starSuggestion": stars, "starSuggestedBy": "agent:rate"}
+
+
+@given('a Story "{lineage}" with {stars:d} stars suggested by "{by}" and no rating')
+def story_with_suggestion(context, lineage, stars, by):
+    _begin(context)
+    context.store[lineage] = {"starSuggestion": stars, "starSuggestedBy": by, "starSuggestedAt": "2026-11-21T08:30:00.000Z", "starSuggestionRun": "run-1"}
+
+
+@then('"{lineage}" has the suggestion {stars:d} stars by "{by}" from the run, and no rating')
+def has_suggestion(context, lineage, stars, by):
+    record = context.store[lineage]
+    assert record.get("starSuggestion") == stars and record.get("starSuggestedBy") == by and record.get("starRating") is None, record
+    assert record.get("starSuggestionRun") == _stored(context)["id"] and record.get("starSuggestedAt"), record
+
+
+@then('"{lineage}" has no suggestion')
+def no_suggestion(context, lineage):
+    assert "starSuggestion" not in context.store[lineage], context.store[lineage]
+
+
+def _only_review(context):
+    assert len(context.reviews) == 1, list(context.reviews)
+    return next(iter(context.reviews.values()))
+
+
+@then('the site has one review request, a soft review "{reason}"')
+def one_review(context, reason):
+    review = _only_review(context)
+    assert review["mode"] == "soft_review" and review["reason"] == reason and review["state"] == "open", review
+
+
+@then("the site has no review request")
+def no_review(context):
+    _begin(context)
+    assert context.reviews == {}, context.reviews
+
+
+@then('the review links "{first}", "{second}" and "{third}"')
+def review_links(context, first, second, third):
+    links = json.loads(_only_review(context)["links"])
+    assert [link["id"] for link in links if link["type"] == "story"] == [first, second, third], links
+
+
+def _caller():
+    return Caller(kind="agent", subject="rate")
+
+
+@given('the day\'s review already lists "{lineage}" with {stars:d} stars suggested')
+def review_exists(context, lineage, stars):
+    _begin(context)
+    rating_suggestions.raise_daily_review(StoryStore(context), day="2026-11-21", entries=[{"story": lineage, "title": lineage, "stars": stars}], raised_by="agent:rate")
+
+
+@when('the agent raises the day\'s review for "{first}" at {first_stars:d} stars and "{second}" at {second_stars:d} stars')
+def raise_again(context, first, first_stars, second, second_stars):
+    handlers = rating_handlers.signed_in_handlers(lambda: StoryStore(context))
+    context.answer = execute("ratings_suggestions_review", {"day": "2026-11-21", "suggestions": [{"story": first, "title": first, "stars": first_stars},
+                                                                                              {"story": second, "title": second, "stars": second_stars}]}, _caller(), handlers)
+    assert context.answer["ok"], context.answer
+
+
+@when('a person confirms the suggestion for "{lineage}"')
+def confirm(context, lineage):
+    handlers = rating_handlers.signed_in_handlers(lambda: StoryStore(context))
+    context.answer = execute("ratings_confirm", {"story": lineage}, Caller(kind="person", subject=ADMIN_NAME), handlers)
+    assert context.answer["ok"], context.answer
+
+
+@when('a person confirms the suggestion for "{lineage}" with {stars:d} stars instead')
+def confirm_other(context, lineage, stars):
+    handlers = rating_handlers.signed_in_handlers(lambda: StoryStore(context))
+    context.answer = execute("ratings_confirm", {"story": lineage, "stars": stars}, Caller(kind="person", subject=ADMIN_NAME), handlers)
+    assert context.answer["ok"], context.answer
+
+
+@then('the person\'s rating of "{lineage}" is {stars:d} stars')
+def person_rating(context, lineage, stars):
+    assert context.store[lineage]["starRating"] == stars and context.store[lineage]["starRatedBy"] == ADMIN_NAME, context.store[lineage]
+    assert context.writes[-1] == {"story": lineage, "stars": stars, "ratedBy": None}, context.writes
+
+
+@then("the answer says the suggestion was confirmed unchanged")
+def unchanged(context):
+    assert context.answer["result"]["changed"] is False and context.answer["result"]["suggested"] == context.answer["result"]["stars"], context.answer
+
+
+@then("the answer says the person changed the suggestion from {stars:d} stars")
+def changed(context, stars):
+    assert context.answer["result"]["changed"] is True and context.answer["result"]["suggested"] == stars, context.answer

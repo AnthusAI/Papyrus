@@ -39,3 +39,8 @@ Feature: An editor rates a Story one to five stars in the drawer and the editor,
     When the editor opens the board, a drawer and the editor on a phone
     Then the five stars in the drawer and the editor are at least forty pixels square, in one row, with Lucide icons and nothing scrolling sideways
     And the card's rating stays in its top row
+
+  Scenario: A machine's suggested stars sit under an unrated Story's rating until the editor decides
+    Given the Story editor open on an unrated Story with stars suggested by the rating agent
+    When the editor reads the suggestion and confirms it
+    Then the suggestion is in words under an empty rating, and confirming saves it as the editor's rating by one plain update, after which the suggestion is gone

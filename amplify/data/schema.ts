@@ -2541,6 +2541,12 @@ const definitions = {
       starRevision: a.string(),
       starRatedAt: a.datetime(),
       starRatedBy: a.string(),
+      /** A machine's suggested rating (3, 4, or 5 for a five-star candidate), beside the rating and never in it (PPY-e61642): a person confirms, changes or
+       *  ignores it. Who suggested it (`agent:<responsibility>`), when, and the run whose record holds the reason. Private, never published. */
+      starSuggestion: a.integer(),
+      starSuggestedAt: a.datetime(),
+      starSuggestedBy: a.string(),
+      starSuggestionRun: a.string(),
       /** The Item this one is a child of: a checklist step (type sub-task) names its Story's lineage here (docs/story-procedure.md). */
       parentLineageId: a.id(),
       /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per
