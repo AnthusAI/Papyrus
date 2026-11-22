@@ -44,6 +44,20 @@ def step_review_optional(context):
     context.client._papyrus_story_procedure = None   # the procedure is read again, not kept from before the document
 
 
+@given("the site requires its readers' review of an original but says its translations need no person's review")
+def step_translations_need_no_review(context):
+    from story_procedure_site_steps import MemoryFiles
+
+    files = MemoryFiles(context.client)
+    patcher = mock.patch("papyrus_content.guidelines.store.ModelAttachmentFiles", lambda _client: files)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+    document = {"schemaVersion": 1, "translationHumanReview": False, "steps": [{"key": "review_people"}, {"key": "publish"}]}
+    GuidelineStore(context.client, files).save("procedure", document, expected_current_version_id="none", actor="Ada Admin",
+                                               reason="Nobody reads Chinese here: translations rely on the run's checks", now="2026-11-11T10:00:00Z")
+    context.client._papyrus_story_procedure = None
+
+
 @given("the translation's checklist rows are removed, as for a translation saved before language checklists")
 def step_rows_removed(context):
     items = context.client.tables["Item"]

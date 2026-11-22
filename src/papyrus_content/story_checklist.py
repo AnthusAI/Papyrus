@@ -123,9 +123,13 @@ TRANSLATION_STEPS: tuple[Step, ...] = (
 
 
 def translation_procedure(site: Procedure) -> Procedure:
-    """The steps of a translation's checklist for a site: the template, with ``human_review`` required exactly when the site's procedure has its readers' review live and required."""
+    """The steps of a translation's checklist for a site: the template, with ``human_review`` required as the site's procedure says (``translationHumanReview``),
+    or, where it says nothing, exactly when its readers' review is live and required. A site that sets it false relies on the run's own checks."""
     review = site.by_key.get(SITE_REVIEW_KEY)
-    required = review is not None and review.status == LIVE and not review.optional
+    if site.translation_human_review is not None:
+        required = site.translation_human_review
+    else:
+        required = review is not None and review.status == LIVE and not review.optional
     steps = tuple(dataclasses.replace(step, optional=False) if step.key == HUMAN_REVIEW_KEY and required else step for step in TRANSLATION_STEPS)
     return Procedure(steps, "translation", site.version)
 

@@ -61,6 +61,13 @@ Feature: Each language of a Story has its own checklist, and publishing a transl
     Then the translation is published as "story-waymo--es-419" at "es/articles/bajan-los-choques-de-waymo/index.html"
     And the translation's checklist item "human_review" is "open"
 
+  Scenario: A site that says its translations need no person's review publishes them on the run's checks, though originals still need one
+    Given the site requires its readers' review of an original but says its translations need no person's review
+    And the translation run for "es-419" has finished
+    When a person publishes the translation
+    Then the translation is published as "story-waymo--es-419" at "es/articles/bajan-los-choques-de-waymo/index.html"
+    And the translation's checklist item "human_review" is "open"
+
   Scenario: A held translation records the open faithfulness step and still needs a person's answer and a person's review
     Given the translator writes "varias ciudades" where the English says "12 cities"
     And the repairer keeps the wrong wording
