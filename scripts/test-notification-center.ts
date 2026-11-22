@@ -1,3 +1,4 @@
+import { TENANCY_MODE_ENVIRONMENT_VARIABLE } from "../lib/tenant-keys";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as React from "react";
@@ -80,7 +81,7 @@ async function main() {
 
   // The state index: each state is its own partition, the tenant in front on a shared stack (twin of review_requests.review_state_key). The page times nothing out.
   assert.equal(reviewStateKey("open", null, {}), "review#open");
-  assert.equal(reviewStateKey("answered", "beta", { PAPYRUS_TENANCY_MODE: "shared" }), "beta#review#answered");
+  assert.equal(reviewStateKey("answered", "beta", { [TENANCY_MODE_ENVIRONMENT_VARIABLE]: "shared" }), "beta#review#answered");
   const reviewClientSource = readFileSync("lib/review-client.ts", "utf8");
   assert.ok(!/listReviewRequests\(/.test(reviewClientSource) && reviewClientSource.includes("listReviewRequestsByReviewStateKeyAndUpdatedAt("), "the page reads requests by the state index, never the whole table");
   assert.ok(!/timed_out/.test(reviewClientSource), "the page never times a request out: the deadline is a timer on the server");
