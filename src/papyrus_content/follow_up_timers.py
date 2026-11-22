@@ -182,6 +182,12 @@ def due_time_of(wake_key: str) -> str:
     return parts[2]
 
 
+def record_id_of(wake_key: str) -> str:
+    """The record a follow-up's wake key names."""
+    due_time_of(wake_key)
+    return wake_keys.checked(wake_key).split(wake_keys.SEPARATOR)[1]
+
+
 def check_wake(wake_key: str, row: Mapping[str, Any] | None) -> dict[str, Any]:
     """Whether the record still waits for the time this wake names. ``row`` is the record as the run just read it (None when it is gone).
 

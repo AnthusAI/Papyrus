@@ -70,17 +70,17 @@ def settle_curation_flag(client: Any, run: dict[str, Any], site: str, *, open_fl
       cost, so the empty result says nothing about curation), when the suggested links its connections come from are still being written
       (``suggestionsWaiting``), and when it failed to file.
 
-    ``open_flags`` is the publication's open flags when the caller already knows them (a queued step reads the one it raised by id); without it the review
-    requests are listed, which a step must not do.
+    ``open_flags`` is the publication's open flags when the caller already knows them (a queued step reads the one it raised by id); without it the open
+    partition of the review request state index is read.
 
-    Needs ``listReviewRequests``, ``updateReviewRequest`` and ``createReviewRequest`` on the site's API (``RouterIdeaPolicy`` and the review policies of
+    Needs ``listReviewRequestsByReviewStateKeyAndUpdatedAt`` (the open partition of the state index), ``updateReviewRequest`` and ``createReviewRequest`` on the site's API (``RouterIdeaPolicy`` and the review policies of
     ``infra/monitoring/papyrus-monitoring.yaml``).
     """
     subject = f"{CURATION_SUBJECT_PREFIX}{site}"
     if client is None:
         return {"status": "not_raised", "note": "No review client was given."}
     try:
-        opened = list(open_flags) if open_flags is not None else [request for request in review_requests.list_reviews(client, state="open", raised_by=RAISED_BY, mode="flag", subject_id=subject, sweep=False)]
+        opened = list(open_flags) if open_flags is not None else [request for request in review_requests.list_reviews(client, state="open", raised_by=RAISED_BY, mode="flag", subject_id=subject)]
         if run["drafts"]:
             acknowledged = []
             for request in opened:

@@ -136,7 +136,7 @@ AUTOMATION_FIELDS = (
     "createdBy createdAt updatedBy updatedAt"
 )
 REVIEW_REQUEST_FIELDS = (
-    "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
+    "id subject mode reason ask raisedBy raisedAt deadline state reviewStateKey dueAt answer links history appliedIn updatedAt"
 )
 REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
 LOCALIZATION_REQUEST_FIELDS = (
@@ -665,6 +665,13 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "accountKey",
         "sortKey": "createdAt",
         "fields": DELIVERY_FIELDS,
+    },
+    # The review requests in one state (review_requests.review_state_key), most recently changed last: open ones for the Notification Center, answered ones for steering (PPY-9b8e59).
+    "reviewRequestsByState": {
+        "field": "listReviewRequestsByReviewStateKeyAndUpdatedAt",
+        "partitionKey": "reviewStateKey",
+        "sortKey": "updatedAt",
+        "fields": REVIEW_REQUEST_FIELDS,
     },
     "deliveriesByDue": {
         "field": "listDeliveriesByDueKeyAndDueAt",

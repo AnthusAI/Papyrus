@@ -10,9 +10,12 @@ import { getNewsroomNavHref } from "./newsroom-nav";
 import { referenceDisplayTitle, referenceLineageId } from "./newsroom-references";
 import { normalizeReferenceCurationStatus } from "./reference-policy";
 import type { RelevanceDecisionView } from "./relevance-decisions";
+import { globalKey } from "./tenant-knowledge-keys";
 
 export type ReviewMode = "flag" | "soft_review" | "hard_gate";
 export type ReviewState = "open" | "answered" | "timed_out" | "withdrawn";
+export const REVIEW_STATES: readonly ReviewState[] = ["open", "answered", "timed_out", "withdrawn"];
+export const DECIDED_STATES: readonly ReviewState[] = ["answered", "timed_out", "withdrawn"];
 export type ReviewDecision = "approve" | "acknowledge" | "reject" | "feedback";
 export type ReviewSteer = "adjust" | "not_this_kind";
 
@@ -73,17 +76,14 @@ export function normalizeReviewRow(row: Record<string, unknown>): ReviewRequest 
   };
 }
 
-// --- the deadline (checked on read) ---------------------------------------------------------------------
+// --- the state index (PPY-9b8e59) ------------------------------------------------------------------------
+// A soft review's deadline is a follow-up timer on the server (src/papyrus_content/review_deadline_timers.py): the page never times a request out.
+// Every request is in one partition of the state index, `review#<state>` with the tenant in front on a shared stack (twin of review_requests.review_state_key).
 
-export function isDue(request: ReviewRequest, now: Date): boolean {
-  return request.mode === "soft_review" && request.state === "open" && request.deadline !== null && new Date(request.deadline).getTime() <= now.getTime();
-}
+export const REVIEW_STATE_KEY_PREFIX = "review#";
 
-/** The update that marks a due soft review as timed out, "proceeded without review". Applied with the condition state = open. */
-export function timeoutUpdate(request: ReviewRequest, now: Date): Record<string, unknown> {
-  const at = now.toISOString();
-  const history = [...request.history, { at, event: "timed_out", by: "system", note: PROCEEDED_WITHOUT_REVIEW }].slice(-MAX_HISTORY);
-  return { id: request.id, state: "timed_out", updatedAt: at, history: JSON.stringify(history) };
+export function reviewStateKey(state: ReviewState, tenantId?: string | null, environment?: Record<string, string | undefined>): string {
+  return globalKey(`${REVIEW_STATE_KEY_PREFIX}${state}`, tenantId, environment);
 }
 
 export type AnswerInput = {
@@ -100,7 +100,8 @@ export function answerUpdate(request: ReviewRequest, input: AnswerInput, by: str
   const at = now.toISOString();
   const answer: ReviewAnswer = { decision: input.decision, feedback, steer, by, at };
   const history = [...request.history, { at, event: "answered", by, note: input.decision }].slice(-MAX_HISTORY);
-  return { id: request.id, state: "answered", answer: JSON.stringify(answer), updatedAt: at, history: JSON.stringify(history) };
+  // An answered request leaves the open partition and has no due time, so its deadline wake (if one is still set) does nothing.
+  return { id: request.id, state: "answered", reviewStateKey: reviewStateKey("answered"), dueAt: null, answer: JSON.stringify(answer), updatedAt: at, history: JSON.stringify(history) };
 }
 
 /**

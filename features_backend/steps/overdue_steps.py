@@ -21,6 +21,7 @@ from papyrus_content.announcements import records  # noqa: E402
 from papyrus_content.announcements.deliveries import Deliveries  # noqa: E402
 from papyrus_content.announcements.delivery_timers import DeliveryTimers  # noqa: E402
 from papyrus_content.announcements.records_fakes import RecordsBackend  # noqa: E402
+from papyrus_content.review_deadline_timers import PROCEDURE_KEY as REVIEW_DEADLINE_PROCEDURE, ReviewDeadlineTimers  # noqa: E402
 from schedule_fakes import ACCOUNT, ENDPOINT, REGION, Backend, TimerScheduler, WakeQueue  # noqa: E402
 
 SITE = "shipped"
@@ -67,6 +68,7 @@ def timers(context):
     follow_ups = fu.FollowUpTimers.for_site(SITE, account=ACCOUNT, region=REGION, client=context.fake_scheduler)
     base = {"appsyncEndpoint": ENDPOINT, "procedureKey": "newsroom.deliver", "publicationId": SITE}
     context.delivery_timers = DeliveryTimers(follow_ups, base)
+    context.review_deadline_timers = ReviewDeadlineTimers(follow_ups, {**base, "procedureKey": REVIEW_DEADLINE_PROCEDURE})
     context.backend = Backend()
 
 
@@ -112,7 +114,7 @@ def check(context):
     context.queue.window.clear()   # the queue's deduplication window passed
     context.queue.messages.clear()
     context.checks.append(overdue.recover(context.client, deliveries=Deliveries(context.client), wake_request=context.delivery_timers.wake_request,
-                                          send=sender(context), now=context.now))
+                                          review_deadline_wake_request=context.review_deadline_timers.wake_request, send=sender(context), now=context.now))
 
 
 @then('Today lists the Delivery "{name}" as Overdue, in words with a mark')

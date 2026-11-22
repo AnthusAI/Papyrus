@@ -9,6 +9,8 @@
 * **The policy is read at the start of every run**, the live version only: one get of the catalogue row, one get of the version
   row, one read of the body from S3 (``SiteStore``). A policy that cannot be read raises ``PolicyUnreadable``; the runner records the
   run as failed. Nothing starts as before.
+* **The engine's own follow-ups are not an agent's wake** (``engine_follow_ups.py``): a soft review's deadline wake starts with no adopted
+  automation and no rung; only the site's pause stops it.
 * **A person's own command is not an agent's wake.** ``PersonStart`` is the gate for a run a person starts in their own session
   (``papyrus stories localize``): a person's action is never limited by an agent's rung (architecture section 5.4). It records no
   responsibility, rung or policy version, because none applied.
@@ -111,6 +113,10 @@ class PolicyGate:
         return cls(client, policy=AgentPolicyStore(SiteStore(s3, bucket, SiteCatalogue(client))), tenant_id=tenant_id)
 
     def decide(self, request: dict) -> RunDecision:
+        from ..engine_follow_ups import engine_follow_up_of
+
+        if engine_follow_up_of(request):
+            return self._decide_engine_follow_up()
         automation_id = (request.get("trigger") or {}).get("automationId")
         if not automation_id:
             return RunDecision(False, reason_code=NOT_ADOPTED, reason="This run names no automation, so no responsibility is adopted for it.")
@@ -128,3 +134,14 @@ class PolicyGate:
             return RunDecision(True, responsibility, decision.rung, decision.policy_version, state=state, paid=registered_paid(row))
         code = PAUSED if decision.reason_code == "paused" else RUNG_OFF
         return RunDecision(False, responsibility, decision.rung, decision.policy_version, code, decision.reason)
+
+    def _decide_engine_follow_up(self) -> RunDecision:
+        """One of the engine's own follow-ups (engine_follow_ups.py): no agent is adopted for it and no rung applies; only the site's pause stops it."""
+        try:
+            state = self._policy.read(self._tenant_id)
+        except Exception as error:
+            raise PolicyUnreadable(f"The agent policy could not be read: {type(error).__name__}: {error}") from error
+        site = state.document.get("site", {})
+        if site.get("paused"):
+            return RunDecision(False, reason_code=PAUSED, reason=f"The site is paused: {site.get('pausedReason')}")
+        return RunDecision(True)

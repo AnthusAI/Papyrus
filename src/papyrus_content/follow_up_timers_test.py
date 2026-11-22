@@ -93,7 +93,7 @@ def test_the_default_group_sends_no_group_name() -> None:
 
 def test_check_wake_goes_on_only_for_the_time_the_record_still_waits_for() -> None:
     key = fu.follow_up_key("deliver", "d-1", "2026-11-17T09:00:00Z")
-    assert fu.due_time_of(key) == "2026-11-17T09:00:00Z"
+    assert fu.due_time_of(key) == "2026-11-17T09:00:00Z" and fu.record_id_of(key) == "d-1"
     assert fu.check_wake(key, {"dueAt": "2026-11-17T09:00:00Z", "waitingFor": "budget"}) == {"waiting": True, "dueAt": "2026-11-17T09:00:00Z", "waitingFor": "budget"}
     assert fu.check_wake(key, {"dueAt": "2026-11-17T12:00:00Z"})["waiting"] is False
     assert fu.check_wake(key, {})["waiting"] is False and fu.check_wake(key, None)["waiting"] is False

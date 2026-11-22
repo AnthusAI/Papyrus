@@ -766,6 +766,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listReviewReadMarksByTenant                          | returns nothing of "beta"        |
       | listReviewRecipientRulesByTenant                     | returns nothing of "beta"        |
       | listReviewRequestsByTenant                           | returns nothing of "beta"        |
+      | listReviewRequestsByReviewStateKeyAndUpdatedAt       | returns nothing of "beta"        |
       | listSemanticNodesByTenant                            | returns nothing of "beta"        |
       | listSemanticNodesByLineageAndVersion                 | returns nothing of "beta"        |
       | listSemanticNodesByVersionStateAndUpdatedAt          | returns nothing of "beta"        |

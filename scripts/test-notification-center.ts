@@ -1,3 +1,4 @@
+import { TENANCY_MODE_ENVIRONMENT_VARIABLE } from "../lib/tenant-keys";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as React from "react";
@@ -8,8 +9,8 @@ import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { FIXTURE_IDEAS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
 import { batchHasIdeasWaiting, buildNotificationItems, recentDecisions, requestCaption } from "../lib/notification-feed";
 import {
-  answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, cyclotronHeldForReview, ideaIdsOf, ideasBoardHref, isDue, isIdeaBatch, nextText, normalizeReviewRow,
-  sectionReviews, steeringText, subjectHref, subjectLabel, summarize, summaryText, timeoutUpdate,
+  answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, cyclotronHeldForReview, ideaIdsOf, ideasBoardHref, isIdeaBatch, nextText, normalizeReviewRow,
+  reviewStateKey, sectionReviews, steeringText, subjectHref, subjectLabel, summarize, summaryText,
 } from "../lib/review-requests";
 
 function text(html: string): string {
@@ -39,7 +40,6 @@ async function main() {
   // A soft review with no deadline stays open until handled: listed after the ones with deadlines, never due, and its text says so.
   const openEnded = { ...FIXTURE_REVIEW_REQUESTS[7], id: "rr-soft-open", deadline: null, raisedAt: "2026-10-01T00:00:00Z" };
   assert.deepEqual(sectionReviews([...FIXTURE_REVIEW_REQUESTS, openEnded]).softReviews.map((r) => r.id), ["rr-soft-1", "rr-soft-3", "rr-soft-open"]);
-  assert.equal(isDue(openEnded, new Date("2036-01-01T00:00:00Z")), false);
   assert.equal(nextText(openEnded), "No deadline. Stays open until someone answers it.");
   const ideaBatch = FIXTURE_REVIEW_REQUESTS[1];
   assert.ok(isIdeaBatch(ideaBatch) && !isIdeaBatch(FIXTURE_REVIEW_REQUESTS[7]), "only the idea pipeline's batch reviews are idea batches");
@@ -79,18 +79,18 @@ async function main() {
   assert.match(steeringText(FIXTURE_REVIEW_REQUESTS[6]) ?? "", /Keep the old name for sports". concept-bot has not used it yet/);
   assert.equal(steeringText(FIXTURE_REVIEW_REQUESTS[0]), null);
 
-  // The deadline, checked on read: a due soft review times out, a hard gate and a flag never do.
-  const due = FIXTURE_REVIEW_REQUESTS[2];
-  assert.ok(!isDue(due, new Date("2026-10-24T00:00:00Z")) && isDue(due, new Date("2026-10-25T07:00:00Z")));
-  assert.ok(!isDue(FIXTURE_REVIEW_REQUESTS[0], new Date("2036-01-01T00:00:00Z")), "a hard gate never times out");
-  assert.ok(!isDue(FIXTURE_REVIEW_REQUESTS[3], new Date("2036-01-01T00:00:00Z")), "a flag never times out");
-  const timeout = timeoutUpdate(due, new Date("2026-10-25T08:00:00Z"));
-  assert.equal(timeout.state, "timed_out");
-  assert.match(String(timeout.history), /proceeded without review/);
+  // The state index: each state is its own partition, the tenant in front on a shared stack (twin of review_requests.review_state_key). The page times nothing out.
+  assert.equal(reviewStateKey("open", null, {}), "review#open");
+  assert.equal(reviewStateKey("answered", "beta", { [TENANCY_MODE_ENVIRONMENT_VARIABLE]: "shared" }), "beta#review#answered");
+  const reviewClientSource = readFileSync("lib/review-client.ts", "utf8");
+  assert.ok(!/listReviewRequests\(/.test(reviewClientSource) && reviewClientSource.includes("listReviewRequestsByReviewStateKeyAndUpdatedAt("), "the page reads requests by the state index, never the whole table");
+  assert.ok(!/timed_out/.test(reviewClientSource), "the page never times a request out: the deadline is a timer on the server");
 
   // Answers: approve, reject, feedback; a note or a steer is required for feedback; a closed request refuses.
   const approve = answerUpdate(FIXTURE_REVIEW_REQUESTS[0], { decision: "approve" }, "Ed Itor", NOW);
   assert.equal(approve.state, "answered");
+  assert.equal(approve.reviewStateKey, reviewStateKey("answered"), "an answer moves the request to the answered partition");
+  assert.equal(approve.dueAt, null, "an answered request has no due time, so its deadline wake does nothing");
   assert.equal(JSON.parse(String(approve.answer)).by, "Ed Itor");
   assert.throws(() => answerUpdate(FIXTURE_REVIEW_REQUESTS[0], { decision: "feedback" }, "x", NOW), /Write a note/);
   assert.equal(JSON.parse(String(answerUpdate(FIXTURE_REVIEW_REQUESTS[0], { decision: "feedback", steer: "not_this_kind" }, "x", NOW).answer)).steer, "not_this_kind");
