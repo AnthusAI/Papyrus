@@ -459,6 +459,7 @@ PORTED_COMMANDS = GENERATED_CLI_ROUTES | frozenset(
         "reviews:steering",
         "reviews:applied",
         "reviews:recipients",
+        "reviews:index-backfill",
         "relations:import-types",
         "relations:backfill",
         "relations:migrate-concept-tags",
