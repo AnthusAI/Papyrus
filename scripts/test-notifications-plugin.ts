@@ -279,7 +279,9 @@ assert.match(policies, /identity\/example.com/);
 assert.match(policies, /configuration-set\/papyrus-example/);
 assert.match(policies, /parameter\/papyrus\/example\/notifications\/operators/);
 assert.match(policies, /types\/Query\/fields\/getPublishedItem/);
-assert.ok(!/types\/Mutation/.test(policies), "the functions never write to the content API");
+// The one write to the site's API: the X function closes a Delivery's attempt after a post (PPY-8037b8). It never writes content.
+assert.deepEqual([...new Set(policies.match(/types\/Mutation\/fields\/\w+/g) ?? [])], ["types/Mutation/fields/updateDelivery"]);
+assert.match(policies, /types\/Query\/fields\/getDelivery/);
 assert.ok(!/"ses:\*"|"sqs:\*"|"dynamodb:\*"/.test(policies));
 
 // Only the CMS role may invoke the router (a resource policy); no principal "*".

@@ -8,12 +8,16 @@ is not retried.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Mapping
+from typing import Any, Callable, Dict, Mapping
 
 from caducus.notify.delivery_log import FINAL
 
+QUEUED = "queued"   # Caducus's status of a delivery not yet handed to X
 
-def handle_batch(store: Any, channel: Any, sqs_event: Mapping[str, Any]) -> Dict[str, Any]:
+
+def handle_batch(store: Any, channel: Any, sqs_event: Mapping[str, Any], *, posted: Callable[[str], Any] | None = None) -> Dict[str, Any]:
+    """``posted(event_id)`` runs once the event's delivery has left the queue (just posted, or a repeat of one already handled): the site closes its Delivery's attempt from Caducus's
+    record (``announcements/settle_after_post.py``). A failure there returns the message, and the next receive settles again; posting is not repeated."""
     failures = []
     for record in sqs_event["Records"]:
         try:
@@ -21,6 +25,9 @@ def handle_batch(store: Any, channel: Any, sqs_event: Mapping[str, Any]) -> Dict
             row = store.get("EVENT#" + body["eventId"], "DELIVERY#" + body["deliveryId"])
             if row is not None and row["status"] not in FINAL:
                 channel.send(row)
+                row = store.get("EVENT#" + body["eventId"], "DELIVERY#" + body["deliveryId"])
+            if posted is not None and row is not None and row["status"] != QUEUED:
+                posted(body["eventId"])
         except Exception:
             failures.append({"itemIdentifier": record["messageId"]})
     return {"batchItemFailures": failures}

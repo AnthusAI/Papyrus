@@ -65,6 +65,7 @@ class CaducusTransport:
         self.channel = XChannel(self.store, self.log, directory, tokens=FakeTokens(), prices=X_PRICES, guard=FakeGuard(), clock=clock, http=self.x, recent_count=5,
                                 base_url="http://x.invalid")
         self.event_ids: list[str] = []
+        self.queued_only = False   # True: like the site, the router only queues the post and the site's X function sends it later
 
     def submit(self, row, text: str, event_id: str) -> None:  # type: ignore[no-untyped-def]
         self.event_ids.append(event_id)
@@ -72,6 +73,8 @@ class CaducusTransport:
                                             "occurredAt": "2026-11-17T09:00:00Z", "severity": "info", "facts": {"title": "A Story", "text": text},
                                             "audience": self.account.key})
         assert result.outcome in ("accepted", "duplicate"), result
+        if self.queued_only:
+            return
         for queued in self.log.for_event(event_id):
             if queued["status"] == "queued":
                 self.channel.send(queued)
@@ -120,3 +123,22 @@ def no_round_suffix(context):
 @then('the fake X account received {count:d} post with the text "{text}"')
 def x_received(context, count, text):
     assert context.caducus.x.posts == [{"text": text}] * count, context.caducus.x.posts
+
+
+@step("the channel leaves each post on the X queue for the site's X function")
+def queued_only(context):
+    context.caducus.queued_only = True
+
+
+@step("the site's X function takes the queued post")
+def x_function_takes(context):
+    """The site's X function: one message of the x queue for each queued delivery Caducus logged, posted by the x channel, and then the Delivery settled from Caducus's
+    record (announcements/settle_after_post.py)."""
+    from papyrus_content.announcements.settle_after_post import settle_after_post
+    from papyrus_content.notifications.x_sender import handle_batch
+
+    records = [{"messageId": f"m{index}", "body": json.dumps({"eventId": row["eventId"], "deliveryId": row["deliveryId"]})}
+               for index, event_id in enumerate(context.caducus.event_ids) for row in context.caducus.log.for_event(event_id)]
+    context.x_function_answer = handle_batch(context.caducus.store, context.caducus.channel, {"Records": records},
+                                             posted=lambda event_id: settle_after_post(context.deliveries, context.caducus, event_id, now=context.now))
+    assert context.x_function_answer == {"batchItemFailures": []}, context.x_function_answer

@@ -46,6 +46,8 @@ export const EMAIL_MAX_RECEIVE_COUNT = 3;
 /** One post can wait out X's rate limit inside the consumer (Caducus sleeps until `x-rate-limit-reset`), and X's windows are fifteen minutes: the Lambda maximum. */
 export const X_TIMEOUT_SECONDS = 900;
 export const X_MAX_RECEIVE_COUNT = 3;
+/** The site API fields the X function calls with its own role: read a Delivery and write its attempt log after a post (PPY-8037b8). */
+export const X_SETTLE_FIELDS = ["Query/fields/getDelivery", "Mutation/fields/updateDelivery"] as const;
 
 export const notificationsManifest: PluginManifest = {
   name: "notifications",
@@ -370,6 +372,14 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
         effect: Effect.ALLOW,
         actions: ["appsync:GraphQL"],
         resources: [`arn:${stack.partition}:appsync:${stack.region}:${stack.account}:apis/${context.graphqlApiId}/types/Query/fields/getPublishedItem`],
+      }),
+    );
+    // After a post the X function closes the site's Delivery from Caducus's record (announcements/settle_after_post.py): it reads the Delivery and writes its attempt log.
+    x.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["appsync:GraphQL"],
+        resources: X_SETTLE_FIELDS.map((field) => `arn:${stack.partition}:appsync:${stack.region}:${stack.account}:apis/${context.graphqlApiId}/types/${field}`),
       }),
     );
     email.addToRolePolicy(
