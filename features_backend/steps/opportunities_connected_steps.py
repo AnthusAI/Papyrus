@@ -14,10 +14,11 @@ from papyrus_content.announcements.actions import PAID_SEARCH, handle_event
 from papyrus_content.announcements.opportunity_search import NoRedirects
 from papyrus_content.announcements.spend import SpendLedger
 from papyrus_content.appsync_event import amplify_function_event, user_pool_identity
+from papyrus_content.tenancy import TENANCY_MODE_ENVIRONMENT_VARIABLE, TENANT_ID_ENVIRONMENT_VARIABLE
 
 QUERY = "independent audit"
 TOKEN = "test-token-not-for-the-response"
-PERSON_ENV = {"PERSON_ONLY_CLIENT_IDS": "human-console", "PAPYRUS_TENANT_ID": "alpha", "PAPYRUS_TENANCY_MODE": "dedicated"}
+PERSON_ENV = {"PERSON_ONLY_CLIENT_IDS": "human-console", TENANT_ID_ENVIRONMENT_VARIABLE: "alpha", TENANCY_MODE_ENVIRONMENT_VARIABLE: "dedicated"}
 RESPONSE = {"data": [
     {"id": "100", "conversation_id": "100", "author_id": "1", "text": "Can we get an independent audit?"},
     {"id": "200", "author_id": "2", "text": "protected content"},
@@ -103,7 +104,7 @@ def request_denied(context):
     iam = {"accountId": "123456789012", "userArn": "arn:aws:iam::123456789012:role/operator"}
     context.opp_denials = [call(context, who) for who in (identity(client="agent-cli"), identity(role="member"), iam, identity(tenant="beta"))]
     context.opp_denials.append(call(context, identity(), {"query": QUERY, "maxResults": 10, "tenantId": "beta"}))
-    with patch.dict("os.environ", {"PAPYRUS_TENANCY_MODE": "shared"}):
+    with patch.dict("os.environ", {TENANCY_MODE_ENVIRONMENT_VARIABLE: "shared"}):
         context.opp_denials.append(call(context, identity()))
 
 
