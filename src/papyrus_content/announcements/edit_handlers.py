@@ -5,7 +5,9 @@ They are rows of the one operation table (``announcements_draft``, ``announcemen
 ``announcements_unlock``), so the newsroom, the command line and the MCP tools call them the same way, and the one gate decides what an agent may do: drafting from the ``draft`` rung,
 and a person only for unlocking and for a pinned block. A person's save is the person's (owner ``human``, pinned); an agent's is a redraft laid over the pinned blocks.
 
-These handlers write Delivery rows and read words files, so they need no X settings and no site origin, and the module is imported by the call, not by the operation table.
+These handlers write Delivery rows and read words files, so they need no X settings and no site origin, and the module is imported by the call, not by the operation table. Behind the
+announcements write door they hold the site's follow-up timers (``timers``, ``delivery_timers.DeliveryTimers``): an unlock names new lock and release times, and the Delivery's timer
+follows them, so the scheduled send goes at the new time (PPY-e2829f).
 """
 from __future__ import annotations
 
@@ -66,13 +68,13 @@ def _result(row: dict[str, Any], status: str, entry: dict[str, Any] | None = Non
             "blocks": [{"owner": block["owner"], "pinned": bool(block["pinned"])} for block in dt.json_list(shown.get("blocks"))] if shown else []}
 
 
-def draft(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None) -> Outcome:
+def draft(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None, timers: Any = None) -> Outcome:
     from .deliveries import Deliveries
     from .delivery_text import KEEP
     from .delivery_versions import Versions
     from .records import RecordError
 
-    deliveries = Deliveries(client, files)
+    deliveries = Deliveries(client, files, timers)
     row = _delivery(deliveries, arguments)
     versions, owner, by = Versions(deliveries), _owner(caller), _by(caller)
     text, image = arguments.get("text"), arguments.get("imageKey")
@@ -93,12 +95,12 @@ def draft(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore
     return Outcome(_result(saved.row, saved.status, saved.entry, saved.reason), _publication(client))
 
 
-def candidate_choose(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None) -> Outcome:
+def candidate_choose(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None, timers: Any = None) -> Outcome:
     from .deliveries import Deliveries
     from .delivery_versions import Versions
     from .records import RecordError
 
-    deliveries = Deliveries(client, files)
+    deliveries = Deliveries(client, files, timers)
     row = _delivery(deliveries, arguments)
     try:
         saved = Versions(deliveries).choose_candidate(row["id"], arguments["candidate"], replaces=int(arguments["replaces"]), by=_by(caller), owner=_owner(caller), now=now)
@@ -107,14 +109,14 @@ def candidate_choose(client: Any, arguments: dict, caller: Caller, policy: Agent
     return Outcome(_result(saved.row, saved.status, saved.entry, saved.reason), _publication(client))
 
 
-def pinned_change(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None) -> Outcome:
+def pinned_change(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None, timers: Any = None) -> Outcome:
     from .deliveries import Deliveries
     from .delivery_versions import Versions
     from .records import RecordError
 
     if caller.kind != "person":
         raise ImageOperationError("human_required", "A block a person pinned is changed or unpinned by a person.")
-    deliveries = Deliveries(client, files)
+    deliveries = Deliveries(client, files, timers)
     row = _delivery(deliveries, arguments)
     try:
         saved = Versions(deliveries).change_pinned(row["id"], replaces=int(arguments["replaces"]), block=int(arguments["block"]), by=_by(caller), text=arguments.get("text"),
@@ -145,14 +147,14 @@ def versions_show(client: Any, arguments: dict, caller: Caller, policy: AgentPol
     return Outcome(listing, _publication(client))
 
 
-def unlock(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None) -> Outcome:
+def unlock(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, files: Any = None, now: str | None = None, timers: Any = None) -> Outcome:
     from .deliveries import Deliveries
     from .delivery_lock import unlock as lift
     from .records import RecordError
 
     if caller.kind != "person" or not caller.subject:
         raise ImageOperationError("human_required", "A Delivery is unlocked by a person: unlocking is their decision that a late edit is worth it.")
-    deliveries = Deliveries(client, files)
+    deliveries = Deliveries(client, files, timers)
     row = _delivery(deliveries, arguments)
     try:
         written = lift(deliveries, row["id"], by=caller.subject, lock_at=arguments.get("lockAt"), release_at=arguments.get("releaseAt"), now=now)

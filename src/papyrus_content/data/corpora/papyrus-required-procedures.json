@@ -17,6 +17,7 @@
   },
   "procedures": {
     "announce_story": "announce_story.tac",
+    "deliver_due": "deliver_due.tac",
     "ingestion.reference.register": "ingestion_reference_register.tac",
     "newsroom.copywriter": "copywriter.tac",
     "newsroom.editor": "editor.tac",
@@ -554,6 +555,20 @@
         "type": "object",
         "properties": {},
         "required": []
+      },
+      "defaults": {}
+    },
+    "deliver_due": {
+      "title": "Scheduled Send",
+      "category": "newsroom",
+      "description": "The engine's run for a Delivery's due time: it reads the Delivery again and, if it still waits for that time, raises its lock when the lock time has come (soft review: approved by the policy when nobody acted; hard review with no approval: one flag, nothing sent), then sends what is due through the announce agent's deliver steps with their guards. Started by the Delivery's follow-up timer with no adopted agent; a moved or cleared time means it does nothing.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {"type": "string", "description": "The Delivery whose time came"},
+          "dueAt": {"type": "string", "description": "The time the wake was set for, a UTC instant"}
+        },
+        "required": ["deliveryId", "dueAt"]
       },
       "defaults": {}
     },

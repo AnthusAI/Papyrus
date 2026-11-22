@@ -36,3 +36,11 @@ def test_the_runner_names_the_sites_broadcast_function_after_the_publication(mon
     monkeypatch.setenv("X_BROADCAST_FUNCTION", "papyrus-notifications-broadcast-someone-else")
     assert child_environment(request(publicationId="machines-on-machines"), None)["X_BROADCAST_FUNCTION"] == "papyrus-notifications-broadcast-machines-on-machines"
     assert "X_BROADCAST_FUNCTION" not in child_environment(request(publicationId="Not A Site!"), None)
+
+
+def test_the_runner_names_the_site_whose_follow_up_timers_a_procedure_sets(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_AGENT_PUBLICATION_ID", "someone-else")
+    monkeypatch.setenv("PAPYRUS_AWS_ACCOUNT_ID", "123456789012")
+    environment = child_environment(request(publicationId="machines-on-machines"), None)
+    assert environment["PAPYRUS_AGENT_PUBLICATION_ID"] == "machines-on-machines" and environment["PAPYRUS_AWS_ACCOUNT_ID"] == "123456789012"
+    assert "PAPYRUS_AGENT_PUBLICATION_ID" not in child_environment(request(publicationId="Not A Site!"), None)

@@ -79,7 +79,7 @@ def review_set(client: Any, arguments: dict, caller: Caller, policy: AgentPolicy
                     "changed": after.version != before.version}, _publication(client))
 
 
-def delivery_review_set(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore) -> Outcome:
+def delivery_review_set(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, timers: Any = None) -> Outcome:
     from .deliveries import Deliveries   # the records read the relation types (yaml); the image service function imports this module with the standard library only
     from .records import RecordError
 
@@ -96,7 +96,7 @@ def delivery_review_set(client: Any, arguments: dict, caller: Caller, policy: Ag
             caller, instruction = on_instruction_of(known, person=arguments.get("onInstructionOf", ""), quote=arguments.get("quote", ""), agent=arguments.get("agent", ""))
         except PolicyError as error:
             raise ImageOperationError(error.code, error.message) from error
-    deliveries = Deliveries(client)
+    deliveries = Deliveries(client, timers=timers)
     row = deliveries.get(arguments["delivery"])
     if row is None:
         raise ImageOperationError("not_found", f"No Delivery {arguments['delivery']!r} on this site.")
@@ -212,13 +212,13 @@ def withdraw(client: Any, arguments: dict, caller: Caller, policy: AgentPolicySt
     return Outcome({"id": written["id"], "state": written["state"], "withdrawnBy": by, "cost": written.get("cost"), "announcementState": state}, _publication(client))
 
 
-def release(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore) -> Outcome:
+def release(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, timers: Any = None) -> Outcome:
     """Release a Delivery (PPY-65d8b6): approve the version that would go, as the caller. The approval is a change the announce agent wakes for (PPY-1de948), and that run
     sends what is due, so a released Delivery goes now, through its channel's own attempt. Releasing one already approved changes nothing."""
     from .deliveries import Deliveries
     from .records import NONE, RecordError
 
-    deliveries = Deliveries(client)
+    deliveries = Deliveries(client, timers=timers)
     row = deliveries.get(arguments["delivery"])
     if row is None:
         raise ImageOperationError("not_found", f"No Delivery {arguments['delivery']!r} on this site.")
@@ -274,15 +274,16 @@ WRITE_DOOR_MUTATION = ("mutation AnnouncementsWrite($op: String!, $input: AWSJSO
                        "{ announcementsWrite(op: $op, input: $input, requestId: $requestId, actorKind: $actorKind) }")
 
 
-def door_write_handlers(client: Any, files: Any = None) -> dict[str, Handler]:
+def door_write_handlers(client: Any, files: Any = None, timers: Any = None) -> dict[str, Handler]:
     """The door's handlers over the service function's own client. None of them reads the agent policy, so no policy store is opened; a Delivery's words are its own
-    attachments (``deliveries.AttachmentFiles``), uploaded through presigned slots."""
+    attachments (``deliveries.AttachmentFiles``), uploaded through presigned slots. ``timers`` are the site's follow-up timers for its Deliveries
+    (``delivery_timers.DeliveryTimers``): a review change, a release, an edit or an unlock that moves a Delivery's due time moves its timer, so it is sent at its time."""
     from .edit_handlers import DOOR_EDIT_OPERATIONS, EDIT_HANDLERS
 
-    handlers: dict[str, Handler] = {name: (lambda function: lambda arguments, caller: function(client, arguments, caller, None))(REVIEW_HANDLERS[name])
+    handlers: dict[str, Handler] = {name: (lambda function: lambda arguments, caller: function(client, arguments, caller, None, timers=timers))(REVIEW_HANDLERS[name])
                                     for name in ("announcements_delivery_review_set", "announcements_release")}
     for name in DOOR_EDIT_OPERATIONS:
-        handlers[name] = (lambda function: lambda arguments, caller: function(client, arguments, caller, None, files))(EDIT_HANDLERS[name])
+        handlers[name] = (lambda function: lambda arguments, caller: function(client, arguments, caller, None, files, timers=timers))(EDIT_HANDLERS[name])
     return handlers
 
 

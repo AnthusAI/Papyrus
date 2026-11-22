@@ -9,7 +9,9 @@ def wake(owner="review-deadline", procedure="review_deadline", **trigger):
 
 def test_only_an_engine_owner_with_its_own_procedure_is_an_engine_follow_up():
     assert engine_follow_up_of(wake()) == "review-deadline"
-    assert engine_follow_up_of(wake(owner="deliver")) is None, "not on the engine list"
+    assert engine_follow_up_of(wake(owner="deliver", procedure="deliver_due")) == "deliver", "the scheduled send"
+    assert engine_follow_up_of(wake(owner="deliver")) is None, "the deliver owner with the review deadline's procedure"
+    assert engine_follow_up_of(wake(owner="some-agent")) is None, "not on the engine list"
     assert engine_follow_up_of(wake(procedure="rate_items")) is None, "another procedure"
     assert engine_follow_up_of(wake(automationId="rate")) is None, "an agent's wake"
     assert engine_follow_up_of({**wake(), "trigger": {"kind": "event"}}) is None, "not a follow-up"
