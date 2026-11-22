@@ -3,8 +3,8 @@ Feature: The runs that need a person are one sparse index, never a table walk
   attention key and the time it needed attention; every other run carries neither, so the attention index holds only what needs a person.
   Today and the overdue check read that index and nothing else. Acknowledging a run clears the key and the time in one update and records who
   did it and when; the run stays in the history. No code path lists the whole run table: a procedure's recent runs and the priming export read
-  by the procedure index. The second index of the design, an agent's runs by automation id, ships in the release after this one, because a
-  deploy adds one index to a table.
+  by the procedure index. An agent's run history is one query of the second index, its runs by automation id, newest first; it shipped a
+  release after the attention index, because a deploy adds one index to a table.
 
   Scenario: A run that fails joins the attention list
     Given a procedure that stops with an error
@@ -55,3 +55,14 @@ Feature: The runs that need a person are one sparse index, never a table walk
     Given a shared stack for the tenant "acme"
     When a failed run finishes
     Then the run is recorded with the attention key "acme#attention"
+
+  Scenario: An agent's runs are read by its automation id, newest first
+    Given the agent "announce" has three runs and another agent has one
+    When an operator reads the agent "announce"'s two newest runs
+    Then the runs are the agent's two newest, newest first
+    And the only read made was the agent index for "announce"
+
+  Scenario: A shared stack keeps only the tenant's runs of an agent
+    Given a shared stack where the tenants "acme" and "beta" each have an agent named "announce"
+    When "acme" reads the agent "announce"'s runs
+    Then every run listed belongs to "acme"

@@ -10,6 +10,7 @@ from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
 from papyrus_content.item_language import with_item_language
 
 INDEX_MODELS = {
+    "procedureRunsByAutomation": "ProcedureRun",
     "referencesByCorpusAndExternalItem": "Reference",
     "knowledgeCorporaByRoleAndName": "KnowledgeCorpus",
     "itemBySlug": "Item",
@@ -166,6 +167,10 @@ class FakeAuthoringClient:
 
     def list_semantic_relations_by_object_state(self, key: str) -> list[dict[str, Any]]:
         return self.list_by_index("semanticRelationsByObjectState", key)
+
+    def agent_procedure_runs(self, automation_id: str, limit: int) -> list[dict[str, Any]]:
+        rows = self.list_by_index("procedureRunsByAutomation", automation_id)
+        return sorted(rows, key=lambda row: str(row.get("requestedAt") or ""), reverse=True)[:limit]
 
     def recent_procedure_runs(self, procedure_key: str, limit: int = 25) -> list[dict[str, Any]]:
         self.calls.append(("recent_procedure_runs", "ProcedureRun", procedure_key))

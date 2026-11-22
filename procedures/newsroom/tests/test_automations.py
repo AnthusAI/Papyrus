@@ -315,10 +315,15 @@ def test_without_a_monitoring_table_the_history_is_empty_with_a_reason():
     assert result["runs"] == [] and result["notice"] == "monitoring_not_configured"
 
 
-def test_an_unsupported_kind_has_no_history():
-    shown = au.read_record(fx.automation_row(trigger=json.dumps({"kind": "manual", "config": {}})))
-    result = au.automation_history(shown, reader=reader(), client=fx.site_client())
-    assert result["runs"] == [] and result["notice"] == "not yet supported"
+def test_an_event_or_manual_agents_runs_are_read_by_its_automation_id():
+    client = fx.site_client()
+    client.tables["ProcedureRun"]["run-agent"] = {"id": "run-agent", "automationId": "distinctive.ttab", "procedureKey": "other-procedure",
+                                                  "runStatus": "completed", "requestedAt": "2026-11-20T10:00:00Z"}
+    for kind in ("event", "manual"):
+        shown = au.read_record(fx.automation_row(trigger=json.dumps({"kind": kind, "config": {}})))
+        result = au.automation_history(shown, reader=reader(), client=client)
+        assert [run["runId"] for run in result["runs"]] == ["run-agent"] and result["runs"][0]["origin"] == kind and result["notice"] is None
+        assert ("list_by_index", "procedureRunsByAutomation", "distinctive.ttab") in client.calls
 
 
 def test_a_site_sees_only_its_own_publications_rows():
@@ -632,10 +637,15 @@ def test_a_schedule_automations_input_is_static():
         au.build_record({**FIELDS, "trigger": {"kind": "schedule", "config": {}}, "inputTemplate": {"x": "{sourceId}"}}, actor="a")
 
 
-def test_a_schedule_automations_runs_are_the_procedure_runs_that_name_it():
+def test_a_schedule_automations_runs_are_read_by_its_automation_id():
     class Runs:
+        def agent_procedure_runs(self, automation_id, limit):
+            assert automation_id == "distinctive.ttab"
+            return [{"id": "run-1", "runStatus": "completed", "outcome": "nothing", "outcomeReason": "paused", "automationId": "distinctive.ttab", "startedAt": "2026-11-17T11:00:00Z"}]
+
         def recent_procedure_runs(self, procedure_key, limit):
-            return [{"id": "run-2", "runStatus": "completed", "automationId": "a.other", "startedAt": "2026-11-17T12:00:00Z"},
+            return [{"id": "run-3", "runStatus": "completed", "automationId": "distinctive.ttab", "startedAt": "2026-11-17T13:00:00Z"},
+                    {"id": "run-2", "runStatus": "completed", "automationId": "a.other", "startedAt": "2026-11-17T12:00:00Z"},
                     {"id": "run-1", "runStatus": "completed", "outcome": "nothing", "outcomeReason": "paused", "automationId": "distinctive.ttab", "startedAt": "2026-11-17T11:00:00Z"}]
 
     shown = au.read_record(schedule_row())
