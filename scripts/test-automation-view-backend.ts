@@ -41,6 +41,7 @@ assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
   "Query/fields/listAutomationsByTenant",
   "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
   "Query/fields/listDeliveriesByDueKeyAndDueAt",
+  "Query/fields/listProcedureRunsByAutomationAndRequestedAt",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
   "Query/fields/listProcedureRunsByStatusAndRequestedAt",
   "Query/fields/listSemanticRelationsBySubjectState",
