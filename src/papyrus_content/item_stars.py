@@ -13,7 +13,8 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 ITEM_STAR_FIELDS = ("starRating", "starRatedAt", "starRatedBy")
-ITEM_PRIVATE_STAR_FIELDS = (*ITEM_STAR_FIELDS, "starRevision")
+ITEM_SUGGESTION_FIELDS = ("starSuggestion", "starSuggestedAt", "starSuggestedBy", "starSuggestionRun")   # a machine's suggestion (rating_suggestions.py)
+ITEM_PRIVATE_STAR_FIELDS = (*ITEM_STAR_FIELDS, "starRevision", *ITEM_SUGGESTION_FIELDS)
 
 
 def carry_item_stars(current: Mapping[str, Any] | None, next_version: dict[str, Any]) -> dict[str, Any]:
@@ -22,6 +23,9 @@ def carry_item_stars(current: Mapping[str, Any] | None, next_version: dict[str, 
         return next_version
     if current.get("starRevision") is not None and next_version.get("starRevision") is None:
         next_version["starRevision"] = current["starRevision"]
+    if current.get("starSuggestion") is not None and next_version.get("starSuggestion") is None:
+        for name in ITEM_SUGGESTION_FIELDS:
+            next_version[name] = current.get(name)
     if current.get("starRating") is None or next_version.get("starRating") is not None:
         return next_version
     for name in ("starRating", "starRatedAt", "starRatedBy"):

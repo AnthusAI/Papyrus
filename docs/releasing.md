@@ -197,8 +197,9 @@ papyrus --site machines-on-machines automations runs --id rate
   (`hn` is the router config's monitor id). `--enabled true` switches it on; the schedule entry is created by `agents schedules` (the next deploy does it too).
 * What the first run shows: `automations runs --id rate` lists the run as "✓ Did it (proposed)" or "– Nothing to do (nothing_unrated)", with the policy version and rung `observe`. The
   run's output lists each Story with the stars it would get and why, the five-star candidates for a person, any Story it could not judge, the gate's answers (the write
-  operation `ratings_set` answers `human_required`, needing `draft`), and the cost. `papyrus stories list` shows no new rating. A person's judgement of the proposals is the evidence
-  for raising the rung; raising it to `draft` is a change of the policy document and no code: the same run then writes threes and fours, never a five and never over a person's rating.
+  operation `ratings_suggest` answers `human_required`, needing `propose`), and the cost. `papyrus stories list` shows no new rating. A person's judgement of the proposals is the evidence
+  for raising the rung; raising it to `propose` is a change of the policy document and no code: the same run then writes each as a suggestion beside the rating and raises the day's one
+  review, "N ratings suggested, M five-star candidates" (PPY-e61642). It never writes a rating at any rung; a person confirms a suggestion in the Story editor or with `ratings confirm`.
 * To stop it: switch the automation off (`automations update --id rate --enabled false`, then `agents schedules`), or pause it in the policy (the pause stops the next wake and says why).
 * Read it as it stands: the run reads every unrated published Story each day, newest first, until the index ends or the run's own deadline is near (the run says which). At `observe` nothing is
   rated, so the same Stories are judged again the next day and the model is paid for each time; the weekly budget (slice G1) is not built, so the cost is on the run record and nothing else limits it.

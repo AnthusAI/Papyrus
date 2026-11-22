@@ -1008,16 +1008,48 @@ OPERATIONS = OPERATIONS + LIST_OPERATIONS
 
 RATING_OPERATIONS: tuple[Operation, ...] = (
     Operation(
-        "ratings_set", ("set",), "Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated.", "write",
-        obj({"story": STORY_LINEAGE, "stars": whole("The rating, 1 to 5. An agent may only give 3 or 4.")}, ("story", "stars")),
+        "ratings_set", ("set",), "Give a Story a star rating, 1 to 5. Only a person rates; an agent suggests with ratings_suggest.", "write",
+        obj({"story": STORY_LINEAGE, "stars": whole("The rating, 1 to 5.")}, ("story", "stars")),
         record({"lineageId": text(), "previous": whole("The rating before this one: 0 when the Story had none.", minimum=0), "stars": whole(), "ratedBy": text()},
                ("lineageId", "stars")),
-        ("not_found", "constraint_conflict"),
-        (Example({"story": "story-1", "stars": 3}, {"lineageId": "story-1", "previous": 0, "stars": 3, "ratedBy": "agent:rate"}),), positional=("story",), group="ratings",
-        notes="A person's rating is the editor's value and replaces any earlier one. An agent's call is held to the rating policy here as well as at the gate: three is the "
-              "default, four is for a clearly better Story, a five is a person's decision and is refused with invalid_input, and a Story that already has a rating "
-              "is refused with constraint_conflict because a machine never replaces a rating. The rating is recorded as the agent's own (ratedBy agent:<responsibility>).",
-        agent_rung="draft",
+        ("not_found", "not_authorized"),
+        (Example({"story": "story-1", "stars": 4}, {"lineageId": "story-1", "previous": 0, "stars": 4, "ratedBy": "an editor"}),), positional=("story",), group="ratings",
+        notes="A person's rating is the editor's value and replaces any earlier one. A machine never writes a rating: an agent's call is refused with "
+              "not_authorized at every rung (PPY-e61642).",
+        agent_rung="person",
+    ),
+    Operation(
+        "ratings_suggest", ("suggest",), "Suggest stars for a Story nobody has rated: three or four, or five for a five-star candidate. It sits beside the rating and is never the rating.", "write",
+        obj({"story": STORY_LINEAGE, "stars": whole("3 or 4, or 5 for a five-star candidate a person decides.")}, ("story", "stars")),
+        record({"lineageId": text(), "stars": whole(), "candidate": flag(), "suggestedBy": text(), "run": {"type": ["string", "null"]}}, ("lineageId", "stars", "candidate")),
+        ("not_found", "invalid_input", "constraint_conflict"),
+        (Example({"story": "story-1", "stars": 4}, {"lineageId": "story-1", "stars": 4, "candidate": False, "suggestedBy": "agent:rate", "run": "run-1"}),),
+        positional=("story",), group="ratings",
+        notes="A Story somebody rated is refused with constraint_conflict: a person's rating always wins. The suggestion records who made it and the run whose "
+              "record holds the reason. A person confirms it with ratings_confirm, rates other stars, or leaves it.",
+        agent_rung="propose",
+    ),
+    Operation(
+        "ratings_confirm", ("confirm",), "Make a Story's suggested stars your rating, or give other stars instead.", "write",
+        obj({"story": STORY_LINEAGE, "stars": whole("Other stars, 1 to 5, instead of the suggested ones. Leave out to confirm the suggestion.")}, ("story",)),
+        record({"lineageId": text(), "stars": whole(), "suggested": whole(), "changed": flag(), "ratedBy": text()}, ("lineageId", "stars", "suggested", "changed")),
+        ("not_found", "constraint_conflict", "not_authorized"),
+        (Example({"story": "story-1"}, {"lineageId": "story-1", "stars": 4, "suggested": 4, "changed": False, "ratedBy": "an editor"}),), positional=("story",), group="ratings",
+        notes="Only a person decides a suggestion. A Story with no suggestion is not_found; one already rated is constraint_conflict (rate it with ratings_set).",
+        agent_rung="person",
+    ),
+    Operation(
+        "ratings_suggestions_review", ("suggestions-review",), "Raise the day's one review of suggested ratings, or add Stories to it while it is open.", "write",
+        obj({"day": text("The day, YYYY-MM-DD, in the site's time zone."),
+             "suggestions": many(record({"story": STORY_LINEAGE, "title": text(), "stars": whole()}, ("story", "stars")), "The Stories suggested, with their stars.")},
+            ("day", "suggestions")),
+        record({"request": text(), "reason": text(), "state": text(), "stories": many(text(), "Every Story the request links.")}, ("request", "reason", "state", "stories")),
+        ("invalid_input",),
+        (Example({"day": "2026-11-21", "suggestions": [{"story": "story-1", "title": "Slow water", "stars": 4}]},
+                 {"request": "rr-ratings-2026-11-21", "reason": "1 rating suggested, 0 five-star candidates", "state": "open", "stories": ["story-1"]}),),
+        group="ratings",
+        notes="One soft review per day: a second call that day adds its Stories to the open request and recounts it; an answered request is left as it is.",
+        agent_rung="propose",
     ),
 )
 

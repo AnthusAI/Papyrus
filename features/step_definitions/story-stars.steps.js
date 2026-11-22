@@ -6,7 +6,7 @@ const { Given, When, Then } = require("@cucumber/cucumber");
 const root = path.resolve(__dirname, "../..");
 const browser = (name) => promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-story-stars-ui.ts", name], { cwd: root, maxBuffer: 8 * 1024 * 1024 });
 
-for (const given of ["the Stories board with rated and unrated Stories", "the Story editor open on a published Story"]) Given(given, function () {});
+for (const given of ["the Stories board with rated and unrated Stories", "the Story editor open on a published Story", "the Story editor open on an unrated Story with stars suggested by the rating agent"]) Given(given, function () {});
 
 for (const when of [
   "the editor looks at a rated card and an unrated card",
@@ -14,6 +14,7 @@ for (const when of [
   "the editor rates it one star",
   "the editor taps a star in the drawer while the save fails",
   "the editor opens the board, a drawer and the editor on a phone",
+  "the editor reads the suggestion and confirms it",
 ]) When(when, function () {});
 
 // Each outcome runs the named scenario of scripts/test-story-stars-ui.ts (a real browser, local preview data).
@@ -28,5 +29,6 @@ const outcomes = {
   "the drawer says the rating could not be saved and the drawer and the card show the saved rating": "failed_save",
   "the five stars in the drawer and the editor are at least forty pixels square, in one row, with Lucide icons and nothing scrolling sideways": "phone",
   "the card's rating stays in its top row": "phone",
+  "the suggestion is in words under an empty rating, and confirming saves it as the editor's rating by one plain update, after which the suggestion is gone": "suggestion",
 };
 for (const [outcome, scenario] of Object.entries(outcomes)) Then(outcome, { timeout: 180000 }, async function () { await browser(scenario); });

@@ -4,13 +4,13 @@ Feature: The rating agent looks at unrated published Stories each day and, at ob
   model one question: three stars (the default), four (clearly better than the usual Story), or five (a candidate for a person). A five is never a
   rating: the run lists it as a candidate and nothing more. A person's rating is never touched, and a Story a person rated is never listed.
 
-  What the agent may do is the site's agent policy, not its code. The run asks the one gate whether it may write a rating (the operation "ratings_set",
-  which the operation table lets an agent call from the rung draft). At the rung observe the gate says a person would have to do it, so the run
-  records what it would rate and why, writes no rating and files no review request. Raising the rung to draft is a change of the policy document
-  and changes no code: the same run then writes the threes and fours through the same gate, and still never a five.
+  What the agent may do is the site's agent policy, not its code. The run asks the one gate whether it may suggest stars (the operation
+  "ratings_suggest", which the operation table lets an agent call from the rung propose). At the rung observe the gate says a person would have to
+  do it, so the run records what it would suggest and why, writes nothing and raises no review. Raising the rung to propose is a change of the policy
+  document and changes no code: the same run then writes suggestions beside the ratings (rating-suggestions.feature). A machine never writes a rating.
 
   Every scenario goes through the procedure runner's own entry point with the real procedure file, the site's real policy document and run records.
-  Only the places the world is reached are stood in for: the site's Story index, the guidelines read, the rating write and the model.
+  Only the places the world is reached are stood in for: the site's Story index, the guidelines read, the Story store and the model.
 
   Background:
     Given a site backend with the published procedure "rate_items"
@@ -32,13 +32,13 @@ Feature: The rating agent looks at unrated published Stories each day and, at ob
     And the Story index was read only as the published head partition
     And the run record names the responsibility "rate", policy version 1 and the rung "observe"
 
-  Scenario: At observe the gate is asked and says a person would have to write the rating, and no review request is filed
+  Scenario: At observe the gate is asked and says a person would have to suggest the stars, and no review request is filed
     Given the policy sets "rate" to "observe"
     And the site has these published Stories nobody has rated
       | story  | title                  | model says |
       | story-a | A routine release note | 3          |
     When the daily wake arrives for the automation
-    Then the run record stores the gate's answer "human_required" for "ratings_set" needing the rung "draft"
+    Then the run record stores the gate's answer "human_required" for "ratings_suggest" needing the rung "propose"
     And no review request is filed
     And no rating was written
 
@@ -103,38 +103,6 @@ Feature: The rating agent looks at unrated published Stories each day and, at ob
     When the daily wake arrives for the automation
     Then the run record stores the gate's answer "allowed" for "guidelines_resolve"
     And the model was given the guidelines "Plain words. Say what is known."
-
-  Scenario: At draft the same run writes the threes and fours through the gate and still never a five
-    Given the policy sets "rate" to "draft"
-    And the site has these published Stories nobody has rated
-      | story   | title                    | model says |
-      | story-a | A routine release note   | 3          |
-      | story-b | A measured look at evals | 4          |
-      | story-c | A landmark investigation | 5          |
-    When the daily wake arrives for the automation
-    Then the run list shows "✓ Did it (rated)"
-    And the run record stores the gate's answer "allowed" for "ratings_set" needing the rung "draft"
-    And the ratings written are "story-a" at 3 stars and "story-b" at 4 stars, each by "agent:rate"
-    And the run lists "story-c" as a five-star candidate for a person
-    And no rating of 5 was written
-
-  Scenario: A Story a person rated while the run was working is left alone
-    Given the policy sets "rate" to "draft"
-    And the site has these published Stories nobody has rated
-      | story   | title                  | model says |
-      | story-a | A routine release note | 3          |
-    And a person rates "story-a" 4 stars before the run reaches it
-    When the daily wake arrives for the automation
-    Then the run lists "story-a" as left alone because "already_rated"
-    And the person's rating of "story-a" is still 4 stars
-
-  Scenario: An agent can never write a five or replace a rating, whatever calls the operation
-    Given a Story "story-f" nobody has rated and a Story "story-g" a person rated 4 stars
-    When an agent asks the operation "ratings_set" for "story-f" at 5 stars
-    Then the answer is the error "invalid_input"
-    When an agent asks the operation "ratings_set" for "story-g" at 3 stars
-    Then the answer is the error "constraint_conflict"
-    And the person's rating of "story-g" is still 4 stars
 
   Scenario: A run that is out of time stops between Stories and says so
     Given the policy sets "rate" to "observe"

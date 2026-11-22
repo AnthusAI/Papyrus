@@ -363,8 +363,14 @@ _ENTRIES = dict([
      "DELIVERY_ID --url URL [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements withdraw", "Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted).", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
-  _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
+  _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. Only a person rates; an agent suggests with ratings suggest.",
      "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("ratings suggest", "Suggest stars for a Story nobody has rated: 3 or 4, or 5 for a five-star candidate. It sits beside the rating and is never the rating.",
+     "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("ratings confirm", "Make a Story's suggested stars your rating, or give other stars instead.",
+     "STORY_LINEAGE [--stars N] [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("ratings suggestions-review", "Raise the day's one review of suggested ratings, or add Stories to it while it is open.",
+     "--day TEXT --suggestions JSON [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
   # ---- handoffs (the operation table is the source of the flags; a test keeps these in step) ----------------------------------------------
   _e("handoffs request", "Ask another responsibility for one piece of work on a Story: an Assignment that says who asked and why, and wakes the responsible agent once.",
      "STORY_LINEAGE --responsibility TEXT --why TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
@@ -493,7 +499,7 @@ GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: va
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
-GROUP_SUMMARIES["ratings"] = "Rate a Story: a person gives 1 to 5 stars; an agent gives only 3 or 4 to a Story nobody has rated, and only at a rung the site's policy allows."
+GROUP_SUMMARIES["ratings"] = "Rate a Story: a person gives 1 to 5 stars; an agent only suggests stars beside the rating, and a person confirms, changes or ignores them."
 GROUP_SUMMARIES["handoffs"] = "Ask another responsibility for work on a Story: an Assignment that names who asked and why, and wakes the responsible agent once."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 

@@ -15,6 +15,8 @@ export type DemoArticleRecord = {
   publishedType?: string | null;
   /** A private 1-5 rating of the Story (null or absent: unrated). */
   starRating?: number | null;
+  /** A machine's suggested stars beside the rating (lib/newsroom-articles.ts StarSuggestion); never the rating. */
+  starSuggestion?: { stars: number; by: string | null } | null;
   updatedAt: string;
 };
 
