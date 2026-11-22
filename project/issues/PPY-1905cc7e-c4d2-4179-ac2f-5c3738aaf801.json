@@ -3,17 +3,30 @@
   "title": "Announcement and newsletter links ignore the site's URL structure and point at 404s",
   "description": "item_front_matter.item_path builds /<section>/<slug>.html (or the directory or clean form) from the section and ITEM_URL_STYLE. On Machines on Machines, Stories live at /articles/<slug>/ (the type's segment), so the announce agent drafted https://machines-on-machines.anth.us/security/the-eternal-october.html, which redirects to a 404. The newsletter roundup uses the same builder. The link must come from the projection's own address for the Story (its link map), not be rebuilt.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f3f918d5-de44-4e59-afaa-65c85cf1dc38",
+      "author": "ryan",
+      "text": "Released in Papyrus 5.144.0 (PR 1814), deployed on MoM (Amplify job 151): a dry run builds https://machines-on-machines.anth.us/articles/the-eternal-october/. The newsletter roundup still rebuilds its own links; not part of this issue's announcement path.",
+      "created_at": "2026-11-22T00:50:53.868811Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "Claude Code handoff session"
+      }
+    }
+  ],
   "created_at": "2026-11-21T18:17:20.023851Z",
-  "updated_at": "2026-11-21T18:17:20.023872Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T00:51:03.160707Z",
+  "closed_at": "2026-11-22T00:51:03.160672Z",
   "agent": {
     "platform": "claude-code",
     "model": "claude-opus-5-5",
