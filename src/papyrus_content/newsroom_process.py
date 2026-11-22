@@ -136,6 +136,9 @@ class Procedure:
     steps: tuple[Step, ...]
     source: str = "default"   # "default" or "site"
     version: int | None = None   # the site document's catalog version
+    #: Whether a translation needs a person's review before it publishes: True or False as the site's document says (``translationHumanReview``), or None
+    #: to follow the review of readers (``review_people``) of an original. A site with nobody to read a language sets False and relies on the run's checks.
+    translation_human_review: bool | None = None
 
     @property
     def by_key(self) -> dict[str, Step]:
@@ -158,11 +161,17 @@ CUSTOM_FIELDS = ("key", "stage", "role", "title", "command", "note", "optional",
 PUBLISH_STEP_KEY = "publish"
 
 
+#: The procedure document's switch for a translation's review by a person (``Procedure.translation_human_review``).
+TRANSLATION_HUMAN_REVIEW_FIELD = "translationHumanReview"
+
+
 def procedure_problems(document: Any) -> list[tuple[str, str]]:
     """(field path, message) for each problem with a site procedure document's ``steps``. Empty means it can be used."""
     if not isinstance(document, dict) or not isinstance(document.get("steps"), list) or not document["steps"]:
         return [("steps", "must be a non-empty list of steps")]
     problems, seen = [], set()
+    if TRANSLATION_HUMAN_REVIEW_FIELD in document and not isinstance(document[TRANSLATION_HUMAN_REVIEW_FIELD], bool):
+        problems.append((TRANSLATION_HUMAN_REVIEW_FIELD, "must be true or false"))
     for index, entry in enumerate(document["steps"]):
         where = f"steps[{index}]"
         key = entry.get("key") if isinstance(entry, dict) else None
@@ -207,7 +216,7 @@ def procedure_from_document(document: dict[str, Any], version: int | None = None
         else:
             steps.append(Step(entry["key"], entry["stage"], entry.get("role", "Editor or reviewing agent"), entry["title"], entry.get("command", ""), LIVE, bool(entry.get("optional", False)),
                               entry.get("note", ""), manual=True, versioned=bool(entry.get("versioned", False))))
-    return Procedure(tuple(steps), "site", version)
+    return Procedure(tuple(steps), "site", version, translation_human_review=document.get(TRANSLATION_HUMAN_REVIEW_FIELD))
 
 
 def procedure_of(client) -> Procedure:
