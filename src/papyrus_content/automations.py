@@ -537,7 +537,8 @@ def _row_time(row: dict) -> str:
 
 
 def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit: int, budget: Any) -> dict[str, Any]:
-    """The procedure's newest runs that this automation did not start: `Started outside this automation`."""
+    """The procedure's newest runs that this automation did not start: `Started outside this automation`. A run is this automation's when
+    it is linked to it or names it."""
     fetch = getattr(client, "recent_procedure_runs", None)
     if fetch is None:
         return {"runs": [], "notice": None}
@@ -545,7 +546,8 @@ def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit
         rows = fetch(automation["procedureKey"], OUTSIDE_FETCH)
     except Exception:   # the rest of the history still reads
         return {"runs": [], "notice": "outside_unavailable"}
-    return {"runs": [outside_entry(run, budget) for run in rows if run.get("id") not in linked_ids][:limit], "notice": None}
+    return {"runs": [outside_entry(run, budget) for run in rows
+                     if run.get("id") not in linked_ids and run.get("automationId") != automation["id"]][:limit], "notice": None}
 
 
 def mark_deleted_stories(client, runs: list[dict[str, Any]]) -> None:
@@ -565,25 +567,20 @@ def mark_deleted_stories(client, runs: list[dict[str, Any]]) -> None:
         run["storyExists"] = known[story]
 
 
-def schedule_history(automation: dict[str, Any], client, limit: int) -> dict[str, Any]:
-    """A schedule automation's runs are the procedure's runs that name it (the wake's run record carries the automation id); the rest are the procedure's other runs.
+def agent_history(automation: dict[str, Any], client, limit: int) -> dict[str, Any]:
+    """A schedule, event or manual agent's runs are one query of the run index by its automation id, newest first (PPY-577310); the
+    procedure's other recent runs are the ones started outside this agent.
 
-    Nothing here reads the monitoring table: a tick is a wake on the queue, not a monitor's trigger row."""
+    Nothing here reads the monitoring table: a schedule tick or an event is a wake on the queue, not a monitor's trigger row."""
     budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
-    result = {"link": schedule_link(automation), "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None, "outsideRuns": [], "outsideNotice": None}
-    fetch = getattr(client, "recent_procedure_runs", None)
-    if fetch is None:
-        return result
-    try:
-        found = fetch(automation["procedureKey"], OUTSIDE_FETCH)
-    except Exception:   # the record still shows
-        return {**result, "outsideNotice": "outside_unavailable"}
-    own = [run for run in found if run.get("automationId") == automation["id"]][:limit]
+    origin = automation["trigger"]["kind"]
+    own = client.agent_procedure_runs(automation["id"], limit)
     runs = [{**run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"), "requestedBy": run.get("requestedBy")}, run, False, budget),
-             "origin": "schedule"} for run in own]
+             "origin": origin} for run in own]
     mark_deleted_stories(client, runs)
-    others = [outside_entry(run, budget) for run in found if run.get("automationId") != automation["id"]][:limit]
-    return {**result, "runs": runs, "lastRun": runs[0] if runs else None, "outsideRuns": others}
+    outside = outside_runs(automation, client, {run.get("id") for run in own}, limit, budget)
+    return {"link": router_link(automation, None), "runs": runs, "lastRun": runs[0] if runs else None, "skippedAlreadyHadReference": 0,
+            "notice": None, "outsideRuns": outside["runs"], "outsideNotice": outside["notice"]}
 
 
 def automation_history(automation: dict[str, Any], *, reader: MonitoringReader | None, client, limit: int = DEFAULT_RUN_LIMIT,
@@ -597,10 +594,8 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
     empty = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None,
              "outsideRuns": [], "outsideNotice": None}
     stage_trigger = is_stage_trigger(automation["trigger"])
-    if automation["trigger"]["kind"] == "schedule":
-        return schedule_history(automation, client, limit)
     if automation["trigger"]["kind"] != "monitor" and not stage_trigger:
-        return {**empty, "link": router_link(automation, None), "notice": NOT_SUPPORTED}
+        return agent_history(automation, client, limit)
     if reader is None:
         return {**empty, "notice": "monitoring_not_configured"}
     config = automation["trigger"]["config"]

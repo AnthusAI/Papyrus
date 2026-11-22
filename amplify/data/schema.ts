@@ -1585,6 +1585,7 @@ const definitions = {
       index("runStatus").sortKeys(["requestedAt"]).queryField("listProcedureRunsByStatusAndRequestedAt"),
       index("newsroomFeedKey").sortKeys(["requestedAt"]).queryField("listProcedureRunsByFeedAndRequestedAt"),
       index("attentionKey").sortKeys(["dueAt"]).queryField("listProcedureRunsByAttentionKeyAndDueAt"),
+      index("automationId").sortKeys(["requestedAt"]).queryField("listProcedureRunsByAutomationAndRequestedAt"),
     ])
     .authorization((allow) => [
       allow.group("editor").to(["read"]),

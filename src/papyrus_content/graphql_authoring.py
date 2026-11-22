@@ -499,6 +499,9 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     # The runs that need a person: failed or outcome unknown, not acknowledged (sparse; run_attention.py). Sorted by when they needed attention.
     "procedureRunsByAttention": {"field": "listProcedureRunsByAttentionKeyAndDueAt", "partitionKey": "attentionKey", "sortKey": "dueAt", "fields": PROCEDURE_RUN_ATTENTION_FIELDS},
     # One procedure's runs, newest last, and the definitions of one procedure key (the priming export reads a monitor's runs this way).
+    # One agent's runs by its automation id (PPY-577310): the run history of a schedule, event or manual agent, newest first.
+    "procedureRunsByAutomation": {"field": "listProcedureRunsByAutomationAndRequestedAt", "partitionKey": "automationId", "sortKey": "requestedAt",
+                                  "fields": f"{PROCEDURE_RUN_FIELDS} {PROCEDURE_RUN_COST_FIELDS} tenantId"},
     "procedureRunsByProcedure": {"field": "listProcedureRunsByProcedureAndRequestedAt", "partitionKey": "procedureId", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_FIELDS},
     "procedureDefinitionsByKey": {"field": "listProcedureDefinitionsByKeyAndUpdatedAt", "partitionKey": "procedureKey", "sortKey": "updatedAt", "fields": PROCEDURE_DEFINITION_FIELDS},
     "itemsByLanguageGroup": {"field": "listItemsByLanguageGroupAndLanguage", "partitionKey": "languageGroupId", "sortKey": "language", "fields": ITEM_FIELDS},
@@ -1241,6 +1244,18 @@ class PapyrusGraphQLAuthoringClient:
                 continue
             return [entry for entry in (result.get(field) or {}).get("items") or [] if entry]
         return []
+
+    def agent_procedure_runs(self, automation_id: str, limit: int) -> list[dict[str, Any]]:
+        """One agent's newest runs, read from the run index by automation id. An agent id is a slug each tenant chooses, so on a shared
+        stack the partition can hold other tenants' runs; only this tenant's are kept, and reading stops once `limit` are found."""
+        runs: list[dict[str, Any]] = []
+        for run in self.iterate_newest_first("procedureRunsByAutomation", automation_id, page_size=max(limit, 10)):
+            if self.tenant_id and run.get("tenantId") != self.tenant_id:
+                continue
+            runs.append(run)
+            if len(runs) >= limit:
+                break
+        return runs
 
     def get_record_unscoped(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]

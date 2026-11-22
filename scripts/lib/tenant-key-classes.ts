@@ -135,6 +135,7 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
 
   // global, open: a slug, a person, a name or a composite of keys, shared by every tenant that uses the same text.
   assigneeKey: open,
+  automationId: open,   // an agent's id, a slug each tenant chooses (`announce`); readers keep only their tenant's rows
   authorSub: open,
   categoryKey: open,
   classifierId: open,

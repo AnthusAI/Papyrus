@@ -4,7 +4,7 @@
     "models": 73,
     "globalModels": 3,
     "modelCases": 505,
-    "indexCases": 230,
+    "indexCases": 231,
     "subscriptionCases": 9,
     "operationCases": 142,
     "functionCases": 76,
@@ -5020,6 +5020,14 @@
       "expect": "returns nothing of \"beta\""
     },
     {
+      "id": "index:listProcedureRunsByAutomationAndRequestedAt",
+      "kind": "index",
+      "subject": "listProcedureRunsByAutomationAndRequestedAt",
+      "operation": "list-by-index-at-foreign-key",
+      "probe": "alpha calls listProcedureRunsByAutomationAndRequestedAt on ProcedureRun with automationId at one of \"beta\"'s keys",
+      "expect": "returns nothing of \"beta\""
+    },
+    {
       "id": "index:listProcedureRunsByFeedAndRequestedAt",
       "kind": "index",
       "subject": "listProcedureRunsByFeedAndRequestedAt",
@@ -8300,6 +8308,11 @@
       "code": "index-not-tenant-prefixed",
       "subject": "listProcedureRunsByAttentionKeyAndDueAt",
       "note": "partition key attentionKey on ProcedureRun is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
+    },
+    {
+      "code": "index-not-tenant-prefixed",
+      "subject": "listProcedureRunsByAutomationAndRequestedAt",
+      "note": "partition key automationId on ProcedureRun is shared across tenants: lists post-filter and pages come back short (spike PPY-f4d892)"
     },
     {
       "code": "index-not-tenant-prefixed",
