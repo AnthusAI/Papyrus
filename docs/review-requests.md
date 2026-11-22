@@ -23,8 +23,10 @@ An answer is `approve`, `acknowledge` (a flag only: nothing was approved, the ed
 | `subject` | `{type, id}`: `story`, `proposal`, `reference`, `automation_run`, `cyclotron_decision`, `batch` or `delivery` (an announcement Delivery that was not sent). |
 | `mode`, `reason`, `ask` | The mode, why (the headline), and what is asked. |
 | `raisedBy`, `raisedAt` | The automation, procedure or AI step, and when. |
-| `deadline` | Soft reviews only, and only when the caller passes one. Empty means no expiry. |
+| `deadline` | Soft reviews only, and only when the caller passes one, to the whole second. Empty means no expiry. |
 | `state` | `open`, `answered`, `timed_out`, `withdrawn`. |
+| `reviewStateKey` | `review#<state>` (the tenant in front on a shared stack), on every request: the partition of the state index. |
+| `dueAt` | The deadline of an open soft review that has one; absent on everything else. The time its follow-up timer wakes for. |
 | `answer` | `{decision, feedback, steer, by, at}`. |
 | `links` | Items in the request or URLs. For a batch these are the ideas filed in that run, as `story` links by lineage id (older batches linked Proposals). |
 | `history` | The audit trail of this request: raised, answered, timed_out ("proceeded without review"), applied, withdrawn. |
@@ -38,14 +40,11 @@ The audit trail lives on the request. A line on the *item's* own trail (the stor
 
 An answer's note (and a draft's Why, kept on its link and in the answer's `drafts`) can be changed after the answer without reopening the request: the console writes it with the condition that the request is still in the state it read, and adds a `reason_edited` history entry. See [the reason, in any order](notification-center.md#the-reason-in-any-order).
 
-## The deadline mechanism: checked on read
+## The deadline is a follow-up timer; reads are by index (PPY-9b8e59)
 
-v0 has no scheduled function. `expire_due` marks every open soft review that has a deadline and whose deadline has passed as `timed_out`. It runs whenever the
-requests are read: the Python `list_reviews`, `get_review`, `answer_review` and `wait_for_review`, and the console when the page loads. The
-raising process learns the outcome by waiting or reading; nothing else has to happen at the deadline. Writes carry the condition
-`state = open` in the console, so an answer racing the deadline cannot both win. (The Python client reads then writes; the window is small and
-the backend authorization is unchanged.) A scheduled sweep is only needed for something that must happen at the deadline with no one looking,
-such as an email, and comes with that.
+Nothing is checked on read and nothing polls. Raising a soft review with a deadline sets one follow-up timer ([follow-up timers](follow-up-timers.md#soft-review-deadlines-ppy-9b8e59)); a soft review with a deadline is refused when the caller has no timers to set. At the deadline the timer's wake runs `on_deadline_wake`, which reads the request again and, only if it still waits for that deadline, records `timed_out` ("proceeded without review") in one write conditional on `state = open`. An answer or a withdrawal before the deadline clears `dueAt` (and the timer, when the caller holds the site's timers), so the wake does nothing. A deadline whose wake was lost is Overdue on Today and its wake is sent again with the same key.
+
+Every read goes to the index `reviewRequestsByState` (`listReviewRequestsByReviewStateKeyAndUpdatedAt`): `list_reviews` reads the partition of the state it is asked for (each state's partition when none is named), steering reads the answered partition, the curation flag the open one, and the Notification Center reads every open request and the decided ones most recently decided first. The publish gate reads its requests by id, and recipient rules are read by id (their ids are their scope and key). Nothing lists the table, except `papyrus reviews index-backfill`, run once per site when it takes the index ([releasing](releasing.md#review-request-deadlines-are-timers-the-state-index-ppy-9b8e59)).
 
 ## Python library (`papyrus_content.review_requests`)
 
@@ -54,16 +53,17 @@ from papyrus_content import review_requests as rr
 client = create_authoring_client()[0]
 
 request = rr.raise_review(client, subject={"type": "story", "id": story_id}, mode="soft_review",
-                          reason="Check the headline", raised_by="procedure:copy-editor", deadline_days=3)
+                          reason="Check the headline", raised_by="procedure:copy-editor", deadline_days=3,
+                          deadline_timers=ReviewDeadlineTimers.from_environment(os.environ, appsync_endpoint=client.endpoint))
 result = rr.wait_for_review(client, request["id"], poll_seconds=60)      # blocks as the mode says
 result["outcome"]   # approved | rejected | feedback | proceeded_without_review | withdrawn | waiting (a flag)
 ```
 
 * `review_gate(client, ..., wait=True)` raises and waits in one call.
-* `wait_for_review`: a flag returns at once; a soft review returns at the answer or at the deadline with `proceeded_without_review`; a hard
+* `wait_for_review`: a flag returns at once; a soft review returns at the answer or, once its deadline timer has run, with `proceeded_without_review`; a hard
   gate returns only on an answer or a withdrawal. `max_wait_seconds` on a hard gate raises `ReviewStillOpen` and leaves it open. A
   CLI-run process polls; full resumable gates in the run contract come later.
-* `answer_review`, `withdraw_review`, `list_reviews`, `get_review`, `expire_due`.
+* `answer_review`, `withdraw_review` (both take `deadline_timers=` to delete the timer), `list_reviews`, `get_review`, `on_deadline_wake` (what the deadline wake runs).
 
 ### Steering read-back (generic)
 
@@ -106,6 +106,7 @@ papyrus reviews steering [--raised-by NAME] [--all]        # unapplied steering,
 papyrus reviews applied --id ID --run RUN_ID
 papyrus reviews recipients [--mode M] [--automation A]     # who would be told
 papyrus reviews recipients --set --scope default|mode|automation [--key K] [--roles editor,admin] [--emails a@x,b@y]
+papyrus reviews index-backfill [--apply]                   # once per site, when it takes the state index
 ```
 
 ## The publish gate
@@ -114,7 +115,7 @@ A site that sets its [publish approval](how-a-publish-flows.md#a-site-can-requir
 
 | Field | Value |
 |---|---|
-| `id` | `rr-publish-<hash of the item record id and its content hash>`; a later request about the same version, after one was withdrawn, adds `-2`, `-3`. |
+| `id` | `rr-publish-<hash of the item record id and its content hash>`; a later request about the same version, after one was withdrawn, adds `-2`, `-3`. The gate reads them by id in that order until one is missing; it never lists the requests. |
 | `subject` | `{type: story, id: <lineage id>}`; the item record is a link. |
 | `mode`, `raisedBy` | `hard_gate`, `publish-gate`. |
 
@@ -131,10 +132,10 @@ site's data, never in the repository.
 
 **Not in v0.** The site's SES setup is the newsletter plugin's: it sends from the newsletter sender with subscriber unsubscribe handling and
 an IAM policy limited to that identity, so it is not a staff transactional path. Sending "one email per new hard gate" needs a staff mail
-sender (and, for the deadline, the scheduled sweep). The recipient resolution above is ready for it.
+sender. The recipient resolution above is ready for it.
 
 ## What a site must deploy or configure
 
-* Deploy the data API (the three new models). No other infrastructure.
+* Deploy the data API (the three new models). No other infrastructure. A site that takes the state index runs `papyrus reviews index-backfill --apply` once.
 * Optionally set recipient rules and `PAPYRUS_SITE_OWNER_EMAIL` (only used when email is added).
 * Editors and admins already in the user list can answer; no new groups.

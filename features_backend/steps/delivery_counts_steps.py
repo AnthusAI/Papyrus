@@ -241,5 +241,5 @@ def prints_line(context, line):
 @then("Today made only index reads of the announcement records")
 def only_indexes(context):
     reads = {index for index, _key in context.backend.reads}
-    assert reads == {"announcementDecisionsByState", "deliveriesByAnnouncement", "deliveriesByDue", "semanticRelationsBySubjectState"}   # deliveriesByDue: the overdue check, reads
+    assert reads == {"announcementDecisionsByState", "deliveriesByAnnouncement", "deliveriesByDue", "reviewRequestsByState", "semanticRelationsBySubjectState"}   # deliveriesByDue and reviewRequestsByState (the open partition): the overdue check, reads
     assert not context.backend.gets, context.backend.gets

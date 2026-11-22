@@ -12,6 +12,7 @@ from papyrus_content.registered_commands import run_registered_command
 @pytest.fixture
 def run(monkeypatch, capsys):
     client = FakeAuthoringClient()
+    client.endpoint = "https://example.appsync-api.us-east-1.amazonaws.com/graphql"
     monkeypatch.setattr(graphql_authoring, "create_authoring_client", lambda: (client, {}))
     monkeypatch.setenv("PAPYRUS_ACTOR_LABEL", "tester")
 
@@ -27,10 +28,23 @@ def run(monkeypatch, capsys):
     return invoke
 
 
-def test_raise_list_show_answer_and_steering_round_trip(run):
+class RecordedTimers:
+    def __init__(self):
+        self.synced = []
+
+    def sync(self, row):
+        self.synced.append((row["id"], row.get("dueAt")))
+
+
+def test_raise_list_show_answer_and_steering_round_trip(run, monkeypatch):
+    from papyrus_content import review_deadline_timers
+
+    timers = RecordedTimers()
+    monkeypatch.setattr(review_deadline_timers.ReviewDeadlineTimers, "from_environment", classmethod(lambda cls, environment, **_: timers))
     out = run("raise", "--subject-type", "batch", "--subject-id", "w43", "--mode", "soft_review", "--reason", "3 new story ideas to review",
               "--raised-by", "idea-pipeline", "--deadline-days", "7", "--id", "rr-w43")
     assert out.startswith("reviews\trr-w43\tsoft_review\topen\tbatch:w43\tproceeds ")
+    assert [request_id for request_id, due in timers.synced if due] == ["rr-w43"], "the deadline is a follow-up timer"
     assert "rr-w43" in run("list", "--state", "open")
     assert "ask\t-" in run("show", "--id", "rr-w43")
     answered = run("answer", "--id", "rr-w43", "--decision", "feedback", "--feedback", "Fewer listicles", "--steer", "not_this_kind")
@@ -47,6 +61,16 @@ def test_a_hard_gate_raise_with_a_deadline_is_refused_and_withdraw_works(run):
         run("raise", "--subject-type", "story", "--subject-id", "s", "--mode", "hard_gate", "--reason", "r", "--deadline-days", "2")
     run("raise", "--subject-type", "story", "--subject-id", "s", "--mode", "flag", "--reason", "FYI", "--id", "rr-flag")
     assert "withdrawn" in run("withdraw", "--id", "rr-flag", "--note", "no longer applies")
+
+
+def test_a_soft_review_with_a_deadline_needs_the_site_named_in_the_environment(run, monkeypatch):
+    from papyrus_content.review_deadline_timers import ReviewDeadlineTimerError
+
+    for name in ("PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_AWS_ACCOUNT_ID", "AWS_REGION"):
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(ReviewDeadlineTimerError, match="PAPYRUS_AGENT_PUBLICATION_ID, PAPYRUS_AWS_ACCOUNT_ID, AWS_REGION"):
+        run("raise", "--subject-type", "story", "--subject-id", "s", "--mode", "soft_review", "--reason", "r", "--deadline-days", "2")
+    assert not run.client.tables.get("ReviewRequest"), "nothing is raised without its timer"
 
 
 def test_recipient_rules_are_set_and_resolved(run):

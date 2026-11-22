@@ -93,8 +93,13 @@ def request_prefix(item: dict[str, Any]) -> str:
 
 
 def _requests_for(client, prefix: str) -> list[dict[str, Any]]:
-    rows = [row for row in client.list_records("ReviewRequest") if row.get("id") == prefix or str(row.get("id", "")).startswith(prefix + "-")]
-    return [rr.read_review(row) for row in rows]
+    """Every request about this version, by key: the first is ``prefix``, and each later one (raised only after the one before was withdrawn) is the next
+    number, so they are read one id at a time until an id has no request. Nothing lists the review requests."""
+    requests, number = [], 1
+    while (row := client.get_record("ReviewRequest", prefix if number == 1 else f"{prefix}-{number}")) is not None:
+        requests.append(rr.read_review(row))
+        number += 1
+    return requests
 
 
 def _title(item: dict[str, Any]) -> str:

@@ -45,6 +45,7 @@ export const PARTITION_FIELD_CLASSES: Record<string, FieldClass> = {
   dedupeKey: open,   // the once-only key of an Announcement (`story-published:<lineage>`); stored with the tenant in front on a shared stack (announcements/records.py)
   nameKey: open,   // `<kind>#<language>#<folded name>` of an EntityLabel; a shared stack puts the tenant in front with tenant_knowledge_keys.global_key, like the feed keys
   exampleKey: closed,   // `publication`, `channel:<channel>` or `kind:<channel>:<kind>`, on a Delivery that is an active example (global_key puts the tenant in front)
+  reviewStateKey: closed,   // `review#<state>` on every ReviewRequest, one of four states (tenant in front on a shared stack with tenant_knowledge_keys.global_key)
   workKey: closed,   // `<kind>#<language>#<syncState>` of an EntityLabel that needs work, absent otherwise (tenant in front on a shared stack, as nameKey)
 
   // corpus-prefixed: "<corpusId>" or "<corpusId>#..." (src/papyrus_content/reference_feed_keys.py and the knowledge import keys).

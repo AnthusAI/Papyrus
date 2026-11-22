@@ -276,7 +276,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual([link["id"] for link in read["links"]], [idea_["ideaId"] for idea_ in run["ideas"]])
         self.assertEqual((run["review"]["status"], run["review"]["requested"], run["review"]["linkedAs"], run["review"]["requestId"]), ("requested", True, "idea", request["id"]))
         self.assertIsNone(read["deadline"])
-        self.assertEqual(review_requests.get_review(client, read["id"], now=review_requests.parse_time(read["raisedAt"]) + timedelta(days=3650))["state"], "open")
+        self.assertEqual(review_requests.get_review(client, read["id"])["state"], "open")
         request_human_review(client, run, run["ideas"])
         self.assertEqual(len(client.reviews), 1)
 
@@ -317,7 +317,7 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("not_this_kind", shown[0]["note"])
         self.assertEqual([i["title"] for i in second["ideas"]], ["Model checkpoint signing"])
         self.assertIn(second["duplicates"][0]["similarTo"]["kind"], {"declined", "draft"})
-        original = review_requests.get_review(client, second["steering"]["requestIds"][0], sweep=False)
+        original = review_requests.get_review(client, second["steering"]["requestIds"][0])
         self.assertEqual(original["appliedIn"]["runId"], second["runId"])
         self.assertEqual((second["steering"]["entries"], second["steering"]["requestIds"], second["steering"]["notApplied"]), (1, [original["id"]], []))
         self.assertEqual(original["subject"]["id"], first["runId"])
@@ -339,7 +339,7 @@ class PipelineTests(unittest.TestCase):
         small.reviews = client.reviews
         run, _ = run_pipeline(small, FakeModel([]), root=self.root, review_client=small)
         self.assertEqual(run["steering"]["entries"], 1)
-        self.assertIsNone(review_requests.get_review(small, run["steering"]["requestIds"][0], sweep=False)["appliedIn"])
+        self.assertIsNone(review_requests.get_review(small, run["steering"]["requestIds"][0])["appliedIn"])
 
     def test_a_site_without_review_requests_gets_no_steering_and_runs_on(self) -> None:
         client = self.client()

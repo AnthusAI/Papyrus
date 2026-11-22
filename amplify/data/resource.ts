@@ -1662,6 +1662,10 @@ const schema = a.schema({
       raisedAt: a.datetime().required(),
       deadline: a.datetime(),
       state: a.string().required(),
+      /** `review#<state>` on every request (the tenant in front on a shared stack): the partition of the state index, so open requests, and answered ones, are read by index. */
+      reviewStateKey: a.string(),
+      /** The deadline of an open soft review that has one, and nothing else: the time its follow-up timer wakes for (PPY-9b8e59). Absent on flags, hard gates and closed requests. */
+      dueAt: a.datetime(),
       answer: a.json(),
       links: a.json(),
       history: a.json(),
@@ -1670,6 +1674,7 @@ const schema = a.schema({
     })
     .secondaryIndexes((index) => [
       index("tenantId").sortKeys(["id"]).queryField("listReviewRequestsByTenant"),
+      index("reviewStateKey").sortKeys(["updatedAt"]).queryField("listReviewRequestsByReviewStateKeyAndUpdatedAt"),
     ])
     .authorization((allow) => [
       allow.group("editor").to(["read", "create", "update"]),

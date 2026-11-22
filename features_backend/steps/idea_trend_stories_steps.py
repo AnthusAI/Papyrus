@@ -277,7 +277,7 @@ def step_not_published(context):
 
 @then('one soft review "{reason}" is open for the run\'s batch')
 def step_review(context, reason):
-    (request,) = review_requests.list_reviews(context.trend_client, sweep=False)
+    (request,) = review_requests.list_reviews(context.trend_client)
     assert request["mode"] == "soft_review" and request["subject"] == {"type": "batch", "id": context.trend_run["runId"]}
     assert request["reason"] == reason, request["reason"]
     context.trend_request = request

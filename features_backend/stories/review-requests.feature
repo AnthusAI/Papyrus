@@ -5,7 +5,7 @@ Feature: Human review points let any step ask a person without making review a s
   a deadline and, if nobody answers, lets it proceed and records "proceeded without review". A hard gate never
   proceeds without an explicit answer. An editor or admin answers with approve, reject or feedback, and may
   steer: feedback is stored on the request and handed back to whatever raised it, which records the run that
-  used it. The deadline is checked whenever the request is read. Who is told is site configuration, by mode or
+  used it. A deadline is a follow-up timer, so a soft review proceeds at its deadline with nobody looking. Who is told is site configuration, by mode or
   by automation, defaulting to the site owner, and can change without a code change.
 
   Scenario: A flag never makes the process wait

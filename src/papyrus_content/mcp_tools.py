@@ -423,23 +423,21 @@ class StaffReads(StaffStoryWrites):
             raise ValueError("Invalid tool arguments.")
         if getattr(self.client, "tenant_id", None):
             raise PermissionError("Reviews lack a tenant ownership key.")
-        filters = []
-        if state: filters.append({"state": {"eq": state}})
-        if mode: filters.append({"mode": {"eq": mode}})
-        operation = """query Reviews($limit: Int!, $nextToken: String, $filter: ModelReviewRequestFilterInput) {
-          listReviewRequests(limit: $limit, nextToken: $nextToken, filter: $filter) {
-            items { id subject mode reason ask raisedBy raisedAt deadline state answer updatedAt }
-            nextToken
-          }
-        }"""
-        page = (self.client.graphql(operation, {"limit": limit, "nextToken": nextToken, "filter": {"and": filters} if filters else None}).get("listReviewRequests") or {})
-        from .review_requests import read_review
-        rows = []
-        for row in page.get("items", []):
-            subject = (read_review(row).get("subject") if row else None) or {}
-            if isinstance(subject, dict) and subject.get("type") == subjectType and subject.get("id") == subjectId:
-                rows.append(row)
-        return {"reviews": [self._scope_review(principal, row) for row in rows], "nextToken": page.get("nextToken")}
+        from .review_requests import STATES, read_review, rows_in_state
+        if state is not None and state not in STATES:
+            raise ValueError("Invalid tool arguments.")
+        # Read from the state index, each state's partition when none is named; nextToken is how many matching rows were already returned.
+        offset = int(nextToken) if nextToken and nextToken.isdigit() else 0
+        def about_the_subject(row: dict) -> bool:
+            subject = read_review(row).get("subject")
+            return isinstance(subject, dict) and subject.get("type") == subjectType and subject.get("id") == subjectId
+
+        matching = [row for named in ((state,) if state else STATES) for row in rows_in_state(self.client, named)
+                    if (mode is None or row.get("mode") == mode) and about_the_subject(row)]
+        matching.sort(key=lambda row: str(row.get("raisedAt") or ""), reverse=True)
+        page = matching[offset:offset + limit]
+        following = str(offset + limit) if offset + limit < len(matching) else None
+        return {"reviews": [self._scope_review(principal, row) for row in page], "nextToken": following}
 
 
 class ReaderSteeringInvoke:

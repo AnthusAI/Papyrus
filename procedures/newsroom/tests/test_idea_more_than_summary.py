@@ -518,7 +518,8 @@ def test_every_field_a_single_item_run_reads_under_the_standard_is_granted_to_th
     line = run_publication(client, publication, transport=Model(), now=NOW, out_of_time=lambda: False, fetch=lambda url: PAGE, explorer=None)
     assert line["drafted"] == 1 and line["nothingToAdd"] == 0, line
     assert {("Query", "listMessageThreads"), ("Query", "listSemanticRelationsByNewsroomFeedAndCreatedAt")} <= recorded
-    assert {("Query", "listReviewRequests"), ("Mutation", "updateReviewRequest")} <= wildcard_grants()   # the curation flag finds its open flag and acknowledges it
+    assert {("Query", "listReviewRequestsByReviewStateKeyAndUpdatedAt"), ("Mutation", "updateReviewRequest")} <= wildcard_grants()   # the curation flag finds its open flag by index and acknowledges it
+    assert ("Query", "listReviewRequests") not in wildcard_grants(), "the router never lists the review requests"
     granted = task_tests.granted_fields("AnthUsApiId") | wildcard_grants()
     assert recorded <= granted, sorted(recorded - granted)
 

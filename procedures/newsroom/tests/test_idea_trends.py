@@ -415,7 +415,7 @@ class RunTests(unittest.TestCase):
         second["figure_caption"] = "Decision models reached 4 items in the latest week."
         run, client, _ = self.run_trends([trend_draft("One"), second])
         self.assertEqual(run["review"]["status"], "requested")
-        (request,) = review_requests.list_reviews(client, sweep=False)
+        (request,) = review_requests.list_reviews(client)
         self.assertEqual((request["mode"], request["subject"]), ("soft_review", {"type": "batch", "id": run["runId"]}))
         self.assertIn("2 new trend story drafts", request["reason"])
         self.assertEqual(run["review"]["linkedAs"], "story")

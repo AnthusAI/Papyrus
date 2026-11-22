@@ -3,8 +3,8 @@
 import { generateClient } from "aws-amplify/data";
 import { getCurrentUser } from "aws-amplify/auth";
 import {
-  answerUpdate, isDue, normalizeReviewRow, timeoutUpdate,
-  type AnswerInput, type ReviewRequest,
+  DECIDED_STATES, answerUpdate, normalizeReviewRow, reviewStateKey,
+  type AnswerInput, type ReviewRequest, type ReviewState,
 } from "./review-requests";
 
 /**
@@ -12,8 +12,10 @@ import {
  * on every change means two people answering at once, or an answer racing the deadline, cannot both win.
  */
 
-const FIELDS = "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt";
-const MAX_PAGES = 10;
+const FIELDS = "id subject mode reason ask raisedBy raisedAt deadline state reviewStateKey dueAt answer links history appliedIn updatedAt";
+/** How many pages of 500 the page reads of each decided state, most recently decided first. Every open request is read. */
+const MAX_DECIDED_PAGES = 10;
+const STATE_QUERY = `query ReviewsInState($reviewStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) { listReviewRequestsByReviewStateKeyAndUpdatedAt(reviewStateKey: $reviewStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) { items { ${FIELDS} } nextToken } }`;
 
 type GraphQLResult = { data?: Record<string, any>; errors?: { message?: string; errorType?: string }[] };
 
@@ -33,39 +35,39 @@ export async function currentUserKey(): Promise<string> {
   return (await getCurrentUser()).userId;
 }
 
-/** Loads every request (newest pages first), marks due soft reviews as timed out ("proceeded without review"), and reads this user's marks. */
-export async function loadReviews(now: Date = new Date()): Promise<ReviewLoad> {
+type StateRead = { state: "ready"; rows: Record<string, unknown>[] } | { state: "forbidden" } | { state: "unavailable" };
+
+/** The requests in one state, from that state's partition of the state index, most recently changed first; `maxPages` pages of 500 at most, or all of them. */
+async function readState(state: ReviewState, maxPages: number | null): Promise<StateRead> {
+  const rows: Record<string, unknown>[] = [];
+  let nextToken: string | null = null;
+  for (let page = 0; maxPages === null || page < maxPages; page += 1) {
+    const result = await run(STATE_QUERY, { reviewStateKey: reviewStateKey(state), sortDirection: "DESC", limit: 500, nextToken });
+    if (result.errors?.some((entry) => /unauthorized|not authorized|forbidden/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`))) return { state: "forbidden" };
+    const connection = result.data?.listReviewRequestsByReviewStateKeyAndUpdatedAt;
+    if (result.errors?.length || !connection) return { state: "unavailable" };
+    rows.push(...connection.items.filter(Boolean));
+    nextToken = connection.nextToken ?? null;
+    if (!nextToken) break;
+  }
+  return { state: "ready", rows };
+}
+
+/**
+ * Loads the requests by index: every open request, and the decided ones (answered, timed out, withdrawn) most recently decided first. Nothing lists the table,
+ * and nothing is timed out here: a soft review's deadline is a timer on the server, so the state read is the state.
+ */
+export async function loadReviews(): Promise<ReviewLoad> {
   let userKey: string;
   try {
     userKey = await currentUserKey();
   } catch {
     return { state: "unavailable" };
   }
-  const rows: Record<string, unknown>[] = [];
-  let nextToken: string | null = null;
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const result = await run(
-      `query ListReviews($limit: Int, $nextToken: String) { listReviewRequests(limit: $limit, nextToken: $nextToken) { items { ${FIELDS} } nextToken } }`,
-      { limit: 500, nextToken },
-    );
-    if (result.errors?.some((entry) => /unauthorized|not authorized|forbidden/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`))) return { state: "forbidden" };
-    const connection = result.data?.listReviewRequests;
-    if (result.errors?.length || !connection) return { state: "unavailable" };
-    rows.push(...connection.items.filter(Boolean));
-    nextToken = connection.nextToken ?? null;
-    if (!nextToken) break;
-  }
-  const requests = rows.map(normalizeReviewRow);
-  for (const [index, request] of requests.entries()) {
-    if (!isDue(request, now)) continue;
-    const update = timeoutUpdate(request, now);
-    const written = await run(
-      `mutation Expire($input: UpdateReviewRequestInput!, $condition: ModelReviewRequestConditionInput) { updateReviewRequest(input: $input, condition: $condition) { ${FIELDS} } }`,
-      { input: update, condition: { state: { eq: "open" } } },
-    );
-    const row = written.data?.updateReviewRequest;
-    requests[index] = row ? normalizeReviewRow(row) : { ...request, state: "timed_out", updatedAt: String(update.updatedAt), history: JSON.parse(String(update.history)) };
-  }
+  const reads = await Promise.all([readState("open", null), ...DECIDED_STATES.map((state) => readState(state, MAX_DECIDED_PAGES))]);
+  const refused = reads.find((read) => read.state !== "ready");
+  if (refused) return refused.state === "forbidden" ? { state: "forbidden" } : { state: "unavailable" };
+  const requests = reads.flatMap((read) => (read.state === "ready" ? read.rows : [])).map(normalizeReviewRow);
   const marks = await run(
     `query Marks($filter: ModelReviewReadMarkFilterInput, $limit: Int) { listReviewReadMarks(filter: $filter, limit: $limit) { items { requestId } } }`,
     { filter: { userKey: { eq: userKey } }, limit: 5000 },

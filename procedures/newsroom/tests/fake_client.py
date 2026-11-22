@@ -41,6 +41,8 @@ INDEX_MODELS = {
     "itemLanguageFieldsByVersionState": "Item",
     "itemDeckFieldsByVersionState": "Item",
     "publishedItemsByTypeStatus": "PublishedItem",
+    "reviewRequestsByState": "ReviewRequest",
+    "deliveriesByDue": "Delivery",
 }
 
 
