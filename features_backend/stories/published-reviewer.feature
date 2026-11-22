@@ -24,6 +24,16 @@ Feature: The person who reviewed a published version is on the published record,
     Then publishing succeeded
     And the published record of "story-1" names the reviewer "Ana Reviewer"
 
+  Scenario: A review ticked in the console names the signed-in person from their own profile, whatever name the request carries
+    The content-actions function reads the person's name from their own newsroom profile, found by the token's subject; a name sent with the request is ignored.
+    Given a Story at the "copywriting" stage
+    And the Story's checklist exists
+    And the signed-in editor's newsroom profile is named "Ana Reviewer"
+    When the signed-in editor marks the review of readers done in the console, the request naming "Somebody Else"
+    And the Story is published by an editor
+    Then the checklist's review of readers is recorded under "Ana Reviewer"
+    And the published record of "story-1" names the reviewer "Ana Reviewer"
+
   Scenario: A Story nobody reviewed carries no reviewer
     Given a Story at the "copywriting" stage
     And the Story's checklist exists

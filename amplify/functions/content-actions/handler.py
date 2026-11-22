@@ -701,17 +701,21 @@ def sync_story_checklist(client, record: dict) -> None:
 
 
 def set_story_step_action(arguments: dict, event: dict) -> dict:
-    """Marks one step of a Story's checklist done, skipped, not applicable or open again, as the signed-in person.
+    """Marks one step of a Story's checklist done, skipped, not applicable or open again, as the signed-in person, recorded under the display name of their own
+    newsroom profile, read here from the token's subject (``signed_in_person.profile_display_name``); a name in the request is ignored, so nobody can sign a review
+    with another person's name.
     ``agent`` names an agent acting through that person's session: the change is recorded as the agent's, and an agent cannot reopen a step. An agent closes a review
     step only on a person's instruction: ``onInstructionOf`` (the person) and ``quote`` (their words), recorded with the change; without them it is refused (``delegation-required``)."""
+    from papyrus_content.signed_in_person import profile_display_name
     from papyrus_content.story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, add_note, set_step
 
     person = person_from_event(event)
     if not person:
         return {"ok": False, "errors": [{"code": "not-signed-in", "message": "Sign in as an editor to change a checklist step.", "line": None}]}
     agent = (arguments.get("agent") or "").strip()
-    label = agent or (arguments.get("actorLabel") or "").strip() or (event.get("identity") or {}).get("username") or "editor"
     client = authoring_client()
+    # A person's name comes from their own profile, read here from the token's subject; a name in the request is never used (signed_in_person.py).
+    label = agent or profile_display_name(client, person) or (event.get("identity") or {}).get("username") or "editor"
     actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": label, "sub": person}
     try:
         if not arguments.get("state"):   # no state: a note on the step, whatever its state, changing nothing else
