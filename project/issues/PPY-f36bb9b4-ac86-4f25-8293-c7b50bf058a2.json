@@ -1,0 +1,50 @@
+{
+  "id": "PPY-f36bb9b4-ac86-4f25-8293-c7b50bf058a2",
+  "title": "M4: Today is the one place Ryan steers from (MoM)",
+  "description": "**Tasks:** PPY-b6d5ad (Today v2); PPY-2d2e55; pause, resume and wake split out of PPY-e6f31e; the rest of PPY-3f68f4; PPY-1a322a; PPY-ecf852.\n\n**Exit test (on MoM, iPad):** Today shows 'Waiting for you' with the X draft and the rating review, each with its action; pausing announce stops drafts, resuming starts them again.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-e2829f3e-4037-4f38-bf98-beb8af3dad9d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b6d5ad64-4e50-4ecb-9679-d45265d7d9eb",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-2d2e5572-035c-4d8c-a826-84bdbb9db1cf",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-e6f31e6b-f039-4eb9-bcbf-9e3608124ef3",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-1a322a50-7d71-4904-aa13-931b0b58c953",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-ecf8524f-bc68-4a7e-8193-1e29cced9c8f",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-22T19:02:56.316327Z",
+  "updated_at": "2026-11-22T19:02:58.312099Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
