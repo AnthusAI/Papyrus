@@ -27,6 +27,7 @@ from .cloud_procedures import (
 from .agent_policy import Gate, PolicyGate, PolicyNotLocated, PolicyUnreadable, UnlocatedPolicy
 from .agent_policy.run_gate import RunDecision
 from .spend_brake import SpendBrake
+from .spend_stop import SpendStop, runner_timers
 from .policy_location import S3_BUCKET
 from .model_cost import estimate_cost
 from .site_procedures import SKILL_SORT_KEY_PREFIX
@@ -78,13 +79,16 @@ def validate_request(request: dict) -> dict:
             raise ProcedureNotRunnable("tenantId must be a valid publication tenant id") from invalid
     if site_bucket and not S3_BUCKET.match(site_bucket):
         raise ProcedureNotRunnable("siteBucket must be an S3 bucket name")
+    site_origin = request.get("siteOrigin")
+    if site_origin is not None and not is_plain_https_origin(site_origin):
+        raise ProcedureNotRunnable("siteOrigin must be a plain https origin")
     timeout = request.get("timeoutSeconds")
     if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout < 1):
         raise ProcedureNotRunnable("timeoutSeconds must be a positive whole number")
     return {"appsyncEndpoint": endpoint, "procedureKey": key, "wakeKey": wake_key, "openaiKeyParameter": parameter or None,
             "timeoutSeconds": None if timeout is None else min(timeout, MAX_TIMEOUT_SECONDS),
             "input": dict(request.get("input") or {}), "publicationId": str(request.get("publicationId") or ""),
-            "tenantId": tenant_id or None, "siteBucket": site_bucket or None,
+            "tenantId": tenant_id or None, "siteBucket": site_bucket or None, "siteOrigin": site_origin or None,
             "actorLabel": str(request.get("actorLabel") or "Papyrus procedure runner"),
             "trigger": request.get("trigger") if isinstance(request.get("trigger"), dict) else None}
 
@@ -282,13 +286,18 @@ def handoff_of(request: dict) -> dict[str, str] | None:
 def run_procedure_request(request: dict, *, client, policy: Gate, execute: Callable[..., dict], seconds_available: float,
                           environment: dict, now: Callable[[], str] = utc_now, workroot: Path | None = None,
                           run_started: Callable[[str], None] | None = None, receive_count: int = 1,
-                          schedule_continuation: Callable[[dict, str, str], None] | None = None, spend_brake: Any = None) -> dict:
+                          schedule_continuation: Callable[[dict, str, str], None] | None = None, spend_brake: Any = None,
+                          spend_stop: Any = None) -> dict:
     request = validate_request(request)
     started = start_run_record(client, request)   # the record exists, `started`, before any procedure is loaded
     run_id = started["runId"]
     attempt = 1
-    if started["duplicate"]:   # this wake already has its run: nothing more happens for it, unless the queue says the first attempt died
-        existing_run = client.get_record(run_settle.RUN_MODEL, run_id) if receive_count >= run_settle.SETTLING_RECEIPT else None
+    waiting = False   # this wake waited for the budget cycle and has come again (spend_stop.py, PPY-9376f8)
+    if started["duplicate"]:   # this wake already has its run: nothing more happens for it, unless the queue says the first attempt died or it waited
+        reads_record = receive_count >= run_settle.SETTLING_RECEIPT or spend_stop is not None
+        existing_run = client.get_record(run_settle.RUN_MODEL, run_id) if reads_record else None
+        waiting = spend_stop is not None and spend_stop.is_waiting(existing_run)
+    if started["duplicate"] and not waiting:
         if not run_settle.first_attempt_died(existing_run, receive_count):
             return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "duplicate": True,
                     "runStatus": DUPLICATE, "outcome": None, "outcomeReason": None, "error": None}
@@ -304,8 +313,13 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         not_started.run_id = run_id
         raise not_started from error
     if not decision.start:
+        if waiting:
+            spend_stop.clear_wait(client, run_id)
         return skip_run(client, run_id, request, decision, now=now)
     stop = spend_brake.stop_for(request, decision) if spend_brake is not None else None
+    held = spend_stop.settle(client, run_id, request, decision, stop, waiting=waiting) if spend_stop is not None else None
+    if held is not None:   # at the budget a paid wake waits for the next cycle, or this wake released the waiting ones
+        return held
     if stop is not None:
         print(json.dumps({"spendBrake": stop.reason_code, "tenantId": request.get("tenantId"), "runId": run_id, "wakeKey": request.get("wakeKey")}))
         return skip_run(client, run_id, request, RunDecision(False, decision.responsibility, decision.rung, decision.policy_version, stop.reason_code, stop.reason), now=now)
@@ -431,7 +445,20 @@ def child_environment(request: dict, openai_api_key: str | None) -> dict:
     environment.pop("PAPYRUS_SITE_BUCKET", None)   # the tenant id above is the request's own or absent; the bucket only goes with a tenant
     if request.get("tenantId") and request.get("siteBucket"):
         environment["PAPYRUS_SITE_BUCKET"] = request["siteBucket"]
+    # The site's public address, for a procedure that links to a Story (the announce agent's X post). Only a plain https origin is passed on.
+    # The site's broadcast function, for a procedure that posts to X (the announce agent): named after the publication, which is the notifications plugin's site id.
+    environment.pop("X_BROADCAST_FUNCTION", None)
+    publication = str(request.get("publicationId") or "")
+    if re.fullmatch(r"[a-z0-9-]{1,40}", publication):
+        environment["X_BROADCAST_FUNCTION"] = f"papyrus-notifications-broadcast-{publication}"
+    environment.pop("SITE_ORIGIN", None)
+    if is_plain_https_origin(request.get("siteOrigin")):
+        environment["SITE_ORIGIN"] = request["siteOrigin"]
     return environment
+
+
+def is_plain_https_origin(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"https://[A-Za-z0-9.-]+(:[0-9]+)?", value) is not None
 
 
 def record_trigger_run(table, trigger: dict | None, run_id: str) -> None:
@@ -487,7 +514,8 @@ def handler(event, context):
                                        environment=child_environment(request, openai_api_key), workroot=Path("/tmp"),
                                        run_started=lambda run_id: record_trigger_run(table, trigger, run_id),
                                        receive_count=agent_wakes.receive_count(event),
-                                       schedule_continuation=continuation_scheduler(request, context), spend_brake=SpendBrake(table))
+                                       schedule_continuation=continuation_scheduler(request, context), spend_brake=SpendBrake(table),
+                                       spend_stop=SpendStop(timers=runner_timers(context), send=agent_wakes.wake_sender()))
     except ProcedureNotRunnable as error:
         result = {"runStatus": "notRunnable", "runId": error.run_id, "outcome": "failed", "outcomeReason": run_outcomes.NOT_RUNNABLE,
                   "error": str(error)}
@@ -500,7 +528,7 @@ def handler(event, context):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
     record_spend(table, result)   # after the trigger row, so a ledger error never leaves a finished run's row looking unfinished
-    if result.get("skipped") or result.get("settled"):
+    if result.get("skipped") or result.get("settled") or result.get("waiting") or result.get("released"):
         return result   # the policy started nothing, or the run was settled unknown: no run happened: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
         finish_story_stage_run(table, trigger, result)

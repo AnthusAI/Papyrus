@@ -5,36 +5,42 @@ import sys
 from behave import given, then, when
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "procedures" / "newsroom" / "tests"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fake_client import FakeAuthoringClient  # noqa: E402
 from papyrus_content import review_requests as rr  # noqa: E402
+from review_deadline_fakes import DeadlineSite  # noqa: E402
 
 T0 = datetime(2026, 10, 23, 12, 0, tzinfo=timezone.utc)
 
 
 class Clock:
-    def __init__(self):
-        self.now = T0
+    """The scenario's time. Time going by fires the site's deadline timers that come due, as the scheduler does with nobody looking."""
+
+    def __init__(self, site):
+        self.now, self.site = T0, site
 
     def __call__(self):
         return self.now
 
     def sleep(self, seconds):
         self.now += timedelta(seconds=seconds)
+        self.site.advance_to(self.now)
 
 
 def request(context):
-    return rr.get_review(context.client, context.request_id, now=context.clock.now)
+    return rr.get_review(context.client, context.request_id)
 
 
 @given("a site with no review requests")
 def empty_site(context):
-    context.client, context.clock, context.request_id, context.waited = FakeAuthoringClient(), Clock(), None, None
+    context.site = DeadlineSite()
+    context.client, context.clock, context.request_id, context.waited = context.site.client, Clock(context.site), None, None
     context.proceeded = False
 
 
 def raise_review(context, mode, procedure, reason, days=None):
     created = rr.raise_review(context.client, subject={"type": "story", "id": "story-1"}, mode=mode, reason=reason,
-                              raised_by=procedure, deadline_days=days, now=context.clock.now)
+                              raised_by=procedure, deadline_days=days, now=context.clock.now, deadline_timers=context.site.timers)
     context.request_id = created["id"]
 
 
@@ -133,7 +139,7 @@ def outcome_is(context, outcome):
 
 @then('the feedback "{text}" is returned to the procedure')
 def feedback_returned(context, text):
-    assert rr.get_review(context.client, context.request_id, sweep=False)["answer"]["feedback"] == text
+    assert rr.get_review(context.client, context.request_id)["answer"]["feedback"] == text
 
 
 @then("a reader who tries to answer is refused because only editors and admins can answer")
@@ -182,7 +188,7 @@ def raise_batch_again(context, run):
 
 @then('there is one open soft review "{reason}"')
 def one_open_soft(context, reason):
-    found = rr.list_reviews(context.client, state="open", now=context.clock.now)
+    found = rr.list_reviews(context.client, state="open")
     assert len(found) == 1 and found[0]["mode"] == "soft_review" and found[0]["reason"] == reason
 
 
@@ -198,13 +204,12 @@ def raise_soft_open_ended(context, procedure, story):
 
 @when("ten years go by with nobody answering")
 def ten_years(context):
-    context.clock.now += timedelta(days=3650)
-    context.expired = rr.expire_due(context.client, now=context.clock.now)
+    context.clock.sleep(3650 * 86_400)
 
 
 @then("the request was not timed out")
 def not_timed_out(context):
-    assert context.expired == [] and request(context)["state"] == "open"
+    assert context.site.wakes == [] and request(context)["state"] == "open"
 
 
 @then("there is still one review request")

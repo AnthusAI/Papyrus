@@ -81,11 +81,13 @@ PUBLISH_KEY = "publish"
 
 
 class ChecklistError(ValueError):
-    """A change to a checklist step that the rules refuse. ``open_steps`` lists the steps that block a publish: ``[{"key", "label"}]`` (PPY-0515e1)."""
+    """A change to a checklist step that the rules refuse. ``open_steps`` lists the steps that block a publish: ``[{"key", "label"}]`` (PPY-0515e1).
+    ``code`` is a typed reason where a caller must tell it apart from the others (``delegation-required``)."""
 
-    def __init__(self, message: str = "", open_steps: list[dict[str, str]] | None = None) -> None:
+    def __init__(self, message: str = "", open_steps: list[dict[str, str]] | None = None, code: str | None = None) -> None:
         super().__init__(message)
         self.open_steps = list(open_steps or [])
+        self.code = code
 
 
 TRANSLATE_KEY = "translate"
@@ -97,6 +99,11 @@ TRANSLATION_PROOF_KEYS = (TRANSLATE_KEY, FAITHFULNESS_KEY, COPY_EDIT_KEY)
 #: The site step a translation's ``human_review`` follows: it is required where the site's procedure requires its readers' review.
 SITE_REVIEW_KEY = "review_people"
 TRANSLATION_RUN_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the translation's records"}
+#: The review steps whose done answer is the human review stamp of their lineage: an original's (or an imported Story's) review of readers, a translation's
+#: review by a person. A person closes them; an agent closes them only on a person's recorded instruction (``agent_review_instruction``).
+REVIEW_STAMP_KEYS = (SITE_REVIEW_KEY, HUMAN_REVIEW_KEY)
+#: The refusal an agent gets when it closes a review step with no person's instruction recorded.
+DELEGATION_REQUIRED = "delegation-required"
 
 #: The template of a translation's checklist. ``human_review`` is optional here and made required by :func:`translation_procedure` where the site requires it.
 TRANSLATION_STEPS: tuple[Step, ...] = (
@@ -108,16 +115,21 @@ TRANSLATION_STEPS: tuple[Step, ...] = (
          "Proved by the run's final copy-edit check of every block."),
     Step(HUMAN_REVIEW_KEY, "copywriting", "A person", "Reviewed by a person",
          "papyrus stories step --story {story} --step human_review --state done --note <findings>", LIVE, True,
-         "A person reads the translation and records the findings. Done against one version: an edit afterwards drops it. Required where the site's procedure requires "
+         "A person reads the translation and records the findings; this is the translation's human review stamp. An agent records it only on a person's instruction "
+         "(--on-instruction-of and --quote). Done against one version: an edit afterwards drops it. Required where the site's procedure requires "
          "its readers' review (the review_people step).", True, versioned=True),
     Step(PUBLISH_KEY, "published", "A person", "Publish the translation", "papyrus ops content publish --id <item id>", LIVE, False, "The only hard gate."),
 )
 
 
 def translation_procedure(site: Procedure) -> Procedure:
-    """The steps of a translation's checklist for a site: the template, with ``human_review`` required exactly when the site's procedure has its readers' review live and required."""
+    """The steps of a translation's checklist for a site: the template, with ``human_review`` required as the site's procedure says (``translationHumanReview``),
+    or, where it says nothing, exactly when its readers' review is live and required. A site that sets it false relies on the run's own checks."""
     review = site.by_key.get(SITE_REVIEW_KEY)
-    required = review is not None and review.status == LIVE and not review.optional
+    if site.translation_human_review is not None:
+        required = site.translation_human_review
+    else:
+        required = review is not None and review.status == LIVE and not review.optional
     steps = tuple(dataclasses.replace(step, optional=False) if step.key == HUMAN_REVIEW_KEY and required else step for step in TRANSLATION_STEPS)
     return Procedure(steps, "translation", site.version)
 
@@ -193,8 +205,9 @@ def _flat(group: list[dict[str, Any]]) -> dict[str, Any]:
         "id": current["lineageId"], "itemId": current["id"], "storyLineageId": current.get("parentLineageId"), "stepKey": meta.get("stepKey"),
         "stepOrder": meta.get("stepOrder", 0), "templateVersion": meta.get("templateVersion"), "title": current.get("title"), "command": meta.get("command"),
         "state": current.get("status"), "actorKind": entry.get("actorKind"), "actorLabel": entry.get("actorLabel"), "actorSub": entry.get("actorSub"),
+        "onBehalfOf": entry.get("onBehalfOf"), "instruction": entry.get("instruction"),
         "changedAt": entry.get("at") or current.get("versionCreatedAt"), "reason": entry.get("reason"), "note": entry.get("note"),
-        "evidence": entry.get("evidence"), "storyVersion": entry.get("storyVersion"), "history": _history_of(ordered), "versionNumber": int(current.get("versionNumber") or len(ordered)),
+        "evidence": entry.get("evidence"), "storyVersion": entry.get("storyVersion"), "changeKind": entry.get("changeKind"), "history": _history_of(ordered), "versionNumber": int(current.get("versionNumber") or len(ordered)),
         "notes": [note for note in (meta.get("notes") or []) if isinstance(note, dict)],
     }
 
@@ -253,10 +266,14 @@ def refresh_summary(client, lineage: str, rows: list[dict[str, Any]], *, now: st
     return summary
 
 
-def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None) -> dict[str, Any]:
+def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None, instruction=None, change_kind=None) -> dict[str, Any]:
+    """``instruction`` is the person an agent acted for and that person's words (``{"person", "quote"}``), recorded with the change. ``change_kind`` is, for a skip,
+    the kind of change the version it was made for is against the version before it (``story_change_kind``)."""
+    instruction = instruction or {}
     return {key: value for key, value in {
         "at": now, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
-        "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version,
+        "onBehalfOf": instruction.get("person"), "instruction": instruction.get("quote"),
+        "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version, "changeKind": change_kind,
     }.items() if value not in (None, "")}
 
 
@@ -269,12 +286,14 @@ def _new_row(lineage: str, key: str, procedure: Procedure = DEFAULT_PROCEDURE) -
     }
 
 
-def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None) -> dict[str, Any]:
+def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, reason=None, note=None, evidence=None, story_version=None, instruction=None,
+           change_kind=None) -> dict[str, Any]:
     """``story_version`` is the number of the Story version the change was made against (see ``newsroom_process.resolve`` for what goes stale)."""
-    entry = _entry(state, actor, now, reason=reason, note=note, evidence=evidence, story_version=story_version)
+    entry = _entry(state, actor, now, reason=reason, note=note, evidence=evidence, story_version=story_version, instruction=instruction, change_kind=change_kind)
     return {
         **row, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
-        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version, "history": [*row.get("history", []), entry],
+        "onBehalfOf": entry.get("onBehalfOf"), "instruction": entry.get("instruction"),
+        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "storyVersion": story_version, "changeKind": entry.get("changeKind"), "history": [*row.get("history", []), entry],
         "versionNumber": int(row.get("versionNumber") or 0) + 1, "written": {"by": entry.get("actorLabel") or entry.get("actorSub"), "at": now, "reason": reason or note or state},
     }
 
@@ -359,6 +378,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     kept_as_record = facts["stage"] == "published" and bool(rows)   # a published Story that has a checklist gets no new template steps
     created, completed = [], []
+    reopened = reopen_skips_after_text_edit(client, lineage, rows, procedure, version, now=now, story=story, supersede=write_summary)
     for step in template_steps(procedure):
         existing = rows.get(step.key)
         if existing is None:
@@ -392,7 +412,7 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
     ordered = sorted(rows.values(), key=lambda row: (int(row.get("stepOrder") or 0), row["stepKey"]))
     # The research worker's role may create Items but not update them: it leaves the card summary (and the old version's mark) for the next change by an editor.
     summary = refresh_summary(client, lineage, ordered, now=now, procedure=procedure, latest=story) if write_summary else summary_of(ordered, procedure)
-    return {"created": created, "completed": completed, "summary": summary}
+    return {"created": created, "completed": completed, "reopened": reopened, "summary": summary}
 
 
 def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_summary: bool = True, read_cover: bool = True) -> dict[str, Any] | None:
@@ -417,6 +437,70 @@ def _current_version_number(client, lineage: str) -> int | None:
         return int(current_story_version(client, lineage).get("versionNumber") or 0) or None
     except Exception:  # noqa: BLE001
         return None
+
+
+def skipped_version_and_change_kind(client, lineage: str) -> tuple[int, str]:
+    """``(the current version's number, the kind of change it is against the version before it)`` for a skip: one index read of the lineage's versions."""
+    from .story_change_kind import change_kind
+    from .story_reporting import _current_of, story_versions
+
+    versions = story_versions(client, lineage)
+    if not versions:
+        raise ChecklistError(f"No story found for lineage {lineage}.")
+    current = _current_of(versions)
+    number = int(current.get("versionNumber") or 1)
+    previous = next((row for row in versions if int(row.get("versionNumber") or 0) == number - 1), None)
+    return number, change_kind(previous, current)
+
+
+def skip_label(row: dict[str, Any], current_version: int | None) -> str | None:
+    """How a skip carried onto a later version is shown: ``skipped on v3 (picture only): <reason>``, so its reason is never read as one about the current
+    version. None for a skip made on the current version, or for a row that is not skipped."""
+    from .story_change_kind import CHANGE_KIND_WORDS
+
+    if row.get("state") != SKIPPED or current_version is None or row.get("storyVersion") == current_version:
+        return None
+    version = row.get("storyVersion")
+    kind = CHANGE_KIND_WORDS.get(row.get("changeKind") or "")
+    on = f"v{version}" if version is not None else "an earlier version (not recorded)"
+    return f"skipped on {on}{f' ({kind})' if kind else ''}: {row.get('reason') or ''}"
+
+
+#: Who reopens a skipped step whose version's text was edited afterwards.
+TEXT_EDIT_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, the text was edited after the skip"}
+
+
+def reopen_skips_after_text_edit(client, lineage: str, rows: dict[str, dict[str, Any]], procedure: Procedure, number: int, *, now: str,
+                                 story: dict[str, Any] | None = None, supersede: bool = True) -> list[str]:
+    """Reopens each skipped step that reads the text (a ``versioned`` step: the copy edit, the review lenses, a translation's human review) when the current
+    version edits the text of the version the skip was made for (PPY-cc6a0f, scoped as PPY-a2c230 says: a picture-only change keeps the skip). A skip with no
+    recorded version cannot be compared and stays, shown as carried. ``number`` is the current version's; ``story`` is its row when the caller has just written
+    it (the lineage index may not hold it yet). ``rows`` is changed in place; returns the keys reopened. One index read of the versions, made only when there is
+    a carried skip to judge."""
+    from .story_change_kind import TEXT_EDITED, change_kind
+    from .story_reporting import story_versions
+
+    carried = [row for key, row in rows.items() if row.get("state") == SKIPPED and key in procedure.by_key and procedure.by_key[key].versioned
+               and row.get("storyVersion") is not None and int(row["storyVersion"]) != number]
+    if not carried:
+        return []
+    by_number = {int(row.get("versionNumber") or 0): row for row in story_versions(client, lineage)}
+    if story is not None:
+        by_number[int(story.get("versionNumber") or number)] = story
+    current = by_number.get(number)
+    if current is None:
+        return []
+    reopened = []
+    for row in carried:
+        skipped_on = by_number.get(int(row["storyVersion"]))
+        if skipped_on is None or change_kind(skipped_on, current) != TEXT_EDITED:
+            continue
+        changed = _apply(row, OPEN, TEXT_EDIT_ACTOR, now, story_version=number,
+                         note=f"Reopened: version {number} edits the text that the skip on version {row['storyVersion']} was for (reason given then: {row.get('reason') or 'none'}).")
+        _write(client, changed, supersede=supersede)
+        rows[row["stepKey"]] = changed
+        reopened.append(row["stepKey"])
+    return reopened
 
 
 ILLUSTRATION_KEY = "illustration"
@@ -476,12 +560,35 @@ def _rated_rules(client, lineage: str, key: str, state: str, evidence: str | Non
     return evidence
 
 
+def agent_review_instruction(key: str, state: str, actor: dict[str, Any], instruction: dict[str, Any] | None) -> dict[str, str] | None:
+    """The person's instruction to record with a change, or None when the change needs none. A review step whose done answer is the human review stamp
+    (``REVIEW_STAMP_KEYS``) is closed by a person, or by an agent on a named person's recorded instruction: the person and their own words. An agent with
+    neither is refused with ``delegation-required``. Nothing can verify that the person said the words; they are a record, not proof (as
+    ``agent_policy.delegation`` says of an agent changing the policy on a person's instruction)."""
+    person = str((instruction or {}).get("person") or "").strip()
+    quote = str((instruction or {}).get("quote") or "").strip()
+    if actor.get("kind") != ACTOR_AGENT:
+        if person or quote:
+            raise ChecklistError("Only an agent records whose instruction it acted on; a person's own change needs no instruction.")
+        return None
+    if key not in REVIEW_STAMP_KEYS or state not in CLOSED_STATES:
+        return {"person": person, "quote": quote} if person and quote else None
+    if not (person and quote):
+        raise ChecklistError(
+            f"An agent closes the review step '{key}' only on a person's recorded instruction: a person reads the Story and records the review, or tells an agent to. "
+            "Give the person and their words with the change (`papyrus stories step ... --agent <your name> --on-instruction-of <person> --quote \"<their words>\"`).",
+            code=DELEGATION_REQUIRED,
+        )
+    return {"person": person, "quote": quote}
+
+
 def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any], reason: str | None = None, note: str | None = None,
-             evidence: str | None = None, now: str | None = None) -> dict[str, Any]:
+             evidence: str | None = None, now: str | None = None, instruction: dict[str, Any] | None = None) -> dict[str, Any]:
     """Marks one step done, skipped, not applicable, or open again, and records who did it and when.
 
     ``actor`` is ``{"kind": "person" | "agent", "label": ..., "sub": ...}``. A skip or a not-applicable answer needs a reason; a manual step
-    (a review lens) needs a findings note to be done; only a person reopens a step."""
+    (a review lens) needs a findings note to be done; only a person reopens a step. ``instruction`` (``{"person", "quote"}``) is the person an agent
+    acts for and their words: an agent closes a review step only with it (``agent_review_instruction``)."""
     procedure, translation = procedure_for_lineage(client, lineage)
     step = procedure.by_key.get(key)
     if step is None:
@@ -498,6 +605,7 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
         raise ChecklistError(f"Marking step '{key}' done needs a short findings note.")
     if state == OPEN and actor["kind"] != ACTOR_PERSON:
         raise ChecklistError("Only a person reopens a step.")
+    instruction = agent_review_instruction(key, state, actor, instruction)
     evidence = _illustration_rules(client, lineage, key, state, actor, evidence)
     evidence = _rated_rules(client, lineage, key, state, evidence)
     now = now or utc_now()
@@ -508,7 +616,12 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     existing = rows.get(key)
     if existing is None and step.status != LIVE:
         raise ChecklistError(f"Step '{key}' is not live in the procedure yet, so it has no checklist item.")
-    row = _apply(existing or _new_row(lineage, key, procedure), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=_current_version_number(client, lineage))
+    if state == SKIPPED:   # a skip records the version it was made for and what kind of change that version was
+        story_version, change_kind = skipped_version_and_change_kind(client, lineage)
+    else:
+        story_version, change_kind = _current_version_number(client, lineage), None
+    row = _apply(existing or _new_row(lineage, key, procedure), state, actor, now, reason=reason, note=note, evidence=evidence, story_version=story_version,
+                 instruction=instruction, change_kind=change_kind)
     _write(client, row)
     rows[key] = row
     if not translation:   # a translation has no board card to show progress on
@@ -583,6 +696,35 @@ def mark_imported_quietly(client, lineage: str, source: str) -> None:
         mark_imported(client, lineage, source)
     except Exception as error:  # noqa: BLE001
         print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
+
+
+def review_step_key(rows: list[dict[str, Any]]) -> str:
+    """The review step of a lineage's own checklist: ``human_review`` for a translation (its rows are the translation template's, which alone has ``translate``),
+    otherwise the review of readers. Read from the rows of the lineage itself, never from the original's."""
+    return HUMAN_REVIEW_KEY if any(row.get("stepKey") == TRANSLATE_KEY for row in rows) else SITE_REVIEW_KEY
+
+
+def review_stamp(rows: list[dict[str, Any]], version_number: int) -> dict[str, Any] | None:
+    """The human review stamp of one version of a lineage, read from that lineage's own checklist rows, or None.
+
+    The lineage's review step (``review_step_key``) is done against exactly ``version_number``, by a person, or by an agent on a person's recorded instruction
+    (then the stamp is delegated and names the person). An edit makes a new version, which has no stamp until the step is done again; an agent's or the
+    system's done with no instruction, and a step opened again, is no stamp. ``{"step", "by", "at", "storyVersion", "delegated", "agent", "instruction"}``."""
+    key = review_step_key(rows)
+    step = next((row for row in rows if row.get("stepKey") == key), None)
+    if step is None or step.get("state") != STEP_DONE or step.get("storyVersion") != version_number:
+        return None
+    if step.get("actorKind") == ACTOR_PERSON:
+        return {"step": key, "by": step.get("actorLabel") or step.get("actorSub"), "at": step.get("changedAt"), "storyVersion": version_number, "delegated": False}
+    if step.get("actorKind") == ACTOR_AGENT and step.get("onBehalfOf") and step.get("instruction"):
+        return {"step": key, "by": step["onBehalfOf"], "at": step.get("changedAt"), "storyVersion": version_number, "delegated": True,
+                "agent": step.get("actorLabel"), "instruction": step["instruction"]}
+    return None
+
+
+def lineage_review_stamp(client, lineage: str, version_number: int) -> dict[str, Any] | None:
+    """``review_stamp`` of the lineage being published or announced (a translation's own ``{story}--{language}`` lineage): one index read by parent."""
+    return review_stamp(read_steps(client, lineage), version_number)
 
 
 def open_required(rows: list[dict[str, Any]], procedure: Procedure = DEFAULT_PROCEDURE) -> list[dict[str, Any]]:
@@ -670,6 +812,7 @@ def record_translation_steps(client, record: dict[str, Any], checklist: dict[str
     version = int(record["versionNumber"])
     procedure = translation_procedure(procedure_of(client))
     rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
+    reopen_skips_after_text_edit(client, lineage, rows, procedure, version, now=now, story=record)
     for step in procedure.steps:
         existing = rows.get(step.key)
         if step.key in TRANSLATION_PROOF_KEYS:
@@ -723,14 +866,15 @@ def mark_published(client, lineage: str, *, actor_label: str) -> None:
         print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
 
 
-def steps_for_display(rows: list[dict[str, Any]], lineage: str, procedure: Procedure = DEFAULT_PROCEDURE) -> list[dict[str, Any]]:
-    """Each stored step with its title and the command that moves it on, for ``stories next`` and for a panel."""
+def steps_for_display(rows: list[dict[str, Any]], lineage: str, procedure: Procedure = DEFAULT_PROCEDURE, current_version: int | None = None) -> list[dict[str, Any]]:
+    """Each stored step with its title and the command that moves it on, for ``stories next`` and for a panel. ``carriedSkip`` is how a skip made on an
+    earlier version than ``current_version`` reads (``skip_label``)."""
     shown = []
     for row in rows:
         step = procedure.by_key.get(row["stepKey"])
         if step is None:
             continue
-        shown.append({**row, "title": step.title, "role": step.role, "command": step.command.replace("{story}", lineage)})
+        shown.append({**row, "title": step.title, "role": step.role, "command": step.command.replace("{story}", lineage), "carriedSkip": skip_label(row, current_version)})
     return shown
 
 
@@ -792,7 +936,9 @@ def checklist_lines(shown: list[dict[str, Any]], stale: int = 0) -> list[str]:
     lines = []
     for row in shown:
         who = f"{row.get('actorKind')}:{row.get('actorLabel')}" if row.get("actorKind") else ""
-        detail = row.get("reason") or row.get("note") or row.get("evidence") or ""
+        if row.get("onBehalfOf"):
+            who += f" on the instruction of {row['onBehalfOf']}: \"{row.get('instruction') or ''}\""
+        detail = row.get("carriedSkip") or row.get("reason") or row.get("note") or row.get("evidence") or ""
         lines.append("\t".join(["item", row["stepKey"], row["state"], row["title"], who, str(row.get("changedAt") or ""), detail]))
         for note in row.get("notes") or []:
             lines.append("\t".join(["note", row["stepKey"], f"{note.get('actorKind')}:{note.get('actorLabel') or note.get('actorSub')}", str(note.get("at") or ""), str(note.get("text") or "").replace("\n", " ")]))

@@ -1,0 +1,85 @@
+Feature: An X announcement may carry hashtags from the Story's own concepts
+  The concepts tagged to a Story are the hashtags worth using when it is announced. The Story's hashtags are its accepted concepts, most-used
+  first, in CamelCase. The draft may choose at most two of them and puts them after its words; it may use no other hashtag, and it uses none when none fits.
+  Nothing here reaches X or a model: the model and the site are stand-ins.
+
+  Scenario: A Story's hashtags are its accepted concepts, most used first
+    Given a Story "story-1" tagged with the accepted concepts "voice-cloning" used by 2 Stories and "newsrooms" used by 5 Stories
+    When the hashtags of "story-1" are read
+    Then the hashtags are "#Newsrooms" then "#VoiceCloning"
+
+  Scenario: A concept nobody accepted is not a hashtag
+    Given a Story "story-1" tagged with the accepted concept "newsrooms" used by 1 Stories
+    And "story-1" is also tagged with the concept "half-baked" that is only suggested
+    When the hashtags of "story-1" are read
+    Then the hashtags are "#Newsrooms"
+
+  Scenario: A name that cannot be a hashtag is left out
+    Given a Story "story-1" tagged with the accepted concepts "2026" used by 3 Stories and "newsrooms" used by 1 Stories
+    When the hashtags of "story-1" are read
+    Then the hashtags are "#Newsrooms"
+
+  Scenario: The draft puts the hashtags it chose after its words
+    Given the Story offers the hashtags "#Newsrooms" and "#VoiceCloning"
+    When the draft chooses the hashtags "#Newsrooms"
+    Then the post text ends with "#Newsrooms"
+    And every check passes
+
+  Scenario: At most two hashtags are posted
+    Given the Story offers the hashtags "#Newsrooms", "#VoiceCloning" and "#Agents"
+    When the draft chooses the hashtags "#Newsrooms", "#VoiceCloning" and "#Agents"
+    Then the post text ends with "#Newsrooms #VoiceCloning"
+
+  Scenario: A hashtag that does not fit is left off and the post still passes
+    Given the Story offers the hashtags "#Newsrooms"
+    When words that leave no room are drafted and the hashtags "#Newsrooms" are chosen
+    Then the post text has no hashtag
+    And every check passes
+
+  Scenario: A hashtag the Story's concepts do not hold fails the draft
+    Given the Story offers the hashtags "#Newsrooms"
+    When the draft chooses the hashtags "#Politics"
+    Then the check "hashtags" fails saying "#Politics, which is not one of the Story's concepts"
+
+  Scenario: No concept fits, so no hashtag is posted
+    Given the Story offers the hashtags "#Newsrooms"
+    When the draft chooses no hashtags
+    Then the post text has no hashtag
+    And every check passes
+
+  Scenario: A Story with no concepts offers none and the draft is told so
+    Given the Story offers no hashtags
+    When the draft chooses no hashtags
+    Then the model was told the Story offers no hashtags
+
+  Scenario: A draft that is only too long is written once more, told how far over it ran
+    Given the Story offers no hashtags
+    And the model's first text is too long and its second is short enough
+    When the announcement draft is written
+    Then the draft model was asked twice and the second request named the overrun
+    And every check passes
+
+  Scenario: A draft that is too long twice is not retried again
+    Given the Story offers no hashtags
+    And the model's texts are both too long
+    When the announcement draft is written
+    Then the draft model was asked two times
+    And the check "length" fails saying "Too long for X"
+
+  Scenario: A draft that fails a check other than length is not written again
+    Given the Story offers the hashtags "#Newsrooms"
+    And the model chooses the hashtags "#Politics" in a short text
+    When the announcement draft is written
+    Then the draft model was asked one time
+
+  Scenario: A draft whose words say more than the Story is written once more, told which sentences
+    Given the Story offers no hashtags
+    And the model's first text overstates the Story and its second keeps the Story's words
+    When the announcement draft is written
+    Then the draft model was asked twice and the second request named the unsupported sentence
+    And every check passes
+
+  Scenario: The words are given room for the longest hashtag offered, so whichever is chosen fits
+    Given the Story offers the hashtags "#AiAgent" and "#SoftwareSupplyChainSecurity"
+    When the announcement prompt is built
+    Then the weight limit given to the model leaves room for "#SoftwareSupplyChainSecurity"

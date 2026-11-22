@@ -24,13 +24,13 @@ Feature: An admin sets an agent's rung with papyrus agents set-rung
 
   Scenario: Raising the rung again keeps the history
     Given a site where "rate" was set to "observe" with the command
-    When an admin runs set-rung for "rate" to "draft" because "Its proposals held up" and applies it
+    When an admin runs set-rung for "rate" to "propose" because "Its proposals held up" and applies it
     Then it shows "rate" before at "observe" as policy version 1
-    And it shows "rate" after at "draft" as policy version 2
+    And it shows "rate" after at "propose" as policy version 2
     And version 1 of the policy still holds "rate" at "observe"
 
   Scenario: Lowering the rung is the same command
-    Given a site where "rate" was set to "draft" with the command
+    Given a site where "rate" was set to "propose" with the command
     When an admin runs set-rung for "rate" to "observe" because "Too many wrong threes" and applies it
     Then the site's policy is version 2 and "rate" is at "observe"
 
@@ -61,14 +61,14 @@ Feature: An admin sets an agent's rung with papyrus agents set-rung
   Scenario: A rung above what the definition allows is refused
     Given a site with no agent policy saved yet
     When an admin runs set-rung for "rate" to "prepare" because "More" and applies it
-    Then the command is refused as a constraint conflict saying the rating agent needs no more than "draft"
+    Then the command is refused as a constraint conflict saying the rating agent needs no more than "propose"
     And the site's policy is still version 0
 
   Scenario: The highest rung the definition needs is allowed
     Given a site with no agent policy saved yet
-    When an admin runs set-rung for "rate" to "draft" because "Its operations need draft" and applies it
+    When an admin runs set-rung for "rate" to "propose" because "Its operations need propose" and applies it
     Then the command succeeds and applied the change
-    And the site's policy is version 1 and "rate" is at "draft"
+    And the site's policy is version 1 and "rate" is at "propose"
 
   Scenario: publish_auto is refused while a hard floor forbids it, even when the definition asks for it
     Given a site with no agent policy saved yet
@@ -95,10 +95,40 @@ Feature: An admin sets an agent's rung with papyrus agents set-rung
     Then the command is refused as not authorized
 
   Scenario: An agent is blocked at every rung
-    Given a site where "rate" was set to "draft" with the command
+    Given a site where "rate" was set to "propose" with the command
     When an agent runs set-rung for "rate" to "off" because "Quieter" and applies it
     Then the command is refused as blocked
-    And the site's policy is version 1 and "rate" is at "draft"
+    And the site's policy is version 1 and "rate" is at "propose"
+
+  Scenario: An agent in an admin's session may set a rung up to prepare on that person's instruction, and the record names both
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "rate" to "propose" on the instruction of "ada" who said "turn the rating agent on"
+    Then the command succeeds and applied the change
+    And the policy version 1 says it was saved by "ada via cli (Claude)" and its reason holds "entered by Claude on the instruction of ada"
+    And the policy version 1 says it was saved by "ada via cli (Claude)" and its reason holds "turn the rating agent on"
+
+  Scenario: An agent may not name someone other than the person whose session it runs in
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "rate" to "propose" on the instruction of "bea" who said "do it"
+    Then the command is refused as not authorized
+    And the site's policy is still version 0
+
+  Scenario: An agent in an editor's session cannot change the policy on anyone's instruction
+    Given a site with no agent policy saved yet
+    When an agent in ed's session sets "rate" to "propose" on the instruction of "ed" who said "do it"
+    Then the command is refused as not authorized
+
+  Scenario: An agent that names no one is blocked as before
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "rate" to "propose" without naming anyone
+    Then the command is refused as blocked
+    And the site's policy is still version 0
+
+  Scenario: An agent may not raise a rung above prepare, whoever told it to
+    Given a site with no agent policy saved yet
+    When an agent in ada's session sets "announce" to "publish_soft" on the instruction of "ada" who said "go all the way"
+    Then the command is refused as blocked
+    And the site's policy is still version 0
 
   Scenario: A change made while another admin saved is refused, not overwritten
     Given a site with no agent policy saved yet
@@ -122,7 +152,7 @@ Feature: An admin sets an agent's rung with papyrus agents set-rung
     generates from amplify/data/schema.ts, with the same transformers a deployment uses: each request must validate, and its variables must fit the input
     types it declares.
     Given a site where "rate" was set to "observe" with the command
-    When an admin runs set-rung for "rate" to "draft" because "Its proposals held up" and applies it
+    When an admin runs set-rung for "rate" to "propose" because "Its proposals held up" and applies it
     And an admin runs set-rung for "rate" to "observe" because "Looking again"
     Then every request the site store sent is accepted by the GraphQL schema Amplify generates from the data schema
     And the requests include a conditional update, a create and a latest-version query

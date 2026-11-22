@@ -739,3 +739,23 @@ def door_candidates_open(context, candidate_id):
     envelope = execute("announcements_versions", {"delivery": context.last_delivery_id}, EDITOR, _handlers(context))
     candidates = envelope["result"]["candidates"]
     assert [(c["id"], c["state"]) for c in candidates] == [(candidate_id, "open")], candidates
+
+
+@when('the person "{person:Q}" saves the words "{words:Q}" over version {number:d} of the Delivery "{channel:Q}" "{account:Q}" through the announcements write door')
+def person_saves_through_write_door(context, person, words, number, channel, account):
+    import json as _json
+
+    from papyrus_content.announcements import edit_handlers
+    from papyrus_content.image_service import handle
+
+    edit_handlers._publication = lambda client: "publication"
+    row = row_of(context, channel, account)
+    identity = {"claims": {"name": person}, "groups": ["editor"], "username": person}
+    arguments = {"op": "announcements_draft", "requestId": "request-1", "input": _json.dumps({"delivery": row["id"], "replaces": number, "text": words})}
+    context.write_door = handle({"fieldName": "announcementsWrite", "identity": identity, "arguments": arguments}, client_factory=lambda: context.backend,
+                                files_factory=lambda client: None, delivery_files_factory=lambda client: context.files)
+
+
+@then("the write door answered ok")
+def write_door_ok(context):
+    assert context.write_door["ok"], context.write_door

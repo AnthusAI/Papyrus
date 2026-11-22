@@ -17,6 +17,13 @@ Feature: Owners and agents see the account's pace, its blocked Stories, and can 
     And the status counts 2 posts this cycle
     And the status suggests "At your pace, about 1 posts and $0.20 per month"
 
+  Scenario: The settings page reads the same spend, count and suggestion through the console's read door
+    Given the account sent 2 X posts this cycle, each for a different Announcement
+    When an editor's settings page reads the account status through the announcements door
+    Then the door answers for "announcements_account_status"
+    And the status counts 2 posts this cycle
+    And the status suggests "At your pace, about 1 posts and $0.20 per month"
+
   Scenario: A deleted post still counts, because X charged for it
     Given the account sent 1 X posts this cycle, each for a different Announcement
     And that post was deleted afterwards

@@ -32,6 +32,7 @@ export const HANDLERS = {
   email: "papyrus_content.notifications.handler.email",
   x: "papyrus_content.notifications.handler.x",
   flush: "papyrus_content.notifications.handler.flush",
+  broadcast: "papyrus_content.notifications.handler.broadcast",
   sesEvents: "papyrus_content.notifications.handler.ses_events",
   pause: "papyrus_content.notifications.handler.pause",
 } as const;
@@ -45,6 +46,8 @@ export const EMAIL_MAX_RECEIVE_COUNT = 3;
 /** One post can wait out X's rate limit inside the consumer (Caducus sleeps until `x-rate-limit-reset`), and X's windows are fifteen minutes: the Lambda maximum. */
 export const X_TIMEOUT_SECONDS = 900;
 export const X_MAX_RECEIVE_COUNT = 3;
+/** The site API fields the X function calls with its own role: read a Delivery and write its attempt log after a post (PPY-8037b8). */
+export const X_SETTLE_FIELDS = ["Query/fields/getDelivery", "Mutation/fields/updateDelivery"] as const;
 
 export const notificationsManifest: PluginManifest = {
   name: "notifications",
@@ -68,6 +71,8 @@ export const notificationsFunctionName = (siteId: string) => `papyrus-notificati
 export const notificationsEmailName = (siteId: string) => `papyrus-notifications-email-${siteId}`;
 export const notificationsXName = (siteId: string) => `papyrus-notifications-x-${siteId}`;
 export const notificationsFlushName = (siteId: string) => `papyrus-notifications-flush-${siteId}`;
+/** The function the shared procedure runner invokes to submit, read or withdraw an X announcement (`announcements/remote_broadcaster.py` derives the same name). */
+export const notificationsBroadcastName = (siteId: string) => `papyrus-notifications-broadcast-${siteId}`;
 export const notificationsSesEventsName = (siteId: string) => `papyrus-notifications-ses-${siteId}`;
 export const notificationsPauseName = (siteId: string) => `papyrus-notifications-pause-${siteId}`;
 export const notificationsTableName = (siteId: string) => `papyrus-notifications-${siteId}`;
@@ -286,6 +291,15 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       reservedConcurrentExecutions: 1,
       description: `Sends the ${config.siteId} notifications whose grouping window ended`,
     });
+    // The announce agent runs in the shared procedure runner, which holds none of this site's wiring: it hands each X post to this function (submit, read, withdraw).
+    const broadcast = new LambdaFunction(stack, "BroadcastFunction", {
+      ...common,
+      functionName: notificationsBroadcastName(config.siteId),
+      handler: HANDLERS.broadcast,
+      timeout: Duration.seconds(60),
+      memorySize: 512,
+      description: `Submits, reads or withdraws ${config.siteId} X announcements for the procedure runner`,
+    });
     new Rule(stack, "FlushSchedule", {
       description: `Every minute: send ${config.siteId} notification groups that are due`,
       schedule: Schedule.rate(Duration.minutes(1)),
@@ -318,7 +332,7 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
       parameterArns.push(`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${legacyNewsletterKeyParameterName(config.siteId)}`);
     }
     // Every function builds the same runtime (the audience needs the recipient key), and the SES events suppress readers.
-    for (const fn of [router, email, x, flush, sesEvents]) {
+    for (const fn of [router, email, x, flush, sesEvents, broadcast]) {
       table.grantReadWriteData(fn); // includes the table key's encrypt and decrypt
       fn.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ssm:GetParameter"], resources: parameterArns }));
     }
@@ -337,6 +351,18 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
         resources: [`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${announcementsParameterPrefix(config.siteId)}/*`],
       }),
     );
+    // The broadcast function submits through Caducus's router (the x queue) and withdraws a post at X with the account's token, as the X consumer does.
+    announcementTables.XConnection.grantReadWriteData(broadcast);
+    announcementTables.AnnouncementSettings.grantReadWriteData(broadcast);
+    wireSpendLedger(broadcast);
+    broadcast.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["ssm:GetParameter", "ssm:PutParameter"],
+        resources: [`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${announcementsParameterPrefix(config.siteId)}/*`],
+      }),
+    );
+    xQueue.grantSendMessages(broadcast);
     xQueue.grantSendMessages(router);
     emailQueue.grantSendMessages(router);
     emailQueue.grantSendMessages(flush);
@@ -346,6 +372,14 @@ export const notificationsPlugin: PapyrusPlugin<NotificationsConfig, Record<stri
         effect: Effect.ALLOW,
         actions: ["appsync:GraphQL"],
         resources: [`arn:${stack.partition}:appsync:${stack.region}:${stack.account}:apis/${context.graphqlApiId}/types/Query/fields/getPublishedItem`],
+      }),
+    );
+    // After a post the X function closes the site's Delivery from Caducus's record (announcements/settle_after_post.py): it reads the Delivery and writes its attempt log.
+    x.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["appsync:GraphQL"],
+        resources: X_SETTLE_FIELDS.map((field) => `arn:${stack.partition}:appsync:${stack.region}:${stack.account}:apis/${context.graphqlApiId}/types/${field}`),
       }),
     );
     email.addToRolePolicy(

@@ -437,7 +437,7 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     statements = resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {statement["Sid"] for statement in statements} == {
         "Logs", "FailedInvocations", "PublicationOpenAiKeys", "AgentModelKeyParameters", "TriggerOutcomes", "StageTriggerRows",
-        "ReadWakeQueues", "PutWakes", "PublicationNewsrooms", "SiteAgentPolicyBody", "SpendLedger", "ContinuationTimers", "PassSchedulerRole"}
+        "ReadWakeQueues", "PutWakes", "PublicationNewsrooms", "SiteAgentPolicyBody", "SpendLedger", "ContinuationTimers", "PassSchedulerRole", "SiteBroadcastFunctions"}
     assert all("*" != statement["Resource"] for statement in statements)
     by_sid = {statement["Sid"]: statement for statement in statements}
     rows = by_sid["StageTriggerRows"]
@@ -446,6 +446,8 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     ledger = by_sid["SpendLedger"]   # PPY-fa165c: the spend ledger rows of the shared table, and no other key
     assert set(ledger["Action"]) == {"dynamodb:UpdateItem", "dynamodb:PutItem", "dynamodb:GetItem"}
     assert ledger["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["SPEND#*"]
+    broadcast = by_sid["SiteBroadcastFunctions"]   # each site's X broadcast function, and no other function
+    assert broadcast["Action"] == "lambda:InvokeFunction" and broadcast["Resource"][1].endswith(":function:papyrus-notifications-broadcast-*")
     model_key = by_sid["AgentModelKeyParameters"]   # PPY-8a374e: one named parameter, GetParameter alone (no decrypt, no wildcard under /papyrus/)
     assert model_key["Action"] == "ssm:GetParameter" and len(model_key["Resource"]) == 1 and model_key["Resource"][0][1].endswith(":parameter/papyrus/shipped/openai-api-key")
     policy_body = by_sid["SiteAgentPolicyBody"]   # PPY-c8175e: read one document's objects, nothing else of S3
@@ -458,7 +460,9 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     assert timers["Action"] == ["scheduler:CreateSchedule", "scheduler:UpdateSchedule"] and timers["Resource"][1].endswith("schedule/papyrus-*-agent-schedules/follow-up-*")
     assert pass_role["Action"] == "iam:PassRole" and pass_role["Resource"][1].endswith(":role/papyrus-*-agent-scheduler")
     assert pass_role["Condition"]["StringEquals"]["iam:PassedToService"] == "scheduler.amazonaws.com"
-    assert not any("lambda:" in str(statement["Action"]) for statement in statements), "the runner no longer invokes any function, itself included"
+    assert not any("lambda:" in str(statement["Action"]) for statement in statements if statement["Sid"] != "SiteBroadcastFunctions"), \
+        "the runner invokes no function but each site's X broadcast function, never itself"
+    assert "papyrus-procedure-runner" not in str(by_sid["SiteBroadcastFunctions"]["Resource"])
 
 
 def test_the_runner_role_reaches_exactly_the_newsrooms_it_is_granted():

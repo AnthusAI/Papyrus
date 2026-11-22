@@ -342,7 +342,7 @@ def step_shown_rejection(context, title, note):
 
 @then("the editor's review shows it was applied in this run")
 def step_applied(context):
-    applied = review_requests.get_review(client_of(context), context.earlier_request_id, sweep=False)["appliedIn"]
+    applied = review_requests.get_review(client_of(context), context.earlier_request_id)["appliedIn"]
     assert applied and applied["runId"] == context.run["runId"] != context.earlier_run_id, applied
 
 

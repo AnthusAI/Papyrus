@@ -35,20 +35,20 @@ def acknowledge(context):
 
 @then('the stored decision is "{decision}"')
 def stored_decision(context, decision):
-    assert rr.get_review(context.client, context.request_id, sweep=False)["answer"]["decision"] == decision
+    assert rr.get_review(context.client, context.request_id)["answer"]["decision"] == decision
 
 
 @then('the card says "{wanted}" and not "{unwanted}"')
 def card_says_not(context, wanted, unwanted):
     if getattr(context, "card", None) is None:
-        render_card(context, rr.get_review(context.client, context.request_id, sweep=False))
+        render_card(context, rr.get_review(context.client, context.request_id))
     assert wanted in context.card and unwanted not in context.card, context.card
 
 
 @then('the card says "{wanted}"')
 def card_says(context, wanted):
     if getattr(context, "card", None) is None:
-        render_card(context, rr.get_review(context.client, context.request_id, sweep=False))
+        render_card(context, rr.get_review(context.client, context.request_id))
     assert wanted in context.card, context.card
 
 

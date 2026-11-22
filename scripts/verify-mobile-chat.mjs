@@ -1,13 +1,21 @@
 import assert from "node:assert/strict";
 
+const MILLISECONDS_THE_LAYOUT_MAY_TAKE_TO_FOLLOW_A_NEW_VIEWPORT = 3000;
+
 export async function verifyMobileChat(page, origin) {
   const trigger = page.getByRole("button", { name: "Open private chat" });
   const close = page.getByRole("button", { name: "Close console" });
   const composer = page.getByRole("textbox", { name: "Message input" });
+  const liesWithin = (box, width, height, top) => !!box && box.width > 0 && box.height > 0 && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= top && box.y + box.height <= top + height + 1;
   const fits = async (locator, width, height, top = 0) => {
     await locator.waitFor({ state: "visible" });
-    const box = await locator.boundingBox();
-    assert.ok(box && box.width > 0 && box.height > 0 && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= top && box.y + box.height <= top + height + 1, JSON.stringify(box));
+    const giveUpAt = Date.now() + MILLISECONDS_THE_LAYOUT_MAY_TAKE_TO_FOLLOW_A_NEW_VIEWPORT;
+    let box = await locator.boundingBox();
+    while (!liesWithin(box, width, height, top) && Date.now() < giveUpAt) {
+      await page.waitForTimeout(50);
+      box = await locator.boundingBox();
+    }
+    assert.ok(liesWithin(box, width, height, top), JSON.stringify(box));
   };
   for (const [width, height] of [[315, 683], [320, 568], [375, 667], [390, 844], [430, 932], [844, 390]]) {
     console.log(`Checking mobile chat at ${width}x${height}`);

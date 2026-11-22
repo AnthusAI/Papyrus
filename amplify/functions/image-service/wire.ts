@@ -27,6 +27,13 @@ export const IMAGE_SERVICE_FUNCTION_FIELDS = [
   "Query/fields/listSemanticRelationsBySubjectState",
   "Query/fields/getItem",
   "Query/fields/getReviewRequest",
+  // The announcements write door: one Delivery read and its review changed (a person's approval), with the row's own revision as the condition.
+  "Query/fields/getDelivery",
+  "Mutation/fields/updateDelivery",
+  // ...and the edits of a Delivery's words (PPY-e7a232): each version is one attachment, uploaded and read through presigned slots.
+  "Mutation/fields/createModelAttachmentUpload",
+  "Mutation/fields/completeModelAttachmentUpload",
+  "Mutation/fields/createModelAttachmentDownload",
   "Mutation/fields/createItem",
   "Mutation/fields/updateItem",
   "Mutation/fields/createModelAttachment",

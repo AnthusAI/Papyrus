@@ -336,6 +336,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         everPublished: record.everPublished,
         publishedType: record.publishedType ?? (record.everPublished ? record.type : null),
         starRating: record.starRating ?? null,
+        starSuggestion: record.starRating ? null : record.starSuggestion ?? null,
       };
     },
     announcementsDoor: createDemoAnnouncementsDoor(),

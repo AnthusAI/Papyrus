@@ -3800,7 +3800,7 @@
           },
           "requireReviewedSource": {
             "type": "boolean",
-            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed."
+            "description": "On: an Announcement is made only for a Story a person has reviewed on its current version (its review step done by a person, or by an agent on a person's recorded instruction). Off by default."
           },
           "budget": {
             "type": "string",
@@ -4125,6 +4125,50 @@
       }
     },
     {
+      "name": "announcements_hashtags",
+      "audience": "staff",
+      "description": "List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first.",
+      "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          }
+        },
+        "required": [
+          "story"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lineageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hashtags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "description": "A hashtag with its #, in CamelCase, for example #VoiceCloning."
+            }
+          }
+        },
+        "required": [
+          "lineageId",
+          "hashtags"
+        ]
+      }
+    },
+    {
       "name": "announcements_blocked",
       "audience": "staff",
       "description": "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).",
@@ -4346,6 +4390,21 @@
             "type": "string",
             "minLength": 1,
             "description": "Why, in plain words. It is recorded with who and when."
+          },
+          "onInstructionOf": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts."
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: that person's own words."
+          },
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: its name, recorded as the one who entered the change."
           }
         },
         "required": [
@@ -4411,6 +4470,21 @@
               "hard"
             ],
             "description": "none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it."
+          },
+          "onInstructionOf": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts."
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: that person's own words."
+          },
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For an agent only: its name, recorded as the one who entered the change."
           }
         },
         "required": [
@@ -6172,9 +6246,9 @@
     {
       "name": "ratings_set",
       "audience": "staff",
-      "description": "Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated.",
-      "agentAllowed": true,
-      "agentRung": "draft",
+      "description": "Give a Story a star rating, 1 to 5. Only a person rates; an agent suggests with ratings_suggest.",
+      "agentAllowed": false,
+      "agentRung": "person",
       "agentRefusal": "human_required",
       "effect": "write",
       "inputSchema": {
@@ -6188,7 +6262,7 @@
           "stars": {
             "type": "integer",
             "minimum": 1,
-            "description": "The rating, 1 to 5. An agent may only give 3 or 4."
+            "description": "The rating, 1 to 5."
           }
         },
         "required": [
@@ -6221,6 +6295,205 @@
         "required": [
           "lineageId",
           "stars"
+        ]
+      }
+    },
+    {
+      "name": "ratings_suggest",
+      "audience": "staff",
+      "description": "Suggest stars for a Story nobody has rated: three or four, or five for a five-star candidate. It sits beside the rating and is never the rating.",
+      "agentAllowed": true,
+      "agentRung": "propose",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "3 or 4, or 5 for a five-star candidate a person decides."
+          }
+        },
+        "required": [
+          "story",
+          "stars"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lineageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "candidate": {
+            "type": "boolean"
+          },
+          "suggestedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lineageId",
+          "stars",
+          "candidate"
+        ]
+      }
+    },
+    {
+      "name": "ratings_confirm",
+      "audience": "staff",
+      "description": "Make a Story's suggested stars your rating, or give other stars instead.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The lineage id of the Story."
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Other stars, 1 to 5, instead of the suggested ones. Leave out to confirm the suggestion."
+          }
+        },
+        "required": [
+          "story"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lineageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "suggested": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "ratedBy": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "lineageId",
+          "stars",
+          "suggested",
+          "changed"
+        ]
+      }
+    },
+    {
+      "name": "ratings_suggestions_review",
+      "audience": "staff",
+      "description": "Raise the day's one review of suggested ratings, or add Stories to it while it is open.",
+      "agentAllowed": true,
+      "agentRung": "propose",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The day, YYYY-MM-DD, in the site's time zone."
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "story": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The lineage id of the Story."
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "stars": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "story",
+                "stars"
+              ]
+            },
+            "description": "The Stories suggested, with their stars."
+          }
+        },
+        "required": [
+          "day",
+          "suggestions"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stories": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Every Story the request links."
+          }
+        },
+        "required": [
+          "request",
+          "reason",
+          "state",
+          "stories"
         ]
       }
     },

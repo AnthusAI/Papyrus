@@ -294,10 +294,12 @@ Use this standard curation sequence for recent references:
 2. `poetry run papyrus references curate-recent --corpus-key <key> --since-hours 48 --max-count 25 --dry-run --json`
 3. rerun without `--dry-run` after reviewing dry-run diagnostics.
 
-`references curate-recent` enforces identifier prepass before title/subtitle,
-summary, and quality updates. It writes a resumable manifest at
-`.papyrus-runs/reference-curation-<run-id>/manifest.json`; use `--resume` to
-continue unfinished runs without redoing completed successful stages.
+The `--dry-run` preview tries identifier prepass before title/subtitle, summary,
+and quality, saves nothing, and writes a resumable manifest at
+`.papyrus-runs/reference-curation-<run-id>/manifest.json`; use
+`--dry-run --resume` to continue a preview without redoing its successful
+stages. The run without `--dry-run` does none of that work itself: it queues one
+curation assignment per picked Reference and the assignment worker curates it.
 
 Do not confuse these stages. A pending URL is only a prospect. An accepted URL
 without corpus text is evidence-eligible by curation policy, but not yet useful

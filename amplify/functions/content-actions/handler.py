@@ -11,7 +11,7 @@ from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.tenant_context import acting_for, build_event_tenant_context, build_invocation_tenant_context, current_tenant_context
 from papyrus_content.markus_renderer.body_features import install_body_features
 from papyrus_content.markus_renderer.derive import derive_body
-from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
+from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line, skipped_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
 from papyrus_content.projection.publish_jobs import DONE, FAILED, QUEUED, RUNNING, publish_jobs_from_environment
 from papyrus_content.projection.engine import project, project_all, project_item_pages
@@ -422,7 +422,14 @@ def run_deploy_render_task(client) -> dict:
     ensure_default_editorial_policies(client)
     if targeted_invalidation(os.environ):
         context.invalidate = None  # the default, "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)
-    report = deploy_render(context)
+    try:
+        report = deploy_render(context)
+    except ProjectionLeaseHeld as held:
+        # Another projection (a page refresh, a publish) holds the site's lease and a whole-site render takes minutes, so waiting longer than the lease wait would
+        # outlast this function. The deploy is not failed for it: the data is deployed, the holder is writing the same site, and the drift alarm is told.
+        reason = f"another projection holds the lease until {held.expires_at:.0f} ({held.purpose}, {held.owner})"
+        print(skipped_metric_line(reason))
+        return {"ok": True, "skipped": reason}
     after_release(publish_jobs_from_environment())   # publishes that arrived during the render were queued; build them now
     print(drift_metric_line(report))
     if report.render.unpurged:
@@ -695,7 +702,8 @@ def sync_story_checklist(client, record: dict) -> None:
 
 def set_story_step_action(arguments: dict, event: dict) -> dict:
     """Marks one step of a Story's checklist done, skipped, not applicable or open again, as the signed-in person.
-    ``agent`` names an agent acting through that person's session: the change is recorded as the agent's, on that person's behalf, and an agent cannot reopen a step."""
+    ``agent`` names an agent acting through that person's session: the change is recorded as the agent's, and an agent cannot reopen a step. An agent closes a review
+    step only on a person's instruction: ``onInstructionOf`` (the person) and ``quote`` (their words), recorded with the change; without them it is refused (``delegation-required``)."""
     from papyrus_content.story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, add_note, set_step
 
     person = person_from_event(event)
@@ -712,9 +720,10 @@ def set_story_step_action(arguments: dict, event: dict) -> dict:
             row = set_step(
                 client, arguments["lineageId"], arguments["stepKey"], arguments["state"], actor=actor,
                 reason=arguments.get("reason"), note=arguments.get("note"), evidence=arguments.get("evidence"),
+                instruction={"person": arguments.get("onInstructionOf"), "quote": arguments.get("quote")},
             )
     except ChecklistError as error:
-        return {"ok": False, "errors": [{"code": "checklist-rejected", "message": str(error), "line": None}]}
+        return {"ok": False, "errors": [{"code": error.code or "checklist-rejected", "message": str(error), "line": None}]}
     return {"ok": True, "step": {"stepKey": row["stepKey"], "state": row["state"], "changedAt": row.get("changedAt")}}
 
 

@@ -1,0 +1,50 @@
+{
+  "id": "PPY-65d8b673-f6c2-40c1-b8bb-5112a280d034",
+  "title": "announcements release is declared but has no handler",
+  "description": "announcements_release is in the operation table (CLI, MCP, TS) but ANNOUNCEMENT_HANDLERS has no entry, so it answers not built. A held Delivery is released today only by approving it (delivery review set none) and waiting for the next announce run's send step. Either build release (approve and send now) or take it out of the table.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "25fc1d1c-d88a-451f-adfb-7a6251ea1e37",
+      "author": "ryan",
+      "text": "Built: release approves the version that would go, as the caller (a no-op when already approved); with PPY-1de948 the approval wakes the announce agent, which sends it. Served by the write door, so it works signed in.",
+      "created_at": "2026-11-21T23:15:11.294296Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "Claude Code handoff session"
+      }
+    },
+    {
+      "id": "c4a2f8f0-0621-4db9-85a1-4aafb502eef5",
+      "author": "ryan",
+      "text": "Released in 5.144.0 (PR 1819), on MoM: announcements release signed in answers ok (on the already-sent Delivery it changed nothing).",
+      "created_at": "2026-11-22T00:50:54.229729Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "Claude Code handoff session"
+      }
+    }
+  ],
+  "created_at": "2026-11-21T18:17:20.230879Z",
+  "updated_at": "2026-11-22T00:51:03.660349Z",
+  "closed_at": "2026-11-22T00:51:03.660333Z",
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "Claude Code handoff session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

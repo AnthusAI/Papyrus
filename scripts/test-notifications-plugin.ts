@@ -185,7 +185,7 @@ template.hasResourceProperties("Custom::SecureStringParameter", { ParameterName:
 // Four Python arm64 functions with the right handlers, names and timeouts.
 const functions = template.findResources("AWS::Lambda::Function");
 const ours = Object.values(functions).filter((entry) => (entry as { Properties: { Handler?: string } }).Properties.Handler?.startsWith("papyrus_content."));
-assert.equal(ours.length, 6, "router, email, x, flush, SES events, and the pause (no newsletter on this site)");
+assert.equal(ours.length, 7, "router, email, x, flush, SES events, the runner's X broadcast function, and the pause (no newsletter on this site)");
 for (const [handler, name] of [
   [HANDLERS.router, notificationsFunctionName("example")],
   [HANDLERS.email, notificationsEmailName("example")],
@@ -193,6 +193,7 @@ for (const [handler, name] of [
   [HANDLERS.flush, "papyrus-notifications-flush-example"],
   [HANDLERS.sesEvents, "papyrus-notifications-ses-example"],
   [HANDLERS.pause, "papyrus-notifications-pause-example"],
+  [HANDLERS.broadcast, "papyrus-notifications-broadcast-example"],
 ] as const) {
   template.hasResourceProperties("AWS::Lambda::Function", {
     Handler: handler, FunctionName: name, Runtime: "python3.12", Architectures: ["arm64"],
@@ -278,7 +279,9 @@ assert.match(policies, /identity\/example.com/);
 assert.match(policies, /configuration-set\/papyrus-example/);
 assert.match(policies, /parameter\/papyrus\/example\/notifications\/operators/);
 assert.match(policies, /types\/Query\/fields\/getPublishedItem/);
-assert.ok(!/types\/Mutation/.test(policies), "the functions never write to the content API");
+// The one write to the site's API: the X function closes a Delivery's attempt after a post (PPY-8037b8). It never writes content.
+assert.deepEqual([...new Set(policies.match(/types\/Mutation\/fields\/\w+/g) ?? [])], ["types/Mutation/fields/updateDelivery"]);
+assert.match(policies, /types\/Query\/fields\/getDelivery/);
 assert.ok(!/"ses:\*"|"sqs:\*"|"dynamodb:\*"/.test(policies));
 
 // Only the CMS role may invoke the router (a resource policy); no principal "*".

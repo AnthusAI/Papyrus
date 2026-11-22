@@ -78,15 +78,25 @@ def papyrus_curate_reference(reference_id: str, force: bool = False) -> dict:
 
 def papyrus_rate_items() -> dict:
     """One day's rating work for the site: read the published Stories nobody has rated, decide three stars, four stars or a five-star candidate for each, and,
-    only at a rung the site's policy allows, write the threes and fours through the gate. Never writes a five. Returns the counts, each proposal with its reason,
-    the five-star candidates for a person, and the gate's answers."""
+    only at a rung the site's policy allows, write each as a suggestion beside the rating and raise the day's one review. Never writes a rating. Returns the
+    counts, each proposal with its reason, the five-star candidates for a person, and the gate's answers."""
 
     from papyrus_content.rating_agent import rate_items
 
     return rate_items()
 
 
-def papyrus_announce_story(story: str, version: str, change: str, what: str = "", stage: str = "") -> dict:
+def papyrus_review_deadline(review_request_id: str, due_at: str) -> dict:
+    """The engine's run for a soft review's deadline wake: read the review request again and, if it still waits for exactly ``due_at``, record "proceeded without
+    review" in one conditional write. An answer, a withdrawal or a moved deadline means it does nothing. Never answers, approves or publishes anything."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.review_requests import deadline_run
+
+    return deadline_run(create_authoring_client()[0], review_request_id, due_at)
+
+
+def papyrus_announce_story(story: str = "", version: str = "", change: str = "", what: str = "", stage: str = "") -> dict:
     """The announce agent's run for one wake: a Story's page went live (stage_entered into published) or its rating changed (rated). Re-reads the Story as it is now and
     decides from the records, never from the wake: one Announcement and one email Delivery for the Story at a rung the site's policy allows, once however many wakes
     arrive. At observe it writes nothing. Never sends. Returns the Story, the lists that carry it and what was decided."""

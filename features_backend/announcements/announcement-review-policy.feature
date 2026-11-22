@@ -5,7 +5,7 @@ Feature: Human review of announcements is a setting of each publication
   value, and a channel, an Announcement kind or a newsletter list may override it; the narrowest wins and each override is optional. The value that applies is written to each
   Delivery as its approval, with where it came from and the version of the policy. A separate source rule, requireReviewedSource, is a condition on the input and not a rung:
   when it is on, an Announcement is made only for a Story a person has reviewed on its current version, and a Story edited after its review waits until a person reviews it
-  again (PROVISIONAL: what counts as a person's review is defined in announcement-human-review-stamp.feature and Ryan has not confirmed it). Both are changed at any time and apply to Announcements made afterwards. Nothing here lowers the three-star floor or lets a machine supply a five.
+  again (what counts as a person's review is defined in announcement-human-review-stamp.feature and story-review-stamp.feature). Both are changed at any time and apply to Announcements made afterwards. Nothing here lowers the three-star floor or lets a machine supply a five.
 
   Background:
     Given an empty announcement catalog
@@ -325,3 +325,62 @@ Feature: Human review of announcements is a setting of each publication
       | channel | account  |
       | x       | handle-1 |
     Then the Delivery "x" "handle-1" has the review "soft" from "publication policy"
+
+  Scenario: An agent in an admin's own session approves one held Delivery on that person's instruction, and the approval names both
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When an agent in ada's session changes the review of the Delivery "x" "handle-1" to "none" on the instruction of "ada" who said "post that text"
+    Then the Delivery "x" "handle-1" is approved by someone recorded as "ada via cli (Claude)"
+    And the Delivery "x" "handle-1" is approved by someone recorded as "on the instruction of ada"
+    And the Delivery "x" "handle-1" is approved by someone recorded as "post that text"
+
+  Scenario: An agent in an admin's own session cannot approve a held Delivery naming no one, or naming someone else
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When an agent in ada's session changes the review of the Delivery "x" "handle-1" to "none" on the instruction of "bea" who said "post it"
+    Then the change is refused as "not_authorized"
+    When an agent in ada's session changes the review of the Delivery "x" "handle-1" to "none" naming no one
+    Then the change is refused as "blocked"
+
+  Scenario: A person approves one Delivery through the announcements write door, which writes with the service's own role
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When "ada" asks the announcements write door to change the review of the Delivery "x" "handle-1" to "none"
+    Then the Delivery "x" "handle-1" is approved by "ada"
+
+  Scenario: An agent in an admin's session approves through the write door only on that admin's named instruction
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When an agent in ada's session asks the announcements write door to change the review of the Delivery "x" "handle-1" to "none" naming no one
+    Then the write door refuses with "blocked"
+    When an agent in ada's session asks the announcements write door to change the review of the Delivery "x" "handle-1" to "none" on the instruction of "ada" who said "post it"
+    Then the Delivery "x" "handle-1" is approved by someone recorded as "ada via cli (Claude)"
+
+  Scenario: The write door admits staff only and serves only a person's decision about a Delivery
+    When a signed-in reader asks the announcements write door to "announcements_delivery_review_set"
+    Then the write door refuses with "not_authorized"
+    When "ada" asks the announcements write door to "announcements_pause"
+    Then the write door refuses with "invalid_input"
+
+  Scenario: A person releases a held Delivery, which approves the version that would go
+    Given a publication whose announcement review is "hard"
+    And the Story "slow-water" at version 3 has 4 stars given by "ellie"
+    And the announce agent announces the Story "slow-water" as "story_published" on these channels
+      | channel | account  |
+      | x       | handle-1 |
+    When "ada" asks the announcements write door to release the Delivery "x" "handle-1"
+    Then the Delivery "x" "handle-1" is approved by "ada"
+    When "ada" asks the announcements write door to release the Delivery "x" "handle-1"
+    Then the Delivery "x" "handle-1" is approved by "ada"

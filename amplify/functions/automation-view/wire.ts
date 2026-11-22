@@ -10,7 +10,7 @@ import {
 import { connectToSiteApi } from "../../site-api-access";
 import { allowWakeSending } from "../../agents/wake-queue";
 
-/** The reads the function makes of its own site's API with its own role. It writes nothing there. Today reads the day's runs through the status index, the agents through the tenant index, and the day's email sends through the released-Announcements index, each one's Deliveries and its `announces` links. */
+/** The reads the function makes of its own site's API with its own role. It writes nothing there. Today reads the day's runs through the status index, the agents through the tenant index, an agent's run history through the automation index (PPY-577310), and the day's email sends through the released-Announcements index, each one's Deliveries and its `announces` links. */
 export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
   "Query/fields/getAutomation",
   "Query/fields/getNewsroomProcedureDefinition",
@@ -20,6 +20,7 @@ export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
   "Query/fields/listAutomationsByTenant",
   "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
   "Query/fields/listDeliveriesByDueKeyAndDueAt",
+  "Query/fields/listProcedureRunsByAutomationAndRequestedAt",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
   "Query/fields/listProcedureRunsByStatusAndRequestedAt",
   "Query/fields/listSemanticRelationsBySubjectState",

@@ -1597,8 +1597,12 @@ const schema = a.schema({
       costUsd: a.float(),
       /** `attention`, only while the run needs a person (it failed, or its outcome is unknown) and nobody has acknowledged it; absent otherwise, so the attention index is sparse (PPY-577310). A shared stack puts the tenant in front. */
       attentionKey: a.string(),
-      /** When the run needed attention (its finish time). The sort key of the attention index; absent with `attentionKey`. */
+      /** When the run needed attention (its finish time), the sort key of the attention index; or, on a run that is `waiting`, when it runs again (the next budget cycle's start, PPY-9376f8). Absent otherwise. */
       dueAt: a.datetime(),
+      /** Why a `waiting` run waits: `budget cycle` (the site was at its AI budget when the paid wake came; spend_stop.py). Absent once it runs. */
+      waitingFor: a.string(),
+      /** The wake a `waiting` run runs again: the runner's request, kept on the run record (the wake ledger) until it is released. Absent once it runs. */
+      wake: a.json(),
       /** Who acknowledged the run and when. Acknowledging clears `attentionKey` and `dueAt`; the run stays as history. */
       acknowledgedAt: a.datetime(),
       acknowledgedBy: a.string(),
@@ -1609,6 +1613,7 @@ const schema = a.schema({
       index("runStatus").sortKeys(["requestedAt"]).queryField("listProcedureRunsByStatusAndRequestedAt"),
       index("newsroomFeedKey").sortKeys(["requestedAt"]).queryField("listProcedureRunsByFeedAndRequestedAt"),
       index("attentionKey").sortKeys(["dueAt"]).queryField("listProcedureRunsByAttentionKeyAndDueAt"),
+      index("automationId").sortKeys(["requestedAt"]).queryField("listProcedureRunsByAutomationAndRequestedAt"),
     ])
     .authorization((allow) => [
       allow.group("editor").to(["read"]),
@@ -1661,6 +1666,10 @@ const schema = a.schema({
       raisedAt: a.datetime().required(),
       deadline: a.datetime(),
       state: a.string().required(),
+      /** `review#<state>` on every request (the tenant in front on a shared stack): the partition of the state index, so open requests, and answered ones, are read by index. */
+      reviewStateKey: a.string(),
+      /** The deadline of an open soft review that has one, and nothing else: the time its follow-up timer wakes for (PPY-9b8e59). Absent on flags, hard gates and closed requests. */
+      dueAt: a.datetime(),
       answer: a.json(),
       links: a.json(),
       history: a.json(),
@@ -1669,6 +1678,7 @@ const schema = a.schema({
     })
     .secondaryIndexes((index) => [
       index("tenantId").sortKeys(["id"]).queryField("listReviewRequestsByTenant"),
+      index("reviewStateKey").sortKeys(["updatedAt"]).queryField("listReviewRequestsByReviewStateKeyAndUpdatedAt"),
     ])
     .authorization((allow) => [
       allow.group("editor").to(["read", "create", "update"]),
@@ -2702,6 +2712,12 @@ const schema = a.schema({
       starRevision: a.string(),
       starRatedAt: a.datetime(),
       starRatedBy: a.string(),
+      /** A machine's suggested rating (3, 4, or 5 for a five-star candidate), beside the rating and never in it (PPY-e61642): a person confirms, changes or
+       *  ignores it. Who suggested it (`agent:<responsibility>`), when, and the run whose record holds the reason. Private, never published. */
+      starSuggestion: a.integer(),
+      starSuggestedAt: a.datetime(),
+      starSuggestedBy: a.string(),
+      starSuggestionRun: a.string(),
       /** The Item this one is a child of: a checklist step (type sub-task) names its Story's lineage here (docs/story-procedure.md). */
       parentLineageId: a.id(),
       /** Only the head row of a lineage carries this: its stage (tenant-prefixed on a tenant backend), so the head stage index holds one row per

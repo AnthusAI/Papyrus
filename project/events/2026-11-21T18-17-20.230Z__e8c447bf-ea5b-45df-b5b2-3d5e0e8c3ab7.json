@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "e8c447bf-ea5b-45df-b5b2-3d5e0e8c3ab7",
+  "issue_id": "PPY-65d8b673-f6c2-40c1-b8bb-5112a280d034",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-21T18:17:20.230Z",
+  "actor_id": "ryan",
+  "payload": {
+    "title": "announcements release is declared but has no handler",
+    "description": "announcements_release is in the operation table (CLI, MCP, TS) but ANNOUNCEMENT_HANDLERS has no entry, so it answers not built. A held Delivery is released today only by approving it (delivery review set none) and waiting for the next announce run's send step. Either build release (approve and send now) or take it out of the table.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude Code handoff session"
+    }
+  }
+}

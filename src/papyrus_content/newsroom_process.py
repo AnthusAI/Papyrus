@@ -82,9 +82,10 @@ STEPS: tuple[Step, ...] = (
          versioned=True),
     Step("editor_review", "copywriting", "Editor agent", "Editor review", "", OFF, False,
          "Off: needs the editor_review.tac procedure, which no site has on."),
-    Step("review_people", "copywriting", "Editor or reviewing agent", "Reviewed for readers",
+    Step("review_people", "copywriting", "A person, or an agent on a person's instruction", "Reviewed for readers",
          "papyrus stories step --story {story} --step review_people --state done --note <findings>", LIVE, False,
-         "Human readers: a person or agent reads the Story as a reader would and records the findings. What each lens checks is a later design (PPY-59c772df).", True, versioned=True),
+         "Human readers: a person reads the Story as a reader would and records the findings; this is the Story's human review stamp. An agent records it only on a "
+         "person's instruction (--on-instruction-of and --quote). What each lens checks is a later design (PPY-59c772df).", True, versioned=True),
     Step("review_reader_agents", "copywriting", "Editor or reviewing agent", "Reviewed for AI reader agents",
          "papyrus stories step --story {story} --step review_reader_agents --state done --note <findings>", LIVE, False,
          "AI agents that read the page for a person. Findings are recorded by hand for now (PPY-59c772df).", True, versioned=True),
@@ -135,6 +136,9 @@ class Procedure:
     steps: tuple[Step, ...]
     source: str = "default"   # "default" or "site"
     version: int | None = None   # the site document's catalog version
+    #: Whether a translation needs a person's review before it publishes: True or False as the site's document says (``translationHumanReview``), or None
+    #: to follow the review of readers (``review_people``) of an original. A site with nobody to read a language sets False and relies on the run's checks.
+    translation_human_review: bool | None = None
 
     @property
     def by_key(self) -> dict[str, Step]:
@@ -157,11 +161,17 @@ CUSTOM_FIELDS = ("key", "stage", "role", "title", "command", "note", "optional",
 PUBLISH_STEP_KEY = "publish"
 
 
+#: The procedure document's switch for a translation's review by a person (``Procedure.translation_human_review``).
+TRANSLATION_HUMAN_REVIEW_FIELD = "translationHumanReview"
+
+
 def procedure_problems(document: Any) -> list[tuple[str, str]]:
     """(field path, message) for each problem with a site procedure document's ``steps``. Empty means it can be used."""
     if not isinstance(document, dict) or not isinstance(document.get("steps"), list) or not document["steps"]:
         return [("steps", "must be a non-empty list of steps")]
     problems, seen = [], set()
+    if TRANSLATION_HUMAN_REVIEW_FIELD in document and not isinstance(document[TRANSLATION_HUMAN_REVIEW_FIELD], bool):
+        problems.append((TRANSLATION_HUMAN_REVIEW_FIELD, "must be true or false"))
     for index, entry in enumerate(document["steps"]):
         where = f"steps[{index}]"
         key = entry.get("key") if isinstance(entry, dict) else None
@@ -206,7 +216,7 @@ def procedure_from_document(document: dict[str, Any], version: int | None = None
         else:
             steps.append(Step(entry["key"], entry["stage"], entry.get("role", "Editor or reviewing agent"), entry["title"], entry.get("command", ""), LIVE, bool(entry.get("optional", False)),
                               entry.get("note", ""), manual=True, versioned=bool(entry.get("versioned", False))))
-    return Procedure(tuple(steps), "site", version)
+    return Procedure(tuple(steps), "site", version, translation_human_review=document.get(TRANSLATION_HUMAN_REVIEW_FIELD))
 
 
 def procedure_of(client) -> Procedure:
@@ -445,6 +455,8 @@ def resolve(assessment: dict[str, Any], stored: list[dict[str, Any]], facts: dic
                 row["freshness"] = "current"
             elif number is None:
                 row["freshness"] = "current (the version it was recorded against is unknown)"
+            elif row["versioned"] and row["state"] == SKIPPED:
+                row["freshness"] = f"carried: skipped on v{number}; it stands until an edit changes the text (a picture-only change keeps it)"
             elif row["versioned"]:
                 row["freshness"] = f"current (recorded against v{number}; a {row['state'].replace('_', ' ')} answer is not tied to one version)"
             else:

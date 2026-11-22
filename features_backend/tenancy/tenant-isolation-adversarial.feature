@@ -703,6 +703,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listProcedureRunsByProcedureAndRequestedAt           | returns nothing of "beta"        |
       | listProcedureRunsByAssignmentAndRequestedAt          | returns nothing of "beta"        |
       | listProcedureRunsByStatusAndRequestedAt              | returns nothing of "beta"        |
+      | listProcedureRunsByAutomationAndRequestedAt          | returns nothing of "beta"        |
       | listProcedureRunsByFeedAndRequestedAt                | returns nothing of "beta"        |
       | listProcedureRunsByAttentionKeyAndDueAt              | returns nothing of "beta"        |
       | listProcedureVersionsByProcedureAndVersion           | returns nothing of "beta"        |
@@ -765,6 +766,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | listReviewReadMarksByTenant                          | returns nothing of "beta"        |
       | listReviewRecipientRulesByTenant                     | returns nothing of "beta"        |
       | listReviewRequestsByTenant                           | returns nothing of "beta"        |
+      | listReviewRequestsByReviewStateKeyAndUpdatedAt       | returns nothing of "beta"        |
       | listSemanticNodesByTenant                            | returns nothing of "beta"        |
       | listSemanticNodesByLineageAndVersion                 | returns nothing of "beta"        |
       | listSemanticNodesByVersionStateAndUpdatedAt          | returns nothing of "beta"        |
@@ -850,6 +852,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | announcementsRead                    | denied, or returns nothing of "beta" |
       | announcementsSaveSettings            | denied, or returns nothing of "beta" |
       | announcementsSettings                | denied, or returns nothing of "beta" |
+      | announcementsWrite                   | denied, or returns nothing of "beta" |
       | announcementsXBegin                  | denied, or returns nothing of "beta" |
       | announcementsXComplete               | denied, or returns nothing of "beta" |
       | announcementsXDisconnect             | denied, or returns nothing of "beta" |

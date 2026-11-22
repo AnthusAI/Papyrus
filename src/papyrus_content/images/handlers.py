@@ -122,7 +122,7 @@ def execute(name: str, arguments: Any, caller: Caller | None = None, handlers: d
         answer = caller.gate_run.ask(name)
         if not answer.allowed:
             return error_envelope(name, answer.answer, answer.reason, details={"gate": answer.as_record()})
-    elif caller.kind == "agent" and not item.agent_allowed:
+    elif caller.kind == "agent" and not item.agent_allowed and not item.delegable:
         return error_envelope(name, item.agent_refusal, f"{name} needs a person; an agent may not call it.")
     problem = check(item.input, arguments if arguments is not None else {})
     if problem:
@@ -157,7 +157,7 @@ HANDLERS.update(_announcement_handlers())
 
 # Announcement review (PPY-97c0f2): the announce rung and its overrides, and one Delivery's review. They read the site's agent policy and the Delivery records, which the
 # monitoring router and the image service never do, so the module is imported by the call and not by this file (infra/monitoring/build.py leaves it out of the router zip).
-REVIEW_OPERATIONS = ("announcements_review_show", "announcements_review_set", "announcements_delivery_review_set", "announcements_record_manual", "announcements_correct", "announcements_withdraw")
+REVIEW_OPERATIONS = ("announcements_release", "announcements_review_show", "announcements_review_set", "announcements_delivery_review_set", "announcements_record_manual", "announcements_correct", "announcements_withdraw")
 
 
 def _review_handler(name: str) -> Handler:

@@ -165,8 +165,10 @@ _ENTRIES = dict([
      "[--story LINEAGE] [--body-file FILE] [--front-matter-file FILE] [--language TAG] [--json]  (--story alone: the current version against the one before it; --body-file: a draft before it is saved, against the story's current version when --story is given; a draft with no --story needs --language)", "both", "reads", "checks"),
   _e("stories next", "Print each procedure step with its state, then what is next (the checklist).", "--story LINEAGE [--json]", "both", "reads", "checks"),
   _e("stories step", "Set one checklist step's state, or add a note to it.",
-     "--story LINEAGE --step KEY [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]  "
-     "(skipped and not_applicable need --reason; a review step needs --note with the findings)", "both", _DRY, "checks"),
+     "--story LINEAGE --step KEY [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] "
+     "[--on-instruction-of PERSON --quote TEXT] [--dry-run]  "
+     "(skipped and not_applicable need --reason; a review step needs --note with the findings; an agent closes review_people or human_review only with --on-instruction-of and --quote)",
+     "both", _DRY, "checks"),
   _e("stories note", "Add a person's note to a Story.",
      "--story LINEAGE (--body TEXT | --body-file FILE) [--summary TEXT] [--kind note|research_packet|reporting_context_packet|draft_note|editor_note] [--reference LINEAGE] [--version N] [--author-label NAME] [--dry-run]",
      "both", _DRY, ""),
@@ -193,6 +195,8 @@ _ENTRIES = dict([
      "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
   _e("stories decks", "Bring every Item's and published row's deck column to the dek its front matter holds. Writes only the derived column.",
      "[--dry-run] [--rate N]  (--rate is writes a second, default 5)", "both", _DRY, ""),
+  _e("reviews index-backfill", "Write the review state key on every review request stored before the state index existed, once, after the deploy that adds it. A dry run unless --apply.",
+     "[--apply]", "operator", "apply"),
   _e("stories backfill-published-dates", "Give published Stories their first publication time and the served version's publish time, from what their versions recorded. A dry run unless --apply.",
      "[--apply] [--dry-run] [--rate N]  (a dry run unless --apply; --rate is writes a second, default 5)", "both", "apply", ""),
   _e("stories repair-image-paths", "Repair image paths in a Story's versions. Read only unless you pass --write.", "--story LINEAGE [--write] [--bucket B] [--identity-pool-id ID]", "operator", "reads", ""),
@@ -300,6 +304,8 @@ _ENTRIES = dict([
      "[--dir DIR] [--core DIR] [--root DIR] [--dry-run | --check]", "operator", "dry-run"),
   _e("agents set-rung", "Set how far one agent may go on this site (off, observe, propose, draft, prepare, publish_soft, publish_auto): writes its rung into the agent policy document as a new version with who, when and why. Admin who is a person only. A dry run that prints the policy entry before and after unless --apply. Refuses an unknown rung, a rung above what the agent's definition needs, and publish_auto while a hard floor forbids it.",
      "--id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE]... [--dir DIR] [--core DIR] [--apply]", "editor", "apply", ""),
+  _e("agents set-budget", "Set the site's AI budget for paid agent work (an amount in US dollars for each day, week or month): a new version of the agent policy with who, when and why. Admin who is a person only. At the budget paid wakes wait for the next cycle and one flag a cycle is raised; --apply also puts the waiting wakes back on the queue, oldest first, and each re-checks the new budget. A dry run that prints the budget before and after and the waiting wakes unless --apply.",
+     "--amount USD --period day|week|month --reason TEXT [--apply]", "editor", "apply", ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),
@@ -336,6 +342,7 @@ _ENTRIES = dict([
   _e("announcements account connect", "Print the newsroom page where the X account is connected. Connecting is a browser step; nothing is connected from here.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements account set-app", "Save the X app's client ID and secret together (a person only; admins save). At a terminal it asks for the ID and the hidden secret; otherwise the secret is read from PAPYRUS_X_CLIENT_SECRET or standard input, never a flag.",
      "[--client-id ID] [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
+  _e("announcements hashtags", "List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first.", "STORY [--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements blocked", "List the Stories that qualified for X and are waiting, each with its reason.", "[--input-file PATH]", "editor", "reads", "announcements"),
   _e("announcements retry", "Try a failed Delivery again: back to ready, and the next try is the next attempt. A person only.", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements review show", "Show the publication's announcement review and each override, and what a channel and kind would get.", "[--channel TEXT] [--kind TEXT] [--list TEXT] [--input-file PATH]", "editor", "reads", "announcements"),
@@ -362,8 +369,14 @@ _ENTRIES = dict([
      "DELIVERY_ID --url URL [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   _e("announcements withdraw", "Withdraw a Delivery: stop one that has not gone, or take back one that went where the channel can (a post on X is deleted).", "DELIVERY_ID [--input-file PATH] [--dry-run]", "editor", _DRY, "announcements"),
   # ---- ratings (the operation table is the source of the flags; a test keeps these in step) -----------------------------------------------
-  _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. An agent may give only 3 or 4, and only to a Story nobody has rated.",
+  _e("ratings set", "Give a Story a star rating, 1 to 5, as the editor's value. Only a person rates; an agent suggests with ratings suggest.",
      "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("ratings suggest", "Suggest stars for a Story nobody has rated: 3 or 4, or 5 for a five-star candidate. It sits beside the rating and is never the rating.",
+     "STORY_LINEAGE --stars N [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("ratings confirm", "Make a Story's suggested stars your rating, or give other stars instead.",
+     "STORY_LINEAGE [--stars N] [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("ratings suggestions-review", "Raise the day's one review of suggested ratings, or add Stories to it while it is open.",
+     "--day TEXT --suggestions JSON [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
   # ---- handoffs (the operation table is the source of the flags; a test keeps these in step) ----------------------------------------------
   _e("handoffs request", "Ask another responsibility for one piece of work on a Story: an Assignment that says who asked and why, and wakes the responsible agent once.",
      "STORY_LINEAGE --responsibility TEXT --why TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
@@ -460,7 +473,7 @@ GROUP_ORDER = {
   "stories": ["list", "show", "create", "save-version", "move", "set-slug", "retire", "schedule", "schedule-list", "schedule-suggest", "set-stars", "link-concept", "link-story", "link-reference", "suggest-links",
               "check-links", "lens-check", "measure", "next", "step", "versions", "note", "agent-note"],
   "pod": ["init", "id", "check", "build", "load"],
-  "agents": ["validate", "apply", "schedules", "listeners", "set-rung"],
+  "agents": ["validate", "apply", "schedules", "listeners", "set-rung", "set-budget"],
   "knowledge": ["concepts", "entities", "query"],
   "knowledge concepts": ["search", "related"],
   "knowledge entities": ["list", "link"],
@@ -492,7 +505,7 @@ GROUP_SUMMARIES["agents"] = "Agent definition files, one per always-on agent: va
 GROUP_SUMMARIES["guidelines"] = "Writing, image and video guidelines for the site or a section: read, resolve, diff, save and history, and check files against guideline files offline."
 GROUP_SUMMARIES["design-system"] = "The site's design system for figures (tokens, fonts, mapping, worked examples, figure settings), kept in the backend: show, pull, push."
 GROUP_SUMMARIES["announcements"] = "Announce Stories on the publication's X account once, automatically: dry runs, audit trail, budget and pause. Posting goes through Caducus."
-GROUP_SUMMARIES["ratings"] = "Rate a Story: a person gives 1 to 5 stars; an agent gives only 3 or 4 to a Story nobody has rated, and only at a rung the site's policy allows."
+GROUP_SUMMARIES["ratings"] = "Rate a Story: a person gives 1 to 5 stars; an agent only suggests stars beside the rating, and a person confirms, changes or ignores them."
 GROUP_SUMMARIES["handoffs"] = "Ask another responsibility for work on a Story: an Assignment that names who asked and why, and wakes the responsible agent once."
 GROUP_SUMMARIES["figures"] = "Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it."
 

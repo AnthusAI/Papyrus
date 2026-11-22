@@ -42,10 +42,16 @@ export interface StoryStepRecord {
   state: StoryStepState;
   actorKind?: string | null;
   actorLabel?: string | null;
+  /** For an agent's change on a person's recorded instruction: the person, and their words. */
+  onBehalfOf?: string | null;
+  instruction?: string | null;
   changedAt?: string | null;
   reason?: string | null;
   note?: string | null;
   evidence?: string | null;
+  /** The Story version the change was made against, and for a skip the kind of change that version was (`text_unchanged`, `picture_only`, `text_edited`). */
+  storyVersion?: number | null;
+  changeKind?: string | null;
   /** The log of notes people and agents left on the step, newest last. */
   notes: StoryStepNote[];
 }
@@ -103,8 +109,9 @@ export function storyStepsFromItems(items: readonly SubTaskItemRecord[]): StoryS
     return {
       id: item.lineageId, storyLineageId: item.parentLineageId ?? "", stepKey: text(meta.stepKey) ?? item.lineageId, stepOrder: count(meta.stepOrder),
       templateVersion: count(meta.templateVersion), title: item.title ?? null, command: text(meta.command), state: item.status as StoryStepState,
-      actorKind: text(entry.actorKind), actorLabel: text(entry.actorLabel), changedAt: text(entry.at) ?? item.versionCreatedAt ?? null,
-      reason: text(entry.reason), note: text(entry.note), evidence: text(entry.evidence), notes: storyStepNotes(meta.notes),
+      actorKind: text(entry.actorKind), actorLabel: text(entry.actorLabel), onBehalfOf: text(entry.onBehalfOf), instruction: text(entry.instruction), changedAt: text(entry.at) ?? item.versionCreatedAt ?? null,
+      reason: text(entry.reason), note: text(entry.note), evidence: text(entry.evidence),
+      storyVersion: typeof entry.storyVersion === "number" ? entry.storyVersion : null, changeKind: text(entry.changeKind), notes: storyStepNotes(meta.notes),
     };
   }).sort((a, b) => a.stepOrder - b.stepOrder);
 }
@@ -165,8 +172,17 @@ export function projectStoryStepIssues(storyIssueId: string, steps: readonly Sto
   return [...steps].sort((a, b) => a.stepOrder - b.stepOrder).map(step => ({
     id: `storyStep:${step.id}`, title: step.title || step.stepKey, type: STORY_STEP_ISSUE_TYPE, status: step.state, priority: STORY_STEP_STATE_PRESENTATION[step.state].priority,
     parent: storyIssueId, assignee: ownerLine(step) || undefined, updated_at: step.changedAt || undefined,
-    excerpt: step.reason ? `Reason: ${step.reason}` : step.note ? `Findings: ${step.note}` : undefined, step,
+    excerpt: step.reason ? `${skipVersionText(step)}${step.reason}` : step.note ? `Findings: ${step.note}` : undefined, step,
   }));
+}
+
+const CHANGE_KIND_WORDS: Record<string, string> = { text_unchanged: "text unchanged", picture_only: "picture only", text_edited: "text edited" };
+
+/** What a skip's reason is about: `Skipped on v3 (picture only): `, so a skip carried onto a later version is never read as one about that version. Mirrors `skip_label` in src/papyrus_content/story_checklist.py. */
+export function skipVersionText(step: Pick<StoryStepRecord, "state" | "storyVersion" | "changeKind">): string {
+  if (step.state !== "skipped" || step.storyVersion == null) return "Reason: ";
+  const kind = step.changeKind ? CHANGE_KIND_WORDS[step.changeKind] : undefined;
+  return `Skipped on v${step.storyVersion}${kind ? ` (${kind})` : ""}: `;
 }
 
 /** The Kanbus config for a Story's sub-tasks: one status per state, and a priority per state so each card names its state. */
@@ -196,9 +212,10 @@ export function formatStepTime(iso: string | null | undefined): string {
   return parsed && !Number.isNaN(parsed.getTime()) ? `${STEP_TIME.format(parsed)} UTC` : "";
 }
 
-/** The words that say who changed a step: `Ryan`, `AI (agent)`, or `evidence` for a step the records proved. */
-export function stepActorText(step: Pick<StoryStepRecord, "actorKind" | "actorLabel">): string {
+/** The words that say who changed a step: `Ryan`, `AI (agent)`, `AI (agent, on the instruction of Ryan)` for a delegated change, or `evidence` for a step the records proved. */
+export function stepActorText(step: Pick<StoryStepRecord, "actorKind" | "actorLabel" | "onBehalfOf">): string {
   if (!step.actorLabel) return "";
   if (step.actorKind === "system") return step.actorLabel;
-  return step.actorKind === "agent" ? `${step.actorLabel} (agent)` : step.actorLabel;
+  if (step.actorKind !== "agent") return step.actorLabel;
+  return step.onBehalfOf ? `${step.actorLabel} (agent, on the instruction of ${step.onBehalfOf})` : `${step.actorLabel} (agent)`;
 }

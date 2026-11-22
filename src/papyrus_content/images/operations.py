@@ -135,6 +135,7 @@ class Operation:
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
+    delegable: bool = False                # an agent working in a person's own signed-in session (no run gate) may call it on that person's named instruction; a gated run never may
     group: Literal["images", "guidelines", "announcements", "ratings", "handoffs"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     def __post_init__(self) -> None:
@@ -675,8 +676,8 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         obj({"mode": choice("off", "dry_run", "on", description="Off (default), Dry run (builds the post, sends nothing) or On."),
              "minStars": whole("The lowest star rating that is announced, 1 to 5, never below the quality floor (3 stars)."),
              "storyTypes": many(text(), "Story types that are announced: article, post. References are never announced."), "sections": many(text(), "Limit to these sections."),
-             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review "
-                                          "(a person marked the Story's review step done on its current version) is not confirmed."),
+             "requireReviewedSource": flag("On: an Announcement is made only for a Story a person has reviewed on its current version (its review step done by a person, or by an agent "
+                                          "on a person's recorded instruction). Off by default."),
              "budget": text("Dollars for each X billing cycle, such as 10.00. No default."), "billingCycleDay": whole("The day of the month your X billing cycle starts."),
              "prices": {"type": "object", "description": "X's price list in dollars: createPost, createPostWithUrl, deletePost, readPost, and asOf (YYYY-MM-DD, the date you copied it)."},
              "labelConfirmed": flag("The account shows X's Automated label, managed by a person's account."),
@@ -719,6 +720,13 @@ ANNOUNCEMENT_OPERATIONS: tuple[Operation, ...] = (
         notes="A person only, and an admin of the site. It saves the app keys the console's Save keys button saves, and the answer never carries the secret: a --dry-run shows it as (hidden). "
               "At a terminal, run it with no flags: it asks for the client ID and the secret (hidden). The secret is never a flag: set PAPYRUS_X_CLIENT_SECRET, or pipe it in (`printf %s \"$SECRET\" | papyrus announcements account set-app --client-id ID`). "
               "Connecting the account itself is still the browser step (`announcements account connect`).",
+    ),
+    Operation(
+        "announcements_hashtags", ("hashtags",), "List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first.", "read",
+        obj({"story": STORY_LINEAGE}, ("story",)),
+        record({"lineageId": text(), "hashtags": many(text("A hashtag with its #, in CamelCase, for example #VoiceCloning."))}, ("lineageId", "hashtags")), (),
+        (Example({"story": "story-1"}, {"lineageId": "story-1", "hashtags": ["#VoiceCloning", "#Newsrooms"]}),), positional=("story",), group="announcements",
+        notes="Reads only. The announcement draft may add at most two of these and no other hashtag; a Story with no accepted concept has none. The order is how many Stories use the concept.",
     ),
     Operation(
         "announcements_blocked", ("blocked",), "List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check).", "read",
@@ -768,20 +776,27 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "announcements_review_set", ("review", "set"), "Set the announcement review for the publication, or for one channel, kind or list. Applies to Announcements made afterwards.", "write",
         obj({"approval": choice("none", "soft", "hard", "inherit", description=f"{_APPROVAL['description']} inherit takes an override away, so that scope follows the next wider one."), **_REVIEW_SCOPE,
-             "reason": REASON}, ("approval", "reason")),
+             "reason": REASON,
+             "onInstructionOf": text("For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts."),
+             "quote": text("For an agent only: that person's own words."), "agent": text("For an agent only: its name, recorded as the one who entered the change.")}, ("approval", "reason")),
         _REVIEW_RESULT, ("constraint_conflict",),
         (Example({"approval": "hard", "kind": "roundup", "reason": "Roundups wait for a person."}, {"policyVersion": 4, "approval": "hard", "rung": "prepare", "scope": {"kind": "roundup"}, "changed": True}),),
-        group="announcements", agent_rung=PERSON_ONLY, agent_refusal="blocked",
-        notes="An admin who is a person only; an agent is blocked at every rung. Each change is a new version of the agent policy with who, when and why. An Announcement already planned keeps the review it was "
+        group="announcements", agent_rung=PERSON_ONLY, agent_refusal="blocked", delegable=True,
+        notes="An admin who is a person, or an agent in that person's own session on that person's instruction (never an agent run under the ladder's gate, which is blocked at every rung): it gives onInstructionOf (the person whose admin session it runs in), quote and agent, and may go no higher than hard (prepare); "
+              "the change is recorded as the person's via the agent, with their words in the reason. An agent that gives none of them is blocked. Each change is a new version of the agent policy with who, when and why. An Announcement already planned keeps the review it was "
               "made under unless an editor changes that one (announcements_delivery_review_set). none is the rung publish_auto, which the ladder's hard floor refuses until the doubt gate exists (PPY-36e7c9).",
     ),
     Operation(
         "announcements_delivery_review_set", ("delivery", "review"), "Change the review of one Delivery that has not gone. The publication's policy and the other Deliveries do not change.", "write",
-        obj({"delivery": text("The Delivery's id."), "approval": _APPROVAL}, ("delivery", "approval")),
+        obj({"delivery": text("The Delivery's id."), "approval": _APPROVAL,
+             "onInstructionOf": text("For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts."),
+             "quote": text("For an agent only: that person's own words."), "agent": text("For an agent only: its name, recorded as the one who entered the change.")}, ("delivery", "approval")),
         record({"id": text(), "approval": text(), "approvalPolicy": text(), "approvedBy": {"type": ["string", "null"]}}, ("id", "approval", "approvalPolicy")), ("not_found",),
         (Example({"delivery": "announcement-1#linkedin#page#g1", "approval": "hard"}, {"id": "announcement-1#linkedin#page#g1", "approval": "hard", "approvalPolicy": "set for this Delivery by Ada Admin", "approvedBy": None}),),
-        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY,
-        notes="A person only (an editor or an admin). An agent gets human_required: it may not choose how much review a Delivery gets.",
+        group="announcements", positional=("delivery",), agent_rung=PERSON_ONLY, delegable=True,
+        notes="A person (an editor or an admin), or an agent in an admin's own session on that person's named instruction (onInstructionOf, quote, agent; never a gated run): "
+              "the person chose this one Delivery's review, recorded as theirs via the agent with their words. none approves the current version, so the person should have read it. "
+              "An agent that names nobody gets human_required.",
     ),
     Operation(
         "announcements_draft", ("draft",), "Save a Delivery's words as the next version, or keep a text or picture beside the draft as a candidate.", "write",
@@ -834,7 +849,8 @@ REVIEW_OPERATIONS: tuple[Operation, ...] = (
         "announcements_release", ("release",), "Release a Delivery: hand it to its channel now.", "write",
         obj({"delivery": text("The Delivery's id.")}, ("delivery",)), record({"id": text()}, ("id",)), ("not_found",), (Example({"delivery": "announcement-1#x#handle#g1"}, {"id": "announcement-1#x#handle#g1"}),),
         group="announcements", positional=("delivery",), agent_rung="publish_auto",
-        notes="Under none the policy released it, so an agent at publish_auto may. Under soft or hard an agent is told human_required: a person releases it. A person always may. Built with the channel transport.",
+        notes="Under none the policy released it, so an agent at publish_auto may. Under soft or hard an agent is told human_required: a person releases it. A person always may. "
+              "Releasing approves the version that would go, as the caller; the announce agent wakes for that approval and sends it through the channel. Releasing one already approved changes nothing.",
     ),
     Operation(
         "announcements_unlock", ("unlock",), "Unlock a Delivery after its lock time, so it can be edited again.", "write",
@@ -992,16 +1008,48 @@ OPERATIONS = OPERATIONS + LIST_OPERATIONS
 
 RATING_OPERATIONS: tuple[Operation, ...] = (
     Operation(
-        "ratings_set", ("set",), "Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated.", "write",
-        obj({"story": STORY_LINEAGE, "stars": whole("The rating, 1 to 5. An agent may only give 3 or 4.")}, ("story", "stars")),
+        "ratings_set", ("set",), "Give a Story a star rating, 1 to 5. Only a person rates; an agent suggests with ratings_suggest.", "write",
+        obj({"story": STORY_LINEAGE, "stars": whole("The rating, 1 to 5.")}, ("story", "stars")),
         record({"lineageId": text(), "previous": whole("The rating before this one: 0 when the Story had none.", minimum=0), "stars": whole(), "ratedBy": text()},
                ("lineageId", "stars")),
-        ("not_found", "constraint_conflict"),
-        (Example({"story": "story-1", "stars": 3}, {"lineageId": "story-1", "previous": 0, "stars": 3, "ratedBy": "agent:rate"}),), positional=("story",), group="ratings",
-        notes="A person's rating is the editor's value and replaces any earlier one. An agent's call is held to the rating policy here as well as at the gate: three is the "
-              "default, four is for a clearly better Story, a five is a person's decision and is refused with invalid_input, and a Story that already has a rating "
-              "is refused with constraint_conflict because a machine never replaces a rating. The rating is recorded as the agent's own (ratedBy agent:<responsibility>).",
-        agent_rung="draft",
+        ("not_found", "not_authorized"),
+        (Example({"story": "story-1", "stars": 4}, {"lineageId": "story-1", "previous": 0, "stars": 4, "ratedBy": "an editor"}),), positional=("story",), group="ratings",
+        notes="A person's rating is the editor's value and replaces any earlier one. A machine never writes a rating: an agent's call is refused with "
+              "not_authorized at every rung (PPY-e61642).",
+        agent_rung="person",
+    ),
+    Operation(
+        "ratings_suggest", ("suggest",), "Suggest stars for a Story nobody has rated: three or four, or five for a five-star candidate. It sits beside the rating and is never the rating.", "write",
+        obj({"story": STORY_LINEAGE, "stars": whole("3 or 4, or 5 for a five-star candidate a person decides.")}, ("story", "stars")),
+        record({"lineageId": text(), "stars": whole(), "candidate": flag(), "suggestedBy": text(), "run": {"type": ["string", "null"]}}, ("lineageId", "stars", "candidate")),
+        ("not_found", "invalid_input", "constraint_conflict"),
+        (Example({"story": "story-1", "stars": 4}, {"lineageId": "story-1", "stars": 4, "candidate": False, "suggestedBy": "agent:rate", "run": "run-1"}),),
+        positional=("story",), group="ratings",
+        notes="A Story somebody rated is refused with constraint_conflict: a person's rating always wins. The suggestion records who made it and the run whose "
+              "record holds the reason. A person confirms it with ratings_confirm, rates other stars, or leaves it.",
+        agent_rung="propose",
+    ),
+    Operation(
+        "ratings_confirm", ("confirm",), "Make a Story's suggested stars your rating, or give other stars instead.", "write",
+        obj({"story": STORY_LINEAGE, "stars": whole("Other stars, 1 to 5, instead of the suggested ones. Leave out to confirm the suggestion.")}, ("story",)),
+        record({"lineageId": text(), "stars": whole(), "suggested": whole(), "changed": flag(), "ratedBy": text()}, ("lineageId", "stars", "suggested", "changed")),
+        ("not_found", "constraint_conflict", "not_authorized"),
+        (Example({"story": "story-1"}, {"lineageId": "story-1", "stars": 4, "suggested": 4, "changed": False, "ratedBy": "an editor"}),), positional=("story",), group="ratings",
+        notes="Only a person decides a suggestion. A Story with no suggestion is not_found; one already rated is constraint_conflict (rate it with ratings_set).",
+        agent_rung="person",
+    ),
+    Operation(
+        "ratings_suggestions_review", ("suggestions-review",), "Raise the day's one review of suggested ratings, or add Stories to it while it is open.", "write",
+        obj({"day": text("The day, YYYY-MM-DD, in the site's time zone."),
+             "suggestions": many(record({"story": STORY_LINEAGE, "title": text(), "stars": whole()}, ("story", "stars")), "The Stories suggested, with their stars.")},
+            ("day", "suggestions")),
+        record({"request": text(), "reason": text(), "state": text(), "stories": many(text(), "Every Story the request links.")}, ("request", "reason", "state", "stories")),
+        ("invalid_input",),
+        (Example({"day": "2026-11-21", "suggestions": [{"story": "story-1", "title": "Slow water", "stars": 4}]},
+                 {"request": "rr-ratings-2026-11-21", "reason": "1 rating suggested, 0 five-star candidates", "state": "open", "stories": ["story-1"]}),),
+        group="ratings",
+        notes="One soft review per day: a second call that day adds its Stories to the open request and recounts it; an answered request is left as it is.",
+        agent_rung="propose",
     ),
 )
 

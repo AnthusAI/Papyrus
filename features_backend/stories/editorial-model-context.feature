@@ -3,14 +3,14 @@ Feature: The publication's stored guidance reaches every model request
   and the copy-edit controls. It carries only the guidance of the section the request is for, a request prepared before the policy
   changed is refused before it is sent, and a call that names no model uses the one standard model.
 
-  Scenario: A classification request inherits only its selected desk guidance
-    Given current synthetic publication doctrine and two independent desks
-    When a classification request is prepared for the science desk
+  Scenario: A classification request inherits only the guidance of its section
+    Given current synthetic publication doctrine and two independent sections
+    When a classification request is prepared for the science section
     Then its request contains publication and science policy without business policy
 
   Scenario: A changed database policy replaces stale request context
-    Given current synthetic publication doctrine and two independent desks
-    When a classification request is prepared for the science desk
+    Given current synthetic publication doctrine and two independent sections
+    When a classification request is prepared for the science section
     And the current publication policy is updated in the database
     Then the old prepared request is refused before model transmission
     And a fresh request contains the updated policy and a different context identity

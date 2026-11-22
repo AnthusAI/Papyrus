@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "4a93b5bc-1ec3-4692-a24a-0a2d7c5175f9",
+  "issue_id": "PPY-5503491e-8944-452c-91b8-b81ccdc0178a",
+  "event_type": "dependency_added",
+  "occurred_at": "2026-11-22T19:02:57.770Z",
+  "actor_id": "ryan",
+  "payload": {
+    "dependency_type": "relates-to",
+    "target_id": "PPY-924693bd-df0d-4bb1-85ba-145cb6cf0417"
+  }
+}

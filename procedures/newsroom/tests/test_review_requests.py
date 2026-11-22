@@ -1,18 +1,41 @@
-"""Human review points (PPY-ab6a50): the three modes, the deadline, answers, steering read-back, waiting, the batch hook, recipients."""
+"""Human review points (PPY-ab6a50): the three modes, the deadline timer (PPY-9b8e59), answers, steering read-back, waiting, the batch hook, recipients."""
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from fake_client import FakeAuthoringClient
-from papyrus_content import review_requests as rr
+from papyrus_content import follow_up_timers as fu, review_requests as rr
+from papyrus_content.review_deadline_timers import OWNER
 from papyrus_content.review_requests import ReviewError, ReviewStillOpen
 
 T0 = datetime(2026, 10, 23, 12, 0, tzinfo=timezone.utc)
 STORY = {"type": "story", "id": "story-1"}
 
 
+class Timers:
+    """The site's deadline timers as the requests see them: one entry per request with a due time. ``fire_until`` runs the wake of each entry that came due."""
+
+    def __init__(self):
+        self.entries = {}
+
+    def sync(self, row):
+        if row.get("dueAt"):
+            self.entries[row["id"]] = row["dueAt"]
+        else:
+            self.entries.pop(row["id"], None)
+
+    def fire_until(self, client, moment):
+        for request_id, due in sorted(self.entries.items(), key=lambda entry: entry[1]):
+            if fu.parse_utc(due) <= moment:
+                del self.entries[request_id]
+                rr.on_deadline_wake(client, fu.follow_up_key(OWNER, request_id, due), now=moment)
+
+
+TIMERS = Timers()
+
+
 def raise_(client, mode="soft_review", **changes):
-    arguments = dict(subject=STORY, mode=mode, reason="Check this", raised_by="procedure:ideas", now=T0)
+    arguments = dict(subject=STORY, mode=mode, reason="Check this", raised_by="procedure:ideas", now=T0, deadline_timers=TIMERS)
     if mode == "soft_review" and "deadline" not in changes and "deadline_days" not in changes:
         arguments["deadline_days"] = 7  # the tests of the deadline ask for one; a soft review has none unless asked
     arguments.update(changes)
@@ -20,16 +43,18 @@ def raise_(client, mode="soft_review", **changes):
 
 
 class Clock:
-    """A clock that `sleep` moves, so a wait that would take days takes no time."""
+    """A clock that `sleep` moves, so a wait that would take days takes no time. Time going by fires the timers that come due, with nobody reading."""
 
-    def __init__(self, start=T0):
-        self.now = start
+    def __init__(self, client=None, timers=None, start=T0):
+        self.now, self.client, self.timers = start, client, timers
 
     def __call__(self):
         return self.now
 
     def sleep(self, seconds):
         self.now += timedelta(seconds=seconds)
+        if self.timers is not None:
+            self.timers.fire_until(self.client, self.now)
 
 
 # --- raising ---------------------------------------------------------------------------------------------------
@@ -46,10 +71,10 @@ def test_a_soft_review_has_no_deadline_by_default_and_is_never_timed_out():
     request = rr.raise_review(client, subject=STORY, mode="soft_review", reason="Check this", raised_by="p", now=T0)
     assert request["state"] == "open" and request["deadline"] is None
     later = T0 + timedelta(days=3650)
-    assert rr.expire_due(client, now=later) == []
-    assert rr.get_review(client, request["id"], now=later)["state"] == "open"
-    assert [r["id"] for r in rr.list_reviews(client, state="open", now=later)] == [request["id"]]
-    assert "open until handled" in rr._line(rr.get_review(client, request["id"], now=later))
+    assert "dueAt" not in client.tables["ReviewRequest"][request["id"]] or client.tables["ReviewRequest"][request["id"]]["dueAt"] is None
+    assert rr.get_review(client, request["id"])["state"] == "open"
+    assert [r["id"] for r in rr.list_reviews(client, state="open")] == [request["id"]]
+    assert "open until handled" in rr._line(rr.get_review(client, request["id"]))
     answered = rr.answer_review(client, request["id"], decision="approve", by="ed", roles=["editor"], now=later)
     assert answered["state"] == "answered"
 
@@ -85,37 +110,92 @@ def test_raising_with_the_same_id_twice_returns_the_first_request():
     client = FakeAuthoringClient()
     first = raise_(client, request_id="rr-same")
     second = raise_(client, request_id="rr-same", reason="Different")
-    assert second["reason"] == first["reason"] and len(client.list_records("ReviewRequest")) == 1
+    assert second["reason"] == first["reason"] and len(client.tables["ReviewRequest"]) == 1
 
 
-# --- the deadline: check on read ----------------------------------------------------------------------------------
+# --- the deadline: a follow-up timer ----------------------------------------------------------------------------------
 
 
-def test_a_soft_review_past_its_deadline_is_timed_out_and_records_proceeded_without_review():
+def test_every_request_carries_its_state_key_and_only_an_open_soft_review_with_a_deadline_carries_a_due_time():
     client = FakeAuthoringClient()
-    request = raise_(client)
-    assert rr.expire_due(client, now=T0 + timedelta(days=6)) == []
-    assert rr.expire_due(client, now=T0 + timedelta(days=7)) == [request["id"]]
-    stored = rr.get_review(client, request["id"], now=T0 + timedelta(days=8))
+    soft, open_ended, flag, gate = raise_(client), raise_(client, deadline_days=None), raise_(client, "flag"), raise_(client, "hard_gate")
+    rows = client.tables["ReviewRequest"]
+    assert {rows[request["id"]]["reviewStateKey"] for request in (soft, open_ended, flag, gate)} == {"review#open"}
+    assert rows[soft["id"]]["dueAt"] == soft["deadline"] == "2026-10-30T12:00:00Z"
+    assert all(rows[request["id"]].get("dueAt") is None for request in (open_ended, flag, gate))
+
+
+def test_a_deadline_is_kept_to_the_whole_second_and_a_soft_review_with_one_needs_timers():
+    client = FakeAuthoringClient()
+    assert raise_(client, deadline="2026-10-30T12:00:00.750000+00:00")["deadline"] == "2026-10-30T12:00:00Z"
+    with pytest.raises(ReviewError, match="follow-up timer"):
+        rr.raise_review(client, subject=STORY, mode="soft_review", reason="Check", raised_by="p", deadline_days=3)
+
+
+def test_the_deadline_wake_times_out_a_soft_review_that_still_waits_for_that_time():
+    client, timers = FakeAuthoringClient(), Timers()
+    request = raise_(client, deadline_timers=timers)
+    assert timers.entries == {request["id"]: "2026-10-30T12:00:00Z"}
+    timers.fire_until(client, T0 + timedelta(days=6))
+    assert rr.get_review(client, request["id"])["state"] == "open", "not before its deadline"
+    timers.fire_until(client, T0 + timedelta(days=7))
+    stored = rr.get_review(client, request["id"])
     assert stored["state"] == "timed_out" and stored["outcome"] == "proceeded_without_review"
     assert stored["history"][-1]["note"] == "proceeded without review" and stored["history"][-1]["by"] == "system"
-    assert rr.expire_due(client, now=T0 + timedelta(days=9)) == [], "idempotent"
-
-
-def test_listing_sweeps_and_a_late_answer_is_refused_with_the_reason():
-    client = FakeAuthoringClient()
-    request = raise_(client)
-    listed = rr.list_reviews(client, now=T0 + timedelta(days=8))
-    assert listed[0]["state"] == "timed_out"
+    row = client.tables["ReviewRequest"][request["id"]]
+    assert row["reviewStateKey"] == "review#timed_out" and row["dueAt"] is None and timers.entries == {}
     with pytest.raises(ReviewError, match="proceeded without review"):
         rr.answer_review(client, request["id"], decision="approve", by="ed", now=T0 + timedelta(days=8))
 
 
-def test_a_flag_and_a_hard_gate_never_time_out():
+def test_a_deadline_wake_for_a_time_the_request_no_longer_waits_for_does_nothing():
     client = FakeAuthoringClient()
-    raise_(client, "flag"), raise_(client, "hard_gate")
-    assert rr.expire_due(client, now=T0 + timedelta(days=3650)) == []
-    assert {request["state"] for request in rr.list_reviews(client, now=T0 + timedelta(days=3650))} == {"open"}
+    request = raise_(client)
+    key = fu.follow_up_key(OWNER, request["id"], request["deadline"])
+    rr.answer_review(client, request["id"], decision="approve", by="ed", now=T0)
+    assert rr.on_deadline_wake(client, key, now=T0 + timedelta(days=7))["action"] == "nothing"
+    assert rr.get_review(client, request["id"])["state"] == "answered"
+    assert rr.on_deadline_wake(client, fu.follow_up_key(OWNER, "rr-gone", "2026-10-30T12:00:00Z"))["reason"].endswith("the record is gone.")
+
+
+def test_an_answer_or_a_withdrawal_with_the_timers_at_hand_deletes_the_entry():
+    client, timers = FakeAuthoringClient(), Timers()
+    answered, withdrawn = raise_(client, deadline_timers=timers), raise_(client, deadline_timers=timers)
+    rr.answer_review(client, answered["id"], decision="approve", by="ed", now=T0, deadline_timers=timers)
+    rr.withdraw_review(client, withdrawn["id"], by="p", now=T0, deadline_timers=timers)
+    assert timers.entries == {}
+    rows = client.tables["ReviewRequest"]
+    assert (rows[answered["id"]]["reviewStateKey"], rows[withdrawn["id"]]["reviewStateKey"]) == ("review#answered", "review#withdrawn")
+
+
+def test_a_flag_and_a_hard_gate_never_time_out():
+    client, timers = FakeAuthoringClient(), Timers()
+    raise_(client, "flag", deadline_timers=timers), raise_(client, "hard_gate", deadline_timers=timers)
+    assert timers.entries == {}
+    assert {request["state"] for request in rr.list_reviews(client)} == {"open"}
+
+
+def test_reads_are_by_state_partition_and_never_list_the_table():
+    client = FakeAuthoringClient()
+    open_id, answered_id = raise_(client)["id"], raise_(client)["id"]
+    rr.answer_review(client, answered_id, decision="approve", by="ed", now=T0)
+    client.calls.clear()
+    assert [request["id"] for request in rr.list_reviews(client, state="open")] == [open_id]
+    assert sorted(request["id"] for request in rr.list_reviews(client)) == sorted([open_id, answered_id])
+    assert not [call for call in client.calls if call[0] == "list"], client.calls
+    assert {call[2] for call in client.calls if call[0] == "list_by_index"} == {rr.review_state_key(state) for state in rr.STATES}
+
+
+def test_the_backfill_gives_older_requests_their_state_key_and_due_time_once():
+    client = FakeAuthoringClient({"ReviewRequest": [
+        {"id": "rr-old-open", "mode": "soft_review", "state": "open", "deadline": "2026-10-30T12:00:00.5Z", "raisedAt": "2026-10-23T12:00:00Z"},
+        {"id": "rr-old-answered", "mode": "hard_gate", "state": "answered", "raisedAt": "2026-10-23T12:00:00Z"}]})
+    assert rr.backfill_state_index(client, apply=False) == {"applied": False, "requests": ["rr-old-open", "rr-old-answered"]}
+    assert rr.backfill_state_index(client, apply=True)["applied"] is True
+    rows = client.tables["ReviewRequest"]
+    assert rows["rr-old-open"]["reviewStateKey"] == "review#open" and rows["rr-old-open"]["dueAt"] == "2026-10-30T12:00:00Z"
+    assert rows["rr-old-answered"]["reviewStateKey"] == "review#answered" and rows["rr-old-answered"]["dueAt"] is None
+    assert rr.backfill_state_index(client, apply=True)["requests"] == [], "a second run writes nothing"
 
 
 # --- answers -----------------------------------------------------------------------------------------------------------
@@ -170,8 +250,9 @@ def test_a_flag_never_blocks():
 
 
 def test_a_soft_review_waits_then_proceeds_without_review_at_the_deadline():
-    client, clock = FakeAuthoringClient(), Clock()
-    request = raise_(client)
+    client, timers = FakeAuthoringClient(), Timers()
+    clock = Clock(client, timers)
+    request = raise_(client, deadline_timers=timers)
     result = rr.wait_for_review(client, request["id"], poll_seconds=3600, sleep=clock.sleep, clock=clock)
     assert result["outcome"] == "proceeded_without_review" and result["state"] == "timed_out"
     assert clock.now >= T0 + timedelta(days=7), "it waited until the deadline"
@@ -197,7 +278,7 @@ def test_a_hard_gate_blocks_indefinitely_and_never_proceeds_without_review():
     with pytest.raises(ReviewStillOpen) as stopped:
         rr.wait_for_review(client, request["id"], poll_seconds=86_400, max_wait_seconds=365 * 86_400, sleep=clock.sleep, clock=clock)
     assert stopped.value.request["state"] == "open"
-    assert rr.get_review(client, request["id"], now=clock.now)["state"] == "open", "a year later it is still waiting"
+    assert rr.get_review(client, request["id"])["state"] == "open", "a year later it is still waiting"
 
 
 def test_a_hard_gate_continues_only_on_an_explicit_answer():
@@ -247,7 +328,7 @@ def test_one_soft_review_per_synthesis_run_with_the_count_in_the_reason_and_no_d
     assert request["deadline"] is None and request["subject"] == {"type": "batch", "id": "2026-W43"}
     assert [link["id"] for link in request["links"]] == ["p1", "p2", "p3"]
     again = rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id="2026-W43", idea_ids=["p1", "p2", "p3"], now=T0)
-    assert again["id"] == request["id"] and len(client.list_records("ReviewRequest")) == 1
+    assert again["id"] == request["id"] and len(client.tables["ReviewRequest"]) == 1
     assert rr.raise_batch_review(client, raised_by="i", batch_id="b2", idea_ids=["p9"], now=T0)["reason"] == "1 new story idea to review"
     with pytest.raises(ReviewError, match="at least one"):
         rr.raise_batch_review(client, raised_by="i", batch_id="b3", idea_ids=[])

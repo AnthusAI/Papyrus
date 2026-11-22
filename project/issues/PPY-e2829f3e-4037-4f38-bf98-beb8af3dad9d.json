@@ -1,0 +1,67 @@
+{
+  "id": "PPY-e2829f3e-4037-4f38-bf98-beb8af3dad9d",
+  "title": "M2: A five-star Story is announced on X after one approval, within budget (MoM)",
+  "description": "**Tasks:** PPY-9376f8 (budget stop, $10 default, merged #1840); PPY-9b8e59 (review deadline timers and the engine's own follow-up wakes, #1842); PPY-6af46b (model key rotation; the key expires about 1-4 December); PPY-1ea28b (#1777); PPY-817340 (wake guard live proof); the channel pause of PPY-3f68f4. Also: record the owner decisions in the design doc and board (suggestions only, $10 monthly default, system wakes without adoption) and re-parent PPY-eef85d, PPY-c023ab and PPY-8195a4 so their epics can close.\n\n**Exit test (on MoM):** Ryan publishes a five-star Story; the draft is waiting, and overdue after its deadline with nobody looking; he approves and it is on @0nmachines within minutes; the Delivery reads sent; the spend page count rises by one; with the budget set below spend a paid run waits and one flag appears. Closes epic PPY-4bc313.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a3fceb9c-2a88-4875-8e66-42d33025422f",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-4675f694-df61-4e99-bcb3-ad8cdf9404f3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9376f848-716f-4c00-9376-c3b2e0b783f3",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-9b8e5955-bcb4-47ed-9491-d615247310cf",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-6af46b37-6444-400d-a6aa-43ac4923211b",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-1ea28b94-488a-409d-a1b1-7c5d46064328",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-81734013-a915-4f1b-a155-f3d68b508c56",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-3f68f4e1-6477-4435-aa95-9e3256aa3041",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "8b4b3f5a-123e-4058-8b7b-261f0a713fa7",
+      "author": "ryan",
+      "text": "Started 2026-11-22. Merged and live already: PPY-9376f8 (budget stop) and PPY-9b8e59 (review deadline timers + engine follow-up wakes), released in 5.147.0. Also in this milestone's release: #1851 (translations without human review on MoM).",
+      "created_at": "2026-11-22T21:48:10.863571Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
+  "created_at": "2026-11-22T19:02:56.071717Z",
+  "updated_at": "2026-11-22T21:48:10.863736Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

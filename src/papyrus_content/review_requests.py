@@ -14,14 +14,16 @@ An answer is ``approve``, ``acknowledge`` (the flag form of approve: nothing was
 it: that step reads them back with ``steering_for`` and records that it used them with ``mark_applied``
 ("You steered X, applied in run Y").
 
-Deadline mechanism, v0: **checked on read.** ``expire_due`` marks every open soft review whose deadline has
-passed as ``timed_out``; ``list_reviews``, ``get_review``, ``answer_review`` and ``wait_for_review`` all call it
-first, and so does the console when it loads. No scheduled function is needed because nothing else has to
-happen at the deadline: the raising process decides to proceed when it reads the timed-out state, and the
-console shows the state the moment someone looks. A scheduled sweep is a later addition for email at the
-deadline.
+**The deadline is a follow-up timer** (PPY-9b8e59). An open soft review with a deadline carries ``dueAt`` (its deadline); nothing
+else does. Raising it sets one follow-up timer (``review_deadline_timers``); an answer or a withdrawal clears ``dueAt`` and the timer.
+At the deadline the timer's wake runs ``on_deadline_wake``, which re-reads the request and, if it still waits for exactly that time,
+records "proceeded without review" (state ``timed_out``) in one conditional write. Nothing is checked on read and nothing polls.
 
-The client is the authoring client (``get_record``, ``create_record``, ``update_record``, ``list_records``), so
+**Reads are by index.** Every request carries ``reviewStateKey`` (``review#<state>``, the tenant in front on a shared stack), the
+partition of the index ``reviewRequestsByState``: ``list_reviews`` reads the partition of the state it is asked for (each state's
+own partition when it is asked for none), and no read lists the table.
+
+The client is the authoring client (``get_record``, ``create_record``, ``update_record``, ``list_by_index``), so
 the CLI (user or IAM operator credentials), automations and procedures (their managed IAM roles) and the tests
 share one implementation. Who may answer is enforced by the backend model's authorization (editors and admins);
 ``answer_review`` also refuses a caller whose roles are known and lack both.
@@ -36,7 +38,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from . import follow_up_timers
 from .staff_groups import STAFF_GROUPS, has_editor_rights
+from .tenant_knowledge_keys import global_key
 
 MODES = ("flag", "soft_review", "hard_gate")
 STATES = ("open", "answered", "timed_out", "withdrawn")
@@ -46,10 +50,12 @@ ANSWERING_ROLES = STAFF_GROUPS
 RECIPIENT_SCOPES = ("default", "mode", "automation")
 RECIPIENT_ROLES = ("editor", "admin")
 PROCEEDED_WITHOUT_REVIEW = "proceeded without review"
-SUBJECT_TYPES = ("story", "proposal", "reference", "automation_run", "cyclotron_decision", "batch", "label", "delivery")   # a label: the id is the thing's entity key, section#id or concept#lineage; a delivery: the Delivery id
+SUBJECT_TYPES = ("story", "proposal", "reference", "automation_run", "cyclotron_decision", "batch", "label", "delivery", "review_request")   # a label: the id is the thing's entity key, section#id or concept#lineage; a delivery: the Delivery id; a review_request: an overdue deadline
 REQUEST_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MAX_TEXT = 2000
 MAX_HISTORY = 50
+STATE_INDEX = "reviewRequestsByState"
+STATE_KEY_PREFIX = "review#"
 
 
 class ReviewError(ValueError):
@@ -65,6 +71,25 @@ class ReviewStillOpen(RuntimeError):
 
 
 # --- small helpers --------------------------------------------------------------------------------------
+
+
+def review_state_key(state: str) -> str:
+    """The partition of the state index for one state, as this stack stores it (the tenant in front on a shared stack)."""
+    if state not in STATES:
+        raise ReviewError(f"state must be one of {', '.join(STATES)}.")
+    return global_key(f"{STATE_KEY_PREFIX}{state}")
+
+
+def due_at_of(request: dict[str, Any]) -> str | None:
+    """The time an open soft review's timer wakes for: its deadline. None for anything else, so the row carries no ``dueAt``."""
+    if request.get("mode") == "soft_review" and request.get("state") == "open" and request.get("deadline"):
+        return str(request["deadline"])
+    return None
+
+
+def state_fields(state: str) -> dict[str, Any]:
+    """What every write that leaves a request in ``state`` other than open carries: the state, its index key and no due time."""
+    return {"state": state, "reviewStateKey": review_state_key(state), "dueAt": None}
 
 
 def now_iso(now: datetime | None = None) -> str:
@@ -161,6 +186,8 @@ def outcome_of(state: str | None, answer: dict[str, Any] | None) -> str:
 
 def _stored(request: dict[str, Any]) -> dict[str, Any]:
     payload = {key: request.get(key) for key in ("id", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "updatedAt")}
+    payload["reviewStateKey"] = review_state_key(request["state"])
+    payload["dueAt"] = due_at_of(request)
     for key in ("subject", "answer", "links", "history", "appliedIn"):
         payload[key] = json.dumps(request[key]) if request.get(key) is not None else None
     return {key: value for key, value in payload.items() if value is not None}
@@ -168,11 +195,13 @@ def _stored(request: dict[str, Any]) -> dict[str, Any]:
 
 def raise_review(client, *, subject: dict[str, Any], mode: str, reason: str, raised_by: str, ask: str | None = None,
                  deadline: str | None = None, deadline_days: float | None = None, links: Any = None,
-                 request_id: str | None = None, now: datetime | None = None) -> dict[str, Any]:
+                 request_id: str | None = None, now: datetime | None = None, deadline_timers: Any = None) -> dict[str, Any]:
     """Raise a review request. A given ``request_id`` makes the call idempotent: raising it again returns the existing request.
 
     A soft review has no deadline unless the caller passes one (``deadline`` or ``deadline_days``): by default it stays open until
-    someone handles it and is never timed out. A flag and a hard gate take none."""
+    someone handles it and is never timed out. A flag and a hard gate take none. A deadline is a follow-up timer, so a soft review
+    with one needs the site's ``deadline_timers`` (``review_deadline_timers.ReviewDeadlineTimers``); it is refused without them.
+    A deadline is kept to the whole second, the precision of a timer."""
     if mode not in MODES:
         raise ReviewError(f"mode must be one of {', '.join(MODES)}.")
     if request_id is not None and not REQUEST_ID.match(request_id):
@@ -186,17 +215,19 @@ def raise_review(client, *, subject: dict[str, Any], mode: str, reason: str, rai
         if deadline is not None:
             if parse_time(deadline) is None:
                 raise ReviewError("deadline must be an ISO date and time.")
-            deadline_at = now_iso(parse_time(deadline))
+            deadline_at = timer_time(parse_time(deadline))
         elif deadline_days is not None:
             if deadline_days <= 0:
                 raise ReviewError("deadline_days must be more than zero.")
-            deadline_at = now_iso(moment + timedelta(days=deadline_days))
+            deadline_at = timer_time(moment + timedelta(days=deadline_days))
         else:
             deadline_at = None  # no expiry: the request stays open until someone handles it
     else:
         if deadline is not None or deadline_days is not None:
             raise ReviewError(f"a {mode.replace('_', ' ')} has no deadline: only a soft review waits until one.")
         deadline_at = None
+    if deadline_at is not None and deadline_timers is None:
+        raise ReviewError("a soft review with a deadline sets a follow-up timer for it, and no timers were given: pass the site's deadline timers.")
     raised_at = now_iso(moment)
     by = _text(raised_by, "raisedBy", required=True, limit=200)
     request = {
@@ -206,27 +237,31 @@ def raise_review(client, *, subject: dict[str, Any], mode: str, reason: str, rai
         "state": "open", "answer": None, "links": _links(links),
         "history": _history(None, "raised", by=by, at=raised_at, note=mode), "appliedIn": None, "updatedAt": raised_at,
     }
-    client.create_record("ReviewRequest", _stored(request))
-    return read_review(_stored(request))
+    stored = _stored(request)
+    client.create_record("ReviewRequest", stored)
+    if stored.get("dueAt"):
+        deadline_timers.sync(stored)   # after the row exists, so the wake always finds what it was set for
+    return read_review(stored)
 
 
-def get_review(client, request_id: str, *, sweep: bool = True, now: datetime | None = None) -> dict[str, Any]:
+def get_review(client, request_id: str) -> dict[str, Any]:
     row = client.get_record("ReviewRequest", request_id)
     if not row:
         raise ReviewError(f"review request {request_id} does not exist.")
-    if sweep:
-        _expire_row(client, row, now or datetime.now(timezone.utc))
-        row = client.get_record("ReviewRequest", request_id) or row
     return read_review(row)
 
 
+def rows_in_state(client, state: str) -> list[dict[str, Any]]:
+    """Every stored request in one state: one key-condition query on the state index."""
+    return client.list_by_index(STATE_INDEX, review_state_key(state))
+
+
 def list_reviews(client, *, state: str | None = None, mode: str | None = None, raised_by: str | None = None,
-                 subject_id: str | None = None, sweep: bool = True, now: datetime | None = None) -> list[dict[str, Any]]:
-    if sweep:
-        expire_due(client, now=now)
-    found = [read_review(row) for row in client.list_records("ReviewRequest")]
+                 subject_id: str | None = None) -> list[dict[str, Any]]:
+    """Requests newest first, read from the state index: the partition of ``state``, or each state's own partition when none is named."""
+    found = [read_review(row) for named in ((state,) if state else STATES) for row in rows_in_state(client, named)]
     return sorted((request for request in found
-                   if (state is None or request["state"] == state) and (mode is None or request["mode"] == mode)
+                   if (mode is None or request["mode"] == mode)
                    and (raised_by is None or request["raisedBy"] == raised_by)
                    and (subject_id is None or request["subject"].get("id") == subject_id)),
                   key=lambda request: request["raisedAt"] or "", reverse=True)
@@ -235,34 +270,55 @@ def list_reviews(client, *, state: str | None = None, mode: str | None = None, r
 # --- the deadline ------------------------------------------------------------------------------------------
 
 
-def is_due(request: dict[str, Any], moment: datetime) -> bool:
-    deadline = parse_time(request.get("deadline"))
-    return request.get("mode") == "soft_review" and request.get("state") == "open" and deadline is not None and deadline <= moment
+def timer_time(moment: datetime) -> str:
+    """A time as a timer and ``dueAt`` hold it: a UTC instant to the whole second."""
+    return moment.astimezone(timezone.utc).strftime(follow_up_timers.TIME_FORMAT)
 
 
-def _expire_row(client, row: dict[str, Any], moment: datetime) -> bool:
-    request = read_review(row)
-    if not is_due(request, moment):
-        return False
-    at = now_iso(moment)
-    client.update_record("ReviewRequest", {
-        "id": request["id"], "state": "timed_out", "updatedAt": at,
+def on_deadline_wake(client, wake_key: str, *, now: datetime | None = None) -> dict[str, Any]:
+    """What a soft review's deadline timer does when it fires: re-read the request and, if it still waits for exactly the time the wake names,
+    record "proceeded without review" (``timed_out``) in one write conditional on that. An answer, a withdrawal or a deleted request means the wake does nothing.
+
+    Returns ``{"action": "timed_out" | "nothing", "requestId", "reason"}``."""
+    record_id = follow_up_timers.record_id_of(wake_key)
+    row = client.get_record("ReviewRequest", record_id)
+    waits = follow_up_timers.check_wake(wake_key, row)
+    if not waits["waiting"]:
+        return {"action": "nothing", "requestId": record_id, "reason": waits["reason"]}
+    at = now_iso(now)
+    written = client.update_record_if("ReviewRequest", {
+        "id": record_id, **state_fields("timed_out"), "updatedAt": at,
         "history": json.dumps(_history(row.get("history"), "timed_out", by="system", at=at, note=PROCEEDED_WITHOUT_REVIEW)),
-    })
-    return True
+    }, {"state": {"eq": "open"}, "dueAt": {"eq": waits["dueAt"]}})
+    if not written:
+        return {"action": "nothing", "requestId": record_id, "reason": "Nothing to do: the request changed while the deadline was being recorded."}
+    return {"action": "timed_out", "requestId": record_id, "reason": None}
 
 
-def expire_due(client, *, now: datetime | None = None) -> list[str]:
-    """Mark every open soft review past its deadline as timed out ("proceeded without review"). Idempotent. Returns the ids."""
-    moment = now or datetime.now(timezone.utc)
-    return [row["id"] for row in client.list_records("ReviewRequest") if _expire_row(client, row, moment)]
+def deadline_run(client, review_request_id: str, due_at: str, *, now: datetime | None = None) -> dict[str, Any]:
+    """The ``review_deadline`` procedure's one step: the wake for this request's deadline, with the outcome the runner records (``acted`` when the request
+    timed out, ``nothing`` with the reason when it no longer waited for that time)."""
+    from .review_deadline_timers import OWNER
+
+    done = on_deadline_wake(client, follow_up_timers.follow_up_key(OWNER, review_request_id, due_at), now=now)
+    if done["action"] == "timed_out":
+        return {"summary": f"Review request {review_request_id} reached its deadline {due_at} with no answer: {PROCEEDED_WITHOUT_REVIEW}.", "result": done,
+                "run_outcome": "acted", "run_outcome_reason": "timed_out"}
+    return {"summary": done["reason"], "result": done, "run_outcome": "nothing", "run_outcome_reason": "not_waiting"}
+
+
+def _clear_deadline(deadline_timers: Any, request: dict[str, Any]) -> None:
+    """An answered or withdrawn request has no due time: its entry is deleted when the caller holds the site's timers. A caller without them (the console)
+    leaves the entry to fire once, and its wake does nothing, because the request no longer carries the time it names (``follow_up_timers.check_wake``)."""
+    if deadline_timers is not None and due_at_of(request):
+        deadline_timers.sync({"id": request["id"], "dueAt": None})
 
 
 # --- answering, withdrawing, steering -----------------------------------------------------------------------
 
 
 def answer_review(client, request_id: str, *, decision: str, by: str, feedback: str | None = None, steer: str | None = None,
-                  roles: list[str] | None = None, now: datetime | None = None) -> dict[str, Any]:
+                  roles: list[str] | None = None, now: datetime | None = None, deadline_timers: Any = None) -> dict[str, Any]:
     """Approve, reject, or give feedback (with an optional steer). Only an open request can be answered."""
     if roles is not None and not has_editor_rights(roles):
         raise ReviewError("only editors and admins can answer a review request.")
@@ -274,7 +330,7 @@ def answer_review(client, request_id: str, *, decision: str, by: str, feedback: 
     if decision == "feedback" and not note and not steer:
         raise ReviewError("feedback needs some text, or a steer.")
     moment = now or datetime.now(timezone.utc)
-    request = get_review(client, request_id, now=moment)
+    request = get_review(client, request_id)
     if request["state"] != "open":
         suffix = f" ({PROCEEDED_WITHOUT_REVIEW})" if request["state"] == "timed_out" else ""
         raise ReviewError(f"review request {request_id} is {request['state'].replace('_', ' ')}{suffix}; it can no longer be answered.")
@@ -283,24 +339,26 @@ def answer_review(client, request_id: str, *, decision: str, by: str, feedback: 
     at = now_iso(moment)
     answer = {"decision": decision, "feedback": note, "steer": steer, "by": _text(by, "by", required=True, limit=200), "at": at}
     client.update_record("ReviewRequest", {
-        "id": request_id, "state": "answered", "answer": json.dumps(answer), "updatedAt": at,
+        "id": request_id, **state_fields("answered"), "answer": json.dumps(answer), "updatedAt": at,
         "history": json.dumps(_history(request["history"], "answered", by=answer["by"], at=at, note=decision)),
     })
-    return get_review(client, request_id, sweep=False)
+    _clear_deadline(deadline_timers, request)
+    return get_review(client, request_id)
 
 
-def withdraw_review(client, request_id: str, *, by: str, note: str | None = None, now: datetime | None = None) -> dict[str, Any]:
+def withdraw_review(client, request_id: str, *, by: str, note: str | None = None, now: datetime | None = None, deadline_timers: Any = None) -> dict[str, Any]:
     """The raiser takes the request back (the question no longer applies). Only an open request can be withdrawn."""
     moment = now or datetime.now(timezone.utc)
-    request = get_review(client, request_id, now=moment)
+    request = get_review(client, request_id)
     if request["state"] != "open":
         raise ReviewError(f"review request {request_id} is {request['state'].replace('_', ' ')}; it can no longer be withdrawn.")
     at = now_iso(moment)
     client.update_record("ReviewRequest", {
-        "id": request_id, "state": "withdrawn", "updatedAt": at,
+        "id": request_id, **state_fields("withdrawn"), "updatedAt": at,
         "history": json.dumps(_history(request["history"], "withdrawn", by=by, at=at, note=_text(note, "note"))),
     })
-    return get_review(client, request_id, sweep=False)
+    _clear_deadline(deadline_timers, request)
+    return get_review(client, request_id)
 
 
 def steering_for(client, *, raised_by: str | None = None, subject_type: str | None = None, subject_id: str | None = None,
@@ -327,7 +385,7 @@ def steering_for(client, *, raised_by: str | None = None, subject_type: str | No
 
 def mark_applied(client, request_id: str, *, run_id: str, by: str, note: str | None = None, now: datetime | None = None) -> dict[str, Any]:
     """Record that a run used the steering on this request. The console shows "You steered X, applied in run Y"."""
-    request = get_review(client, request_id, sweep=False)
+    request = get_review(client, request_id)
     if request["state"] != "answered":
         raise ReviewError(f"review request {request_id} was not answered, so there is no steering to apply.")
     if request["appliedIn"]:
@@ -338,7 +396,7 @@ def mark_applied(client, request_id: str, *, run_id: str, by: str, note: str | N
         "id": request_id, "appliedIn": json.dumps(applied), "updatedAt": at,
         "history": json.dumps(_history(request["history"], "applied", by=by, at=at, note=f"run {applied['runId']}")),
     })
-    return get_review(client, request_id, sweep=False)
+    return get_review(client, request_id)
 
 
 # --- waiting (what a CLI-run process calls) -------------------------------------------------------------------
@@ -350,14 +408,14 @@ def wait_for_review(client, request_id: str, *, poll_seconds: float = 30.0, max_
     """Block the caller as the request's mode says. Returns the request; its ``outcome`` says what to do next.
 
     * flag:         returns at once with outcome ``waiting`` (nothing waits; read steering later with ``steering_for``).
-    * soft_review:  polls until answered, or until the deadline passes, then returns outcome
-                    ``proceeded_without_review`` (and the request is recorded as timed out).
+    * soft_review:  polls until answered, or until its deadline timer has recorded it as timed out, then returns outcome
+                    ``proceeded_without_review``.
     * hard_gate:    polls until answered or withdrawn. It never returns ``proceeded_without_review``. If
                     ``max_wait_seconds`` runs out first it raises ReviewStillOpen and the gate stays open.
     A ``max_wait_seconds`` on a soft review that ends before its deadline also raises ReviewStillOpen."""
     started = clock()
     while True:
-        request = get_review(client, request_id, now=clock())
+        request = get_review(client, request_id)
         if request["mode"] == "flag" or request["state"] != "open":
             return request
         if max_wait_seconds is not None and (clock() - started).total_seconds() >= max_wait_seconds:
@@ -379,7 +437,7 @@ def review_gate(client, *, wait: bool = True, poll_seconds: float = 30.0, max_wa
 
 def raise_batch_review(client, *, raised_by: str, batch_id: str, idea_ids: list[str], noun: str = "story idea",
                        deadline_days: float | None = None, links: Any = None, now: datetime | None = None, link_type: str = "story",
-                       extend: bool = False) -> dict[str, Any]:
+                       extend: bool = False, deadline_timers: Any = None) -> dict[str, Any]:
     """ONE soft review for a run that produced a batch of generated story ideas: "N new story ideas to review".
 
     The subject is the batch; each idea is a link (``link_type="story"``: the lineage id of the Item at the ``idea`` stage, which the console shows in
@@ -402,7 +460,7 @@ def raise_batch_review(client, *, raised_by: str, batch_id: str, idea_ids: list[
         client, subject={"type": "batch", "id": batch_id}, mode="soft_review", raised_by=raised_by,
         reason=f"{count} new {plural} to review",
         ask="Move an idea forward to accept it, or move it to Spiked with a reason to decline it. Open the Idea column of the Stories board. A reason tells the idea pipeline what you do not want.",
-        deadline_days=deadline_days, links=[*entries, *(_links(links))], request_id=f"rr-batch-{safe}", now=now)
+        deadline_days=deadline_days, links=[*entries, *(_links(links))], request_id=f"rr-batch-{safe}", now=now, deadline_timers=deadline_timers)
 
 
 def _extend_batch(client, row: dict[str, Any], entries: list[dict[str, str]], noun: str, now: datetime | None) -> dict[str, Any]:
@@ -456,12 +514,12 @@ def resolve_recipients(client, *, mode: str, automation: str | None = None, site
     the automation's rule, then the mode's, then the default rule, then the site owner (the ``site_owner`` argument or
     ``PAPYRUS_SITE_OWNER_EMAIL``), and with no owner set, the site's admins. Editors and admins named by a rule are
     the active holders of that role in the site's user list; extra emails are added as written."""
-    rules = {row["id"]: row for row in client.list_records("ReviewRecipientRule")}
     chosen, source = None, "site_owner"
     for rule_id, label in ((f"automation.{automation}" if automation else None, f"automation {automation}"),
                            (f"mode.{mode}", f"mode {mode}"), ("default", "default")):
-        if rule_id and rule_id in rules:
-            chosen, source = rules[rule_id], label
+        rule = client.get_record("ReviewRecipientRule", rule_id) if rule_id else None   # a rule's id is its scope and key, so each is one read
+        if rule:
+            chosen, source = rule, label
             break
     if chosen is None:
         owner = site_owner or os.environ.get("PAPYRUS_SITE_OWNER_EMAIL")
@@ -475,6 +533,31 @@ def resolve_recipients(client, *, mode: str, automation: str | None = None, site
             if row.get("role") in roles and row.get("status") == "active" and row.get("email"):
                 emails.add(row["email"])
     return {"emails": sorted(emails), "source": source, "roles": roles}
+
+
+# --- the state index, once ------------------------------------------------------------------------------------------------
+
+
+def backfill_state_index(client, *, apply: bool) -> dict[str, Any]:
+    """Give every request stored before the state index its ``reviewStateKey`` and, for an open soft review with a deadline, its ``dueAt``, so the index holds
+    every request. The one read of the whole model, run once when a site takes the index (docs/releasing.md); every read afterwards is by index. Requests raised
+    before the index have no follow-up timer: their deadlines are Overdue (overdue.py) and recovered through the same wake."""
+    from . import request_meter
+
+    with request_meter.sweep("reviews index-backfill"):
+        rows = client.list_records("ReviewRequest")
+    missing = []
+    for row in rows:
+        request = read_review(row)
+        wanted = {"reviewStateKey": review_state_key(request["state"]), "dueAt": due_at_of(request)}
+        if wanted["dueAt"] is not None:
+            wanted["dueAt"] = timer_time(parse_time(wanted["dueAt"]))
+        if any(row.get(name) != value for name, value in wanted.items()):
+            missing.append({"id": row["id"], **wanted})
+    if apply:
+        for change in missing:
+            client.update_record("ReviewRequest", change)
+    return {"applied": apply, "requests": [change["id"] for change in missing]}
 
 
 # --- the command line ---------------------------------------------------------------------------------------------------
@@ -511,7 +594,7 @@ def operator_review_answer(client, request_id: str, *, decision: str, feedback: 
 
 
 def run_command(command: str, flags: list[str]) -> None:
-    """`papyrus reviews raise|withdraw|wait|steering|applied|recipients`; list, show and answer run through the command registry."""
+    """`papyrus reviews raise|withdraw|wait|steering|applied|recipients|index-backfill`; list, show and answer run through the command registry."""
     from .graphql_authoring import create_authoring_client
     from .options import parse_boolean_option, parse_options
 
@@ -540,6 +623,10 @@ def run_command(command: str, flags: list[str]) -> None:
                          deadline=options.get("deadline") if isinstance(options.get("deadline"), str) else None,
                          deadline_days=float(options["deadline-days"]) if isinstance(options.get("deadline-days"), str) else None,
                          links=links, request_id=options.get("id") if isinstance(options.get("id"), str) else None)
+        if arguments["mode"] == "soft_review" and (arguments["deadline"] is not None or arguments["deadline_days"] is not None):
+            from .review_deadline_timers import ReviewDeadlineTimers
+
+            arguments["deadline_timers"] = ReviewDeadlineTimers.from_environment(os.environ, appsync_endpoint=client.endpoint)
         if parse_boolean_option(options.get("wait"), False, "--wait"):
             request = review_gate(client, poll_seconds=float(options.get("poll-seconds") or 30),
                                   max_wait_seconds=float(options["max-wait-seconds"]) if isinstance(options.get("max-wait-seconds"), str) else None,
@@ -575,5 +662,8 @@ def run_command(command: str, flags: list[str]) -> None:
             resolved = resolve_recipients(client, mode=options.get("mode") if isinstance(options.get("mode"), str) else "hard_gate",
                                           automation=options.get("automation") if isinstance(options.get("automation"), str) else None)
             show(resolved, f"reviews\trecipients\t{resolved['source']}\t{len(resolved['emails'])} address(es)")
+    elif command == "index-backfill":
+        changed = backfill_state_index(client, apply=parse_boolean_option(options.get("apply"), False, "--apply"))
+        show(changed, f"reviews\tindex-backfill\t{len(changed['requests'])} request(s) {'written' if changed['applied'] else 'to write (pass --apply)'}")
     else:
         raise ValueError(f"Unsupported papyrus reviews command: {command}")

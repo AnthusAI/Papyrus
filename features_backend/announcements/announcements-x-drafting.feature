@@ -67,7 +67,7 @@ Feature: The words of an X post say only what the Story says, and a draft that f
     Given the model drafts "The first proof ever that a system can keep a secret."
     And a 5-star Article is published
     When the announce agent wakes for the Article
-    Then the model was asked once
+    Then the model was asked for one draft
     And the X Delivery reads "Blocked: check failed"
 
   Scenario: A new version of the Story drafts the blocked Delivery again, once
@@ -75,7 +75,7 @@ Feature: The words of an X post say only what the Story says, and a draft that f
     And a 5-star Article is published
     And the model now drafts "A look at whether a system can keep a secret from itself."
     When the Story changes to version 2 and the announce agent wakes for it
-    Then the model was asked twice
+    Then the model was asked for two drafts
     And the X Delivery reads "Dry run: not sent"
     And the Delivery has these words in S3 "A look at whether a system can keep a secret from itself."
     And exactly 1 review request was raised about the Announcement
@@ -85,7 +85,7 @@ Feature: The words of an X post say only what the Story says, and a draft that f
     And a 5-star Article is published
     And the model now drafts "A look at whether a system can keep a secret from itself."
     When the guidelines change and the announce agent wakes for the Article
-    Then the model was asked twice
+    Then the model was asked for two drafts
     And the X Delivery reads "Dry run: not sent"
 
   Scenario: A draft that still fails after an input changed is not tried in a loop
@@ -93,7 +93,7 @@ Feature: The words of an X post say only what the Story says, and a draft that f
     And a 5-star Article is published
     When the Story changes to version 2 and the announce agent wakes for it
     And the announce agent wakes for the Article
-    Then the model was asked twice
+    Then the model was asked for two drafts
     And the X Delivery reads "Blocked: check failed"
     And exactly 1 review request was raised about the Announcement
 
@@ -105,7 +105,7 @@ Feature: The words of an X post say only what the Story says, and a draft that f
     When the announce agent wakes for the Article
     Then the X Delivery reads "Blocked: check failed"
     And exactly 1 review request was raised about the Announcement
-    And the model was asked once
+    And the model was asked for one draft
 
   Scenario: Post length is counted the way X counts it
     Then "A link https://example.org/a/very/long/path/that/goes/on counts" weighs 23 for the link plus its other characters
@@ -114,3 +114,17 @@ Feature: The words of an X post say only what the Story says, and a draft that f
 
   Scenario: The link keeps the Story's own query and gets the tags
     Then the link "https://example.org/a?x=1&utm_source=old" becomes "https://example.org/a?x=1&utm_source=x&utm_medium=social&utm_campaign=announcement"
+
+  Scenario: A person who approves a blocked draft's words lets it go, and the block is lifted
+    Given the model drafts "The first proof ever that a system can keep a secret."
+    When a 5-star Article is published
+    Then the X Delivery reads "Blocked: check failed"
+    When "ryan" approves the current words of the X Delivery
+    Then the X Delivery is ready and approved by "ryan"
+
+  Scenario: Only letting the words go lifts a failed check; asking for more review leaves the block
+    Given the model drafts "The first proof ever that a system can keep a secret."
+    When a 5-star Article is published
+    Then the X Delivery reads "Blocked: check failed"
+    When "ryan" tries to set the review of the X Delivery to "hard"
+    Then the X Delivery reads "Blocked: check failed"

@@ -35,7 +35,7 @@ from .delivery_versions import Versions
 from .drafting import Draft, DraftRefused, Llm, RuleLane, draft_announcement
 from .eligibility import StoryFacts, refusal
 from .learned_examples import Read
-from .intake import NOT_REVIEWED, NO_DELIVERY, PROVISIONAL_NOTE, Held, ReviewStamps, floor_refusal
+from .intake import NOT_REVIEWED, NO_DELIVERY, Held, ReviewStamps, floor_refusal
 from .post import tagged_link
 from .records import BLOCKED, DRAFTED, READY, json_list
 from .review_policy import choose
@@ -69,6 +69,8 @@ class XServices:
     learned: Callable[[], Read] | None = None
     #: ``story -> the guideline layers the draft was written under`` (``{scope, itemId, versionNumber, contentHash}``), recorded so the draft is explainable. None when unknown.
     guideline_layers: Callable[[StoryFacts], list[dict[str, Any]]] | None = None
+    #: ``lineage -> the hashtags the draft may choose from`` (``hashtags.story_hashtags``: the Story's own accepted concepts, most-used first). None for a site that has none.
+    hashtags: Callable[[str], list[str]] | None = None
 
 
 @dataclass
@@ -122,7 +124,8 @@ def _draft(services: XServices, story: StoryFacts, link: str, guidelines: str, l
     if services.llm is None or services.judge is None:
         raise RuntimeError("Drafting needs a model: the X part of the announce agent was built without one.")
     try:
-        draft = draft_announcement(story, link, guidelines=guidelines, llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model, learned=learned.prompt)
+        draft = draft_announcement(story, link, guidelines=guidelines, llm=services.llm, judge=services.judge, rule_lane=services.rule_lane, model=services.model, learned=learned.prompt,
+                                 hashtags=services.hashtags(story.lineage_id) if services.hashtags else None)
     except DraftRefused as refused:
         return None, [str(refused)]
     return draft, ([] if draft.passed else draft.failures)
@@ -142,7 +145,7 @@ def prepare(services: XServices, story: StoryFacts, policy: PolicyState, stamps:
     if not settings["accountId"]:
         return Prepared(held=Held(NO_ACCOUNT, "No X account is connected to this site, so there is no account to post from.", CHANNEL))
     if settings["requireReviewedSource"] and not stamps.reviewed(story.lineage_id, story.version_number):
-        return Prepared(held=Held(NOT_REVIEWED, f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories. {PROVISIONAL_NOTE}", CHANNEL))
+        return Prepared(held=Held(NOT_REVIEWED, f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories.", CHANNEL))
     choice = choose(policy, channel=CHANNEL, kind=STORY_PUBLISHED)
     if not choice.prepares:
         return Prepared(held=Held(NO_DELIVERY, str(choice.reason), CHANNEL))

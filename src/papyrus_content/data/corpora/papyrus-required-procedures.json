@@ -29,6 +29,7 @@
     "ontology.relationship-explainer": "ontology_relationship_explainer.tac",
     "rate_items": "rate_items.tac",
     "references.curate": "reference_curation.tac",
+    "review_deadline": "review_deadline.tac",
     "story.editor-review": "editor_review.tac",
     "story.localize": "story_localize.tac",
     "submissions.email.process": "email_submission_processor.tac"
@@ -37,13 +38,13 @@
     "announce_story": {
       "title": "Announce a Story",
       "category": "newsroom",
-      "description": "The announce agent's run for one wake: a Story's page went live or its rating changed. It re-reads the Story and decides from the records as they are now; it makes one Announcement and one email Delivery for the Story at a rung the site's agent policy allows, and never sends.",
+      "description": "The announce agent's run for one wake: a Story's page went live or its rating changed. It re-reads the Story and decides from the records as they are now; it makes one Announcement and one email Delivery for the Story at a rung the site's agent policy allows, and sends what is due; a Delivery's approval wakes it to send only.",
       "parameterSchema": {
         "type": "object",
         "properties": {
           "story": {
             "type": "string",
-            "description": "The Story's lineage id, from the wake"
+            "description": "The Story's lineage id, from a Story's wake; empty on a Delivery's approval, which only sends"
           },
           "version": {
             "type": "string",
@@ -51,7 +52,7 @@
           },
           "change": {
             "type": "string",
-            "description": "stage_entered (the page went live) or rated, from the wake"
+            "description": "stage_entered (the page went live), rated, or approved (a person approved a Delivery), from the wake"
           },
           "what": {
             "type": "string",
@@ -63,12 +64,12 @@
           }
         },
         "required": [
-          "story",
           "version",
           "change"
         ]
       },
       "defaults": {
+        "story": "",
         "what": "",
         "stage": ""
       }
@@ -548,11 +549,25 @@
     "rate_items": {
       "title": "Rate Unrated Stories",
       "category": "newsroom",
-      "description": "The rating agent's daily run: reads the published Stories nobody has rated and decides three stars, four stars or a five-star candidate for each. It writes a rating only at a rung the site's agent policy allows, never a five, and never replaces a rating.",
+      "description": "The rating agent's daily run: reads the published Stories nobody has rated and decides three stars, four stars or a five-star candidate for each. It never writes a rating: at a rung the site's agent policy allows, it writes each as a suggestion beside the rating and raises the day's one review for a person.",
       "parameterSchema": {
         "type": "object",
         "properties": {},
         "required": []
+      },
+      "defaults": {}
+    },
+    "review_deadline": {
+      "title": "Review Request Deadline",
+      "category": "newsroom",
+      "description": "The engine's run for a soft review's deadline wake: it reads the review request again and, if it still waits for that deadline, records that it proceeded without review. Started by the request's follow-up timer with no adopted agent; an answer or withdrawal before the deadline means it does nothing.",
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "reviewRequestId": {"type": "string", "description": "The review request whose deadline came"},
+          "dueAt": {"type": "string", "description": "The deadline the wake was set for, a UTC instant"}
+        },
+        "required": ["reviewRequestId", "dueAt"]
       },
       "defaults": {}
     },

@@ -566,10 +566,13 @@ deploy the app shell, check `papyrus login --print-client` shows the federation 
 `papyrus login` and `papyrus login --remote` complete, then remove `/cli/callback` from the main
 client in a later change so nothing breaks mid-way.
 
-Session length: with the flag on, the federation client keeps refresh tokens for **seven
-days** (access and ID tokens stay at 60 minutes), so a CLI login lasts a week between
-sign-ins. With the flag off the client is exactly as registered with Prospectus: 60-minute
-refresh tokens, so sites already registered under reviews that record 60 minutes do not change.
+Session length: every site's federation client keeps refresh tokens for **seven days** (access and ID tokens
+stay at 60 minutes), with the flag on or off, so a CLI login on the federation client lasts a week between sign-ins and
+the CLI renews its access token silently from the stored refresh token (`cli-login` refreshes whenever the access token
+is within a minute of expiry, and asks for a new sign-in only when the provider answers `invalid_grant`). The site's
+server keeps no refresh token on this client, so the longer lifetime is held only by the CLI. A site registered with
+Prospectus under a review that recorded 60-minute refresh tokens needs its client facts re-recorded (the federation
+packet script prints the live value). A site that has not moved the CLI onto the federation client signs the CLI in on its web client, whose refresh tokens last the Cognito default of 30 days.
 
 The flag also lets the backend tell a CLI session from the Newsroom's, because the token names its
 client. The curation-delegation routes use that: an agent in a CLI session can ask for a delegation

@@ -18,6 +18,7 @@ _FIELD_MODEL = {
     "listDeliveriesByAccountKeyAndCreatedAt": "Delivery",
     "listDeliveriesByDueKeyAndDueAt": "Delivery",
     "listDeliveriesByExampleKeyAndExampleAt": "Delivery",
+    "listReviewRequestsByReviewStateKeyAndUpdatedAt": "ReviewRequest",
     "listSemanticRelationsByObjectState": "SemanticRelation",
     "listSemanticRelationsBySubjectState": "SemanticRelation",
 }

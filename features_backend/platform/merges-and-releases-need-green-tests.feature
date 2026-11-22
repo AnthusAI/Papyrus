@@ -22,7 +22,14 @@ Feature: A red change cannot be merged to the release branches or published as a
     And the required checks are ts and python
     And a pull request is required with no approving reviews
     And force pushes and deletion are refused
-    And only the GitHub Actions app may bypass it
+    And nobody may bypass it
+
+  Scenario: The release back-merge goes up as a pull request whose tests are dispatched, because nobody bypasses the ruleset
+    Given the release workflow
+    When its back-merge job is read
+    Then it pushes a back-merge branch and opens a pull request into develop instead of pushing develop
+    And it dispatches the tests workflow on that branch and turns on auto-merge
+    And tests.yml can be started by a dispatch
 
   Scenario: A pull request that changes only the board still gets the checks the ruleset requires
     Given the workflow tests-board-only.yml

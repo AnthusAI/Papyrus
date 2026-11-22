@@ -3,7 +3,7 @@
   "title": "Run indexes: by agent, and 'needs attention'",
   "description": "Two indexes on `ProcedureRun`, added in two releases because a deploy adds one index per table: (1) `automationId` + `requestedAt`, so an agent's runs are one query; (2) a sparse `attentionKey` + `dueAt`, present only while a run is `waiting`, `unknown` or `failed` and unacknowledged, so Today and the overdue check read only what needs a person. Remove the code paths that load every `ProcedureRun` (`procedure-action` `listModelPages` and its full-list path when an index query is missing).\n\n**Acceptance criteria**\n- An agent's run history is one indexed query.\n- A run that needs nobody is not in the attention index.\n- No code path lists the whole `ProcedureRun` table.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- run-indexes.feature: an agent's runs are listed newest first by index; an acknowledged failure leaves the attention list; the run list never reads the whole table (request meter shows no unbounded list).\n\n**Infrastructure as code touched:** Amplify data schema: two GSIs on `ProcedureRun`, one per release.\n\n**Part of:** Wake contract and run outcomes. Slice code A5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -24,20 +24,32 @@
       "id": "dd6808d4-1c8c-435c-905a-ccf218ab1cfe",
       "author": "claude",
       "text": "Closed in the in-progress sweep: work shipped on develop (#1719); any follow-ups are in the notes above and need their own records.",
-      "created_at": "2026-11-20T14:03:43.000000Z",
+      "created_at": "2026-11-20T14:03:43Z",
       "comment_type": "default"
     },
     {
       "id": "7f72cb05-6f22-4def-aae6-a75218530b7c",
       "author": "claude",
       "text": "Back in progress: part of the live always-on agents work.",
-      "created_at": "2026-11-20T14:19:17.000000Z",
+      "created_at": "2026-11-20T14:19:17Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f594a82f-fd50-475c-aa69-a649e72d4a91",
+      "author": "ryan",
+      "text": "Released in Papyrus 5.145.0 (#1823) and live on Machines on Machines (Amplify job 152, 2026-11-22): the ProcedureRun GSI procedureRunsByAutomationIdAndRequestedAt is ACTIVE and backfilled; querying automationId=announce returns its runs newest first. Both A5 indexes are now shipped. Note: the console's automations overview could not be checked because the automation-view function has failed to start since 5.131.0 (PyYAML import); fix is PR #1829.",
+      "created_at": "2026-11-22T04:38:10.161587Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:43:01.577907Z",
-  "updated_at": "2026-11-20T14:19:17.000000Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T04:38:10.486534Z",
+  "closed_at": "2026-11-22T04:38:10.486084Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

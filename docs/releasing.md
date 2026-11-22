@@ -144,6 +144,16 @@ The release that carries slice B3 is an ordinary update too; a new site's first 
 
 What a deploy cannot show, and a person checks once on a real site after the release: accepting a Reference puts one wake per listening agent on the queue; answering a review request puts one wake for the agent that asked; a comment on a Story wakes that Story's listeners; a Delivery state change wakes its listeners; a repeat of the same record puts none; and the dead-letter queue stays empty. The Message stream already has three readers on a site that turns on the console responder, Slack and the home page together; the feed adds none there, but that site's stream is over the guidance until one of those readers moves behind another (not done here).
 
+## Review request deadlines are timers; the state index (PPY-9b8e59)
+
+The release that carries slice C3 adds one index to `ReviewRequest` (`listReviewRequestsByReviewStateKeyAndUpdatedAt`, partition `reviewStateKey`, sort `updatedAt`) and the field `dueAt`; nothing else in the release may add an index to that table. It also registers the engine procedure `review_deadline` with the other core procedures.
+
+1. **Backfill the index once, after the deploy has finished** (Engineer, per site, operator credentials for the site): requests stored before the index have no `reviewStateKey`, so the Notification Center, `papyrus reviews list`, steering and the curation flag do not see them until they do. `papyrus reviews index-backfill` lists what it would write; `papyrus reviews index-backfill --apply` writes `reviewStateKey` on every request and `dueAt` on each open soft review with a deadline. It is the one read of the whole table and writes nothing a second time. An open soft review written before this release has no follow-up timer: once its `dueAt` is written it is shown as Overdue after its deadline, and the hygiene wake re-sends its deadline wake with the timer's own key (overdue.py).
+2. **A soft review with a deadline needs the site's timers.** `papyrus reviews raise --mode soft_review --deadline ...` builds them from `PAPYRUS_AGENT_PUBLICATION_ID`, `PAPYRUS_AWS_ACCOUNT_ID` and `AWS_REGION` (and carries `PAPYRUS_TENANT_ID` and `PAPYRUS_SITE_BUCKET`, which the runner needs to start the wake), and refuses without them. The caller needs `allowFollowUpTimers` on its role, as for any follow-up (docs/follow-up-timers.md).
+3. **The deadline wake runs with no adopted agent** (`engine_follow_ups.py`): nothing to adopt and no rung to set. A paused site skips it, and the request is Overdue until the site resumes.
+
+What a deploy cannot show, and a person checks once on a real site: a soft review raised with a deadline a few minutes ahead has one `follow-up-*` entry in the site's schedule group; at the deadline the runner records one `review_deadline` run, `acted` (`timed_out`), and the Notification Center shows the request as proceeded without review; the entry is gone.
+
 ## The announce agent's definition (PPY-e3bb2b)
 
 `core/announce.yaml` (procedure `announce_story`, registered with the engine's procedures in the same release) is the second core definition. The build of every site that takes this release creates the automation `announce`, **disabled**, with its registered copy, and the next listener-index write lists it under `Item/stage_entered` (`stage=published`) and `Item/rated` (`stage=published`). The site's agent policy starts it at `off`, so the runner refuses its wakes until a person adopts it (`papyrus automations adopt --id announce --responsibility announce`) and sets a rung. A site that already has its own automation named `announce` that the deploy did not create is stopped by `papyrus agents apply` before anything is written (the plan names it). This release also removes the publish path's call to the newsletter and notifications functions: the plugins no longer give `content-actions` their names or an invoke grant, so a site's newsletter alerts and `story.published` notices stop being raised from a publish until PPY-58d962 replaces them with the Delivery of an Announcement.
@@ -197,8 +207,9 @@ papyrus --site machines-on-machines automations runs --id rate
   (`hn` is the router config's monitor id). `--enabled true` switches it on; the schedule entry is created by `agents schedules` (the next deploy does it too).
 * What the first run shows: `automations runs --id rate` lists the run as "✓ Did it (proposed)" or "– Nothing to do (nothing_unrated)", with the policy version and rung `observe`. The
   run's output lists each Story with the stars it would get and why, the five-star candidates for a person, any Story it could not judge, the gate's answers (the write
-  operation `ratings_set` answers `human_required`, needing `draft`), and the cost. `papyrus stories list` shows no new rating. A person's judgement of the proposals is the evidence
-  for raising the rung; raising it to `draft` is a change of the policy document and no code: the same run then writes threes and fours, never a five and never over a person's rating.
+  operation `ratings_suggest` answers `human_required`, needing `propose`), and the cost. `papyrus stories list` shows no new rating. A person's judgement of the proposals is the evidence
+  for raising the rung; raising it to `propose` is a change of the policy document and no code: the same run then writes each as a suggestion beside the rating and raises the day's one
+  review, "N ratings suggested, M five-star candidates" (PPY-e61642). It never writes a rating at any rung; a person confirms a suggestion in the Story editor or with `ratings confirm`.
 * To stop it: switch the automation off (`automations update --id rate --enabled false`, then `agents schedules`), or pause it in the policy (the pause stops the next wake and says why).
 * Read it as it stands: the run reads every unrated published Story each day, newest first, until the index ends or the run's own deadline is near (the run says which). At `observe` nothing is
   rated, so the same Stories are judged again the next day and the model is paid for each time; the weekly budget (slice G1) is not built, so the cost is on the run record and nothing else limits it.
@@ -212,8 +223,8 @@ default, so pushes run only the package smoke checks and publish nothing. Set it
 after the registry setup below is done. Local check: `npm run release:dry-run` with
 `GITHUB_TOKEN` set publishes nothing.
 
-- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow). The stable tag sits on main's merge
-  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version.
+- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow), as a pull request from a `back-merge/vX` branch with auto-merge on. The stable tag sits on main's merge
+  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version. A pull request made with the workflow token does not start the `pull_request` run, so the job dispatches `tests.yml` on the branch (`workflow_dispatch`), which reports `ts` and `python` on the branch tip; the ruleset then lets the auto-merge through. The repository settings "Allow GitHub Actions to create pull requests" and "Allow auto-merge" must be on.
 
 ## Trying a prerelease in a publication
 

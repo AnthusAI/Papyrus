@@ -30,11 +30,19 @@ from .guidelines.s3_files import S3DocumentFiles
 from .staff_groups import claim_groups, has_editor_rights
 
 LOG = logging.getLogger(__name__)
-DOORS = {"imageRead": ("read",), "imageWrite": ("write", "spend"), "guidelinesRead": ("read",), "guidelinesWrite": ("write",), "announcementsRead": ("read",)}
-DOOR_GROUP = {"imageRead": "images", "imageWrite": "images", "guidelinesRead": "guidelines", "guidelinesWrite": "guidelines", "announcementsRead": "announcements"}
+DOORS = {"imageRead": ("read",), "imageWrite": ("write", "spend"), "guidelinesRead": ("read",), "guidelinesWrite": ("write",), "announcementsRead": ("read",),
+         "announcementsWrite": ("write",)}
+DOOR_GROUP = {"imageRead": "images", "imageWrite": "images", "guidelinesRead": "guidelines", "guidelinesWrite": "guidelines", "announcementsRead": "announcements",
+              "announcementsWrite": "announcements"}
 DOOR_FOR = {("images", True): "imageRead", ("images", False): "imageWrite", ("guidelines", True): "guidelinesRead", ("guidelines", False): "guidelinesWrite",
-            ("announcements", True): "announcementsRead"}
-WRITE_DOORS = ("imageWrite", "guidelinesWrite")
+            ("announcements", True): "announcementsRead", ("announcements", False): "announcementsWrite"}
+WRITE_DOORS = ("imageWrite", "guidelinesWrite", "announcementsWrite")
+
+
+def announcement_write_door_operations() -> tuple[str, ...]:
+    from .announcements.review_handlers import DOOR_WRITE_OPERATIONS
+
+    return DOOR_WRITE_OPERATIONS
 
 
 def default_client_factory(env: Any) -> Callable[[], Any]:
@@ -58,7 +66,8 @@ def _arguments(raw: Any) -> Any:
     return raw if raw is not None else {}
 
 
-def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | None = None, files_factory: Callable[[Any], Any] | None = None) -> dict:
+def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | None = None, files_factory: Callable[[Any], Any] | None = None,
+           delivery_files_factory: Callable[[Any], Any] | None = None) -> dict:
     """AppSync resolver entry for the four door fields. Returns the envelope as the field's JSON.
 
     ``files_factory(client)`` supplies where guideline documents are kept (S3 by default); tests pass an in-memory one."""
@@ -73,14 +82,16 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
     except NoOperation as error:
         return error_envelope(str(name), "invalid_input", str(error))
     if door not in DOORS or not isinstance(name, str):
-        return error_envelope(str(name), "invalid_input", "Give an op, through imageRead, imageWrite, guidelinesRead or guidelinesWrite.", details={"path": "op"})
+        return error_envelope(str(name), "invalid_input", "Give an op, through imageRead, imageWrite, guidelinesRead, guidelinesWrite, announcementsRead or announcementsWrite.", details={"path": "op"})
     if not has_editor_rights(groups):
         return error_envelope(name, "not_authorized")
     item = operation(name)
-    if item is not None and (item.group != DOOR_GROUP[door] or item.effect not in DOORS[door]):
-        right = DOOR_FOR.get((item.group, item.effect == "read"))
-        if right is None:   # the announcements door only reads; what changes an announcement goes through ``papyrus announcements`` and the agents' tools
-            return error_envelope(name, "invalid_input", f"{name} is not run through {door}: this door only reads.", details={"path": "op"})
+    write_door_serves = item is None or item.group != "announcements" or item.effect == "read" or item.name in announcement_write_door_operations()
+    if item is not None and (item.group != DOOR_GROUP[door] or item.effect not in DOORS[door] or not write_door_serves):
+        right = DOOR_FOR.get((item.group, item.effect == "read")) if write_door_serves else None
+        if right is None:   # the announcements doors serve the console's reads and a person's decision about a Delivery; the rest of what changes an announcement is the command line's
+            served = "it takes only a person's decision about one Delivery" if door == "announcementsWrite" else "this door only reads"
+            return error_envelope(name, "invalid_input", f"{name} is not run through {door}: {served}.", details={"path": "op"})
         return error_envelope(name, "invalid_input", f"{name} is run through {right}, not {door}.", details={"path": "op"})
     try:
         payload = _arguments(arguments.get("input"))
@@ -94,6 +105,12 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
         files = (files_factory or (lambda built: S3DocumentFiles(built, env=env)))(client)
         if DOOR_GROUP[door] == "guidelines":
             return execute(name, payload, caller, guidelines_with_client(client, files))
+        if door == "announcementsWrite":
+            # A person's decision about a Delivery, which the person's own credential may not write (Delivery records are the pipeline's): the door checks who is
+            # asking and writes with this function's role (announcements/review_handlers.door_write_handlers).
+            from .announcements.review_handlers import door_write_handlers
+
+            return execute(name, payload, caller, door_write_handlers(client, delivery_files_factory(client) if delivery_files_factory else None))
         if DOOR_GROUP[door] == "announcements":
             from .announcements.list_handlers import with_client as announcements_with_client
 

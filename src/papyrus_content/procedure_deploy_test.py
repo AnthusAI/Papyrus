@@ -40,7 +40,7 @@ def test_unknown_default_token_stops_the_deploy():
 
 def test_every_core_plan_has_a_digest_version_and_no_skills():
     plans = deploy.core_plans()
-    assert len(plans) == 16
+    assert len(plans) == 17
     for plan in plans:
         assert plan["versionId"].endswith(plan["contentDigest"]) and plan["skills"] == [] and plan["origin"] == "core"
 

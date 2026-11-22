@@ -41,6 +41,7 @@ export type ImageOperationName =
   | "announcements_account_status"
   | "announcements_account_connect"
   | "announcements_account_set_app"
+  | "announcements_hashtags"
   | "announcements_blocked"
   | "announcements_retry"
   | "announcements_review_show"
@@ -61,6 +62,9 @@ export type ImageOperationName =
   | "announcements_recent"
   | "announcements_explain"
   | "ratings_set"
+  | "ratings_suggest"
+  | "ratings_confirm"
+  | "ratings_suggestions_review"
   | "handoffs_request"
 ;
 
@@ -1081,7 +1085,7 @@ export type AnnouncementsSettingsSetInput = {
   storyTypes?: string[];
   /** Limit to these sections. */
   sections?: string[];
-  /** On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed. */
+  /** On: an Announcement is made only for a Story a person has reviewed on its current version (its review step done by a person, or by an agent on a person's recorded instruction). Off by default. */
   requireReviewedSource?: boolean;
   /** Dollars for each X billing cycle, such as 10.00. No default. */
   budget?: string;
@@ -1183,6 +1187,17 @@ export type AnnouncementsAccountSetAppResult = {
   saved: boolean;
 };
 
+/** List the hashtags a Story's announcement may use: its accepted tagged concepts, most-used first. */
+export type AnnouncementsHashtagsInput = {
+  /** The lineage id of the Story. */
+  story: string;
+};
+
+export type AnnouncementsHashtagsResult = {
+  lineageId: string;
+  hashtags: string[];
+};
+
 /** List the Stories that qualified for X and are waiting, each with its reason (paused, budget reached, the account needs connecting again, a failed check). */
 export type AnnouncementsBlockedInput = Record<string, unknown>;
 
@@ -1242,6 +1257,12 @@ export type AnnouncementsReviewSetInput = {
   list?: string;
   /** Why, in plain words. It is recorded with who and when. */
   reason: string;
+  /** For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts. */
+  onInstructionOf?: string;
+  /** For an agent only: that person's own words. */
+  quote?: string;
+  /** For an agent only: its name, recorded as the one who entered the change. */
+  agent?: string;
 };
 
 export type AnnouncementsReviewSetResult = {
@@ -1258,6 +1279,12 @@ export type AnnouncementsDeliveryReviewSetInput = {
   delivery: string;
   /** none: fully automatic. soft: a person may edit or stop it before its lock time; silence lets it go. hard: a person must release it. */
   approval: "none" | "soft" | "hard";
+  /** For an agent only: the person whose signed-in admin session it runs in, on whose instruction it acts. */
+  onInstructionOf?: string;
+  /** For an agent only: that person's own words. */
+  quote?: string;
+  /** For an agent only: its name, recorded as the one who entered the change. */
+  agent?: string;
 };
 
 export type AnnouncementsDeliveryReviewSetResult = {
@@ -1711,11 +1738,11 @@ export type AnnouncementsExplainResult = {
   })[];
 };
 
-/** Give a Story a star rating, 1 to 5. An agent may give only three or four stars, and only to a Story nobody has rated. */
+/** Give a Story a star rating, 1 to 5. Only a person rates; an agent suggests with ratings_suggest. */
 export type RatingsSetInput = {
   /** The lineage id of the Story. */
   story: string;
-  /** The rating, 1 to 5. An agent may only give 3 or 4. */
+  /** The rating, 1 to 5. */
   stars: number;
 };
 
@@ -1725,6 +1752,59 @@ export type RatingsSetResult = {
   previous?: number;
   stars: number;
   ratedBy?: string;
+};
+
+/** Suggest stars for a Story nobody has rated: three or four, or five for a five-star candidate. It sits beside the rating and is never the rating. */
+export type RatingsSuggestInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** 3 or 4, or 5 for a five-star candidate a person decides. */
+  stars: number;
+};
+
+export type RatingsSuggestResult = {
+  lineageId: string;
+  stars: number;
+  candidate: boolean;
+  suggestedBy?: string;
+  run?: string | null;
+};
+
+/** Make a Story's suggested stars your rating, or give other stars instead. */
+export type RatingsConfirmInput = {
+  /** The lineage id of the Story. */
+  story: string;
+  /** Other stars, 1 to 5, instead of the suggested ones. Leave out to confirm the suggestion. */
+  stars?: number;
+};
+
+export type RatingsConfirmResult = {
+  lineageId: string;
+  stars: number;
+  suggested: number;
+  changed: boolean;
+  ratedBy?: string;
+};
+
+/** Raise the day's one review of suggested ratings, or add Stories to it while it is open. */
+export type RatingsSuggestionsReviewInput = {
+  /** The day, YYYY-MM-DD, in the site's time zone. */
+  day: string;
+  /** The Stories suggested, with their stars. */
+  suggestions: {
+    /** The lineage id of the Story. */
+    story: string;
+    title?: string;
+    stars: number;
+  }[];
+};
+
+export type RatingsSuggestionsReviewResult = {
+  request: string;
+  reason: string;
+  state: string;
+  /** Every Story the request links. */
+  stories: string[];
 };
 
 /** Ask another responsibility for one piece of work on a Story. It appears on the Story as an Assignment that says who asked and why, and wakes the responsible agent once. */
@@ -1786,6 +1866,7 @@ export interface ImageOperations {
   announcements_account_status: { input: AnnouncementsAccountStatusInput; result: AnnouncementsAccountStatusResult };
   announcements_account_connect: { input: AnnouncementsAccountConnectInput; result: AnnouncementsAccountConnectResult };
   announcements_account_set_app: { input: AnnouncementsAccountSetAppInput; result: AnnouncementsAccountSetAppResult };
+  announcements_hashtags: { input: AnnouncementsHashtagsInput; result: AnnouncementsHashtagsResult };
   announcements_blocked: { input: AnnouncementsBlockedInput; result: AnnouncementsBlockedResult };
   announcements_retry: { input: AnnouncementsRetryInput; result: AnnouncementsRetryResult };
   announcements_review_show: { input: AnnouncementsReviewShowInput; result: AnnouncementsReviewShowResult };
@@ -1806,6 +1887,9 @@ export interface ImageOperations {
   announcements_recent: { input: AnnouncementsRecentInput; result: AnnouncementsRecentResult };
   announcements_explain: { input: AnnouncementsExplainInput; result: AnnouncementsExplainResult };
   ratings_set: { input: RatingsSetInput; result: RatingsSetResult };
+  ratings_suggest: { input: RatingsSuggestInput; result: RatingsSuggestResult };
+  ratings_confirm: { input: RatingsConfirmInput; result: RatingsConfirmResult };
+  ratings_suggestions_review: { input: RatingsSuggestionsReviewInput; result: RatingsSuggestionsReviewResult };
   handoffs_request: { input: HandoffsRequestInput; result: HandoffsRequestResult };
 }
 
@@ -1849,6 +1933,7 @@ export const IMAGE_OPERATIONS = {
   announcements_account_status: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account status" },
   announcements_account_connect: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements account connect" },
   announcements_account_set_app: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "announcements", command: "papyrus announcements account set-app" },
+  announcements_hashtags: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements hashtags" },
   announcements_blocked: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements blocked" },
   announcements_retry: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements retry" },
   announcements_review_show: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements review show" },
@@ -1868,7 +1953,10 @@ export const IMAGE_OPERATIONS = {
   announcements_where: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements where" },
   announcements_recent: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements recent" },
   announcements_explain: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "announcements", command: "papyrus announcements explain" },
-  ratings_set: { effect: "write", agentAllowed: true, agentRung: "draft", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
+  ratings_set: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings set" },
+  ratings_suggest: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings suggest" },
+  ratings_confirm: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings confirm" },
+  ratings_suggestions_review: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings suggestions-review" },
   handoffs_request: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "handoffs", command: "papyrus handoffs request" },
 } as const;
 

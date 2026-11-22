@@ -57,15 +57,15 @@ class ChecklistClient:
 
 
 class ChecklistStamps(intake.ChecklistReviewStamps):
-    """PROVISIONAL human review stamp, read the way production reads it (``intake.ChecklistReviewStamps``): a Story's checklist step ``review_people`` done by a person
-    against the Story's current version. Ryan has not confirmed this definition. ``mark`` is what a person or an agent does to the step."""
+    """The human review stamp, read the way production reads it (``intake.ChecklistReviewStamps``): a Story's checklist step ``review_people`` done against the
+    Story's current version by a person, or by an agent on a person's recorded instruction. ``mark`` writes the step's row as a person or an agent left it."""
 
     def __init__(self) -> None:
         super().__init__(ChecklistClient())
 
-    def mark(self, lineage_id: str, version: int, state: str, actor_kind: str) -> None:
+    def mark(self, lineage_id: str, version: int, state: str, actor_kind: str, instruction: dict | None = None) -> None:
         row = checklist._apply(checklist._new_row(lineage_id, intake.REVIEW_STEP), state, {"kind": actor_kind, "label": "Someone"}, "2026-11-16T10:00:00Z",
-                               note="read it", story_version=version)
+                               note="read it", story_version=version, instruction=instruction)
         checklist._write(self.client, row)
 
 
@@ -201,6 +201,11 @@ def person_reviews(context, version, lineage):
 @given('an agent has marked the review step done on version {version:d} of the Story "{lineage:R}"')
 def agent_reviewed(context, version, lineage):
     context.stamps.mark(lineage, version, "done", "agent")
+
+
+@given('an agent on the instruction of "{person}" has marked the review step done on version {version:d} of the Story "{lineage:R}"')
+def agent_reviewed_on_instruction(context, person, version, lineage):
+    context.stamps.mark(lineage, version, "done", "agent", {"person": person, "quote": "I read it; mark it reviewed"})
 
 
 @given('a person has opened the review step again on version {version:d} of the Story "{lineage:R}"')
@@ -484,3 +489,113 @@ def table_needs(context, name, rung):
     from papyrus_content.images.operations import operation
 
     assert operation(name).agent_rung == rung, operation(name).agent_rung
+
+
+# --- an agent in a person's own admin session, on that person's instruction (agent_policy/delegation.py) -----------------------------------------------------
+
+SESSION_AGENT = Caller(kind="agent", subject="ada", is_admin=True)   # what identify() makes of an agent in ada's admin session
+EDITOR_SESSION_AGENT = Caller(kind="agent", subject="ellie", is_admin=False)
+
+
+def _delegated(context, caller, approval, person, quote):
+    _call(context, "announcements_review_set", {"approval": approval, "reason": "Test", "onInstructionOf": person, "quote": quote, "agent": "Claude"}, caller)
+
+
+@when('an agent in ada\'s session sets the publication\'s announcement review to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def delegated_ada(context, approval, person, quote):
+    _delegated(context, SESSION_AGENT, approval, person, quote)
+
+
+@when('an agent in ellie\'s session sets the publication\'s announcement review to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def delegated_ellie(context, approval, person, quote):
+    _delegated(context, EDITOR_SESSION_AGENT, approval, person, quote)
+
+
+@when('an agent in ada\'s session sets the publication\'s announcement review to "{approval:R}" naming no one')
+def delegated_nobody(context, approval):
+    _call(context, "announcements_review_set", {"approval": approval, "reason": "Test"}, SESSION_AGENT)
+
+
+@then('the policy was saved by "{by}" with a reason holding "{words:R}"')
+def saved_by_with_reason(context, by, words):
+    state = context.policy.read(TENANT)
+    record = context.policy.version_record(TENANT, state.version)
+    assert record["by"] == by and words in record["reason"], record
+
+
+@then('the policy still has no announce rung')
+def no_rung(context):
+    assert context.policy.read(TENANT).document["agents"].get(review_policy.RESPONSIBILITY) is None
+
+
+@when('an agent in ada\'s session changes the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def delegated_delivery_review(context, channel, account, approval, person, quote):
+    _call(context, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval, "onInstructionOf": person, "quote": quote, "agent": "Claude"},
+          SESSION_AGENT)
+
+
+@when('an agent in ada\'s session changes the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" naming no one')
+def delegated_delivery_review_nobody(context, channel, account, approval):
+    _call(context, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval}, SESSION_AGENT)
+
+
+@then('the Delivery "{channel:R}" "{account:R}" is approved by someone recorded as "{words:R}"')
+def delivery_approved_by_record(context, channel, account, words):
+    row = _row(context, channel, account)
+    assert context.deliveries.is_approved(row) and words in str(row["approvedBy"]), (row.get("approvedBy"), row.get("approvedVersion"))
+
+
+# --- the announcements write door (image_service.announcementsWrite) --------------------------------------------------------------------------------------
+
+ADMIN_DOOR_IDENTITY = {"claims": {"name": "ada"}, "groups": ["admin"], "username": "ada"}
+READER_DOOR_IDENTITY = {"claims": {"name": "rae"}, "groups": [], "username": "rae"}
+
+
+def _write_door(context, identity, op, payload, actor_kind=None):
+    import json as _json
+
+    from papyrus_content.image_service import handle
+
+    review_handlers._publication = lambda client: "publication"
+    arguments = {"op": op, "input": _json.dumps(payload), "requestId": "request-1", **({"actorKind": actor_kind} if actor_kind else {})}
+    context.envelope = handle({"fieldName": "announcementsWrite", "identity": identity, "arguments": arguments}, client_factory=lambda: context.backend,
+                              files_factory=lambda client: None)
+
+
+@when('"ada" asks the announcements write door to change the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}"')
+def door_person_review(context, channel, account, approval):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval})
+    assert context.envelope["ok"], context.envelope
+
+
+@when('an agent in ada\'s session asks the announcements write door to change the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" naming no one')
+def door_agent_nobody(context, channel, account, approval):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_delivery_review_set", {"delivery": _row(context, channel, account)["id"], "approval": approval}, "agent")
+
+
+@when('an agent in ada\'s session asks the announcements write door to change the review of the Delivery "{channel:R}" "{account:R}" to "{approval:R}" on the instruction of "{person:R}" who said "{quote:R}"')
+def door_agent_instructed(context, channel, account, approval, person, quote):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_delivery_review_set",
+                {"delivery": _row(context, channel, account)["id"], "approval": approval, "onInstructionOf": person, "quote": quote, "agent": "Claude"}, "agent")
+    assert context.envelope["ok"], context.envelope
+
+
+@when('a signed-in reader asks the announcements write door to "{op:R}"')
+def door_reader(context, op):
+    _write_door(context, READER_DOOR_IDENTITY, op, {})
+
+
+@when('"ada" asks the announcements write door to "{op:R}"')
+def door_admin_other(context, op):
+    _write_door(context, ADMIN_DOOR_IDENTITY, op, {})
+
+
+@then('the write door refuses with "{code:R}"')
+def door_answers(context, code):
+    assert not context.envelope["ok"] and context.envelope["error"]["code"] == code, context.envelope
+
+
+@when('"ada" asks the announcements write door to release the Delivery "{channel:R}" "{account:R}"')
+def door_person_release(context, channel, account):
+    _write_door(context, ADMIN_DOOR_IDENTITY, "announcements_release", {"delivery": _row(context, channel, account)["id"]})
+    assert context.envelope["ok"], context.envelope

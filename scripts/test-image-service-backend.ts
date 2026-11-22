@@ -41,11 +41,16 @@ assert.ok(announcementsQuery, "the base schema defines announcementsRead");
 assert.match(announcementsQuery, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(announcementsQuery), "no public, API-key or guest access");
 assert.match(announcementsQuery, /op: String!/, "the operation is required");
-assert.ok(!/announcementsWrite/.test(text), "there is no announcements write door: changes stay on the command line and in the agents' tools");
+// The announcements write door: a person's decision about one Delivery, editors and admins at the door, with a request id.
+const announcementsMutation = /announcementsWrite\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(announcementsMutation, "the base schema defines announcementsWrite");
+assert.match(announcementsMutation, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(announcementsMutation), "no public, API-key or guest access");
+assert.match(announcementsMutation, /requestId: ID!/, "a write carries a request id");
 
-// The function writes Item versions and the attachment rows of guideline documents: no other model is created or updated.
+// The function writes Item versions, the attachment rows of guideline documents, and one Delivery with its words: no other model is created or updated.
 const mutations = IMAGE_SERVICE_FUNCTION_FIELDS.filter((field) => field.startsWith("Mutation/"));
-assert.deepEqual(mutations.sort(), ["Mutation/fields/createItem", "Mutation/fields/createModelAttachment", "Mutation/fields/updateItem"]);
+assert.deepEqual(mutations.sort(), ["Mutation/fields/completeModelAttachmentUpload", "Mutation/fields/createItem", "Mutation/fields/createModelAttachment", "Mutation/fields/createModelAttachmentDownload", "Mutation/fields/createModelAttachmentUpload", "Mutation/fields/updateDelivery", "Mutation/fields/updateItem"]);
 
 // Its role reaches only the payloads of Item versions in the bucket, to read and write, never delete or list.
 assert.equal(IMAGE_SERVICE_BUCKET_PREFIX, "newsroom/payloads/item/");
@@ -61,6 +66,7 @@ assert.match(python, /has_editor_rights/, "the function repeats the group check"
 assert.match(readFileSync(join(process.cwd(), "src/papyrus_content/images/profile_handlers.py"), "utf8"), /SECTION_STYLE_FIELD = "visualStyle"/);
 assert.match(python, /guidelinesRead/, "the function serves the guidelines doors");
 assert.match(python, /announcementsRead/, "the function serves the announcements door");
+assert.match(python, /announcementsWrite/, "the function serves the announcements write door");
 assert.match(readFileSync(join(process.cwd(), "src/papyrus_content/guidelines/s3_files.py"), "utf8"), /PAYLOAD_PREFIX = "newsroom\/payloads\/item\/"/, "the Python files stay under the prefix the role allows");
 
 console.log("image service backend: ok");

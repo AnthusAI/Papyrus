@@ -3,7 +3,7 @@
   "title": "Per-publication announcement review policy",
   "description": "Human review is a per-publication setting, not a rule. Add announcementReview (none = fully automatic, soft = a person may edit or stop before lock time, silence lets it go, hard = a person must release) to publication settings; it sets the default approval for new Announcements. Overrides, narrowest wins: publication, then channel (e.g. LinkedIn hard while X is none), then Announcement kind (e.g. roundups hard, story posts none); each optional. Separate source rule requireReviewedSource (default off): when on, an Announcement is created only for a Story a person has reviewed (human review stamp on its current version); a Story edited after review loses the stamp and returns the Announcement to waiting. Both are data, changeable any time, and apply to Announcements created afterwards; a planned one keeps its policy unless an editor changes that one. Every Announcement records approvalPolicy and where it came from, so the list can say sent automatically by publication policy or released by a person. Defaults: new publications soft with requireReviewedSource off; Machines on Machines hard for roundups and requireReviewedSource on; other sites keep today's behaviour and nothing changes on any site in this slice. Floors no setting lowers: three-star floor, and a machine never supplies a five.\n\n**Acceptance criteria**\n- Gherkin, one scenario per combination: fully automatic publication (none everywhere, requireReviewedSource off: first person to see it is a reader); soft (edit or stop before lock, silence releases); hard (waits for a person); MoM-style reviewed-only (requireReviewedSource on, roundups hard: unreviewed Story creates no Announcement; edit after review returns it to waiting); channel override beats publication; kind override beats channel; narrowest wins; policy change affects only later Announcements; per-Announcement editor change; approvalPolicy and source recorded on each Announcement.\n- Gherkin: three-star floor and no machine five hold under every policy.\n- Settings are data with no code defaults beyond those listed; no site's behaviour changes in this slice.\n- Announcements list shows the policy in words and marks, never colour alone.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md section 2.2. X feed stays OFF. No real email addresses.\n\n**Section 13 additions (2026-11-16, always-on agent review; changes D, I, J)**\n- Ordering: this task depends on nothing later than slice 1 (PPY-3792dd) and now comes before the editing-window task (PPY-e8ec54), which is blocked by this one.\n- Approval is recorded per Delivery (`approval`, `approvalPolicy`, `approvedVersion`, `approvedBy`, `approvedAt`); the policy chosen by publication, channel and kind is written to each Delivery's `approvalPolicy`.\n- For broadcast channels, spacing between posts on one account is an owner setting in the channel's settings, empty by default (change D).\n- Agent-permission table, one table in the operation definitions, by actor kind:\n  - Draft, add a candidate, edit an unpinned block: agent Allowed, person Allowed.\n  - Change or unpin a block a person pinned: agent Blocked, person Allowed.\n  - Release under `none`: agent Allowed (the policy did it), person Allowed.\n  - Release under `soft` or `hard`; unlock after lock: agent answers `human_required`, person Allowed.\n  - Correct (a new public text): agent follows that Delivery's review value, person Allowed.\n  - Withdraw (deletes a public post): agent Allowed only when a Story is retired, otherwise `human_required`; person Allowed.\n  - Change review policy, budget, account: agent Blocked, person Admin.\n**Acceptance criteria (added)**\n- Gherkin: an agent asking to release under `hard` gets `human_required`.\n- Gherkin: a channel with `hard` waits while another channel with `none` goes (approval is per Delivery).\n- Gherkin: an agent cannot change or unpin a pinned block, change review policy, budget or account.\n- Gherkin: post spacing on one account, when set, holds the next post; empty means no spacing.\n- The operation table is the single source for newsroom and CLI.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nBuild this as the first client of the autonomy ladder, not as a separate setting. `announcementReview` is the announce responsibility's rung in the site's agent policy document (PPY-51ea61): `hard` is `prepare`, `soft` is `publish_soft`, `none` is `publish_auto`. Its overrides are the ladder's overrides (publication, then channel, then Announcement kind), with **list** added as the narrowest scope for newsletters. The value chosen is still written to each Delivery as `approval` with `approvalPolicy`. `requireReviewedSource` stays a separate source rule on the channel or list, because it is a condition on the input, not a degree of autonomy. The agent-permission table here becomes rows of the one operation table with the rung each needs (PPY-611397). Now also blocked by PPY-51ea61 and PPY-611397.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -63,20 +63,32 @@
       "id": "83c3d20d-3373-41bc-993b-a2b49830d893",
       "author": "claude",
       "text": "Closed in the in-progress sweep: work shipped on develop (#1673, #1696); any follow-ups are in the notes above and need their own records.",
-      "created_at": "2026-11-20T14:03:43.000000Z",
+      "created_at": "2026-11-20T14:03:43Z",
       "comment_type": "default"
     },
     {
       "id": "c6d591bb-0250-4b19-886a-8f46f42bbafd",
       "author": "claude",
       "text": "Back in progress: announcement review policy is part of the live always-on agents work.",
-      "created_at": "2026-11-20T14:19:17.000000Z",
+      "created_at": "2026-11-20T14:19:17Z",
       "comment_type": "default"
+    },
+    {
+      "id": "ef2c708f-87a4-4f5f-a9fe-5bc871563f0c",
+      "author": "ryan",
+      "text": "Closed 2026-11-21 (Ryan: close out work in progress). Shipped on develop and live: per-publication, channel and kind review policy (#1673, #1696), agent withdraw on retire (#1704), release under hard needs a person; the first X post went out under it. The two leftovers moved to PPY-36e7c9: 'none' via set-rung under hard floors, and requireReviewedSource per channel/list.",
+      "created_at": "2026-11-22T04:17:02.643522Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T21:49:19.342619Z",
-  "updated_at": "2026-11-20T14:19:17.000000Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T04:17:02.761756Z",
+  "closed_at": "2026-11-22T04:17:02.761720Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

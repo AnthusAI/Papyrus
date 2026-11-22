@@ -37,5 +37,10 @@ def _ledger():
     return ledger_from_environment(os.environ)   # made when a request needs it: a site with no tenant answers that, and nothing else about the function changes
 
 
-def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
-    return handle_event(event, _accounts, _settings, _ledger)
+def _account(context: Any) -> str | None:
+    parts = str(getattr(context, "invoked_function_arn", None) or "").split(":")
+    return parts[4] if len(parts) > 4 and parts[4] else None
+
+
+def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
+    return handle_event(event, _accounts, _settings, _ledger, account_id=_account(context))
