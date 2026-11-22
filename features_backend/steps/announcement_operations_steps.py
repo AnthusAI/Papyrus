@@ -180,3 +180,24 @@ def _roundup(context):
 def _roundup_stays(context):
     assert context.deliveries.get(context.roundup_delivery)["state"] != "withdrawn"
     assert all(line[3] != context.roundup_delivery for line in context.retire_lines), context.retire_lines
+
+
+@when("an editor's settings page reads the account status through the announcements door")
+def _door_status(context):
+    """The console's own path: the image service's announcementsRead door, as a signed-in editor. The site's announcements function (settings, connection, ledger) is
+    the scenario's, as it is for the command line."""
+    from papyrus_content.announcements import handlers as announcement_handlers
+    from papyrus_content.image_service import handle
+
+    original = announcement_handlers.Functions
+    announcement_handlers.Functions = lambda client: context.functions
+    context.add_cleanup(setattr, announcement_handlers, "Functions", original)
+    identity = {"claims": {"name": "Edie Editor"}, "groups": ["editor"], "username": "edie"}
+    envelope = handle({"fieldName": "announcementsRead", "identity": identity, "arguments": {"op": "announcements_account_status", "input": "{}"}},
+                      client_factory=lambda: context.backend, files_factory=lambda client: context.files)
+    context.door_envelope, context.cli_answer = envelope, {"result": envelope.get("result") or {}}
+
+
+@then('the door answers for "{op}"')
+def _door_answers(context, op):
+    assert context.door_envelope["ok"] is True and context.door_envelope["op"] == op, context.door_envelope

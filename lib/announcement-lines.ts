@@ -3,7 +3,7 @@
  * once, by the backend (`src/papyrus_content/announcements/lines.py`), so the console, `papyrus announcements` and the agents' tools show the same sentence. This module holds the
  * shapes of the answer, the door that asks for it, and the few plain labels the page adds (a channel's name, a kind's name).
  */
-import type { ImageEnvelope, ImageOperations } from "./images/operations.generated";
+import type { AnnouncementsAccountStatusResult, ImageEnvelope, ImageOperations } from "./images/operations.generated";
 
 export type Marked = { words: string; mark: string };
 
@@ -55,8 +55,8 @@ export type AnnouncementEntry = {
 export type AnnouncementsWhere = { story: string; announcements: AnnouncementEntry[] };
 export type AnnouncementsRecent = { announcements: AnnouncementEntry[]; overdue: DeliveryLine[]; next: string | null };
 
-type DoorOperation = "announcements_where" | "announcements_recent";
-type DoorResult = { announcements_where: AnnouncementsWhere; announcements_recent: AnnouncementsRecent };
+type DoorOperation = "announcements_where" | "announcements_recent" | "announcements_account_status";
+type DoorResult = { announcements_where: AnnouncementsWhere; announcements_recent: AnnouncementsRecent; announcements_account_status: AnnouncementsAccountStatusResult };
 
 /** The announcements door: reads only. The console's own sends GraphQL (`lib/announcements-door-client.ts`); the demo answers from seeded data. */
 export type AnnouncementsDoor = <Name extends DoorOperation>(op: Name, input: ImageOperations[Name]["input"]) => Promise<ImageEnvelope<DoorResult[Name]>>;

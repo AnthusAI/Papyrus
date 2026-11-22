@@ -110,9 +110,14 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None, policy_f
 #: What the console's announcements door (``announcementsRead``) serves. ``explain`` reads the site's agent policy and its settings function, which the image service function does not
 #: bind; it is a command and an agents' tool.
 DOOR_OPERATIONS = ("announcements_where", "announcements_recent")
+DOOR_STATUS_OPERATION = "announcements_account_status"   # the settings page's cycle spend, our post count and the budget suggestion (PPY-8037b8)
 
 
 def with_client(client: Any, clock: Callable[[], str] = now_iso) -> dict[str, Handler]:
     """The door's handlers over the service function's own client: the caller's role was checked at the door, and nothing is written."""
+    from .handlers import signed_in_handlers as announcement_handlers
+
     handlers = signed_in_handlers(client_factory=lambda: client, clock=clock)
-    return {name: handlers[name] for name in DOOR_OPERATIONS}
+    served = {name: handlers[name] for name in DOOR_OPERATIONS}
+    served[DOOR_STATUS_OPERATION] = announcement_handlers(client_factory=lambda: client)[DOOR_STATUS_OPERATION]
+    return served

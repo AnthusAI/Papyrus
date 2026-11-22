@@ -58,3 +58,22 @@ print(",".join(sorted(door_write_handlers(object()))))
 def test_the_word_edits_the_write_door_serves_import_only_what_the_image_service_carries():
     completed = subprocess.run([sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(SOURCE)!r}); exec({EDIT_PATH!r})"], capture_output=True, text=True, timeout=60)
     assert "announcements_draft" in completed.stdout and "announcements_unlock" in completed.stdout, completed.stdout + completed.stderr
+
+
+STATUS_PATH = r'''
+import sys
+ALLOWED = set(sys.stdlib_module_names) | {"boto3", "botocore", "s3transfer", "jmespath", "dateutil", "urllib3", "six", "papyrus_content"}
+class Block:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] not in ALLOWED and not name.startswith("_"):
+            raise ModuleNotFoundError(f"No module named '{name}'")
+sys.meta_path.insert(0, Block())
+from papyrus_content.announcements.list_handlers import with_client
+from papyrus_content.announcements import handlers, operations, budget
+print(",".join(sorted(with_client(object()))))
+'''
+
+
+def test_the_account_status_the_read_door_serves_imports_only_what_the_image_service_carries():
+    completed = subprocess.run([sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(SOURCE)!r}); exec({STATUS_PATH!r})"], capture_output=True, text=True, timeout=60)
+    assert "announcements_account_status" in completed.stdout, completed.stdout + completed.stderr
