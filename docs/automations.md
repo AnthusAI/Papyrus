@@ -14,7 +14,7 @@ describes that, links to it, controls it, costs it and shows what it did.
 | `monitor` triggers | Live, because the monitoring router already runs them. The router's `procedureTriggers` entry still says what starts and with what input; the record mirrors it and now governs it (below). |
 | `event` trigger "story enters a stage" | **Live from the command line and the runner** (below, "Story-state triggers"). |
 | `schedule` trigger | **Live** (below, "The schedule trigger"). The time and zone come from the agent's registered definition; the record names the router publication that gives each tick the site's endpoint, model key and policy location (`config.monitorId` and `config.publicationId`, both or neither, set with `papyrus automations update`). The console and the command line show the time and zone in words, not "not yet supported". Its input is static. |
-| `manual` trigger, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
+| `manual` trigger, other `event` kinds | Stored, and shown as "not yet supported". Nothing in this record starts them; their run history (the runs that name the agent) still shows, below. |
 | `enabled` | **Real for monitor automations.** The router reads the record before each start. A disabled automation starts nothing, and the trigger row says `skipped` with the reason "automation disabled". |
 | `limits.timeoutSeconds` | **Enforced.** It goes to the runner with the request and becomes the procedure's deadline, capped at 840 s (the runner Lambda's 15 minutes less its recording margin). |
 | `limits.maxConcurrent` | **Optional; unset means no limit, as before.** When set, a new start at the limit is **deferred**, not dropped: the trigger row says `deferred` with the reason ("deferred: concurrency limit: 1 running, at most 1 at a time") and the router starts it on a later run when there is room. |
@@ -257,7 +257,12 @@ A site's own checkout never writes it.
 
 ## Run history
 
-Each run joins two records:
+A schedule, event or manual agent's history is one query of the run index `listProcedureRunsByAutomationAndRequestedAt`:
+the `ProcedureRun` records whose `automationId` is the agent, newest first, up to the history's limit. An agent id is a slug each tenant
+chooses, so on a shared stack the reader keeps only its tenant's runs. Its "Started outside this automation" list is the procedure's other
+recent runs, leaving out every run that names the agent.
+
+A monitor or stage agent's run joins two records:
 
 * a row in the monitoring table (`MONITOR#<monitorId>`): a `TRIGGER#<publication>#<procedureKey>#<sourceId>` row (which
   item, when it started, how the start ended) or a `MANUAL#<automationId>#<timestamp>` row (a Run now: who, when). Their

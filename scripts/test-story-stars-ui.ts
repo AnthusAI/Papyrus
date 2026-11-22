@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const origin = "http://story-stars.test";
-/** Seeds of lib/local-preview-seed.ts: copywriting-0 carries 4 stars, published-0 carries 5, idea-1 carries 2, the rest are unrated. */
+/** Seeds of lib/local-preview-seed.ts: copywriting-0 carries 4 stars, published-0 carries 5, idea-1 carries 2, the rest are unrated; copywriting-1 has 4 stars suggested by the rating agent. */
 const RATED = { lineage: "preview-item-lineage-copywriting-0", version: "preview-item-version-copywriting-0" };
 const UNRATED = { lineage: "preview-item-lineage-copywriting-1", version: "preview-item-version-copywriting-1" };
 const PUBLISHED = { lineage: "preview-item-lineage-published-0", version: "preview-item-version-published-0" };
@@ -197,6 +197,23 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await page.locator("[data-newsroom-article-status]").innerText(), "Published", "it is still published");
       assert.equal(await page.locator("[data-newsroom-article-save]").isDisabled(), true, "and the editor has nothing unsaved");
       await shot(page, "editor-1440");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** A machine's suggestion sits under an unrated Story's rating in words, and confirming it saves it as the editor's rating, after which it goes away. */
+  async suggestion() {
+    const { browser, page, errors } = await setup(`/?editor=${UNRATED.version}`);
+    try {
+      await drawer(page).waitFor();
+      const suggestion = drawer(page).locator("[data-star-suggestion]");
+      assert.equal(await stars(drawer(page)), "0", "the Story has no rating: the suggestion is not one");
+      assert.match(await suggestion.innerText(), /Suggested by the rating agent: 4 of 5 stars\. Not a rating until you choose\./);
+      await shot(page, "suggestion-1440");
+      await suggestion.getByRole("button", { name: "Use 4 stars" }).click();
+      await waitStars(drawer(page), "4");
+      assert.deepEqual(await calls(page), [{ action: "setItemStars", itemId: UNRATED.version, stars: 4 }], "confirming is the editor's own rating, one plain update");
+      assert.equal(await suggestion.count(), 0, "a rated Story shows no suggestion");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },

@@ -52,6 +52,11 @@ function slugFromHeadline(headline: string): string {
 }
 
 /** Sample ratings the preview Stories already carry (a Story's private 1-5 stars), so the board, the drawer and the editor show some. */
+/** The rating agent's suggestion on one unrated sample Story (PPY-e61642): shown under its rating in the editor until a person decides. */
+const PREVIEW_STORY_SUGGESTIONS: Readonly<Record<string, { stars: number; by: string }>> = {
+  "preview-item-lineage-copywriting-1": { stars: 4, by: "agent:rate" },
+};
+
 const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
   "copywriting-0": 4,
   "published-0": 5,
@@ -411,6 +416,7 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     aliases: [],
     everPublished: version.status === "published",
     starRating: version.starRating ?? null,
+    starSuggestion: version.starRating ? null : PREVIEW_STORY_SUGGESTIONS[version.lineageId] ?? null,
   };
 }
 

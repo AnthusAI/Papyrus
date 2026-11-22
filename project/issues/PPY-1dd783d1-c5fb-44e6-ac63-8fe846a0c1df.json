@@ -3,7 +3,7 @@
   "title": "X drafts fail the facts check on claims taken from the Story's own summary, and run at the length limit",
   "description": "Sending MoM's first X post (The Eternal October, 2026-11-21): every machine draft was blocked. Two causes. (1) The facts check rejected claims that are in the Story's own dek/summary, e.g. 'AI-company break-ins take hours; cleanup takes days' and 'Americans are unsure; some are stocking up' (the dek reads: 'Break-ins at companies that build AI tools now take hours, and the cleanup takes days... Many Americans are unsure what to believe, and some are stocking up.'). The judge seems to check against the body only, or to refuse paraphrase. (2) Drafts land at or over 280: one was 9 over, the dry run after PPY-1905cc came out at exactly 280 with a hashtag. A person had to rewrite and approve by hand. Expected: the judge counts the title, dek and summary as Story text and accepts faithful paraphrase; the drafter targets a margin under 280 that includes the chosen hashtags and X's 23-character link. Evidence: Delivery announcement-fe180a1b841ed2d84912d329#x#2121333232503341056#g1 (version 1 blocked, version 3 approved and sent as post 2124246414221865158); announcements dry-run content-item-the-eternal-october-b75303199dbd5a16.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -22,11 +22,23 @@
         "model": "claude-opus-5-5",
         "name": "Claude Code handoff session"
       }
+    },
+    {
+      "id": "e82d61d9-a284-4526-83dc-f3e863c0b18b",
+      "author": "ryan",
+      "text": "Released in 5.144.0 (PR 1816), on MoM: dry runs pass (weights 181-251, qualifiers kept, a hashtag chosen).",
+      "created_at": "2026-11-22T00:50:53.965441Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "Claude Code handoff session"
+      }
     }
   ],
   "created_at": "2026-11-21T22:25:10.487583Z",
-  "updated_at": "2026-11-21T23:02:42.329809Z",
-  "closed_at": null,
+  "updated_at": "2026-11-22T00:51:03.295349Z",
+  "closed_at": "2026-11-22T00:51:03.295328Z",
   "agent": {
     "platform": "claude-code",
     "model": "claude-opus-5-5",

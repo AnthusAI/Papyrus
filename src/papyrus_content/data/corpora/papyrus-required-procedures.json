@@ -548,7 +548,7 @@
     "rate_items": {
       "title": "Rate Unrated Stories",
       "category": "newsroom",
-      "description": "The rating agent's daily run: reads the published Stories nobody has rated and decides three stars, four stars or a five-star candidate for each. It writes a rating only at a rung the site's agent policy allows, never a five, and never replaces a rating.",
+      "description": "The rating agent's daily run: reads the published Stories nobody has rated and decides three stars, four stars or a five-star candidate for each. It never writes a rating: at a rung the site's agent policy allows, it writes each as a suggestion beside the rating and raises the day's one review for a person.",
       "parameterSchema": {
         "type": "object",
         "properties": {},

@@ -35,7 +35,7 @@ Operator groups:
   guidelines    Writing, image and video guidelines for the site or a section (guidelines show|resolve|diff|save|history|check)
   announcements Announce Stories on the publication's X account: one Announcement and one Delivery for each channel, dry runs, withdraw, budget and pause (announcements where|recent|explain|dry-run|pause|resume|withdraw|settings|account)
   handoffs      Ask another responsibility for work on a Story: an Assignment that names who asked and why (handoffs request)
-  ratings       Rate a Story: a person gives 1 to 5 stars, an agent only 3 or 4 where the site's policy allows it (ratings set)
+  ratings       Rate a Story: a person gives 1 to 5 stars; an agent suggests and a person confirms (ratings set, suggest, confirm)
   figures       Diagrams, charts and illustrations: render a figure to a light and a dark picture and check it (figures render|directive|rules|primitives|localize|variant)
   pod           A folder of Markdown notes as a pod: start one, mint ids, check it (pod init|id|check; files only, no sign-in)
   design-system The site's design system for figures, kept in the backend (design-system show|pull|push)

@@ -88,3 +88,34 @@ export function StarsMark({ stars }: { stars: number | null }) {
     </span>
   );
 }
+
+/** Who suggested the stars, in words: `agent:rate` is the rating agent. */
+export function suggesterWords(by: string | null): string {
+  if (!by) return "a machine";
+  if (by === "agent:rate") return "the rating agent";
+  return by.startsWith("agent:") ? `the ${by.slice("agent:".length)} agent` : by;
+}
+
+/**
+ * A machine's suggested stars, shown under the rating while nobody has rated the Story. It is never the rating: the rating stays empty until a person
+ * confirms the suggestion (one tap, which saves it as that person's rating), taps other stars, or leaves it. A five is a candidate for a person to decide.
+ */
+export function SuggestedStars({ suggestion, onConfirm, disabled = false }: { suggestion: { stars: number; by: string | null }; onConfirm: () => void; disabled?: boolean }) {
+  const candidate = suggestion.stars === STAR_COUNT;
+  const words = candidate
+    ? `Five-star candidate, suggested by ${suggesterWords(suggestion.by)}`
+    : `Suggested by ${suggesterWords(suggestion.by)}: ${starsWords(suggestion.stars)}`;
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground" data-star-suggestion={suggestion.stars}>
+      <span>{words}. Not a rating until you choose.</span>
+      <button
+        className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-foreground hover:bg-accent disabled:opacity-50"
+        disabled={disabled}
+        onClick={onConfirm}
+        type="button"
+      >
+        {candidate ? "Give 5 stars" : `Use ${suggestion.stars} stars`}
+      </button>
+    </p>
+  );
+}

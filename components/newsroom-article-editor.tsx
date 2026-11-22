@@ -49,6 +49,7 @@ import {
   type EditableArticle,
   type ErrorLocation,
   type NewsroomArticleEditorState,
+  type StarSuggestion,
 } from "../lib/newsroom-articles";
 import { resolveMediaBackend } from "../lib/newsroom-media-backend";
 import {
@@ -66,7 +67,7 @@ import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
 import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
-import { StarRating } from "./star-rating";
+import { StarRating, SuggestedStars } from "./star-rating";
 import { StoryAnnouncementsCard } from "./announcement-lines";
 import { StorySchedulePanel } from "./story-schedule-panel";
 import { useScheduleZone } from "../lib/schedule-zone";
@@ -158,6 +159,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const { zone: scheduleZone } = useScheduleZone();
   /** The rating the Story had when it was loaded; the store shows what was tapped since. */
   const [savedStars, setSavedStars] = useState<number | null>(null);
+  const [starSuggestion, setStarSuggestion] = useState<StarSuggestion | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationState>({ status: "checking" });
   const [bodyIr, setBodyIr] = useState<unknown>(null);
@@ -204,6 +206,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setSavedStars(article.starRating ?? null);
+        setStarSuggestion(article.starSuggestion ?? null);
         setEverPublished(article.everPublished);
         setSavedType(article.type);
         setPublishedType(article.publishedType ?? (article.everPublished ? article.type : null));
@@ -789,6 +792,12 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                 onChange={(tapped) => stars.tap(lineageId ?? editor.id!, editor.id!, savedStars, tapped)}
                 value={stars.value(lineageId ?? editor.id, savedStars)}
               />
+              {starSuggestion && stars.value(lineageId ?? editor.id, savedStars) === null ? (
+                <SuggestedStars
+                  onConfirm={() => stars.tap(lineageId ?? editor.id!, editor.id!, savedStars, starSuggestion.stars)}
+                  suggestion={starSuggestion}
+                />
+              ) : null}
             </div>
           ) : null}
 

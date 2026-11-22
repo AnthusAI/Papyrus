@@ -95,7 +95,18 @@ export type EditableArticle = {
   publishedType?: string | null;
   /** The editors' private 1-5 rating of the Story; null when nobody rated it. */
   starRating?: number | null;
+  /** A machine's suggested stars beside the rating (3, 4, or 5 for a five-star candidate) and who suggested them; null when there is none. Never the rating. */
+  starSuggestion?: StarSuggestion | null;
 };
+
+export type StarSuggestion = { stars: number; by: string | null };
+
+/** The suggestion on a Story record, when it carries one a person can decide: 3, 4 or 5 stars. */
+export function readStarSuggestion(record: { starSuggestion?: unknown; starSuggestedBy?: unknown }): StarSuggestion | null {
+  const stars = record.starSuggestion;
+  if (typeof stars !== "number" || ![3, 4, 5].includes(stars)) return null;
+  return { stars, by: typeof record.starSuggestedBy === "string" ? record.starSuggestedBy : null };
+}
 
 export type ArticlesBackend = {
   actions: {
@@ -337,6 +348,7 @@ export async function loadEditableArticle(client: ArticlesDataClient, id: string
     everPublished: status === "published",
     publishedType,
     starRating: typeof record.starRating === "number" ? record.starRating : null,
+    starSuggestion: readStarSuggestion(record as { starSuggestion?: unknown; starSuggestedBy?: unknown }),
   };
 }
 

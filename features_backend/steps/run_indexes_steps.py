@@ -194,3 +194,60 @@ def failed_finishes(context):
 @then('the run is recorded with the attention key "{key}"')
 def key_is(context, key):
     assert context.run_table.rows["run-3"]["attentionKey"] == key
+
+
+class AgentRuns:
+    """ProcedureRun rows read only through the agent index, newest first; every read is recorded and listing the table fails."""
+
+    def __init__(self, rows, tenant_id=None):
+        self.rows, self.tenant_id, self.reads = rows, tenant_id, []
+
+    def iterate_newest_first(self, index, key, **_):
+        self.reads.append(("index", index, key))
+        yield from sorted((row for row in self.rows if row["automationId"] == key), key=lambda row: row["requestedAt"], reverse=True)
+
+    def list_records(self, model, **_):
+        raise AssertionError(f"the whole {model} table was listed")
+
+
+def agent_runs(client, automation_id, limit):
+    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+    return PapyrusGraphQLAuthoringClient.agent_procedure_runs(client, automation_id, limit)
+
+
+@given('the agent "{agent}" has three runs and another agent has one')
+def agent_with_runs(context, agent):
+    rows = [{"id": f"{agent}-{hour}", "automationId": agent, "requestedAt": f"2026-11-20T{hour:02d}:00:00Z"} for hour in (9, 11, 10)]
+    context.agent_table = AgentRuns(rows + [{"id": "other-12", "automationId": "fact-check", "requestedAt": "2026-11-20T12:00:00Z"}])
+
+
+@when('an operator reads the agent "{agent}"\'s two newest runs')
+def read_two(context, agent):
+    context.agent_runs = agent_runs(context.agent_table, agent, 2)
+
+
+@then("the runs are the agent's two newest, newest first")
+def two_newest(context):
+    assert [run["id"] for run in context.agent_runs] == ["announce-11", "announce-10"], context.agent_runs
+
+
+@then('the only read made was the agent index for "{agent}"')
+def only_agent_index(context, agent):
+    assert context.agent_table.reads == [("index", "procedureRunsByAutomation", agent)], context.agent_table.reads
+
+
+@given('a shared stack where the tenants "{first}" and "{second}" each have an agent named "{agent}"')
+def two_tenants(context, first, second, agent):
+    context.agent_rows = [{"id": f"{tenant}-{hour}", "tenantId": tenant, "automationId": agent, "requestedAt": f"2026-11-20T{hour:02d}:00:00Z"}
+                          for tenant, hour in ((first, 9), (second, 10), (first, 11), (second, 12))]
+
+
+@when('"{tenant}" reads the agent "{agent}"\'s runs')
+def tenant_reads(context, tenant, agent):
+    context.agent_runs = agent_runs(AgentRuns(context.agent_rows, tenant_id=tenant), agent, 10)
+
+
+@then('every run listed belongs to "{tenant}"')
+def all_tenant(context, tenant):
+    assert [run["id"] for run in context.agent_runs] == [f"{tenant}-11", f"{tenant}-9"], context.agent_runs
+
