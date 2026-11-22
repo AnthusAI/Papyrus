@@ -1085,7 +1085,7 @@ export type AnnouncementsSettingsSetInput = {
   storyTypes?: string[];
   /** Limit to these sections. */
   sections?: string[];
-  /** On: an Announcement is made only for a Story a person has reviewed on its current version. Off by default. PROVISIONAL: what counts as a review (a person marked the Story's review step done on its current version) is not confirmed. */
+  /** On: an Announcement is made only for a Story a person has reviewed on its current version (its review step done by a person, or by an agent on a person's recorded instruction). Off by default. */
   requireReviewedSource?: boolean;
   /** Dollars for each X billing cycle, such as 10.00. No default. */
   budget?: string;

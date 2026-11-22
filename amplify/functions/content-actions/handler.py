@@ -702,7 +702,8 @@ def sync_story_checklist(client, record: dict) -> None:
 
 def set_story_step_action(arguments: dict, event: dict) -> dict:
     """Marks one step of a Story's checklist done, skipped, not applicable or open again, as the signed-in person.
-    ``agent`` names an agent acting through that person's session: the change is recorded as the agent's, on that person's behalf, and an agent cannot reopen a step."""
+    ``agent`` names an agent acting through that person's session: the change is recorded as the agent's, and an agent cannot reopen a step. An agent closes a review
+    step only on a person's instruction: ``onInstructionOf`` (the person) and ``quote`` (their words), recorded with the change; without them it is refused (``delegation-required``)."""
     from papyrus_content.story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, add_note, set_step
 
     person = person_from_event(event)
@@ -719,9 +720,10 @@ def set_story_step_action(arguments: dict, event: dict) -> dict:
             row = set_step(
                 client, arguments["lineageId"], arguments["stepKey"], arguments["state"], actor=actor,
                 reason=arguments.get("reason"), note=arguments.get("note"), evidence=arguments.get("evidence"),
+                instruction={"person": arguments.get("onInstructionOf"), "quote": arguments.get("quote")},
             )
     except ChecklistError as error:
-        return {"ok": False, "errors": [{"code": "checklist-rejected", "message": str(error), "line": None}]}
+        return {"ok": False, "errors": [{"code": error.code or "checklist-rejected", "message": str(error), "line": None}]}
     return {"ok": True, "step": {"stepKey": row["stepKey"], "state": row["state"], "changedAt": row.get("changedAt")}}
 
 

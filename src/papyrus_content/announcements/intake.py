@@ -14,10 +14,10 @@ A Story edited after a review loses the stamp: ``story_changed`` returns every D
 while the rule is off or the new version has been reviewed again. Until then it waits, whatever its approval says (a ``none`` Delivery must not go out unreviewed on a site that
 requires review).
 
-**PROVISIONAL: the definition of a human review stamp is not confirmed.** No stamp existed as data, so it is defined here as one fact: the Story's checklist step
-``review_people`` ("Reviewed for readers") is marked done by a person (an actor of kind person, never an agent or the system) against the Story's CURRENT version number
-(``ChecklistReviewStamps``). A later version carries no stamp until a person marks the step again, and a waiting Announcement returns to waiting. Ryan has not confirmed
-this definition (PPY-97c0f2 asks him); every place that shows or documents it says so, using ``PROVISIONAL_NOTE``.
+**The human review stamp** is read from the checklist of the lineage being announced (``story_checklist.review_stamp``): its review step (``review_people``; for a
+translation, its own ``human_review``, never the original's) is done against that lineage's CURRENT version number, by a person or by an agent on a person's recorded
+instruction (the person and their words; a delegated stamp names the person). An agent alone cannot close the step at all (``delegation-required``). A later version
+carries no stamp until the step is done again, and a waiting Announcement returns to waiting (PPY-473f8f).
 """
 from __future__ import annotations
 
@@ -33,10 +33,8 @@ from .links import StoryRef
 from .records import DRAFTED
 from .review_policy import ReviewChoice, choose
 
-#: The checklist step a person marks done when they have reviewed the Story for readers.
+#: The checklist step a person marks done when they have reviewed an original Story for readers (a translation's is ``human_review``).
 REVIEW_STEP = "review_people"
-#: Said wherever the human review stamp is shown or documented, until Ryan confirms or changes the definition.
-PROVISIONAL_NOTE = "PROVISIONAL: what counts as a human review is not confirmed (here: a person marked the Story's review step done on its current version)."
 QUALITY_FLOOR_STARS = 3
 MAX_STARS = 5
 
@@ -50,17 +48,17 @@ class ReviewStamps(Protocol):
 
 
 class ChecklistReviewStamps:
-    """The stamp read from the Story's checklist (``story_checklist.read_steps``): one index read by parent. PROVISIONAL: Ryan has not confirmed this definition.
-    A person's mark counts only on the version it was made against; an agent's or the system's mark never counts, and neither does a step that is open again."""
+    """The stamp read from the checklist of the lineage asked about (``story_checklist.lineage_review_stamp``): one index read by parent. A person's mark, or an
+    agent's on a person's recorded instruction, counts only on the version it was made against; an agent's mark with no instruction never counts, and neither does
+    a step that is open again."""
 
     def __init__(self, client: Any):
         self.client = client
 
     def reviewed(self, lineage_id: str, version_number: int) -> bool:
-        from papyrus_content.story_checklist import ACTOR_PERSON, STEP_DONE, read_steps
+        from papyrus_content.story_checklist import lineage_review_stamp
 
-        step = next((item for item in read_steps(self.client, lineage_id) if item.get("stepKey") == REVIEW_STEP), None)
-        return bool(step and step.get("state") == STEP_DONE and step.get("actorKind") == ACTOR_PERSON and step.get("storyVersion") == version_number)
+        return lineage_review_stamp(self.client, lineage_id, version_number) is not None
 
 
 @dataclass(frozen=True)
@@ -129,7 +127,7 @@ def announce_story(
         unreviewed = [story for story in stories if not stamps.reviewed(story.lineage_id, story.version_number)]
         if unreviewed:
             names = ", ".join(f"{story.lineage_id} version {story.version_number}" for story in unreviewed)
-            result.held.append(Held(NOT_REVIEWED, f"{names} has not been reviewed by a person, and this publication announces only reviewed Stories. {PROVISIONAL_NOTE}"))
+            result.held.append(Held(NOT_REVIEWED, f"{names} has not been reviewed by a person, and this publication announces only reviewed Stories."))
             return result
     plans: list[Plan] = []
     for target in targets:
@@ -161,7 +159,7 @@ def make_ready(announcements: Announcements, stamps: ReviewStamps, announcement:
         if row.get("state") != DRAFTED:
             continue
         if waiting:
-            held.append(Held(NOT_REVIEWED, f"{row['channel']} waits: {', '.join(story.lineage_id for story in waiting)} was changed after its review and has not been reviewed again. {PROVISIONAL_NOTE}", row["channel"]))
+            held.append(Held(NOT_REVIEWED, f"{row['channel']} waits: {', '.join(story.lineage_id for story in waiting)} was changed after its review and has not been reviewed again.", row["channel"]))
             continue
         ready.append(announcements.deliveries.mark_ready(row, by=by, now=now))
     return ready, held

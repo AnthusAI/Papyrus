@@ -35,7 +35,7 @@ from .delivery_versions import Versions
 from .drafting import Draft, DraftRefused, Llm, RuleLane, draft_announcement
 from .eligibility import StoryFacts, refusal
 from .learned_examples import Read
-from .intake import NOT_REVIEWED, NO_DELIVERY, PROVISIONAL_NOTE, Held, ReviewStamps, floor_refusal
+from .intake import NOT_REVIEWED, NO_DELIVERY, Held, ReviewStamps, floor_refusal
 from .post import tagged_link
 from .records import BLOCKED, DRAFTED, READY, json_list
 from .review_policy import choose
@@ -145,7 +145,7 @@ def prepare(services: XServices, story: StoryFacts, policy: PolicyState, stamps:
     if not settings["accountId"]:
         return Prepared(held=Held(NO_ACCOUNT, "No X account is connected to this site, so there is no account to post from.", CHANNEL))
     if settings["requireReviewedSource"] and not stamps.reviewed(story.lineage_id, story.version_number):
-        return Prepared(held=Held(NOT_REVIEWED, f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories. {PROVISIONAL_NOTE}", CHANNEL))
+        return Prepared(held=Held(NOT_REVIEWED, f"{story.lineage_id} version {story.version_number} has not been reviewed by a person, and this publication announces only reviewed Stories.", CHANNEL))
     choice = choose(policy, channel=CHANNEL, kind=STORY_PUBLISHED)
     if not choice.prepares:
         return Prepared(held=Held(NO_DELIVERY, str(choice.reason), CHANNEL))
