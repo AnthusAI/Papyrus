@@ -19,10 +19,22 @@
       "text": "PR #1888 (feat/PPY-45c2ef-monitor-stories-ledger) open against develop, CI green. Monitor stories now go through SpendBrake, the spend ledger (agents monitor_stories, monitor_stories_index) and unusual_cost.watch_run; both interim backstops removed. Spec features_backend/monitoring/monitor-stories-spend.feature (8 scenarios). Not merged, not released. Before release: only machines-on-machines names tenantId+siteBucket in hn.json; the other five publications will log not_started/not_located until their entries name both.",
       "created_at": "2026-11-23T22:33:29.061440Z",
       "comment_type": "default"
+    },
+    {
+      "id": "872ab58f-438a-4892-97a3-d5196a396fcf",
+      "author": "ryan",
+      "text": "Merged to develop 2026-11-23 (#1888), not released. RELEASE BLOCKER: the router now needs tenantId and siteBucket on every publication in infra/monitoring/router-config/hn.json to find its ledger and budget; only machines-on-machines names both. Released as is, monitor stories stops (not_started / not_located) on anth-us, threat-intelligence, data-parade, pilobol-us and shipped. Before the next Papyrus release, give each entry its tenant and site bucket (adding a tenant also scopes the router's API client to it), or Ryan accepts the stop. A site with no saved budget gets the $10 default and monitor-stories spend now counts against it. Verify after deploy: SPEND#machines-on-machines#ai:monitor_stories#<month> and ...monitor_stories_index rows after the 07:30 UTC run.",
+      "created_at": "2026-11-23T23:47:21.146764Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-23T14:45:48.055610Z",
-  "updated_at": "2026-11-23T22:33:29.062Z",
+  "updated_at": "2026-11-23T23:47:21.147304Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
