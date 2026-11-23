@@ -3,7 +3,7 @@
   "title": "Typed staff and reader tools",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -15,13 +15,25 @@
       "id": "66ec4c4d-64de-4547-a44f-faac83de7ade",
       "author": "claude",
       "text": "Moved back from in progress in the sweep: no merged work found for this record and no activity since 2026-11-05; paused, not being worked on.",
-      "created_at": "2026-11-20T13:52:20.000000Z",
+      "created_at": "2026-11-20T13:52:20Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f0010647-a26b-4e74-bd4c-39437c73e84c",
+      "author": "ryan",
+      "text": "Closing 2026-11-23 after an audit of develop and main: typed staff and reader tools released in #1741 and the registry PRs #1743-#1758 (command_registry.py, mcp-domain-tools.feature).",
+      "created_at": "2026-11-23T15:47:23.725272Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-05T20:04:41.664086Z",
-  "updated_at": "2026-11-20T13:52:20.000000Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T15:47:26.333535Z",
+  "closed_at": "2026-11-23T15:47:26.333492Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

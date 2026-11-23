@@ -3,7 +3,7 @@
   "title": "Loop guard per subject",
   "description": "Agents wake each other by changing records, so two agents could pass a Story back and forth. Keep the existing guard and make it general: a counter of agent runs per subject since a person last acted on it. The limit is an owner setting in the agent policy document; at the limit nothing more starts for that subject and one hard-gate review request says so. A person's action resets the count. An agent's own new version wakes free checks, and never the same paid step on its own output.\n\n**Acceptance criteria**\n- A ping-pong between two agents stops at the owner's limit with one hard gate.\n- A person's edit resets the count.\n- An agent never re-runs its own paid step on the version it just wrote.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- agent-loop-guard.feature: two agents alternating stop at the limit; the hard gate is raised once; a person's action lets work continue; an agent's own version does not re-wake it.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B7 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,23 @@
       "text": "Implemented with PPY-67e3cd in one PR (wake gate); see branch feat/PPY-67e3cd-coalesce-loop-guard.",
       "created_at": "2026-11-19T08:44:12.595381Z",
       "comment_type": "default"
+    },
+    {
+      "id": "35d9504e-a6fb-4d69-9b7a-d806477147cf",
+      "author": "ryan",
+      "text": "Closing 2026-11-23 after an audit of develop and main: loop guard per subject shipped and released in #1708 (wake_gate.py raise_loop_review; features_backend/agents/agent-loop-guard.feature).",
+      "created_at": "2026-11-23T15:47:22.731266Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:43:03.149Z",
-  "updated_at": "2026-11-19T08:44:12.595674Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T15:47:25.327711Z",
+  "closed_at": "2026-11-23T15:47:25.327669Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
