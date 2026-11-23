@@ -208,14 +208,13 @@ def _fresh(rows: list[dict[str, Any]], seen: dict[str, str]) -> list[dict[str, A
 # --- the pass ---------------------------------------------------------------------------------------------------------------------------------
 
 def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, Any], *, now: datetime, out_of_time: Callable[[], bool],
-                    maximum_cost_usd: float | None, embedding_key: str | None, read_watermark: Callable[[], str | None], write_watermark: Callable[[str], None],
+                    maximum_cost_usd: float, embedding_key: str | None, read_watermark: Callable[[], str | None], write_watermark: Callable[[str], None],
                     services_for: Callable[..., Any] = build_services, indexer: Callable[..., dict] | None = None, full_indexer: Callable[..., dict] | None = None,
                     on_summary_written: Callable[[list[dict[str, Any]]], None] | None = None) -> dict[str, Any]:
     """Indexes what changed since the saved place; returns ``{"indexed", "conceptCardsWritten", "suggestionsQueued", "suggestionsSkippedReason",
     "indexSkippedReason", "costUsd", "stoppedBy", "changedReferences", "changedConcepts", "changeReads", "bootstrapped", "timings"}``. Never raises: a failure is
     reported as the reason. ``on_summary_written`` hears about each stored Reference summary vector (the router queues its one suggestion check there); the callables
-    are the real ones unless a test passes fakes. ``maximum_cost_usd`` is a ceiling only a person running it by hand gives; the daily task gives none, because an
-    agent's cost is judged against its own history and flagged, never stopped (unusual_cost.py)."""
+    are the real ones unless a test passes fakes."""
     result = dict(EMPTY_RESULT)
     result["timings"] = timings = {}
     arn = policy.get("vectorIndexArn")
@@ -252,7 +251,7 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
     def stop_check(stats: dict[str, Any]) -> str | None:
         if out_of_time():
             return "time"
-        if maximum_cost_usd is not None and result["costUsd"] + embedding_cost_usd(int(stats.get("embeddingInputCharacters") or 0)) >= maximum_cost_usd:
+        if result["costUsd"] + embedding_cost_usd(int(stats.get("embeddingInputCharacters") or 0)) >= maximum_cost_usd:
             return "cost"
         return None
 
@@ -271,7 +270,7 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
     def spent_all() -> str | None:
         if out_of_time():
             return "time"
-        return "cost" if maximum_cost_usd is not None and result["costUsd"] >= maximum_cost_usd else None
+        return "cost" if result["costUsd"] >= maximum_cost_usd else None
 
     mark = time.monotonic()
     try:

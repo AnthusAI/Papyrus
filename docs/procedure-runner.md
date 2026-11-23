@@ -356,7 +356,7 @@ The check is before the run, so a run that starts under the budget can end over 
 * **The owner's per-run budget** is `agents.<responsibility>.budgetUsdPerRun` in the agent policy (`papyrus agents set-budget --agent R --per-run USD --reason TEXT [--apply]`, an admin who is a person). A run over it is flagged the same way.
 * **One flag a run**: the ReviewRequest `rr-run-cost-<digest of the run id>` (mode `flag`, subject `automation_run`), with the cost, the earlier runs, the typical (geometric mean) cost and the bound, and the words "The run was not stopped." Nothing waits on it. The runner prints `{"unusualCost": "flagged" | "judged" | "not judged", ...}` for every run that spent anything.
 
-The monitoring router's monitor-stories plan does not run through the procedure runner, so its cost is logged (`costUsd`) but not yet judged; its fixed 0.50 dollar guards were removed with this slice.
+The monitoring router's monitor-stories plan does not run through the procedure runner, so it has no spend ledger entry, no budget and no unusual-cost flag. Until it runs under the spend ledger it keeps its fixed 0.50 dollar backstops, renamed `monitoring_stories.MONITORING_ROUTER_INTERIM_COST_BACKSTOP_USD` (per publication and run) and `story_plan.MONITORING_ROUTER_INTERIM_STEP_COST_BACKSTOP_USD` (per step) to say what they are (Ryan, 2026-11-23).
 
 ## Who changes the agent policy
 
