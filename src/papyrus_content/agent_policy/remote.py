@@ -3,7 +3,7 @@
 A signed-in admin used to write the policy document with their own AWS credentials, which an agent working in their session also holds, so nothing on the server
 could tell the two apart. Now the signed-in lane sends each change to the function as a plain request. The function checks the credential (an admin, signed in
 through a person-only app client), refuses ``publish_auto`` while the hard floor stands, and writes the version with its own role. ``RemoteAgentPolicyStore`` reads
-as the local store does and sends every change; ``apply_request`` is the function's side of the same five changes.
+as the local store does and sends every change; ``apply_request`` is the function's side of the same changes; pausing and resuming are the function's poke-in operations (``function.poke_in``).
 """
 from __future__ import annotations
 
@@ -16,7 +16,10 @@ from .document import PolicyError, check_rung
 from .resolve import PolicyState
 from .store import AgentPolicyStore
 
-OPERATIONS = ("set_rung", "remove_override", "pause", "resume", "set_value")
+OPERATIONS = ("set_rung", "remove_override", "set_value")
+#: Pausing and resuming are poke-in operations (``agent_poke_in.py``): a resume also sends the wakes the pause stopped, so the function takes them by their
+#: operation table names and nowhere else.
+POKE_IN_REQUESTS = {"pause": "agents_pause", "resume": "agents_resume"}
 
 
 class RemoteAgentPolicyStore(AgentPolicyStore):
@@ -42,11 +45,11 @@ class RemoteAgentPolicyStore(AgentPolicyStore):
     def remove_override(self, tenant_id, caller, responsibility, scope, *, reason):
         return self._change_by_request(tenant_id, {"op": "remove_override", "responsibility": responsibility, "scope": dict(scope), "reason": reason})
 
-    def pause(self, tenant_id, caller, *, reason, responsibility=None):
-        return self._change_by_request(tenant_id, {"op": "pause", "responsibility": responsibility, "reason": reason})
+    def pause(self, tenant_id, caller, *, reason, responsibility=None, at=None):
+        return self._change_by_request(tenant_id, {"op": POKE_IN_REQUESTS["pause"], "agent": responsibility, "reason": reason})
 
     def resume(self, tenant_id, caller, *, reason, responsibility=None):
-        return self._change_by_request(tenant_id, {"op": "resume", "responsibility": responsibility, "reason": reason})
+        return self._change_by_request(tenant_id, {"op": POKE_IN_REQUESTS["resume"], "agent": responsibility, "reason": reason})
 
     def set_value(self, tenant_id, caller, field, value, *, reason, responsibility=None):
         return self._change_by_request(tenant_id, {"op": "set_value", "field": field, "value": value, "responsibility": responsibility, "reason": reason})
@@ -70,10 +73,6 @@ def apply_request(store: AgentPolicyStore, tenant_id: str, caller: Caller, reque
         return store.set_rung(tenant_id, caller, _named(responsibility), request["rung"], reason=reason, scope=request.get("scope") or None)
     if operation == "remove_override":
         return store.remove_override(tenant_id, caller, _named(responsibility), request.get("scope") or {}, reason=reason)
-    if operation == "pause":
-        return store.pause(tenant_id, caller, reason=reason, responsibility=responsibility)
-    if operation == "resume":
-        return store.resume(tenant_id, caller, reason=reason, responsibility=responsibility)
     return store.set_value(tenant_id, caller, str(request.get("field")), request.get("value"), reason=reason, responsibility=responsibility)
 
 

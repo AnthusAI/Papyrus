@@ -1032,7 +1032,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
       backend.auth.resources.groups[ADMIN_AGENT_POLICY_GROUP].role,
       storageBucket.bucketArn,
     );
-    wireAgentPolicy(backend, storageBucket.bucketName, storageBucket.bucketArn, [backend.auth.resources.userPoolClient.userPoolClientId]);
+    wireAgentPolicy(backend, storageBucket.bucketName, storageBucket.bucketArn, [backend.auth.resources.userPoolClient.userPoolClientId], siteBackendIdentity.brandId);
   }
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
   if (feedStreams !== undefined) {

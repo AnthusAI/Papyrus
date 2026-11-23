@@ -10,6 +10,8 @@ Three operations, one Lambda:
 * `todayOverview(day, timeZone)` is Today (`papyrus_content.today`): what ran in one day, what it decided to do nothing about and what it cost,
   read from the run status index. Same readers as `automationOverview`.
 * `runAutomation(automationId, input)` starts a run now. Editors and admins only; an IAM caller is refused.
+* `agentWake(input)` is the poke-in operation `agents_wake` (`agent_poke_in.wake`, PPY-e6f31e): one agent's latest wake for one subject goes on the
+  site's wake queue again, once. Editors and admins only, as `papyrus agents wake` asks for it.
 * `acknowledgeRun(runId)` takes one run off Today's attention list (`run_attention.acknowledge`): Acknowledge for a failure, Settle for an
   Outcome unknown. It records who and when; the run stays in the history. Editors and admins only; an IAM caller is refused.
 
@@ -65,7 +67,7 @@ def actor_label(event: dict) -> str:
 
 def handle(event: dict, *, env=None, reader_factory=None, client_factory=None, now: float | None = None,
            account_id: str | None = None, table_factory=None, invoker=None) -> dict:
-    """AppSync resolver entry: `automationOverview` or `runAutomation`, named by the request's field (`appsync_event.operation_name`)."""
+    """AppSync resolver entry: `automationOverview`, `todayOverview`, `runAutomation` or `agentWake`, named by the request's field (`appsync_event.operation_name`)."""
     env = os.environ if env is None else env
     identity = event.get("identity") or {}
     groups = identity.get("groups")
@@ -79,6 +81,10 @@ def handle(event: dict, *, env=None, reader_factory=None, client_factory=None, n
     automation_id = arguments.get("automationId") or None
     if automation_id is not None and not isinstance(automation_id, str):
         return {"error": "bad_request"}
+    if field == "agentWake":
+        if not is_editor:
+            return {"ok": False, "error": "not_authorized", "message": "Only an editor or an admin wakes an agent now."}
+        return _wake(event, arguments.get("input"), env=env, client_factory=client_factory, invoker=invoker)
     if field == "acknowledgeRun":
         if not is_editor:
             return {"error": "forbidden"}
@@ -121,6 +127,37 @@ def _today(arguments: dict, *, env, client_factory, now) -> dict:
     except Exception as error:   # the browser gets a state; the cause goes to the log by type only
         LOG.error("today overview failed: %s", type(error).__name__)
         return {"state": "unavailable"}
+
+
+def _wake(event: dict, supplied, *, env, client_factory, invoker) -> dict:
+    """Wake now, answered as the operation table's envelope result: {"ok": true, "result"} or {"ok": false, "error", "message"}."""
+    from .agent_policy.document import PolicyError
+    from .agent_poke_in import PokeInError, RunLedger, wake
+    from .images.handlers import Caller, check
+    from .images.operations import operation
+
+    try:
+        request = json.loads(supplied) if isinstance(supplied, str) else supplied
+    except json.JSONDecodeError:
+        return {"ok": False, "error": "invalid_input", "message": "The input must be a JSON object."}
+    if not isinstance(request, dict) or request.get("op") not in (None, "agents_wake"):
+        return {"ok": False, "error": "invalid_input", "message": "The input is the agents_wake operation's: agent, subject and reason."}
+    arguments = {name: value for name, value in request.items() if name != "op"}
+    problem = check(operation("agents_wake").input, arguments)
+    if problem:
+        return {"ok": False, "error": "invalid_input", "message": problem[1]}
+    if request.get("actorKind") == "agent":
+        return {"ok": False, "error": "human_required", "message": "Wake now is a person's request. Nothing was sent."}
+    try:
+        client = (client_factory or default_client_factory(env))()
+        result = wake(RunLedger(client, getattr(client, "tenant_id", None)), invoker or agent_wakes.wake_sender(), Caller(kind="person", subject=actor_label(event)),
+                      agent=arguments["agent"], subject=arguments["subject"], reason=arguments["reason"])
+        return {"ok": True, "result": result}
+    except (PolicyError, PokeInError) as error:
+        return {"ok": False, "error": error.code, "message": error.message}
+    except Exception as error:   # the browser gets a state; the cause goes to the log by type only
+        LOG.error("agent wake failed: %s", type(error).__name__)
+        return {"ok": False, "error": "service_unavailable", "message": "The wake could not be sent right now. Nothing was sent; try again in a minute."}
 
 
 def _acknowledge(event: dict, run_id, *, env, client_factory, now) -> dict:

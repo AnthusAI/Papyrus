@@ -293,7 +293,9 @@ def step_policy_same(context):
     before = context.policy_before[0]
     after = context.site.policy.read(TENANT)
     assert (after.version, after.document) == (before.version, before.document)
-    assert after.document["agents"]["rate"] == {"rung": "propose", "paused": True, "pausedReason": "an audit"}
+    paused = after.document["agents"]["rate"]
+    assert {name: paused[name] for name in ("rung", "paused", "pausedReason")} == {"rung": "propose", "paused": True, "pausedReason": "an audit"}
+    assert paused["pausedAt"] and paused["pausedBy"], "the pause keeps when it began and who made it"
     assert after.document["site"]["budget"] == {"amountUsd": 10, "period": "week"}
 
 

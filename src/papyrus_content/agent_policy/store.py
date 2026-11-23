@@ -12,15 +12,21 @@ holds only pointers, a save that stops half way is never live, and every version
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
 
 from papyrus_content.images.handlers import Caller
 from papyrus_content.site_store import SiteSaveConflict, SiteStore
 
-from .document import PolicyError, check_rung, check_scope, fresh, scope_of, validate_agent, validate_document
+from .document import PAUSE_DETAILS, PolicyError, check_rung, check_scope, fresh, scope_of, validate_agent, validate_document
 from .resolve import PolicyState
 
 KIND = "agents"
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 SITE_FIELDS = ("quietWindow", "coalescing", "budget", "tiers")
 AGENT_FIELDS = ("loopLimit", "budgetUsdPerRun")
 
@@ -35,6 +41,11 @@ def may_change(caller: Caller) -> None:
 class AgentPolicyStore:
     def __init__(self, site_store: SiteStore):
         self._store = site_store
+
+    @property
+    def site_store(self) -> SiteStore:
+        """The site store the policy is a kind of: the listener index is another kind of the same store."""
+        return self._store
 
     def read(self, tenant_id: str) -> PolicyState:
         """The live policy. A site that has never saved one is version 0 with nothing named, so every agent is at ``off``."""
@@ -110,22 +121,29 @@ class AgentPolicyStore:
 
         return self.change(tenant_id, caller, reason, edit)
 
-    def pause(self, tenant_id: str, caller: Caller, *, reason: str, responsibility: str | None = None) -> PolicyState:
-        """Pause one agent, or with no ``responsibility`` the whole site. The reason is shown on every run it stops."""
+    def pause(self, tenant_id: str, caller: Caller, *, reason: str, responsibility: str | None = None, at: str | None = None) -> PolicyState:
+        """Pause one agent, or with no ``responsibility`` the whole site. The reason is shown on every run it stops. The pause keeps when it began
+        (``pausedAt``) and who made it (``pausedBy``); pausing again what is already paused changes the reason and keeps when it began, so a resume still
+        catches up everything the pause stopped."""
+        moment = at or utc_now()
+
         def edit(document: dict) -> None:
             target = document["site"] if responsibility is None else document["agents"].setdefault(responsibility, {"rung": "off"})
+            began = target.get("pausedAt") if target.get("paused") else None
             target["paused"], target["pausedReason"] = True, reason.strip()
+            target["pausedAt"], target["pausedBy"] = began or moment, (target.get("pausedBy") if began else None) or caller.subject or "a person"
 
         return self.change(tenant_id, caller, reason, edit)
 
     def resume(self, tenant_id: str, caller: Caller, *, reason: str, responsibility: str | None = None) -> PolicyState:
-        """Lift a pause. Ticks skipped while paused stay skipped; nothing is replayed. An agent the document does not name is refused by name."""
+        """Lift a pause. Ticks skipped while paused stay skipped; nothing is replayed here (``agent_poke_in.resume`` sends the change wakes the pause stopped,
+        once each). An agent the document does not name is refused by name."""
         def edit(document: dict) -> None:
             if responsibility is not None and responsibility not in document["agents"]:
                 raise PolicyError("invalid_input", f"{responsibility} is not named in the agent policy, so there is nothing to resume.")
             target = document["site"] if responsibility is None else document["agents"][responsibility]
-            target.pop("paused", None)
-            target.pop("pausedReason", None)
+            for held in ("paused", "pausedReason", *PAUSE_DETAILS):
+                target.pop(held, None)
 
         return self.change(tenant_id, caller, reason, edit)
 

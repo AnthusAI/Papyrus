@@ -136,7 +136,7 @@ class Operation:
     picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
     delegable: bool = False                # an agent working in a person's own signed-in session (no run gate) may call it on that person's named instruction; a gated run never may
-    group: Literal["images", "guidelines", "announcements", "ratings", "handoffs"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
+    group: Literal["images", "guidelines", "announcements", "ratings", "handoffs", "agents"] = "images"   # the CLI group (papyrus <group> ...) and the door family the operation is run through
 
     def __post_init__(self) -> None:
         # A read names no rung and is allowed from `observe`. Every operation that writes or spends must say its rung: there is no default to forget.
@@ -1073,6 +1073,75 @@ HANDOFF_OPERATIONS: tuple[Operation, ...] = (
 )
 
 OPERATIONS = OPERATIONS + HANDOFF_OPERATIONS
+
+# The poke-in operations (PPY-e6f31e, slice H3; agent_poke_in.py). The newsroom's Automation page and `papyrus agents pause|resume|pauses|wake` run the same code.
+PAUSE_AGENT = text("The agent's name in the agent policy (its responsibility, such as announce). Leave it out for every agent on the site.")
+PAUSE_SHOWN = record({"paused": flag(), "reason": text(), "pausedAt": text(), "pausedBy": text()}, ("paused",))
+POLICY_VERSIONS = record({"before": whole(minimum=0), "after": whole(minimum=0)}, ("before", "after"), "The agent policy's version before and after; the same when nothing changed.")
+CAUGHT_UP = record({"agent": text(), "subject": text(), "wakeKey": text(), "repeats": text("The key of the wake the pause stopped.")}, ("agent", "subject", "wakeKey", "repeats"))
+
+AGENT_OPERATIONS: tuple[Operation, ...] = (
+    Operation(
+        "agents_pause", ("pause",), "Pause one agent, or every agent on the site, with a reason: its next run starts nothing and its run record says why.", "write",
+        obj({"agent": PAUSE_AGENT, "reason": REASON}, ("reason",)),
+        record({"scope": choice("agent", "site"), "agent": {"type": ["string", "null"]}, "paused": flag(), "reason": text(), "pausedAt": text(), "pausedBy": text(),
+                "changed": flag(), "policyVersion": POLICY_VERSIONS}, ("scope", "paused", "changed", "policyVersion")),
+        ("blocked", "human_required", "stale_version"),
+        (Example({"agent": "announce", "reason": "Checking the X drafts"},
+                 {"scope": "agent", "agent": "announce", "paused": True, "reason": "Checking the X drafts", "pausedAt": "2026-11-23T15:00:00Z", "pausedBy": "Ada Admin",
+                  "changed": True, "policyVersion": {"before": 4, "after": 5}}),),
+        group="agents",
+        notes="An admin who is a person only: it is a new version of the agent policy, saved by the site's agent-policy function, which refuses a credential that is not a person's "
+              "(the operator's AWS lane writes it directly). The runner reads the policy at the start of every run, so the pause stops the next run; a wake that arrives meanwhile "
+              "has a run record that says nothing to do (paused) and keeps the wake, so resuming can send it again. Pausing what is already paused keeps when it began.",
+        agent_rung=PERSON_ONLY, agent_refusal="blocked",
+    ),
+    Operation(
+        "agents_resume", ("resume",), "Resume one agent, or the site, with a reason, and send once each change wake the pause stopped.", "write",
+        obj({"agent": PAUSE_AGENT, "reason": REASON}, ("reason",)),
+        record({"scope": choice("agent", "site"), "agent": {"type": ["string", "null"]}, "paused": flag(), "changed": flag(), "policyVersion": POLICY_VERSIONS,
+                "caughtUp": many(CAUGHT_UP, "The wakes sent again: one for each subject whose latest wake the pause stopped."),
+                "notes": many(text(), "What was not caught up and why, in words.")}, ("scope", "paused", "changed", "policyVersion", "caughtUp", "notes")),
+        ("blocked", "human_required", "stale_version", "service_unavailable"),
+        (Example({"agent": "announce", "reason": "Drafts checked"},
+                 {"scope": "agent", "agent": "announce", "paused": False, "changed": True, "policyVersion": {"before": 5, "after": 6},
+                  "caughtUp": [{"agent": "announce", "subject": "story-1", "wakeKey": "announce|story-1|story-1-v3|stage_entered:published+resumed-v6",
+                                "repeats": "announce|story-1|story-1-v3|stage_entered:published"}], "notes": []}),),
+        group="agents",
+        notes="An admin who is a person only, as agents_pause. A timer's skipped ticks stay skipped. For each agent the pause is lifted from that listens for changes, the runs since "
+              "the pause began are read through the run index by agent, and each subject whose latest wake was stopped gets that wake once more, under a key made from the "
+              "stopped wake and this resume's policy version, so a repeat sends nothing new. An agent still paused itself, or under a paused site, is left for its own resume.",
+        agent_rung=PERSON_ONLY, agent_refusal="blocked",
+    ),
+    Operation(
+        "agents_pauses", ("pauses",), "Show what is paused on the site: the site and each agent the agent policy names, with who paused it, when and why.", "read",
+        obj({}),
+        record({"policyVersion": whole(minimum=0), "site": PAUSE_SHOWN, "agents": {"type": "object", "description": "By agent: paused, and while paused its reason, when and who."}},
+               ("policyVersion", "site", "agents")),
+        (),
+        (Example({}, {"policyVersion": 5, "site": {"paused": False},
+                      "agents": {"announce": {"paused": True, "reason": "Checking the X drafts", "pausedAt": "2026-11-23T15:00:00Z", "pausedBy": "Ada Admin"}}}),),
+        group="agents",
+        notes="Read by an admin: the command line reads the policy document itself, the newsroom through the agent-policy function.",
+    ),
+    Operation(
+        "agents_wake", ("wake",), "Wake one agent now for one subject: its latest wake for that subject goes on the site's wake queue again, and runs once.", "write",
+        obj({"agent": text("The agent's id, such as announce."), "subject": text("What it is woken for: a Story's lineage id, or the record its wakes name, such as a Delivery's id."),
+             "reason": REASON}, ("agent", "subject", "reason")),
+        record({"agent": text(), "subject": text(), "wakeKey": text(), "repeats": text("The key of the wake sent again."), "requestedBy": text(), "reason": text()},
+               ("agent", "subject", "wakeKey", "repeats", "requestedBy", "reason")),
+        ("not_found", "human_required", "constraint_conflict"),
+        (Example({"agent": "announce", "subject": "story-1", "reason": "The X draft should be made today"},
+                 {"agent": "announce", "subject": "story-1", "wakeKey": "announce|story-1|story-1-v3|rated:4+woken-r1", "repeats": "announce|story-1|story-1-v3|rated:4",
+                  "requestedBy": "Ada Editor", "reason": "The X draft should be made today"}),),
+        group="agents",
+        notes="An editor or admin who is a person. The run re-reads the subject as it is now and checks the policy as every run does, so a paused agent still starts nothing. "
+              "An agent never woken for the subject has no wake to send again (not_found). The run record's summary names who woke it and why.",
+        agent_rung=PERSON_ONLY,
+    ),
+)
+
+OPERATIONS = OPERATIONS + AGENT_OPERATIONS
 
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 BY_CLI = {(operation.group, operation.cli): operation for operation in OPERATIONS}

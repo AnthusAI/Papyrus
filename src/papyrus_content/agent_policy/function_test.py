@@ -102,7 +102,7 @@ def test_every_change_the_local_store_makes_can_be_sent_through_the_function():
     policy = store()
 
     def send(request):
-        return handle({"identity": event({})["identity"], "arguments": {"input": json.dumps(request)}}, policy, ENVIRONMENT, "alpha")
+        return handle({"identity": event({})["identity"], "arguments": {"input": json.dumps(request)}}, policy, ENVIRONMENT, "alpha", nothing_to_catch_up())
 
     remote = RemoteAgentPolicyStore(policy._store, send)
     from papyrus_content.images.handlers import Caller
@@ -115,6 +115,74 @@ def test_every_change_the_local_store_makes_can_be_sent_through_the_function():
     assert remote.resume("alpha", person, reason="back").version == 5
     assert remote.set_value("alpha", person, "budget", {"amountUsd": 5, "period": "week"}, reason="r").version == 6
     assert policy.read("alpha").document["site"]["budget"] == {"amountUsd": 5, "period": "week"}
+
+
+class NoRuns:
+    def runs_since(self, automation_id, since):
+        return []
+
+    def newest_first(self, automation_id):
+        return iter(())
+
+
+def nothing_to_catch_up():
+    from papyrus_content.agent_policy.function import PokeInServices
+
+    return PokeInServices(lambda: {}, NoRuns(), lambda request: None)
+
+
+def test_a_pause_and_a_resume_are_the_poke_in_operations_and_record_who_when_and_why():
+    policy = store()
+    paused = handle(event({"op": "agents_pause", "agent": "announce", "reason": "Checking the X drafts"}), policy, ENVIRONMENT, "alpha", nothing_to_catch_up())
+    assert paused["ok"] is True and paused["result"]["paused"] is True and paused["result"]["pausedBy"] == "ryan@example.test"
+    assert paused["document"]["agents"]["announce"]["pausedReason"] == "Checking the X drafts"
+    shown = handle(event({"op": "agents_pauses"}), policy, ENVIRONMENT, "alpha")
+    assert shown["result"]["agents"]["announce"]["paused"] is True and shown["result"]["site"] == {"paused": False}
+    resumed = handle(event({"op": "agents_resume", "agent": "announce", "reason": "Drafts checked"}), policy, ENVIRONMENT, "alpha", nothing_to_catch_up())
+    assert resumed["result"]["paused"] is False and resumed["result"]["caughtUp"] == [] and resumed["result"]["policyVersion"] == {"before": 1, "after": 2}
+    assert policy.version_record("alpha", 2)["reason"] == "Drafts checked"
+
+
+def test_a_resume_with_no_way_to_catch_up_is_refused_and_saves_nothing():
+    policy = store()
+    handle(event({"op": "agents_pause", "reason": "Incident"}), policy, ENVIRONMENT, "alpha", nothing_to_catch_up())
+    answer = handle(event({"op": "agents_resume", "reason": "Over"}), policy, ENVIRONMENT, "alpha")
+    assert answer["error"] == "service_unavailable" and policy.read("alpha").document["site"]["paused"] is True
+
+
+def test_a_pause_from_another_client_or_an_editor_or_a_declared_agent_changes_nothing():
+    policy = store()
+    pause = {"op": "agents_pause", "reason": "x"}
+    assert handle(event(pause, client="cli-client"), policy, ENVIRONMENT, "alpha")["error"] == "human_required"
+    assert handle(event(pause, groups=("editor",)), policy, ENVIRONMENT, "alpha")["error"] == "not_authorized"
+    assert handle(event({**pause, "actorKind": "agent"}), policy, ENVIRONMENT, "alpha")["error"] == "blocked"
+    assert handle(event({**pause, "reason": " "}), policy, ENVIRONMENT, "alpha")["error"] == "invalid_input"
+    assert policy.read("alpha").version == 0
+
+
+def test_the_poke_in_door_imports_only_what_the_agent_policy_function_carries():
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[2]
+    probe = r'''
+import json, sys
+ALLOWED = set(sys.stdlib_module_names) | {"boto3", "botocore", "s3transfer", "jmespath", "dateutil", "urllib3", "six", "papyrus_content"}
+class Block:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] not in ALLOWED and not name.startswith("_"):
+            raise ModuleNotFoundError(f"No module named '{name}'")
+sys.meta_path.insert(0, Block())
+from papyrus_content.agent_policy.function import handle, PokeInServices
+from papyrus_content.agent_poke_in import RunLedger, resume, pause, pauses
+from papyrus_content.agent_listeners import ListenerIndex
+from papyrus_content.agent_wakes import wake_sender
+from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+print("imported")
+'''
+    completed = subprocess.run([sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(source)!r}); exec({probe!r})"], capture_output=True, text=True, timeout=60)
+    assert "imported" in completed.stdout, completed.stdout + completed.stderr
 
 
 def test_a_refusal_from_the_function_reaches_the_caller_as_a_policy_error():

@@ -239,6 +239,8 @@ def update_cloud_procedure_run_record(client: PapyrusGraphQLAuthoringClient, pay
                 **run_attention.attention_fields(payload["outcome"], payload.get("finishedAt")),
                 # Only sent when the run reported model usage, so a site backend without these fields is not asked for them.
                 **({"usage": json.dumps(payload["usage"]), "costUsd": payload.get("costUsd")} if payload.get("usage") is not None else {}),
+                # An agent's change wake, kept so a person can send it again (procedure_runner.kept_wake). Only sent when there is one.
+                **({"wake": json.dumps(payload["wake"], sort_keys=True, default=str)} if payload.get("wake") is not None else {}),
             }
         },
     )
