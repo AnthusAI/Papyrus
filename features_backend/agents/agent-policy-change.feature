@@ -41,3 +41,26 @@ Feature: Only a person signed in to the console changes the agent policy
     When ada, an admin signed in on the console's app client, sets "rate" to the rung "observe" because "Watch it for a week"
     Then the policy function refused the change as "human_required"
     And the agent policy is still version 1 with "rate" at the rung "propose"
+
+  # The newsroom's Announcements settings page sets how X story posts are reviewed through this same function: the review is the announce
+  # rung of this document, narrowed to the channel x and the kind story_published, and the console never writes the policy any other way.
+  Scenario: A person on the console's client sets X story posts to soft review, and reads it back
+    When ada, an admin signed in on the console's app client, sets the review of X story posts to "soft" because "Set in the newsroom's Announcements settings."
+    Then the policy function saved the review as version 2, with "announce" at the rung "publish_soft" for the channel "x" and the kind "story_published"
+    And version 2 of the agent policy records "ada@example.test", the time "2026-11-22T09:00:00Z" and the reason "Set in the newsroom's Announcements settings."
+    And ada, reading the review of X story posts on the console's app client, sees "soft"
+
+  Scenario: A credential issued to another app client cannot set the review of X story posts
+    When an agent holding an admin token from another app client sets the review of X story posts to "soft" because "Post without asking"
+    Then the policy function refused the review as "human_required"
+    And the agent policy is still version 1 with "rate" at the rung "propose"
+
+  Scenario: A caller that says it is an agent is blocked, even on the console's client
+    When an agent declaring itself on the console's app client sets the review of X story posts to "hard" because "Tidy up"
+    Then the policy function refused the review as "blocked"
+    And the agent policy is still version 1 with "rate" at the rung "propose"
+
+  Scenario: Posts right away is refused while the hard floor stands
+    When ada, an admin signed in on the console's app client, sets the review of X story posts to "none" because "Go straight out"
+    Then the policy function refused the review as "constraint_conflict"
+    And the agent policy is still version 1 with "rate" at the rung "propose"

@@ -208,3 +208,54 @@ def nothing_written_by_the_command(context):
 def objects_by_function(context):
     objects = [entry for entry in context.shared.writers if entry[0] == "object"]
     assert objects and all(key.startswith(f"tenants/{TENANT}/site/agents/") and writer == "agent-policy function" for _, key, writer in objects), objects
+
+
+# --- the console's door to the announcement review (PPY-e2829f) ---------------------------------------------------------------------------------------------
+
+X_STORY_POSTS = {"channel": "x", "kind": "story_published"}
+
+
+def console_review_request(context, token_client: str, request: dict) -> dict:
+    """What the Announcements settings page sends: an agentPolicyChange with the review request and no tenant (the function takes the caller's own)."""
+    event = {"identity": {"groups": ["admin"], "claims": {"email": "ada@example.test", "aud": token_client}, "username": "ada"},
+             "arguments": {"input": json.dumps(request)}}
+    return handle(event, function_store(context), context.function_environment, TENANT)
+
+
+def set_review(context, token_client, approval, reason, **extra):
+    context.review_answer = console_review_request(context, token_client, {"op": "announcements_review_set", "approval": approval, **X_STORY_POSTS, "reason": reason, **extra})
+
+
+@when('ada, an admin signed in on the console\'s app client, sets the review of X story posts to "{approval}" because "{reason}"')
+def person_sets_review(context, approval, reason):
+    set_review(context, CONSOLE_CLIENT, approval, reason)
+
+
+@when('an agent holding an admin token from another app client sets the review of X story posts to "{approval}" because "{reason}"')
+def other_client_sets_review(context, approval, reason):
+    set_review(context, OTHER_CLIENT, approval, reason)
+
+
+@when('an agent declaring itself on the console\'s app client sets the review of X story posts to "{approval}" because "{reason}"')
+def declared_agent_sets_review(context, approval, reason):
+    set_review(context, CONSOLE_CLIENT, approval, reason, actorKind="agent")
+
+
+@then('the policy function saved the review as version {version:d}, with "{agent}" at the rung "{rung}" for the channel "{channel}" and the kind "{kind}"')
+def saved_override(context, version, agent, rung, channel, kind):
+    answer = context.review_answer
+    assert answer["ok"] is True and answer["result"]["policyVersion"] == version, answer
+    state = live_policy(context)
+    overrides = state.document["agents"][agent].get("overrides", [])
+    assert state.version == version and any(item.get("channel") == channel and item.get("kind") == kind and item["rung"] == rung for item in overrides), state.document
+
+
+@then('ada, reading the review of X story posts on the console\'s app client, sees "{approval}"')
+def reads_review(context, approval):
+    answer = console_review_request(context, CONSOLE_CLIENT, {"op": "announcements_review_show", **X_STORY_POSTS})
+    assert answer["ok"] is True and answer["result"]["chosen"]["approval"] == approval, answer
+
+
+@then('the policy function refused the review as "{code}"')
+def review_refused(context, code):
+    assert context.review_answer.get("ok") is False and context.review_answer["error"] == code, context.review_answer

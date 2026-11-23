@@ -662,6 +662,12 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .announcements__blockers{display:grid;gap:6px;list-style:none;padding:0}
 .announcements__blockers li{display:flex;align-items:center;gap:8px;font:600 13px/1.4 var(--kb-theme-ui-font)}
 .announcements__group{display:grid;gap:8px}
+.announcements__timing{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;font:400 14px/1.55 var(--kb-theme-ui-font)}
+.announcements .announcements__timing input{width:96px;min-height:44px;padding:8px 12px;border:0;border-radius:8px;background:var(--ann-tone-strong);color:var(--administration-strong);font:600 16px/1.4 var(--kb-theme-ui-font)}
+.announcements__timing input:focus-visible{outline:2px solid var(--administration-strong);outline-offset:2px}
+.announcements__problem{display:flex;align-items:flex-start;gap:8px;font:600 13px/1.45 var(--kb-theme-ui-font)}
+.announcements__problem svg{flex:none;margin-top:2px}
+.announcements__status>span{min-width:0;overflow-wrap:anywhere}
 .announcements__prices{border-collapse:separate;border-spacing:0 6px;font:400 14px/1.4 var(--kb-theme-ui-font);width:100%}
 .announcements__prices caption{text-align:left;padding-bottom:6px;font:600 13px/1.4 var(--kb-theme-ui-font)}
 .announcements__prices :is(th,td){text-align:left;padding:4px 8px 4px 0;font-weight:400;border:0}

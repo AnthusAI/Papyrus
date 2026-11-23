@@ -1,0 +1,12 @@
+{
+  "municipal access logs -is:retweet": {
+    "data": [
+      {"id": "100", "conversation_id": "100", "text": "Would an access log and independent audit help?"},
+      {"id": "101", "conversation_id": "100", "text": "I agree about the access log."},
+      {"id": "200", "conversation_id": "200", "text": "How should the disclosure schedule work?"},
+      {"id": "300", "conversation_id": "300", "text": "An independent audit https://t.co/example", "entities": {"urls": [{"expanded_url": "https://example.org/municipal-access-logs?utm_source=anything"}]}},
+      {"id": "400", "conversation_id": "400", "text": "Lunch looks delicious."}
+    ],
+    "meta": {"result_count": 5, "next_token": "not-followed"}
+  }
+}

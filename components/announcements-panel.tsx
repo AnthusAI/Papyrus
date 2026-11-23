@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Ban, Check, CircleCheck, CirclePause, CirclePlay, CircleX, Copy, FlaskConical, KeyRound, Megaphone, Plug, Power, Save, Send, Star, TriangleAlert, Unplug,
+  Ban, Check, CircleCheck, CirclePause, CirclePlay, CircleX, Clock, Copy, FlaskConical, KeyRound, Megaphone, Plug, Power, Save, Send, ShieldCheck, Star, TriangleAlert, Unplug, UserCheck,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { callAnnouncements, type AnnouncementsApi } from "../lib/announcements-client";
@@ -10,19 +10,31 @@ import { readDoor } from "../lib/announcement-lines";
 import type { AnnouncementsAccountStatusResult } from "../lib/images/operations.generated";
 import { createDemoAnnouncementsDoor } from "../lib/announcements-demo";
 import { createFixtureApi } from "../lib/announcements-fixture";
+import { createDemoReviewApi, type AnnouncementReviewApi } from "../lib/announcement-review-client";
+import { callAnnouncementReview } from "../lib/announcement-review-door";
+import {
+  DEFAULT_REVIEW_REASON, REVIEW_OPTIONS, currentReviewText, inheritedTimingText, reviewLabel, timingChanged, timingExplanation, timingFields, timingProblem, withXStoryTiming,
+  type ReviewApproval, type ReviewShown, type TimingFields,
+} from "../lib/announcement-review-timing";
 import {
   MODE_OPTIONS, QUALITY_FLOOR_STARS, SETUP_INTRO, STAR_CHOICES, STORY_TYPE_OPTIONS, X_PRICING_URL, X_STATE_STORAGE_KEY,
   callbackUrl, connectionWords, failureText, formatDate, formatMoney, formatWhen, modeBlockers, pauseText, setupSteps, toggled,
-  type AnnouncementFailure, type AnnouncementMode, type AnnouncementSettings, type XStatus, type XUsage,
+  type AnnouncementFailure, type AnnouncementMode, type AnnouncementSettings, type OpportunitySettings, type XStatus, type XUsage,
 } from "../lib/announcements-model";
 import { getPublicNewsroomBasePath } from "../lib/newsroom-base-path";
 import { AnnouncementsList } from "./announcement-lines";
 
 type Message = { kind: "ok" | "problem"; text: string } | null;
 type Section = { id: string; title: string };
+type OpportunityCapture = {
+  capture: Record<string, unknown>;
+  receipt: { publicPosts: number; postsReturnedByX: number; usersReturnedByX: number; reservedUsd: string; estimatedUsd: string };
+};
+const emptyOpportunitySettings: OpportunitySettings = { enabled: false, budget: null, postPrice: null, userPrice: null };
 const isFailure = (value: { ok: boolean }): value is AnnouncementFailure => value.ok === false;
 
 const MODE_ICON = { off: Power, dry_run: FlaskConical, on: Send } as const;
+const REVIEW_ICON = { hard: UserCheck, soft: Clock, none: Send } as const;
 const PRICE_FIELDS: { key: "createPost" | "createPostWithUrl" | "deletePost" | "readPost"; label: string }[] = [
   { key: "createPostWithUrl", label: "Post with a link (every announcement)" },
   { key: "createPost", label: "Post without a link" },
@@ -32,12 +44,13 @@ const PRICE_FIELDS: { key: "createPost" | "createPostWithUrl" | "deletePost" | "
 
 /**
  * Administration, Announcements: the pause switch, the plain setup guide, the X app's keys (the secret is write only), the
- * connected account, the mode, the rules, the budget and prices, and the list of announcements. Admins change; editors read.
+ * connected account, the mode, the rules, how X story posts are reviewed and when they post, the budget and prices, and the list of announcements. Admins change; editors read.
  * It reads on open and after each action and never subscribes to anything.
  */
 export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boolean; isDemo: boolean; sections: Section[] }) {
   const api: AnnouncementsApi = useMemo(() => (isDemo ? createFixtureApi() : callAnnouncements), [isDemo]);
   const door = useMemo(() => (isDemo ? createDemoAnnouncementsDoor() : announcementsDoor), [isDemo]);
+  const review: AnnouncementReviewApi = useMemo(() => (isDemo ? createDemoReviewApi() : callAnnouncementReview), [isDemo]);
   const live = useRef(true);
   useEffect(() => {
     live.current = true;
@@ -58,6 +71,14 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   const [clientSecret, setClientSecret] = useState("");
   const [replacing, setReplacing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shownReview, setShownReview] = useState<ReviewShown | null>(null);
+  const [reviewProblem, setReviewProblem] = useState<string | null>(null);
+  const [chosenReview, setChosenReview] = useState<ReviewApproval | null>(null);
+  const [reviewReason, setReviewReason] = useState("");
+  const [timing, setTiming] = useState<TimingFields>({ windowMinutes: "", lockLeadMinutes: "" });
+  const [opportunityQuery, setOpportunityQuery] = useState("");
+  const [capture, setCapture] = useState<OpportunityCapture | null>(null);
+  const captureInFlight = useRef(false);
 
   const callback = useMemo(() => callbackUrl(typeof window === "undefined" ? "https://your-site.example" : window.location.origin, getPublicNewsroomBasePath()), []);
 
@@ -71,6 +92,7 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
     setDraft(settings.settings);
     setStatus(xStatus.status);
     setClientId((current) => current || xStatus.status.clientId || "");
+    setTiming(timingFields(settings.settings.editWindows));
     if (xStatus.status.connection === "connected") {
       const used = await api<{ usage: XUsage }>("announcementsXUsage");
       if (!live.current) return;
@@ -87,6 +109,21 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   }, [api, door]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // The review is the announce rung of the agent policy, which only an admin signed in to the console reads and sets (the agent-policy function).
+  const loadReview = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const shown = await review.show();
+      if (!live.current) return;
+      setShownReview(shown); setReviewProblem(null); setChosenReview(shown.chosen?.approval ?? null);
+    } catch (failure) {
+      if (!live.current) return;
+      setShownReview(null); setReviewProblem(failure instanceof Error ? failure.message : "The review could not be read.");
+    }
+  }, [isAdmin, review]);
+
+  useEffect(() => { void loadReview(); }, [loadReview]);
 
   const act = async (label: string, work: () => Promise<Message>) => {
     setBusy(label);
@@ -146,6 +183,60 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
     return { kind: "ok", text: "Saved." };
   });
 
+  const saveReviewAndTiming = () => act("review", async () => {
+    if (!saved) return null;
+    const reviewChanged = chosenReview !== null && chosenReview !== (shownReview?.chosen?.approval ?? null);
+    const timingWasChanged = timingChanged(saved.editWindows, timing);
+    const problemWithTiming = timingProblem(timing);
+    if (problemWithTiming) return { kind: "problem", text: problemWithTiming };
+    const said: string[] = [];
+    if (reviewChanged && chosenReview) {
+      try {
+        await review.set(chosenReview, reviewReason);
+      } catch (failure) {
+        return { kind: "problem", text: `The review was not saved. ${failure instanceof Error ? failure.message : ""}`.trim() };
+      }
+      said.push(`X story posts: ${reviewLabel(chosenReview)}.`);
+      setReviewReason("");
+      await loadReview();
+    }
+    if (timingWasChanged) {
+      const editWindows = withXStoryTiming(saved.editWindows, timing);
+      const result = await api<{ settings: AnnouncementSettings }>("announcementsSaveSettings", { settings: { ...saved, editWindows } });
+      if (isFailure(result)) return { kind: "problem", text: `${said.length ? `${said.join(" ")} ` : ""}The timing was not saved. ${failureText(result)}` };
+      setSaved(result.settings);
+      setDraft((current) => (current ? { ...current, editWindows: result.settings.editWindows } : current));
+      setTiming(timingFields(result.settings.editWindows));
+      said.push(timing.windowMinutes.trim() === "" ? "No time is set for X story posts." : `X story posts go ${timing.windowMinutes.trim()} minutes after the draft, locked ${timing.lockLeadMinutes.trim() || "0"} minutes before.`);
+    }
+    return { kind: "ok", text: `Saved. ${said.join(" ")}`.trim() };
+  });
+  const runOpportunitySearch = async () => {
+    if (captureInFlight.current) return;
+    captureInFlight.current = true;
+    setCapture(null);
+    try {
+      await act("opportunities", async () => {
+        const result = await api<OpportunityCapture>("opportunitiesXSearch", { query: opportunityQuery.trim(), maxResults: 10 });
+        if (isFailure(result)) return { kind: "problem", text: failureText(result) };
+        setCapture(result);
+        return { kind: "ok", text: "Search complete. Nothing was posted." };
+      });
+    } finally {
+      captureInFlight.current = false;
+    }
+  };
+
+  const downloadOpportunityCapture = () => {
+    if (!capture) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(capture.capture, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "x-opportunities-capture.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const copyCallback = async () => {
     await navigator.clipboard.writeText(callback);
     setCopied(true);
@@ -167,6 +258,10 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   const patch = (changes: Partial<AnnouncementSettings>) => setDraft({ ...draft, ...changes });
   const patchRules = (changes: Partial<AnnouncementSettings["rules"]>) => setDraft({ ...draft, rules: { ...draft.rules, ...changes } });
   const connected = status.connection === "connected";
+  const savedOpportunities = saved.opportunities ?? emptyOpportunitySettings;
+  const draftOpportunities = draft.opportunities ?? emptyOpportunitySettings;
+  const patchOpportunities = (changes: Partial<OpportunitySettings>) => patch({ opportunities: { ...draftOpportunities, ...changes } });
+  const worstSearchCost = (Number(savedOpportunities.postPrice) + Number(savedOpportunities.userPrice)) * 10;
 
   return (
     <div className="announcements" data-news-desk-admin-panel="announcements">
@@ -183,7 +278,7 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
         </button>
       </section>
 
-      {!isAdmin ? <p className="announcements__quiet" data-announcements-readonly>You can read this page. An admin changes it.</p> : null}
+      {!isAdmin ? <p className="announcements__quiet" data-announcements-readonly>Only an admin can change these settings.</p> : null}
       {message ? <p className="announcements__notice" data-kind={message.kind} role="status" data-announcements-message>{message.kind === "ok" ? <Check aria-hidden="true" size={18} /> : <TriangleAlert aria-hidden="true" size={18} />} {message.text}</p> : null}
 
       <Card title="Set up your X account" note="A short guide. The full guide is docs/x-announcements-setup.md." id="setup">
@@ -259,6 +354,48 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
         </div>
       </Card>
 
+      {!isDemo ? <Card title="Opportunities search" note="Find public X conversations using the connected account. A person runs each search; nothing posts." id="opportunities">
+        {isAdmin ? <div className="announcements__fields">
+          <label className="announcements__field">
+            <span>Enable read-only X opportunity searches</span>
+            <input type="checkbox" checked={draftOpportunities.enabled} disabled={disabled} onChange={(event) => patchOpportunities({ enabled: event.target.checked })} />
+          </label>
+          {draftOpportunities.enabled ? <>
+            <label className="announcements__field"><span>Search budget per X billing cycle (USD)</span>
+              <input type="number" min="0.000001" step="0.000001" value={draftOpportunities.budget ?? ""} disabled={disabled}
+                onChange={(event) => patchOpportunities({ budget: event.target.value || null })} />
+            </label>
+            <label className="announcements__field"><span>X billing cycle start day (UTC)</span>
+              <input type="number" min="1" max="31" step="1" value={draft.billingCycleDay ?? ""} disabled={disabled}
+                onChange={(event) => patch({ billingCycleDay: event.target.value ? Number(event.target.value) : null })} />
+            </label>
+            <label className="announcements__field"><span>X post-read price (USD)</span>
+              <input type="number" min="0.000001" step="0.000001" value={draftOpportunities.postPrice ?? ""} disabled={disabled}
+                onChange={(event) => patchOpportunities({ postPrice: event.target.value || null })} />
+            </label>
+            <label className="announcements__field"><span>X user-read price (USD)</span>
+              <input type="number" min="0.000001" step="0.000001" value={draftOpportunities.userPrice ?? ""} disabled={disabled}
+                onChange={(event) => patchOpportunities({ userPrice: event.target.value || null })} />
+            </label>
+            <p className="announcements__quiet">Use the <a href={X_PRICING_URL}>current X prices</a>. The search allowance is separate from the announcements allowance and is not a limit on charges X bills outside this tool.</p>
+          </> : null}
+          {dirty ? <button type="button" className="announcements__button" disabled={disabled} onClick={() => void saveSettings()}>Save search settings</button> : null}
+        </div> : null}
+        {savedOpportunities.enabled && connected ? <>
+          <label className="announcements__field">
+            <span>X search query</span>
+            <input value={opportunityQuery} maxLength={4096} onChange={(event) => setOpportunityQuery(event.target.value)} disabled={busy !== null} />
+          </label>
+          <button type="button" className="announcements__button" disabled={busy !== null || !opportunityQuery.trim()} onClick={() => void runOpportunitySearch()}>
+            Search X (up to {formatMoney(worstSearchCost)} reserved)
+          </button>
+        </> : <p className="announcements__quiet">Search needs an active connection and enabled search settings.</p>}
+        {capture ? <div className="announcements__actions">
+          <span>{capture.receipt.publicPosts} public posts. Estimated USD {capture.receipt.estimatedUsd}; reserved USD {capture.receipt.reservedUsd}.</span>
+          <button type="button" className="announcements__button" onClick={downloadOpportunityCapture}>Download search results</button>
+        </div> : null}
+      </Card> : null}
+
       <Card title="Mode" note="Everything is off until you turn it on." id="mode">
         <div className="announcements__choices" role="radiogroup" aria-label="Mode" data-announcements-modes>
           {MODE_OPTIONS.map((option) => {
@@ -333,6 +470,64 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
           </div>
           <p className="announcements__quiet">Choose none to announce from every section.</p>
         </div>
+      </Card>
+
+      <Card title="Review and timing" note="For posts on X when a Story is published." id="review">
+        <div className="announcements__group">
+          <span className="announcements__label" id="ann-review-choices">Review before posting</span>
+          {isAdmin ? (
+            <p className="announcements__status" data-announcements-review-current>
+              {reviewProblem ? <TriangleAlert aria-hidden="true" size={18} /> : <ShieldCheck aria-hidden="true" size={18} />}
+              <span><strong>Now:</strong> {reviewProblem ?? (shownReview ? currentReviewText(shownReview) : "Loading…")}</span>
+            </p>
+          ) : <p className="announcements__quiet" data-announcements-review-current>Only an admin sees and changes how posts are reviewed.</p>}
+          <div className="announcements__choices" role="radiogroup" aria-labelledby="ann-review-choices" data-announcements-review>
+            {REVIEW_OPTIONS.map((option) => {
+              const Icon = REVIEW_ICON[option.value];
+              const selected = chosenReview === option.value;
+              return (
+                <button type="button" role="radio" aria-checked={selected} key={option.value} className="announcements__choice" data-selected={selected ? "true" : "false"} data-review={option.value}
+                  disabled={disabled || !shownReview} onClick={() => setChosenReview(option.value)}>
+                  <Icon aria-hidden="true" size={18} />
+                  <strong>{option.label}</strong>
+                  <span>{option.detail}</span>
+                  {selected ? <span className="announcements__selected"><Check aria-hidden="true" size={14} /> Selected</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          {isAdmin ? (
+            <label className="announcements__field">
+              <span>Why (kept with the change; optional)</span>
+              <input value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} disabled={disabled || !shownReview} placeholder={DEFAULT_REVIEW_REASON} maxLength={300} data-announcements-review-reason />
+            </label>
+          ) : null}
+        </div>
+        <div className="announcements__group">
+          <span className="announcements__label" id="ann-timing">Timing</span>
+          <p className="announcements__timing" role="group" aria-labelledby="ann-timing" data-announcements-timing>
+            <span>Post</span>
+            <input type="number" min="0" step="1" inputMode="numeric" value={timing.windowMinutes} disabled={disabled} aria-label="Minutes after the draft is made"
+              aria-invalid={timingProblem(timing) ? true : undefined} onChange={(event) => setTiming({ ...timing, windowMinutes: event.target.value })} data-announcements-window />
+            <span>minutes after the draft is made; lock</span>
+            <input type="number" min="0" step="1" inputMode="numeric" value={timing.lockLeadMinutes} disabled={disabled} aria-label="Minutes before it posts that it locks"
+              aria-invalid={timingProblem(timing) ? true : undefined} onChange={(event) => setTiming({ ...timing, lockLeadMinutes: event.target.value })} data-announcements-lock-lead />
+            <span>minutes before it posts.</span>
+          </p>
+          {inheritedTimingText(saved.editWindows) ? <p className="announcements__quiet" data-announcements-timing-inherited>{inheritedTimingText(saved.editWindows)}</p> : null}
+          {timingProblem(timing) ? <p className="announcements__problem" role="alert" data-announcements-timing-problem><TriangleAlert aria-hidden="true" size={16} /> {timingProblem(timing)}</p> : null}
+          <p className="announcements__quiet" data-announcements-timing-explain>{timingExplanation(timing)}</p>
+        </div>
+        {isAdmin ? (
+          <div className="announcements__actions">
+            <button type="button" className="announcements__button announcements__button--primary" data-announcements-review-save
+              disabled={busy !== null || Boolean(timingProblem(timing)) || !((chosenReview !== null && chosenReview !== (shownReview?.chosen?.approval ?? null)) || timingChanged(saved.editWindows, timing))}
+              onClick={() => void saveReviewAndTiming()}>
+              <Save aria-hidden="true" size={16} /> Save review and timing
+            </button>
+            <span className="announcements__quiet">Saved on its own, not with Save settings below.</span>
+          </div>
+        ) : null}
       </Card>
 
       <Card title="Budget and prices" note="Set the same limit in X's billing page." id="budget">

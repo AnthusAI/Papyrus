@@ -264,7 +264,7 @@ class XAccounts:
         stored = json.loads(raw)
         return stored["token"] if stored["expiresAt"] > self.clock() else None
 
-    def access_token(self) -> str:
+    def access_token(self, *, expected_account_id: str | None = None) -> str:
         """A valid access token for the connected account, refreshing it (once, under the lease) when it has expired."""
         holder = secrets.token_hex(8)
         while True:
@@ -272,6 +272,8 @@ class XAccounts:
             account_id = row.get("accountId")
             if not account_id:
                 raise AnnouncementError("not_connected", "No X account is connected.")
+            if expected_account_id is not None and account_id != expected_account_id:
+                raise AnnouncementError("x_account_changed", "The connected X account changed.")
             if row.get("status") == NEEDS_RECONNECTING:
                 raise AnnouncementError("needs_reconnecting", row.get("statusReason") or "The X connection needs to be made again.")
             token = self._live_access_token(account_id)
@@ -280,6 +282,8 @@ class XAccounts:
             now = self.clock()
             if self.connection.acquire_lease(holder, now, now + self.lease_seconds):
                 try:
+                    if expected_account_id is not None and (self.connection.get() or {}).get("accountId") != expected_account_id:
+                        raise AnnouncementError("x_account_changed", "The connected X account changed.")
                     token = self._live_access_token(account_id)  # another invocation may have refreshed while we waited
                     return token if token else self._refresh(account_id)
                 finally:

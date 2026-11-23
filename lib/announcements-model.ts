@@ -3,14 +3,28 @@
 export type AnnouncementMode = "off" | "dry_run" | "on";
 export type PauseReason = "budget" | "disconnected" | "manual";
 
+export type OpportunitySettings = {
+  enabled: boolean;
+  budget: string | null;
+  postPrice: string | null;
+  userPrice: string | null;
+};
+
 export type AnnouncementSettings = {
   mode: AnnouncementMode;
   pause: { paused: boolean; reason: PauseReason | null; detail: string | null; by: string | null; at: string | null };
   rules: { minStars: number; storyTypes: ("article" | "post")[]; sections: string[] };
   budget: number | null;
+  billingCycleDay?: number | null;
+  opportunities?: OpportunitySettings;
   prices: { createPost: number; createPostWithUrl: number; deletePost: number; readPost: number; asOf: string };
   labelConfirmed: boolean;
+  /** How long a Delivery stays a draft that people edit, and how long before its release it locks (src/papyrus_content/announcements/edit_windows.py). */
+  editWindows?: EditWindow[];
 };
+
+/** One entry of the settings' `editWindows`: `kind` and `channel` are each optional, and the narrowest entry that fits wins. */
+export type EditWindow = { kind?: string; channel?: string; windowMinutes: number; lockLeadMinutes?: number };
 
 export type XStatus = {
   clientId: string | null;

@@ -10,7 +10,7 @@ import { Template } from "aws-cdk-lib/assertions";
 import { AttributeType, Table } from "aws-cdk-lib/aws-dynamodb";
 import { Architecture, Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { schema } from "../amplify/data/schema";
-import { ANNOUNCEMENT_MUTATION_OPERATIONS, ANNOUNCEMENT_QUERY_OPERATIONS } from "../amplify/functions/announcements/operations";
+import { ANNOUNCEMENT_MUTATION_OPERATIONS, ANNOUNCEMENT_QUERY_OPERATIONS, OPPORTUNITY_MUTATION_OPERATIONS } from "../amplify/functions/announcements/operations";
 import { announcementsParameterPrefix, wireAnnouncements, X_ENDPOINTS } from "../amplify/functions/announcements/wire";
 import { announcementOperationDocument, announcementsApi, type AnnouncementOperation } from "../lib/announcements-client";
 import {
@@ -25,6 +25,13 @@ for (const name of [...ANNOUNCEMENT_QUERY_OPERATIONS, ...ANNOUNCEMENT_MUTATION_O
   assert.match(operation, /@function/);
   assert.match(operation, (ANNOUNCEMENT_QUERY_OPERATIONS as readonly string[]).includes(name) ? /groups: \["editor", "admin"\]/ : /groups: \["admin"\]\}/, `${name} admits the right groups: ${operation}`);
   assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(operation), false, `${name} is open to groups only`);
+}
+for (const name of OPPORTUNITY_MUTATION_OPERATIONS) {
+  const operation = base.split("\n").find((line) => line.trim().startsWith(`${name}(`)) ?? "";
+  assert.match(operation, /@function/);
+  assert.match(operation, /groups: \["editor", "admin"\]/);
+  assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(operation), false);
+  assert.match(announcementOperationDocument(name), /^mutation /);
 }
 for (const model of ["AnnouncementSettings", "XConnection"]) {
   const start = base.indexOf(`type ${model} @model`);
