@@ -7,6 +7,12 @@ Feature: Only a person signed in to the console changes the agent policy
   objects but not write them, so the function is the only way in. Releasing the wakes that wait for the budget still needs the operator's
   credentials for the site's wake queue, as before.
 
+  That holds for the policy's catalogue rows as much as for its body. The policy's rows sit in the same two models as every other site document
+  (SiteDocument and SiteDocumentVersion), and the data API's rules can say who may write a model, not which kind of row. So the admin group reads
+  those models and writes none of them, of any kind: the agent policy is written by the function's role, and the listener index by the deploy's
+  role, which the data API admits by its own IAM policy rather than by these rules. No console page writes a site document, so nothing a person
+  edits is lost. A person's session that tries to write the listener index is told to leave it to the deploy before anything is read.
+
   Background:
     Given a site whose agent policy holds "rate" at the rung "propose" and a budget of 5 dollars a week, changed only through the policy function
 
@@ -64,3 +70,15 @@ Feature: Only a person signed in to the console changes the agent policy
     When ada, an admin signed in on the console's app client, sets the review of X story posts to "none" because "Go straight out"
     Then the policy function refused the review as "constraint_conflict"
     And the agent policy is still version 1 with "rate" at the rung "propose"
+
+  Scenario: The admin group reads the site documents' catalogue and writes none of it
+    When the data API's rules for "SiteDocument" and "SiteDocumentVersion" are read from the deployed schema and the typed schema
+    Then in both schemas the admin group may only read each of the two models
+    And no rule of either model in either schema lets a group or an owner create, update or delete a row
+
+  Scenario: A signed-in admin cannot write the listener index; the deploy's own role does
+    When ada, signed in to the site, runs "papyrus agents listeners" to write the listener index
+    Then the listeners command was refused as "not_authorized", naming the deploy's own role
+    And the command read no site document and wrote no object and no catalogue row
+    When the deploy runs "papyrus agents listeners" as its own role
+    Then the listener index is at version 1, and every object and catalogue row of it was written by the deploy's role

@@ -126,8 +126,10 @@ def listeners_run(argv, core, tmp_path, store):
     return code, json.loads(out.getvalue())
 
 
-def test_listeners_writes_the_index_once_and_check_fails_on_a_difference(core, tmp_path):
+def test_listeners_writes_the_index_once_and_check_fails_on_a_difference(core, tmp_path, monkeypatch):
     from papyrus_content.site_store import SiteStore
+
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")   # the deploy's own role
     from papyrus_content.site_store_test import FakeS3, FakeTable
 
     store = SiteStore(FakeS3(), "bucket", FakeTable(), now=lambda: "2026-11-18T00:00:00Z")
@@ -142,7 +144,17 @@ def test_listeners_writes_the_index_once_and_check_fails_on_a_difference(core, t
     assert listeners_run(["--check"], core, tmp_path, store)[0] == 0
 
 
-def test_listeners_needs_the_site_tenant(core, tmp_path):
+def test_a_signed_in_session_cannot_write_the_listener_index_and_nothing_is_read(core, tmp_path, monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "user")
+    out = io.StringIO()
+    code = cli.listeners_command(["--core", str(core), "--root", str(tmp_path)], out,
+                                 client_factory=lambda: pytest.fail("no site is read"), site_store_factory=lambda client: pytest.fail("no store is opened"))
+    error = json.loads(out.getvalue())["error"]
+    assert code == 2 and error["code"] == "not_authorized" and "PAPYRUS_GRAPHQL_AUTH=iam" in error["message"]
+
+
+def test_listeners_needs_the_site_tenant(core, tmp_path, monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
     out = io.StringIO()
     code = cli.listeners_command(["--core", str(core), "--root", str(tmp_path)], out, client_factory=lambda: Site(), site_store_factory=lambda client: None)
     assert code == 2 and "tenant" in json.loads(out.getvalue())["error"]["message"]
