@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 from papyrus_content import review_requests
 from papyrus_content.agent_policy.resolve import PolicyState
@@ -44,13 +44,13 @@ def operations_asked(output: Any) -> list[str]:
     return [str(name) for name in value] if isinstance(value, list) else []
 
 
-def settle(client, state: PolicyState, responsibility: str, run_id: str, output: Any) -> GateSettlement | None:
+def settle(client, state: PolicyState, responsibility: str, run_id: str, output: Any, approvals: Mapping[str, str] | None = None) -> GateSettlement | None:
     """Ask the gate about every operation the run named, file the one review request a person is needed for, and say how the run ends.
-    None when the run named no operation."""
+    ``approvals`` are what a person approved for this run (``review_answers.ReviewAnswer.approvals``). None when the run named no operation."""
     operations = operations_asked(output)
     if not operations:
         return None
-    gate_run = GateRun(state, responsibility, run_id)
+    gate_run = GateRun(state, responsibility, run_id, approvals=approvals)
     for name in operations:
         gate_run.ask(name)
     record = gate_run.record()

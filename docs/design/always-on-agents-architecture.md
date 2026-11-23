@@ -1068,6 +1068,7 @@ Agents talk through durable records, never chat: a checklist step, an Assignment
 - *Purpose.* When a run ends `asked`, the review request names the run and the agent. A person's answer (approve, reject, feedback) is a change that wakes that agent with the answer; the run re-reads the records and continues or stops. The request's `appliedIn` names the run that used the answer. Nothing holds a session open while waiting, and a person who never answers blocks only that one item.
 - *Acceptance.* An approval continues the work once. Feedback reaches the next run as input. An unanswered request blocks nothing else.
 - *Gherkin.* ask-and-answer.feature: an approval wakes the asker and the work completes; a rejection ends it with the reason; feedback is in the next run's input; another Story proceeds while one waits.
+- *Built (PPY-ecf852).* `src/papyrus_content/agent_gate/review_answers.py`, read by the runner before a woken run starts: an approval allows, for that run only, the operations the asking run's gate recorded as `human_required` (`GateRun(approvals=...)`, each answer carrying `approvedIn`); a rejection runs nothing and ends `nothing` (`review_rejected`); feedback is the run's `review` input. `appliedIn` names the run that used the answer. What an allowed operation then does is still the gate's E3 slice.
 - *Infrastructure as code.* None.
 - *Blocked by.* B3 (PPY-9b9e64), C3 (PPY-9b8e59)
 - *Unblocks.* F5 (PPY-8d11af)
