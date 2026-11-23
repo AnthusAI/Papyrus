@@ -35,14 +35,19 @@ def _scope(arguments: dict) -> dict[str, str]:
 
 
 def review_show(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore) -> Outcome:
+    return Outcome(show_review(policy, _tenant(client), arguments), _publication(client))
+
+
+def show_review(policy: AgentPolicyStore, tenant: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """What ``announcements_review_show`` answers, from the policy alone: the command line's handler and the agent-policy function (the console's door) both call it."""
     from . import review_policy
 
-    state = policy.read(_tenant(client))
+    state = policy.read(tenant)
     summary = review_policy.review_summary(state)
     if arguments.get("channel") and arguments.get("kind"):
         choice = review_policy.choose(state, channel=arguments["channel"], kind=arguments["kind"], list_id=arguments.get("list"))
         summary["chosen"] = {"approval": choice.approval, "rung": choice.rung, "policy": choice.policy, "reason": choice.reason}
-    return Outcome(summary, _publication(client))
+    return summary
 
 
 def review_set(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore) -> Outcome:
@@ -64,19 +69,30 @@ def review_set(client: Any, arguments: dict, caller: Caller, policy: AgentPolicy
         except PolicyError as error:
             raise ImageOperationError(error.code, error.message) from error
         reason = f"{reason.strip()} {added}"
-    before = policy.read(tenant)
     try:
-        if approval == "inherit":
-            if not scope:
-                raise PolicyError("invalid_input", "inherit takes an override away: name the channel, kind or list it was for.")
-            after = review_policy.remove_override(policy, tenant, caller, scope, reason=reason)
-        else:
-            after = review_policy.set_review(policy, tenant, caller, approval, reason=reason, scope=scope or None)
+        result = set_review_by_person(policy, tenant, caller, approval, scope, reason)
     except PolicyError as error:
         raise ImageOperationError(error.code, error.message) from error
+    return Outcome(result, _publication(client))
+
+
+def set_review_by_person(policy: AgentPolicyStore, tenant: str, caller: Caller, approval: str, scope: Mapping[str, str], reason: str) -> dict[str, Any]:
+    """The change ``announcements_review_set`` makes once who is asking is settled, and its answer. Raises ``PolicyError``. The command line's handler calls it after an agent's
+    delegation; the agent-policy function (the console's door) calls it only for an admin signed in through a person-only app client."""
+    from papyrus_content.agent_policy import PolicyError
+
+    from . import review_policy
+
+    before = policy.read(tenant)
+    if approval == "inherit":
+        if not scope:
+            raise PolicyError("invalid_input", "inherit takes an override away: name the channel, kind or list it was for.")
+        after = review_policy.remove_override(policy, tenant, caller, scope, reason=reason)
+    else:
+        after = review_policy.set_review(policy, tenant, caller, approval, reason=reason, scope=scope or None)
     rung = review_policy.RUNG_OF.get(approval)
-    return Outcome({"policyVersion": after.version, "approval": None if approval == "inherit" else approval, "rung": rung or "inherit", "scope": scope or None,
-                    "changed": after.version != before.version}, _publication(client))
+    return {"policyVersion": after.version, "approval": None if approval == "inherit" else approval, "rung": rung or "inherit", "scope": dict(scope) if scope else None,
+            "changed": after.version != before.version}
 
 
 def delivery_review_set(client: Any, arguments: dict, caller: Caller, policy: AgentPolicyStore, timers: Any = None) -> Outcome:

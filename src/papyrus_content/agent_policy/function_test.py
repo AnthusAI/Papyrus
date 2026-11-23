@@ -177,3 +177,96 @@ def test_the_cli_sends_policy_changes_to_the_function_on_the_signed_in_lane(monk
     assert "agentPolicyChange" in query and request["op"] == "set_value" and request["field"] == "budget"
     monkeypatch.setattr(user_auth_mode, "user_auth_requested", lambda: False)
     assert type(cli._policy_store_for_site(Client())) is AgentPolicyStore
+
+
+# --- the console's door to the announcement review (PPY-e2829f) ---------------------------------------------------------------------------------------------
+
+X_STORY = {"channel": "x", "kind": "story_published"}
+
+
+def review_request(approval, **extra):
+    return {"op": "announcements_review_set", "approval": approval, **X_STORY, "reason": "Set in the newsroom's Announcements settings.", **extra}
+
+
+def without_tenant(request, **options):
+    built = event(request, **options)
+    built["arguments"]["input"] = json.dumps(request)
+    return built
+
+
+def test_an_admin_on_a_person_client_sets_the_x_story_review_and_reads_it_back():
+    policy = store()
+    answer = handle(without_tenant(review_request("soft")), policy, ENVIRONMENT, "alpha")
+    assert answer["ok"] is True and answer["result"] == {"policyVersion": 1, "approval": "soft", "rung": "publish_soft", "scope": X_STORY, "changed": True}
+    assert policy.version_record("alpha", 1)["by"] == "ryan@example.test"
+    shown = handle(without_tenant({"op": "announcements_review_show", **X_STORY}), policy, ENVIRONMENT, "alpha")
+    assert shown["ok"] is True and shown["result"]["chosen"]["approval"] == "soft"
+    assert shown["result"]["overrides"] == [{"scope": X_STORY, "approval": "soft", "rung": "publish_soft"}]
+
+
+def test_the_review_from_another_client_is_refused_and_nothing_is_saved():
+    policy = store()
+    for request in (review_request("soft"), review_request("hard"), {"op": "announcements_review_show", **X_STORY}):
+        assert handle(without_tenant(request, client="cli-client"), policy, ENVIRONMENT, "alpha")["error"] == "human_required"
+    assert policy.read("alpha").version == 0
+
+
+def test_an_editor_cannot_set_the_review():
+    assert handle(without_tenant(review_request("hard"), groups=("editor",)), store(), ENVIRONMENT, "alpha")["error"] == "not_authorized"
+
+
+def test_a_caller_that_declares_itself_an_agent_is_blocked_even_on_a_person_client():
+    policy = store()
+    assert handle(without_tenant(review_request("hard", actorKind="agent")), policy, ENVIRONMENT, "alpha")["error"] == "blocked"
+    assert policy.read("alpha").version == 0
+
+
+def test_posts_right_away_is_refused_in_the_floors_words_while_the_floor_stands():
+    policy = store()
+    answer = handle(without_tenant(review_request("none")), policy, ENVIRONMENT, "alpha")
+    assert answer["error"] == "constraint_conflict" and "publish_auto" in answer["message"] and policy.read("alpha").version == 0
+
+
+def test_a_review_change_needs_a_reason_a_known_approval_and_this_sites_tenant():
+    assert handle(without_tenant(review_request("soft", reason=" ")), store(), ENVIRONMENT, "alpha")["error"] == "invalid_input"
+    assert handle(without_tenant(review_request("sometimes")), store(), ENVIRONMENT, "alpha")["error"] == "invalid_input"
+    assert handle(without_tenant(review_request("soft", channel=7)), store(), ENVIRONMENT, "alpha")["error"] == "invalid_input"
+    assert handle(without_tenant(review_request("soft", tenantId="beta")), store(), ENVIRONMENT, "alpha")["error"] == "not_authorized"
+
+
+def test_the_console_door_and_the_command_line_make_the_same_change(monkeypatch):
+    from papyrus_content.announcements import review_handlers
+    from papyrus_content.images.handlers import Caller
+
+    through_console, through_cli = store(), store()
+    handle(without_tenant(review_request("hard")), through_console, ENVIRONMENT, "alpha")
+
+    class Client:
+        tenant_id = "alpha"
+
+    monkeypatch.setattr(review_handlers, "_publication", lambda client: "publication")
+    review_handlers.review_set(Client(), {"approval": "hard", **X_STORY, "reason": "Set in the newsroom's Announcements settings."}, Caller(kind="person", is_admin=True, subject="ryan@example.test"),
+                               through_cli)
+    assert through_console.read("alpha").document == through_cli.read("alpha").document
+
+
+def test_the_review_door_imports_only_what_the_agent_policy_function_carries():
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[2]
+    probe = r'''
+import json, sys
+ALLOWED = set(sys.stdlib_module_names) | {"boto3", "botocore", "s3transfer", "jmespath", "dateutil", "urllib3", "six", "papyrus_content"}
+class Block:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] not in ALLOWED and not name.startswith("_"):
+            raise ModuleNotFoundError(f"No module named '{name}'")
+sys.meta_path.insert(0, Block())
+from papyrus_content.agent_policy.function import handle
+from papyrus_content.announcements.review_handlers import set_review_by_person, show_review
+print("imported")
+'''
+    completed = subprocess.run([sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(source)!r}); exec({probe!r})"], capture_output=True, text=True, timeout=60)
+    assert "imported" in completed.stdout, completed.stdout + completed.stderr

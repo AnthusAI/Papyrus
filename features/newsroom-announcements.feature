@@ -65,6 +65,48 @@ Feature: The Announcements page lets the site owner connect X and decide what is
     And the budget field should read "10"
 
   @brand-agnostic
+  Scenario: An admin chooses how X story posts are reviewed, in words, and sees the current choice
+    Given I open the announcements page at 1440 by 1000
+    Then the announcements page should show the section "Review and timing"
+    And the review choices should be "A person approves each post, Posts on schedule unless someone steps in, Posts right away"
+    And the review "A person approves each post" should be selected with the word Selected
+    And the current review should say "A person approves each post"
+    When I choose the review "Posts on schedule unless someone steps in" and save the review and timing
+    Then the page should say "X story posts: Posts on schedule unless someone steps in."
+    And the current review should say "Posts on schedule unless someone steps in"
+
+  @brand-agnostic
+  Scenario: Posts right away is refused while the floor stands, and the page says so in words
+    Given I open the announcements page at 1440 by 1000
+    When I choose the review "Posts right away" and save the review and timing
+    Then the page should say "The review was not saved."
+    And the current review should say "A person approves each post"
+
+  @brand-agnostic
+  Scenario: An admin sets how long after drafting X story posts go, and the lock before it
+    Given I open the announcements page at 1440 by 1000
+    When I set X story posts to post 60 minutes after the draft with a 5 minute lock and save the review and timing
+    Then the page should say "X story posts go 60 minutes after the draft, locked 5 minutes before."
+    And the timing explanation should say "a soft post goes out unless someone has stopped it"
+    And the timing fields should read 60 and 5
+
+  @brand-agnostic
+  Scenario: A lock longer than the wait is refused before anything is saved
+    Given I open the announcements page at 1440 by 1000
+    When I set X story posts to post 10 minutes after the draft with a 15 minute lock
+    Then the timing problem should say "more than the 10 minutes after the draft"
+    And the review and timing save button should be disabled
+
+  @brand-agnostic
+  Scenario: The review and timing card fits an iPad and a phone
+    Given I open the announcements page at 820 by 1180
+    Then the announcements page should not scroll sideways
+    And the timing fields should be visible
+    Given I open the announcements page at 375 by 812
+    Then the announcements page should not scroll sideways
+    And the timing fields should be visible
+
+  @brand-agnostic
   Scenario: The price table shows the date it was copied
     Given I open the announcements page at 1440 by 1000
     Then the price table should say "as of 12 Nov 2026"
