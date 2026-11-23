@@ -1262,10 +1262,11 @@ class PapyrusGraphQLAuthoringClient:
 
     def agent_procedure_runs(self, automation_id: str, limit: int) -> list[dict[str, Any]]:
         """One agent's newest runs, read from the run index by automation id. An agent id is a slug each tenant chooses, so on a shared
-        stack the partition can hold other tenants' runs; only this tenant's are kept, and reading stops once `limit` are found."""
+        stack the partition can hold other tenants' runs; only this tenant's are kept, and reading stops once `limit` are found. A dedicated
+        stack's partition is its own site's, so its runs are kept whether or not they carry the site's tenant (``row_belongs_to_tenant``)."""
         runs: list[dict[str, Any]] = []
         for run in self.iterate_newest_first("procedureRunsByAutomation", automation_id, page_size=max(limit, 10)):
-            if self.tenant_id and run.get("tenantId") != self.tenant_id:
+            if not row_belongs_to_tenant("ProcedureRun", self.tenant_id, run):
                 continue
             runs.append(run)
             if len(runs) >= limit:
