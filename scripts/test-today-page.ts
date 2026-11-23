@@ -3,7 +3,7 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FIXTURE_TODAY } from "../lib/today-fixture";
-import { OTHER_WORDS, OUTCOME_WORDS, automationsHref, costText, countWords, dayTitle, dollars, reasonsText, type TodayResult } from "../lib/today-overview";
+import { OTHER_WORDS, OUTCOME_WORDS, automationsHref, costText, countWords, dayTitle, dollars, reasonsText, reviewRequestHref, withoutAttentionRun, type TodayResult } from "../lib/today-overview";
 
 function text(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/\s+/g, " ");
@@ -41,10 +41,42 @@ async function main() {
   assert.match(status, /<svg[^>]*aria-hidden="true"/, "a send's state has a mark");
   assert.ok(text(status).includes("Sent"), "and its words");
   assert.ok(!render({ ...FIXTURE_TODAY, sends: [] }).includes("data-today-sends"), "a day with no sends has no Sends section");
-  const overdue = render(FIXTURE_TODAY);
-  assert.ok(overdue.includes("data-today-overdue-list") && overdue.includes("Overdue") && overdue.includes("Needs attention"), "an overdue record is listed, in words");
-  assert.ok(overdue.indexOf("data-today-overdue-list") < overdue.indexOf("data-today-rows"), "what needs a person comes first");
-  assert.ok(!render({ ...FIXTURE_TODAY, overdue: [] }).includes("data-today-overdue-list"), "a day with nothing overdue has no Needs attention section");
+  // What only a person can move comes first: Waiting for you, then Needs attention, then Due today, then what ran.
+  const order = ["data-today-waiting", "data-today-attention", "data-today-due-list", "data-today-rows"].map((marker) => html.indexOf(marker));
+  assert.ok(order.every((position) => position >= 0), "every section is on the page");
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), "what needs a person comes first, then what is due, then what ran");
+  for (const expected of ["Waiting for you (3)", "Needs attention (3)", "Due today (5)"]) assert.ok(page.includes(expected), `a heading says: ${expected}`);
+
+  // A hard gate, the announcement draft's soft review and the day's rating review wait for a person, each with its Answer action into the Notification Center.
+  for (const id of ["gate-run-announce-7", "announce-draft-x-1", "rr-ratings-2026-11-16"]) {
+    const card = new RegExp(`<li[^>]*data-today-review="${id}"[^>]*>([\\s\\S]*?)</li>`).exec(html)?.[1] ?? "";
+    assert.ok(card, `${id} is waiting for you`);
+    assert.match(card, /<svg[^>]*aria-hidden="true"/, `${id} has a mark`);
+    assert.match(card, new RegExp(`href="${reviewRequestHref(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>[\\s\\S]*?Answer`), `${id} opens in the Notification Center to be answered`);
+  }
+  assert.equal(reviewRequestHref("rr-ratings-2026-11-16"), "/newsroom/needs-me/rr-ratings-2026-11-16");
+  assert.ok(page.includes("Hard gate: nothing proceeds without an answer") && page.includes("goes on without review at 3:30 PM"), "a review says what kind it is and when it goes on");
+
+  // An unknown run shows with Settle, a failure with Acknowledge, an overdue Delivery as Overdue with its local due time and Wake now.
+  assert.match(html, /data-today-attention-run="run-t3"[^>]*data-today-attention-outcome="unknown"[\s\S]*?data-today-action="settle"[^>]*data-today-action-run="run-t3"/);
+  assert.match(html, /data-today-attention-run="run-t2"[^>]*data-today-attention-outcome="failed"[\s\S]*?data-today-action="acknowledge"[^>]*data-today-action-run="run-t2"/);
+  assert.ok(page.includes("Outcome unknown (interrupted)") && page.includes("Settle") && page.includes("Acknowledge"), "the runs say what came of them and their action");
+  assert.ok(html.includes('data-today-overdue="announcement-daily#email#site#g1"') && page.includes("was due 6:00 AM (release) and nothing ran") && page.includes("Wake now"), "an overdue record is listed, in local time");
+  assert.ok(!render({ ...FIXTURE_TODAY, attention: [] }).includes('data-today-attention"'), "a day with nothing to attend to says so");
+  assert.ok(text(render({ ...FIXTURE_TODAY, attention: [] })).includes("Nothing needs attention."));
+  assert.ok(text(render({ ...FIXTURE_TODAY, waiting: [] })).includes("Nothing is waiting for you."));
+
+  // Acknowledging takes the run off the list.
+  const acknowledged = withoutAttentionRun(FIXTURE_TODAY, "run-t2");
+  assert.ok(!render(acknowledged).includes('data-today-attention-run="run-t2"') && render(acknowledged).includes('data-today-attention-run="run-t3"'), "only the acknowledged run leaves");
+
+  // Due times are in the site's time zone, each with its mark and words.
+  for (const expected of ["6:00 AM Scheduled wake Daily summary", "2:00 PM Publishes Eternal October", "3:30 PM Locks x machines not yet approved", "4:00 PM Goes out x machines"])
+    assert.ok(page.includes(expected), `due today shows: ${expected}`);
+  const dues = [...html.matchAll(/<li[^>]*data-today-due="[^"]*"[^>]*>(.*?)<\/li>/g)];
+  assert.equal(dues.length, 5);
+  for (const [, inner] of dues) assert.match(inner, /<svg[^>]*aria-hidden="true"/, "each due time has a mark");
+  assert.ok(text(render({ ...FIXTURE_TODAY, timeZone: "UTC", timeZoneSource: "none", timeZoneNote: "This site names no time zone (publication.timeZone), so times are in UTC." })).includes("names no time zone"), "a site with no zone says so");
 
   // Cost is the sum of the runs; a run with no recorded cost is counted as unknown, not free.
   assert.ok(page.includes("3 runs · $0.00"), "the announce line costs nothing, and says so");

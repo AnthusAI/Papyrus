@@ -77,4 +77,4 @@ Feature: A record that is due and untouched is shown as Overdue and flagged once
   Scenario: Today never lists the whole Delivery table to find what is overdue
     Given the Delivery "weekly" waits for its release at "2026-11-19T09:00:00Z" and its timer fired into a queue that lost it
     When an editor opens Today
-    Then the only Delivery read was one query on the due index
+    Then every Delivery read was a query on the due index

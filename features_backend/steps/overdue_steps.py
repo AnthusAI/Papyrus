@@ -28,14 +28,17 @@ SITE = "shipped"
 
 
 class SiteClient(RecordsBackend):
-    """The records backend plus the two reads Today makes that this feature does not care about: no runs, no agents."""
+    """The records backend plus the reads Today makes that this feature does not care about: no runs, no agents, no Stories scheduled to publish."""
 
     tenant_id = None
 
     def list_by_index(self, index, key, **options):
-        if index == "procedureRunsByStatus":
+        if index in ("procedureRunsByStatus", "procedureRunsByAttention"):
             return []
         return super().list_by_index(index, key, **options)
+
+    def list_schedule(self, state, start=None, end=None):
+        return []
 
     def list_tenant_rows(self, model, fields, **_):
         return []
@@ -121,18 +124,19 @@ def check(context):
 def listed(context, name):
     (entry,) = [entry for entry in context.overview["overdue"] if entry["id"] == name]
     assert entry["shown"].startswith("⏰ Overdue: Delivery weekly was due 2026-11-19T09:00:00Z") and entry["shown"].endswith("and nothing ran"), entry
-    assert any(line.strip() == entry["shown"] for line in context.today_lines), context.today_lines
+    assert any(line.strip().startswith("⏰ Overdue: Delivery weekly was due 9:00 AM") and "nothing ran" in line for line in context.today_lines), context.today_lines
 
 
 @then("the Overdue lines come before what ran")
 def first(context):
     heads = [line for line in context.today_lines if line.startswith(("NEEDS ATTENTION", "WHAT RAN"))]
-    assert heads[0].startswith("NEEDS ATTENTION · 1 overdue") and heads[1].startswith("WHAT RAN"), heads
+    assert heads[0] == "NEEDS ATTENTION (1)" and heads[1].startswith("WHAT RAN"), heads
 
 
 @then("nothing is Overdue")
 def none_overdue(context):
-    assert context.overview["overdue"] == [] and not any("NEEDS ATTENTION" in line for line in context.today_lines), context.today_lines
+    assert context.overview["overdue"] == [] and "NEEDS ATTENTION (0)" in context.today_lines, context.today_lines
+    assert not any("Overdue" in line for line in context.today_lines), context.today_lines
 
 
 @then('Today lists "{first_name}" before "{second}", the oldest due time first')
@@ -217,7 +221,7 @@ def template(context):
         overdue.RUNNER_TIMEOUT_SECONDS, overdue.RECORDING_MARGIN_SECONDS, overdue.MAXIMUM_RECEIVES)
 
 
-@then("the only Delivery read was one query on the due index")
-def due_only(context):
+@then("every Delivery read was a query on the due index")
+def due_only(context):   # one for what is Overdue, one for what is due in the day
     reads = [read for read in context.client.reads if read[0].startswith("deliveries")]
-    assert reads == [("deliveriesByDue", "due")], context.client.reads
+    assert reads and set(reads) == {("deliveriesByDue", "due")}, context.client.reads

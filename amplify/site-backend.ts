@@ -965,7 +965,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite, options: DefineSiteB
   // The shared stack reports usage per tenant through Prospectus later (kanbus-f45f7f); until then its resources are only tagged.
   if (costAttribution && sharedTier) applySiteBackendCostTags(backend.stack, costAttribution);
   wireMonitoringView(backend, emailMonitorId);
-  wireAutomationView(backend, siteBackendIdentity.brandId);
+  wireAutomationView(backend, siteBackendIdentity.brandId, publication?.timeZone);
   // Translate on publish (languages.auto): a stream consumer on the LocalizationRequest records. A shared stack's rows carry a tenant it does not act for.
   if (tenancyMode !== "shared") wireLocalizationDispatch(backend, contentActionsLambda, siteBackendIdentity.brandId);
   // The names of concepts in each language: a stream consumer on the SemanticNode records writes every concept's primary-language label rows.

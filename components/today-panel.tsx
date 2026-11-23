@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FIXTURE_TODAY } from "../lib/today-fixture";
-import { REFRESH_MILLISECONDS, type TodayResult } from "../lib/today-overview";
+import { REFRESH_MILLISECONDS, withoutAttentionRun, type AcknowledgeResult, type TodayResult } from "../lib/today-overview";
 import { TodayView } from "./today-view";
+
+/** Why acknowledging did not happen, in words for the editor; null when the run is off the list. */
+function acknowledgeProblem(answer: AcknowledgeResult): string | null {
+  if ("error" in answer) return answer.error === "forbidden" ? "Only editors and admins can do this." : answer.message ?? "The request was not understood.";
+  if (answer.state === "refused") return answer.reason;
+  if (answer.state === "unavailable") return "It could not be saved right now. Try again.";
+  return null;
+}
 
 /** Today on the newsroom home. It reads when it opens, when the tab comes back into focus, and every five minutes. No subscription. */
 export function TodayPanel({ isDemo }: { isDemo: boolean }) {
   const [result, setResult] = useState<TodayResult | null>(null);
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (isDemo) {
@@ -24,6 +33,7 @@ export function TodayPanel({ isDemo }: { isDemo: boolean }) {
         if (live) setResult((current) => current ?? { state: "unavailable" });   // a failed refresh keeps what is shown
       }
     };
+    refreshRef.current = refresh;
     const onVisible = () => {
       if (document.visibilityState === "visible") void refresh();
     };
@@ -39,5 +49,20 @@ export function TodayPanel({ isDemo }: { isDemo: boolean }) {
     };
   }, [isDemo]);
 
-  return <TodayView demo={isDemo} result={result} />;
+  /** Acknowledge a failure or settle an Outcome unknown. The demo takes it off the list in memory; nothing leaves the page. */
+  const acknowledge = useCallback(async (runId: string): Promise<string | null> => {
+    const takeOff = () => setResult((current) => (current && "state" in current && current.state === "ready" ? withoutAttentionRun(current, runId) : current));
+    if (isDemo) {
+      takeOff();
+      return null;
+    }
+    const { acknowledgeTodayRun } = await import("../lib/today-client");
+    const problem = acknowledgeProblem(await acknowledgeTodayRun(runId));
+    if (problem) return problem;
+    takeOff();
+    void refreshRef.current();
+    return null;
+  }, [isDemo]);
+
+  return <TodayView demo={isDemo} onAcknowledge={acknowledge} result={result} />;
 }

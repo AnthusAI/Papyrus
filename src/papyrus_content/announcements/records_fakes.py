@@ -119,6 +119,8 @@ def _meets(value: Any, condition: dict[str, Any]) -> bool:
             return False
         if operator == "le" and not value <= operand:
             return False
+        if operator == "lt" and not value < operand:
+            return False
         if operator == "ge" and not value >= operand:
             return False
         if operator == "between" and not operand[0] <= value <= operand[1]:
