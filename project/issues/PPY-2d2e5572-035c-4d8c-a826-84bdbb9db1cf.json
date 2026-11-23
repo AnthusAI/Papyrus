@@ -3,7 +3,7 @@
   "title": "Settle an interrupted run: Outcome unknown is a state, not a guess",
   "description": "A queue message is received at most twice by design: once to run, once to settle. On the second receipt the runner reads the run record. If the record is `started` with no outcome, the first attempt died. If the agent's definition says the procedure is safe to repeat (every write it makes is keyed), the runner runs it once more under the same key. If not, it records `unknown`, raises one flag for a person and deletes the message. No timeout and no retry count decides anything. A third receipt can only mean the settle step itself crashed; the message goes to the dead-letter queue and the alarm fires.\n\n**Acceptance criteria**\n- A run that died is never left looking as if it is still running.\n- A procedure not marked safe to repeat is never run twice for one wake.\n- `unknown` shows on Today as 'Outcome unknown' with the run and what it may have written.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- run-settle.feature: a crashed safe-to-repeat run is run once more and ends `acted`; a crashed unsafe run ends `unknown` with one flag; a settled run is not run again on a later redelivery; a crash during settling reaches the dead-letter queue.\n\n**Infrastructure as code touched:** Queue redrive policy (receive twice, then dead letter) on the wake queue; dead-letter alarm.\n\n**Part of:** Wake contract and run outcomes. Slice code A3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -21,10 +21,23 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6e49c196-4e9e-433a-a0f4-42d71704f9af",
+      "author": "ryan",
+      "text": "Closing 2026-11-23: shipped in #1760 and released. A crashed safe-to-repeat run is run once more; any other ends outcome unknown and is never run twice for one wake (features_backend/agents/run-settle.feature). Today shows each run's outcome in words and a mark, including Outcome unknown (components/today-view.tsx, run-outcome-display.feature).",
+      "created_at": "2026-11-23T04:56:45.406597Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:01.063161Z",
-  "updated_at": "2026-11-16T22:43:21.517397Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T04:56:53.074409Z",
+  "closed_at": "2026-11-23T04:56:53.073989Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

@@ -3,7 +3,7 @@
   "title": "Continuation: a unit of work longer than one run",
   "description": "A run is a short wake-up; the runner Lambda has 15 minutes, which is a real limit. Work is cut by record first (one Story, one step, one language). When one unit still cannot finish, the procedure saves its progress on the records it is changing (a new draft version, a step's evidence), ends `acted` with `nextWakeAt`, and the engine sets a follow-up timer whose key ends in `|c<n>`. The next run re-reads the records and continues. Progress never lives in the model's transcript. A procedure that neither finishes nor saves progress is `failed`.\n\n**Acceptance criteria**\n- A long unit finishes across several runs with no step done twice.\n- Each continuation is its own run record with its own cost.\n- Nothing depends on a saved model session.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- run-continuation.feature: a translation too long for one run finishes in two; the second run starts from saved progress; a run that times out without saving is `failed`, not continued.\n\n**Infrastructure as code touched:** None (uses the follow-up timer from C2).\n\n**Part of:** Wake contract and run outcomes. Slice code A6 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -21,10 +21,23 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6d0de17c-5271-4abc-a6dc-3d5d72960ff8",
+      "author": "ryan",
+      "text": "Closing 2026-11-23: shipped in #1763 and released. Each continuation is a wake of its own with its own key, run record and cost, set by one follow-up timer; a hard chain limit and the budget gate apply; no saved model session (features_backend/agents/run-continuation.feature).",
+      "created_at": "2026-11-23T04:56:45.833150Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:01.826041Z",
-  "updated_at": "2026-11-16T22:47:38.868581Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T04:56:53.234149Z",
+  "closed_at": "2026-11-23T04:56:53.234095Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
