@@ -550,13 +550,39 @@
     "rate_items": {
       "title": "Rate Unrated Stories",
       "category": "newsroom",
-      "description": "The rating agent's daily run: reads the published Stories nobody has rated and decides three stars, four stars or a five-star candidate for each. It never writes a rating: at a rung the site's agent policy allows, it writes each as a suggestion beside the rating and raises the day's one review for a person.",
+      "description": "The rating agent's run for one wake: on its daily schedule the published Stories nobody has rated, when a Story is published that Story, and when a Reference is accepted the Stories based on it. For each Story still unrated it decides three stars, four stars or a five-star candidate. It never writes a rating: at a rung the site's agent policy allows, it writes each as a suggestion beside the rating and adds it to the day's one review for a person.",
       "parameterSchema": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "story": {
+            "type": "string",
+            "description": "The Story's lineage id, from a Story's wake; empty on the schedule and on a Reference's wake"
+          },
+          "change": {
+            "type": "string",
+            "description": "stage_entered (a Story's page went live) or accepted (a Reference was accepted), from the wake; empty on the schedule"
+          },
+          "what": {
+            "type": "string",
+            "description": "What changed, as the wake key names it"
+          },
+          "stage": {
+            "type": "string",
+            "description": "The stage the Story entered, from the wake"
+          },
+          "subject": {
+            "type": "object",
+            "description": "The record a Reference's wake is about: kind Reference and its lineage id"
+          }
+        },
         "required": []
       },
-      "defaults": {}
+      "defaults": {
+        "story": "",
+        "change": "",
+        "what": "",
+        "stage": ""
+      }
     },
     "deliver_due": {
       "title": "Scheduled Send",
