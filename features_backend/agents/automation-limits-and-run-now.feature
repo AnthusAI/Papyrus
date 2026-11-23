@@ -5,7 +5,8 @@ Feature: Automations are enforced, costed and can be run by hand
   deferred item is not lost: the router starts it on a later run when there is room. With no limit set there is no
   limit, as before. The automation's
   timeout goes to the procedure runner's deadline. The runner reports the model usage of each call, and the run
-  records that usage and an estimated cost, which the history shows and compares with the advisory budget. An editor
+  records that usage and an estimated cost, which the history shows. A cost is never a limit on the automation: an unusually costly run,
+  or one over the owner's per-run budget in the agent policy, raises a flag and is not stopped (unusual-cost.feature). An editor
   or an operator can also run the procedure now, and the run joins the automation's history. The procedure's other
   runs are listed apart, as started outside the automation. If the router cannot find or read an automation, it
   starts procedures exactly as it did before, because its own procedure triggers stay authoritative.
@@ -109,12 +110,12 @@ Feature: Automations are enforced, costed and can be run by hand
     When the runner records a run that made model calls
     Then the run is recorded as completed without its usage
 
-  Scenario: The history shows the cost and flags a run over its advisory budget
-    Given the site has the TTAB automation with a budget of 5 cents per run
+  Scenario: The history shows each run's cost, and a budget is no limit of the automation
+    Given the site has the TTAB automation
     And a completed run that cost 8 cents and one that cost 2 cents
     When an editor opens the automation overview
-    Then the 8 cent run is flagged as over budget
-    And the 2 cent run is not flagged
+    Then the 8 cent run shows its cost of 8 cents and no budget mark
+    And the 2 cent run shows its cost of 2 cents and no budget mark
 
   Scenario: An editor sees runs of the procedure that the automation did not start
     Given the site has the TTAB automation

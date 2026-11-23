@@ -83,11 +83,6 @@ def with_room(context, count):
     with_limits(context, maxConcurrent=count)
 
 
-@given("the site has the TTAB automation with a budget of {cents:d} cents per run")
-def with_budget(context, cents):
-    with_limits(context, budgetUsdPerRun=cents / 100)
-
-
 @given("a run started by hand is still running")
 def manual_running(context):
     row = {"pk": "MONITOR#ttab", "sk": f"MANUAL#distinctive.ttab#{recent(30)}", "status": "running", "startedAt": recent(30),
@@ -353,14 +348,11 @@ def runs_by_id(context):
     return {run["runId"]: run for run in context.overview["automations"][0]["runs"]}
 
 
-@then("the 8 cent run is flagged as over budget")
-def over(context):
-    assert runs_by_id(context)["run-1"]["overBudget"] is True and runs_by_id(context)["run-1"]["costUsd"] == 0.08
-
-
-@then("the 2 cent run is not flagged")
-def not_over(context):
-    assert runs_by_id(context)["run-2"]["overBudget"] is False
+@then("the {cents:d} cent run shows its cost of {shown:d} cents and no budget mark")
+def cost_shown_without_budget_mark(context, cents, shown):
+    run = runs_by_id(context)["run-1" if cents == 8 else "run-2"]
+    assert run["costUsd"] == shown / 100 and "overBudget" not in run and "budgetUsd" not in run, run
+    assert "budgetUsdPerRun" not in context.overview["automations"][0]["limits"]
 
 
 @given("someone ran the procedure by hand outside the automation")

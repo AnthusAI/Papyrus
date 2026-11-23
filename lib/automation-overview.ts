@@ -43,8 +43,6 @@ export type AutomationRun = {
   storyTitle: string | null;
   costUsd: number | null;
   costNote: string;
-  budgetUsd: number | null;
-  overBudget: boolean;
   usage: AutomationUsage | null;
 };
 
@@ -65,7 +63,6 @@ export type AutomationOutsideRun = {
   storyTitle: string | null;
   costUsd: number | null;
   costNote: string;
-  overBudget: boolean;
 };
 
 export type AutomationRunNow = { available: boolean; reason: string | null; needsInput: boolean; inputNames: string[] };
@@ -96,7 +93,7 @@ export type AutomationRecord = {
   supportNote: string | null;
   procedureKey: string;
   inputTemplate: Record<string, string>;
-  limits: { timeoutSeconds?: number; maxConcurrent?: number; budgetUsdPerRun?: number };
+  limits: { timeoutSeconds?: number; maxConcurrent?: number };
   limitsNote: string;
   runNow: AutomationRunNow;
   createdAt: string | null;
@@ -175,10 +172,9 @@ export function dollars(value: number): string {
   return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
 }
 
-/** "Cost: $0.04 (estimated ...)" or "Cost: unknown (why)", with the advisory budget flagged in words. */
-export function costText(run: Pick<AutomationRun, "costUsd" | "costNote" | "overBudget"> & { budgetUsd?: number | null }): string {
-  const base = run.costUsd === null ? `Cost: unknown (${run.costNote})` : `Cost: ${dollars(run.costUsd)} (${run.costNote})`;
-  return run.overBudget && run.budgetUsd != null ? `${base}. Over the budget of ${dollars(run.budgetUsd)} per run` : base;
+/** "Cost: $0.04 (estimated ...)" or "Cost: unknown (why)". An unusual cost, or one over the owner's per-run budget, is a review flag, not a mark here. */
+export function costText(run: Pick<AutomationRun, "costUsd" | "costNote">): string {
+  return run.costUsd === null ? `Cost: unknown (${run.costNote})` : `Cost: ${dollars(run.costUsd)} (${run.costNote})`;
 }
 
 export function toolsText(run: Pick<AutomationRun, "toolsUsed">): string {
@@ -192,7 +188,7 @@ export function whoText(run: Pick<AutomationRun, "origin" | "requestedBy" | "sou
   return run.origin === "manual" ? `Run now by ${run.requestedBy ?? "someone"}` : `Item: ${run.sourceId ?? "unknown"}`;
 }
 
-export const LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged";
+export const LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts";
 
 export function atATimeText(limits: { maxConcurrent?: number }): string {
   return limits.maxConcurrent === undefined ? "no limit on how many at a time" : `${limits.maxConcurrent} at a time`;

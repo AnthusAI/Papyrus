@@ -41,7 +41,6 @@ MESSAGE_KIND = "story-step"
 MESSAGE_VERSION = 1
 PLAN_TTL_SECONDS = 15 * 24 * 3600   # the story queue keeps a message 14 days; a row outlives it by a day
 MAXIMUM_RECEIVES = 3   # the queue's maxReceiveCount (infra/monitoring/papyrus-monitoring.yaml): the third try that fails is the last
-MAXIMUM_STEP_COST_USD = 0.50   # one step's guard against one oversized request; a plan is bounded by its number of steps, so there is no cost stop for the plan
 TRANSIENT_REASONS = ("model_error", point_check.POINT_CHECK_ERROR)   # invalid reasons that say nothing about the Reference: the step is tried again
 SQS_BATCH = 10
 INVALID_KEYS = ("referenceId", "packId", "title", "reason", "failures", "message")
@@ -330,7 +329,7 @@ def run_step(
         run = draft_monitor_stories(
             client=client, site=publication_id, corpus_key=publication["corpusKey"], context=context, json_store=None,
             idea_store=ItemStore(client, gate=gate, drafts=proposals), review_client=None, transport=transport, limit=None, dry_run=False, now=moment,
-            fetch=fetch or monitor_stories.fetch_source, explorer=explorer, out_of_time=None, maximum_cost_usd=MAXIMUM_STEP_COST_USD, read_workers=1,
+            fetch=fetch or monitor_stories.fetch_source, explorer=explorer, out_of_time=None, maximum_cost_usd=None, read_workers=1,
             signal_run=stub, knowledge=knowledge, retry_memory=router_retry_memory(store, monitor_id, publication_id), suggestions_waiting=bool(head_row.get("suggestionsWaiting")),
             count_pending=False, run_id=plan_id, prepared=prepared, threshold=float(head_row["duplicateThreshold"]) if head_row.get("duplicateThreshold") is not None else None,
             rules=rules_of(validate_idea_rules(publication_id, (publication.get("monitorStories") or {}).get("ideaRules"))))

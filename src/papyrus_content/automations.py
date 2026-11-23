@@ -46,7 +46,10 @@ AUTOMATION_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MONITOR_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 ENABLED_NOTE = "the router starts nothing for a disabled automation"
 SCHEDULE_ENABLED_NOTE = "a disabled automation has no schedule entry, so nothing wakes it"
-LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged"
+LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts"
+RETIRED_LIMITS = ("budgetUsdPerRun",)   # the per-run budget is the owner's, in the agent policy (agents.<responsibility>.budgetUsdPerRun), and only flags (PPY-eef85d)
+RETIRED_BUDGET_REFUSAL = ("limits.budgetUsdPerRun is no longer an automation limit: an agent's budget per run is the owner's, in the agent policy. "
+                          "An admin sets it with papyrus agents set-budget --agent RESPONSIBILITY --per-run USD; a run over it raises one flag and is never stopped.")
 COST_NOTE = "not recorded for this run"
 OUTSIDE_FETCH = 25
 RUN_COST_FIELDS = "usage costUsd outcome outcomeReason"
@@ -182,7 +185,9 @@ def validate_limits(limits: Any) -> dict[str, Any]:
         return dict(DEFAULT_LIMITS)
     if not isinstance(limits, dict):
         raise AutomationError("limits must be an object.")
-    unknown = sorted(set(limits) - {"timeoutSeconds", "maxConcurrent", "budgetUsdPerRun", "maxHops"})
+    if any(key in limits for key in RETIRED_LIMITS):
+        raise AutomationError(RETIRED_BUDGET_REFUSAL)
+    unknown = sorted(set(limits) - {"timeoutSeconds", "maxConcurrent", "maxHops"})
     if unknown:
         raise AutomationError(f"unknown limit(s): {', '.join(unknown)}.")
     merged = {**DEFAULT_LIMITS, **{key: value for key, value in limits.items() if value is not None}}
@@ -192,10 +197,13 @@ def validate_limits(limits: Any) -> dict[str, Any]:
         value = merged[key]
         if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
             raise AutomationError(f"limits.{key} must be a whole number from {low} to {high}.")
-    budget = merged.get("budgetUsdPerRun")
-    if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget < 0):
-        raise AutomationError("limits.budgetUsdPerRun must be a number of dollars, zero or more.")
     return merged
+
+
+def without_retired_limits(limits: Any) -> Any:
+    """A stored record's limits without the retired per-run budget, so a record written before it moved to the agent policy can still be changed."""
+    parsed = _parse(limits, limits)
+    return {key: value for key, value in parsed.items() if key not in RETIRED_LIMITS} if isinstance(parsed, dict) else limits
 
 
 def build_record(fields: dict[str, Any], *, existing: dict[str, Any] | None = None, actor: str, now: str | None = None) -> dict[str, Any]:
@@ -217,7 +225,7 @@ def build_record(fields: dict[str, Any], *, existing: dict[str, Any] | None = No
         "trigger": trigger,
         "procedureKey": procedure_key,
         "inputTemplate": validate_input_template(fields.get("inputTemplate", base.get("inputTemplate")), trigger),
-        "limits": validate_limits(fields.get("limits", base.get("limits"))),
+        "limits": validate_limits(fields["limits"] if "limits" in fields else without_retired_limits(base.get("limits"))),
         "updatedBy": actor,
         "updatedAt": now,
     }
@@ -277,7 +285,7 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "definitionId": row.get("definitionId"), "definitionVersion": row.get("definitionVersion"), "definitionDigest": row.get("definitionDigest"), "definitionRetiredAt": row.get("definitionRetiredAt"),
         "definition": _parse(row.get("definition"), None),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
-        "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
+        "limits": without_retired_limits(_parse(row.get("limits"), dict(DEFAULT_LIMITS))),
         "limitsNote": LIMITS_NOTE,
         "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind, "stageTrigger": is_stage_trigger(trigger),
                                         "linked": bool((trigger.get("config") or {}).get("monitorId") and (trigger.get("config") or {}).get("publicationId")),
@@ -461,8 +469,8 @@ def read_run(client, run_id: str) -> dict | None:
     return client.get_record("ProcedureRun", run_id)
 
 
-def cost_fields(run: dict | None, budget: Any = None) -> dict[str, Any]:
-    """The recorded cost of a run, what it was estimated from, and whether it went over the advisory budget."""
+def cost_fields(run: dict | None) -> dict[str, Any]:
+    """The recorded cost of a run and what it was estimated from. An unusual cost, or one over the owner's per-run budget, is a flag (unusual_cost.py), not a mark here."""
     cost = (run or {}).get("costUsd")
     cost = float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None
     usage = _parse((run or {}).get("usage"), None)
@@ -475,8 +483,7 @@ def cost_fields(run: dict | None, budget: Any = None) -> dict[str, Any]:
         note = "estimated, partly: " + ", ".join(usage.get("unpricedModels") or ["a model"]) + " has no price"
     else:
         note = "estimated from the model usage reported by the run"
-    over = cost is not None and isinstance(budget, (int, float)) and not isinstance(budget, bool) and cost > budget
-    return {"costUsd": cost, "costNote": note, "budgetUsd": budget if isinstance(budget, (int, float)) else None, "overBudget": bool(over),
+    return {"costUsd": cost, "costNote": note,
             "usage": None if usage is None else {key: usage.get(key) for key in
                                                  ("calls", "promptTokens", "completionTokens", "models", "complete", "unpricedModels")}}
 
@@ -490,7 +497,7 @@ def tools_used_of(run: dict | None) -> dict[str, int] | None:
     return {str(name): int(count) for name, count in tools.items() if isinstance(count, (int, float)) and not isinstance(count, bool)}
 
 
-def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: Any = None) -> dict[str, Any]:
+def run_entry(row: dict, run: dict | None, lookup_failed: bool = False) -> dict[str, Any]:
     """One trigger or Run now row joined with its ProcedureRun. The story is the procedure output's `story` (a lineage id)."""
     output = _parse((run or {}).get("output"), None)
     output = output if isinstance(output, dict) else {}
@@ -520,23 +527,23 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: 
         "toolsUsed": tools_used_of(run),
         "storyVersionId": output.get("version_id") if isinstance(output.get("version_id"), str) else None,
         "storyTitle": output.get("title") if isinstance(output.get("title"), str) else None,
-        **cost_fields(run, budget),
+        **cost_fields(run),
     }
 
 
-def outside_entry(run: dict, budget: Any = None) -> dict[str, Any]:
+def outside_entry(run: dict) -> dict[str, Any]:
     """A ProcedureRun of the same procedure that no trigger row of this automation links to."""
     entry = run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"),
-                       "requestedBy": run.get("requestedBy")}, run, False, budget)
+                       "requestedBy": run.get("requestedBy")}, run, False)
     return {key: entry[key] for key in ("runId", "status", "outcome", "outcomeReason", "outcomeShown", "startedAt", "finishedAt",
-                                        "durationSeconds", "error", "requestedBy", "storyId", "storyVersionId", "storyTitle", "costUsd", "costNote", "overBudget")}
+                                        "durationSeconds", "error", "requestedBy", "storyId", "storyVersionId", "storyTitle", "costUsd", "costNote")}
 
 
 def _row_time(row: dict) -> str:
     return str(row.get("startedAt") or row.get("createdAt") or "")
 
 
-def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit: int, budget: Any) -> dict[str, Any]:
+def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit: int) -> dict[str, Any]:
     """The procedure's newest runs that this automation did not start: `Started outside this automation`. A run is this automation's when
     it is linked to it or names it."""
     fetch = getattr(client, "recent_procedure_runs", None)
@@ -546,7 +553,7 @@ def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit
         rows = fetch(automation["procedureKey"], OUTSIDE_FETCH)
     except Exception:   # the rest of the history still reads
         return {"runs": [], "notice": "outside_unavailable"}
-    return {"runs": [outside_entry(run, budget) for run in rows
+    return {"runs": [outside_entry(run) for run in rows
                      if run.get("id") not in linked_ids and run.get("automationId") != automation["id"]][:limit], "notice": None}
 
 
@@ -572,13 +579,12 @@ def agent_history(automation: dict[str, Any], client, limit: int) -> dict[str, A
     procedure's other recent runs are the ones started outside this agent.
 
     Nothing here reads the monitoring table: a schedule tick or an event is a wake on the queue, not a monitor's trigger row."""
-    budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
     origin = automation["trigger"]["kind"]
     own = client.agent_procedure_runs(automation["id"], limit)
-    runs = [{**run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"), "requestedBy": run.get("requestedBy")}, run, False, budget),
+    runs = [{**run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"), "requestedBy": run.get("requestedBy")}, run, False),
              "origin": origin} for run in own]
     mark_deleted_stories(client, runs)
-    outside = outside_runs(automation, client, {run.get("id") for run in own}, limit, budget)
+    outside = outside_runs(automation, client, {run.get("id") for run in own}, limit)
     return {"link": router_link(automation, None), "runs": runs, "lastRun": runs[0] if runs else None, "skippedAlreadyHadReference": 0,
             "notice": None, "outsideRuns": outside["runs"], "outsideNotice": outside["notice"]}
 
@@ -613,7 +619,6 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
     else:
         rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"])
         rows += reader.manual_rows(config["monitorId"], automation["id"])
-    budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
     skipped = sum(1 for row in rows if row.get("status") == "notTriggered")
     started = sorted((row for row in rows if row.get("status") != "notTriggered"), key=_row_time, reverse=True)[:limit]
     runs = []
@@ -624,9 +629,9 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
                 run = read_run(client, row["runId"])
             except Exception:   # a lookup failure is shown on the row; the rest of the history still reads
                 failed = True
-        runs.append(run_entry(row, run, failed, budget))
+        runs.append(run_entry(row, run, failed))
     mark_deleted_stories(client, runs)
-    outside = outside_runs(automation, client, {row["runId"] for row in rows if row.get("runId")}, limit, budget)
+    outside = outside_runs(automation, client, {row["runId"] for row in rows if row.get("runId")}, limit)
     return {
         "link": link, "runs": runs, "lastRun": runs[0] if runs else None, "skippedAlreadyHadReference": skipped, "notice": None,
         "outsideRuns": outside["runs"], "outsideNotice": outside["notice"]}
@@ -752,6 +757,8 @@ def _json_option(options: dict[str, Any], key: str) -> Any:
 
 def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | None = None) -> dict[str, Any]:
     """Only what the operator set, so an update leaves everything else alone."""
+    if "budget-usd" in options:
+        raise AutomationError(RETIRED_BUDGET_REFUSAL.replace("limits.budgetUsdPerRun", "--budget-usd"))
     fields: dict[str, Any] = {}
     for option, field in (("id", "id"), ("title", "title"), ("description", "description"),
                           ("procedure", "procedureKey"), ("enabled", "enabled")):
@@ -778,7 +785,6 @@ def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | N
         fields["trigger"] = {"kind": kind or current.get("kind") or ("monitor" if "monitor" in options else None), "config": config}
     limits, cleared = {}, set()
     for option, field, cast in (("timeout-seconds", "timeoutSeconds", int), ("max-concurrent", "maxConcurrent", int),
-                                ("budget-usd", "budgetUsdPerRun", float),
                                 ("max-hops", "maxHops", int)):
         if option in options:
             if option == "max-concurrent" and str(options[option]).lower() in {"none", "unlimited"}:
@@ -789,7 +795,7 @@ def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | N
             except (TypeError, ValueError) as error:
                 raise AutomationError(f"--{option} must be a number.") from error
     if limits or cleared:
-        fields["limits"] = {key: value for key, value in {**((existing or {}).get("limits") or {}), **limits}.items() if key not in cleared}
+        fields["limits"] = {key: value for key, value in {**without_retired_limits((existing or {}).get("limits") or {}), **limits}.items() if key not in cleared}
     return fields
 
 
@@ -802,7 +808,7 @@ def _line(record: dict[str, Any], history: dict[str, Any] | None = None) -> str:
 def cost_text(entry: dict[str, Any]) -> str:
     if entry.get("costUsd") is None:
         return "cost unknown"
-    return f"${entry['costUsd']:.4f}" + (" OVER BUDGET" if entry.get("overBudget") else "")
+    return f"${entry['costUsd']:.4f}"
 
 
 def tools_text(run: dict[str, Any]) -> str:

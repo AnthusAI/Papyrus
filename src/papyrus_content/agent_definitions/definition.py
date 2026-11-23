@@ -58,7 +58,7 @@ REQUIRED = ("schemaVersion", "id", "version", "responsibility", "procedure", "wa
 OPTIONAL = ("executor", "instructions")
 FIELDS = (*REQUIRED, *OPTIONAL)
 #: What a person changes on the site, never in a definition. Naming one is refused so that a deploy can never move a rung, a pause, a budget or a model.
-POLICY_FIELDS = ("rung", "paused", "pausedReason", "budget", "quietWindow", "model", "loopLimit", "overrides")
+POLICY_FIELDS = ("rung", "paused", "pausedReason", "budget", "budgetUsdPerRun", "quietWindow", "model", "loopLimit", "overrides")
 OVERLAY_FIELDS = ("schemaVersion", "extends", "instructions", "mustNever", "removes")
 EXECUTORS = ("lambda", "container")
 

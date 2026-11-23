@@ -341,7 +341,7 @@ def test_limits_that_are_not_usable_are_ignored_not_errors():
     assert gate.limits_of({"limits": json.dumps({"timeoutSeconds": 0, "maxConcurrent": "many", "budgetUsdPerRun": -1})}) == {}
     assert gate.limits_of({"limits": "{broken"}) == {} and gate.limits_of({}) == {}
     assert gate.limits_of({"limits": {"timeoutSeconds": 30, "maxConcurrent": 2, "budgetUsdPerRun": 0.5}}) == {
-        "timeoutSeconds": 30, "maxConcurrent": 2, "budgetUsdPerRun": 0.5}
+        "timeoutSeconds": 30, "maxConcurrent": 2}   # the per-run budget is the agent policy's and never gates a start
 
 
 def test_matching_prefers_the_lowest_id_when_two_records_name_the_same_trigger():

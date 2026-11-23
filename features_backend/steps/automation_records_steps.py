@@ -346,10 +346,21 @@ def output_dry(context):
     assert "dry run, nothing written" in context.cli_output
 
 
-@then('the automation "{automation_id}" is disabled with a budget of {dollars:d} dollars per run')
-def updated(context, automation_id, dollars):
+@then('the automation "{automation_id}" is disabled with a timeout of {seconds:d} seconds')
+def updated(context, automation_id, seconds):
     stored = au.read_record(context.client.tables["Automation"][automation_id])
-    assert stored["enabled"] is False and stored["limits"]["budgetUsdPerRun"] == dollars
+    assert stored["enabled"] is False and stored["limits"]["timeoutSeconds"] == seconds
+
+
+@then('the command is refused, saying an agent\'s budget per run is set with "{command}"')
+def per_run_budget_refused(context, command):
+    assert context.cli_error and "no longer an automation limit" in context.cli_error and command in context.cli_error, context.cli_error
+
+
+@then('the automation "{automation_id}" keeps its limits')
+def limits_kept(context, automation_id):
+    stored = au.read_record(context.client.tables["Automation"][automation_id])
+    assert stored["limits"] == {"timeoutSeconds": 840, "maxConcurrent": 1}, stored["limits"]
 
 
 @then("its trigger and input template are unchanged")

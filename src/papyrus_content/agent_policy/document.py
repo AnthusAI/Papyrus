@@ -5,11 +5,12 @@
     {"schemaVersion": 1,
      "site":   {"paused": false, "pausedReason": "...", "quietWindow": {"start": "22:00", "end": "06:00", "timeZone": "America/New_York"},
                 "budget": {"amountUsd": 25, "period": "week"}, "tiers": {"editorial": "<model>", "work": "<model>", "bulk": "<model>"}},
-     "agents": {"improve": {"rung": "prepare", "paused": false, "loopLimit": 3,
+     "agents": {"improve": {"rung": "prepare", "paused": false, "loopLimit": 3, "budgetUsdPerRun": 0.25,
                             "overrides": [{"storyType": "post", "rung": "publish_soft"}]}}}
 
 A responsibility with no entry is at ``off``: a new agent arrives quiet, and a deploy never writes this document. The budget, the quiet
-window, the loop limit and the tiers are held here for the tasks that read them; nothing in this package invents a value for them.
+window, the loop limit and the tiers are held here for the tasks that read them; nothing in this package invents a value for them. An agent's
+``budgetUsdPerRun`` is the owner's own figure for one run: a run over it raises one flag and is never stopped (unusual_cost.py).
 """
 from __future__ import annotations
 
@@ -147,13 +148,17 @@ def validate_agent(responsibility: str, entry: Any) -> None:
     where = f"agents.{responsibility}"
     if not _RESPONSIBILITY.match(responsibility):
         raise _invalid(f"{where}: a responsibility is lower-case words joined by underscores.")
-    entry = _only(entry, {"rung", "paused", "pausedReason", "loopLimit", "overrides"}, where)
+    entry = _only(entry, {"rung", "paused", "pausedReason", "loopLimit", "budgetUsdPerRun", "overrides"}, where)
     check_rung(entry.get("rung"), f"{where}.rung")
     _flag(entry, where)
     if "loopLimit" in entry:
         limit = entry["loopLimit"]
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             raise _invalid(f"{where}.loopLimit must be a whole number from 1.")
+    if "budgetUsdPerRun" in entry:
+        budget = entry["budgetUsdPerRun"]
+        if isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget <= 0:
+            raise _invalid(f"{where}.budgetUsdPerRun must be a number of US dollars above 0.")
     overrides = entry.get("overrides", [])
     if not isinstance(overrides, list):
         raise _invalid(f"{where}.overrides must be a list.")
