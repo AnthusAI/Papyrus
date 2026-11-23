@@ -1,7 +1,8 @@
 Feature: The rating agent is the first core agent definition
   The engine ships one definition for the standing responsibility "rate": the agent that gives unrated published Stories and accepted References a
   rating. It is the agent that first runs on Machines on Machines, at the rung observe. Its definition fills all 11 lines of the template, wakes by a
-  daily schedule, runs one at a time for the agent, is safe to repeat and is paid, with the bulk model tier (ratings are bulk curation). It names each
+  daily schedule and when a Story is published or a Reference is accepted, runs one at a time for the agent, is safe to repeat and is paid, with the
+  bulk model tier (ratings are bulk curation). It names each
   operation it uses at exactly the lowest rung the operation table gives that operation. It never assigns five stars: three stars is the default,
   four is for a clearly better item, and a five is only ever a candidate that a person decides. It never publishes. The definition names no rung for
   the agent: how far it goes is the site's agent policy. This feature specifies the definition; the rating procedure itself has its own feature.
@@ -11,10 +12,11 @@ Feature: The rating agent is the first core agent definition
     Then the set is accepted
     And the core set holds the definition "rate" for the responsibility "rate"
 
-  Scenario: The rating agent runs on the bulk tier, once a day, one at a time
+  Scenario: The rating agent runs on the bulk tier, once a day and when a Story is published or a Reference accepted, one at a time
     When the engine's core definitions are validated
     Then the definition "rate" has the tier "bulk"
-    And the definition "rate" wakes by a daily schedule and by no change
+    And the definition "rate" wakes by a daily schedule
+    And the definition "rate" wakes when a Story enters the published stage and when a Reference is accepted, and on no other change
     And the definition "rate" runs one at a time by "agent"
     And the definition "rate" is paid and safe to repeat
 

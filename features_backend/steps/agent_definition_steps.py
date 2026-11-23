@@ -243,11 +243,17 @@ def step_tier(context, name, tier):
     assert context.loaded.get(name).data["tier"] == tier
 
 
-@then('the definition "{name}" wakes by a daily schedule and by no change')
+@then('the definition "{name}" wakes by a daily schedule')
 def step_daily(context, name):
     wakes = context.loaded.get(name).data["wakes"]
     fields = wakes["schedule"]["cron"].split()
-    assert set(wakes) == {"schedule"} and fields[2:] == ["*", "*", "*"] and fields[0].isdigit() and fields[1].isdigit(), wakes
+    assert fields[2:] == ["*", "*", "*"] and fields[0].isdigit() and fields[1].isdigit(), wakes
+
+
+@then('the definition "{name}" wakes when a Story enters the published stage and when a Reference is accepted, and on no other change')
+def step_rating_changes(context, name):
+    changes = context.loaded.get(name).data["wakes"]["changes"]
+    assert changes == [{"kind": "Item", "change": "stage_entered", "filter": {"stage": "published"}}, {"kind": "Reference", "change": "accepted"}], changes
 
 
 @then('the definition "{name}" runs one at a time by "{scope}"')

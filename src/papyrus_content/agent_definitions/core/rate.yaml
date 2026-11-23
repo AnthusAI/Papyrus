@@ -1,10 +1,13 @@
 schemaVersion: 1
 id: rate
-version: 2
+version: 3
 responsibility: rate
 procedure: rate_items
 wakes:
   schedule: {cron: "30 3 * * *", timeZone: America/New_York}
+  changes:
+    - {kind: Item, change: stage_entered, filter: {stage: published}}
+    - {kind: Reference, change: accepted}
 serialBy: agent
 paid: true
 safeToRepeat: true
@@ -14,13 +17,13 @@ operations:
   ratings_suggestions_review: propose
 tier: bulk
 template:
-  trigger: Once a day by its schedule. It has no change trigger yet.
-  inputs: Published Stories that have no rating, read newest first from the site's head stage index one page at a time, and the site's writing guidelines. Accepted References are not read yet, because no index lists the accepted References that have no stars.
-  decision: For each unrated Story with no suggestion yet, three stars (the default), four stars (clearly better than the usual item), or a five-star candidate. Every answer is a suggestion for a person; none is ever a rating.
+  trigger: Once a day by its schedule; when a Story's page goes live (its Item record enters the published stage, from the Item change feed, after the site's quiet window); and when a Reference is accepted (from the Reference change feed). All arrive through the site's wake queue; nothing a publish or an acceptance does calls this agent.
+  inputs: On its schedule, the published Stories that have no rating, read newest first from the site's head stage index one page at a time. On a Story's wake, that one Story as it is when the run starts. On a Reference's wake, the Stories whose sources name that Reference (the Story's uses_evidence links, read by the relation index), each as it is when the run starts; a suggestion sits beside a Story's rating, so the Reference itself is given none. Always the site's writing guidelines. The wake says only which Story or Reference it is about; the run re-reads each Story and decides from what it finds.
+  decision: For each published, unrated Story with no suggestion yet (a Story a person rated before the run, or one with a suggestion waiting, is skipped and listed), three stars (the default), four stars (clearly better than the usual item), or a five-star candidate. Every answer is a suggestion for a person; none is ever a rating.
   mayWrite:
     - The run record, which lists each Story it looked at, the stars it suggested and why
     - A suggestion of three or four stars, or five for a five-star candidate, beside the rating of a Story nobody has rated, only at a rung that allows suggestions (propose)
-    - One soft review per day, "N ratings suggested, M five-star candidates", linking each Story, only at a rung that allows suggestions
+    - One soft review per day, "N ratings suggested, M five-star candidates", linking each Story, only at a rung that allows suggestions; a wake later that day adds its Story to that review instead of raising another
   mustNever:
     - Assign five stars, or write any rating; a rating is a person's alone
     - Suggest anything but three, four, or five as a candidate
@@ -28,8 +31,8 @@ template:
     - Publish, unpublish, accept or reject a Story or a Reference
     - Write a suggestion or raise a review at a rung that does not allow it; at observe it writes nothing but its run record
   seenAndReversed: Beside each Story's rating in its editor, on the day's one soft review, and in the run record, which lists every Story with the stars and the reason. A person confirms a suggestion (it becomes their rating), rates other stars, or ignores it.
-  records: One run record per wake, with the policy version and rung it ran under, the items it looked at and what it decided for each.
-  fails: Closed. A failed run rates nothing and ends failed; a run that finds nothing unrated ends nothing with the reason nothing_unrated.
-  costAndBound: One call to the bulk-tier model for each unrated Story the run reads, inside the site's monthly budget ($10 when the site sets none). No limit on the number of Stories; the run's own deadline ends the reading, and the run says so.
+  records: One run record per wake, with the policy version and rung it ran under, what woke it, the items it looked at, the Stories it skipped and why, and what it decided for each.
+  fails: Closed. A failed run rates nothing and ends failed; a run that finds nothing unrated (on a wake, a Story already rated, already suggested, not published now or a translation) ends nothing with the reason nothing_unrated.
+  costAndBound: One call to the bulk-tier model for each unrated Story the run reads (one on a Story's wake; one for each unrated Story based on the Reference on a Reference's wake), inside the site's monthly budget ($10 when the site sets none). No limit on the number of Stories; the run's own deadline ends the reading, and the run says so.
   measured: How often a person confirms a suggestion and how often they change it, and in which direction. The measure is a later task and has no spec yet.
-  gherkin: [rating-agent-definition.feature, rating-agent.feature, rating-suggestions.feature]
+  gherkin: [rating-agent-definition.feature, rating-agent.feature, rating-suggestions.feature, rating-suggestion-triggers.feature]
