@@ -417,7 +417,9 @@ from Git leaves the index at the next deploy. It holds no rung, pause or budget:
 
 * **What the deploy step needs:** nothing new for an app-shell `cms` site (its build role has the access the schedule step uses). Any other build role needs
   `s3:PutObject` and `s3:GetObject` on `tenants/<tenant>/site/listeners/*` in the site's bucket, and the site API's `getSiteDocument`, `getSiteDocumentVersion`,
-  `createSiteDocument`, `createSiteDocumentVersion` and `updateSiteDocument`, as the policy document's writer holds them.
+  `createSiteDocument`, `createSiteDocumentVersion` and `updateSiteDocument`, as the policy document's writer holds them. The step runs as that role
+  (`PAPYRUS_GRAPHQL_AUTH=iam papyrus agents listeners`): the admin group reads the site documents and writes none of them (PPY-1ea28b), so a signed-in
+  session that runs it without `--dry-run` or `--check` is refused (`not_authorized`) before anything is read.
 * **What the feed may do** (its role, in the agents stack): read the Item stream; call `getSiteDocument` on its own site's API and read the listener index's objects of its
   own tenant; look up and send to its own site's wake queue. It reads no table, receives and deletes no wake, and calls no model.
 * **The feed's changes and what a filter may name.** `version_created` (a new version of an Item that is not a checklist step): `type`, `stage`, `section`, `language`,
