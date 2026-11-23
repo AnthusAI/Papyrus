@@ -3033,7 +3033,7 @@ const definitions = {
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 
-  /** The catalogue row of one site document (kind: site | brand | nav | agents); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". */
+  /** The catalogue row of one site document (kind: site | brand | nav | agents | lists | listeners); id = "<tenant>#<kind>". The body lives in S3 (PPY-c020ce). Group "tenancy". The admin group reads it and writes nothing (PPY-1ea28b): an agent in a person's session holds that person's token, so the agent policy (kind agents) is written only by the agent-policy function's own role, and every other kind by a role of its own (the deploy writes the listener index). */
   SiteDocument: modelWithoutSubscriptions({
       id: a.id().required(),
       tenantId: a.string().required(),
@@ -3046,11 +3046,11 @@ const definitions = {
       updatedAt: a.datetime().required(),
     })
     .authorization((allow) => [
-      allow.group(adminGroup),
+      allow.group(adminGroup).to(["read"]),
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 
-  /** One saved version of a site document; id = "<tenant>#<kind>#<version>". Body in S3 (PPY-c020ce). Group "tenancy". */
+  /** One saved version of a site document; id = "<tenant>#<kind>#<version>". Body in S3 (PPY-c020ce). Group "tenancy". Read only to the admin group, as SiteDocument (PPY-1ea28b). */
   SiteDocumentVersion: modelWithoutSubscriptions({
       id: a.id().required(),
       tenantId: a.string().required(),
@@ -3066,7 +3066,7 @@ const definitions = {
       index("documentId").sortKeys(["version"]).queryField("listSiteDocumentVersionsByDocument"),
     ])
     .authorization((allow) => [
-      allow.group(adminGroup),
+      allow.group(adminGroup).to(["read"]),
       allow.ownerDefinedIn("tenantId").identityClaim("papyrus_tenant_admin").to(["read"]),
     ]),
 

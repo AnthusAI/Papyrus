@@ -3,7 +3,7 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FIXTURE_TODAY } from "../lib/today-fixture";
-import { OTHER_WORDS, OUTCOME_WORDS, automationsHref, costText, countWords, dayTitle, dollars, reasonsText, reviewRequestHref, withoutAttentionRun, type TodayResult } from "../lib/today-overview";
+import { OTHER_WORDS, OUTCOME_WORDS, automationsHref, overdueWakeRefusedText, overdueWakeSentText, costText, countWords, dayTitle, dollars, reasonsText, reviewRequestHref, withoutAttentionRun, type TodayResult } from "../lib/today-overview";
 
 function text(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/\s+/g, " ");
@@ -62,6 +62,25 @@ async function main() {
   assert.match(html, /data-today-attention-run="run-t2"[^>]*data-today-attention-outcome="failed"[\s\S]*?data-today-action="acknowledge"[^>]*data-today-action-run="run-t2"/);
   assert.ok(page.includes("Outcome unknown (interrupted)") && page.includes("Settle") && page.includes("Acknowledge"), "the runs say what came of them and their action");
   assert.ok(html.includes('data-today-overdue="announcement-daily#email#site#g1"') && page.includes("was due 6:00 AM (release) and nothing ran") && page.includes("Wake now"), "an overdue record is listed, in local time");
+  // Wake now on an Overdue record is enabled when the page can send it, and says what happened in words beside a Lucide mark (an svg, not a text glyph).
+  const { WakeOverdueAction } = await import("../components/today-view");
+  const overdueEntry = FIXTURE_TODAY.attention.find((entry) => entry.kind === "overdue");
+  assert.ok(overdueEntry && overdueEntry.kind === "overdue" && overdueEntry.action.available === true, "the fixture's Overdue Delivery offers Wake now");
+  const wakeButton = (markup: string) => /<button[^>]*data-today-action="wake_now"[^>]*>/.exec(markup)?.[0] ?? "";
+  assert.ok(wakeButton(html) && /disabled=""/.test(wakeButton(html)), "with no way to send it the button is disabled");
+  const wakeable = renderToStaticMarkup(createElement(TodayView, { result: FIXTURE_TODAY, onWakeOverdue: async () => ({ state: "sent" as const, words: "sent" }) }));
+  assert.ok(wakeButton(wakeable) && !/disabled=""/.test(wakeButton(wakeable)), "Wake now is enabled on Today");
+  assert.match(wakeButton(wakeable), /data-today-action-record="Delivery"[^>]*/, "it names the record it wakes");
+  assert.ok(wakeable.includes("data-today-wake-reason"), "it asks why");
+  for (const outcome of [{ state: "sent" as const, words: overdueWakeSentText({ record: "Delivery", id: "d1", dueAt: "2026-11-16T11:00:00Z", waitingFor: "release", wakeKey: "deliver|d1|2026-11-16T11:00:00Z|due", requestedBy: "ada@example.test", reason: "r", shown: "" }) },
+                         { state: "refused" as const, words: overdueWakeRefusedText("constraint_conflict", "Delivery d1 is not Overdue. Nothing was sent.") }]) {
+    const shown = renderToStaticMarkup(createElement(WakeOverdueAction, { entry: overdueEntry as never, onWakeOverdue: async () => outcome, initialOutcome: outcome }));
+    const line = new RegExp(`<span[^>]*data-today-wake-outcome="${outcome.state}"[^>]*>([\\s\\S]*?)</span>`).exec(shown)?.[1] ?? "";
+    assert.match(line, /^<svg[^>]*aria-hidden="true"/, `${outcome.state} has a Lucide mark`);
+    assert.ok(text(line).includes(outcome.words), `${outcome.state} says what happened in words`);
+  }
+  assert.ok(overdueWakeSentText({ record: "Delivery", id: "d1", dueAt: "", waitingFor: null, wakeKey: "", requestedBy: "ada@example.test", reason: "", shown: "" }).includes("with the same key"));
+  assert.equal(overdueWakeRefusedText("not_authorized"), "Only editors and admins wake a record now. Nothing was sent.");
   assert.ok(!render({ ...FIXTURE_TODAY, attention: [] }).includes('data-today-attention"'), "a day with nothing to attend to says so");
   assert.ok(text(render({ ...FIXTURE_TODAY, attention: [] })).includes("Nothing needs attention."));
   assert.ok(text(render({ ...FIXTURE_TODAY, waiting: [] })).includes("Nothing is waiting for you."));

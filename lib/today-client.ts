@@ -1,7 +1,7 @@
 "use client";
 
 import { generateClient } from "aws-amplify/data";
-import type { AcknowledgeResult, TodayResult } from "./today-overview";
+import { overdueWakeRefusedText, overdueWakeSentText, type AcknowledgeResult, type OverdueWakeOutcome, type OverdueWakeResult, type TodayResult } from "./today-overview";
 
 type GraphQLResult<Field extends string> = { data?: Partial<Record<Field, unknown>>; errors?: { message?: string; errorType?: string }[] };
 
@@ -39,4 +39,18 @@ export async function acknowledgeTodayRun(runId: string): Promise<AcknowledgeRes
   const raw = result.data?.acknowledgeRun;
   if (result.errors?.length || raw === undefined || raw === null) return { state: "unavailable" };
   return parsed<AcknowledgeResult>(raw);
+}
+
+const AGENT_WAKE = "mutation AgentWake($input: AWSJSON!) { agentWake(input: $input) }";
+
+/** Wake now on an Overdue Delivery or soft review deadline: the record's own timer wake goes on the site's queue again, with the same key (`agents_wake_overdue`,
+ *  through the Automation page's function, which admits editors and admins). Who asks comes from the signed-in session. */
+export async function wakeOverdueRecord(record: string, id: string, reason: string): Promise<OverdueWakeOutcome> {
+  const result = await call<"agentWake">(AGENT_WAKE, { input: JSON.stringify({ op: "agents_wake_overdue", record, id, reason: reason.trim() }) });
+  if (refused(result)) return { state: "refused", words: overdueWakeRefusedText("forbidden") };
+  const raw = result.data?.agentWake;
+  if (result.errors?.length || raw === undefined || raw === null) return { state: "refused", words: overdueWakeRefusedText("unavailable") };
+  const answer = parsed<{ ok?: boolean; result?: OverdueWakeResult; error?: string; message?: string }>(raw);
+  if (!answer || answer.ok !== true || !answer.result) return { state: "refused", words: overdueWakeRefusedText(String(answer?.error ?? "unavailable"), answer?.message) };
+  return { state: "sent", words: overdueWakeSentText(answer.result) };
 }

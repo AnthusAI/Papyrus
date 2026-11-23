@@ -42,8 +42,10 @@ assert.match(acknowledge, /runId: String!/, "the run is required");
 assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
   "Mutation/fields/updateProcedureRun",
   "Query/fields/getAutomation",
+  "Query/fields/getDelivery",
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
+  "Query/fields/getReviewRequest",
   "Query/fields/listAnnouncementDecisionsByStateAndReleaseAt",
   "Query/fields/listAutomations",
   "Query/fields/listAutomationsByTenant",

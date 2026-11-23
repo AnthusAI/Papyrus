@@ -11,7 +11,9 @@ Three operations, one Lambda:
   read from the run status index. Same readers as `automationOverview`.
 * `runAutomation(automationId, input)` starts a run now. Editors and admins only; an IAM caller is refused.
 * `agentWake(input)` is the poke-in operation `agents_wake` (`agent_poke_in.wake`, PPY-e6f31e): one agent's latest wake for one subject goes on the
-  site's wake queue again, once. Editors and admins only, as `papyrus agents wake` asks for it.
+  site's wake queue again, once. Editors and admins only, as `papyrus agents wake` asks for it. With `op` `agents_wake_overdue` it is Today's Wake now on
+  an Overdue Delivery or soft review deadline (`overdue.wake_now`, PPY-97180c): the record's own follow-up timer wake goes on the queue again with the same
+  key, as `papyrus agents wake-overdue` asks for it.
 * `acknowledgeRun(runId)` takes one run off Today's attention list (`run_attention.acknowledge`): Acknowledge for a failure, Settle for an
   Outcome unknown. It records who and when; the run stays in the history. Editors and admins only; an IAM caller is refused.
 
@@ -140,14 +142,17 @@ def _wake(event: dict, supplied, *, env, client_factory, invoker) -> dict:
         request = json.loads(supplied) if isinstance(supplied, str) else supplied
     except json.JSONDecodeError:
         return {"ok": False, "error": "invalid_input", "message": "The input must be a JSON object."}
-    if not isinstance(request, dict) or request.get("op") not in (None, "agents_wake"):
-        return {"ok": False, "error": "invalid_input", "message": "The input is the agents_wake operation's: agent, subject and reason."}
-    arguments = {name: value for name, value in request.items() if name != "op"}
-    problem = check(operation("agents_wake").input, arguments)
+    if not isinstance(request, dict) or request.get("op") not in (None, "agents_wake", WAKE_OVERDUE):
+        return {"ok": False, "error": "invalid_input", "message": "The input is the agents_wake operation's (agent, subject and reason) or agents_wake_overdue's (record, id and reason)."}
+    name = request.get("op") or "agents_wake"
+    arguments = {key: value for key, value in request.items() if key != "op"}
+    problem = check(operation(name).input, arguments)
     if problem:
         return {"ok": False, "error": "invalid_input", "message": problem[1]}
     if request.get("actorKind") == "agent":
         return {"ok": False, "error": "human_required", "message": "Wake now is a person's request. Nothing was sent."}
+    if name == WAKE_OVERDUE:
+        return _wake_overdue(event, arguments, env=env, client_factory=client_factory, invoker=invoker)
     try:
         client = (client_factory or default_client_factory(env))()
         result = wake(RunLedger(client, getattr(client, "tenant_id", None)), invoker or agent_wakes.wake_sender(), Caller(kind="person", subject=actor_label(event)),
@@ -172,6 +177,26 @@ def _acknowledge(event: dict, run_id, *, env, client_factory, now) -> dict:
     except Exception as error:
         LOG.error("acknowledge failed: %s", type(error).__name__)
         return {"state": "unavailable"}
+
+
+WAKE_OVERDUE = "agents_wake_overdue"
+
+
+def _wake_overdue(event: dict, arguments: dict, *, env, client_factory, invoker) -> dict:
+    """Wake now on an Overdue record: its own follow-up timer's wake, with the same key, built from the site's names in this function's environment."""
+    from . import overdue
+
+    try:
+        client = (client_factory or default_client_factory(env))()
+        result = overdue.wake_now(client, kind=arguments["record"], record_id=arguments["id"], reason=arguments["reason"], by=actor_label(event), person=True,
+                                  wake_requests=overdue.site_timer_wake_requests(env, appsync_endpoint=str(env.get("PAPYRUS_GRAPHQL_ENDPOINT") or "")),
+                                  send=invoker or agent_wakes.wake_sender())
+        return {"ok": True, "result": result}
+    except overdue.OverdueWakeError as error:
+        return {"ok": False, "error": error.code, "message": error.message}
+    except Exception as error:   # the browser gets a state; the cause goes to the log by type only
+        LOG.error("overdue wake failed: %s", type(error).__name__)
+        return {"ok": False, "error": "service_unavailable", "message": "The wake could not be sent right now. Nothing was sent; try again in a minute."}
 
 
 def _run(event: dict, automation_id: str, supplied, *, env, client_factory, table_factory, invoker, now) -> dict:
