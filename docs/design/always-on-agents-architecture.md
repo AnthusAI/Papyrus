@@ -1337,6 +1337,8 @@ The first real daily agent, end to end, at the lowest rung. It suggests stars fo
 - *Purpose.* Besides its daily schedule, the rating agent wakes when a Story is published and when a Reference is accepted, and writes its suggestion (`ratings_suggest`, rung `propose`) beside the rating within the quiet window, adding the Story to the day's one review.
 - *Acceptance.* A newly published Story gets a suggestion within the quiet window at `propose`. A Story a person rated before the wake gets none. The day's review gains the Story instead of a second review being raised.
 - *Gherkin.* rating-suggestion-triggers.feature: a publish wakes the agent and the Story gets a suggestion; a rated Story is skipped; the day's review gains it.
+- *Built.* `rate.yaml` (version 3) listens for Item `stage_entered` with `stage=published` (paid, so the wake gate holds it for the quiet window) and for Reference `accepted` (sent at once). A Story's wake rates that Story; a Reference's wake rates the Stories whose `uses_evidence` links name it, read by the relation index (`semanticRelationsByObjectState`): suggestions live beside a Story's rating, and a Reference has no suggestion fields, so the Reference itself is not rated. Each Story is re-read when the run starts; one a person rated, one with a suggestion waiting, one not published now and a translation are skipped and listed in the run record (`rating_agent.py`).
+- *Infrastructure as code.* None: the change feeds already wake agents.
 
 **L4 (PPY-89f253): Measure the rating agent against people**
 

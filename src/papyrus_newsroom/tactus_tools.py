@@ -76,14 +76,16 @@ def papyrus_curate_reference(reference_id: str, force: bool = False) -> dict:
     return curate_reference_by_id(reference_id, force=force)
 
 
-def papyrus_rate_items() -> dict:
-    """One day's rating work for the site: read the published Stories nobody has rated, decide three stars, four stars or a five-star candidate for each, and,
-    only at a rung the site's policy allows, write each as a suggestion beside the rating and raise the day's one review. Never writes a rating. Returns the
-    counts, each proposal with its reason, the five-star candidates for a person, and the gate's answers."""
+def papyrus_rate_items(story: str = "", change: str = "", what: str = "", stage: str = "", subject_kind: str = "", subject_id: str = "") -> dict:
+    """One wake's rating work. On the daily schedule (no change): the published Stories nobody has rated. When a Story is published (change stage_entered,
+    stage published): that Story. When a Reference is accepted (change accepted, subject Reference): the Stories based on it. For each Story still unrated, decide
+    three stars, four stars or a five-star candidate and, only at a rung the site's policy allows, write it as a suggestion beside the rating and add it to the
+    day's one review. Never writes a rating. Returns the counts, each proposal with its reason, the Stories skipped and why, the five-star candidates for a
+    person, and the gate's answers."""
 
     from papyrus_content.rating_agent import rate_items
 
-    return rate_items()
+    return rate_items(wake={"story": story, "change": change, "what": what, "stage": stage, "subjectKind": subject_kind, "subjectId": subject_id})
 
 
 def papyrus_review_deadline(review_request_id: str, due_at: str) -> dict:

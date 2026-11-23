@@ -1,4 +1,11 @@
-"""The rating agent's daily work (PPY-d85860 slice L1, PPY-e61642 slice L2; definition ``agent_definitions/core/rate.yaml``, procedure ``rate_items``).
+"""The rating agent's work (PPY-d85860 slice L1, PPY-e61642 slice L2, PPY-924693 slice L3; definition ``agent_definitions/core/rate.yaml``, procedure ``rate_items``).
+
+Three kinds of wake start it. Its daily schedule reads every published Story that waits for a rating, as below. A Story's page going live (the Item change feed's
+``stage_entered`` into ``published``, held by the wake gate until the Story has been quiet for the site's window) rates that one Story. A Reference being accepted
+(the Reference change feed's ``accepted``) rates the Stories whose sources name it (their ``uses_evidence`` links, read by the relation index): a suggestion sits
+beside a Story's rating, and no Reference carries one. A wake only names its subject; the run re-reads each Story as it is when it starts and skips, and lists, a
+Story that a person rated, that has a suggestion waiting, that is not published now or that is a translation. A change wake that finds nothing to judge ends
+``nothing`` like a quiet day. Its suggestions join the day's one review, as the daily run's do.
 
 It reads the published Stories nobody has rated and nobody has suggested stars for, newest first, by the site's head stage index, and asks the bulk-tier
 model one question about each: three stars (the default), four (clearly better than the usual Story) or five, a five-star candidate. Every answer is a
@@ -74,6 +81,8 @@ class Services:
     stories: Callable[[], Iterator[dict[str, Any]]]                 # the published head rows, newest first, one page at a time
     judge: Callable[[dict[str, Any], str], dict[str, Any]]          # (story row, guidelines text) -> {"stars", "reason"}; raises ModelFailed
     execute: Callable[..., dict[str, Any]]                          # images.handlers.execute: the one door every operation goes through
+    story: Callable[[str], dict[str, Any] | None]                   # one Story's working record as it is now, with its rating and suggestion; None when there is none
+    stories_based_on: Callable[[str], list[str]]                    # the lineages of the Stories whose sources name a Reference (by its lineage), by the relation index
     clock: Callable[[], float] = time.time
     handlers: dict[str, Any] | None = None                          # the operation handlers to run; None means the real ones
     today: Callable[[], str] | None = None                          # the site's day, YYYY-MM-DD, that names the day's one review; None means the schedule's zone
@@ -87,15 +96,60 @@ class Tally:
     unjudged: list[dict[str, Any]] = field(default_factory=list)
     failed: list[dict[str, Any]] = field(default_factory=list)
     left_alone: list[dict[str, Any]] = field(default_factory=list)
+    skipped: list[dict[str, Any]] = field(default_factory=list)     # on a change wake: the Stories it found nothing to judge in, each with why
     written: list[dict[str, Any]] = field(default_factory=list)
     review: dict[str, Any] | None = None
     stopped: str | None = None
 
 
+STAGE_ENTERED, ACCEPTED, REFERENCE = "stage_entered", "accepted", "Reference"
+ALREADY_RATED, ALREADY_SUGGESTED, NOT_PUBLISHED, TRANSLATION, NOT_A_STORY, NOT_FOUND = (
+    "already_rated", "already_suggested", "not_published", "translation", "not_a_story", "not_found")
+
+
+@dataclass(frozen=True)
+class RatingWake:
+    """What started the run. The daily schedule names nothing; a Story's publish names the Story; a Reference's acceptance names the Reference."""
+    story: str | None = None
+    reference: str | None = None
+
+    @property
+    def kind(self) -> str:
+        return "story_published" if self.story else "reference_accepted" if self.reference else "schedule"
+
+
+def rating_wake(given: Mapping[str, Any] | None) -> RatingWake:
+    """Reads the wake's input. A change the definition does not listen for is refused: a definition that names one is mistaken, and nothing is guessed."""
+    given = given or {}
+    change = str(given.get("change") or "")
+    if not change:
+        return RatingWake()
+    if change == STAGE_ENTERED and given.get("stage") == PUBLISHED and given.get("story"):
+        return RatingWake(story=str(given["story"]))
+    if change == ACCEPTED and given.get("subjectKind") == REFERENCE and given.get("subjectId"):
+        return RatingWake(reference=str(given["subjectId"]))
+    raise RatingError(f"The rating agent wakes by its schedule, when a Story is published or when a Reference is accepted; this wake is {change!r} "
+                      f"({given.get('what')!r}).")
+
+
+def why_not_eligible(row: Mapping[str, Any]) -> str | None:
+    """Why a Story a wake named is not judged, or None when it waits for a rating."""
+    if not is_story_item_type(row.get("type")):
+        return NOT_A_STORY
+    if row.get("stage") != PUBLISHED:
+        return NOT_PUBLISHED
+    if row.get("sourceLineageId"):
+        return TRANSLATION
+    if item_stars(row) is not None:
+        return ALREADY_RATED
+    if row.get("starSuggestion") is not None:
+        return ALREADY_SUGGESTED
+    return None
+
+
 def eligible(row: Mapping[str, Any]) -> bool:
     """A published Story that nobody has rated, that has no suggestion waiting, and that is not a translation (a translation is judged through its source)."""
-    return (is_story_item_type(row.get("type")) and row.get("stage") == PUBLISHED and not row.get("sourceLineageId") and item_stars(row) is None
-            and row.get("starSuggestion") is None)
+    return why_not_eligible(row) is None
 
 
 def published_unrated(client: Any) -> Iterator[dict[str, Any]]:
@@ -107,6 +161,18 @@ def published_unrated(client: Any) -> Iterator[dict[str, Any]]:
     except Exception as error:
         raise RatingError(f"The published Stories could not be read from the head stage index ({type(error).__name__}: {error}). The site needs the deploy that adds the "
                           "index and `papyrus stories head-index` run on it; the agent never scans a table instead.") from error
+
+
+def woken_stories(wake: RatingWake, services: Services, tally: Tally) -> Iterator[dict[str, Any]]:
+    """The Stories a change wake is about, each read as it is now. One that is not waiting for a rating is listed in ``tally.skipped`` with why."""
+    lineages = [wake.story] if wake.story else list(dict.fromkeys(services.stories_based_on(str(wake.reference))))
+    for lineage in lineages:
+        row = services.story(lineage)
+        reason = NOT_FOUND if row is None else why_not_eligible(row)
+        if reason is not None:
+            tally.skipped.append({"story": lineage, "reason": reason})
+            continue
+        yield row
 
 
 def story_id(row: Mapping[str, Any]) -> str:
@@ -161,7 +227,26 @@ def default_services(environ: Mapping[str, str]) -> Services:
     run = from_environment(environ)
     tier = core_definition(RESPONSIBILITY)["tier"]   # the definition names the tier; the site's policy names its model
     client, _ = create_authoring_client()
-    return Services(stories=lambda: published_unrated(client), judge=openai_judge(api_key, model_for(run.policy.document, tier), tier=tier), execute=execute)
+    return Services(stories=lambda: published_unrated(client), judge=openai_judge(api_key, model_for(run.policy.document, tier), tier=tier), execute=execute,
+                    story=lambda lineage: story_as_it_is(client, lineage), stories_based_on=lambda reference: stories_based_on(client, reference))
+
+
+def story_as_it_is(client: Any, lineage: str) -> dict[str, Any] | None:
+    """The Story's working record (by the lineage index) with its suggestion fields (one point read). None when the lineage has no record."""
+    from papyrus_content.rating_suggestions import read_suggestion_row
+    from papyrus_content.story_reporting import current_story_version
+
+    try:
+        row = current_story_version(client, lineage)
+    except ValueError:
+        return None
+    return {**row, **read_suggestion_row(client, row["id"])}
+
+
+def stories_based_on(client: Any, reference_lineage: str) -> list[str]:
+    from papyrus_content.story_reporting import stories_based_on_reference
+
+    return [str(entry["storyLineageId"]) for entry in stories_based_on_reference(client, reference_lineage) if entry.get("storyLineageId")]
 
 
 def _read_guidelines(services: Services, caller: Caller) -> str:
@@ -205,13 +290,15 @@ def _raise_review(services: Services, caller: Caller, tally: Tally) -> None:
     tally.review = {"request": answer["result"]["request"], "reason": answer["result"]["reason"]}
 
 
-def work(run: AgentRun, services: Services) -> tuple[Tally, GateRun, bool]:
+def work(run: AgentRun, services: Services, wake: RatingWake | None = None) -> tuple[Tally, GateRun, bool]:
     caller = Caller(kind="agent", subject=RESPONSIBILITY, gate_run=GateRun(run.policy, run.responsibility, run.run_id))
     gate_run: GateRun = caller.gate_run
     guidelines = _read_guidelines(services, caller)
     may_write = gate_run.ask(WRITE_OPERATION).allowed   # the one question: what the site's policy lets this agent do, answered by the one gate
     tally, longest = Tally(), 0.0
-    for row in services.stories():
+    wake = wake or RatingWake()
+    rows = services.stories() if wake.kind == "schedule" else woken_stories(wake, services, tally)
+    for row in rows:
         if run.deadline is not None and run.deadline - services.clock() <= longest:
             tally.stopped = "deadline"
             break
@@ -260,20 +347,32 @@ def compact_record(gate_run: GateRun) -> dict[str, Any]:
     return {"policyVersion": gate_run.policy.version, "gate": list(counted.values())}
 
 
-def rate_items(environ: Mapping[str, str] | None = None, services: Services | None = None) -> dict[str, Any]:
-    """Do one day's rating work. Returns the procedure's result with ``run_outcome`` and ``run_outcome_reason`` for the runner."""
+def _nothing_summary(wake: RatingWake, tally: Tally) -> str:
+    if wake.kind == "schedule":
+        return "No published Story is waiting for a rating."
+    about = f"Story {wake.story}" if wake.story else f"Reference {wake.reference}"
+    if not tally.skipped:
+        return f"No Story is based on the {about}, so nothing waits for a rating."
+    listed = "; ".join(f"{entry['story']}: {entry['reason'].replace('_', ' ')}" for entry in tally.skipped)
+    return f"Woken for the {about}; no Story it names is waiting for a rating ({listed})."
+
+
+def rate_items(environ: Mapping[str, str] | None = None, services: Services | None = None, wake: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Do one wake's rating work: the day's (no ``wake`` input) or one change's. Returns the procedure's result with ``run_outcome`` and ``run_outcome_reason``
+    for the runner."""
     environment = os.environ if environ is None else environ
     run = from_environment(environment)
     if run is None or run.responsibility != RESPONSIBILITY:
         raise RatingError("The rating agent runs only on an agent's wake, adopted as the responsibility \"rate\": it needs the policy the runner read for the run.")
+    woken = rating_wake(wake)
     services = services or default_services(environment)
-    tally, gate_run, _ = work(run, services)
+    tally, gate_run, _ = work(run, services, woken)
     rung = next((answer.rung for answer in gate_run.answers if answer.rung), None)
-    result = {"rung": rung, "looked_at": tally.looked_at, "proposed": len(tally.proposals), "candidates": len(tally.candidates), "written": len(tally.written), "review": tally.review,
+    result = {"rung": rung, "wake": woken.kind, "story": woken.story, "reference": woken.reference, "skipped": tally.skipped, "looked_at": tally.looked_at, "proposed": len(tally.proposals), "candidates": len(tally.candidates), "written": len(tally.written), "review": tally.review,
               "proposals": tally.proposals, "five_star_candidates": tally.candidates, "unjudged": tally.unjudged, "failed": tally.failed,
               "left_alone": tally.left_alone, "written_suggestions": tally.written, "stopped": tally.stopped, "gate_answers": compact_record(gate_run)}
     if tally.looked_at and not (tally.proposals or tally.candidates or tally.unjudged or tally.left_alone):
         raise RatingError(f"The model failed for every one of the {tally.looked_at} Stories it was asked about ({tally.failed[0]['reason']}), so nothing was rated.")
     if not tally.looked_at:
-        return {**result, "summary": "No published Story is waiting for a rating.", "run_outcome": "nothing", "run_outcome_reason": NOTHING_UNRATED}
+        return {**result, "summary": _nothing_summary(woken, tally), "run_outcome": "nothing", "run_outcome_reason": NOTHING_UNRATED}
     return {**result, "summary": summary_of(tally, rung), "run_outcome": "acted", "run_outcome_reason": SUGGESTED if tally.written else PROPOSED}
