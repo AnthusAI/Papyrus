@@ -34,12 +34,12 @@ export function pokeInRefusalText(code: string, message?: string): string {
   return "The agents could not be reached. Nothing was changed; try again in a minute.";
 }
 
-/** The status of the site or of one agent, in words with a mark: never colour alone. */
-export function pauseText(shown: PauseShown | undefined, name: string): { mark: string; words: string } {
-  if (!shown || !shown.paused) return { mark: "▶", words: `${name} is running.` };
+/** The status of the site or of one agent in words; the page sets a Lucide icon beside them (CirclePause or CirclePlay), never colour alone. */
+export function pauseText(shown: PauseShown | undefined, name: string): { paused: boolean; words: string } {
+  if (!shown || !shown.paused) return { paused: false, words: `${name} is running.` };
   const by = shown.pausedBy ? ` by ${shown.pausedBy}` : "";
   const at = shown.pausedAt ? ` since ${shown.pausedAt.replace("T", " ").replace(/:\d\dZ$/, " UTC")}` : "";
-  return { mark: "⏸", words: `${name} is paused${by}${at}: ${shown.reason}` };
+  return { paused: true, words: `${name} is paused${by}${at}: ${shown.reason}` };
 }
 
 /** What a resume did, in words: how many stopped wakes went out again, and anything it could not catch up. */

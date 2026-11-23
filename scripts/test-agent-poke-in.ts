@@ -1,6 +1,6 @@
 /**
  * The Automation page's pause, resume and wake now (PPY-e6f31e): the requests the console sends are the operation table's (`agents_pause`, `agents_resume`,
- * `agents_pauses`, `agents_wake`) through the doors `papyrus agents ...` uses, and the status reads in words with a mark, never colour alone.
+ * `agents_pauses`, `agents_wake`) through the doors `papyrus agents ...` uses, and the status reads in words beside a Lucide icon, never colour alone and never a text glyph.
  */
 import assert from "node:assert/strict";
 import * as React from "react";
@@ -48,9 +48,9 @@ async function main() {
   const refusing = agentPokeInApi(async () => ({ data: { agentPolicyChange: JSON.stringify({ ok: false, error: "human_required", message: "Only a person signed in to the console changes the agent policy." }) } }));
   await assert.rejects(refusing.pause(null, "x"), /Only a person signed in to the console/);
 
-  // Status in words with a mark.
-  assert.deepEqual(pauseText({ paused: false }, "The site"), { mark: "▶", words: "The site is running." });
-  assert.deepEqual(pauseText(pauses.agents.announce, "announce"), { mark: "⏸", words: "announce is paused by ada@example.test since 2026-11-23 15:00 UTC: Checking the X drafts" });
+  // Status in words; the page sets the icon.
+  assert.deepEqual(pauseText({ paused: false }, "The site"), { paused: false, words: "The site is running." });
+  assert.deepEqual(pauseText(pauses.agents.announce, "announce"), { paused: true, words: "announce is paused by ada@example.test since 2026-11-23 15:00 UTC: Checking the X drafts" });
   assert.equal(resumeText(resumed, "The site"), "The site resumed. 1 stopped wake was sent again, one for each subject.");
 
   // The page: the site's pause in the header, and on an adopted agent its own pause and wake now.
@@ -69,6 +69,10 @@ async function main() {
   ]) assert.ok(shown.includes(expected), `the page shows: ${expected}`);
   assert.match(html, /data-agent-pause="announce" data-agent-pause-state="paused"/);
   assert.match(html, /data-agent-pause="site" data-agent-pause-state="running"/);
+  // A Lucide icon beside the words, hidden from screen readers; no text glyph.
+  assert.match(html, /<svg[^>]*lucide-circle-pause[^>]*aria-hidden="true"|<svg[^>]*aria-hidden="true"[^>]*lucide-circle-pause/);
+  assert.match(html, /<svg[^>]*lucide-circle-play[^>]*aria-hidden="true"|<svg[^>]*aria-hidden="true"[^>]*lucide-circle-play/);
+  assert.doesNotMatch(html, /[▶⏸]/);
 
   // An editor, who may not read the pauses, is told so in words and still has wake now; without pokeIn the page shows none of it.
   const editor = text(renderToStaticMarkup(createElement(AutomationView, { result: announce, selectedId: "announce", onSelect: () => {},

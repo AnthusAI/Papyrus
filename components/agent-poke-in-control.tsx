@@ -1,5 +1,6 @@
 "use client";
 
+import { CirclePause, CirclePlay } from "lucide-react";
 import { useState } from "react";
 import { pauseText, resumeText, wakeText, type PauseShown, type PauseResult, type ResumeResult, type WakeResult } from "../lib/agent-poke-in";
 
@@ -16,7 +17,7 @@ export type PokeInHandlers = {
 type Phase = "idle" | "working" | "done";
 
 /**
- * Pause or resume the whole site (`agent` null) or one agent, with a reason. The status is words with a mark. Pausing is a new version of the agent policy, so
+ * Pause or resume the whole site (`agent` null) or one agent, with a reason. The status is words beside a Lucide icon. Pausing is a new version of the agent policy, so
  * nothing changes without a reason; the agent-policy function admits only an admin signed in here, and a refusal is shown in its own words.
  */
 export function PauseControl({ agent, name, handlers, initialMessage = null }: { agent: string | null; name: string; handlers: PokeInHandlers; initialMessage?: string | null }) {
@@ -54,7 +55,10 @@ export function PauseControl({ agent, name, handlers, initialMessage = null }: {
 
   return (
     <div data-agent-pause={id} data-agent-pause-state={paused ? "paused" : "running"} role="group" aria-label={`Pause or resume ${name}`}>
-      <p data-agent-pause-status><span aria-hidden="true">{status.mark} </span>{status.words}</p>
+      <p data-agent-pause-status className="inline-flex items-center gap-1.5">
+        {status.paused ? <CirclePause aria-hidden="true" size={16} data-agent-pause-icon="paused" /> : <CirclePlay aria-hidden="true" size={16} data-agent-pause-icon="running" />}
+        {status.words}
+      </p>
       <label>
         Reason
         <input type="text" value={reason} onChange={(event) => setReason(event.target.value)} placeholder={paused ? "Why it resumes" : "Why it pauses"} data-agent-pause-reason />
