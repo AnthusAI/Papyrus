@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Ban, Check, CircleCheck, CirclePause, CirclePlay, CircleX, Copy, FlaskConical, KeyRound, Megaphone, Plug, Power, Save, Send, Star, TriangleAlert, Unplug,
+  Ban, Check, CircleCheck, CirclePause, CirclePlay, CircleX, Clock, Copy, FlaskConical, KeyRound, Megaphone, Plug, Power, Save, Send, ShieldCheck, Star, TriangleAlert, Unplug, UserCheck,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { callAnnouncements, type AnnouncementsApi } from "../lib/announcements-client";
@@ -10,6 +10,12 @@ import { readDoor } from "../lib/announcement-lines";
 import type { AnnouncementsAccountStatusResult } from "../lib/images/operations.generated";
 import { createDemoAnnouncementsDoor } from "../lib/announcements-demo";
 import { createFixtureApi } from "../lib/announcements-fixture";
+import { createDemoReviewApi, type AnnouncementReviewApi } from "../lib/announcement-review-client";
+import { callAnnouncementReview } from "../lib/announcement-review-door";
+import {
+  DEFAULT_REVIEW_REASON, REVIEW_OPTIONS, currentReviewText, inheritedTimingText, reviewLabel, timingChanged, timingExplanation, timingFields, timingProblem, withXStoryTiming,
+  type ReviewApproval, type ReviewShown, type TimingFields,
+} from "../lib/announcement-review-timing";
 import {
   MODE_OPTIONS, QUALITY_FLOOR_STARS, SETUP_INTRO, STAR_CHOICES, STORY_TYPE_OPTIONS, X_PRICING_URL, X_STATE_STORAGE_KEY,
   callbackUrl, connectionWords, failureText, formatDate, formatMoney, formatWhen, modeBlockers, pauseText, setupSteps, toggled,
@@ -28,6 +34,7 @@ const emptyOpportunitySettings: OpportunitySettings = { enabled: false, budget: 
 const isFailure = (value: { ok: boolean }): value is AnnouncementFailure => value.ok === false;
 
 const MODE_ICON = { off: Power, dry_run: FlaskConical, on: Send } as const;
+const REVIEW_ICON = { hard: UserCheck, soft: Clock, none: Send } as const;
 const PRICE_FIELDS: { key: "createPost" | "createPostWithUrl" | "deletePost" | "readPost"; label: string }[] = [
   { key: "createPostWithUrl", label: "Post with a link (every announcement)" },
   { key: "createPost", label: "Post without a link" },
@@ -37,12 +44,13 @@ const PRICE_FIELDS: { key: "createPost" | "createPostWithUrl" | "deletePost" | "
 
 /**
  * Administration, Announcements: the pause switch, the plain setup guide, the X app's keys (the secret is write only), the
- * connected account, the mode, the rules, the budget and prices, and the list of announcements. Admins change; editors read.
+ * connected account, the mode, the rules, how X story posts are reviewed and when they post, the budget and prices, and the list of announcements. Admins change; editors read.
  * It reads on open and after each action and never subscribes to anything.
  */
 export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boolean; isDemo: boolean; sections: Section[] }) {
   const api: AnnouncementsApi = useMemo(() => (isDemo ? createFixtureApi() : callAnnouncements), [isDemo]);
   const door = useMemo(() => (isDemo ? createDemoAnnouncementsDoor() : announcementsDoor), [isDemo]);
+  const review: AnnouncementReviewApi = useMemo(() => (isDemo ? createDemoReviewApi() : callAnnouncementReview), [isDemo]);
   const live = useRef(true);
   useEffect(() => {
     live.current = true;
@@ -63,6 +71,11 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   const [clientSecret, setClientSecret] = useState("");
   const [replacing, setReplacing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shownReview, setShownReview] = useState<ReviewShown | null>(null);
+  const [reviewProblem, setReviewProblem] = useState<string | null>(null);
+  const [chosenReview, setChosenReview] = useState<ReviewApproval | null>(null);
+  const [reviewReason, setReviewReason] = useState("");
+  const [timing, setTiming] = useState<TimingFields>({ windowMinutes: "", lockLeadMinutes: "" });
   const [opportunityQuery, setOpportunityQuery] = useState("");
   const [capture, setCapture] = useState<OpportunityCapture | null>(null);
   const captureInFlight = useRef(false);
@@ -79,6 +92,7 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
     setDraft(settings.settings);
     setStatus(xStatus.status);
     setClientId((current) => current || xStatus.status.clientId || "");
+    setTiming(timingFields(settings.settings.editWindows));
     if (xStatus.status.connection === "connected") {
       const used = await api<{ usage: XUsage }>("announcementsXUsage");
       if (!live.current) return;
@@ -95,6 +109,21 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   }, [api, door]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // The review is the announce rung of the agent policy, which only an admin signed in to the console reads and sets (the agent-policy function).
+  const loadReview = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const shown = await review.show();
+      if (!live.current) return;
+      setShownReview(shown); setReviewProblem(null); setChosenReview(shown.chosen?.approval ?? null);
+    } catch (failure) {
+      if (!live.current) return;
+      setShownReview(null); setReviewProblem(failure instanceof Error ? failure.message : "The review could not be read.");
+    }
+  }, [isAdmin, review]);
+
+  useEffect(() => { void loadReview(); }, [loadReview]);
 
   const act = async (label: string, work: () => Promise<Message>) => {
     setBusy(label);
@@ -154,6 +183,34 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
     return { kind: "ok", text: "Saved." };
   });
 
+  const saveReviewAndTiming = () => act("review", async () => {
+    if (!saved) return null;
+    const reviewChanged = chosenReview !== null && chosenReview !== (shownReview?.chosen?.approval ?? null);
+    const timingWasChanged = timingChanged(saved.editWindows, timing);
+    const problemWithTiming = timingProblem(timing);
+    if (problemWithTiming) return { kind: "problem", text: problemWithTiming };
+    const said: string[] = [];
+    if (reviewChanged && chosenReview) {
+      try {
+        await review.set(chosenReview, reviewReason);
+      } catch (failure) {
+        return { kind: "problem", text: `The review was not saved. ${failure instanceof Error ? failure.message : ""}`.trim() };
+      }
+      said.push(`X story posts: ${reviewLabel(chosenReview)}.`);
+      setReviewReason("");
+      await loadReview();
+    }
+    if (timingWasChanged) {
+      const editWindows = withXStoryTiming(saved.editWindows, timing);
+      const result = await api<{ settings: AnnouncementSettings }>("announcementsSaveSettings", { settings: { ...saved, editWindows } });
+      if (isFailure(result)) return { kind: "problem", text: `${said.length ? `${said.join(" ")} ` : ""}The timing was not saved. ${failureText(result)}` };
+      setSaved(result.settings);
+      setDraft((current) => (current ? { ...current, editWindows: result.settings.editWindows } : current));
+      setTiming(timingFields(result.settings.editWindows));
+      said.push(timing.windowMinutes.trim() === "" ? "No time is set for X story posts." : `X story posts go ${timing.windowMinutes.trim()} minutes after the draft, locked ${timing.lockLeadMinutes.trim() || "0"} minutes before.`);
+    }
+    return { kind: "ok", text: `Saved. ${said.join(" ")}`.trim() };
+  });
   const runOpportunitySearch = async () => {
     if (captureInFlight.current) return;
     captureInFlight.current = true;
@@ -413,6 +470,64 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
           </div>
           <p className="announcements__quiet">Choose none to announce from every section.</p>
         </div>
+      </Card>
+
+      <Card title="Review and timing" note="For posts on X when a Story is published." id="review">
+        <div className="announcements__group">
+          <span className="announcements__label" id="ann-review-choices">Review before posting</span>
+          {isAdmin ? (
+            <p className="announcements__status" data-announcements-review-current>
+              {reviewProblem ? <TriangleAlert aria-hidden="true" size={18} /> : <ShieldCheck aria-hidden="true" size={18} />}
+              <span><strong>Now:</strong> {reviewProblem ?? (shownReview ? currentReviewText(shownReview) : "Loading…")}</span>
+            </p>
+          ) : <p className="announcements__quiet" data-announcements-review-current>Only an admin sees and changes how posts are reviewed.</p>}
+          <div className="announcements__choices" role="radiogroup" aria-labelledby="ann-review-choices" data-announcements-review>
+            {REVIEW_OPTIONS.map((option) => {
+              const Icon = REVIEW_ICON[option.value];
+              const selected = chosenReview === option.value;
+              return (
+                <button type="button" role="radio" aria-checked={selected} key={option.value} className="announcements__choice" data-selected={selected ? "true" : "false"} data-review={option.value}
+                  disabled={disabled || !shownReview} onClick={() => setChosenReview(option.value)}>
+                  <Icon aria-hidden="true" size={18} />
+                  <strong>{option.label}</strong>
+                  <span>{option.detail}</span>
+                  {selected ? <span className="announcements__selected"><Check aria-hidden="true" size={14} /> Selected</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          {isAdmin ? (
+            <label className="announcements__field">
+              <span>Why (kept with the change; optional)</span>
+              <input value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} disabled={disabled || !shownReview} placeholder={DEFAULT_REVIEW_REASON} maxLength={300} data-announcements-review-reason />
+            </label>
+          ) : null}
+        </div>
+        <div className="announcements__group">
+          <span className="announcements__label" id="ann-timing">Timing</span>
+          <p className="announcements__timing" role="group" aria-labelledby="ann-timing" data-announcements-timing>
+            <span>Post</span>
+            <input type="number" min="0" step="1" inputMode="numeric" value={timing.windowMinutes} disabled={disabled} aria-label="Minutes after the draft is made"
+              aria-invalid={timingProblem(timing) ? true : undefined} onChange={(event) => setTiming({ ...timing, windowMinutes: event.target.value })} data-announcements-window />
+            <span>minutes after the draft is made; lock</span>
+            <input type="number" min="0" step="1" inputMode="numeric" value={timing.lockLeadMinutes} disabled={disabled} aria-label="Minutes before it posts that it locks"
+              aria-invalid={timingProblem(timing) ? true : undefined} onChange={(event) => setTiming({ ...timing, lockLeadMinutes: event.target.value })} data-announcements-lock-lead />
+            <span>minutes before it posts.</span>
+          </p>
+          {inheritedTimingText(saved.editWindows) ? <p className="announcements__quiet" data-announcements-timing-inherited>{inheritedTimingText(saved.editWindows)}</p> : null}
+          {timingProblem(timing) ? <p className="announcements__problem" role="alert" data-announcements-timing-problem><TriangleAlert aria-hidden="true" size={16} /> {timingProblem(timing)}</p> : null}
+          <p className="announcements__quiet" data-announcements-timing-explain>{timingExplanation(timing)}</p>
+        </div>
+        {isAdmin ? (
+          <div className="announcements__actions">
+            <button type="button" className="announcements__button announcements__button--primary" data-announcements-review-save
+              disabled={busy !== null || Boolean(timingProblem(timing)) || !((chosenReview !== null && chosenReview !== (shownReview?.chosen?.approval ?? null)) || timingChanged(saved.editWindows, timing))}
+              onClick={() => void saveReviewAndTiming()}>
+              <Save aria-hidden="true" size={16} /> Save review and timing
+            </button>
+            <span className="announcements__quiet">Saved on its own, not with Save settings below.</span>
+          </div>
+        ) : null}
       </Card>
 
       <Card title="Budget and prices" note="Set the same limit in X's billing page." id="budget">

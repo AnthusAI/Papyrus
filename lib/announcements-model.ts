@@ -19,7 +19,12 @@ export type AnnouncementSettings = {
   opportunities?: OpportunitySettings;
   prices: { createPost: number; createPostWithUrl: number; deletePost: number; readPost: number; asOf: string };
   labelConfirmed: boolean;
+  /** How long a Delivery stays a draft that people edit, and how long before its release it locks (src/papyrus_content/announcements/edit_windows.py). */
+  editWindows?: EditWindow[];
 };
+
+/** One entry of the settings' `editWindows`: `kind` and `channel` are each optional, and the narrowest entry that fits wins. */
+export type EditWindow = { kind?: string; channel?: string; windowMinutes: number; lockLeadMinutes?: number };
 
 export type XStatus = {
   clientId: string | null;

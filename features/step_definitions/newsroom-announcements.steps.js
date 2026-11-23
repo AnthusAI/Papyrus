@@ -160,3 +160,57 @@ Then("the announcements page should not scroll sideways", async function () {
   const fits = await page(this).evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
   assert.ok(fits, "the page scrolls sideways");
 });
+
+// The "Review and timing" card (PPY-e2829f): the review of X story posts (the agent-policy function, in the demo an in-memory stand-in) and their edit window.
+Then("the review choices should be {string}", async function (list) {
+  const labels = await page(this).locator("[data-announcements-review] strong").allInnerTexts();
+  assert.equal(labels.join(", "), list);
+});
+Then("the review {string} should be selected with the word Selected", async function (label) {
+  const choice = page(this).locator("[data-announcements-review] [role=radio][aria-checked=true]");
+  await choice.waitFor({ state: "visible", timeout: 10_000 });
+  const found = await choice.innerText();
+  assert.ok(found.includes(label) && found.includes("Selected"), found);
+});
+Then("the current review should say {string}", async function (words) {
+  await page(this).waitForFunction((wanted) => document.querySelector("[data-announcements-review-current]").innerText.includes(wanted), words, { timeout: 10_000 });
+});
+When("I choose the review {string} and save the review and timing", async function (label) {
+  await page(this).locator("[data-announcements-review] [role=radio]").filter({ hasText: label }).first().click();
+  await page(this).locator("[data-announcements-review-save]").click();
+  await page(this).locator("[data-announcements-message]").waitFor({ state: "visible", timeout: 10_000 });
+});
+const setTiming = async (world, window, lead) => {
+  await page(world).locator("[data-announcements-window]").fill(String(window));
+  await page(world).locator("[data-announcements-lock-lead]").fill(String(lead));
+};
+When("I set X story posts to post {int} minutes after the draft with a {int} minute lock", async function (window, lead) {
+  await setTiming(this, window, lead);
+});
+When("I set X story posts to post {int} minutes after the draft with a {int} minute lock and save the review and timing", async function (window, lead) {
+  await setTiming(this, window, lead);
+  await page(this).locator("[data-announcements-review-save]").click();
+  await page(this).locator("[data-announcements-message]").waitFor({ state: "visible", timeout: 10_000 });
+});
+Then("the timing explanation should say {string}", async function (words) {
+  assert.ok((await page(this).locator("[data-announcements-timing-explain]").innerText()).includes(words));
+});
+Then("the timing fields should read {int} and {int}", async function (window, lead) {
+  assert.equal(await page(this).locator("[data-announcements-window]").inputValue(), String(window));
+  assert.equal(await page(this).locator("[data-announcements-lock-lead]").inputValue(), String(lead));
+});
+Then("the timing problem should say {string}", async function (words) {
+  const problem = page(this).locator("[data-announcements-timing-problem]");
+  assert.equal(await problem.getAttribute("role"), "alert");
+  assert.ok((await problem.innerText()).includes(words), await problem.innerText());
+});
+Then("the review and timing save button should be disabled", async function () {
+  assert.equal(await page(this).locator("[data-announcements-review-save]").isDisabled(), true);
+});
+Then("the timing fields should be visible", async function () {
+  for (const selector of ["[data-announcements-window]", "[data-announcements-lock-lead]", "[data-announcements-review-save]"]) {
+    const box = await page(this).locator(selector).boundingBox();
+    const width = await page(this).evaluate(() => document.documentElement.clientWidth);
+    assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1, `${selector} is inside the page: ${JSON.stringify(box)} of ${width}`);
+  }
+});
