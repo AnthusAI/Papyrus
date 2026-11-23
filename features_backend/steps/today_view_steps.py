@@ -9,7 +9,7 @@ import sys
 from behave import given, then, when
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "procedures" / "newsroom" / "tests"))
-from papyrus_content import automation_view, today  # noqa: E402
+from papyrus_content import automation_view, tenancy, today  # noqa: E402
 
 ZONE = "America/New_York"
 DAY = "2026-11-16"
@@ -316,7 +316,7 @@ def dedicated_site_with_tenant(context, tenant):
     for row in context.client.automations:
         row["tenantId"] = tenant
     context.site_api = SiteApi(context.client.runs, context.client.automations)
-    function_environment = {"PAPYRUS_TENANT_ID": tenant, "PAPYRUS_GRAPHQL_AUTH": "iam", "PAPYRUS_TENANCY_MODE": ""}
+    function_environment = {tenancy.TENANT_ID_ENVIRONMENT_VARIABLE: tenant, "PAPYRUS_GRAPHQL_AUTH": "iam", tenancy.TENANCY_MODE_ENVIRONMENT_VARIABLE: ""}
     for name, value in function_environment.items():
         previous = os.environ.get(name)
         os.environ[name] = value
