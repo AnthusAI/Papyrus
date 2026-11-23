@@ -21,9 +21,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ccf46272-d840-461a-b75f-5c0a2b0faf5e",
+      "author": "ryan",
+      "text": "Merged to develop in #1880: an approval lets the asking run do what was approved, once; a rejection ends it with the reason; feedback reaches the next run (features_backend/agents/ask-and-answer.feature). Closes on release.",
+      "created_at": "2026-11-23T17:08:24.767296Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:07.152338Z",
-  "updated_at": "2026-11-16T22:43:31.709037Z",
+  "updated_at": "2026-11-23T17:08:24.767455Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
