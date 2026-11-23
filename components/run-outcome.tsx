@@ -1,4 +1,5 @@
-import { CheckIcon, CircleHelpIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { CheckIcon, CircleHelpIcon, ClockIcon, MinusIcon, PauseIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { OTHER_WORDS, OUTCOME_WORDS, type TodayOutcome } from "@/lib/today-overview";
 
 /**
  * What came of a run, as a Lucide icon and its words (PPY-1a322a). The icons differ by shape, not by colour, and the words are always beside them, so
@@ -12,6 +13,7 @@ export const OUTCOME_MARKS: Record<string, LucideIcon> = {
   unknown: TriangleAlertIcon,
   notFinished: ClockIcon,
   beforeOutcomes: MinusIcon,
+  waiting: PauseIcon,
 };
 
 const TEXT_MARK = /^[✓–?✗!]\s+/;
@@ -34,4 +36,33 @@ export function RunOutcome({ outcome, shown }: { outcome: string | null; shown: 
       {outcomeWords(shown)}
     </span>
   );
+}
+
+/** What a ProcedureRun record says about how it ended, as the run lists need it. */
+export type ProcedureRunOutcomeFields = {
+  runStatus: string;
+  outcome?: string | null;
+  outcomeReason?: string | null;
+  waitingFor?: string | null;
+  dueAt?: string | null;
+};
+
+const FINISHED_STATUSES = new Set(["completed", "failed"]);
+
+/**
+ * The outcome of one run read straight from its ProcedureRun record (the console's procedure Recent Runs panel has the record, not the server's outcome line):
+ * the key of its icon and its words, by the same rules as `run_outcomes.outcome_shown` on the server. An outcome with its reason; a run that waits for the
+ * budget cycle, with why and until when; a finished run with no outcome was recorded before outcomes; any other run is not finished yet.
+ */
+export function procedureRunOutcome(run: ProcedureRunOutcomeFields): { outcome: string; shown: string } {
+  if (run.outcome) {
+    const words = OUTCOME_WORDS[run.outcome as TodayOutcome] ?? `Unrecognised outcome (${run.outcome})`;
+    return { outcome: run.outcome, shown: run.outcomeReason ? `${words} (${run.outcomeReason})` : words };
+  }
+  if (run.runStatus === "waiting") {
+    return { outcome: "waiting", shown: `Waiting (${run.waitingFor || "no reason recorded"})${run.dueAt ? ` until ${run.dueAt}` : ""}` };
+  }
+  return FINISHED_STATUSES.has(run.runStatus)
+    ? { outcome: "beforeOutcomes", shown: OTHER_WORDS.beforeOutcomes }
+    : { outcome: "notFinished", shown: OTHER_WORDS.notFinished };
 }
