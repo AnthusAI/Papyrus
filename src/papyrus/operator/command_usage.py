@@ -306,6 +306,15 @@ _ENTRIES = dict([
      "--id AGENT --rung RUNG --reason TEXT [--scope DIMENSION=VALUE]... [--dir DIR] [--core DIR] [--apply]", "editor", "apply", ""),
   _e("agents set-budget", "Set the site's AI budget for paid agent work (an amount in US dollars for each day, week or month): a new version of the agent policy with who, when and why. Admin who is a person only. At the budget paid wakes wait for the next cycle and one flag a cycle is raised; --apply also puts the waiting wakes back on the queue, oldest first, and each re-checks the new budget. A dry run that prints the budget before and after and the waiting wakes unless --apply. With --agent and --per-run it sets one agent's budget for a single run instead, which never stops a run: a run over it raises one flag with the figures, as a run far above the agent's own cost history does.",
      "--amount USD --period day|week|month --reason TEXT [--apply] | --agent RESPONSIBILITY --per-run USD --reason TEXT [--apply]", "editor", "apply", ""),
+  # ---- agents poke-in (the operation table is the source of the flags; a test keeps these in step) -------------------------------------------
+  _e("agents pause", "Pause one agent (--agent, its name in the agent policy) or every agent on the site, with a reason: a new version of the agent policy with who, when and why. The runner reads the policy at the start of every run, so the next run starts nothing and its record says paused. Admin who is a person only.",
+     "[--agent RESPONSIBILITY] --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("agents resume", "Resume one agent or the site, with a reason, and send once each change wake the pause stopped (one per subject, found through the run index from when the pause began); a timer's skipped ticks stay skipped. Admin who is a person only.",
+     "[--agent RESPONSIBILITY] --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("agents pauses", "Show what is paused on the site: the site and each agent the agent policy names, with who paused it, when and why. An admin reads the policy document.",
+     "[--input-file PATH]", "editor", "reads", ""),
+  _e("agents wake", "Wake one agent now for one subject: its latest wake for that subject goes on the site's wake queue again and runs once, re-reading the subject. Editor or admin who is a person.",
+     "--agent AGENT --subject SUBJECT --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),

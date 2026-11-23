@@ -12,7 +12,7 @@ import boto3
 
 from papyrus_content.agent_policy import AgentPolicyStore
 from papyrus_content.agent_policy.dynamo_catalogue import DynamoCatalogueTable
-from papyrus_content.agent_policy.function import handle
+from papyrus_content.agent_policy.function import PokeInServices, handle
 from papyrus_content.site_store import SiteStore
 from papyrus_content.tenant_context import acting_for, build_event_tenant_context
 
@@ -26,6 +26,18 @@ def _policy_store() -> AgentPolicyStore:
     return AgentPolicyStore(SiteStore(boto3.client("s3"), os.environ["MEDIA_BUCKET"], catalogue))
 
 
+def _poke_in_services(store: AgentPolicyStore, tenant_id: str) -> PokeInServices:
+    """What a resume reads and sends with the function's own role: the listener index, one agent's runs through the run index, and the site's wake queue."""
+    from papyrus_content.agent_listeners import ListenerIndex
+    from papyrus_content.agent_poke_in import RunLedger
+    from papyrus_content.agent_wakes import wake_sender
+    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+
+    client = PapyrusGraphQLAuthoringClient(endpoint=os.environ["PAPYRUS_GRAPHQL_ENDPOINT"], tenant_id=tenant_id)
+    return PokeInServices(ListenerIndex(store.site_store, tenant_id).document, RunLedger(client, tenant_id), wake_sender())
+
+
 def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     with acting_for(build_event_tenant_context(event)) as context:
-        return handle(event, _policy_store(), dict(os.environ), context.tenant_id)
+        store = _policy_store()
+        return handle(event, store, dict(os.environ), context.tenant_id, _poke_in_services(store, context.tenant_id))

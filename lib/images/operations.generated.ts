@@ -66,6 +66,10 @@ export type ImageOperationName =
   | "ratings_confirm"
   | "ratings_suggestions_review"
   | "handoffs_request"
+  | "agents_pause"
+  | "agents_resume"
+  | "agents_pauses"
+  | "agents_wake"
 ;
 
 export type ImageErrorCode =
@@ -1827,6 +1831,94 @@ export type HandoffsRequestResult = {
   created: boolean;
 };
 
+/** Pause one agent, or every agent on the site, with a reason: its next run starts nothing and its run record says why. */
+export type AgentsPauseInput = {
+  /** The agent's name in the agent policy (its responsibility, such as announce). Leave it out for every agent on the site. */
+  agent?: string;
+  /** Why, in plain words. It is recorded with who and when. */
+  reason: string;
+};
+
+export type AgentsPauseResult = {
+  scope: "agent" | "site";
+  agent?: string | null;
+  paused: boolean;
+  reason?: string;
+  pausedAt?: string;
+  pausedBy?: string;
+  changed: boolean;
+  /** The agent policy's version before and after; the same when nothing changed. */
+  policyVersion: {
+    before: number;
+    after: number;
+  };
+};
+
+/** Resume one agent, or the site, with a reason, and send once each change wake the pause stopped. */
+export type AgentsResumeInput = {
+  /** The agent's name in the agent policy (its responsibility, such as announce). Leave it out for every agent on the site. */
+  agent?: string;
+  /** Why, in plain words. It is recorded with who and when. */
+  reason: string;
+};
+
+export type AgentsResumeResult = {
+  scope: "agent" | "site";
+  agent?: string | null;
+  paused: boolean;
+  changed: boolean;
+  /** The agent policy's version before and after; the same when nothing changed. */
+  policyVersion: {
+    before: number;
+    after: number;
+  };
+  /** The wakes sent again: one for each subject whose latest wake the pause stopped. */
+  caughtUp: {
+    agent: string;
+    subject: string;
+    wakeKey: string;
+    /** The key of the wake the pause stopped. */
+    repeats: string;
+  }[];
+  /** What was not caught up and why, in words. */
+  notes: string[];
+};
+
+/** Show what is paused on the site: the site and each agent the agent policy names, with who paused it, when and why. */
+export type AgentsPausesInput = Record<string, unknown>;
+
+export type AgentsPausesResult = {
+  policyVersion: number;
+  site: {
+    paused: boolean;
+    reason?: string;
+    pausedAt?: string;
+    pausedBy?: string;
+  };
+  /** By agent: paused, and while paused its reason, when and who. */
+  agents: Record<string, unknown>;
+};
+
+/** Wake one agent now for one subject: its latest wake for that subject goes on the site's wake queue again, and runs once. */
+export type AgentsWakeInput = {
+  /** The agent's id, such as announce. */
+  agent: string;
+  /** What it is woken for: a Story's lineage id, or the record its wakes name, such as a Delivery's id. */
+  subject: string;
+  /** Why, in plain words. It is recorded with who and when. */
+  reason: string;
+};
+
+export type AgentsWakeResult = {
+  agent: string;
+  subject: string;
+  wakeKey: string;
+  /** The key of the wake sent again. */
+  repeats: string;
+  requestedBy: string;
+  reason: string;
+};
+
 export interface ImageOperations {
   image_profile_get: { input: ImageProfileGetInput; result: ImageProfileGetResult };
   image_profile_resolve: { input: ImageProfileResolveInput; result: ImageProfileResolveResult };
@@ -1891,6 +1983,10 @@ export interface ImageOperations {
   ratings_confirm: { input: RatingsConfirmInput; result: RatingsConfirmResult };
   ratings_suggestions_review: { input: RatingsSuggestionsReviewInput; result: RatingsSuggestionsReviewResult };
   handoffs_request: { input: HandoffsRequestInput; result: HandoffsRequestResult };
+  agents_pause: { input: AgentsPauseInput; result: AgentsPauseResult };
+  agents_resume: { input: AgentsResumeInput; result: AgentsResumeResult };
+  agents_pauses: { input: AgentsPausesInput; result: AgentsPausesResult };
+  agents_wake: { input: AgentsWakeInput; result: AgentsWakeResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
@@ -1958,14 +2054,18 @@ export const IMAGE_OPERATIONS = {
   ratings_confirm: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings confirm" },
   ratings_suggestions_review: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "ratings", command: "papyrus ratings suggestions-review" },
   handoffs_request: { effect: "write", agentAllowed: true, agentRung: "propose", agentRefusal: "human_required", group: "handoffs", command: "papyrus handoffs request" },
+  agents_pause: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "agents", command: "papyrus agents pause" },
+  agents_resume: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "agents", command: "papyrus agents resume" },
+  agents_pauses: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "agents", command: "papyrus agents pauses" },
+  agents_wake: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "agents", command: "papyrus agents wake" },
 } as const;
 
-/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements, ratings and handoffs have no door yet (the console reads and writes their models directly). */
+/** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements, ratings and handoffs have no door yet (the console reads and writes their models directly); agents go through agentPolicyChange (pause, resume, pauses) and agentWake (wake). */
 export type ImageTransport = (request: {
   op: ImageOperationName;
   input: unknown;
   effect: "read" | "write" | "spend";
-  group: "images" | "guidelines" | "announcements" | "ratings" | "handoffs";
+  group: "images" | "guidelines" | "announcements" | "ratings" | "handoffs" | "agents";
 }) => Promise<unknown>;
 
 export async function callImageOperation<Name extends ImageOperationName>(

@@ -92,6 +92,8 @@ export type AutomationRecord = {
   supported: boolean;
   supportNote: string | null;
   procedureKey: string;
+  /** The responsibility an admin adopted the automation onto (`papyrus automations adopt`): its name in the agent policy, which pause and resume take. Null until adopted. */
+  responsibility?: string | null;
   inputTemplate: Record<string, string>;
   limits: { timeoutSeconds?: number; maxConcurrent?: number };
   limitsNote: string;

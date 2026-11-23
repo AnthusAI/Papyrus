@@ -197,7 +197,7 @@ def refuse_run(client, run_id: str, error: Exception, request: dict, *, now: Cal
         "id": run_id, "runStatus": "failed", "outcome": "failed", "outcomeReason": reason,
         "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger),
         "startedAt": stamp, "finishedAt": stamp, "errorSummary": str(error)[:MAX_SUMMARY_CHARACTERS],
-        "error": {"message": str(error)}, "attempt": 1})
+        "error": {"message": str(error)}, "attempt": 1, **kept_wake(request)})
 
 
 def child_timeout(request: dict, seconds_available: float) -> float:
@@ -253,6 +253,16 @@ def record_spend(table, client, result: dict, *, moment: datetime | None = None)
     return unusual_cost.watch_run(table, client, result, moment=moment)
 
 
+def kept_wake(request: dict) -> dict[str, Any]:
+    """An agent's change wake stays on its run record (``wake``), whatever came of it, so a person can send it again: resuming sends once each subject's
+    latest wake a pause stopped, and wake now sends a subject's latest wake again (``agent_poke_in.py``). A timer's tick or a person's Run now is never sent
+    again, so it keeps nothing."""
+    trigger = request.get("trigger") or {}
+    if trigger.get("kind") != "event" or not trigger.get("automationId"):
+        return {}
+    return {"wake": request}
+
+
 def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], str]) -> dict:
     """The site's policy says this wake starts nothing: the record says so (a finished run that did nothing, with the reason code), names
     the responsibility, policy version and rung it was decided under, and the words say why. Nothing of the procedure is loaded."""
@@ -260,7 +270,7 @@ def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], 
     update_cloud_procedure_run_record(client, {
         "id": run_id, "runStatus": "completed", "outcome": "nothing", "outcomeReason": decision.reason_code,
         "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
-        "startedAt": stamp, "finishedAt": stamp, "attempt": 1, "resultSummary": decision.reason[:MAX_SUMMARY_CHARACTERS]})
+        "startedAt": stamp, "finishedAt": stamp, "attempt": 1, "resultSummary": decision.reason[:MAX_SUMMARY_CHARACTERS], **kept_wake(request)})
     return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "skipped": True,
             "runStatus": "completed", "outcome": "nothing", "outcomeReason": decision.reason_code, "reason": decision.reason,
             "responsibility": decision.responsibility, "rung": decision.rung, "policyVersion": decision.policy_version, "error": None}
@@ -376,7 +386,7 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         "resultSummary": summarize_output(output, outcome.get("seconds", 0)) if succeeded else None,
         "errorSummary": None if succeeded else ended["error"][:MAX_SUMMARY_CHARACTERS],
         "output": output if succeeded or gate is not None else None,   # a run the gate stopped keeps its answers
-        "error": None if succeeded else {"message": ended["error"], "logTail": outcome.get("logTail")}}
+        "error": None if succeeded else {"message": ended["error"], "logTail": outcome.get("logTail")}, **kept_wake(request)}
     cost_recorded = usage is not None
     try:
         update_cloud_procedure_run_record(client, {**record, "usage": usage, "costUsd": cost_usd} if cost_recorded else record)

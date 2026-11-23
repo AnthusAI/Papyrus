@@ -209,3 +209,19 @@ HANDLERS.update(_rating_handlers())
 from papyrus_content.handoff_handlers import signed_in_handlers as _handoff_handlers  # noqa: E402
 
 HANDLERS.update(_handoff_handlers())
+
+
+# The poke-in operations (PPY-e6f31e): pause, resume, the pauses and wake now. They read the agent policy, the run index and the wake queue, which the image service and
+# the monitoring router never do, so the module is imported by the call.
+AGENT_OPERATIONS = ("agents_pause", "agents_resume", "agents_pauses", "agents_wake")
+
+
+def _agent_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.agent_poke_in_handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _agent_handler(name) for name in AGENT_OPERATIONS})

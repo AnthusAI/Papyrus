@@ -58,6 +58,10 @@ def _only(value: Any, allowed: set[str], where: str) -> dict:
     return value
 
 
+#: When a pause began and who made it. A resume catches up, from ``pausedAt``, the change wakes the pause stopped (``agent_poke_in.py``).
+PAUSE_DETAILS = ("pausedAt", "pausedBy")
+
+
 def _text(value: Any, where: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise _invalid(f"{where} must be a non-empty string.")
@@ -70,8 +74,13 @@ def _flag(entry: dict, where: str) -> None:
         raise _invalid(f"{where}.paused must be true or false.")
     if paused:
         _text(entry.get("pausedReason"), f"{where}.pausedReason (a pause says why)")
-    elif "pausedReason" in entry:
-        raise _invalid(f"{where}.pausedReason is only held while paused.")
+        for held in PAUSE_DETAILS:
+            if held in entry:
+                _text(entry[held], f"{where}.{held}")
+        return
+    for held in ("pausedReason", *PAUSE_DETAILS):
+        if held in entry:
+            raise _invalid(f"{where}.{held} is only held while paused.")
 
 
 def check_rung(value: Any, where: str) -> str:
@@ -127,7 +136,7 @@ def _budget(value: Any) -> None:
 
 
 def validate_site(site: Any) -> None:
-    site = _only(site, {"paused", "pausedReason", "quietWindow", "coalescing", "budget", "tiers"}, "site")
+    site = _only(site, {"paused", "pausedReason", *PAUSE_DETAILS, "quietWindow", "coalescing", "budget", "tiers"}, "site")
     _flag(site, "site")
     if "quietWindow" in site:
         _quiet_window(site["quietWindow"])
@@ -148,7 +157,7 @@ def validate_agent(responsibility: str, entry: Any) -> None:
     where = f"agents.{responsibility}"
     if not _RESPONSIBILITY.match(responsibility):
         raise _invalid(f"{where}: a responsibility is lower-case words joined by underscores.")
-    entry = _only(entry, {"rung", "paused", "pausedReason", "loopLimit", "budgetUsdPerRun", "overrides"}, where)
+    entry = _only(entry, {"rung", "paused", "pausedReason", *PAUSE_DETAILS, "loopLimit", "budgetUsdPerRun", "overrides"}, where)
     check_rung(entry.get("rung"), f"{where}.rung")
     _flag(entry, where)
     if "loopLimit" in entry:

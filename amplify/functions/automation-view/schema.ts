@@ -26,6 +26,13 @@ export const automationViewSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("automationView", automationView)),
+  /** Wake now (PPY-e6f31e): the poke-in operation `agents_wake`, the same one `papyrus agents wake` sends. `input` is `{agent, subject, reason}` as JSON. */
+  agentWake: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("automationView", automationView)),
   runAutomation: a
     .mutation()
     .arguments({ automationId: a.string().required(), input: a.json() })
