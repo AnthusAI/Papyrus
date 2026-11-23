@@ -137,22 +137,27 @@ def correction_key(lineage_id: str, version_number: int) -> str:
     return f"correction:{lineage_id}:{version_number}"
 
 
-def pending_times(row: Mapping[str, Any]) -> list[str]:
-    """The times a Delivery is still waiting for.
+def pending_named_times(row: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """The times a Delivery is still waiting for, each with the field it is (``releaseAt``, ``lockAt``, ``nextAttemptAt``), earliest first.
 
     A draft or a ready Delivery waits for its release time and, until it is locked, for its lock time, until its first attempt opens: after that those times are
     used up, and only a named wait (a rate limit, a budget cycle, post spacing) is pending. A Delivery that is live in any state waits for its next attempt time while one is set. A final Delivery, and a Delivery superseded or withdrawn, waits for nothing."""
     state = row.get("state")
     if state not in LIVE_STATES:
         return []
-    times: list[str] = []
+    names: list[str] = []
     # Post spacing holds a Delivery whose release time has already come, so while it is held only the end of the spacing is pending.
     if state in BEFORE_SEND_STATES and not attempt_log(row) and row.get("waitingFor") != POST_SPACING:
-        times.append(row.get("releaseAt"))
+        names.append("releaseAt")
         if not row.get("lockedAt"):
-            times.append(row.get("lockAt"))
-    times.append(row.get("nextAttemptAt"))
-    return sorted(str(value) for value in times if value)
+            names.append("lockAt")
+    names.append("nextAttemptAt")
+    return sorted(((name, str(row[name])) for name in names if row.get(name)), key=lambda pair: (pair[1], pair[0]))
+
+
+def pending_times(row: Mapping[str, Any]) -> list[str]:
+    """The times a Delivery is still waiting for (``pending_named_times`` without the names), earliest first."""
+    return [time for _, time in pending_named_times(row)]
 
 
 def due_at(row: Mapping[str, Any]) -> str | None:

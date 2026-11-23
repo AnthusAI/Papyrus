@@ -51,12 +51,14 @@ def overdue_deliveries(client: Any, now: datetime) -> list[dict[str, Any]]:
     return Deliveries(client).due(settled_before(now))
 
 
-def overdue_review_deadlines(client: Any, now: datetime) -> list[dict[str, Any]]:
-    """The open soft reviews whose deadline passed long enough ago and are still open: one query on the open partition of the state index."""
+def overdue_review_deadlines(client: Any, now: datetime, open_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """The open soft reviews whose deadline passed long enough ago and are still open: one query on the open partition of the state index, or the rows of that
+    partition the caller has already read (``open_rows``)."""
     from . import review_requests
 
     settled = settled_before(now)
-    return [row for row in review_requests.rows_in_state(client, "open") if row.get("dueAt") and str(row["dueAt"]) <= settled]
+    rows = review_requests.rows_in_state(client, "open") if open_rows is None else open_rows
+    return [row for row in rows if row.get("dueAt") and str(row["dueAt"]) <= settled]
 
 
 def flag_id(kind: str, record_id: str, due_at: str) -> str:
@@ -71,10 +73,11 @@ def shown(kind: str, row: Mapping[str, Any]) -> dict[str, Any]:
             "shown": f"{MARK} {WORD}: {kind} {row['id']} was due {row['dueAt']}" + (f" ({waiting})" if waiting else "") + " and nothing ran"}
 
 
-def read(client: Any, now: datetime | None = None) -> list[dict[str, Any]]:
-    """Every overdue record, oldest due time first. Read only."""
+def read(client: Any, now: datetime | None = None, *, open_review_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """Every overdue record, oldest due time first. Read only. ``open_review_rows`` is the open partition of the review request state index when the caller has read it."""
     moment = now or datetime.now(timezone.utc)
-    found = [*(shown(DELIVERY_KIND, row) for row in overdue_deliveries(client, moment)), *(shown(REVIEW_KIND, row) for row in overdue_review_deadlines(client, moment))]
+    found = [*(shown(DELIVERY_KIND, row) for row in overdue_deliveries(client, moment)),
+             *(shown(REVIEW_KIND, row) for row in overdue_review_deadlines(client, moment, open_review_rows))]
     return sorted(found, key=lambda entry: (entry["dueAt"], entry["id"]))
 
 
