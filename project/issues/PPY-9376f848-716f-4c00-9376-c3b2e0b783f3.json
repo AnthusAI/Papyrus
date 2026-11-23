@@ -3,7 +3,7 @@
   "title": "At the budget, paid work waits and says so",
   "description": "Before a paid run starts, the gate reads the cycle total. At or over the site's budget the wake is not run: its record becomes `waiting` with `waitingFor: budget cycle` and a due time at the next cycle start, and one flag per cycle tells the admins. Free work continues. Reading, editing and serving are never stopped. Raising the budget is an admin operation and releases the waiting wakes.\n\n**Acceptance criteria**\n- A site at its budget starts no paid run and loses none.\n- One flag per cycle.\n- Waiting wakes run when the cycle turns or the budget is raised.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- spend-stop.feature: at the budget a paid wake waits; a free check still runs; the flag is raised once; the next cycle runs the waiting wakes in order; raising the budget releases them.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Spend, budgets and model tiers. Slice code G2 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -29,10 +29,23 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8cde19fa-d927-4de8-983b-66e6a19bd0b3",
+      "author": "ryan",
+      "text": "Closing 2026-11-23: shipped in #1840 and released. At the budget a paid wake waits and keeps its wake, one flag per cycle, waiting wakes run when the cycle turns or the budget is raised, raising it is a person's (features_backend/agents/spend-stop.feature). M2's live run will exercise it on MoM as well.",
+      "created_at": "2026-11-23T04:56:45.991094Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:07.787845Z",
-  "updated_at": "2026-11-16T22:43:33.027213Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T04:56:53.384934Z",
+  "closed_at": "2026-11-23T04:56:53.384892Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
