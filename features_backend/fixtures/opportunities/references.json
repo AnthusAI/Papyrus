@@ -1,0 +1,17 @@
+[
+  {
+    "title": "How a municipal access log works",
+    "url": "https://example.org/municipal-access-logs",
+    "query": "municipal access logs -is:retweet",
+    "keywords": ["access log", "independent audit"],
+    "contribution": "An independently reviewed access log can show which accounts searched the system."
+  },
+  {
+    "title": "Audit disclosures",
+    "url": "https://example.org/audit-disclosures",
+    "public_note_url": "https://publication.example.org/notes/audit-disclosures",
+    "query": "municipal access logs -is:retweet",
+    "keywords": ["disclosure schedule"],
+    "contribution": "A quarterly disclosure schedule can distinguish regular reporting from incident-triggered notices."
+  }
+]
