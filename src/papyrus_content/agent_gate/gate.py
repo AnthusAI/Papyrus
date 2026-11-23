@@ -15,7 +15,7 @@ site's rung in the policy document allows the same call with no code change.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
 from papyrus_content.agent_policy.resolve import PolicyState, decide_start, effective
@@ -36,6 +36,7 @@ class GateAnswer:
     rung: str | None = None            # the rung the policy gives this responsibility for this call; None for a person
     needed_rung: str | None = None     # the lowest rung the operation table allows an agent to call it at; None when none does
     policy_version: int | None = None
+    approved_in: str | None = None     # the review request in which a person approved this call for this run (review_answers.py)
 
     @property
     def allowed(self) -> bool:
@@ -45,7 +46,7 @@ class GateAnswer:
         """The answer as it is written on the run record."""
         return {key: value for key, value in {
             "answer": self.answer, "operation": self.operation, "actorKind": self.actor_kind, "reason": self.reason, "responsibility": self.responsibility,
-            "rung": self.rung, "neededRung": self.needed_rung, "policyVersion": self.policy_version}.items() if value is not None}
+            "rung": self.rung, "neededRung": self.needed_rung, "policyVersion": self.policy_version, "approvedIn": self.approved_in}.items() if value is not None}
 
 
 def decide(policy: PolicyState | None, actor_kind: str, operation: str, responsibility: str | None = None,
@@ -75,14 +76,22 @@ def decide(policy: PolicyState | None, actor_kind: str, operation: str, responsi
 
 
 class GateRun:
-    """One agent run's side of the gate: the policy read once, every answer kept for the run record, and the one review request a ``human_required`` raises."""
+    """One agent run's side of the gate: the policy read once, every answer kept for the run record, and the one review request a ``human_required`` raises.
 
-    def __init__(self, policy: PolicyState, responsibility: str, run_id: str, context: Mapping[str, str] | None = None):
+    ``approvals`` are the operations a person approved for this run, each with the review request that approved it: the run a person's approval woke may do
+    what that person approved, and nothing more. An approval never lifts ``blocked``."""
+
+    def __init__(self, policy: PolicyState, responsibility: str, run_id: str, context: Mapping[str, str] | None = None,
+                 approvals: Mapping[str, str] | None = None):
         self.policy, self.responsibility, self.run_id, self.context = policy, responsibility, run_id, dict(context or {})
+        self.approvals = dict(approvals or {})
         self.answers: list[GateAnswer] = []
 
     def ask(self, operation: str, context: Mapping[str, str] | None = None) -> GateAnswer:
         answer = decide(self.policy, "agent", operation, self.responsibility, {**self.context, **(context or {})})
+        if answer.answer == HUMAN_REQUIRED and operation in self.approvals:
+            request_id = self.approvals[operation]
+            answer = replace(answer, answer=ALLOWED, reason=f"A person approved {operation} in review request {request_id}.", approved_in=request_id)
         self.answers.append(answer)
         return answer
 

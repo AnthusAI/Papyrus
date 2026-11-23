@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 from . import agent_wakes, request_meter, run_continuation, run_outcomes, run_settle, unusual_cost, wake_keys
-from .agent_gate import run_context, run_end
+from .agent_gate import review_answers, run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
     normalize_graphql_json_value, update_cloud_procedure_run_record)
@@ -266,6 +266,22 @@ def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], 
             "responsibility": decision.responsibility, "rung": decision.rung, "policyVersion": decision.policy_version, "error": None}
 
 
+def stop_for_answer(client, run_id: str, request: dict, decision, answer: review_answers.ReviewAnswer, *, now: Callable[[], str]) -> dict:
+    """A person's answer means this wake runs nothing: it was a rejection, or the answer was already used. The record says so (a finished run that did
+    nothing, with the reason code and the person's words), and a rejection is written on the request as used by this run. Nothing of the procedure is loaded."""
+    reason_code, words = answer.stop_reason()
+    stamp, trigger = now(), request.get("trigger") or {}
+    update_cloud_procedure_run_record(client, {
+        "id": run_id, "runStatus": "completed", "outcome": "nothing", "outcomeReason": reason_code,
+        "automationId": trigger.get("automationId"), **run_outcomes.run_subject(trigger), **decision.run_fields(),
+        "startedAt": stamp, "finishedAt": stamp, "attempt": 1, "resultSummary": words[:MAX_SUMMARY_CHARACTERS]})
+    if not answer.applied_in:
+        review_answers.record_used(client, answer, run_id, decision.responsibility)
+    return {"runId": run_id, "procedureKey": request["procedureKey"], "wakeKey": request["wakeKey"], "skipped": True,
+            "runStatus": "completed", "outcome": "nothing", "outcomeReason": reason_code, "reason": words,
+            "responsibility": decision.responsibility, "rung": decision.rung, "policyVersion": decision.policy_version, "error": None}
+
+
 def policy_for(request: dict, client, s3: Callable[[], Any]) -> Gate:
     """The gate that reads this request's site policy. A request that does not say where the policy is gets the gate that refuses it: the run
     record is made first, and the refusal is recorded on it (`no_site_policy`), so the automation's run list shows it."""
@@ -315,6 +331,19 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         if waiting:
             spend_stop.clear_wait(client, run_id)
         return skip_run(client, run_id, request, decision, now=now)
+    answer = None
+    if decision.state is not None and decision.responsibility:   # an agent woken by a person's answer to its review request reads the answer again (PPY-ecf852)
+        try:
+            answer = review_answers.answer_of(client, request)
+        except review_answers.AnswerUnreadable as error:
+            refuse_run(client, run_id, error, request, now=now, reason=review_answers.ANSWER_UNREADABLE)
+            not_started = ProcedureNotRunnable(str(error))
+            not_started.run_id = run_id
+            raise not_started from error
+        if answer is not None and not answer.continues_the_work:
+            return stop_for_answer(client, run_id, request, decision, answer, now=now)
+        if answer is not None:
+            request = {**request, "input": {**request["input"], review_answers.REVIEW_INPUT_KEY: answer.as_input()}}
     stop = spend_brake.stop_for(request, decision) if spend_brake is not None else None
     held = spend_stop.settle(client, run_id, request, decision, stop, waiting=waiting) if spend_stop is not None else None
     if held is not None:   # at the budget a paid wake waits for the next cycle, or this wake released the waiting ones
@@ -356,7 +385,8 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
     output = outcome.get("output")
     gate = None
     if outcome.get("success") and decision.state is not None and decision.responsibility:
-        gate = run_end.settle(client, decision.state, decision.responsibility, run_id, output)   # the gate's answers; a person's needed answer is `asked`
+        gate = run_end.settle(client, decision.state, decision.responsibility, run_id, output,   # the gate's answers; a person's needed answer is `asked`
+                              approvals=answer.approvals if answer is not None else None)
     if gate is not None:
         output = {**output, "gate": gate.record}   # every answer, in order, on the run record
     if gate is not None and gate.error:
@@ -386,6 +416,8 @@ def run_procedure_request(request: dict, *, client, policy: Gate, execute: Calla
         # A site backend that predates the usage fields refuses them; the run's outcome must still be recorded.
         cost_recorded = False
         update_cloud_procedure_run_record(client, record)
+    if answer is not None and succeeded:
+        review_answers.record_used(client, answer, run_id, decision.responsibility)   # the request names the run that used its answer
     if handoff:
         agent_assignments.finish(client, handoff["assignment"], handoff["agent"], run_id=run_id, outcome=ended["outcome"], reason=ended["outcomeReason"],
                                  summary=record["resultSummary"], error=None if succeeded else ended["error"], now=record["finishedAt"])

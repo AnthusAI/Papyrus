@@ -189,6 +189,12 @@ export type ProcedureRunRecord = {
   procedureVersionNumber?: number | null;
   assignmentId?: string | null;
   runStatus: string;
+  /** What came of the finished run (acted, nothing, asked, failed, unknown) and its reason code; absent on a run recorded before outcomes. */
+  outcome?: string | null;
+  outcomeReason?: string | null;
+  /** Why a `waiting` run waits and when it runs again. */
+  waitingFor?: string | null;
+  dueAt?: string | null;
   requestedBy?: string | null;
   requestedAt?: string | null;
   startedAt?: string | null;
