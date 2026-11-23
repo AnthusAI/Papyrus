@@ -3,7 +3,7 @@
   "title": "Monitor stories runs under the spend ledger, budget and unusual-cost flag",
   "description": "The daily monitor-stories job (monitoring router) runs outside the procedure runner, so it records no spend in the ledger, does not count against the site's monthly budget, and is not judged by the unusual-cost flag. Until it does it keeps two named interim backstops: MONITORING_ROUTER_INTERIM_COST_BACKSTOP_USD (monitoring_stories.py) and MONITORING_ROUTER_INTERIM_STEP_COST_BACKSTOP_USD (ideas/story_plan.py), kept by Ryan's decision 2026-11-23 when PPY-eef85d removed the other fixed guards.\n\n**Acceptance criteria**\n- Monitor-stories spend is recorded in the spend ledger and counts against the monthly budget; at the budget it waits like other paid work.\n- Its runs are judged by the unusual-cost flag (flag, never stop).\n- The two interim backstops are removed.\n- Every behaviour change ships with narrative Gherkin specs.\n\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; indexes over scans; nothing created by hand in AWS.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -14,7 +14,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-11-23T14:45:48.055610Z",
-  "updated_at": "2026-11-23T14:45:48.055668Z",
+  "updated_at": "2026-11-23T22:08:41.216613Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",

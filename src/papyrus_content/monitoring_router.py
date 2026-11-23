@@ -1306,7 +1306,8 @@ class Router:
                  previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
                  story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
                  suggest_queue: tuple[Any, str] | None = None, predict=None, story_queue: tuple[Any, str] | None = None,
-                 story_planner: Callable[..., dict] = plan_publication_stories):
+                 story_planner: Callable[..., dict] = plan_publication_stories, monitor_stories_spend: Any = None):
+        self.monitor_stories_spend = monitor_stories_spend   # the spend brake and ledger of the monitor-stories task (monitor_stories_spend.py); None: no paid work starts
         self.story_queue = story_queue   # (SQS client, queue URL) of the story queue (ideas/story_plan.py); None: the daily task drafts in this process, as it did before the queue
         self.story_planner = story_planner
         self.predict = predict or record_reference_prediction   # records one decision on a Reference that already exists (reference_prediction_queue.py)
@@ -2775,7 +2776,9 @@ class Router:
         """Daily, per publication: a cited story draft for every accepted, monitored, not yet drafted Reference (src/papyrus_content/monitoring_stories.py).
         On unless the publication's `monitorStories` says `enabled: false`; live mode only. Bounded only by the Lambda's remaining time (shared
         equally by the publications still to run, so none starves another; a publication the time stopped gets another turn while time is
-        left), a model-spend backstop and a filing error. One JSON log line per publication, after the last pass.
+        left) and a filing error. Its spend is the site's like any agent's: the spend brake is asked before a publication's paid work starts (halted or at
+        the site's budget it waits and says so), and what each run spent is added to the spend ledger and judged by the unusual-cost flag
+        (monitor_stories_spend.py). One JSON log line per publication, after the last pass.
         With `publication_id` only that publication runs, and it has the whole time budget to itself."""
         results: dict = {}
         if self.config["mode"] != "live":
@@ -2813,6 +2816,14 @@ class Router:
                 vector_stop_at = stop_at + span * 0.75
                 signal_stop_at = stop_at + span * (0.75 - 1 / 6)
                 try:
+                    stop, site = self.paid_work_stop(publication)
+                except Exception as error:  # noqa: BLE001 - never fails the run (the brake reads the ledger and the policy, and may raise the budget flag)
+                    results[pid] = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
+                    continue
+                if stop is not None:
+                    results[pid] = {"publicationId": pid, **empty, **stop.as_line()}
+                    continue
+                try:
                     options = dict(
                         transport=self.story_transport,
                         now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
@@ -2832,6 +2843,7 @@ class Router:
                         result = self.story_drafter(self.client(publication), publication, **options)
                 except Exception as error:  # noqa: BLE001 - never fails the run
                     result = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
+                self.count_spending(publication, site, result)
                 earlier = results.get(pid)
                 if earlier:   # a later pass: the totals add up, the candidates are those the run started with, the rest is the latest pass's
                     for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped", "ideasFromPacks", "indexed", "conceptCardsWritten", "suggestionsQueued"):
@@ -2849,6 +2861,27 @@ class Router:
         for result in results.values():
             print(json.dumps({"monitorStories": result["status"], "monitorId": self.monitor_id, **result}))
         return results
+
+    def paid_work_stop(self, publication: dict):
+        """The spend brake's answer for one publication's monitor stories: (None, the site's policy) when its paid work may start, else (why not, None)."""
+        from .monitor_stories_spend import INDEX_RESPONSIBILITY, PaidWorkStop
+        from .spend_brake import SPEND_UNREADABLE
+
+        if self.monitor_stories_spend is None:
+            return PaidWorkStop(SPEND_UNREADABLE, "The spend ledger is not configured for this router, so no paid work starts: none is started without a way to "
+                                                  "count and limit its cost."), None
+        return self.monitor_stories_spend.stop_before_paid_work(publication, self.client(publication), INDEX_RESPONSIBILITY)
+
+    def count_spending(self, publication: dict, site, result: dict) -> None:
+        """Adds each run the publication's monitor stories spent on (``spending``) to the spend ledger, once, judged by the unusual-cost flag. A count that fails
+        is on the log line (``spendNotCounted``): the run's work is kept, and the failure is a person's to look at."""
+        from .monitor_stories_spend import RunSpend
+
+        for entry in result.get("spending") or []:
+            try:
+                self.monitor_stories_spend.count(self.client(publication), site, RunSpend.from_dict(entry))
+            except Exception as error:  # noqa: BLE001 - the drafted work stays; the log line says what was not counted
+                result.setdefault("spendNotCounted", []).append({"runId": entry.get("runId"), "reason": short(error)})
 
     def suggestion_sender(self, publication_id: str) -> Callable[[list[dict]], None] | None:
         """The vector pass's hook for one publication: one message on the suggestion queue for each Reference summary vector it stores (None when the router has no queue)."""
@@ -3175,7 +3208,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
                publication_id: str | None = None, fan_out: Callable[[str], None] | None = None,
                suggest_queue: tuple[Any, str] | None = None, write: bool = False, predict=None, story_queue: tuple[Any, str] | None = None,
-               story_planner: Callable[..., dict] = plan_publication_stories) -> dict:
+               story_planner: Callable[..., dict] = plan_publication_stories, monitor_stories_spend: Any = None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -3223,7 +3256,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
                         max_decisions=max_decisions, hold_override=hold_override, previewer=previewer,
-                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key, suggest_queue=suggest_queue, predict=predict, story_queue=story_queue, story_planner=story_planner)
+                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key, suggest_queue=suggest_queue, predict=predict, story_queue=story_queue, story_planner=story_planner,
+                        monitor_stories_spend=monitor_stories_spend)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.feedback()
@@ -3318,9 +3352,10 @@ def is_story_queue_event(event) -> bool:
         return False
 
 
-def handle_story_queue(store, event, *, appsync=make_appsync_client, transport=None, gate_for=None, now=None, explorer=REAL_EXPLORER, fetch=None, emit=print) -> dict:
+def handle_story_queue(store, event, *, spend, appsync=make_appsync_client, transport=None, gate_for=None, now=None, explorer=REAL_EXPLORER, fetch=None, emit=print) -> dict:
     """SQS entry point: one step of a monitor-stories plan per message (``story_plan.run_step``). Returns the partial-batch response, so a step that raised is
-    delivered again, up to the queue's receive limit, then parked in the dead-letter queue."""
+    delivered again, up to the queue's receive limit, then parked in the dead-letter queue. ``spend`` is the spend brake and ledger every step goes through
+    (``monitor_stories_spend.MonitorStoriesSpend``)."""
     from . import review_requests
     from .ideas import monitor_stories, story_plan
     from .ideas.gate import HumanusGate
@@ -3345,7 +3380,7 @@ def handle_story_queue(store, event, *, appsync=make_appsync_client, transport=N
             gate = gate_for(client) if gate_for else HumanusGate.for_client(client, judgment_key=lambda_judgment_key())
             receives = int((record.get("attributes") or {}).get("ApproximateReceiveCount") or 1)
             outcome = story_plan.run_step(
-                store, monitor_id, publication, message, client=client, transport=model, gate=gate, now=moment, review_requests=review_requests, receive_count=receives, emit=emit,
+                store, monitor_id, publication, message, client=client, transport=model, gate=gate, now=moment, spend=spend, review_requests=review_requests, receive_count=receives, emit=emit,
                 fetch=fetch, explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer)
             emit(json.dumps({"storyStep": outcome["status"], **line}))
         except Exception as error:  # noqa: BLE001 - the queue redelivers it, and the dead-letter queue keeps it after the last try
@@ -3397,6 +3432,16 @@ def suggest_queue_from_environment() -> tuple[Any, str] | None:
     return boto3.client("sqs"), url
 
 
+def monitor_stories_spend_for(store, event: dict):
+    """The spend brake and ledger of the monitor-stories task, in the router's own table (the shared monitoring table holds the spend ledger); None for every
+    other task, which spends nothing through it."""
+    if event.get("task") != "monitor-stories" or not event.get("publicationId"):
+        return None
+    from .monitor_stories_spend import MonitorStoriesSpend
+
+    return MonitorStoriesSpend.from_environment(store.table)
+
+
 def invoke_self(context, payload: dict) -> None:
     """Starts this function again, asynchronously, with `payload`. The function's own ARN comes from the Lambda context. The function's event
     invoke config sets zero async retries, so a publication run that fails is not repeated (the next day's fan-out, or a hand run, covers it);
@@ -3416,7 +3461,9 @@ def handler(event, context):
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     if is_story_queue_event(event):
-        return handle_story_queue(store, event)
+        from .monitor_stories_spend import MonitorStoriesSpend
+
+        return handle_story_queue(store, event, spend=MonitorStoriesSpend.from_environment(store.table))
     if is_suggestion_queue_event(event):
         return handle_suggestion_queue(store, event)
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
@@ -3440,7 +3487,7 @@ def handler(event, context):
                         hold_override=event.get("holdOverride") is False,
                         publication_id=event.get("publicationId"),
                         suggest_queue=suggest_queue_from_environment(), story_queue=story_queue_from_environment() if event.get("task") == "monitor-stories" else None,
-                        write=event.get("write") is True,
+                        write=event.get("write") is True, monitor_stories_spend=monitor_stories_spend_for(store, event),
                         fan_out=lambda pid: invoke_self(context, {**event, "publicationId": pid}))   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "suggestUnchecked", "researchAssignments", "waitingForClassifier", "posted", "reason", "publications")}

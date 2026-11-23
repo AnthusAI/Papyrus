@@ -251,7 +251,13 @@ def test_a_signal_the_publication_did_not_ask_for_builds_no_pack(monkeypatch):
     assert pack_lines(lines)["packs"] == 1
 
 
-def test_packs_and_single_items_share_one_cost_meter_and_one_cost_stop(monkeypatch):
+def test_packs_and_single_items_share_one_cost_meter_and_the_drafting_is_one_run_in_the_spend_ledger(monkeypatch):
+    """No cost ceiling stops the router's drafting (PPY-45c2ef): the pack and the single item are both drafted, and what they spent together is one
+    ``monitor_stories`` run in the site's ledger."""
+    from monitor_stories_spend_fixture import TENANT, monitor_stories_spend
+
+    from papyrus_content import spend_ledger
+
     filing = FilingRecorder(monkeypatch)
     client = pack_world(2, lively=(1,))
     model = RouterModel(input_tokens=400_000, output_tokens=6_000)
@@ -261,17 +267,21 @@ def test_packs_and_single_items_share_one_cost_meter_and_one_cost_stop(monkeypat
     from papyrus_content.monitoring_stories import run_publication
     from test_monitoring_stories import pages
 
-    _, lines = run_task_with(store, client, model, partial(run_publication, fetch=pages(1, 2), explorer=None, maximum_cost_usd=0.1305))
+    spend = monitor_stories_spend()
+    _, lines = run_task_with(store, client, model, partial(run_publication, fetch=pages(1, 2), explorer=None), spend=spend)
     line = pack_lines(lines)
-    assert line["stoppedBy"] == "cost" and line["status"] == "stopped"
-    assert line["costUsd"] == pytest.approx(0.129) and line["drafted"] == 2   # the pack went first and spent 0.129 (its call and the point check of each of its two ideas); the single item's estimate no longer fitted under 0.1305
-    assert len(client.filed) == 0 and len(filing.filed) == 2
+    assert line["stoppedBy"] is None and line["status"] == "complete" and len(client.filed) == 1 and len(filing.filed) == 2
+    [drafting] = [entry for entry in line["spending"] if entry["responsibility"] == "monitor_stories"]
+    assert drafting["costUsd"] == pytest.approx(line["costUsd"]) and drafting["calls"] > 0
+    held = spend_ledger.spent(spend.table, tenant_id=TENANT, scope="ai:monitor_stories", period="month", moment=spend.clock())
+    assert held.microUsd == spend_ledger.micro_usd(drafting["costUsd"]) and held.calls == drafting["calls"]
 
 
-def run_task_with(store, client, model, drafter):
+def run_task_with(store, client, model, drafter, *, spend=None):
     import io
     from contextlib import redirect_stdout
 
+    from monitor_stories_spend_fixture import monitor_stories_spend
     from papyrus_content.monitoring_router import run_router
     from test_monitoring_router import Delivery
     from ideas_fixtures import NOW as now
@@ -280,7 +290,7 @@ def run_task_with(store, client, model, drafter):
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=now.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint], deliver=Delivery(),
-                            time_left=lambda: 1e9, story_transport=model, story_drafter=drafter)
+                            time_left=lambda: 1e9, story_transport=model, story_drafter=drafter, monitor_stories_spend=spend or monitor_stories_spend())
     return result, {line["publicationId"]: line for line in map(json.loads, (l for l in out.getvalue().splitlines() if l.startswith('{"monitorStories"')))}
 
 

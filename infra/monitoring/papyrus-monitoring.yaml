@@ -913,6 +913,21 @@ Resources:
                 Effect: Allow
                 Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query]
                 Resource: !GetAtt MonitoringTable.Arn
+              # The one spend ledger (PPY-45c2ef, src/papyrus_content/monitor_stories_spend.py): a step's cost is added to its site's and its agent's counters, with the
+              # marker that says the step was counted, in one transaction (each item is checked as the put or the update it is). Only keys that start with `SPEND#`.
+              - Sid: SpendLedger
+                Effect: Allow
+                Action: [dynamodb:UpdateItem, dynamodb:PutItem, dynamodb:GetItem]
+                Resource: !GetAtt MonitoringTable.Arn
+                Condition:
+                  ForAllValues:StringLike:
+                    dynamodb:LeadingKeys: ["SPEND#*"]
+              # The site's agent policy (its budget, the agent's per-run budget), read before each step as the procedure runner reads it: the body from the site's
+              # bucket; the catalogue rows are in StoryStepFields.
+              - Sid: SiteAgentPolicyBody
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::*/tenants/*/site/agents/*"
               - Sid: OwnLogs
                 Effect: Allow
                 Action: [logs:CreateLogStream, logs:PutLogEvents]
@@ -947,6 +962,8 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listNewsroomSections"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listKnowledgeCorporaByRoleAndName"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSiteDocument"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSiteDocumentVersion"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createModelAttachmentDownload"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createItem"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateItem"
@@ -1098,6 +1115,19 @@ Resources:
                 Effect: Allow
                 Action: sqs:SendMessage
                 Resource: !GetAtt StoryQueue.Arn
+              # Monitor stories under the spend ledger (src/papyrus_content/monitor_stories_spend.py, PPY-45c2ef): before a publication's paid work the task reads the
+              # site's agent policy (its budget) as the procedure runner does, the catalogue rows through the site's API and the body from the site's bucket. The
+              # ledger rows (SPEND#...) are in this stack's table, which the MonitoringTable statement above already covers.
+              - Sid: SiteAgentPolicyRows
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSiteDocument"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSiteDocumentVersion"
+              - Sid: SiteAgentPolicyBody
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::*/tenants/*/site/agents/*"
               - Sid: CyclotronMachineInvoker
                 Effect: Allow
                 Action: sts:AssumeRole

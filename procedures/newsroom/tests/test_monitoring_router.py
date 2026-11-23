@@ -1086,10 +1086,11 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
     assert not [name for name in names if name.split("/")[0] in {"youtube_transcript_api", "defusedxml", "requests", "urllib3", "certifi", "charset_normalizer"}], \
         "the router zip carries no YouTube transcript package, nor the packages only it needed"
     assert any(name.startswith("yaml/") for name in names) and any(name.startswith("idna/") for name in names)
-    assert out.stat().st_size < 6_250_000  # (the operation table grows with each operation the router carries but never calls: PPY-e4ae3a added three, PPY-51f96f one; PPY-9b8e59's review index and engine wake a few hundred bytes) PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
+    assert out.stat().st_size < 6_300_000  # (PPY-45c2ef: monitor stories under the spend ledger bring the spend brake, ledger, unusual-cost flag and agent-policy reader, about 20 KB; the operation table grows with each operation the router carries but never calls: PPY-e4ae3a added three, PPY-51f96f one; PPY-9b8e59's review index and engine wake a few hundred bytes) PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
     code = (
         "import sys; sys.path.insert(0, sys.argv[1])\n"
         "import papyrus_content.monitoring_router as r, papyrus_content.monitoring_intake as i, papyrus_content.editorial_context as e\n"
+        "import papyrus_content.monitor_stories_spend, papyrus_content.ideas.story_plan  # the spend brake and ledger of monitor stories (PPY-45c2ef)\n"
         "from papyrus_content.relation_types import load_semantic_relation_type_seeds\n"
         "from papyrus_content.newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND\n"
         "assert load_semantic_relation_type_seeds() and DOCTRINE_DEFINITION_BY_KIND\n"
@@ -1142,7 +1143,7 @@ def test_router_role_is_least_privilege():
     template = _template()
     statements = template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {s["Sid"] for s in statements} == {"MonitoringTable", "OwnLogs", "FailedInvocations", "CyclotronMachineInvoker",
-                                              "PublicationReferenceIntake", "SuggestQueueSend", "StoryQueueSend"}
+                                              "PublicationReferenceIntake", "SuggestQueueSend", "StoryQueueSend", "SiteAgentPolicyRows", "SiteAgentPolicyBody"}
     by_sid = {s["Sid"]: s for s in statements}
     assert by_sid["CyclotronMachineInvoker"]["Action"] == "sts:AssumeRole" and by_sid["CyclotronMachineInvoker"]["Resource"] == ("Ref", "CyclotronInvokerRoleArn")
     assert template["Parameters"]["CyclotronInvokerRoleArn"]["Default"] == "arn:aws:iam::682849160744:role/cyclotron-machine-invoker"
