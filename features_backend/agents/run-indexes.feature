@@ -66,3 +66,9 @@ Feature: The runs that need a person are one sparse index, never a table walk
     Given a shared stack where the tenants "acme" and "beta" each have an agent named "announce"
     When "acme" reads the agent "announce"'s runs
     Then every run listed belongs to "acme"
+
+  Scenario: A dedicated site with a tenant lists an agent's runs written before runs carried one
+    The site's functions read as its tenant, and its run index holds only its own runs, so a run with no tenant is still the site's.
+    Given a dedicated site whose records carry the tenant "machines-on-machines" and whose agent "announce" has runs recorded before runs carried a tenant
+    When "machines-on-machines" reads the agent "announce"'s runs
+    Then every run of the agent is listed, newest first

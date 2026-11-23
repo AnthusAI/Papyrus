@@ -30,8 +30,8 @@ from schedule_fakes import ACCOUNT, ENDPOINT, REGION, Backend, Message, TimerSch
 
 SITE, TENANT, BUCKET = "shipped", "alpha", "site-bucket"
 EDIE = "edie@example.test"
-#: The names the site's functions carry for its follow-up timers (amplify/functions/automation-view/wire.ts and image-service/wire.ts).
-SITE_FUNCTION_ENVIRONMENT = {"PAPYRUS_AGENT_PUBLICATION_ID": SITE, "PAPYRUS_AWS_ACCOUNT_ID": ACCOUNT, "AWS_REGION": REGION, "PAPYRUS_AGENT_TENANT_ID": TENANT,
+#: The names the automation-view function carries for its follow-up timers (amplify/functions/automation-view/wire.ts): it reads as the site's tenant.
+SITE_FUNCTION_ENVIRONMENT = {"PAPYRUS_AGENT_PUBLICATION_ID": SITE, "PAPYRUS_AWS_ACCOUNT_ID": ACCOUNT, "AWS_REGION": REGION, "PAPYRUS_TENANT_ID": TENANT,
                              "PAPYRUS_SITE_BUCKET": BUCKET, "PAPYRUS_GRAPHQL_ENDPOINT": ENDPOINT}
 
 

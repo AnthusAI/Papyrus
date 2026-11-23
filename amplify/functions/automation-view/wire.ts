@@ -47,8 +47,10 @@ export const AUTOMATION_RUN_NOW_LEADING_KEYS = ["MONITOR#*"];
  * and permission to put a wake on the site's own wake queue (Run now, wake now). A site outside the
  * monitoring account finds no parameter and the page lists its records without runs.
  *
+ * A dedicated site whose records carry a tenant (its build sets PAPYRUS_TENANT_ID) gives the function that tenant as PAPYRUS_TENANT_ID, so it reads as the site's tenant:
+ * Today lists the agents through the Automation tenant index, which needs one, and the other operations read the same rows the site's other functions do.
  * Wake now on an Overdue Delivery or soft review deadline (PPY-97180c) sends that record's own follow-up timer wake, which names where the runner finds the site's agent
- * policy: so a dedicated site with a tenant also gives the function the names its timers are built from, as the image service has them. It sets no timer.
+ * policy: so such a site also gives the function the names its timers are built from. It sets no timer. A shared stack and a site with no tenant set none of these.
  */
 export type AutomationViewFollowUps = { tenantId: string };
 
@@ -91,9 +93,8 @@ export function wireAutomationView(backend: any, brandId: string, publicationTim
   );
   allowWakeSending(lambda, brandId);
   if (followUps !== undefined && followUps.tenantId !== "") {
+    lambda.addEnvironment("PAPYRUS_TENANT_ID", followUps.tenantId);
     lambda.addEnvironment("PAPYRUS_AGENT_PUBLICATION_ID", brandId);
-    // The tenant goes on each wake only: PAPYRUS_TENANT_ID would make the function read as that tenant, which it does not today.
-    lambda.addEnvironment("PAPYRUS_AGENT_TENANT_ID", followUps.tenantId);
     lambda.addEnvironment("PAPYRUS_SITE_BUCKET", backend.storage.resources.bucket.bucketName);
     lambda.addEnvironment("PAPYRUS_AWS_ACCOUNT_ID", stack.account);
     lambda.addEnvironment("PAPYRUS_AWS_PARTITION", stack.partition);

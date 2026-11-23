@@ -238,6 +238,7 @@ def only_agent_index(context, agent):
 
 @given('a shared stack where the tenants "{first}" and "{second}" each have an agent named "{agent}"')
 def two_tenants(context, first, second, agent):
+    shared(context, first)
     context.agent_rows = [{"id": f"{tenant}-{hour}", "tenantId": tenant, "automationId": agent, "requestedAt": f"2026-11-20T{hour:02d}:00:00Z"}
                           for tenant, hour in ((first, 9), (second, 10), (first, 11), (second, 12))]
 
@@ -251,3 +252,14 @@ def tenant_reads(context, tenant, agent):
 def all_tenant(context, tenant):
     assert [run["id"] for run in context.agent_runs] == [f"{tenant}-11", f"{tenant}-9"], context.agent_runs
 
+
+
+@given('a dedicated site whose records carry the tenant "{tenant}" and whose agent "{agent}" has runs recorded before runs carried a tenant')
+def dedicated_site_with_unstamped_runs(context, tenant, agent):
+    context.agent_rows = [{"id": f"{agent}-{hour}", "automationId": agent, "requestedAt": f"2026-11-20T{hour:02d}:00:00Z"} for hour in (9, 10)]
+    context.agent_rows.append({"id": f"{agent}-11", "tenantId": tenant, "automationId": agent, "requestedAt": "2026-11-20T11:00:00Z"})
+
+
+@then("every run of the agent is listed, newest first")
+def every_run_listed(context):
+    assert [run["id"] for run in context.agent_runs] == ["announce-11", "announce-10", "announce-9"], context.agent_runs
