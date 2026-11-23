@@ -12,9 +12,17 @@
     "always-on-agents"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7044613d-40a9-4957-bd30-ec681886f8c5",
+      "author": "ryan",
+      "text": "PR #1888 (feat/PPY-45c2ef-monitor-stories-ledger) open against develop, CI green. Monitor stories now go through SpendBrake, the spend ledger (agents monitor_stories, monitor_stories_index) and unusual_cost.watch_run; both interim backstops removed. Spec features_backend/monitoring/monitor-stories-spend.feature (8 scenarios). Not merged, not released. Before release: only machines-on-machines names tenantId+siteBucket in hn.json; the other five publications will log not_started/not_located until their entries name both.",
+      "created_at": "2026-11-23T22:33:29.061440Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-23T14:45:48.055610Z",
-  "updated_at": "2026-11-23T22:08:41.216613Z",
+  "updated_at": "2026-11-23T22:33:29.062Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
