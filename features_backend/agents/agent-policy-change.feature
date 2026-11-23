@@ -42,7 +42,7 @@ Feature: Only a person signed in to the console changes the agent policy
     Then the policy function refused the change as "human_required"
     And the agent policy is still version 1 with "rate" at the rung "propose"
 
-  # The newsroom's Announcements settings page sets how X story posts are reviewed through this same function (PPY-e2829f): the review is the announce
+  # The newsroom's Announcements settings page sets how X story posts are reviewed through this same function: the review is the announce
   # rung of this document, narrowed to the channel x and the kind story_published, and the console never writes the policy any other way.
   Scenario: A person on the console's client sets X story posts to soft review, and reads it back
     When ada, an admin signed in on the console's app client, sets the review of X story posts to "soft" because "Set in the newsroom's Announcements settings."
