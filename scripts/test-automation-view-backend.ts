@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { App, Stack } from "aws-cdk-lib";
+import { Template } from "aws-cdk-lib/assertions";
+import { Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import { schema } from "../amplify/data/schema";
 import { AUTOMATION_VIEW_TIMEOUT_SECONDS } from "../amplify/functions/automation-view/resource";
 import {
   AUTOMATION_RUN_NOW_LEADING_KEYS,
   AUTOMATION_RUN_NOW_TABLE_ACTIONS,
   AUTOMATION_VIEW_FUNCTION_FIELDS,
+  wireAutomationView,
+  type AutomationViewFollowUps,
 } from "../amplify/functions/automation-view/wire";
 
 const text = schema.transform().schema;
@@ -81,5 +86,29 @@ const client = readFileSync(join(process.cwd(), "src/papyrus_content/graphql_aut
 const fields = /AUTOMATION_FIELDS = \(\s*"([^"]+)"/.exec(client)?.[1].split(" ") ?? [];
 assert.ok(fields.length > 0, "the Python client lists the Automation fields");
 for (const field of fields) assert.match(model, new RegExp(`\\b${field}:`), `the model declares ${field}`);
+
+// A dedicated site whose records carry a tenant (its build sets PAPYRUS_TENANT_ID) gives the function that tenant, so Today reads its agents through the
+// Automation tenant index as the site's tenant instead of answering "unavailable" (Machines on Machines, 2026-11-23). A shared stack and a site with no
+// tenant give it none, and read as they always have.
+function automationViewEnvironment(followUps: AutomationViewFollowUps | undefined): Record<string, string> {
+  const stack = new Stack(new App(), "data", { env: { account: "123456789012", region: "us-east-1" } });
+  const lambda = new LambdaFunction(stack, "AutomationView", { runtime: Runtime.PYTHON_3_12, handler: "handler.handler", code: Code.fromInline("def handler(e, c): pass") });
+  const backend = {
+    automationView: { resources: { lambda } },
+    data: { resources: { graphqlApi: { apiId: "api123" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://example.test/graphql" } } } },
+    storage: { resources: { bucket: { bucketName: "example-site-bucket" } } },
+  };
+  wireAutomationView(backend, "mom", "America/New_York", followUps);
+  const functions = Object.values(Template.fromStack(stack).findResources("AWS::Lambda::Function"));
+  return (functions[0] as { Properties: { Environment: { Variables: Record<string, string> } } }).Properties.Environment.Variables;
+}
+
+const tenantSite = automationViewEnvironment({ tenantId: "machines-on-machines" });
+assert.equal(tenantSite.PAPYRUS_TENANT_ID, "machines-on-machines", "a tenant site's function reads as the site's tenant");
+assert.equal(tenantSite.PAPYRUS_AGENT_TENANT_ID, undefined, "the tenant is named once, as the function's own");
+assert.equal(tenantSite.PAPYRUS_AGENT_PUBLICATION_ID, "mom", "Wake now on an Overdue record names the site its timers belong to");
+assert.equal(tenantSite.PAPYRUS_SITE_BUCKET, "example-site-bucket");
+assert.equal(automationViewEnvironment({ tenantId: "" }).PAPYRUS_TENANT_ID, undefined, "a dedicated site with no tenant reads as it always has");
+assert.equal(automationViewEnvironment(undefined).PAPYRUS_TENANT_ID, undefined, "a shared stack takes no fixed tenant");
 
 console.log("automation view backend: ok");

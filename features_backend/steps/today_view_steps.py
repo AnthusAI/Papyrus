@@ -1,5 +1,7 @@
 import io
 import json
+import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
@@ -285,3 +287,57 @@ def refused(context):
 @then("Today is refused with a message that says it is not a date")
 def refused_date(context):
     assert context.result["error"] == "bad_request" and "not a date" in context.result["message"], context.result
+
+
+class SiteApi:
+    """The site's own API as the function's real client reaches it: each read answers with the rows of its field, and every field read is recorded.
+    The Automation tenant index answers only the tenant it is asked for, as AppSync does."""
+
+    def __init__(self, runs, automations):
+        self.runs, self.automations, self.fields_read = runs, automations, []
+
+    def answer(self, query, variables):
+        field = re.search(r"\{\s*(\w+)\s*\(", query).group(1)
+        self.fields_read.append((field, (variables or {}).get("tenantId")))
+        if field == "listProcedureRunsByStatusAndRequestedAt":
+            low, high = variables["sortEq"]["between"]
+            items = [row for row in self.runs if row["runStatus"] == variables["runStatus"] and low <= row["requestedAt"] <= high]
+        elif field == "listAutomationsByTenant":
+            items = [row for row in self.automations if row.get("tenantId") == variables["tenantId"]]
+        else:
+            items = []
+        return {field: {"items": [dict(row) for row in items], "nextToken": None}}
+
+
+@given('the site is a dedicated site whose records carry the tenant "{tenant}", and its function is built with that tenant')
+def dedicated_site_with_tenant(context, tenant):
+    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+
+    for row in context.client.automations:
+        row["tenantId"] = tenant
+    context.site_api = SiteApi(context.client.runs, context.client.automations)
+    function_environment = {"PAPYRUS_TENANT_ID": tenant, "PAPYRUS_GRAPHQL_AUTH": "iam", "PAPYRUS_TENANCY_MODE": ""}
+    for name, value in function_environment.items():
+        previous = os.environ.get(name)
+        os.environ[name] = value
+        context.add_cleanup(lambda name=name, previous=previous: os.environ.pop(name, None) if previous is None else os.environ.__setitem__(name, previous))
+    original_send = PapyrusGraphQLAuthoringClient._send_graphql
+    PapyrusGraphQLAuthoringClient._send_graphql = lambda client, query, variables=None: context.site_api.answer(query, variables)
+    context.add_cleanup(lambda: setattr(PapyrusGraphQLAuthoringClient, "_send_graphql", original_send))
+
+
+@when("Today is read for the day through the function's own client")
+def read_through_function_client(context):
+    context.result = automation_view.handle({"fieldName": "todayOverview", "identity": {"groups": ["editor"]}, "arguments": {"day": DAY, "timeZone": ZONE}},
+                                            env={"PAPYRUS_GRAPHQL_ENDPOINT": "https://site.example.test/graphql"}, now=NOW.timestamp())
+    context.today = context.result if context.result.get("state") == "ready" else None
+
+
+@then("Today is ready, not unavailable")
+def today_ready(context):
+    assert context.today is not None, context.result
+
+
+@then('the agents were read through the tenant index for "{tenant}"')
+def agents_read_for_tenant(context, tenant):
+    assert ("listAutomationsByTenant", tenant) in context.site_api.fields_read, context.site_api.fields_read
