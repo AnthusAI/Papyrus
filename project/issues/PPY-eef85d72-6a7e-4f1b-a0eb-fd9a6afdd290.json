@@ -17,9 +17,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a618ed81-4818-4a88-9665-f2053e708c70",
+      "author": "ryan",
+      "text": "Merged to develop in #1873 (2026-11-23): unusual-cost flag from the agent's own history (99.9% one-sided prediction bound on log cost, little history says so), budgetUsdPerRun as an owner setting that only flags (papyrus agents set-budget), fixed guards removed except the monitor-stories interim backstops (kept by Ryan's decision; follow-up filed). Closes on release.",
+      "created_at": "2026-11-23T14:45:48.152162Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:08.004289Z",
-  "updated_at": "2026-11-16T22:47:39.418161Z",
+  "updated_at": "2026-11-23T14:45:48.152350Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
