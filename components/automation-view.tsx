@@ -53,9 +53,7 @@ function RunLine({ run, demo }: { run: AutomationRun; demo: boolean }) {
           : run.storyId ? <>Story: <Link href={storyHref(run.storyId, demo)} data-automation-story-link>{run.storyTitle ?? run.storyId}</Link></> : "Story: none recorded"}
       </span>
       <span data-automation-run-tools>{toolsText(run)}</span>
-      <span data-automation-run-cost data-over-budget={run.overBudget || undefined}>
-        <span aria-hidden="true">{run.overBudget ? "! " : ""}</span>{costText(run)}
-      </span>
+      <span data-automation-run-cost>{costText(run)}</span>
     </li>
   );
 }
@@ -72,7 +70,7 @@ function OutsideRunLine({ run, demo }: { run: AutomationOutsideRun; demo: boolea
       <span>
         {run.storyId ? <>Story: <Link href={storyHref(run.storyId, demo)}>{run.storyTitle ?? run.storyId}</Link></> : "Story: none recorded"}
       </span>
-      <span data-automation-run-cost>{costText({ ...run, budgetUsd: null })}</span>
+      <span data-automation-run-cost>{costText(run)}</span>
     </li>
   );
 }
@@ -87,7 +85,7 @@ function Detail({ record, demo, onRunNow }: { record: AutomationRecord; demo: bo
         <div><dt>Procedure</dt><dd>{record.procedureKey}</dd></div>
         <div><dt>Input</dt><dd>{Object.keys(record.inputTemplate).length ? Object.entries(record.inputTemplate).map(([name, template]) => `${name} = ${template}`).join("; ") : "none"}</dd></div>
         <div><dt>Enabled</dt><dd>{enabledText(record)} ({record.enabledNote})</dd></div>
-        <div><dt>Limits</dt><dd>timeout {record.limits.timeoutSeconds ?? "?"} s, {atATimeText(record.limits)}{record.limits.budgetUsdPerRun !== undefined ? `, about $${record.limits.budgetUsdPerRun} per run, advisory` : ""} ({record.limitsNote})</dd></div>
+        <div><dt>Limits</dt><dd>timeout {record.limits.timeoutSeconds ?? "?"} s, {atATimeText(record.limits)} ({record.limitsNote})</dd></div>
         <div><dt>Router</dt><dd data-automation-link={record.link?.state ?? "unchecked"}>{linkText(record.link)}</dd></div>
       </dl>
       {notice ? <p className="news-desk-delegation-note" data-automation-notice>{notice}</p> : null}

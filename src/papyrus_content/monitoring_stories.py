@@ -34,14 +34,14 @@ The real constraints, in the order they can stop a publication (``stoppedBy`` in
 * ``time``: the Lambda's remaining time. Each publication gets an equal share of what is left for the publications after it, so a large
   backlog on one cannot starve the others; time one publication does not use passes to the next. The rest waits for the next run, which
   starts from the same ranking (best first) and skips what is already drafted.
-* ``cost``: the model spend of one publication's run, ``MAXIMUM_COST_USD``. At the model's price it is far above what the time budget lets a
+* ``cost``: the model spend of one publication's run, ``MONITORING_ROUTER_INTERIM_COST_BACKSTOP_USD``. At the model's price it is far above what the time budget lets a
   run spend; it is only a backstop against a runaway loop, and a run that reaches it says so.
 * ``file_error``: the same filing error twice in a row (usually a missing grant or a scope mismatch). The run stops rather than pay for drafts that cannot be kept; a single failure is recorded (``fileErrors``) and the run goes on.
 
 With a story queue (``STORY_QUEUE_URL``, set by the stack) the task is only the PLAN and never drafts (``plan_publication``, ``ideas/story_plan.py``): the vector pass, the
 signals and the candidates are read once, each step of the ordered queue is stored and sent to the story queue, and a worker drafts one step per invocation, so no
 time stop applies to the drafting and nothing a step did is read or paid for again. The stops above then belong to the in-process run (a router with no story queue:
-the tests and a hand run), except ``cost`` and ``file_error``, which a step applies to itself (``story_plan.MAXIMUM_STEP_COST_USD``; a repeated filing error is
+the tests and a hand run), except ``cost`` and ``file_error``, which a step applies to itself (``story_plan.MONITORING_ROUTER_INTERIM_STEP_COST_BACKSTOP_USD``; a repeated filing error is
 retried by the queue and parked in its dead-letter queue).
 
 Never raises into the router: a publication that fails is logged as ``failed`` and the others go on.
@@ -68,7 +68,10 @@ BUCKET_NAME = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
 PACK_KEYS = ("enabled", "signals")
 PACK_SIGNALS = ("conversation", "acceptance", "hub", "cluster", "resurfaced")   # the closed set of pack signals; an item signal is the single-item path's own
 STORES = ("items",)   # where a draft is filed: an Item at the idea stage. "proposals" (a story_draft Proposal) was removed; a router entry that still says it is read as "items".
-MAXIMUM_COST_USD = 0.50   # per publication and run; see the module docstring
+# The monitoring router's interim backstop (Ryan, 2026-11-23, PR #1873): the monitor-stories job runs in the monitoring router, outside the procedure runner,
+# so it has no spend ledger entry, no monthly budget and no unusual-cost flag (unusual_cost.py). Until that job runs under the spend ledger this fixed
+# ceiling per publication and run is all that bounds its spend. It is not the standard for agents: agent runs are flagged from their history, never stopped.
+MONITORING_ROUTER_INTERIM_COST_BACKSTOP_USD = 0.50
 READ_WORKERS = 8   # References of one publication read at a time: the API's throughput, not a limit on the work (a site with thousands of accepted
 #                    References needs two queries each, and read one by one that alone would take most of the Lambda's time)
 EMPTY_LINE = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None, "packs": 0, "ideasFromPacks": 0, "packsSkippedNoNewEvidence": 0, "packDetails": [],
@@ -221,7 +224,7 @@ def plan_publication(client: Any, publication: dict[str, Any], *, store: Any, mo
                      read_watermark: Callable[[], str | None] = lambda: None, write_watermark: Callable[[str], None] = lambda value: None,
                      vector_out_of_time: Callable[[], bool] | None = None, signal_out_of_time: Callable[[], bool] | None = None,
                      on_summary_written: Callable[[list[dict[str, Any]]], None] | None = None, transport: Callable | None = None, fetch: Any = None,
-                     maximum_cost_usd: float = MAXIMUM_COST_USD, retry_memory: Any = None) -> dict[str, Any]:
+                     maximum_cost_usd: float = MONITORING_ROUTER_INTERIM_COST_BACKSTOP_USD, retry_memory: Any = None) -> dict[str, Any]:
     """The daily PLAN of one publication (``ideas/story_plan.py``): brings the vector index up to date with what changed, reads the publication once (the signals,
     the packs, the candidates), stores each step of the ordered queue with what its draft needs and sends it to the story queue. It drafts nothing, asks no model and
     files nothing; the log line says how many steps it queued. A plan from an earlier day that has not finished is left alone (status ``waiting``), and the vector
@@ -287,7 +290,7 @@ def plan_publication(client: Any, publication: dict[str, Any], *, store: Any, mo
 
 
 def run_publication(client: Any, publication: dict[str, Any], *, transport: Callable, now: datetime, out_of_time: Callable[[], bool],
-                    fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MAXIMUM_COST_USD,
+                    fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MONITORING_ROUTER_INTERIM_COST_BACKSTOP_USD,
                     handled_references: Any = (), gate: Any = None, embedding_key: str | None = None,
                     read_watermark: Callable[[], str | None] = lambda: None, write_watermark: Callable[[str], None] = lambda value: None,
                     retry_memory: Any = None, vector_out_of_time: Callable[[], bool] | None = None, signal_out_of_time: Callable[[], bool] | None = None,

@@ -1,16 +1,25 @@
-"""The rating agent through the procedure runner's own entry point (features_backend/agents/rating-agent.feature).
+"""The rating agent through the procedure runner's own entry point (features_backend/agents/rating-agent.feature, rating-suggestions.feature and
+rating-suggestion-triggers.feature).
 
 The runner, the site's policy document, its run records, the shipped procedure file (through Tactus), the tool, the model call (its prompt, schema and usage)
 and the rating write (its handler, with the gate) are the real code. What is stood in for is the world: the site's Story index and Story store, the guidelines
 read, and the model service, which is a scripted transport that answers by Story title. The backend, policy and wake steps are in runner_reads_policy_steps.py.
+
+For the change wakes, the Item and Reference change feeds, the listener index written from the engine's core definitions, the wake gate and its follow-up timers
+are the real code too, over an in-memory queue and scheduler; the quiet-window and queue steps are in wake_gate_steps.py.
 """
 from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from behave import given, then, when
+
+STEPS = Path(__file__).resolve().parent
+if str(STEPS) not in sys.path:
+    sys.path.insert(0, str(STEPS))
 
 from papyrus_content import model_usage, procedure_runner as pr, procedure_runner_child, rating_agent, rating_handlers, rating_suggestions, run_outcomes, story_reporting, story_signals
 from papyrus_content.agent_gate import run_context
@@ -41,6 +50,14 @@ class StoryStore:
 
     def __init__(self, context):
         self.context = context
+
+    def list_semantic_relations_by_object_state(self, object_state_key):
+        """The relation index read by the object: the Stories whose sources name a Reference (their ``uses_evidence`` links)."""
+        self.context.relation_reads.append(object_state_key)
+        reference = object_state_key.removeprefix("reference#").removesuffix("#current")
+        return [{"id": f"relation-{lineage}-{reference}", "predicate": story_reporting.STORY_REFERENCE_PREDICATE, "subjectKind": "item", "subjectLineageId": lineage,
+                 "objectKind": "reference", "objectLineageId": reference, "metadata": json.dumps({"role": "based_on"})}
+                for lineage in self.context.based_on.get(reference, [])]
 
     def graphql(self, query, variables):
         assert "StorySuggestion" in query, query
@@ -81,6 +98,7 @@ def _begin(context):
     context.answers, context.fail_all, context.fail_for = {}, False, set()   # what the scripted model says, by Story title
     context.asked, context.guidelines_seen, context.call_seconds, context.seconds_left = [], [], 0.0, None
     context.guidelines_text, context.seen_wake_keys = "", []
+    context.story_rows, context.based_on, context.relation_reads = {}, {}, []   # the Stories a change wake reads: lineage -> row; Reference -> Stories based on it
     context.clock = [0.0]
     site_graphql = context.client.graphql
 
@@ -95,7 +113,7 @@ def _begin(context):
     def current(client, lineage):
         if lineage not in context.store:
             raise ValueError(f"No story found for lineage {lineage}.")
-        return {"id": f"{lineage}-v1", **context.store[lineage]}
+        return {"id": f"{lineage}-v1", "lineageId": lineage, **context.story_rows.get(lineage, {}), **context.store[lineage]}
 
     def set_stars(client, lineage, stars, *, apply, agent=None):
         context.store[lineage] = {"starRating": stars, "starRatedBy": agent or ADMIN_NAME}
@@ -128,7 +146,9 @@ def _services(context):
     handlers = {"guidelines_resolve": _guidelines(context), **rating_handlers.signed_in_handlers(lambda: StoryStore(context))}
     client = FakeIndexClient(context)
     return rating_agent.Services(stories=lambda: rating_agent.published_unrated(client), judge=rating_agent.openai_judge("test-key", "gpt-6-luna", tier="bulk", transport=_transport(context)),
-                                 execute=execute, clock=lambda: context.clock[0], handlers=handlers, today=lambda: "2026-11-21")
+                                 execute=execute, story=lambda lineage: rating_agent.story_as_it_is(StoryStore(context), lineage),
+                                 stories_based_on=lambda reference: rating_agent.stories_based_on(StoryStore(context), reference),
+                                 clock=lambda: context.clock[0], handlers=handlers, today=lambda: "2026-11-21")
 
 
 def _guidelines(context):
@@ -216,7 +236,7 @@ def _wake_request(context):
             "tenantId": TENANT, "siteBucket": BUCKET, "input": {}, "trigger": {"kind": "schedule", "automationId": context.automation_id}}
 
 
-def _deliver(context):
+def _deliver(context, request=None):
     _begin(context)
     lineage = getattr(context, "fail_for_lineage", None)
     if lineage:
@@ -225,7 +245,7 @@ def _deliver(context):
     original_services = rating_agent.default_services
     rating_agent.default_services = lambda environ: _services(context)
     context.add_cleanup(setattr, rating_agent, "default_services", original_services)
-    request = _wake_request(context)
+    request = request or _wake_request(context)
 
     def run_in_child(workdir, source_path, inputs, *, timeout_seconds, environment):
         context.executed.append(request["wakeKey"])
@@ -513,3 +533,170 @@ def unchanged(context):
 @then("the answer says the person changed the suggestion from {stars:d} stars")
 def changed(context, stars):
     assert context.answer["result"]["changed"] is True and context.answer["result"]["suggested"] == stars, context.answer
+
+
+# --- change wakes (features_backend/agents/rating-suggestion-triggers.feature) ----------------------------------------------------------------
+#
+# A Story's publish and a person's rating reach the real Item change feed as stream records, through the real wake gate (a paid agent waits for quiet on a
+# follow-up timer); a Reference's acceptance reaches the real change feed of the other tables. The listener index is written from the engine's own core
+# definitions, so the rating agent wakes on exactly what rate.yaml says. The queue and the scheduler are the in-memory fakes the gate's own specs use, and the
+# wake the rating agent takes from the queue is handed, as it is, to the procedure runner.
+
+FEED_SITE = "sample"
+FEED_REFERENCE_STREAM = "arn:aws:dynamodb:us-east-1:123456789012:table/Reference/stream/1"
+
+
+def _open_feeds(context):
+    from papyrus_content import agent_listeners, agent_wakes, follow_up_timers
+    from papyrus_content.agent_definitions import definition, schedules
+    from papyrus_content.change_feed_fakes import CountingS3, CountingTable, FakeQueue
+    from papyrus_content.site_store import SiteStore
+    from schedule_fakes import ACCOUNT, REGION, TimerScheduler
+
+    class TimerQueue:   # the scheduler puts a timer's wake on the same FIFO queue the feeds use, deduplicated by its wake key
+        def send(self, body, group):
+            context.queue.send(body, group, agent_wakes.digest(json.loads(body)["wake"]["key"]))
+
+    _begin(context)
+    context.site_id, context.queue, context.rating_wakes_taken = FEED_SITE, FakeQueue(), 0
+    context.fake_scheduler = TimerScheduler(schedules.names_for(FEED_SITE).group, TimerQueue())
+    context.timers = follow_up_timers.FollowUpTimers.for_site(FEED_SITE, account=ACCOUNT, region=REGION, client=context.fake_scheduler)
+    context.listener_store = SiteStore(CountingS3(), BUCKET, CountingTable(), now=lambda: "2026-11-21T00:00:00Z")
+    context.listener_index = agent_listeners.ListenerIndex(context.listener_store, TENANT)
+    agent_listeners.publish(context.listener_store, TENANT, definition.load_sets(definition.CORE_DIRECTORY).definitions, actor="release", apply=True)
+
+
+def _feed_site():
+    from papyrus_content import item_change_feed
+    from papyrus_content.change_feed_fakes import ENDPOINT
+
+    return item_change_feed.Site(publication_id=FEED_SITE, appsync_endpoint=ENDPOINT, tenant_id=TENANT, site_bucket=BUCKET)
+
+
+def _feed_send(context):
+    from papyrus_content import agent_wakes
+    from papyrus_content.change_feed_fakes import FakeSqs
+
+    return agent_wakes.wake_sender(FakeSqs({agent_wakes.queue_name(FEED_SITE): context.queue}))
+
+
+class _NoOtherRecords:
+    """The wake gate's counter reads the Story's current version (the Story store above); a person's change names that same version, so nothing else is read."""
+
+    def get_record(self, model, record_id):
+        raise AssertionError(f"the gate read {model} {record_id}")
+
+
+def _deliver_story_change(context, old, new):
+    from papyrus_content import item_change_feed, wake_gate
+    from papyrus_content.change_feed_fakes import stream_record
+    from papyrus_content.localize.dispatch import decode_image
+    from schedule_fakes import utc
+
+    context.sequence = getattr(context, "sequence", 0) + 1
+    gate = wake_gate.WakeGate(policy=lambda: context.policy.read(TENANT).document, timers=context.timers, chain=wake_gate.StoryChain(_NoOtherRecords()),
+                              review=lambda **found: None, clock=lambda: utc(new["updatedAt"]))
+    answer = item_change_feed.handle([stream_record("MODIFY", old, new, context.sequence)], decode=decode_image, listeners=lambda: context.listener_index.document(),
+                                     send=_feed_send(context), site=_feed_site(), gate=gate)
+    assert answer["batchItemFailures"] == [], answer
+
+
+@given("the site's change feeds wake agents by the engine's core definitions")
+def feeds_by_core_definitions(context):
+    _open_feeds(context)
+
+
+@given('the site has the typeset Story "{lineage}" titled "{title}", which the model would give {stars:d} stars')
+def typeset_story(context, lineage, title, stars):
+    _begin(context)
+    context.story_rows[lineage] = _row(lineage, title, stage="typesetting", status="draft", updatedAt="2026-11-21T08:00:00Z", metadata="{}")
+    context.store[lineage] = {}
+    context.answers[title] = stars
+
+
+@given('the site has the published Story "{lineage}" titled "{title}" based on the Reference "{reference}", which the model would give {stars:d} stars')
+def published_story_based_on(context, lineage, title, reference, stars):
+    _begin(context)
+    context.story_rows[lineage] = _row(lineage, title, updatedAt="2026-11-21T08:00:00Z", metadata="{}")
+    context.store[lineage] = {}
+    context.answers[title] = stars
+    context.based_on.setdefault(reference, []).append(lineage)
+
+
+@given('the site has the published Story "{lineage}" a person rated {stars:d} stars, based on the Reference "{reference}"')
+def rated_story_based_on(context, lineage, stars, reference):
+    _begin(context)
+    context.story_rows[lineage] = _row(lineage, f"Rated story {lineage}", updatedAt="2026-11-21T08:00:00Z", metadata="{}")
+    context.store[lineage] = {"starRating": stars, "starRatedBy": ADMIN_NAME}
+    context.based_on.setdefault(reference, []).append(lineage)
+
+
+@when('a person publishes "{lineage}" at "{moment}"')
+def person_publishes(context, lineage, moment):
+    old = dict(context.story_rows[lineage])
+    new = {**old, "stage": "published", "status": "published", "updatedAt": moment, "publishedAt": moment}
+    context.story_rows[lineage] = new
+    _deliver_story_change(context, old, new)
+
+
+@when('a person rates "{lineage}" {stars:d} stars at "{moment}"')
+def person_rates_at(context, lineage, stars, moment):
+    old = {**context.story_rows[lineage], **context.store[lineage]}
+    context.store[lineage] = {"starRating": stars, "starRatedBy": ADMIN_NAME}
+    new = {**old, "starRating": stars, "starRatedBy": ADMIN_NAME, "starRatedAt": moment, "updatedAt": moment}
+    _deliver_story_change(context, old, new)
+
+
+@when('the Reference "{reference}" is accepted by a person at "{moment}"')
+def person_accepts(context, reference, moment):
+    from papyrus_content import change_feeds
+    from papyrus_content.change_feed_fakes import stream_record
+    from papyrus_content.localize.dispatch import decode_image
+
+    old = {"id": f"{reference}-v1", "lineageId": reference, "tenantId": TENANT, "versionNumber": 1, "corpusId": "papers", "medium": "paper",
+           "curationStatus": "pending", "updatedAt": "2026-11-21T07:00:00Z"}
+    new = {**old, "curationStatus": "accepted", "curationActorKind": "person", "curationStatusUpdatedBy": ADMIN_NAME, "curationStatusUpdatedAt": moment,
+           "updatedAt": moment}
+    context.sequence = getattr(context, "sequence", 0) + 1
+    answer = change_feeds.handle([stream_record("MODIFY", old, new, context.sequence, FEED_REFERENCE_STREAM)],
+                                 streams=change_feeds.Streams(tables={FEED_REFERENCE_STREAM: "Reference"}), decode=decode_image,
+                                 listeners=lambda: context.listener_index.document(), send=_feed_send(context), site=_feed_site(), thread_of=lambda thread: None)
+    assert answer["batchItemFailures"] == [], answer
+
+
+def _rating_wake_messages(context):
+    return [message for message in context.queue.messages if json.loads(message.body)["wake"]["agent"] == "rate"]
+
+
+@when("the rating agent takes its wake")
+def takes_wake(context):
+    from papyrus_content import agent_wakes
+
+    waiting = _rating_wake_messages(context)[context.rating_wakes_taken:]
+    assert len(waiting) == 1, [json.loads(message.body)["wake"]["key"] for message in waiting]
+    context.rating_wakes_taken += 1
+    request = agent_wakes.request_from_event({"Records": [{"eventSource": agent_wakes.SQS_SOURCE, "body": waiting[0].body}]})   # as the runner's queue hands it over
+    context.taken_wake_key = request["wakeKey"]
+    context.result = _deliver(context, request=request)
+
+
+@then('the run ran for the wake "{kind}"')
+def ran_for(context, kind):
+    assert _result(context)["wake"] == kind, _result(context)
+    assert _stored(context)["wakeKey"] == context.taken_wake_key, (_stored(context), context.taken_wake_key)
+
+
+@then('the run lists "{lineage}" as skipped because "{reason}"')
+def skipped(context, lineage, reason):
+    assert {"story": lineage, "reason": reason} in _result(context)["skipped"], _result(context)["skipped"]
+
+
+@then('the Stories based on "{reference}" were read by the relation index')
+def relations_read(context, reference):
+    assert context.relation_reads == [f"reference#{reference}#current"], context.relation_reads
+
+
+@then('the review links "{first}" and "{second}"')
+def review_links_two(context, first, second):
+    links = json.loads(_only_review(context)["links"])
+    assert [link["id"] for link in links if link["type"] == "story"] == [first, second], links

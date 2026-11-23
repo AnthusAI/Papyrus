@@ -37,16 +37,16 @@ async function main() {
     "Status: Started, no result recorded yet", "Run record not linked yet", "Story: none recorded",
     "Linked: the router's trigger matches this record.", "proceeding = {sourceIdPrefix}",
     "2 items were not started because the Reference already existed",
-    "2 at a time, about $0.05 per run, advisory", "the budget is advisory and only flagged",
+    "2 at a time (the timeout and the number at a time (when set) are enforced when a run starts)",
   ]) assert.ok(detail.includes(expected), `detail shows: ${expected}`);
 
-  // Cost is recorded and shown; a run over the advisory budget is flagged in words, not colour.
+  // Cost is recorded and shown. An unusual cost, or one over the owner's per-run budget, is a review flag (the agent policy), never a mark on this page.
   for (const expected of [
     "Cost: $0.01 (estimated from the model usage reported by the run)",
     "Cost: unknown (not recorded for this run)",
-    "Cost: $0.08 (estimated from the model usage reported by the run). Over the budget of $0.05 per run",
+    "Cost: $0.08 (estimated from the model usage reported by the run)",
   ]) assert.ok(detail.includes(expected), `cost shows: ${expected}`);
-  assert.match(html, /data-over-budget="true"/);
+  assert.doesNotMatch(html, /data-over-budget|per run, advisory/);
 
   // Each finished run says what came of it in words with a mark; an older run says it was recorded before outcomes.
   for (const expected of [
@@ -143,8 +143,8 @@ async function main() {
   assert.equal(statusText("skipped"), "Skipped");
   assert.equal(statusMark("refused"), "✕");
   assert.equal(statusMark("skipped"), "–");
-  assert.equal(costText({ costUsd: 1.5, costNote: "n", overBudget: false }), "Cost: $1.50 (n)");
-  assert.equal(costText({ costUsd: 0.0004, costNote: "n", overBudget: false }), "Cost: $0.0004 (n)");
+  assert.equal(costText({ costUsd: 1.5, costNote: "n" }), "Cost: $1.50 (n)");
+  assert.equal(costText({ costUsd: 0.0004, costNote: "n" }), "Cost: $0.0004 (n)");
   assert.equal(whoText({ origin: "monitor", requestedBy: null, sourceId: "s1" }), "Item: s1");
   assert.equal(statusText(null), "No runs");
   assert.equal(statusMark("failed"), "✕");

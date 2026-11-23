@@ -106,9 +106,6 @@ def limits_of(row: dict) -> dict[str, Any]:
         value = raw.get(key) if isinstance(raw, dict) else None
         if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
             limits[key] = value
-    budget = raw.get("budgetUsdPerRun") if isinstance(raw, dict) else None
-    if isinstance(budget, (int, float)) and not isinstance(budget, bool) and budget >= 0:
-        limits["budgetUsdPerRun"] = budget
     return limits
 
 
