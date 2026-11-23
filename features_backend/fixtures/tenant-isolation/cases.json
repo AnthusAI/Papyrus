@@ -6,7 +6,7 @@
     "modelCases": 505,
     "indexCases": 232,
     "subscriptionCases": 9,
-    "operationCases": 145,
+    "operationCases": 146,
     "functionCases": 78,
     "surfaceCases": 9
   },
@@ -5985,6 +5985,14 @@
       "subject": "abortModelAttachmentUpload",
       "operation": "call-with-foreign-ids",
       "probe": "alpha calls abortModelAttachmentUpload with \"beta\"'s ids for uploadId, ownerId, ownerLineageId, ownerVersionKey, sortKey, importRunId",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:acknowledgeRun",
+      "kind": "operation",
+      "subject": "acknowledgeRun",
+      "operation": "call-with-foreign-ids",
+      "probe": "alpha calls acknowledgeRun with \"beta\"'s ids for runId",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

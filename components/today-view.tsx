@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { AlarmClockIcon, CheckIcon, ChevronDownIcon, ClockIcon, MinusIcon, TriangleAlertIcon, XIcon, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import {
+  AlarmClockIcon, CalendarClockIcon, CheckIcon, ChevronDownIcon, CircleHelpIcon, ClockIcon, FlagIcon, HourglassIcon, LockIcon, MinusIcon, RotateCwIcon, SendIcon,
+  TriangleAlertIcon, XIcon, type LucideIcon,
+} from "lucide-react";
 import { OUTCOME_MARKS, RunOutcome } from "./run-outcome";
 import {
   OTHER_ORDER,
@@ -12,15 +16,18 @@ import {
   countWords,
   dayTitle,
   reasonsText,
+  reviewRequestHref,
   runsText,
   sendCostText,
   sendItemsText,
   type TodayCountKey,
+  type TodayAttentionEntry,
   type TodayDidNotRun,
-  type TodayOverdue,
+  type TodayDue,
   type TodayOverview,
   type TodayResult,
   type TodayRow,
+  type TodayReview,
   type TodayRun,
   type TodaySend,
 } from "../lib/today-overview";
@@ -137,16 +144,126 @@ function SendLine({ send }: { send: TodaySend }) {
   );
 }
 
-function OverdueLine({ entry }: { entry: TodayOverdue }) {
+/** Acknowledges a run from Today: the run leaves the list. Says in words why when it could not. */
+type Acknowledge = (runId: string) => Promise<string | null>;
+
+const ACTION = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--feed-control)] px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
+
+function AcknowledgeAction({ runId, words, note, onAcknowledge }: { runId: string; words: string; note?: string | null; onAcknowledge?: Acknowledge }) {
+  const [state, setState] = useState<{ busy: boolean; problem: string | null }>({ busy: false, problem: null });
+  const act = async () => {
+    if (!onAcknowledge) return;
+    setState({ busy: true, problem: null });
+    const problem = await onAcknowledge(runId);
+    setState({ busy: false, problem });
+  };
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm" data-today-overdue={entry.id} data-today-overdue-kind={entry.kind}>
-      <span className="inline-flex items-center gap-1.5 font-medium">
-        <AlarmClockIcon aria-hidden="true" className="size-3.5 shrink-0" />
-        Overdue
-      </span>
-      <span>{entry.kind} {entry.id}</span>
-      <span className="text-xs text-muted-foreground">was due {entry.dueAt}{entry.waitingFor ? ` (${entry.waitingFor})` : ""} and nothing ran</span>
+    <span className="flex flex-col items-start gap-1">
+      <button className={ACTION} data-today-action={words.toLowerCase()} data-today-action-run={runId} disabled={state.busy || !onAcknowledge} onClick={act} title={note ?? undefined} type="button">
+        <CheckIcon aria-hidden="true" className="size-4 shrink-0" />
+        {state.busy ? `${words}…` : words}
+      </button>
+      {state.problem ? <span className="text-xs" data-today-action-problem role="alert">{state.problem}</span> : null}
+    </span>
+  );
+}
+
+function ItemCard({ children, attributes }: { children: React.ReactNode; attributes: Record<string, string> }) {
+  return (
+    <li className="flex flex-col gap-3 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm sm:flex-row sm:items-start sm:justify-between" {...attributes}>
+      {children}
     </li>
+  );
+}
+
+function Status({ icon: Icon, words }: { icon: LucideIcon; words: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-medium" data-today-status>
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
+      {words}
+    </span>
+  );
+}
+
+function ReviewItem({ entry, demo }: { entry: TodayReview; demo: boolean }) {
+  const flag = entry.mode === "flag";
+  return (
+    <ItemCard attributes={{ "data-today-review": entry.id, "data-today-review-mode": entry.mode }}>
+      <div className="min-w-0 space-y-1">
+        <Status icon={flag ? FlagIcon : CircleHelpIcon} words={entry.modeWords} />
+        <p className="break-words font-semibold">{entry.reason}</p>
+        <p className="break-words text-xs text-muted-foreground">
+          {entry.subjectWords}
+          {entry.mode === "soft_review" && entry.deadlineLocal ? ` · goes on without review at ${entry.deadlineLocal}` : ""}
+        </p>
+      </div>
+      <Link className={ACTION} data-today-action={entry.action.kind} href={reviewRequestHref(entry.id, demo)}>
+        {flag ? <FlagIcon aria-hidden="true" className="size-4 shrink-0" /> : <CircleHelpIcon aria-hidden="true" className="size-4 shrink-0" />}
+        {entry.action.words}
+      </Link>
+    </ItemCard>
+  );
+}
+
+function AttentionItem({ entry, demo, onAcknowledge }: { entry: TodayAttentionEntry; demo: boolean; onAcknowledge?: Acknowledge }) {
+  if (entry.kind === "review") return <ReviewItem demo={demo} entry={entry} />;
+  if (entry.kind === "overdue") {
+    return (
+      <ItemCard attributes={{ "data-today-overdue": entry.id, "data-today-overdue-kind": entry.record }}>
+        <div className="min-w-0 space-y-1">
+          <Status icon={AlarmClockIcon} words="Overdue" />
+          <p className="break-words font-semibold">{entry.record} {entry.id}</p>
+          <p className="text-xs text-muted-foreground">was due {entry.dueLocal ?? entry.dueAt}{entry.waitingFor ? ` (${entry.waitingFor})` : ""} and nothing ran</p>
+        </div>
+        <span className="flex flex-col items-start gap-1 sm:max-w-[16rem]">
+          <button className={ACTION} data-today-action="wake_now" disabled type="button">
+            <AlarmClockIcon aria-hidden="true" className="size-4 shrink-0" />
+            {entry.action.words}
+          </button>
+          {entry.action.note ? <span className="text-xs text-muted-foreground" data-today-action-note>{entry.action.note}</span> : null}
+        </span>
+      </ItemCard>
+    );
+  }
+  return (
+    <ItemCard attributes={{ "data-today-attention-run": entry.id, "data-today-attention-outcome": entry.outcome }}>
+      <div className="min-w-0 space-y-1">
+        <Status icon={entry.outcome === "unknown" ? TriangleAlertIcon : XIcon} words={entry.reason ? `${entry.words} (${entry.reason})` : entry.words} />
+        <p className="break-words font-semibold">{entry.title}{entry.subjectWords ? ` · ${entry.subjectWords}` : ""}</p>
+        <p className="break-all text-xs text-muted-foreground">Run {entry.id}{entry.neededLocal ? ` · since ${entry.neededLocal}` : ""}</p>
+        {entry.error ? <p className="break-words text-xs" data-today-attention-error>Error: {entry.error}</p> : null}
+        {entry.action.note ? <p className="text-xs text-muted-foreground" data-today-action-note>{entry.action.note}</p> : null}
+      </div>
+      <AcknowledgeAction note={entry.action.note} onAcknowledge={onAcknowledge} runId={entry.id} words={entry.action.words} />
+    </ItemCard>
+  );
+}
+
+/** Each kind of due time has its own mark beside its words. */
+const DUE_MARKS: Record<TodayDue["what"], LucideIcon> = {
+  lockAt: LockIcon, releaseAt: SendIcon, nextAttemptAt: RotateCwIcon, scheduledPublishAt: CalendarClockIcon, schedule: ClockIcon, deadline: HourglassIcon,
+};
+
+function DueLine({ entry }: { entry: TodayDue }) {
+  const Icon = DUE_MARKS[entry.what] ?? ClockIcon;
+  return (
+    <li className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-[16px] bg-[var(--feed-card)] p-3 text-sm" data-today-due={entry.id} data-today-due-what={entry.what}>
+      <span className="w-20 shrink-0 font-semibold tabular-nums" data-today-due-local>{entry.local}</span>
+      <span className="inline-flex items-center gap-1.5 font-medium">
+        <Icon aria-hidden="true" className="size-4 shrink-0" />
+        {entry.words}
+      </span>
+      <span className="break-words">{entry.title}</span>
+      {entry.detail ? <span className="text-xs text-muted-foreground">{entry.detail}</span> : null}
+    </li>
+  );
+}
+
+function Heading({ children, count }: { children: React.ReactNode; count?: number }) {
+  return (
+    <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      {children}{count === undefined ? null : <span className="tabular-nums"> ({count})</span>}
+    </h3>
   );
 }
 
@@ -164,20 +281,31 @@ function DidNotRunLine({ entry, demo }: { entry: TodayDidNotRun; demo: boolean }
   );
 }
 
-function Ready({ overview, demo }: { overview: TodayOverview; demo: boolean }) {
+function Ready({ overview, demo, onAcknowledge }: { overview: TodayOverview; demo: boolean; onAcknowledge?: Acknowledge }) {
   return (
     <>
+      {overview.timeZoneNote ? <p className="text-sm" data-today-zone-note>{overview.timeZoneNote}</p> : null}
+      <Heading count={overview.waiting.length}>Waiting for you</Heading>
+      {overview.waiting.length ? (
+        <ul className="space-y-2" data-today-waiting>
+          {overview.waiting.map((entry) => <ReviewItem demo={demo} entry={entry} key={entry.id} />)}
+        </ul>
+      ) : <p className="text-sm text-muted-foreground" data-today-nothing-waiting>Nothing is waiting for you.</p>}
+      <Heading count={overview.attention.length}>Needs attention</Heading>
+      {overview.attention.length ? (
+        <ul className="space-y-2" data-today-attention>
+          {overview.attention.map((entry) => <AttentionItem demo={demo} entry={entry} key={`${entry.kind}:${entry.id}`} onAcknowledge={onAcknowledge} />)}
+        </ul>
+      ) : <p className="text-sm text-muted-foreground" data-today-nothing-attention>Nothing needs attention.</p>}
+      <Heading count={overview.due.length}>Due today</Heading>
+      {overview.due.length ? (
+        <ul className="space-y-2" data-today-due-list>
+          {overview.due.map((entry) => <DueLine entry={entry} key={`${entry.kind}:${entry.id}:${entry.what}:${entry.at}`} />)}
+        </ul>
+      ) : <p className="text-sm text-muted-foreground" data-today-nothing-due>Nothing is due in this day.</p>}
       <p className="text-sm text-muted-foreground" data-today-summary role="status">
         {runsText(overview.totals.runs)} · {costText(overview.totals)}
       </p>
-      {overview.overdue.length ? (
-        <>
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Needs attention</h3>
-          <ul className="space-y-2" data-today-overdue-list>
-            {overview.overdue.map((entry) => <OverdueLine entry={entry} key={`${entry.kind}:${entry.id}`} />)}
-          </ul>
-        </>
-      ) : null}
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What ran</h3>
       {overview.rows.length ? (
         <ul className="space-y-2" data-today-rows>
@@ -204,8 +332,9 @@ function Ready({ overview, demo }: { overview: TodayOverview; demo: boolean }) {
   );
 }
 
-/** The Today section of the newsroom home. Read only; the panel around it refreshes it. */
-export function TodayView({ result, demo = false }: { result: TodayResult | null; demo?: boolean }) {
+/** The Today section of the newsroom home: what only a person can move first, then what is due, then what ran. The panel around it refreshes it and
+ *  acknowledges runs. */
+export function TodayView({ result, demo = false, onAcknowledge }: { result: TodayResult | null; demo?: boolean; onAcknowledge?: Acknowledge }) {
   return (
     <section aria-label="Today" className="space-y-3" data-today>
       <h2 className="text-lg font-semibold">
@@ -219,7 +348,7 @@ export function TodayView({ result, demo = false }: { result: TodayResult | null
             : <Message kind="bad_request" title="Today could not be read">{result.message ?? "The request was not understood."}</Message>
         )
         : result.state === "unavailable" ? <Message kind="unavailable" title="Today could not be read right now">Nothing is wrong with what you see elsewhere on this page. It tries again by itself.</Message>
-        : <Ready demo={demo} overview={result} />}
+        : <Ready demo={demo} onAcknowledge={onAcknowledge} overview={result} />}
     </section>
   );
 }

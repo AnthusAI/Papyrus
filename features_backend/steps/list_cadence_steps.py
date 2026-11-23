@@ -651,6 +651,9 @@ class TodayClient:
     def list_tenant_rows(self, model, fields, **_):
         return []
 
+    def list_schedule(self, state, start, end, **_):
+        return []   # what is due today: no Story is scheduled in this fixture
+
 
 @then('Today for "{day}" in "{zone}" shows the run of "{time}" as "{shown}" with the reason "{reasons}"')
 def today_shows(context, day, zone, time, shown, reasons):

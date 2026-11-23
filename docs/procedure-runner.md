@@ -66,7 +66,13 @@ For each request, the runner does these steps:
    review-request code files one hard-gate review request on the run (`gate-<run id>`) and the run ends `asked` with the reason
    `human_required`, whatever word the procedure declared. If the operation is one no agent may do, the run ends `failed` with
    `gate_blocked`. Every answer, in order, with the policy version and the id of the request filed, is stored under `gate` in the
-   run's `output` (kept on a run the gate stopped). A person's own run has no policy, so no gate is asked. A `nothing` or `asked`
+   run's `output` (kept on a run the gate stopped). A person's own run has no policy, so no gate is asked. A person's answer to that
+   request is a change that wakes the agent that asked (`change_feeds.py`), and the runner reads the answer again from the records
+   (`agent_gate/review_answers.py`, PPY-ecf852): an approval runs the procedure again with the answer under `review` in its input, and the
+   operations the asking run's gate said a person must approve are allowed for that run only (each gate answer records `approvedIn`, the request);
+   a rejection runs nothing and ends `nothing` with `review_rejected` and the person's words as the summary; feedback runs the procedure with the
+   answer in its input and approves nothing. The request's `appliedIn` names the run that used the answer, and an answer already used runs nothing
+   (`answer_already_applied`). A wake for a request or asking run that cannot be read is `failed` with `answer_unreadable`. A `nothing` or `asked`
    without a reason, or any other value, is recorded as `failed` with the reason `invalid_outcome`. A procedure error is
    `failed` with `procedure_error` (`timed_out` for a deadline). `unknown` is never set here: only settling an interrupted
    run sets it. Runs recorded before outcomes have none and are shown as "Recorded before outcomes"; they are not rewritten.

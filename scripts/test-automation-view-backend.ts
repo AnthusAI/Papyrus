@@ -31,8 +31,16 @@ assert.match(mutation, /groups: \["editor", "admin"\]|groups: \["editor","admin"
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(mutation), "no public, API-key or guest access");
 assert.match(mutation, /automationId: String!/, "the automation is required");
 
-// The function only reads its own site's API (no Mutation field is granted there).
+// Acknowledging a run (Today's Acknowledge and Settle) is a mutation for editors and admins only; the run is required.
+const acknowledge = /acknowledgeRun\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(acknowledge, "the base schema defines acknowledgeRun");
+assert.match(acknowledge, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(acknowledge), "no public, API-key or guest access");
+assert.match(acknowledge, /runId: String!/, "the run is required");
+
+// The function reads its own site's API; its one write there is the acknowledgement of a run.
 assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
+  "Mutation/fields/updateProcedureRun",
   "Query/fields/getAutomation",
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
@@ -41,12 +49,15 @@ assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
   "Query/fields/listAutomationsByTenant",
   "Query/fields/listDeliveriesByAnnouncementAndCreatedAt",
   "Query/fields/listDeliveriesByDueKeyAndDueAt",
+  "Query/fields/listItemsByScheduleStateAndScheduledPublishAt",
+  "Query/fields/listProcedureRunsByAttentionKeyAndDueAt",
   "Query/fields/listProcedureRunsByAutomationAndRequestedAt",
   "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
   "Query/fields/listProcedureRunsByStatusAndRequestedAt",
+  "Query/fields/listReviewRequestsByReviewStateKeyAndUpdatedAt",
   "Query/fields/listSemanticRelationsBySubjectState",
 ]);
-assert.ok(AUTOMATION_VIEW_FUNCTION_FIELDS.every((field) => field.startsWith("Query/")), "no mutation is granted");
+assert.deepEqual(AUTOMATION_VIEW_FUNCTION_FIELDS.filter((field) => !field.startsWith("Query/")), ["Mutation/fields/updateProcedureRun"], "the one write is acknowledging a run");
 
 // Run now writes one monitoring row in a monitor's partition and puts a wake on its site's queue (wake-queue.ts allowWakeSending), and does nothing else.
 assert.deepEqual(AUTOMATION_RUN_NOW_TABLE_ACTIONS, ["dynamodb:PutItem"]);

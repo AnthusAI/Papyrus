@@ -2,6 +2,7 @@
 
 import { AdministrationDelegationsPanel } from "./administration-delegations-panel";
 import { WikiConceptsView } from "./wiki-concepts-view";
+import { ProcedureRecentRunList } from "./procedure-recent-runs";
 import { SectionConceptsEditor } from "./section-concepts-editor";
 import { parseCoreConcepts, serializeCoreConcepts, type CoreConcept } from "../lib/section-concepts";
 import { Hub } from "aws-amplify/utils";
@@ -5522,14 +5523,7 @@ function AdministrationProceduresPanel({
               <span>{runs.length}</span>
             </header>
             {runs.length ? (
-              <dl>
-                {runs.map((run) => (
-                  <div key={run.id}>
-                    <dt>{run.runStatus}</dt>
-                    <dd>{run.requestedAt ?? "-"} / attempt {run.attempt ?? 1}</dd>
-                  </div>
-                ))}
-              </dl>
+              <ProcedureRecentRunList runs={runs} />
             ) : <EmptyRow label="No runs for this procedure yet." />}
           </article>
           {actionState?.id?.startsWith("procedure-") ? (

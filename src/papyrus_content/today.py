@@ -1,4 +1,5 @@
-"""Today: what the system did on one day, what it decided to do nothing about, and what it cost (PPY-5bcf42, slice H1).
+"""Today: what only a person can move, what is due, what the system did on one day, what it decided to do nothing about, and what it cost
+(PPY-5bcf42, slice H1; PPY-b6d5ad, slice H2).
 
 One read path for the newsroom home's Today section, the `papyrus today` command and the site's `todayOverview` query
 (docs/design/always-on-agents-architecture.md section 7.1). It is read only and it reads by index:
@@ -14,6 +15,10 @@ One read path for the newsroom home's Today section, the `papyrus today` command
 A responsibility's row is keyed by the run's `responsibility` (slice A1); a run without one is keyed by its automation, and a run
 with neither by its procedure. Outcomes are the five words of `run_outcomes`, each shown with its mark; a run that has no outcome is
 counted in words too (`Not finished yet`, `Recorded before outcomes`), so every run is in exactly one count.
+
+Above what ran come Waiting for you, Needs attention and Due today (`today_attention`): the things only a person can move, each with its one
+action, then what will happen in the day unless someone acts. The day and every time on it are in the site's time zone (its publication.timeZone)
+unless the caller names another; a site that names none is shown in UTC, and Today says so.
 """
 from __future__ import annotations
 
@@ -24,7 +29,8 @@ from datetime import datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import overdue, run_outcomes
+from . import overdue, run_attention, run_outcomes, today_attention
+from .review_requests import read_review, rows_in_state
 from .responsibilities import BY_KEY as RESPONSIBILITIES
 from .automations import ENABLED_NOTE, NOT_SUPPORTED, read_record
 from .run_outcomes import OUTCOME_SHOWN
@@ -35,6 +41,7 @@ from .announcements.sends import NO_COST, sends_of_day
 RUN_STATUSES = ("queued", "started", "running", "completed", "failed", "notRunnable")
 DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DEFAULT_TIME_ZONE = "UTC"
+NO_SITE_ZONE = "This site names no time zone (publication.timeZone), so times are in UTC."
 SORT_KEY = "requestedAt"
 
 #: The count that holds a run which has no outcome, with the words it is shown in.
@@ -165,12 +172,17 @@ def did_not_run(records: list[dict[str, Any]], runs: list[dict[str, Any]]) -> li
     return found
 
 
-def today_overview(client, *, day: str | None = None, time_zone: str | None = None, now: datetime | None = None) -> dict[str, Any]:
-    """Today for one day. Read only."""
+def today_overview(client, *, day: str | None = None, time_zone: str | None = None, site_time_zone: str | None = None,
+                   now: datetime | None = None) -> dict[str, Any]:
+    """Today for one day. Read only. The day is in ``time_zone`` when the caller names one, otherwise in the site's own zone."""
     moment = now or datetime.now(timezone.utc)
-    bounds = day_bounds(day, time_zone, moment)
+    # Where the zone came from: the caller named it, it is the site's own, or the site names none and the day is UTC.
+    source = "requested" if time_zone else "site" if site_time_zone else "none"
+    bounds = day_bounds(day, time_zone or site_time_zone, moment)
+    zone = bounds["timeZone"]
     runs = read_day(client, bounds)
-    records = [read_record(row) for row in client.list_tenant_rows("Automation", "id title description enabled trigger procedureKey inputTemplate limits")]
+    automation_rows = client.list_tenant_rows("Automation", "id title description enabled trigger procedureKey definition definitionRetiredAt inputTemplate limits")
+    records = [read_record(row) for row in automation_rows]
     titles = {record["id"]: record.get("title") for record in records}
     groups: dict[str, dict[str, Any]] = {}
     for row in runs:
@@ -183,8 +195,15 @@ def today_overview(client, *, day: str | None = None, time_zone: str | None = No
     for group in rows:
         for key in COUNT_KEYS:
             totals[key] += group["counts"][key]
+    open_rows = rows_in_state(client, "open")
+    open_requests = [read_review(row) for row in open_rows]
+    overdue_entries = overdue.read(client, moment, open_review_rows=open_rows)
     return {
-        "state": "ready", "asOf": _instant(moment), **bounds, "overdue": overdue.read(client, moment), "rows": rows, "didNotRun": did_not_run(records, runs), "sends": sends_of_day(client, bounds),
+        "state": "ready", "asOf": _instant(moment), **bounds, "timeZoneSource": source, "timeZoneNote": NO_SITE_ZONE if source == "none" else None,
+        "waiting": today_attention.waiting_for_you(open_requests, zone, bounds["day"]),
+        "attention": today_attention.needs_attention(run_attention.list_attention(client), overdue_entries, open_requests, zone, bounds["day"]),
+        "due": today_attention.due_today(client, bounds, zone, automation_rows, open_requests, moment),
+        "overdue": overdue_entries, "rows": rows, "didNotRun": did_not_run(records, runs), "sends": sends_of_day(client, bounds),
         "totals": {"runs": len(runs), "counts": totals, "costUsd": round(sum(group["costUsd"] for group in rows), 6),
                    "costKnownRuns": sum(group["costKnownRuns"] for group in rows), "costUnknownRuns": sum(group["costUnknownRuns"] for group in rows)},
     }
@@ -236,13 +255,41 @@ def day_title(overview: dict[str, Any]) -> str:
     return f"{overview['day']} ({overview['timeZone']})"
 
 
+def waiting_text(entry: dict[str, Any]) -> str:
+    """One line of Waiting for you or Needs attention: the mark, the words, what it is about, and its one action with the command that does it."""
+    action = entry["action"]
+    if entry["kind"] == "review":
+        when = f" · goes on without review at {entry['deadlineLocal']}" if entry["mode"] == "soft_review" and entry.get("deadlineLocal") else ""
+        body = f"{entry['mark']} {entry['modeWords']}: {entry['reason']} ({entry['subjectWords']}){when}"
+    elif entry["kind"] == "run":
+        reason = f" ({entry['reason']})" if entry.get("reason") else ""
+        about = f" · {entry['subjectWords']}" if entry.get("subjectWords") else ""
+        body = f"{entry['mark']} {entry['words']}{reason}: {entry['title']}{about} · run {entry['id']} · since {entry['neededLocal']}"
+    else:
+        waiting = f" ({entry['waitingFor']})" if entry.get("waitingFor") else ""
+        body = f"{overdue.MARK} {overdue.WORD}: {entry['record']} {entry['id']} was due {entry['dueLocal']}{waiting} and nothing ran"
+    command = f": {action['command']}" if action.get("command") else (f" ({action['note']})" if action.get("note") else "")
+    return f"{body}  [{action['words']}{command}]"
+
+
+def due_text(entry: dict[str, Any]) -> str:
+    detail = f" ({entry['detail']})" if entry.get("detail") else ""
+    return f"{entry['local']}  {entry['words']}: {entry['title']}{detail}"
+
+
 def render(overview: dict[str, Any]) -> list[str]:
-    """The plain text of Today: one line per responsibility, nothing-to-do reasons under it, then the agents that did not run."""
+    """The plain text of Today: what only a person can move, what is due, then one line per responsibility with the nothing-to-do reasons under it, then
+    the agents that did not run."""
     lines = [f"TODAY · {day_title(overview)} · as of {overview['asOf']}"]
+    if overview.get("timeZoneNote"):
+        lines.append(f"  {overview['timeZoneNote']}")
     totals = overview["totals"]
-    if overview["overdue"]:   # what only a person can move comes first (slice C4)
-        lines.append(f"NEEDS ATTENTION · {len(overview['overdue'])} overdue")
-        lines.extend(f"  {entry['shown']}" for entry in overview["overdue"])
+    for heading, entries, empty, shown in (
+            ("WAITING FOR YOU", overview["waiting"], "Nothing is waiting for you.", waiting_text),
+            ("NEEDS ATTENTION", overview["attention"], "Nothing needs attention.", waiting_text),
+            ("DUE TODAY", overview["due"], "Nothing is due in this day.", due_text)):
+        lines.append(f"{heading} ({len(entries)})")
+        lines.extend([f"  {shown(entry)}" for entry in entries] or [f"  {empty}"])
     lines.append(f"WHAT RAN · {totals['runs']} run{'' if totals['runs'] == 1 else 's'} · {cost_text(totals)}")
     if not overview["rows"]:
         lines.append("  Nothing ran in this day.")
