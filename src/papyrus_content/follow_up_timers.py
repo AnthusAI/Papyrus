@@ -171,6 +171,39 @@ class FollowUpTimers:
         return str(request["wakeKey"])
 
 
+class SiteNotNamed(FollowUpError):
+    """This process was not told which site's schedule group and wake queue its follow-ups go to."""
+
+
+def site_follow_ups(environment: Mapping[str, str], *, appsync_endpoint: str, procedure_key: str, actor_label: str, needed_for: str,
+                    require_policy_location: bool = False, client: Any = None) -> tuple[FollowUpTimers, dict[str, Any]]:
+    """The follow-up timers of the site this process works for, and the base of the runner request each wake carries, named as the site's functions name them.
+
+    ``PAPYRUS_AGENT_PUBLICATION_ID``, ``PAPYRUS_AWS_ACCOUNT_ID`` and ``AWS_REGION`` are required; ``PAPYRUS_AWS_PARTITION`` defaults to ``aws``. The tenant
+    (``PAPYRUS_AGENT_TENANT_ID``, else ``PAPYRUS_TENANT_ID``) and the site bucket (``PAPYRUS_SITE_BUCKET``) say where the run finds the site's agent policy. With
+    ``require_policy_location`` they are required too, because the runner refuses a wake that does not name them. ``needed_for`` says in words what needs the timers.
+    A function that must not read and write as a tenant carries the tenant as ``PAPYRUS_AGENT_TENANT_ID`` (the image service)."""
+    def value(name: str) -> str:
+        return str(environment.get(name) or "").strip()
+
+    tenant = value("PAPYRUS_AGENT_TENANT_ID") or value("PAPYRUS_TENANT_ID")
+    names = ["PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_AWS_ACCOUNT_ID", "AWS_REGION"]
+    missing = [name for name in names if not value(name)]
+    if require_policy_location:
+        missing += [name for name, given in (("PAPYRUS_TENANT_ID", tenant), ("PAPYRUS_SITE_BUCKET", value("PAPYRUS_SITE_BUCKET"))) if not given]
+    if missing:
+        raise SiteNotNamed(f"{needed_for} sets a follow-up timer on the site's schedule group, which needs {', '.join(missing)}")
+    publication = value("PAPYRUS_AGENT_PUBLICATION_ID")
+    timers = FollowUpTimers.for_site(publication, account=value("PAPYRUS_AWS_ACCOUNT_ID"), region=value("AWS_REGION"),
+                                     partition=value("PAPYRUS_AWS_PARTITION") or "aws", client=client)
+    base: dict[str, Any] = {"publicationId": publication, "appsyncEndpoint": appsync_endpoint, "procedureKey": procedure_key, "actorLabel": actor_label}
+    if tenant:
+        base["tenantId"] = tenant
+    if value("PAPYRUS_SITE_BUCKET"):
+        base["siteBucket"] = value("PAPYRUS_SITE_BUCKET")
+    return timers, base
+
+
 # --- the run's first check -----------------------------------------------------------------------------------------------------
 
 

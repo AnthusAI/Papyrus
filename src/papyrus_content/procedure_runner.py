@@ -451,6 +451,11 @@ def child_environment(request: dict, openai_api_key: str | None) -> dict:
     publication = str(request.get("publicationId") or "")
     if re.fullmatch(r"[a-z0-9-]{1,40}", publication):
         environment["X_BROADCAST_FUNCTION"] = f"papyrus-notifications-broadcast-{publication}"
+    # The site whose follow-up timers a procedure sets (a Delivery's release and lock times, a soft review's deadline): the schedule group and wake queue are named from it.
+    # The account and partition come from the runner's own environment (papyrus-procedure-runner.yaml).
+    environment.pop("PAPYRUS_AGENT_PUBLICATION_ID", None)
+    if re.fullmatch(r"[A-Za-z0-9._-]{1,64}", publication):
+        environment["PAPYRUS_AGENT_PUBLICATION_ID"] = publication
     environment.pop("SITE_ORIGIN", None)
     if is_plain_https_origin(request.get("siteOrigin")):
         environment["SITE_ORIGIN"] = request["siteOrigin"]

@@ -69,4 +69,12 @@ assert.match(python, /announcementsRead/, "the function serves the announcements
 assert.match(python, /announcementsWrite/, "the function serves the announcements write door");
 assert.match(readFileSync(join(process.cwd(), "src/papyrus_content/guidelines/s3_files.py"), "utf8"), /PAYLOAD_PREFIX = "newsroom\/payloads\/item\/"/, "the Python files stay under the prefix the role allows");
 
+// The announcements write door moves a Delivery's follow-up timer with its due time (PPY-e2829f): the function may set `follow-up-*` entries in its own site's schedule group
+// and names the site, the tenant (as the wake's, never as its own) and the bucket where the runner reads the agent policy.
+const wire = readFileSync(join(process.cwd(), "amplify/functions/image-service/wire.ts"), "utf8");
+assert.match(wire, /allowFollowUpTimers\(lambda, followUps\.brandId\)/, "the write door may set the site's follow-up timers");
+for (const name of ["PAPYRUS_AGENT_PUBLICATION_ID", "PAPYRUS_AGENT_TENANT_ID", "PAPYRUS_SITE_BUCKET", "PAPYRUS_AWS_ACCOUNT_ID"]) assert.match(wire, new RegExp(`"${name}"`), `the function is told ${name}`);
+assert.ok(!/"PAPYRUS_TENANT_ID"/.test(wire), "the function does not read and write as the tenant");
+assert.match(python, /DeliveryTimers\.from_environment/, "the write door builds the site's Delivery timers");
+
 console.log("image service backend: ok");

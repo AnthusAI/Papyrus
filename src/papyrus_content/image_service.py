@@ -66,11 +66,26 @@ def _arguments(raw: Any) -> Any:
     return raw if raw is not None else {}
 
 
+def site_delivery_timers(env: Any) -> Any:
+    """The site's follow-up timers for its Deliveries, named by this function's environment (amplify/functions/image-service/wire.ts), so a person's change through the
+    announcements write door moves a Delivery's timer with its due time (PPY-e2829f). None where the site is not named: the old timer then fires once and does nothing,
+    and the new time is shown as Overdue (overdue.py)."""
+    from .announcements.delivery_timers import DeliveryTimers
+    from .follow_up_timers import SiteNotNamed
+
+    try:
+        return DeliveryTimers.from_environment(env, appsync_endpoint=str(env.get("PAPYRUS_GRAPHQL_ENDPOINT") or ""))
+    except SiteNotNamed as missing:
+        LOG.warning("announcements write door without follow-up timers: %s", missing)
+        return None
+
+
 def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | None = None, files_factory: Callable[[Any], Any] | None = None,
-           delivery_files_factory: Callable[[Any], Any] | None = None) -> dict:
+           delivery_files_factory: Callable[[Any], Any] | None = None, delivery_timers_factory: Callable[[], Any] | None = None) -> dict:
     """AppSync resolver entry for the four door fields. Returns the envelope as the field's JSON.
 
-    ``files_factory(client)`` supplies where guideline documents are kept (S3 by default); tests pass an in-memory one."""
+    ``files_factory(client)`` supplies where guideline documents are kept (S3 by default); tests pass an in-memory one. ``delivery_timers_factory()`` supplies the site's
+    follow-up timers for the announcements write door: by default the ones this function's environment names, and none when a test gives its own client."""
     env = os.environ if env is None else env
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
@@ -110,7 +125,8 @@ def handle(event: dict, *, env: Any = None, client_factory: Callable[[], Any] | 
             # asking and writes with this function's role (announcements/review_handlers.door_write_handlers).
             from .announcements.review_handlers import door_write_handlers
 
-            return execute(name, payload, caller, door_write_handlers(client, delivery_files_factory(client) if delivery_files_factory else None))
+            timers = delivery_timers_factory() if delivery_timers_factory else (site_delivery_timers(env) if client_factory is None else None)
+            return execute(name, payload, caller, door_write_handlers(client, delivery_files_factory(client) if delivery_files_factory else None, timers))
         if DOOR_GROUP[door] == "announcements":
             from .announcements.list_handlers import with_client as announcements_with_client
 
