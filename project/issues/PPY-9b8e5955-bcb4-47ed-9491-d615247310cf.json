@@ -3,7 +3,7 @@
   "title": "Review request deadlines are timers; open requests are read by index",
   "description": "Today a soft review's deadline is checked only when someone reads the list (`expire_due` runs on every read), and every read lists the whole `ReviewRequest` table, as does every gated publish. Give `ReviewRequest` a sparse `dueAt` and an index on state and time; set a follow-up timer for a soft review's deadline, so 'proceeded without review' happens at the deadline with nobody looking; read open requests by index everywhere (`list_reviews`, the publish gate, recipients). A flag and a hard gate still have no deadline.\n\n**Acceptance criteria**\n- A soft review proceeds at its deadline with no page open.\n- The Notification Center and the publish gate read open requests by index.\n- No code path lists the whole `ReviewRequest` table.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- review-deadline-timers.feature: a soft review times out at its deadline unattended; an answer before the deadline cancels the timer; a hard gate never times out; the publish gate finds its request by index.\n\n**Infrastructure as code touched:** Amplify data schema: one GSI on `ReviewRequest` (its own release).\n\n**Part of:** Timers: the schedule trigger and follow-ups. Slice code C3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -21,10 +21,23 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e734d0f1-3ae0-459b-92a2-4e181cd08a68",
+      "author": "ryan",
+      "text": "Proved live on MoM 2026-11-23: soft review rr-timer-live-check-20261123 raised 04:02:37Z with a 04:05:32Z deadline; follow-up timer follow-up-d3e600cd… fired through the wakes queue and the review_deadline wake marked it timed_out ('proceeded without review', by system) at 04:06:48Z with no page open. Open requests are read by the state index; the only whole-table read left is the one-time reviews:index-backfill. Spec: features_backend/stories/review-deadline-timers.feature.",
+      "created_at": "2026-11-23T04:07:51.354740Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-16T22:43:03.816595Z",
-  "updated_at": "2026-11-16T22:46:11.332853Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T04:07:51.944381Z",
+  "closed_at": "2026-11-23T04:07:51.943977Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
