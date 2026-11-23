@@ -141,6 +141,12 @@ Feature: Automation records describe what starts a procedure by itself
 
   Scenario: Updating an automation changes only what the operator sets
     Given a site backend with the TTAB automation
-    When an operator runs "automations update --id distinctive.ttab --enabled false --budget-usd 3"
-    Then the automation "distinctive.ttab" is disabled with a budget of 3 dollars per run
+    When an operator runs "automations update --id distinctive.ttab --enabled false --timeout-seconds 600"
+    Then the automation "distinctive.ttab" is disabled with a timeout of 600 seconds
     And its trigger and input template are unchanged
+
+  Scenario: A per-run budget is the owner's, in the agent policy, not an automation limit
+    Given a site backend with the TTAB automation
+    When an operator runs "automations update --id distinctive.ttab --budget-usd 3"
+    Then the command is refused, saying an agent's budget per run is set with "papyrus agents set-budget --agent"
+    And the automation "distinctive.ttab" keeps its limits

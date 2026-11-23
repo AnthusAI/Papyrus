@@ -347,6 +347,17 @@ Spend is checked before a run, not only counted after it (`src/papyrus_content/s
 
 The check is before the run, so a run that starts under the budget can end over it by what was in flight. A site's own pause (`site.paused` in the agent policy) remains the per-site stop that needs no table access.
 
+### Unusual cost is flagged, never stopped (PPY-eef85d, slice G3)
+
+`src/papyrus_content/unusual_cost.py`. After a run, and before its cost is added to the ledger, the runner judges the cost against the agent's own history:
+
+* **The history** is three running sums in the spend ledger (`pk = SPEND#<tenant>#ai:<responsibility>#history`, `sk = RUNS`): how many fully priced runs, and the sum and the sum of squares of the natural logarithm of each run's cost in millionths of a dollar. They are added in the same transaction as the run's ledger markers, so a redelivered wake adds once. A run with an unpriced call or no cost stays out of it. No run record is read.
+* **The statistic.** A run is unusual when its log cost is above the one-sided upper prediction bound for one more run from that history at a tail probability of one in a thousand: `mean + t(0.999, n-1) * sd * sqrt(1 + 1/n)` over the log costs. Costs multiply, so their logarithm is close to normal; Student's t makes the bound wider when the history is short. With fewer than two earlier priced runs, or no spread among them, the run is not judged and the log line says why.
+* **The owner's per-run budget** is `agents.<responsibility>.budgetUsdPerRun` in the agent policy (`papyrus agents set-budget --agent R --per-run USD --reason TEXT [--apply]`, an admin who is a person). A run over it is flagged the same way.
+* **One flag a run**: the ReviewRequest `rr-run-cost-<digest of the run id>` (mode `flag`, subject `automation_run`), with the cost, the earlier runs, the typical (geometric mean) cost and the bound, and the words "The run was not stopped." Nothing waits on it. The runner prints `{"unusualCost": "flagged" | "judged" | "not judged", ...}` for every run that spent anything.
+
+The monitoring router's monitor-stories plan does not run through the procedure runner, so it has no spend ledger entry, no budget and no unusual-cost flag. Until it runs under the spend ledger it keeps its fixed 0.50 dollar backstops, renamed `monitoring_stories.MONITORING_ROUTER_INTERIM_COST_BACKSTOP_USD` (per publication and run) and `story_plan.MONITORING_ROUTER_INTERIM_STEP_COST_BACKSTOP_USD` (per step) to say what they are (Ryan, 2026-11-23).
+
 ## Who changes the agent policy
 
 A signed-in admin changes the agent policy (`papyrus agents set-rung --apply`, pause, resume, budget, loop limit, overrides) only through the site's `agent-policy` function (`agentPolicyChange`). The function checks that the caller is an admin and that the token was issued to a person-only app client (`PERSON_ONLY_CLIENT_IDS`); with none configured nobody qualifies. It refuses `publish_auto` while the hard floor stands, and it writes the version object and catalogue rows with its own role. The admin group's S3 grant on the policy objects is read-only. A CLI token still passes the client check while the CLI signs in on the console's own app client (`cliOnFederationClient` separates them). Operators with AWS credentials write directly, as the deploy does.

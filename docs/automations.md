@@ -18,7 +18,7 @@ describes that, links to it, controls it, costs it and shows what it did.
 | `enabled` | **Real for monitor automations.** The router reads the record before each start. A disabled automation starts nothing, and the trigger row says `skipped` with the reason "automation disabled". |
 | `limits.timeoutSeconds` | **Enforced.** It goes to the runner with the request and becomes the procedure's deadline, capped at 840 s (the runner Lambda's 15 minutes less its recording margin). |
 | `limits.maxConcurrent` | **Optional; unset means no limit, as before.** When set, a new start at the limit is **deferred**, not dropped: the trigger row says `deferred` with the reason ("deferred: concurrency limit: 1 running, at most 1 at a time") and the router starts it on a later run when there is room. |
-| `limits.budgetUsdPerRun` | **Advisory.** A run is never stopped for it. The history compares each run's recorded cost with it and flags a run over it. |
+| `limits.budgetUsdPerRun` | **Retired** (PPY-eef85d). An agent's budget per run is the owner's, in the agent policy (`agents.<responsibility>.budgetUsdPerRun`, set with `papyrus agents set-budget --agent R --per-run USD`). A run over it, or far above the agent's own cost history, raises one review flag and is never stopped (`docs/procedure-runner.md`). The record refuses the field and `--budget-usd`; a stored copy is ignored. |
 | Cost per run | **Recorded** (below). |
 | Run now | **Live** for monitor automations and for schedule automations that name a router publication, from the command line and the console. |
 
@@ -299,7 +299,7 @@ papyrus automations create --id distinctive.ttab --title "Analyze new TTAB rulin
   --input '{"proceeding":"{sourceIdPrefix}","opinion_url":"{documentUrl}"}' [--dry-run]
 papyrus automations adopt --id distinctive.ttab --responsibility KEY [--dry-run] [--json]
 papyrus automations update --id distinctive.ttab [--enabled false] [--title T] [--input JSON] \
-  [--timeout-seconds N] [--max-concurrent N] [--budget-usd N] [--dry-run]
+  [--timeout-seconds N] [--max-concurrent N] [--dry-run]
 ```
 
 Signed in with `papyrus login` (editor or admin), `list`, `show`, `runs` and `run` need no AWS credentials: they ask the

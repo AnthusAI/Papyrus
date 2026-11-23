@@ -8,10 +8,15 @@ row's partition key starts with ``SPEND#<tenant>#``, which is the one key prefix
 
     pk = SPEND#<tenant>#<scope>#<cycle start>   sk = TOTAL        microUsd, calls, unpricedCalls, updatedAt
     pk = SPEND#<tenant>#<scope>#<cycle start>   sk = RUN#<run id> a marker: this run was counted here (ttl: it only has to outlive a redelivery)
+    pk = SPEND#<tenant>#ai:<responsibility>#history   sk = RUNS   runs, sumLogMicroUsd, sumSquaredLogMicroUsd (the agent's cost history, below)
 
 A run is counted once. The markers and the totals of every scope the run belongs to are written in one transaction, and a marker that already exists cancels the
 whole transaction, so a wake that is delivered twice adds its cost once. A model call with no price is counted in ``unpricedCalls`` and never as free: the total
 of a cycle that has any is ``partial`` and says how many calls it does not include.
+
+An agent's **cost history** (PPY-eef85d, slice G3) is three running sums over the natural logarithm of each fully priced run's cost in millionths of a dollar:
+how many runs, the sum of the logarithms and the sum of their squares. They are added in the same transaction as the run's markers, so a redelivered wake adds
+to the history once, and they are all ``unusual_cost.py`` needs to judge the next run against every earlier one without reading any run record.
 """
 from __future__ import annotations
 
@@ -26,6 +31,9 @@ TOTAL_SORT_KEY = "TOTAL"
 MARKER_SORT_PREFIX = "RUN#"
 MARKER_LIFETIME = timedelta(days=30)   # longer than the queue keeps a message, so no redelivery meets a missing marker
 MICRO = Decimal(1_000_000)
+HISTORY_CYCLE = "history"
+HISTORY_SORT_KEY = "RUNS"
+LOGARITHM_PLACES = Decimal("0.000000001")   # a logarithm is stored to nine places, so the running sums add exactly in DynamoDB's decimal numbers
 
 
 class SpendError(Exception):
@@ -84,9 +92,33 @@ class Spent:
         return self.unpricedCalls > 0
 
 
+def history_key(tenant_id: str, responsibility: str) -> str:
+    return f"{KEY_PREFIX}{tenant_id}#ai:{responsibility}#{HISTORY_CYCLE}"
+
+
+def log_micro_usd(cost_usd: Any) -> Decimal:
+    """The natural logarithm of a positive cost in millionths of a dollar, to nine places: what the history adds up."""
+    return (Decimal(str(cost_usd)) * MICRO).ln().quantize(LOGARITHM_PLACES)
+
+
+@dataclass(frozen=True)
+class CostHistory:
+    """An agent's fully priced runs so far, as running sums of the logarithm of each run's cost in millionths of a dollar."""
+    runs: int
+    sumLogMicroUsd: Decimal
+    sumSquaredLogMicroUsd: Decimal
+
+
+def cost_history(table: Any, *, tenant_id: str, responsibility: str) -> CostHistory:
+    """What the agent's history holds now (no runs when nothing was counted)."""
+    item = table.get_item(Key={"pk": history_key(tenant_id, responsibility), "sk": HISTORY_SORT_KEY}, ConsistentRead=True).get("Item") or {}
+    return CostHistory(int(item.get("runs", 0)), Decimal(str(item.get("sumLogMicroUsd", 0))), Decimal(str(item.get("sumSquaredLogMicroUsd", 0))))
+
+
 def record_run(table: Any, *, tenant_id: str, responsibility: str | None, run_id: str, period: str, cost_usd: Any, calls: int, unpriced_calls: int,
-               moment: datetime) -> bool:
-    """Add one finished run's cost to its scopes for the cycle that contains ``moment``. True when it was added, False when this run was counted already."""
+               moment: datetime, add_to_history: bool = False) -> bool:
+    """Add one finished run's cost to its scopes for the cycle that contains ``moment``. True when it was added, False when this run was counted already.
+    With ``add_to_history`` (an agent's run whose every call was priced and whose cost is above zero) the run joins the agent's cost history too."""
     if not tenant_id or not run_id:
         raise SpendError("A run is counted for a site and by its run id.")
     start = cycle_start(period, moment)
@@ -100,6 +132,14 @@ def record_run(table: Any, *, tenant_id: str, responsibility: str | None, run_id
         items.append({"Update": {"TableName": table.name, "Key": {"pk": key, "sk": TOTAL_SORT_KEY},
                                  "UpdateExpression": "ADD microUsd :cost, calls :calls, unpricedCalls :unpriced SET updatedAt = :stamp",
                                  "ExpressionAttributeValues": {":cost": micro_usd(cost_usd), ":calls": calls, ":unpriced": unpriced_calls, ":stamp": stamp}}})
+    if add_to_history:
+        if not responsibility or unpriced_calls or Decimal(str(cost_usd or 0)) <= 0:
+            raise SpendError("Only an agent's run with a cost above zero and every call priced joins its cost history.")
+        logarithm = log_micro_usd(cost_usd)
+        items.append({"Update": {"TableName": table.name, "Key": {"pk": history_key(tenant_id, responsibility), "sk": HISTORY_SORT_KEY},
+                                 "UpdateExpression": "ADD runs :one, sumLogMicroUsd :log, sumSquaredLogMicroUsd :squared SET updatedAt = :stamp",
+                                 "ExpressionAttributeValues": {":one": 1, ":log": logarithm, ":squared": (logarithm * logarithm).quantize(LOGARITHM_PLACES),
+                                                               ":stamp": stamp}}})
     try:
         table.meta.client.transact_write_items(TransactItems=items)
     except Exception as error:   # a botocore ClientError; read by its response so this module needs no AWS library to be imported

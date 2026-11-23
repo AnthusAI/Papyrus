@@ -22,7 +22,7 @@ from .resolve import PolicyState
 
 KIND = "agents"
 SITE_FIELDS = ("quietWindow", "coalescing", "budget", "tiers")
-AGENT_FIELDS = ("loopLimit",)
+AGENT_FIELDS = ("loopLimit", "budgetUsdPerRun")
 
 
 def may_change(caller: Caller) -> None:
@@ -130,7 +130,7 @@ class AgentPolicyStore:
         return self.change(tenant_id, caller, reason, edit)
 
     def set_value(self, tenant_id: str, caller: Caller, field: str, value: Any, *, reason: str, responsibility: str | None = None) -> PolicyState:
-        """Set the quiet window, the budget or the tiers (site), or an agent's loop limit. The tasks that read them come later."""
+        """Set the quiet window, the budget or the tiers (site), or an agent's loop limit or per-run budget."""
         allowed = SITE_FIELDS if responsibility is None else AGENT_FIELDS
         if field not in allowed:
             raise PolicyError("invalid_input", f"{'The site' if responsibility is None else responsibility} holds: {', '.join(allowed)}.")

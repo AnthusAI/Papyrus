@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from . import agent_wakes, request_meter, run_continuation, run_outcomes, run_settle, spend_ledger, wake_keys
+from . import agent_wakes, request_meter, run_continuation, run_outcomes, run_settle, unusual_cost, wake_keys
 from .agent_gate import run_context, run_end
 from .cloud_procedures import (
     START_PROCEDURE_RUN_MUTATION, current_cloud_procedure_version, get_cloud_procedure_definition_by_key,
@@ -236,22 +236,21 @@ def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
 
 
 def spend_of(request: dict, decision, usage: dict | None, cost_usd: float | None) -> dict | None:
-    """What the ledger needs to count this run: the site, the agent that made it, the budget period of the site's policy and the model calls with their cost.
-    None when the run made no model call. A site with no budget in its policy is counted by the month."""
+    """What the ledger needs to count this run: the site, the agent that made it, the budget period of the site's policy, the model calls with their cost, and
+    the owner's per-run budget for the agent (``agents.<responsibility>.budgetUsdPerRun``, which only flags). None when the run made no model call. A site
+    with no budget in its policy is counted by the month."""
     if not usage or not usage.get("calls") or not request.get("tenantId"):
         return None
-    site = (decision.state.document.get("site") or {}) if decision.state is not None else {}
+    document = decision.state.document if decision.state is not None else {}
+    site, agent = document.get("site") or {}, (document.get("agents") or {}).get(decision.responsibility or "") or {}
     return {"tenantId": request["tenantId"], "responsibility": decision.responsibility, "period": (site.get("budget") or {}).get("period", "month"),
-            "costUsd": cost_usd, "calls": usage["calls"], "unpricedCalls": usage.get("unpricedCalls", 0)}
+            "costUsd": cost_usd, "calls": usage["calls"], "unpricedCalls": usage.get("unpricedCalls", 0), "budgetUsdPerRun": agent.get("budgetUsdPerRun")}
 
 
-def record_spend(table, result: dict, *, moment: datetime | None = None) -> None:
-    """Add a finished run's cost to the spend ledger, once. A run that made no model call adds nothing."""
-    spend = result.get("spend")
-    if table is None or not spend:
-        return
-    spend_ledger.record_run(table, tenant_id=spend["tenantId"], responsibility=spend["responsibility"], run_id=result["runId"], period=spend["period"],
-                            cost_usd=spend["costUsd"], calls=spend["calls"], unpriced_calls=spend["unpricedCalls"], moment=moment or datetime.now(timezone.utc))
+def record_spend(table, client, result: dict, *, moment: datetime | None = None) -> dict | None:
+    """Add a finished run's cost to the spend ledger, once, after judging it against its agent's history: an unusual cost, or one over the owner's per-run
+    budget, raises one flag and stops nothing (unusual_cost.py). A run that made no model call adds nothing."""
+    return unusual_cost.watch_run(table, client, result, moment=moment)
 
 
 def skip_run(client, run_id: str, request: dict, decision, *, now: Callable[[], str]) -> dict:
@@ -499,6 +498,7 @@ def handler(event, context):
     table_name = os.environ.get("TRIGGER_TABLE_NAME")
     table = boto3.resource("dynamodb").Table(table_name) if table_name else None
     trigger = request.get("trigger") if isinstance(request.get("trigger"), dict) else None
+    client = None   # a run that spent anything had a client; a wake refused before one existed has no spend to record
     try:
         request = validate_request(request)
         openai_api_key = None
@@ -532,7 +532,7 @@ def handler(event, context):
     if result.get("duplicate"):
         return result   # the first delivery of this wake already recorded its trigger row and ran what follows a run
     record_trigger_outcome(table, trigger, result)
-    record_spend(table, result)   # after the trigger row, so a ledger error never leaves a finished run's row looking unfinished
+    record_spend(table, client, result)   # after the trigger row, so a ledger error never leaves a finished run's row looking unfinished
     if result.get("skipped") or result.get("settled") or result.get("waiting") or result.get("released"):
         return result   # the policy started nothing, or the run was settled unknown: no run happened: no story is advanced and no stage trigger fires for a run that did not happen
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":

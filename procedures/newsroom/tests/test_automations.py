@@ -52,7 +52,7 @@ def test_the_other_kinds_are_stored_and_marked_not_yet_supported(kind):
     ({"limits": {"timeoutSeconds": 0}}, "limits.timeoutSeconds"),
     ({"limits": {"timeoutSeconds": 9999}}, "limits.timeoutSeconds"),
     ({"limits": {"maxConcurrent": "many"}}, "limits.maxConcurrent"),
-    ({"limits": {"budgetUsdPerRun": -1}}, "budgetUsdPerRun"),
+    ({"limits": {"budgetUsdPerRun": 1}}, "no longer an automation limit: an agent's budget per run is the owner's, in the agent policy"),
     ({"limits": {"surprise": 1}}, "unknown limit"),
     ({"enabled": "maybe"}, "enabled must be true or false"),
 ])
@@ -81,10 +81,10 @@ def test_create_stores_json_fields_as_strings_and_refuses_a_duplicate():
 
 def test_update_changes_only_what_is_set_and_keeps_creation():
     client = FakeAuthoringClient({"Automation": [fx.automation_row()]})
-    updated = au.update_automation(client, "distinctive.ttab", {"enabled": "false", "limits": {"budgetUsdPerRun": 2.5}},
+    updated = au.update_automation(client, "distinctive.ttab", {"enabled": "false", "limits": {"timeoutSeconds": 600}},
                                    actor="b", now="2026-10-24T00:00:00Z")
     assert updated["enabled"] is False and updated["title"] == "Analyze new TTAB rulings"
-    assert updated["limits"] == {"timeoutSeconds": 840, "budgetUsdPerRun": 2.5}
+    assert updated["limits"] == {"timeoutSeconds": 600}
     assert updated["createdBy"] == "tester" and updated["createdAt"] == "2026-10-23T07:00:00Z"
     assert updated["updatedBy"] == "b" and updated["updatedAt"] == "2026-10-24T00:00:00Z"
     assert json.loads(client.tables["Automation"]["distinctive.ttab"]["inputTemplate"]) == fx.TEMPLATE
@@ -102,7 +102,7 @@ def test_update_refuses_a_missing_record_and_an_id_change():
 def test_a_record_says_what_enabled_and_limits_do():
     shown = record()
     assert shown["enabledNote"] == "the router starts nothing for a disabled automation"
-    assert "enforced when a run starts" in shown["limitsNote"] and "budget is advisory" in shown["limitsNote"]
+    assert "enforced when a run starts" in shown["limitsNote"] and "budget" not in shown["limitsNote"]
     assert shown["supported"] is True and shown["supportNote"] is None
 
 
@@ -184,7 +184,6 @@ def test_items_that_already_had_a_reference_are_counted_not_listed():
 def test_a_run_without_a_recorded_cost_says_so():
     run = next(run for run in history()["runs"] if run["sourceId"] == "97752244-EXA_26")
     assert run["costUsd"] is None and run["costNote"] == "not recorded for this run" and run["usage"] is None
-    assert run["overBudget"] is False
     assert history()["runs"][0]["costNote"] == "no run record, so no cost"   # started, with no run record yet
 
 
@@ -199,7 +198,7 @@ def test_the_recorded_cost_and_usage_are_shown_with_the_run():
     assert run["costUsd"] == 0.0123 and run["costNote"] == "estimated from the model usage reported by the run"
     assert run["usage"] == {"calls": 3, "promptTokens": 50000, "completionTokens": 4000, "models": {"gpt-6-luna": 3},
                             "complete": True, "unpricedModels": []}
-    assert run["overBudget"] is False and run["budgetUsd"] is None
+    assert "overBudget" not in run and "budgetUsd" not in run   # an unusual cost is a review flag (unusual_cost.py), not a mark on the history
 
 
 def test_a_partly_priced_run_says_which_model_has_no_price():
@@ -214,14 +213,11 @@ def test_usage_with_no_priced_model_has_no_cost_and_says_why():
     assert run["costUsd"] is None and "no model in it has a price: mystery" in run["costNote"]
 
 
-def test_the_advisory_budget_is_compared_with_the_recorded_cost_and_flagged():
-    shown = au.read_record(fx.automation_row(limits=json.dumps({"timeoutSeconds": 840, "maxConcurrent": 1, "budgetUsdPerRun": 0.05})))
-    result = au.automation_history(shown, reader=reader(), client=costed_client(0.08, fx.usage_summary()))
-    over = next(run for run in result["runs"] if run["runId"] == "run-1")
-    assert over["overBudget"] is True and over["budgetUsd"] == 0.05
-    within = au.automation_history(shown, reader=reader(), client=costed_client(0.05, fx.usage_summary()))
-    assert next(run for run in within["runs"] if run["runId"] == "run-1")["overBudget"] is False   # at the budget is not over it
-    assert next(run for run in result["runs"] if run["runId"] == "run-2")["overBudget"] is False   # no cost, nothing to flag
+def test_a_record_written_with_the_retired_per_run_budget_reads_without_it_and_can_still_be_changed():
+    client = FakeAuthoringClient({"Automation": [fx.automation_row(limits=json.dumps({"timeoutSeconds": 840, "maxConcurrent": 1, "budgetUsdPerRun": 0.05}))]})
+    assert au.read_record(client.tables["Automation"]["distinctive.ttab"])["limits"] == {"timeoutSeconds": 840, "maxConcurrent": 1}
+    updated = au.update_automation(client, "distinctive.ttab", {"title": "Renamed"}, actor="b", now="2026-10-24T00:00:00Z")
+    assert updated["limits"] == {"timeoutSeconds": 840, "maxConcurrent": 1}
 
 
 def test_a_backend_without_the_cost_fields_still_reads_the_run():
@@ -455,10 +451,10 @@ def test_runs_prints_the_history_the_cost_and_the_runs_started_outside(cli):
     assert "Started outside this automation:" in out and "outside\t2026-10-22T10:00:00Z\tcompleted" in out and "papyrus-cli" in out
 
 
-def test_runs_flags_a_run_over_its_advisory_budget(cli):
-    cli.state["client"].tables["Automation"]["distinctive.ttab"]["limits"] = json.dumps({"timeoutSeconds": 840, "maxConcurrent": 1, "budgetUsdPerRun": 0.01})
+def test_runs_shows_the_cost_and_no_budget_mark(cli):
     cli.state["client"].tables["ProcedureRun"]["run-1"].update(costUsd=0.0123, usage=json.dumps(fx.usage_summary()))
-    assert "$0.0123 OVER BUDGET" in cli("runs", "--id", "distinctive.ttab")
+    out = cli("runs", "--id", "distinctive.ttab")
+    assert "$0.0123" in out and "OVER BUDGET" not in out
 
 
 def test_runs_as_json_has_the_joined_fields(cli):
@@ -501,9 +497,11 @@ def test_create_refuses_an_invalid_input_template(cli):
 
 
 def test_update_sets_enabled_and_limits_and_keeps_the_rest(cli):
-    cli("update", "--id", "distinctive.ttab", "--enabled", "false", "--budget-usd", "3", "--timeout-seconds", "600")
+    cli("update", "--id", "distinctive.ttab", "--enabled", "false", "--timeout-seconds", "600")
     stored = au.read_record(cli.state["client"].tables["Automation"]["distinctive.ttab"])
-    assert stored["enabled"] is False and stored["limits"] == {"timeoutSeconds": 600, "maxConcurrent": 1, "budgetUsdPerRun": 3.0}
+    assert stored["enabled"] is False and stored["limits"] == {"timeoutSeconds": 600, "maxConcurrent": 1}
+    with pytest.raises(AutomationError, match="--budget-usd is no longer an automation limit"):
+        cli("update", "--id", "distinctive.ttab", "--budget-usd", "3")
     assert stored["trigger"] == MONITOR and stored["inputTemplate"] == fx.TEMPLATE
 
 

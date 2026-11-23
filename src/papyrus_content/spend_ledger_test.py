@@ -29,9 +29,12 @@ class FakeLedgerTable:
                 update = item["Update"]
                 row = self.rows.setdefault((update["Key"]["pk"], update["Key"]["sk"]), dict(update["Key"]))
                 values = update["ExpressionAttributeValues"]
-                for field, name in (("microUsd", ":cost"), ("calls", ":calls"), ("unpricedCalls", ":unpriced")):
+                additions, setting = update["UpdateExpression"].removeprefix("ADD ").split(" SET ")
+                for addition in additions.split(", "):
+                    field, name = addition.split()
                     row[field] = row.get(field, 0) + values[name]
-                row["updatedAt"] = values[":stamp"]
+                field, name = setting.split(" = ")
+                row[field] = values[name]
 
     def update_item(self, Key, UpdateExpression, ExpressionAttributeValues, ReturnValues=None):
         """The one update the X counter makes: ADD microUsd :cost, calls :one SET updatedAt = :stamp."""
@@ -59,7 +62,7 @@ def test_a_run_with_no_model_call_adds_nothing():
     assert spend_of({"tenantId": "alpha"}, Decision(), {"toolsUsed": {"x": 1}}, None) is None
     assert spend_of({"tenantId": "alpha"}, Decision(), None, None) is None
     table = FakeLedgerTable()
-    record_spend(table, {"runId": "run-1", "spend": None})
+    record_spend(table, None, {"runId": "run-1", "spend": None})
     assert table.rows == {} and table.transactions == 0
 
 

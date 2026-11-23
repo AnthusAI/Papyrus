@@ -76,7 +76,10 @@ SET_BUDGET_USAGE = ("Usage: papyrus --site SITE agents set-budget --amount USD -
                     "  Admin only, and only a person: sign in with `papyrus login` as an admin; an agent may never change the budget. A dry run unless --apply: it prints\n"
                     "  the budget before and after, the version it would be and the wakes that wait now, and writes nothing. --apply saves it as a new version of the\n"
                     "  agent policy (who, when and why; signed in, the site's agent-policy function saves it, and refuses a token that is not a person's) and then puts every waiting wake back on the site's queue, oldest first; each re-checks the new budget when it\n"
-                    "  arrives, so a budget still too small leaves it waiting. Releasing the wakes needs the operator's AWS credentials for the site's wake queue.")
+                    "  arrives, so a budget still too small leaves it waiting. Releasing the wakes needs the operator's AWS credentials for the site's wake queue.\n"
+                    "Usage: papyrus --site SITE agents set-budget --agent RESPONSIBILITY --per-run USD --reason TEXT [--apply]\n"
+                    "  Set one agent's budget for a single run (RESPONSIBILITY is the agent's key in the agent policy, as the spend ledger names it). A run over it is never\n"
+                    "  stopped: it raises one flag with the figures, as a run far above the agent's own cost history does. Admin who is a person only; a dry run unless --apply.")
 
 
 def route_tree() -> dict:
@@ -421,10 +424,12 @@ def set_budget_command(argv: list[str], stdout: TextIO | None = None, client_fac
         word = rest.pop(0)
         if word == "--apply":
             apply = True
-        elif word in ("--amount", "--period", "--reason") and rest:
+        elif word in ("--amount", "--period", "--reason", "--agent", "--per-run") and rest:
             values[word] = rest.pop(0)
         else:
             return refuse(f"{word} is not a flag of agents set-budget, or has no value.", path=word)
+    if "--agent" in values or "--per-run" in values:
+        return set_run_budget(values, apply, finish, refuse, client_factory=client_factory, policy_factory=policy_factory, caller_factory=caller_factory)
     for flag in ("--amount", "--period", "--reason"):
         if not values.get(flag, "").strip():
             return refuse(f"Give {flag}.", path=flag)
@@ -472,6 +477,50 @@ def set_budget_command(argv: list[str], stdout: TextIO | None = None, client_fac
                                      f"({type(error).__name__}: {error}). They run when the cycle turns; run this command again with the operator's AWS credentials to release them now.",
                                      details={"result": result}), ERROR_EXIT_CODE)
     return finish({"ok": True, "op": "agents_set_budget", "result": result, "warnings": [] if changed else ["The budget is already as asked; nothing was written."]}, 0)
+
+
+def set_run_budget(values: dict[str, str], apply: bool, finish, refuse, *, client_factory=None, policy_factory=None, caller_factory=None) -> int:
+    """``agents set-budget --agent R --per-run USD``: the owner's budget for one run of one agent. It only flags (unusual_cost.py), so nothing waits on it and
+    nothing is released."""
+    for flag in ("--agent", "--per-run", "--reason"):
+        if not values.get(flag, "").strip():
+            return refuse(f"Give {flag}.", path=flag)
+    if "--amount" in values or "--period" in values:
+        return refuse("--per-run sets one agent's budget for a run; --amount and --period set the site's budget. Give one or the other.", path="--per-run")
+    try:
+        per_run = float(values["--per-run"])
+    except ValueError:
+        return refuse("--per-run is a number of US dollars, such as 0.25.", path="--per-run")
+    responsibility = values["--agent"].strip()
+    from papyrus_content.agent_policy import PolicyError
+    from papyrus_content.images.handlers import Caller
+    from papyrus_content.images.profile_handlers import identify
+
+    try:
+        client = (client_factory or _client)()
+        caller = (caller_factory or identify)(client, Caller(kind=actor_kind()))
+        tenant_id = getattr(client, "tenant_id", None)
+        if not tenant_id:
+            return refuse("The site's tenant is not known: pass --site, or sign in to the site, so the budget of one site is changed.", path="--site")
+        policy = (policy_factory or _policy_store_for_site)(client)
+
+        def edit(document: dict) -> None:
+            document["agents"].setdefault(responsibility, {"rung": "off"})["budgetUsdPerRun"] = per_run
+
+        state, document = policy.prepare(tenant_id, caller, values["--reason"], edit)
+        changed = document != state.document
+        result = {"action": "apply" if apply else "dry-run", "agent": responsibility, "changed": changed, "applied": False,
+                  "budgetUsdPerRun": {"before": (state.document["agents"].get(responsibility) or {}).get("budgetUsdPerRun"), "after": per_run},
+                  "policyVersion": {"before": state.version, "after": state.version + 1 if changed else state.version}}
+        if apply and changed:
+            saved = policy.set_value(tenant_id, caller, "budgetUsdPerRun", per_run, reason=values["--reason"], responsibility=responsibility)
+            result.update(applied=True, policyVersion={"before": state.version, "after": saved.version})
+    except PolicyError as error:
+        return refuse(error.message, error.code)
+    except ValueError as error:
+        return refuse(str(error))
+    warnings = [] if changed else ["The agent's budget per run is already as asked; nothing " + ("was" if apply else "would be") + " written."]
+    return finish({"ok": True, "op": "agents_set_budget", "result": result, "warnings": warnings}, 0)
 
 
 def _wake_sender():
