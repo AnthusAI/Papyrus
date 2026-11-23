@@ -6903,6 +6903,95 @@
           "reason"
         ]
       }
+    },
+    {
+      "name": "agents_wake_overdue",
+      "audience": "staff",
+      "description": "Wake now one Overdue record (a Delivery, or a soft review's deadline) that a follow-up timer wakes: its timer's wake goes on the site's wake queue again, with the same key, and runs once.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "type": "string",
+            "enum": [
+              "Delivery",
+              "ReviewRequest"
+            ],
+            "description": "The kind of record, as Today names it."
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The record's id, as Today lists it."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          }
+        },
+        "required": [
+          "record",
+          "id",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dueAt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The due time it missed."
+          },
+          "waitingFor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wakeKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The key of the timer's wake; the same key the timer used."
+          },
+          "requestedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shown": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What happened, in words."
+          }
+        },
+        "required": [
+          "record",
+          "id",
+          "dueAt",
+          "wakeKey",
+          "requestedBy",
+          "reason",
+          "shown"
+        ]
+      }
     }
   ]
 }

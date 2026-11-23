@@ -552,5 +552,5 @@ def command(argv: list[str], stdout: TextIO | None = None) -> int:
     if argv[:1] == ["listeners"]:
         return listeners_command(argv[1:], stdout)
     out = stdout or sys.stdout
-    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply, schedules, listeners, set-rung, set-budget, pause, resume, pauses, wake.", details={"command": " ".join(argv)}), indent=2) + "\n")
+    out.write(json.dumps(error_envelope("agents", "unknown_operation", f"{' '.join(argv) or '(nothing)'} is not an agents command; try: validate, apply, schedules, listeners, set-rung, set-budget, pause, resume, pauses, wake, wake-overdue.", details={"command": " ".join(argv)}), indent=2) + "\n")
     return ERROR_EXIT_CODE
