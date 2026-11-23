@@ -36,6 +36,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "editWindows": [],
     # Post spacing, in minutes, by channel account (``<channel>#<account id>``, as ``records.account_key`` writes it). Empty: no account has spacing, so nothing is held.
     "spacing": {},
+    "opportunities": {"enabled": False, "budget": None, "postPrice": None, "userPrice": None},
 }
 
 
@@ -73,6 +74,9 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
     if not isinstance(require_reviewed, bool):
         raise _fail("require_reviewed_source_invalid", "Reviewed only is on or off.")
     spacing = _spacing(proposed.get("spacing"))
+    from .opportunity_search import validated_settings
+
+    opportunities = validated_settings(proposed.get("opportunities"))
     budget = proposed.get("budget")
     if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget < 0):
         raise _fail("budget_invalid", "The budget is an amount of money, zero or more, per X billing cycle.")
@@ -88,6 +92,8 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
         raise _fail("price_date_invalid", "Give the date you copied the prices from X, as year-month-day.")
     label = bool(proposed.get("labelConfirmed"))
     windows = edit_windows.validate(proposed.get(edit_windows.KEY))
+    if opportunities["enabled"] and (cycle_day is None or connection_status != CONNECTED):
+        raise _fail("search_not_configured", "A connected X account and billing cycle day are required to enable opportunity searches.")
     if mode in ("dry_run", "on") and connection_status != CONNECTED:
         raise _fail("account_needed", "Connect an X account before choosing Dry run or On.")
     if mode == "on":
@@ -104,6 +110,7 @@ def validate(proposed: dict[str, Any], connection_status: str) -> dict[str, Any]
         "labelConfirmed": label,
         edit_windows.KEY: windows,
         "spacing": spacing,
+        "opportunities": opportunities,
     }
 
 
