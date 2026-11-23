@@ -3,7 +3,7 @@
   "title": "Email alerts on the new records",
   "description": "Replace the ALERT#<listId>/ITEM#<lineageId> de-dup rows and the alert issue. dedupeKey story-published:<lineageId> plus the email Delivery's audience. The alert's Markus body moves to the Delivery's text file in S3. Kept alert rows are converted (keys only) so each becomes an Announcement with a sent email Delivery and nothing alerts twice. The notifications story.published event becomes the first attempt of the email Delivery. Follows the Caducus move.\n\n**Acceptance criteria**\n- Gherkin: Kept alert rows still prevent a second alert after conversion.\n- Gherkin: Fan-out counts (counts match Caducus records; a reader on two lists gets one message).\n- Conversion command is idempotent.\n- Operator alarms are not Announcements and stay plain Caducus events.\n\nDesign: ~/Projects/papyrus-announcement-delivery-design.md. X feed stays OFF. No real email addresses in specs or fixtures. Every behaviour change ships with narrative Gherkin specs.\n\n**Always-on agent standard (2026-11-16; design `docs/design/always-on-agents-architecture.md`)**\nAn alert list is a list with cadence `each` (PPY-4d74d9). A reader holds one cadence per family, so nobody gets an item both singly and in the daily summary (PPY-a19b9d). Quiet hours and spacing are PPY-769d1b. Now also blocked by PPY-4d74d9.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -27,10 +27,23 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9db39db5-8c1e-440d-96c9-da4bed429e75",
+      "author": "ryan",
+      "text": "Closing 2026-11-23 after an audit of develop and main: email alerts on the new records shipped and released in #1707 (announcements/email-alerts-on-the-new-records.feature, alert_conversion.py).",
+      "created_at": "2026-11-23T15:47:23.441187Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-16T21:48:37.232977Z",
-  "updated_at": "2026-11-19T08:00:01.825365Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T15:47:26.042561Z",
+  "closed_at": "2026-11-23T15:47:26.042462Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

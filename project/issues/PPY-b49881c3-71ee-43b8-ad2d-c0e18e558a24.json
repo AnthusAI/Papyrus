@@ -3,17 +3,30 @@
   "title": "Staff and readers use their existing site permissions through MCP",
   "description": "Feature: Work through Papyrus MCP\nScenario: An editor directs a reference decision\n  Given an editor is connected to the publication\n  When their agent accepts a reference\n  Then the recorded decision follows the publication permissions and attribution rules\nScenario: A reader submits a link\n  Given a signed-in reader and enabled Reader Steering\n  When their agent submits a link\n  Then the link is submitted under that reader identity\n  And the connection cannot read newsroom records",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "939c90b8-cb7f-4059-9633-7e60a9b9e997",
+      "author": "ryan",
+      "text": "Closing 2026-11-23 after an audit of develop and main: staff and readers use their site permissions through MCP, proven by features/mcp mcp-domain-tools.feature (agent accepts a Reference on a current card; reader submission uses the verified site subject; a reader cannot use staff tools). Live verification on a pilot site stays with PPY-17c201.",
+      "created_at": "2026-11-23T15:47:23.869054Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-05T20:05:54.144331Z",
-  "updated_at": "2026-11-05T20:05:54.144361Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T15:47:26.483544Z",
+  "closed_at": "2026-11-23T15:47:26.483486Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
