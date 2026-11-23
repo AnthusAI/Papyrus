@@ -1,4 +1,4 @@
-import type { TodayCounts, TodayOverview, TodayRow, TodayRun } from "./today-overview";
+import type { TodayAttentionEntry, TodayCounts, TodayDue, TodayOverdue, TodayOverview, TodayReview, TodayRow, TodayRun } from "./today-overview";
 
 const none: TodayCounts = { acted: 0, nothing: 0, asked: 0, failed: 0, unknown: 0, notFinished: 0, beforeOutcomes: 0 };
 
@@ -40,15 +40,64 @@ const announce: TodayRow = {
   ],
 };
 
+const overdueDelivery: TodayOverdue = {
+  kind: "Delivery", id: "announcement-daily#email#site#g1", dueAt: "2026-11-16T11:00:00Z", waitingFor: "release", flagId: "overdue-0f3a",
+  shown: "⏰ Overdue: Delivery announcement-daily#email#site#g1 was due 2026-11-16T11:00:00Z (release) and nothing ran",
+};
+
+const waiting: TodayReview[] = [
+  {
+    kind: "review", id: "gate-run-announce-7", mode: "hard_gate", modeWords: "Hard gate: nothing proceeds without an answer", mark: "?",
+    reason: "Post the X announcement of \"Agents that lie\"?", ask: "Approve or do: post", subject: { type: "automation_run", id: "run-announce-7" },
+    subjectWords: "automation run run-announce-7", raisedBy: "agent:announce", raisedAt: "2026-11-16T14:10:00Z", deadline: null, deadlineLocal: null,
+    action: { kind: "answer", words: "Answer", requestId: "gate-run-announce-7", command: "papyrus reviews answer --id gate-run-announce-7 --decision approve|reject" },
+  },
+  {
+    kind: "review", id: "announce-draft-x-1", mode: "soft_review", modeWords: "Soft review", mark: "?",
+    reason: "X announcement draft for \"Eternal October\"", ask: null, subject: { type: "delivery", id: "announcement-1#x#machines#g1" },
+    subjectWords: "delivery announcement-1#x#machines#g1", raisedBy: "agent:announce", raisedAt: "2026-11-16T13:40:00Z", deadline: "2026-11-16T20:30:00Z", deadlineLocal: "3:30 PM",
+    action: { kind: "answer", words: "Answer", requestId: "announce-draft-x-1", command: "papyrus reviews answer --id announce-draft-x-1 --decision approve|reject" },
+  },
+  {
+    kind: "review", id: "rr-ratings-2026-11-16", mode: "soft_review", modeWords: "Soft review", mark: "?",
+    reason: "3 ratings suggested, 1 five-star candidate", ask: null, subject: { type: "batch", id: "ratings-2026-11-16" },
+    subjectWords: "batch ratings-2026-11-16", raisedBy: "agent:rate", raisedAt: "2026-11-16T12:00:00Z", deadline: null, deadlineLocal: null,
+    action: { kind: "answer", words: "Answer", requestId: "rr-ratings-2026-11-16", command: "papyrus reviews answer --id rr-ratings-2026-11-16 --decision approve|reject" },
+  },
+];
+
+const attention: TodayAttentionEntry[] = [
+  {
+    kind: "run", id: "run-t3", outcome: "unknown", mark: "!", words: "Outcome unknown", reason: "interrupted", title: "Translate", automationId: null, procedureKey: "translate_story",
+    subject: { type: "story", id: "eternal-october" }, subjectWords: "story eternal-october", neededAt: "2026-11-16T14:30:00Z", neededLocal: "9:30 AM", error: null,
+    action: { kind: "settle", words: "Settle", runId: "run-t3", command: "papyrus automations acknowledge --run run-t3",
+              note: "Look at what it wrote, then settle it: the run leaves this list and stays in the history as Outcome unknown." },
+  },
+  {
+    kind: "run", id: "run-t2", outcome: "failed", mark: "✗", words: "Failed", reason: "timed_out", title: "Translate", automationId: null, procedureKey: "translate_story",
+    subject: null, subjectWords: null, neededAt: "2026-11-16T13:44:00Z", neededLocal: "8:44 AM", error: "timed out after 840 s",
+    action: { kind: "acknowledge", words: "Acknowledge", runId: "run-t2", command: "papyrus automations acknowledge --run run-t2", note: null },
+  },
+  {
+    ...overdueDelivery, kind: "overdue", record: "Delivery", dueLocal: "6:00 AM",
+    action: { kind: "wake_now", words: "Wake now", available: false, note: "Wake now is the agents wake operation. Until it is there, the operations check sends this wake again on its daily run." },
+  },
+];
+
+const due: TodayDue[] = [
+  { kind: "schedule", what: "schedule", words: "Scheduled wake", at: "2026-11-16T11:00:00Z", local: "6:00 AM", title: "Daily summary", id: "newsletter.daily", detail: "0 6 * * * in America/New_York" },
+  { kind: "story", what: "scheduledPublishAt", words: "Publishes", at: "2026-11-16T19:00:00Z", local: "2:00 PM", title: "Eternal October", id: "eternal-october", detail: null },
+  { kind: "delivery", what: "lockAt", words: "Locks", at: "2026-11-16T20:30:00Z", local: "3:30 PM", title: "x machines", id: "announcement-1#x#machines#g1", detail: "not yet approved" },
+  { kind: "review", what: "deadline", words: "Review deadline: goes on without review", at: "2026-11-16T20:30:00Z", local: "3:30 PM", title: "X announcement draft for \"Eternal October\"", id: "announce-draft-x-1", detail: null },
+  { kind: "delivery", what: "releaseAt", words: "Goes out", at: "2026-11-16T21:00:00Z", local: "4:00 PM", title: "x machines", id: "announcement-1#x#machines#g1", detail: null },
+];
+
 /** A realistic Today for tests and the `?demo=1` newsroom. */
 export const FIXTURE_TODAY: TodayOverview = {
-  state: "ready", asOf: "2026-11-16T17:00:00.000Z", day: "2026-11-16", timeZone: "America/New_York", start: "2026-11-16T05:00:00.000Z", end: "2026-11-17T05:00:00.000Z",
-  overdue: [
-    {
-      kind: "Delivery", id: "announcement-daily#email#site#g1", dueAt: "2026-11-16T11:00:00Z", waitingFor: "release", flagId: "overdue-0f3a",
-      shown: "⏰ Overdue: Delivery announcement-daily#email#site#g1 was due 2026-11-16T11:00:00Z (release) and nothing ran",
-    },
-  ],
+  state: "ready", asOf: "2026-11-16T17:00:00.000Z", day: "2026-11-16", timeZone: "America/New_York", timeZoneSource: "site", timeZoneNote: null,
+  start: "2026-11-16T05:00:00.000Z", end: "2026-11-17T05:00:00.000Z",
+  waiting, attention, due,
+  overdue: [overdueDelivery],
   rows: [announce, rate, translate],
   didNotRun: [
     { automationId: "digest.weekly", title: "Weekly digest", state: "Did not run", whyCode: "disabled", why: "Disabled: the router starts nothing for a disabled automation" },

@@ -6,7 +6,7 @@
     "modelCases": 505,
     "indexCases": 232,
     "subscriptionCases": 9,
-    "operationCases": 144,
+    "operationCases": 146,
     "functionCases": 78,
     "surfaceCases": 9
   },
@@ -5988,6 +5988,14 @@
       "expect": "denied, or returns nothing of \"beta\""
     },
     {
+      "id": "operation:acknowledgeRun",
+      "kind": "operation",
+      "subject": "acknowledgeRun",
+      "operation": "call-with-foreign-ids",
+      "probe": "alpha calls acknowledgeRun with \"beta\"'s ids for runId",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
       "id": "operation:addStoryAgentNote",
       "kind": "operation",
       "subject": "addStoryAgentNote",
@@ -6033,6 +6041,14 @@
       "subject": "agentSetItemStars",
       "operation": "call-with-foreign-ids",
       "probe": "alpha calls agentSetItemStars with \"beta\"'s ids for itemId, lineageId",
+      "expect": "denied, or returns nothing of \"beta\""
+    },
+    {
+      "id": "operation:agentWake",
+      "kind": "operation",
+      "subject": "agentWake",
+      "operation": "call-scope",
+      "probe": "alpha calls agentWake with input chosen to reach \"beta\"",
       "expect": "denied, or returns nothing of \"beta\""
     },
     {

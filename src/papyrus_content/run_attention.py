@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .tenancy import row_belongs_to_tenant
 from .tenant_knowledge_keys import global_key
 
 ATTENTION = "attention"
@@ -55,7 +56,7 @@ def acknowledge(client, run_id: str, by: str, now: str) -> dict[str, Any]:
     if not run_id:
         raise AttentionError("acknowledging a run needs its run id.")
     run = client.get_record(MODEL, run_id)
-    if not run:
+    if not run or not row_belongs_to_tenant(MODEL, getattr(client, "tenant_id", None), run):   # another tenant's run on a shared stack is not there
         raise AttentionError(f"run {run_id} does not exist.")
     if not run.get("attentionKey"):
         return {"runId": run_id, "changed": False, "reason": "acknowledged already" if run.get("acknowledgedAt") else "needs nobody"}

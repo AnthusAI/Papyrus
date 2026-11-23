@@ -3,7 +3,7 @@
   "title": "Unusual cost is flagged from the agent's own history",
   "description": "Ryan's ruling: an unusually costly Story flags a person and never stops. 'Unusual' is learned: a run or a Story whose cost is far outside the distribution of that agent's own past runs raises one flag with the numbers. Remove the fixed 0.50 dollar guard in `monitoring_stories.py` and make `budgetUsdPerRun` an owner setting that also only flags.\n\n**Acceptance criteria**\n- A run far above the agent's history raises one flag and is not stopped.\n- No fixed dollar constant remains in agent code.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- unusual-cost.feature: a run within history raises nothing; a far outlier raises one flag with the figures; an agent with little history says so instead of guessing.\n\n**Infrastructure as code touched:** None.\n\n**Part of:** Spend, budgets and model tiers. Slice code G3 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -29,11 +29,23 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "c5864de5-6161-42f7-b0d6-237c496c499a",
+      "author": "ryan",
+      "text": "Released in Papyrus 5.150.0 (#1875) and deployed to MoM (Amplify job 159, 2026-11-23).",
+      "created_at": "2026-11-23T15:41:42.124293Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:43:08.004289Z",
-  "updated_at": "2026-11-23T14:45:48.152350Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T15:41:42.446028Z",
+  "closed_at": "2026-11-23T15:41:42.445963Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

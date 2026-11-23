@@ -28,7 +28,8 @@ BY = "worker"
 
 
 class TodayClient:
-    """What Today may read: the announcement indexes through the records fake. The day's runs and the agents are not under test here, so they are empty."""
+    """What Today may read: the announcement indexes through the records fake. The day's runs, the runs that need a person, the agents and the Stories
+    scheduled to publish are not under test here, so they are empty."""
 
     tenant_id = None
 
@@ -36,7 +37,10 @@ class TodayClient:
         self.backend = backend
 
     def list_by_index(self, index, key, **options):
-        return [] if index == "procedureRunsByStatus" else self.backend.list_by_index(index, key, **options)
+        return [] if index in ("procedureRunsByStatus", "procedureRunsByAttention") else self.backend.list_by_index(index, key, **options)
+
+    def list_schedule(self, state, start=None, end=None):
+        return []
 
     def list_tenant_rows(self, model, fields, **_):
         return []

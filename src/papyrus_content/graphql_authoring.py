@@ -507,6 +507,9 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     # One agent's runs by its automation id (PPY-577310): the run history of a schedule, event or manual agent, newest first.
     "procedureRunsByAutomation": {"field": "listProcedureRunsByAutomationAndRequestedAt", "partitionKey": "automationId", "sortKey": "requestedAt",
                                   "fields": f"{PROCEDURE_RUN_FIELDS} {PROCEDURE_RUN_COST_FIELDS} tenantId"},
+    # One agent's runs with the wake each kept (PPY-e6f31e, agent_poke_in.py): what a resume catches up and what wake now sends again. Same automation index.
+    "procedureRunWakesByAutomation": {"field": "listProcedureRunsByAutomationAndRequestedAt", "partitionKey": "automationId", "sortKey": "requestedAt",
+                                      "fields": "id tenantId automationId runStatus outcome outcomeReason requestedAt wakeKey wake"},
     "procedureRunsByProcedure": {"field": "listProcedureRunsByProcedureAndRequestedAt", "partitionKey": "procedureId", "sortKey": "requestedAt", "fields": PROCEDURE_RUN_FIELDS},
     "procedureDefinitionsByKey": {"field": "listProcedureDefinitionsByKeyAndUpdatedAt", "partitionKey": "procedureKey", "sortKey": "updatedAt", "fields": PROCEDURE_DEFINITION_FIELDS},
     "itemsByLanguageGroup": {"field": "listItemsByLanguageGroupAndLanguage", "partitionKey": "languageGroupId", "sortKey": "language", "fields": ITEM_FIELDS},

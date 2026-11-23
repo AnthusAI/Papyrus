@@ -32,10 +32,34 @@
       "text": "set-rung built and merged to develop (PR #1652, 4511d6b0; not released): papyrus agents set-rung, admin-only, dry run unless --apply, before/after printed, new version per apply, refuses unknown rung / above definition ceiling / publish_auto (E4 floor gate not built). Spec: features_backend/agent-set-rung.feature. siteBucket for MoM router publication: PR #1653 (52b2de14). Not done: pause, resume, wake, redirect, undo; IAM grant for admins to write tenants/*/site/agents/* in the media bucket (not applied); task left open.",
       "created_at": "2026-11-17T09:20:00.646713Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a883aac9-9a29-4519-863d-d214ad7e7ef9",
+      "author": "ryan",
+      "text": "Audit 2026-11-23: set-rung (#1652) and store-level pause/resume (#1635) exist. Remaining: agents pause/resume/wake/redirect/undo as CLI and newsroom operations with parity, and poke-in.feature.",
+      "created_at": "2026-11-23T15:47:25.038692Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    },
+    {
+      "id": "e900f602-fb8e-4308-8c00-acb092a989f0",
+      "author": "ryan",
+      "text": "Pause, resume, pauses and wake merged to develop in #1882 (poke-in.feature). Remaining here: agents redirect and agents undo --run. The signed-in CLI cannot pause (person-only function, same as set-rung).",
+      "created_at": "2026-11-23T17:08:24.926907Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:43:08.891817Z",
-  "updated_at": "2026-11-17T09:20:00.648311Z",
+  "updated_at": "2026-11-23T17:08:24.927060Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

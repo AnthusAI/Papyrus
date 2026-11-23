@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PauseControl, WakeNowControl, type PokeInHandlers } from "./agent-poke-in-control";
 import { RunNowControl } from "./automation-run-now";
 import { RunOutcome } from "./run-outcome";
 import {
@@ -75,7 +76,18 @@ function OutsideRunLine({ run, demo }: { run: AutomationOutsideRun; demo: boolea
   );
 }
 
-function Detail({ record, demo, onRunNow }: { record: AutomationRecord; demo: boolean; onRunNow?: RunNowHandler }) {
+function AgentControls({ record, pokeIn }: { record: AutomationRecord; pokeIn: PokeInHandlers }) {
+  return (
+    <section data-automation-agent-controls={record.id} aria-label={`Pause, resume or wake ${record.title}`}>
+      <h4>Pause, resume, wake now</h4>
+      {record.responsibility ? <PauseControl agent={record.responsibility} name={record.responsibility} handlers={pokeIn} />
+        : <p className="news-desk-delegation-note" data-agent-pause-unadopted>Not adopted onto a responsibility, so the agent policy does not govern it and there is nothing to pause. An admin adopts it with <code>papyrus automations adopt</code>.</p>}
+      <WakeNowControl agent={record.id} handlers={pokeIn} />
+    </section>
+  );
+}
+
+function Detail({ record, demo, onRunNow, pokeIn }: { record: AutomationRecord; demo: boolean; onRunNow?: RunNowHandler; pokeIn?: PokeInHandlers }) {
   const notice = noticeText(record.notice);
   return (
     <article className="news-desk-doctrine-card" data-automation-detail={record.id}>
@@ -90,6 +102,7 @@ function Detail({ record, demo, onRunNow }: { record: AutomationRecord; demo: bo
       </dl>
       {notice ? <p className="news-desk-delegation-note" data-automation-notice>{notice}</p> : null}
       <RunNowControl record={record} demo={demo} onRun={onRunNow} />
+      {pokeIn && (record.responsibility || record.trigger.kind === "event") ? <AgentControls record={record} pokeIn={pokeIn} /> : null}
       <h4>Recent runs</h4>
       {record.runs.length ? (
         <ul className="news-desk-monitoring__list" data-automation-runs>
@@ -146,12 +159,15 @@ export function AutomationView({
   onSelect,
   demo = false,
   onRunNow,
+  pokeIn,
 }: {
   result: AutomationResult | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   demo?: boolean;
   onRunNow?: RunNowHandler;
+  /** Pause, resume and wake now (the poke-in operations). Left out, the page shows none of them. */
+  pokeIn?: PokeInHandlers;
 }) {
   let body: React.ReactNode;
   if (result === null) {
@@ -175,7 +191,7 @@ export function AutomationView({
           </ul>
           {result.monitoring === "not_configured" ? <p className="news-desk-delegation-note" data-automation-notice>{noticeText("monitoring_not_configured")}</p> : null}
         </article>
-        {selected ? <Detail record={selected} demo={demo} onRunNow={onRunNow} /> : <p className="news-desk-delegation-note" data-automation-pick>Choose an automation to see its recent runs.</p>}
+        {selected ? <Detail record={selected} demo={demo} onRunNow={onRunNow} pokeIn={pokeIn} /> : <p className="news-desk-delegation-note" data-automation-pick>Choose an automation to see its recent runs.</p>}
       </>
     );
   }
@@ -189,6 +205,7 @@ export function AutomationView({
           </div>
         </div>
         {result && "asOf" in result ? <p className="news-desk-delegation-note" data-automation-as-of>As of {formatUtc(result.asOf)}. Enabled: {ENABLED_NOTE}.</p> : null}
+        {pokeIn ? <PauseControl agent={null} name="The site" handlers={pokeIn} /> : null}
       </article>
       {body}
     </div>

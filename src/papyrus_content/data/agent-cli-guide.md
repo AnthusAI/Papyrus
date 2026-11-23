@@ -23,7 +23,7 @@ export PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300
 ```
 
 - `papyrus login SITE` opens a browser once (Google sign-in only). `papyrus whoami` renews and prints every signed-in site's session as JSON; a site you are not signed in to prints `No session; run papyrus login SITE`.
-- `papyrus today [--day YYYY-MM-DD] [--time-zone ZONE] [--runs] [--json]` answers "what did the system do today?": runs per responsibility by outcome (each a mark and words), the reasons for nothing to do, the agents that did not run, and cost. Read only; editors and admins. See `docs/automations.md`, "Today".
+- `papyrus today [--day YYYY-MM-DD] [--time-zone ZONE] [--runs] [--json]` answers "what did the system do today?": first what only a person can move (Waiting for you, Needs attention, each with its one action and the command for it) and what is due today in the site's time zone, then runs per responsibility by outcome (each a mark and words), the reasons for nothing to do, the agents that did not run, and cost. Read only; editors and admins. See `docs/automations.md`, "Today".
 - `papyrus auth status` and `papyrus whoami` always list every signed-in site, whatever `PAPYRUS_SITE` says.
 - Choose the site for a command with `PAPYRUS_SITE=host`, or a leading `papyrus --site host <group> <command>` (only the leading position; a trailing `--site` means something else for several commands). With several sites signed in and none chosen, the CLI lists them and stops; it never guesses.
 - A signed-in editor needs no `amplify_outputs.json`, no `AWS_PROFILE` and no endpoint variable. Run from any folder outside a Papyrus checkout (inside one, the root guard stops a different install; `--allow-cross-root` overrides it on purpose).

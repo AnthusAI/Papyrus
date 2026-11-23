@@ -6568,6 +6568,341 @@
           "created"
         ]
       }
+    },
+    {
+      "name": "agents_pause",
+      "audience": "staff",
+      "description": "Pause one agent, or every agent on the site, with a reason: its next run starts nothing and its run record says why.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "blocked",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The agent's name in the agent policy (its responsibility, such as announce). Leave it out for every agent on the site."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "site"
+            ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pausedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pausedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "policyVersion": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "after": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "before",
+              "after"
+            ],
+            "description": "The agent policy's version before and after; the same when nothing changed."
+          }
+        },
+        "required": [
+          "scope",
+          "paused",
+          "changed",
+          "policyVersion"
+        ]
+      }
+    },
+    {
+      "name": "agents_resume",
+      "audience": "staff",
+      "description": "Resume one agent, or the site, with a reason, and send once each change wake the pause stopped.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "blocked",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The agent's name in the agent policy (its responsibility, such as announce). Leave it out for every agent on the site."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "site"
+            ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "policyVersion": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "after": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "before",
+              "after"
+            ],
+            "description": "The agent policy's version before and after; the same when nothing changed."
+          },
+          "caughtUp": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "agent": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "subject": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "wakeKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "repeats": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The key of the wake the pause stopped."
+                }
+              },
+              "required": [
+                "agent",
+                "subject",
+                "wakeKey",
+                "repeats"
+              ]
+            },
+            "description": "The wakes sent again: one for each subject whose latest wake the pause stopped."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "What was not caught up and why, in words."
+          }
+        },
+        "required": [
+          "scope",
+          "paused",
+          "changed",
+          "policyVersion",
+          "caughtUp",
+          "notes"
+        ]
+      }
+    },
+    {
+      "name": "agents_pauses",
+      "audience": "staff",
+      "description": "Show what is paused on the site: the site and each agent the agent policy names, with who paused it, when and why.",
+      "agentAllowed": true,
+      "agentRung": "observe",
+      "agentRefusal": "human_required",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "policyVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "site": {
+            "type": "object",
+            "properties": {
+              "paused": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pausedAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pausedBy": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "paused"
+            ]
+          },
+          "agents": {
+            "type": "object",
+            "description": "By agent: paused, and while paused its reason, when and who."
+          }
+        },
+        "required": [
+          "policyVersion",
+          "site",
+          "agents"
+        ]
+      }
+    },
+    {
+      "name": "agents_wake",
+      "audience": "staff",
+      "description": "Wake one agent now for one subject: its latest wake for that subject goes on the site's wake queue again, and runs once.",
+      "agentAllowed": false,
+      "agentRung": "person",
+      "agentRefusal": "human_required",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The agent's id, such as announce."
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What it is woken for: a Story's lineage id, or the record its wakes name, such as a Delivery's id."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          }
+        },
+        "required": [
+          "agent",
+          "subject",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "wakeKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repeats": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The key of the wake sent again."
+          },
+          "requestedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "agent",
+          "subject",
+          "wakeKey",
+          "repeats",
+          "requestedBy",
+          "reason"
+        ]
+      }
     }
   ]
 }

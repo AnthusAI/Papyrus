@@ -30,6 +30,10 @@ class RunIndexClient:
         low, high = sort_condition["between"]
         return [dict(row) for row in self.runs if row["runStatus"] == key and low <= row["requestedAt"] <= high]
 
+    def list_schedule(self, state, start=None, end=None):   # the Stories scheduled to publish (today-attention.feature): none are made here
+        self.reads.append(("schedule", state, start, end))
+        return []
+
     def list_tenant_rows(self, model, fields, **_):
         self.reads.append(("tenant", model))
         return [dict(row) for row in self.automations]

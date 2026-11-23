@@ -542,9 +542,24 @@ Today answers "what did the system do today?" in one place: the **Today** sectio
 `papyrus today`. Both read the site's `todayOverview` query (`src/papyrus_content/today.py`, served by the same function as `automationOverview`), so
 they show the same lines. It is read only.
 
-For one day (the viewer's own day on the page, `--day` and `--time-zone` on the command; default today, UTC on the command line) it shows:
+For one day (the site's own day, in its `publication.timeZone`, unless `--time-zone` names another; `--day` on the command; default today; a site that
+names no time zone is shown in UTC and Today says so) it shows, first, what only a person can move, each with its one action beside it
+(`src/papyrus_content/today_attention.py`):
 
-- **Needs attention**, first: the records that are Overdue (see Overdue, above), each as `⏰ Overdue` and its words.
+- **Waiting for you**: every open hard gate (first) and soft review, such as an announcement draft's review or the day's rating review
+  (`rr-ratings-<day>`), with a soft review's deadline in local time. The action is **Answer**: on the page it opens the request in the Notification
+  Center (`/newsroom/needs-me/<id>`); the command prints `papyrus reviews answer --id ID`.
+- **Needs attention**: runs whose outcome is unknown (**Settle**) and failures nobody has acknowledged (**Acknowledge**), from the run attention
+  index; the records that are Overdue (see Overdue, above; **Wake now**, which the agents wake operation provides; until then the page says the
+  operations check sends the wake again on its daily run); and open flags (**Open**), less the flag the overdue check raised for a record already
+  listed as Overdue. Settle and Acknowledge call the `acknowledgeRun` mutation (editors and admins), which is `papyrus automations acknowledge --run ID`:
+  the run leaves the list, records who and when, and keeps its outcome in the history.
+- **Due today**: each time in the day something happens unless someone acts, in local time: a Delivery's lock (with whether it is approved), release and
+  next attempt (the Delivery due index, read up to the day's end), a Story scheduled to publish (the schedule index), an agent's scheduled wake (the
+  schedule of its registered definition) and a soft review's deadline. A time already Overdue is under Needs attention instead.
+
+Then:
+
 - **What ran**, one line per responsibility (a run's `responsibility`; a run without one is counted under its automation, and one with neither under its
   procedure): how many runs ended `✓ Did it`, `– Nothing to do`, `? Asked`, `✗ Failed` and `! Outcome unknown`, each as its mark and its words, with the
   cost. A run that has no outcome is counted in words too: `… Not finished yet` (queued or running) and `Recorded before outcomes`.
@@ -558,7 +573,8 @@ For one day (the viewer's own day on the page, `--day` and `--time-zone` on the 
 
 Every read is an index. The day's runs are one key-condition query per run status (`queued`, `started`, `running`, `completed`, `failed`, `notRunnable`; `RUN_STATUSES`
 in `today.py`) on the `ProcedureRun` status index (`runStatus` + `requestedAt`), so only the rows requested inside the day are read. The agents are read through
-the Automation `tenantId` index. Nothing lists a whole table. The page refreshes when the tab is focused and every five minutes; it uses no subscription.
+the Automation `tenantId` index. The top reads the open partition of the review request state index, the run attention index, the Delivery due index and
+the Story schedule index. Nothing lists a whole table. The page refreshes when the tab is focused and every five minutes; it uses no subscription.
 
 ## Setting up the TTAB automation for Distinctive
 

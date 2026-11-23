@@ -3,7 +3,7 @@
   "title": "Coalescing window: wait for quiet before paid work",
   "description": "A burst of edits must not start ten paid runs. For a step marked paid, a change does not wake the agent at once; it sets or replaces one follow-up timer for that subject and step, due when the subject has been quiet for the site's window. The window is site data (Ryan's ruling: 30 minutes to 24 hours, about 5 minutes after a person's own action). Free steps wake at once. The pending wake's key leaves out the version; when it fires, the run takes the version that is current then. One pending timer per subject and step, never a sweep.\n\n**Acceptance criteria**\n- Ten quick edits to one Story start one paid run.\n- A person's edit uses the short window.\n- A free check runs at once on every save.\n- Every behaviour change ships with narrative Gherkin specs (below).\n\n**Gherkin features needed**\n- coalescing-window.feature: ten saves in a minute start one fact check; the run uses the last version; a person's edit shortens the wait; a free step runs on each save; changing the window changes only later waits.\n\n**Infrastructure as code touched:** None beyond the follow-up timer (C2). The window is a field in the agent policy document.\n\n**Part of:** Inbox: change feeds, the wake queue and one worker. Slice code B5 in `docs/design/always-on-agents-architecture.md` (section 12).\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; no text in DynamoDB; indexes over scans; no AppSync subscriptions; nothing created by hand in AWS; no real email addresses in specs or fixtures; status shown as words and marks, never colour alone.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -28,11 +28,23 @@
       "text": "Implemented with PPY-4e7e8b in one PR (wake gate, src/papyrus_content/wake_gate.py); see PR on branch feat/PPY-67e3cd-coalesce-loop-guard.",
       "created_at": "2026-11-19T08:44:10.920923Z",
       "comment_type": "default"
+    },
+    {
+      "id": "aa5f7362-f932-4b84-8222-f8f723759719",
+      "author": "ryan",
+      "text": "Closing 2026-11-23 after an audit of develop and main: coalescing window shipped and released in #1708 (wake_gate.py, wired in item-change-feed; features_backend/agents/coalescing-window.feature covers every criterion).",
+      "created_at": "2026-11-23T15:47:22.578933Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-16T22:43:02.729337Z",
-  "updated_at": "2026-11-19T08:44:10.921827Z",
-  "closed_at": null,
+  "updated_at": "2026-11-23T15:47:25.184150Z",
+  "closed_at": "2026-11-23T15:47:25.183568Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {

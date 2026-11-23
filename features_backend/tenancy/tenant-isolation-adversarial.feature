@@ -842,12 +842,14 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
     Examples: generated from the schema
       | operation                            | outcome                              |
       | abortModelAttachmentUpload           | denied, or returns nothing of "beta" |
+      | acknowledgeRun                       | denied, or returns nothing of "beta" |
       | addStoryAgentNote                    | denied, or returns nothing of "beta" |
       | agentPolicyChange                    | denied, or returns nothing of "beta" |
       | agentRequestStoryPublish             | denied, or returns nothing of "beta" |
       | agentReviewReferenceCuration         | denied, or returns nothing of "beta" |
       | agentSaveStoryDraft                  | denied, or returns nothing of "beta" |
       | agentSetItemStars                    | denied, or returns nothing of "beta" |
+      | agentWake                            | denied, or returns nothing of "beta" |
       | announcementsPause                   | denied, or returns nothing of "beta" |
       | announcementsRead                    | denied, or returns nothing of "beta" |
       | announcementsSaveSettings            | denied, or returns nothing of "beta" |

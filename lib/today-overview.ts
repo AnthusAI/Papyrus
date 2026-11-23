@@ -1,5 +1,5 @@
-/** Shapes and wording for Today: what ran in one day, what it decided to do nothing about, and what it cost (PPY-5bcf42).
- *  src/papyrus_content/today.py produces them; the words match what `papyrus today` prints. */
+/** Shapes and wording for Today: what only a person can move, what is due, what ran in one day, what it decided to do nothing about, and what it
+ *  cost (PPY-5bcf42, PPY-b6d5ad). src/papyrus_content/today.py and today_attention.py produce them; the words match what `papyrus today` prints. */
 import { getNewsroomNavHref } from "./newsroom-nav";
 
 export type TodayOutcome = "acted" | "nothing" | "asked" | "failed" | "unknown";
@@ -74,13 +74,86 @@ export type TodayOverdue = {
   shown: string;
 };
 
+export type TodayActionKind = "answer" | "open" | "settle" | "acknowledge" | "wake_now";
+
+/** The one action beside an item. `available: false` means the operation is not there yet; `note` says what does it meanwhile. */
+export type TodayAction = {
+  kind: TodayActionKind;
+  words: string;
+  command?: string;
+  note?: string | null;
+  requestId?: string;
+  runId?: string;
+  available?: boolean;
+};
+
+/** An open review request: a hard gate or a soft review under Waiting for you, a flag under Needs attention. */
+export type TodayReview = {
+  kind: "review";
+  id: string;
+  mode: "hard_gate" | "soft_review" | "flag";
+  modeWords: string;
+  mark: string;
+  reason: string;
+  ask: string | null;
+  subject: { type?: string; id?: string };
+  subjectWords: string;
+  raisedBy: string | null;
+  raisedAt: string | null;
+  deadline: string | null;
+  /** The deadline in the site's time zone. */
+  deadlineLocal: string | null;
+  action: TodayAction;
+};
+
+/** A run on the attention list: Outcome unknown (Settle) or a failure nobody has acknowledged (Acknowledge). */
+export type TodayAttentionRun = {
+  kind: "run";
+  id: string;
+  outcome: "unknown" | "failed";
+  mark: string;
+  words: string;
+  reason: string | null;
+  title: string;
+  automationId: string | null;
+  procedureKey: string | null;
+  subject: { type?: string; id?: string } | null;
+  subjectWords: string | null;
+  neededAt: string | null;
+  neededLocal: string | null;
+  error: string | null;
+  action: TodayAction;
+};
+
+export type TodayAttentionOverdue = Omit<TodayOverdue, "kind"> & { kind: "overdue"; record: string; dueLocal: string | null; action: TodayAction };
+
+export type TodayAttentionEntry = TodayAttentionRun | TodayAttentionOverdue | TodayReview;
+
+/** One time in the day something happens unless a person acts, in the site's time zone. */
+export type TodayDue = {
+  kind: "delivery" | "story" | "schedule" | "review";
+  what: "lockAt" | "releaseAt" | "nextAttemptAt" | "scheduledPublishAt" | "schedule" | "deadline";
+  words: string;
+  at: string;
+  local: string | null;
+  title: string;
+  id: string;
+  detail: string | null;
+};
+
 export type TodayOverview = {
   state: "ready";
   asOf: string;
   day: string;
   timeZone: string;
+  /** Where the zone came from: named by the caller, the site's own (publication.timeZone), or none (UTC). */
+  timeZoneSource: "requested" | "site" | "none";
+  timeZoneNote: string | null;
   start: string;
   end: string;
+  waiting: TodayReview[];
+  attention: TodayAttentionEntry[];
+  due: TodayDue[];
   overdue: TodayOverdue[];
   rows: TodayRow[];
   didNotRun: TodayDidNotRun[];
@@ -162,3 +235,20 @@ export function automationsHref(automationId: string | null, demo?: boolean): st
 }
 
 export const REFRESH_MILLISECONDS = 5 * 60 * 1000;
+
+/** A review request opened in the Notification Center, where it is answered. */
+export function reviewRequestHref(requestId: string, demo?: boolean): string {
+  return getNewsroomNavHref(`/newsroom/needs-me/${encodeURIComponent(requestId)}`, demo);
+}
+
+/** What acknowledging or settling a run answered. */
+export type AcknowledgeResult =
+  | { state: "acknowledged" | "unchanged"; runId: string; changed: boolean; reason: string | null }
+  | { state: "refused"; reason: string }
+  | { state: "unavailable" }
+  | { error: "forbidden" | "bad_request"; message?: string };
+
+/** The overview with one run taken off Needs attention: what the page shows once a run is acknowledged or settled, before the next read. */
+export function withoutAttentionRun(overview: TodayOverview, runId: string): TodayOverview {
+  return { ...overview, attention: overview.attention.filter((entry) => !(entry.kind === "run" && entry.id === runId)) };
+}
