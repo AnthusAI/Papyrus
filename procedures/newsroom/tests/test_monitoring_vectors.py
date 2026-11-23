@@ -23,6 +23,7 @@ import test_monitoring_stories as tms  # noqa: E402
 from field_recorder import FieldRecorder  # noqa: E402
 from fake_idea_store import FakeIdeaStore  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
+from monitor_stories_spend_fixture import monitor_stories_spend  # noqa: E402
 from test_monitor_stories import StoryModel, pages, with_editors_reasons, world  # noqa: E402
 from papyrus_content import monitoring_vectors as vectors  # noqa: E402
 from papyrus_content import reference_suggest_once as once  # noqa: E402
@@ -189,14 +190,14 @@ class Site:
         self.watermark = Watermark(place)
         self.heard = []
 
-    def run(self, *, key="sk-test", out_of_time=lambda: False, maximum_cost_usd=0.5, policy=None, hook=True, **fakes):
+    def run(self, *, key="sk-test", out_of_time=lambda: False, policy=None, hook=True, **fakes):
         from contextlib import ExitStack
 
         with ExitStack() as stack:
             for patch in self.index.patches():
                 stack.enter_context(patch)
             return vectors.run_vector_pass(
-                self.feed, PUBLICATION, {**POLICY, **(policy or {})}, now=RUN_AT, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, embedding_key=key,
+                self.feed, PUBLICATION, {**POLICY, **(policy or {})}, now=RUN_AT, out_of_time=out_of_time, embedding_key=key,
                 read_watermark=self.watermark.read, write_watermark=self.watermark.write,
                 services_for=lambda publication, bucket: KnowledgeQueryServices(graph=self.graph, corpus_text=self.corpus),
                 on_summary_written=(hook if callable(hook) else (lambda entries: self.heard.extend(entries))) if hook else None, **fakes)
@@ -431,17 +432,17 @@ def test_suggestions_can_be_turned_off_and_the_index_is_still_kept_current():
     assert result["indexed"] >= 1 and site.heard == [] and result["suggestionsQueued"] == 0 and "off" in result["suggestionsSkippedReason"]
 
 
-def test_the_embedding_cost_stops_the_pass_and_keeps_the_place_before_the_unfinished_page():
+def test_no_cost_ceiling_stops_the_pass_and_its_embedding_requests_and_cost_are_reported_for_the_spend_ledger():
     site = Site([row(1, 1)], place=saved_place(0))
     site.index.embed_and_put = lambda arn, candidates: (site.index.embedded.extend(c["key"] for c in candidates), len(candidates))[1]
 
     def indexer(services, options, references, nodes):
-        stats = {"vectorsWritten": 1, "conceptCardsToWrite": 0, "embeddingInputCharacters": 400_000_000}
+        stats = {"vectorsWritten": 1, "conceptCardsToWrite": 0, "embeddingInputCharacters": 400_000_000, "embeddingRequests": 3}
         stats["stoppedBy"] = options.stop_check(stats)
         return stats
 
     result = site.run(indexer=indexer)
-    assert result["stoppedBy"] == "cost" and site.watermark.writes == []
+    assert result["stoppedBy"] is None and result["embeddingRequests"] == 3 and result["costUsd"] == pytest.approx(vectors.embedding_cost_usd(400_000_000))
 
 
 def test_running_out_of_time_before_the_first_page_reads_nothing_and_keeps_the_place():
@@ -683,7 +684,7 @@ def run_monitor_stories(store, **more):
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: object(), deliver=tr.Delivery(), story_transport=StoryModel(),
-                            embedding_key="sk-test", **more)
+                            embedding_key="sk-test", monitor_stories_spend=monitor_stories_spend(), **more)
     return result, out.getvalue()
 
 
@@ -736,7 +737,7 @@ def run_task(store, client, order, monkeypatch, *, key="sk-test", drafter_option
 
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint], deliver=tr.Delivery(),
-                            story_transport=StoryModel(), story_drafter=draft, embedding_key=key)
+                            story_transport=StoryModel(), story_drafter=draft, embedding_key=key, monitor_stories_spend=monitor_stories_spend())
     line = next(json.loads(text) for text in out.getvalue().splitlines() if text.startswith('{"monitorStories"'))
     return result, line
 
@@ -786,7 +787,7 @@ def test_the_router_holds_the_vector_pass_to_the_first_quarter_of_a_publications
         return {"publicationId": publication["publicationId"], "status": "complete", "stoppedBy": None, "drafted": 0}
 
     run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: client, deliver=tr.Delivery(), time_left=lambda: remaining[0],
-               story_transport=StoryModel(), story_drafter=drafter)
+               story_transport=StoryModel(), story_drafter=drafter, monitor_stories_spend=monitor_stories_spend())
     for left, expected in ((331, (False, False)), (329, (False, True)), (119, (True, True))):
         remaining[0] = left
         assert (seen["out_of_time"](), seen["vector_out_of_time"]()) == expected, left
@@ -887,7 +888,7 @@ def test_every_graphql_field_the_pass_and_the_first_run_ask_for_is_granted_by_th
             stack.enter_context(patch)
         stack.enter_context(mock.patch.object(vector_index, "_prepare_ontology_vectors", return_value=[]))
         for place in (None, saved_place(0)):   # the first run (the full sync), then a day of changes
-            vectors.run_vector_pass(feed, PUBLICATION, POLICY, now=RUN_AT, out_of_time=lambda: False, maximum_cost_usd=1.0, embedding_key="sk-test",
+            vectors.run_vector_pass(feed, PUBLICATION, POLICY, now=RUN_AT, out_of_time=lambda: False, embedding_key="sk-test",
                                     read_watermark=lambda place=place: place, write_watermark=lambda value: None,
                                     services_for=lambda publication, bucket: KnowledgeQueryServices(graph=graph, corpus_text=FakeCorpus()))
     granted = granted_fields(idea_policy_text()[1])

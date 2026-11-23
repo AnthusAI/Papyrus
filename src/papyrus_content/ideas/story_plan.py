@@ -18,6 +18,12 @@ stopped was read again, in full, the next day. Now the day's task is only the PL
 Nothing a step did is lost when another step fails or the day ends: the next plan reads what is filed and what was rejected (the retry memory) and plans only
 what remains. A plan that is still running when the next day's task starts is left alone: the task skips it, says so, and plans again when it has finished.
 
+Each step is one run of the ``monitor_stories`` agent in the spend ledger (``monitor_stories_spend.py``, PPY-45c2ef). Before it drafts it asks the spend brake:
+halted, or at the site's budget, it drafts nothing and its DONE row says why (``waiting`` for the next cycle, or ``not_started``), and the candidate, neither
+drafted nor rejected, is planned again by the first daily plan under the budget. When it has drafted, its model calls and cost are added to the ledger once,
+judged against the agent's history (an unusual cost raises one flag and stops nothing), and kept on its DONE row, so a redelivered step counts them again and the
+ledger's marker makes that a no-op. There is no cost ceiling on a step: the site's budget is the one limit.
+
 Rows expire (``ttl``) with the queue's own message retention, the real limit on how long a step can wait.
 """
 from __future__ import annotations
@@ -41,9 +47,6 @@ MESSAGE_KIND = "story-step"
 MESSAGE_VERSION = 1
 PLAN_TTL_SECONDS = 15 * 24 * 3600   # the story queue keeps a message 14 days; a row outlives it by a day
 MAXIMUM_RECEIVES = 3   # the queue's maxReceiveCount (infra/monitoring/papyrus-monitoring.yaml): the third try that fails is the last
-# The monitoring router's interim backstop for one step, against one oversized request (Ryan, 2026-11-23, PR #1873): a plan is bounded by its number of
-# steps, and the steps run outside the procedure runner, with no spend ledger, budget or unusual-cost flag. Removed once the job runs under the spend ledger.
-MONITORING_ROUTER_INTERIM_STEP_COST_BACKSTOP_USD = 0.50
 TRANSIENT_REASONS = ("model_error", point_check.POINT_CHECK_ERROR)   # invalid reasons that say nothing about the Reference: the step is tried again
 SQS_BATCH = 10
 INVALID_KEYS = ("referenceId", "packId", "title", "reason", "failures", "message")
@@ -298,12 +301,20 @@ def outcome_of(run: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def step_run_id(plan_id: str, number: int, receive_count: int) -> str:
+    """The ledger's id of one try of one step: a try that failed and was paid for is counted, and the try that finishes is counted on its own."""
+    return f"{plan_id}#step-{number:05d}#try-{receive_count}"
+
+
 def run_step(
     store: Any, monitor_id: str, publication: Mapping[str, Any], message: Mapping[str, Any], *, client: Any, transport: Callable, gate: Any, now: datetime,
-    fetch: Any = None, explorer: Any = None, review_requests: Any = None, receive_count: int = 1, emit: Callable[[str], None] = print,
+    spend: Any, fetch: Any = None, explorer: Any = None, review_requests: Any = None, receive_count: int = 1, emit: Callable[[str], None] = print,
 ) -> dict[str, Any]:
-    """One queued step. Returns its outcome word and numbers; raises ``StepFailed`` when the queue should try it again."""
+    """One queued step. Returns its outcome word and numbers; raises ``StepFailed`` when the queue should try it again. ``spend`` is the brake and the ledger
+    (``monitor_stories_spend.MonitorStoriesSpend``)."""
     from . import monitor_stories
+    from .. import spend_brake
+    from ..monitor_stories_spend import DRAFTING_RESPONSIBILITY, POLICY_UNREADABLE, RunSpend, drafting_spend
     from .items import ItemStore   # imported here so a test can stand a double in its place
 
     publication_id, plan_id, number = publication["publicationId"], str(message["planId"]), int(message["step"])
@@ -311,8 +322,14 @@ def run_step(
     entry_row = store.get_any(monitor_id, entry_key(publication_id, plan_id, number))
     if head_row is None or entry_row is None:
         return {"step": number, "status": "gone", "reason": "the plan's rows have expired"}
-    if store.get_any(monitor_id, done_key(publication_id, plan_id, number)):
-        return {"step": number, "status": "already"}   # a redelivered message: the step finished
+    done_row = store.get_any(monitor_id, done_key(publication_id, plan_id, number))
+    if done_row:   # a redelivered message: the step finished. Its spend is counted again, which the ledger's marker makes a no-op, in case the first count failed.
+        if done_row.get("spend"):
+            _stop, site = spend.stop_before_paid_work(publication, client, DRAFTING_RESPONSIBILITY)
+            if site is None:
+                raise StepFailed(f"the finished step's spend could not be counted: {_stop.reason}")
+            spend.count(client, site, RunSpend.from_dict(done_row["spend"]))
+        return {"step": number, "status": "already"}
     payload = decode(entry_row["payload"])
     context = decode(head_row["context"])
     earlier = [row for row in store.query_prefix(monitor_id, done_prefix(publication_id, plan_id))]
@@ -329,16 +346,27 @@ def run_step(
         stub = stub_signal_run("item", subject, gate=gate, concept_nodes={})
     moment = now
     try:
+        stop, site = spend.stop_before_paid_work(publication, client, DRAFTING_RESPONSIBILITY)
+        if stop is not None and stop.reason_code in (spend_brake.SPEND_UNREADABLE, POLICY_UNREADABLE):
+            raise StepFailed(stop.reason)   # nothing can be counted: the queue tries again, and the last try leaves the step failed
+        if stop is not None:   # halted, or at the site's budget: nothing is drafted, and the candidate is planned again by the first plan under the budget
+            record_done(store, monitor_id, publication_id, plan_id, number, payload, {**stop.as_line(), "drafted": [], "skipped": [], "invalid": [], "attempted": 0, "costUsd": 0.0},
+                        float(entry_row.get("ttl") or 0))
+            emit(json.dumps({"monitorStoriesStep": stop.status, "monitorId": monitor_id, "publicationId": publication_id, "planId": plan_id, "step": number,
+                             "kind": payload["kind"], **stop.as_line()}))
+            finished = finish_if_complete(store, monitor_id, publication, plan_id, client=client, now=now, emit=emit)
+            return {"step": number, "status": stop.status, "reasonCode": stop.reason_code, "drafted": 0, "finished": bool(finished)}
         run = draft_monitor_stories(
             client=client, site=publication_id, corpus_key=publication["corpusKey"], context=context, json_store=None,
             idea_store=ItemStore(client, gate=gate, drafts=proposals), review_client=None, transport=transport, limit=None, dry_run=False, now=moment,
-            fetch=fetch or monitor_stories.fetch_source, explorer=explorer, out_of_time=None, maximum_cost_usd=MONITORING_ROUTER_INTERIM_STEP_COST_BACKSTOP_USD, read_workers=1,
+            fetch=fetch or monitor_stories.fetch_source, explorer=explorer, out_of_time=None, maximum_cost_usd=None, read_workers=1,
             signal_run=stub, knowledge=knowledge, retry_memory=router_retry_memory(store, monitor_id, publication_id), suggestions_waiting=bool(head_row.get("suggestionsWaiting")),
             count_pending=False, run_id=plan_id, prepared=prepared, threshold=float(head_row["duplicateThreshold"]) if head_row.get("duplicateThreshold") is not None else None,
             rules=rules_of(validate_idea_rules(publication_id, (publication.get("monitorStories") or {}).get("ideaRules"))))
         transient = [row for row in run["invalid"] if row.get("reason") in TRANSIENT_REASONS]
         trouble = run.get("fileError") or (transient[0].get("message") or transient[0]["reason"] if transient else None)
         if trouble and not run["drafts"]:
+            spend.count(client, site, drafting_spend(step_run_id(plan_id, number, receive_count), run))   # the failed try was paid for
             raise StepFailed(str(trouble)[:300])
     except Exception as error:  # noqa: BLE001 - the queue tries again; the last try leaves a DONE row so the plan still finishes
         if receive_count >= MAXIMUM_RECEIVES:
@@ -350,11 +378,13 @@ def run_step(
     if run["drafts"] and review_requests is not None:
         outcome["review"] = extend_batch_review(client, run, run["drafts"], review_requests)
     status = "drafted" if run["drafts"] else ("skipped" if run["skipped"] and not run["invalid"] else "rejected" if run["invalid"] else "nothing")
-    record_done(store, monitor_id, publication_id, plan_id, number, payload, {"status": status, **outcome}, float(entry_row.get("ttl") or 0))
+    step_spend = drafting_spend(step_run_id(plan_id, number, receive_count), run)
+    record_done(store, monitor_id, publication_id, plan_id, number, payload, {"status": status, **outcome, "spend": step_spend.as_dict()}, float(entry_row.get("ttl") or 0))
     emit(json.dumps({"monitorStoriesStep": status, "monitorId": monitor_id, "publicationId": publication_id, "planId": plan_id, "step": number, "kind": payload["kind"],
                      "drafted": len(outcome["drafted"]), "costUsd": outcome["costUsd"], "skipped": [row.get("reason") for row in outcome["skipped"]],
                      "invalid": [row.get("reason") for row in outcome["invalid"]]}))
     finished = finish_if_complete(store, monitor_id, publication, plan_id, client=client, now=now, emit=emit)
+    spend.count(client, site, step_spend)   # after the DONE row: a count that fails is made again by the redelivered message
     return {"step": number, "status": status, "drafted": len(outcome["drafted"]), "finished": bool(finished)}
 
 
@@ -394,6 +424,8 @@ def finish_if_complete(store: Any, monitor_id: str, publication: Mapping[str, An
     skipped = [skip for row in rows for skip in row.get("skipped") or []]
     invalid = [bad for row in rows for bad in row.get("invalid") or []]
     failed = [row for row in rows if row.get("status") == "failed"]
+    held_back = [row for row in rows if row.get("status") in ("waiting", "not_started")]   # stopped by the spend brake: not drafted, planned again later
+    held_back_by = next((row.get("reasonCode") for row in held_back if row.get("status") == "waiting"), None) or (held_back[0].get("reasonCode") if held_back else None)
     inputs = dict(head.get("inputs") or {})
     inputs["candidates"] = len(head.get("candidateLineages") or [])
     covered_run = {"drafts": [{"referenceLineageId": idea.get("referenceLineageId"), "itemLineageId": idea["id"]} for idea in drafted], "invalid": invalid, "skipped": skipped}
@@ -401,13 +433,13 @@ def finish_if_complete(store: Any, monitor_id: str, publication: Mapping[str, An
 
     rated = rated_without_ideas(covered_run, head.get("ratings") or [], candidate_lineages=head.get("candidateLineages") or [])
     flag_run = {"runId": plan_id, "drafts": drafted, "skipped": skipped, "invalid": invalid, "inputs": inputs, "ratedNoIdea": rated,
-                "stoppedBy": "file_error" if any(row.get("fileErrors") for row in rows) and not drafted else None, "suggestionsWaiting": bool(head.get("suggestionsWaiting"))}
+                "stoppedBy": "file_error" if any(row.get("fileErrors") for row in rows) and not drafted else held_back_by, "suggestionsWaiting": bool(head.get("suggestionsWaiting"))}
     flag = settle_curation_flag(client, flag_run, publication_id, open_flags=known_open_flags(store, monitor_id, publication_id, client))
     if flag.get("status") == "raised" and flag.get("requestId"):
         store.put_any(monitor_id, {"pk": f"MONITOR#{monitor_id}", "sk": flag_key(publication_id), "requestId": flag["requestId"]})
     summary = {
         "publicationId": publication_id, "planId": plan_id, "status": "complete" if not failed else "complete_with_failures", "steps": int(head["total"]), "drafted": len(drafted),
-        "failedSteps": len(failed), "skipped": len(skipped), "failedTheCheck": len(invalid), "nothingToAdd": sum(row.get("reason") == connection_rules.NOTHING_TO_ADD for row in skipped),
+        "failedSteps": len(failed), "heldBackSteps": len(held_back), **({"heldBackBy": held_back_by} if held_back_by else {}), "skipped": len(skipped), "failedTheCheck": len(invalid), "nothingToAdd": sum(row.get("reason") == connection_rules.NOTHING_TO_ADD for row in skipped),
         "alreadyRejected": sum(row.get("reason") == retry_rules.ALREADY_REJECTED for row in skipped), "attempted": sum(int(row.get("attempted") or 0) for row in rows),
         "costUsd": round(sum(float(row.get("costUsd") or 0) for row in rows), 6), "candidates": inputs["candidates"], "curationFlag": flag.get("status"),
     }

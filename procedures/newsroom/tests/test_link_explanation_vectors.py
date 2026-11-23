@@ -182,7 +182,7 @@ def test_the_routers_daily_pass_leaves_link_explanations_to_the_by_hand_sync():
         vectors.run_vector_pass(
             mock.Mock(graphql=lambda *a, **k: {}), {"publicationId": "p", "corpusId": "c", "appsyncEndpoint": "e"},
             {"vectorIndexArn": "arn:x", "storageBucketName": "b", "suggestions": {"enabled": False}}, now=__import__("datetime").datetime(2026, 11, 2),
-            out_of_time=lambda: False, maximum_cost_usd=1.0, embedding_key="k", read_watermark=lambda: None, write_watermark=lambda v: None,
+            out_of_time=lambda: False, embedding_key="k", read_watermark=lambda: None, write_watermark=lambda v: None,
             services_for=lambda p, b: "services", full_indexer=indexer)
     assert seen == {"explanations": False}   # no changed-since index on links: they are indexed by the command-line sync (docs/monitoring-cloud.md)
 

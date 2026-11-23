@@ -13,15 +13,16 @@ to the size of the site, and it never lists the Reference table, the vector inde
 
 The saved place is ``{"v": 3, "since", "seen", "nodesSince", "nodesSeen"}`` in the router's table: the newest ``updatedAt`` it has indexed, and the ids (with their
 ``updatedAt``) of the rows within ``OVERLAP`` of it, so a row written a little late with an earlier clock is still read once and a row already done is skipped. A page
-moves the place as soon as it is done, so a run that the time or the cost stops resumes exactly there.
+moves the place as soon as it is done, so a run that the time stops resumes exactly there.
 
 A site with no saved place (its first run after this change, or a new site) is indexed once with the full sync (``index_reference_passages``, the by-hand
 command's code, skipping what is already indexed); the place is set to the newest change read BEFORE that sync started, and only when the sync completed. That one run
 is proportional to the site, once. Link explanations (editors' notes on links) are not part of the daily pass: they have no changed-since index, so they are indexed by
 the by-hand sync until they get one or are indexed when a note is saved (docs/monitoring-cloud.md).
 
-The only bounds are the run's time and its cost meter: embedding cost (text-embedding-3-small, from the characters embedded) is added to the model spend of the
-publication's run. Without ``vectorIndexArn`` in the publication's ``monitorStories`` the pass does nothing and says why, and packs run without vectors.
+The only bound is the run's time. What it spends is counted: its embedding requests and their cost (text-embedding-3-small, from the characters embedded) are
+the plan's ``monitor_stories_index`` run in the spend ledger, which counts against the site's budget and is judged by the unusual-cost flag
+(``monitor_stories_spend.py``); the brake is asked before the pass starts. Without ``vectorIndexArn`` in the publication's ``monitorStories`` the pass does nothing and says why, and packs run without vectors.
 """
 from __future__ import annotations
 
@@ -41,7 +42,7 @@ OVERLAP = timedelta(minutes=10)   # rows within this of the saved place are reme
 STATE_VERSION = 3
 EPOCH = "1970-01-01T00:00:00.000Z"
 EMPTY_RESULT = {"indexed": 0, "conceptCardsWritten": 0, "suggestionsQueued": 0, "suggestionsSkippedReason": None, "indexSkippedReason": None, "costUsd": 0.0,
-                "stoppedBy": None, "changedReferences": 0, "changedConcepts": 0, "changeReads": 0, "bootstrapped": False}
+                "embeddingRequests": 0, "stoppedBy": None, "changedReferences": 0, "changedConcepts": 0, "changeReads": 0, "bootstrapped": False}
 
 CHANGED_NODES_QUERY = (
     "query ChangedSemanticNodes($versionState: String!, $updatedAt: ModelStringKeyConditionInput, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) "
@@ -208,11 +209,11 @@ def _fresh(rows: list[dict[str, Any]], seen: dict[str, str]) -> list[dict[str, A
 # --- the pass ---------------------------------------------------------------------------------------------------------------------------------
 
 def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, Any], *, now: datetime, out_of_time: Callable[[], bool],
-                    maximum_cost_usd: float, embedding_key: str | None, read_watermark: Callable[[], str | None], write_watermark: Callable[[str], None],
+                    embedding_key: str | None, read_watermark: Callable[[], str | None], write_watermark: Callable[[str], None],
                     services_for: Callable[..., Any] = build_services, indexer: Callable[..., dict] | None = None, full_indexer: Callable[..., dict] | None = None,
                     on_summary_written: Callable[[list[dict[str, Any]]], None] | None = None) -> dict[str, Any]:
     """Indexes what changed since the saved place; returns ``{"indexed", "conceptCardsWritten", "suggestionsQueued", "suggestionsSkippedReason",
-    "indexSkippedReason", "costUsd", "stoppedBy", "changedReferences", "changedConcepts", "changeReads", "bootstrapped", "timings"}``. Never raises: a failure is
+    "indexSkippedReason", "costUsd", "embeddingRequests", "stoppedBy", "changedReferences", "changedConcepts", "changeReads", "bootstrapped", "timings"}``. Never raises: a failure is
     reported as the reason. ``on_summary_written`` hears about each stored Reference summary vector (the router queues its one suggestion check there); the callables
     are the real ones unless a test passes fakes."""
     result = dict(EMPTY_RESULT)
@@ -249,11 +250,7 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
             result["suggestionsNotQueued"] = result.get("suggestionsNotQueued", 0) + len(entries)
 
     def stop_check(stats: dict[str, Any]) -> str | None:
-        if out_of_time():
-            return "time"
-        if result["costUsd"] + embedding_cost_usd(int(stats.get("embeddingInputCharacters") or 0)) >= maximum_cost_usd:
-            return "cost"
-        return None
+        return "time" if out_of_time() else None
 
     def options(**more: Any) -> Any:
         return vector_index.VectorIndexOptions(corpus_id=publication["corpusId"], include_ontology_vectors=False, include_link_explanations=False, include_notes=False,
@@ -263,14 +260,13 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
         result["conceptCardsWritten"] += int(stats.get("conceptCardsToWrite") or 0)
         result["indexed"] += max(int(stats.get("vectorsWritten") or 0) - int(stats.get("conceptCardsToWrite") or 0), 0)
         result["costUsd"] += embedding_cost_usd(int(stats.get("embeddingInputCharacters") or 0))
+        result["embeddingRequests"] += int(stats.get("embeddingRequests") or 0)
         result["stoppedBy"] = result["stoppedBy"] or stats.get("stoppedBy")
         for name, seconds in (stats.get("timings") or {}).items():
             timings[f"index{name[0].upper()}{name[1:]}"] = round(timings.get(f"index{name[0].upper()}{name[1:]}", 0) + seconds, 2)
 
-    def spent_all() -> str | None:
-        if out_of_time():
-            return "time"
-        return "cost" if result["costUsd"] >= maximum_cost_usd else None
+    def stopped_by_time() -> str | None:
+        return "time" if out_of_time() else None
 
     mark = time.monotonic()
     try:
@@ -281,10 +277,10 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
                 _bootstrap(client, services, options, result, take, full_indexer or vector_index.index_reference_passages, write_watermark)
             else:
                 for feed in ("references", "concepts"):
-                    if spent_all():
-                        result["stoppedBy"] = result["stoppedBy"] or spent_all()
+                    if stopped_by_time():
+                        result["stoppedBy"] = result["stoppedBy"] or stopped_by_time()
                         break
-                    state = _follow(client, services, feed, state, options, result, take, indexer or vector_index.index_changes, write_watermark, spent_all)
+                    state = _follow(client, services, feed, state, options, result, take, indexer or vector_index.index_changes, write_watermark, stopped_by_time)
     except Exception as error:  # noqa: BLE001
         result["indexSkippedReason"] = f"index sync failed ({type(error).__name__}: {str(error)[:400]})"
     if queued_errors:
@@ -308,7 +304,7 @@ def _bootstrap(client: Any, services: Any, options: Callable[..., Any], result: 
 
 
 def _follow(client: Any, services: Any, feed: str, state: dict[str, Any], options: Callable[..., Any], result: dict[str, Any], take: Callable[[dict[str, Any]], None],
-            changes_indexer: Callable[..., dict], write_watermark: Callable[[str], None], spent_all: Callable[[], str | None]) -> dict[str, Any]:
+            changes_indexer: Callable[..., dict], write_watermark: Callable[[str], None], stopped_by_time: Callable[[], str | None]) -> dict[str, Any]:
     """Reads the pages of one feed from the saved place, indexes the rows of each that are not already done, and moves the place over each finished page."""
     since_key, seen_key = ("since", "seen") if feed == "references" else ("nodesSince", "nodesSeen")
     token: str | None = None
@@ -330,7 +326,7 @@ def _follow(client: Any, services: Any, feed: str, state: dict[str, Any], option
             write_watermark(dump_state(state))
         if not token:
             return state
-        stopped = spent_all()
+        stopped = stopped_by_time()
         if stopped:
             result["stoppedBy"] = result["stoppedBy"] or stopped
             return state

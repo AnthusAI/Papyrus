@@ -381,7 +381,7 @@ def step_budget_run(context):
         _, client = world(1)
         endpoints = {tv.tr.ENDPOINT.replace("abc123", "api0"): client}
         tv.run_router(store, "hn", now=tv.NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint], deliver=tv.tr.Delivery(),
-                      time_left=lambda: remaining[0], story_transport=StoryModel(), story_drafter=drafter)
+                      time_left=lambda: remaining[0], story_transport=StoryModel(), story_drafter=drafter, monitor_stories_spend=tv.monitor_stories_spend())
     finally:
         patches.undo()
     current.seen, current.remaining = seen, remaining

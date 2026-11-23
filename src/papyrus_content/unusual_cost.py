@@ -165,6 +165,18 @@ def raise_cost_flag(client: Any, spend: Mapping[str, Any], run_id: str, judgemen
         request_id=flag_id(run_id))
 
 
+def spend_for_run(*, tenant_id: str, responsibility: str | None, document: Mapping[str, Any], cost_usd: Any, calls: int, unpriced_calls: int) -> dict[str, Any] | None:
+    """What the ledger needs to count one run, whoever ran it (the procedure runner, the monitoring router's monitor stories): the site, the agent that made
+    it, the budget period of the site's policy, the model calls with their cost, and the owner's per-run budget for the agent
+    (``agents.<responsibility>.budgetUsdPerRun``, which only flags). None when the run made no model call. A site with no budget in its policy is counted by
+    the month."""
+    if not calls:
+        return None
+    site, agent = document.get("site") or {}, (document.get("agents") or {}).get(responsibility or "") or {}
+    return {"tenantId": tenant_id, "responsibility": responsibility, "period": (site.get("budget") or {}).get("period", "month"), "costUsd": cost_usd,
+            "calls": calls, "unpricedCalls": unpriced_calls, "budgetUsdPerRun": agent.get("budgetUsdPerRun")}
+
+
 def _positive_number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
         return None

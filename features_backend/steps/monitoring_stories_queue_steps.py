@@ -17,6 +17,8 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
 import test_monitor_stories_queue as queue  # noqa: E402
+from monitor_stories_spend_fixture import SiteOfRecord, monitor_stories_spend  # noqa: E402
+from papyrus_content.spend_brake_test import HaltableTable  # noqa: E402
 import test_monitoring_stories as tms  # noqa: E402
 from ideas_fixtures import NOW, reference  # noqa: E402
 from test_monitor_stories import MonitorClient, StoryModel, decision, pages, provenance, with_editors_reasons  # noqa: E402
@@ -54,7 +56,10 @@ def step_router(context, publication):
     context.add_cleanup(mock.patch.stopall)
     table, store = tms.router((publication,))
     context.queue = SimpleNamespace(table=table, store=store, publication=publication, sqs=queue.FakeSqs(), model=FlakyModel(), lines=[], plans=[], failures=[], logs=[],
-                                    client=MonitorClient(references=[], incoming={}, relations={}, sections=("Analysis", "Tools")), taken=0)
+                                    client=MonitorClient(references=[], incoming={}, relations={}, sections=("Analysis", "Tools")), taken=0,
+                                    ledger=HaltableTable(), site=SiteOfRecord(), clock=[NOW])
+    held = context.queue
+    held.spend = monitor_stories_spend(ledger=held.ledger, site=held.site, clock=lambda: held.clock[0])   # one site, one ledger and one clock for every run of a scenario
 
 
 def add(client, count, status="accepted", monitor="hn"):
@@ -80,7 +85,7 @@ def step_model_fails(context):
 def step_plan(context):
     held = state(context)
     with_editors_reasons(held.client)
-    _, lines = queue.plan(held.store, held.client, held.sqs)
+    _, lines = queue.plan(held.store, held.client, held.sqs, now=held.clock[0], spend=held.spend)
     held.lines.append(lines[held.publication])
 
 
@@ -88,12 +93,13 @@ def step_plan(context):
 def step_plan_next_day(context):
     held = state(context)
     held.next_sqs = queue.FakeSqs()
-    _, lines = queue.plan(held.store, held.client, held.next_sqs, now=NOW + timedelta(days=1))
+    held.clock[0] = held.clock[0] + timedelta(days=1)
+    _, lines = queue.plan(held.store, held.client, held.next_sqs, now=held.clock[0], spend=held.spend)
     held.lines.append(lines[held.publication])
 
 
 def work(held, messages, receives=1):
-    logs, failures = queue.work(held.store, held.client, held.model, messages, receives=receives, fetch=pages(*range(1, 60)))
+    logs, failures = queue.work(held.store, held.client, held.model, messages, receives=receives, fetch=pages(*range(1, 60)), spend=held.spend)
     held.logs += logs
     held.failures += failures
 
@@ -271,7 +277,7 @@ def step_work_for_real(context):
     held.strict.tables["Item"] = {row["id"]: row for row in queue.many_other_items(held.strict_items)}
     held.recorder = FieldRecorder(held.strict)
     with mock.patch("papyrus_content.ideas.items.ItemStore", queue.ItemStore):   # the real class, imported before the scenario replaced it
-        logs, failures = queue.work(held.store, held.recorder, held.model, held.sqs.sent, fetch=pages(*range(1, 60)))
+        logs, failures = queue.work(held.store, held.recorder, held.model, held.sqs.sent, fetch=pages(*range(1, 60)), spend=held.spend)
     held.logs += logs
     held.failures += failures
     assert not failures, (failures, logs)

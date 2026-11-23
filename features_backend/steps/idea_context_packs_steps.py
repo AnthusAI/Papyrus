@@ -403,10 +403,9 @@ def step_router_file_error(context):
     context.router.filing.fail_after = 0
 
 
-@given("a model-spend backstop that the pack's call nearly uses up")
+@given("a model whose pack call costs about thirteen cents")
 def step_router_cost(context):
     context.router.model = router_support.RouterModel(input_tokens=400_000, output_tokens=6_000)
-    context.router.drafter_options["maximum_cost_usd"] = 0.0435
 
 
 @when("the monitor-stories task runs")
@@ -418,7 +417,10 @@ def step_router_run(context):
         options = {**options, **({"out_of_time": state.stop} if state.stop else {})}
         return partial(run_publication, fetch=router_support.pages(1, 2), explorer=None, **state.drafter_options)(client, publication, **options)
 
-    _, lines = router_support.run_task_with(store, state.client, state.model, drafter)
+    from monitor_stories_spend_fixture import monitor_stories_spend
+
+    state.spend = monitor_stories_spend()
+    _, lines = router_support.run_task_with(store, state.client, state.model, drafter, spend=state.spend)
     state.line = lines[router_support.PUBLICATION]
 
 
@@ -494,10 +496,19 @@ def step_router_stopped_file(context):
     assert state.line["stoppedBy"] != "file_error" and state.line["fileErrors"] == 1 and state.model.order[0] == "pack" and len(state.model.order) > 1
 
 
-@then("the publication is stopped by cost after the pack and the single item is not asked for")
-def step_router_stopped_cost(context):
+@then("the run's drafting is one run of the monitor_stories agent in the site's spend ledger, with the cost of the pack and the single item together")
+def step_router_drafting_counted(context):
+    from monitor_stories_spend_fixture import TENANT
+
+    from papyrus_content import spend_ledger
+
     state = context.router
-    assert state.line["stoppedBy"] == "cost" and state.model.order == ["pack"] and len(state.filing.filed) == 2
+    assert state.line["stoppedBy"] is None and state.model.order == ["pack", "item"]
+    [drafting] = [entry for entry in state.line["spending"] if entry["responsibility"] == "monitor_stories"]
+    assert drafting["costUsd"] > 0.13, drafting   # the pack's call alone costs about thirteen cents: no ceiling stopped the single item
+    held = spend_ledger.spent(state.spend.table, tenant_id=TENANT, scope="ai:monitor_stories", period="month", moment=state.spend.clock())
+    site = spend_ledger.spent(state.spend.table, tenant_id=TENANT, scope="ai", period="month", moment=state.spend.clock())
+    assert held.microUsd == spend_ledger.micro_usd(drafting["costUsd"]) and held.calls == drafting["calls"] and site.microUsd >= held.microUsd
 
 
 def run_command_as_dry_run(context, flags):

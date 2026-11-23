@@ -236,15 +236,12 @@ def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
 
 
 def spend_of(request: dict, decision, usage: dict | None, cost_usd: float | None) -> dict | None:
-    """What the ledger needs to count this run: the site, the agent that made it, the budget period of the site's policy, the model calls with their cost, and
-    the owner's per-run budget for the agent (``agents.<responsibility>.budgetUsdPerRun``, which only flags). None when the run made no model call. A site
-    with no budget in its policy is counted by the month."""
-    if not usage or not usage.get("calls") or not request.get("tenantId"):
+    """What the ledger needs to count this run (``unusual_cost.spend_for_run``). None when the run made no model call or names no site."""
+    if not usage or not request.get("tenantId"):
         return None
-    document = decision.state.document if decision.state is not None else {}
-    site, agent = document.get("site") or {}, (document.get("agents") or {}).get(decision.responsibility or "") or {}
-    return {"tenantId": request["tenantId"], "responsibility": decision.responsibility, "period": (site.get("budget") or {}).get("period", "month"),
-            "costUsd": cost_usd, "calls": usage["calls"], "unpricedCalls": usage.get("unpricedCalls", 0), "budgetUsdPerRun": agent.get("budgetUsdPerRun")}
+    return unusual_cost.spend_for_run(tenant_id=request["tenantId"], responsibility=decision.responsibility,
+                                      document=decision.state.document if decision.state is not None else {}, cost_usd=cost_usd,
+                                      calls=usage.get("calls") or 0, unpriced_calls=usage.get("unpricedCalls", 0))
 
 
 def record_spend(table, client, result: dict, *, moment: datetime | None = None) -> dict | None:

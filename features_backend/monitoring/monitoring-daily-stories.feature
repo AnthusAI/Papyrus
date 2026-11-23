@@ -7,8 +7,8 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
   per run; nothing is published, and an editor approves the copy. A Reference is never drafted twice. The task does not need the
   knowledge-run stack, and it is on for every publication unless the publication's router entry says "monitorStories": {"enabled": false}.
   There is no fixed number of drafts per run. The run is bounded only by real constraints: the Lambda's remaining time, shared equally by
-  the publications still to run (a publication the time stopped gets another turn while time is left), a model-spend backstop, and a
-  draft that cannot be filed. Each publication logs one JSON line: how many it drafted, how many candidates it found, how many pending
+  the publications still to run (a publication the time stopped gets another turn while time is left), the site's budget in the spend ledger
+  (monitor-stories-spend.feature), and a draft that cannot be filed. Each publication logs one JSON line: how many it drafted, how many candidates it found, how many pending
   References it did not read, how many it skipped, and what stopped it. The model, the pages and the backends are fakes in these
   scenarios and nothing touches production.
 
