@@ -80,7 +80,8 @@ const attention: TodayAttentionEntry[] = [
   },
   {
     ...overdueDelivery, kind: "overdue", record: "Delivery", dueLocal: "6:00 AM",
-    action: { kind: "wake_now", words: "Wake now", available: false, note: "Wake now is the agents wake operation. Until it is there, the operations check sends this wake again on its daily run." },
+    action: { kind: "wake_now", words: "Wake now", available: true, note: "Wake now sends this record's own timer wake again, with the same key, so it runs once.",
+              command: "papyrus agents wake-overdue --record Delivery --id announcement-daily#email#site#g1 --reason TEXT" },
   },
 ];
 

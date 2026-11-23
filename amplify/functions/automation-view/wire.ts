@@ -13,12 +13,15 @@ import { PUBLICATION_TIME_ZONE_ENV } from "../../publication/scheduled-publishin
 
 /** The fields the function calls on its own site's API with its own role. Today reads the day's runs through the status index, the agents through the tenant index, an agent's run history through the automation index (PPY-577310),
  *  and the day's email sends through the released-Announcements index, each one's Deliveries and its `announces` links. Today's top (PPY-b6d5ad) reads the open review requests through the state index,
- *  the runs that need a person through the attention index, the Deliveries due through the due index and the Stories scheduled to publish through the schedule index. Its one write is
- *  `updateProcedureRun`, which acknowledging or settling a run makes (it clears the run's attention key and records who and when). */
+ *  the runs that need a person through the attention index, the Deliveries due through the due index and the Stories scheduled to publish through the schedule index. Wake now on an
+ *  Overdue record (PPY-97180c) reads that one Delivery or review request by its id. Its one write is `updateProcedureRun`, which acknowledging or settling a run makes (it clears the
+ *  run's attention key and records who and when). */
 export const AUTOMATION_VIEW_FUNCTION_FIELDS = [
   "Query/fields/getAutomation",
+  "Query/fields/getDelivery",
   "Query/fields/getNewsroomProcedureDefinition",
   "Query/fields/getProcedureRun",
+  "Query/fields/getReviewRequest",
   "Query/fields/listAnnouncementDecisionsByStateAndReleaseAt",
   "Query/fields/listAutomations",
   "Query/fields/listAutomationsByTenant",
@@ -41,10 +44,15 @@ export const AUTOMATION_RUN_NOW_LEADING_KEYS = ["MONITOR#*"];
 /**
  * Environment and least-privilege IAM for the automation-view function: a few read fields of the site's own API and the one write acknowledging a run makes,
  * the same read-only grant on the monitoring table that the Monitoring page has, one PutItem for Run now's row,
- * and permission to put a wake on the site's own wake queue (Run now). A site outside the
+ * and permission to put a wake on the site's own wake queue (Run now, wake now). A site outside the
  * monitoring account finds no parameter and the page lists its records without runs.
+ *
+ * Wake now on an Overdue Delivery or soft review deadline (PPY-97180c) sends that record's own follow-up timer wake, which names where the runner finds the site's agent
+ * policy: so a dedicated site with a tenant also gives the function the names its timers are built from, as the image service has them. It sets no timer.
  */
-export function wireAutomationView(backend: any, brandId: string, publicationTimeZone?: string): void {
+export type AutomationViewFollowUps = { tenantId: string };
+
+export function wireAutomationView(backend: any, brandId: string, publicationTimeZone?: string, followUps?: AutomationViewFollowUps): void {
   const lambda = backend.automationView.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
   connectToSiteApi(lambda, backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
@@ -82,4 +90,12 @@ export function wireAutomationView(backend: any, brandId: string, publicationTim
     }),
   );
   allowWakeSending(lambda, brandId);
+  if (followUps !== undefined && followUps.tenantId !== "") {
+    lambda.addEnvironment("PAPYRUS_AGENT_PUBLICATION_ID", brandId);
+    // The tenant goes on each wake only: PAPYRUS_TENANT_ID would make the function read as that tenant, which it does not today.
+    lambda.addEnvironment("PAPYRUS_AGENT_TENANT_ID", followUps.tenantId);
+    lambda.addEnvironment("PAPYRUS_SITE_BUCKET", backend.storage.resources.bucket.bucketName);
+    lambda.addEnvironment("PAPYRUS_AWS_ACCOUNT_ID", stack.account);
+    lambda.addEnvironment("PAPYRUS_AWS_PARTITION", stack.partition);
+  }
 }

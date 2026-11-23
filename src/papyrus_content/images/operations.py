@@ -1139,6 +1139,29 @@ AGENT_OPERATIONS: tuple[Operation, ...] = (
               "An agent never woken for the subject has no wake to send again (not_found). The run record's summary names who woke it and why.",
         agent_rung=PERSON_ONLY,
     ),
+    Operation(
+        "agents_wake_overdue", ("wake-overdue",),
+        "Wake now one Overdue record (a Delivery, or a soft review's deadline) that a follow-up timer wakes: its timer's wake goes on the site's wake queue again, "
+        "with the same key, and runs once.", "write",
+        obj({"record": choice("Delivery", "ReviewRequest", description="The kind of record, as Today names it."), "id": text("The record's id, as Today lists it."),
+             "reason": REASON}, ("record", "id", "reason")),
+        record({"record": text(), "id": text(), "dueAt": text("The due time it missed."), "waitingFor": {"type": ["string", "null"]},
+                "wakeKey": text("The key of the timer's wake; the same key the timer used."), "requestedBy": text(), "reason": text(),
+                "shown": text("What happened, in words.")},
+               ("record", "id", "dueAt", "wakeKey", "requestedBy", "reason", "shown")),
+        ("not_found", "human_required", "constraint_conflict", "service_unavailable"),
+        (Example({"record": "Delivery", "id": "announcement-daily#email#site#g1", "reason": "The daily email did not go out"},
+                 {"record": "Delivery", "id": "announcement-daily#email#site#g1", "dueAt": "2026-11-16T11:00:00Z", "waitingFor": "release",
+                  "wakeKey": "deliver|announcement-daily#email#site#g1|2026-11-16T11:00:00Z|due", "requestedBy": "Ada Editor",
+                  "reason": "The daily email did not go out",
+                  "shown": "Delivery announcement-daily#email#site#g1 was woken now by Ada Editor: the wake its timer sends for 2026-11-16T11:00:00Z went on the site's queue again, with the same key, so it runs once."}),),
+        group="agents",
+        notes="An editor or admin who is a person. A Delivery or a soft review's deadline is woken by the engine's follow-up timer, not by an adopted agent, so agents_wake cannot reach it. "
+              "This is overdue.recover for one record (overdue.wake_now): the record is read by its id and must be Overdue (still waiting for a due time the queue's own limits "
+              "are used up after), else constraint_conflict and nothing is sent. The wake is the timer's own request with the same key, so a repeat inside the queue's "
+              "window is dropped and one after it is answered duplicate by the runner: the work is done once. Its trigger says who sent it again and why, and so does the run record's summary.",
+        agent_rung=PERSON_ONLY,
+    ),
 )
 
 OPERATIONS = OPERATIONS + AGENT_OPERATIONS

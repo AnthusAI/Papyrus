@@ -1,8 +1,9 @@
-"""The poke-in operations on the command line's lanes (``agents_pause``, ``agents_resume``, ``agents_pauses``, ``agents_wake``; ``agent_poke_in.py``).
+"""The poke-in operations on the command line's lanes (``agents_pause``, ``agents_resume``, ``agents_pauses``, ``agents_wake``; ``agent_poke_in.py``; and
+``agents_wake_overdue``, ``overdue.wake_now``).
 
 Signed in (the user lane), a change goes through the same door the newsroom uses: a pause or a resume to the site's agent-policy function (``agentPolicyChange``),
-which refuses a credential that is not a person's and catches up the stopped wakes with its own role; wake now to the Automation page's function (``agentWake``),
-which admits editors and admins. The operator's AWS lane runs the same code here, over the site store, the run index and the wake queue it can reach itself.
+which refuses a credential that is not a person's and catches up the stopped wakes with its own role; wake now, and wake now on an Overdue record, to the
+Automation page's function (``agentWake``, which takes the operation's name), which admits editors and admins. The operator's AWS lane runs the same code here, over the site store, the run index and the wake queue it can reach itself.
 Showing the pauses reads the policy document directly on both lanes: an admin may read it.
 
 It is its own module, imported by the call from the operation table's handlers, because the image service and the monitoring router never carry it.
@@ -98,11 +99,38 @@ def wake_now(client, arguments: dict, caller: Caller) -> dict:
         raise ImageOperationError(error.code, error.message) from error
 
 
+def site_timer_wake_requests(client) -> dict:
+    """On the operator's lane: the requests the site's follow-up timers send, named from the operator's environment as the site's functions name them."""
+    import os
+
+    from . import overdue
+
+    return overdue.site_timer_wake_requests(os.environ, appsync_endpoint=str(getattr(client, "endpoint", "") or ""))
+
+
+def wake_overdue_now(client, arguments: dict, caller: Caller) -> dict:
+    from . import overdue
+    from .agent_poke_in import person_label
+    from .agent_wakes import wake_sender
+    from .user_auth_mode import user_auth_requested
+
+    if user_auth_requested():
+        request = {"op": "agents_wake_overdue", **{name: arguments[name] for name in ("record", "id", "reason")}}
+        return _answer(client.graphql(AGENT_WAKE, {"input": json.dumps(request)})["agentWake"], "Automation page function")
+    person = _operator_caller(client, caller)
+    try:
+        return overdue.wake_now(client, kind=arguments["record"], record_id=arguments["id"], reason=arguments["reason"], by=person_label(person),
+                                person=person.kind == "person", wake_requests=site_timer_wake_requests(client), send=wake_sender())
+    except overdue.OverdueWakeError as error:
+        raise ImageOperationError(error.code, error.message) from error
+
+
 POKE_IN_HANDLERS: dict[str, Callable[..., dict]] = {
     "agents_pause": lambda client, arguments, caller: _policy_change(client, "agents_pause", arguments, caller),
     "agents_resume": lambda client, arguments, caller: _policy_change(client, "agents_resume", arguments, caller),
     "agents_pauses": show_pauses,
     "agents_wake": wake_now,
+    "agents_wake_overdue": wake_overdue_now,
 }
 
 

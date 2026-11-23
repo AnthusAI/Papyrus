@@ -292,7 +292,7 @@ def soft_deadline(context, reason, local):
 def overdue_listed(context, word, words):
     found = [entry for entry in context.today["attention"] if entry["kind"] == "overdue" and entry["id"] == context.overdue_id]
     assert found and word in found[0]["shown"] and found[0]["record"] == "Delivery" and found[0]["action"]["words"] == words, context.today["attention"]
-    assert found[0]["action"]["note"], "Wake now says what does it until the operation is there"
+    assert found[0]["action"]["note"] and found[0]["action"]["available"] is True, "Wake now can be pressed and says what it does"
 
 
 @then('the Overdue Delivery was due at "{local}"')
