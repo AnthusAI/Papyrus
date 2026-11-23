@@ -1,7 +1,7 @@
 import { a } from "@aws-amplify/backend";
 import { announcements } from "./resource";
 import { functionHandler } from "../../data/function-handler";
-export { ANNOUNCEMENT_MUTATION_OPERATIONS, ANNOUNCEMENT_QUERY_OPERATIONS } from "./operations";
+export { ANNOUNCEMENT_MUTATION_OPERATIONS, ANNOUNCEMENT_QUERY_OPERATIONS, OPPORTUNITY_MUTATION_OPERATIONS } from "./operations";
 
 const editors = ["editor", "admin"];
 
@@ -161,4 +161,6 @@ export const announcementsSchemaDefinitions = {
   announcementsXBegin: mutation(),
   announcementsXComplete: mutation(),
   announcementsXDisconnect: mutation(),
+  opportunitiesXSearch: a.mutation().arguments({ input: a.json() }).returns(a.json())
+    .authorization((allow) => [allow.groups(editors)]).handler(functionHandler("announcements", announcements)),
 };

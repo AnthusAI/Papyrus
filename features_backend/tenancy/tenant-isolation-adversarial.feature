@@ -941,6 +941,7 @@ Feature: Every way tenant A could reach tenant B is a generated case, and a gap 
       | newsletterStopIssue                  | denied, or returns nothing of "beta" |
       | newsletterSubscribers                | denied, or returns nothing of "beta" |
       | newsletterTestSend                   | denied, or returns nothing of "beta" |
+      | opportunitiesXSearch                 | denied, or returns nothing of "beta" |
       | postMessage                          | denied, or returns nothing of "beta" |
       | promoteCategorySetDraft              | denied, or returns nothing of "beta" |
       | publishItem                          | denied, or returns nothing of "beta" |

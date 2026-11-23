@@ -19,13 +19,18 @@ import {
 import {
   MODE_OPTIONS, QUALITY_FLOOR_STARS, SETUP_INTRO, STAR_CHOICES, STORY_TYPE_OPTIONS, X_PRICING_URL, X_STATE_STORAGE_KEY,
   callbackUrl, connectionWords, failureText, formatDate, formatMoney, formatWhen, modeBlockers, pauseText, setupSteps, toggled,
-  type AnnouncementFailure, type AnnouncementMode, type AnnouncementSettings, type XStatus, type XUsage,
+  type AnnouncementFailure, type AnnouncementMode, type AnnouncementSettings, type OpportunitySettings, type XStatus, type XUsage,
 } from "../lib/announcements-model";
 import { getPublicNewsroomBasePath } from "../lib/newsroom-base-path";
 import { AnnouncementsList } from "./announcement-lines";
 
 type Message = { kind: "ok" | "problem"; text: string } | null;
 type Section = { id: string; title: string };
+type OpportunityCapture = {
+  capture: Record<string, unknown>;
+  receipt: { publicPosts: number; postsReturnedByX: number; usersReturnedByX: number; reservedUsd: string; estimatedUsd: string };
+};
+const emptyOpportunitySettings: OpportunitySettings = { enabled: false, budget: null, postPrice: null, userPrice: null };
 const isFailure = (value: { ok: boolean }): value is AnnouncementFailure => value.ok === false;
 
 const MODE_ICON = { off: Power, dry_run: FlaskConical, on: Send } as const;
@@ -71,6 +76,9 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   const [chosenReview, setChosenReview] = useState<ReviewApproval | null>(null);
   const [reviewReason, setReviewReason] = useState("");
   const [timing, setTiming] = useState<TimingFields>({ windowMinutes: "", lockLeadMinutes: "" });
+  const [opportunityQuery, setOpportunityQuery] = useState("");
+  const [capture, setCapture] = useState<OpportunityCapture | null>(null);
+  const captureInFlight = useRef(false);
 
   const callback = useMemo(() => callbackUrl(typeof window === "undefined" ? "https://your-site.example" : window.location.origin, getPublicNewsroomBasePath()), []);
 
@@ -203,6 +211,31 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
     }
     return { kind: "ok", text: `Saved. ${said.join(" ")}`.trim() };
   });
+  const runOpportunitySearch = async () => {
+    if (captureInFlight.current) return;
+    captureInFlight.current = true;
+    setCapture(null);
+    try {
+      await act("opportunities", async () => {
+        const result = await api<OpportunityCapture>("opportunitiesXSearch", { query: opportunityQuery.trim(), maxResults: 10 });
+        if (isFailure(result)) return { kind: "problem", text: failureText(result) };
+        setCapture(result);
+        return { kind: "ok", text: "Search complete. Nothing was posted." };
+      });
+    } finally {
+      captureInFlight.current = false;
+    }
+  };
+
+  const downloadOpportunityCapture = () => {
+    if (!capture) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(capture.capture, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "x-opportunities-capture.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const copyCallback = async () => {
     await navigator.clipboard.writeText(callback);
@@ -225,6 +258,10 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
   const patch = (changes: Partial<AnnouncementSettings>) => setDraft({ ...draft, ...changes });
   const patchRules = (changes: Partial<AnnouncementSettings["rules"]>) => setDraft({ ...draft, rules: { ...draft.rules, ...changes } });
   const connected = status.connection === "connected";
+  const savedOpportunities = saved.opportunities ?? emptyOpportunitySettings;
+  const draftOpportunities = draft.opportunities ?? emptyOpportunitySettings;
+  const patchOpportunities = (changes: Partial<OpportunitySettings>) => patch({ opportunities: { ...draftOpportunities, ...changes } });
+  const worstSearchCost = (Number(savedOpportunities.postPrice) + Number(savedOpportunities.userPrice)) * 10;
 
   return (
     <div className="announcements" data-news-desk-admin-panel="announcements">
@@ -241,7 +278,7 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
         </button>
       </section>
 
-      {!isAdmin ? <p className="announcements__quiet" data-announcements-readonly>You can read this page. An admin changes it.</p> : null}
+      {!isAdmin ? <p className="announcements__quiet" data-announcements-readonly>Only an admin can change these settings.</p> : null}
       {message ? <p className="announcements__notice" data-kind={message.kind} role="status" data-announcements-message>{message.kind === "ok" ? <Check aria-hidden="true" size={18} /> : <TriangleAlert aria-hidden="true" size={18} />} {message.text}</p> : null}
 
       <Card title="Set up your X account" note="A short guide. The full guide is docs/x-announcements-setup.md." id="setup">
@@ -316,6 +353,48 @@ export function AnnouncementsPanel({ isAdmin, isDemo, sections }: { isAdmin: boo
           {!connected && !status.secretSaved ? <span className="announcements__quiet">Save the app&apos;s keys first.</span> : null}
         </div>
       </Card>
+
+      {!isDemo ? <Card title="Opportunities search" note="Find public X conversations using the connected account. A person runs each search; nothing posts." id="opportunities">
+        {isAdmin ? <div className="announcements__fields">
+          <label className="announcements__field">
+            <span>Enable read-only X opportunity searches</span>
+            <input type="checkbox" checked={draftOpportunities.enabled} disabled={disabled} onChange={(event) => patchOpportunities({ enabled: event.target.checked })} />
+          </label>
+          {draftOpportunities.enabled ? <>
+            <label className="announcements__field"><span>Search budget per X billing cycle (USD)</span>
+              <input type="number" min="0.000001" step="0.000001" value={draftOpportunities.budget ?? ""} disabled={disabled}
+                onChange={(event) => patchOpportunities({ budget: event.target.value || null })} />
+            </label>
+            <label className="announcements__field"><span>X billing cycle start day (UTC)</span>
+              <input type="number" min="1" max="31" step="1" value={draft.billingCycleDay ?? ""} disabled={disabled}
+                onChange={(event) => patch({ billingCycleDay: event.target.value ? Number(event.target.value) : null })} />
+            </label>
+            <label className="announcements__field"><span>X post-read price (USD)</span>
+              <input type="number" min="0.000001" step="0.000001" value={draftOpportunities.postPrice ?? ""} disabled={disabled}
+                onChange={(event) => patchOpportunities({ postPrice: event.target.value || null })} />
+            </label>
+            <label className="announcements__field"><span>X user-read price (USD)</span>
+              <input type="number" min="0.000001" step="0.000001" value={draftOpportunities.userPrice ?? ""} disabled={disabled}
+                onChange={(event) => patchOpportunities({ userPrice: event.target.value || null })} />
+            </label>
+            <p className="announcements__quiet">Use the <a href={X_PRICING_URL}>current X prices</a>. The search allowance is separate from the announcements allowance and is not a limit on charges X bills outside this tool.</p>
+          </> : null}
+          {dirty ? <button type="button" className="announcements__button" disabled={disabled} onClick={() => void saveSettings()}>Save search settings</button> : null}
+        </div> : null}
+        {savedOpportunities.enabled && connected ? <>
+          <label className="announcements__field">
+            <span>X search query</span>
+            <input value={opportunityQuery} maxLength={4096} onChange={(event) => setOpportunityQuery(event.target.value)} disabled={busy !== null} />
+          </label>
+          <button type="button" className="announcements__button" disabled={busy !== null || !opportunityQuery.trim()} onClick={() => void runOpportunitySearch()}>
+            Search X (up to {formatMoney(worstSearchCost)} reserved)
+          </button>
+        </> : <p className="announcements__quiet">Search needs an active connection and enabled search settings.</p>}
+        {capture ? <div className="announcements__actions">
+          <span>{capture.receipt.publicPosts} public posts. Estimated USD {capture.receipt.estimatedUsd}; reserved USD {capture.receipt.reservedUsd}.</span>
+          <button type="button" className="announcements__button" onClick={downloadOpportunityCapture}>Download search results</button>
+        </div> : null}
+      </Card> : null}
 
       <Card title="Mode" note="Everything is off until you turn it on." id="mode">
         <div className="announcements__choices" role="radiogroup" aria-label="Mode" data-announcements-modes>

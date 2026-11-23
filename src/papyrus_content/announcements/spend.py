@@ -44,6 +44,33 @@ class SpendLedger:
         return str(Decimal(held.microUsd) / MICRO)
 
 
+    def reserve_search(self, account_id: str, start: Any, maximum: Decimal, cap: Decimal, moment: datetime) -> str | None:
+        """Atomically count the page's worst-case charge against its separate, per-cycle read allowance.
+
+        A reservation is intentionally not released: provider billing cannot be inferred after a failed/timed-out request.
+        Returning None means no reservation was made, so the caller must not search.
+        """
+        charge, ceiling = spend_ledger.micro_usd(maximum), spend_ledger.micro_usd(cap)
+        if charge <= 0 or charge > ceiling:
+            return None
+        try:
+            answer = self.table.update_item(
+                Key={"pk": spend_ledger.partition_key(self.tenant_id, f"{scope_of(account_id)}:opportunities", start),
+                     "sk": spend_ledger.TOTAL_SORT_KEY},
+                ConditionExpression="attribute_not_exists(microUsd) OR microUsd <= :remaining",
+                UpdateExpression="ADD microUsd :charge, calls :one SET updatedAt = :stamp",
+                ExpressionAttributeValues={":remaining": ceiling - charge, ":charge": charge, ":one": 1,
+                                           ":stamp": moment.astimezone(timezone.utc).isoformat()},
+                ReturnValues="ALL_NEW",
+            )
+        except Exception as error:
+            response = getattr(error, "response", {})
+            if isinstance(response, dict) and response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise spend_ledger.SpendError("The X search budget could not be reserved.") from None
+        return str(Decimal(answer["Attributes"]["microUsd"]) / MICRO)
+
+
 def ledger_from_environment(environment: Mapping[str, str], *, ssm: Any = None, table: Any = None) -> SpendLedger:
     """The X spend counter for the site this process serves. The table is named by the runner's own variable, or by the parameter the monitoring stack writes."""
     tenant = (environment.get(TENANT_ENVIRONMENT) or "").strip()

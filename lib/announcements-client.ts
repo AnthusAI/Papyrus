@@ -1,16 +1,16 @@
 "use client";
 
 import { generateClient } from "aws-amplify/data";
-import { ANNOUNCEMENT_MUTATION_OPERATIONS, ANNOUNCEMENT_QUERY_OPERATIONS } from "../amplify/functions/announcements/operations";
+import { ANNOUNCEMENT_MUTATION_OPERATIONS, ANNOUNCEMENT_QUERY_OPERATIONS, OPPORTUNITY_MUTATION_OPERATIONS } from "../amplify/functions/announcements/operations";
 import type { AnnouncementFailure } from "./announcements-model";
 
-export type AnnouncementOperation = (typeof ANNOUNCEMENT_QUERY_OPERATIONS)[number] | (typeof ANNOUNCEMENT_MUTATION_OPERATIONS)[number];
+export type AnnouncementOperation = (typeof ANNOUNCEMENT_QUERY_OPERATIONS)[number] | (typeof ANNOUNCEMENT_MUTATION_OPERATIONS)[number] | (typeof OPPORTUNITY_MUTATION_OPERATIONS)[number];
 export type AnnouncementsApi = <T extends object = Record<string, unknown>>(operation: AnnouncementOperation, input?: Record<string, unknown>) => Promise<({ ok: true } & T) | AnnouncementFailure>;
 
 type GraphQLResult = { data?: Record<string, unknown>; errors?: { message?: string; errorType?: string }[] };
 
 export function announcementOperationDocument(operation: AnnouncementOperation): string {
-  const kind = (ANNOUNCEMENT_MUTATION_OPERATIONS as readonly string[]).includes(operation) ? "mutation" : "query";
+  const kind = ([...ANNOUNCEMENT_MUTATION_OPERATIONS, ...OPPORTUNITY_MUTATION_OPERATIONS] as readonly string[]).includes(operation) ? "mutation" : "query";
   const title = operation.charAt(0).toUpperCase() + operation.slice(1);
   return `${kind} ${title}($input: AWSJSON) { ${operation}(input: $input) }`;
 }
