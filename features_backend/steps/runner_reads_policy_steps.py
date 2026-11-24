@@ -82,6 +82,11 @@ def adopted(context, responsibility):
     context.client.automations[context.automation_id]["responsibility"] = responsibility
 
 
+@given("the automation is disabled")
+def automation_disabled(context):
+    context.client.automations[context.automation_id]["enabled"] = False
+
+
 @given('the policy sets "{responsibility}" to "{rung}"')
 def sets_rung(context, responsibility, rung):
     context.policy.set_rung(TENANT, ADMIN, responsibility, rung, reason="Seed")
