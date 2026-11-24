@@ -211,9 +211,9 @@ from papyrus_content.handoff_handlers import signed_in_handlers as _handoff_hand
 HANDLERS.update(_handoff_handlers())
 
 
-# The poke-in operations (PPY-e6f31e): pause, resume, the pauses and wake now. They read the agent policy, the run index and the wake queue, which the image service and
+# The poke-in operations (PPY-e6f31e): pause, resume, the pauses, wake now and wake now on an Overdue record (PPY-97180c). They read the agent policy, the run index and the wake queue, which the image service and
 # the monitoring router never do, so the module is imported by the call.
-AGENT_OPERATIONS = ("agents_pause", "agents_resume", "agents_pauses", "agents_wake")
+AGENT_OPERATIONS = ("agents_pause", "agents_resume", "agents_pauses", "agents_wake", "agents_wake_overdue")
 
 
 def _agent_handler(name: str) -> Handler:

@@ -83,10 +83,22 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "2bd0c4cf-9fa2-489e-a677-1904cf579a2a",
+      "author": "ryan",
+      "text": "Live exit test 2026-11-23 (MoM): Ryan saved soft review for X story posts with editWindows 60/5. At 21:38 UTC 'Explainable Journalism: An Article Should Be Able to Show Its Work' was rated five stars (at Ryan's instruction). At 21:39 the announce agent made announcement-94f4f4574e640f652ddfd58b with an X Delivery, ready, lock 22:34:43, release 22:39:43. Nobody touched it; at 22:40:04 attempt 1 was sent and the Delivery reads sent. Spend: 2 posts / $0.40 before, 3 posts / $0.60 after (rose by one). Remaining: the budget check (budget below spend, a paid run waits, one flag). Both routes (agents set-budget, announcements settings set) are person-only, so it waits for Ryan.",
+      "created_at": "2026-11-23T22:46:35.571651Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-22T19:02:56.071717Z",
-  "updated_at": "2026-11-22T22:27:47.665484Z",
+  "updated_at": "2026-11-23T22:46:35.572192Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",

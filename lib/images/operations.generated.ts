@@ -70,6 +70,7 @@ export type ImageOperationName =
   | "agents_resume"
   | "agents_pauses"
   | "agents_wake"
+  | "agents_wake_overdue"
 ;
 
 export type ImageErrorCode =
@@ -1919,6 +1920,30 @@ export type AgentsWakeResult = {
   reason: string;
 };
 
+/** Wake now one Overdue record (a Delivery, or a soft review's deadline) that a follow-up timer wakes: its timer's wake goes on the site's wake queue again, with the same key, and runs once. */
+export type AgentsWakeOverdueInput = {
+  /** The kind of record, as Today names it. */
+  record: "Delivery" | "ReviewRequest";
+  /** The record's id, as Today lists it. */
+  id: string;
+  /** Why, in plain words. It is recorded with who and when. */
+  reason: string;
+};
+
+export type AgentsWakeOverdueResult = {
+  record: string;
+  id: string;
+  /** The due time it missed. */
+  dueAt: string;
+  waitingFor?: string | null;
+  /** The key of the timer's wake; the same key the timer used. */
+  wakeKey: string;
+  requestedBy: string;
+  reason: string;
+  /** What happened, in words. */
+  shown: string;
+};
+
 export interface ImageOperations {
   image_profile_get: { input: ImageProfileGetInput; result: ImageProfileGetResult };
   image_profile_resolve: { input: ImageProfileResolveInput; result: ImageProfileResolveResult };
@@ -1987,6 +2012,7 @@ export interface ImageOperations {
   agents_resume: { input: AgentsResumeInput; result: AgentsResumeResult };
   agents_pauses: { input: AgentsPausesInput; result: AgentsPausesResult };
   agents_wake: { input: AgentsWakeInput; result: AgentsWakeResult };
+  agents_wake_overdue: { input: AgentsWakeOverdueInput; result: AgentsWakeOverdueResult };
 }
 
 /** What each operation is, for the transport: read operations are queries, write and spend operations are mutations. */
@@ -2058,6 +2084,7 @@ export const IMAGE_OPERATIONS = {
   agents_resume: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "blocked", group: "agents", command: "papyrus agents resume" },
   agents_pauses: { effect: "read", agentAllowed: true, agentRung: "observe", agentRefusal: "human_required", group: "agents", command: "papyrus agents pauses" },
   agents_wake: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "agents", command: "papyrus agents wake" },
+  agents_wake_overdue: { effect: "write", agentAllowed: false, agentRung: "person", agentRefusal: "human_required", group: "agents", command: "papyrus agents wake-overdue" },
 } as const;
 
 /** `group` says which door: images go through imageRead and imageWrite, guidelines through guidelinesRead and guidelinesWrite; announcements, ratings and handoffs have no door yet (the console reads and writes their models directly); agents go through agentPolicyChange (pause, resume, pauses) and agentWake (wake). */

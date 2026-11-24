@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  AlarmClockIcon, CalendarClockIcon, CheckIcon, ChevronDownIcon, CircleHelpIcon, ClockIcon, FlagIcon, HourglassIcon, LockIcon, MinusIcon, RotateCwIcon, SendIcon,
+  AlarmClockCheckIcon, AlarmClockIcon, CalendarClockIcon, CheckIcon, ChevronDownIcon, CircleHelpIcon, ClockIcon, FlagIcon, HourglassIcon, LockIcon, MinusIcon, RotateCwIcon, SendIcon,
   TriangleAlertIcon, XIcon, type LucideIcon,
 } from "lucide-react";
 import { OUTCOME_MARKS, RunOutcome } from "./run-outcome";
@@ -20,8 +20,10 @@ import {
   runsText,
   sendCostText,
   sendItemsText,
+  type OverdueWakeOutcome,
   type TodayCountKey,
   type TodayAttentionEntry,
+  type TodayAttentionOverdue,
   type TodayDidNotRun,
   type TodayDue,
   type TodayOverview,
@@ -205,7 +207,47 @@ function ReviewItem({ entry, demo }: { entry: TodayReview; demo: boolean }) {
   );
 }
 
-function AttentionItem({ entry, demo, onAcknowledge }: { entry: TodayAttentionEntry; demo: boolean; onAcknowledge?: Acknowledge }) {
+/** Wake now on an Overdue record: its own timer's wake goes on the site's queue again, with the same key. Says what happened in words beside a mark. */
+type WakeOverdue = (record: string, id: string, reason: string) => Promise<OverdueWakeOutcome>;
+
+export function WakeOverdueAction({ entry, onWakeOverdue, initialOutcome = null }: { entry: TodayAttentionOverdue; onWakeOverdue?: WakeOverdue; initialOutcome?: OverdueWakeOutcome | null }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<OverdueWakeOutcome | null>(initialOutcome);
+  const act = async () => {
+    if (!onWakeOverdue) return;
+    if (!reason.trim()) {
+      setOutcome({ state: "refused", words: "Say why it is woken now: the reason is kept on its run. Nothing was sent." });
+      return;
+    }
+    setBusy(true);
+    setOutcome(await onWakeOverdue(entry.record, entry.id, reason));
+    setBusy(false);
+  };
+  const OutcomeIcon = outcome?.state === "sent" ? AlarmClockCheckIcon : TriangleAlertIcon;
+  return (
+    <span className="flex flex-col items-start gap-1.5 sm:max-w-[16rem]">
+      <label className="flex w-full flex-col gap-1 text-xs font-medium">
+        Reason
+        <input className="min-h-11 w-full rounded-full bg-[var(--feed-control)] px-4 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" data-today-wake-reason
+          onChange={(event) => setReason(event.target.value)} placeholder="Why now" type="text" value={reason} />
+      </label>
+      <button className={ACTION} data-today-action="wake_now" data-today-action-id={entry.id} data-today-action-record={entry.record}
+        disabled={busy || !onWakeOverdue || entry.action.available === false} onClick={act} type="button">
+        <AlarmClockIcon aria-hidden="true" className="size-4 shrink-0" />
+        {busy ? "Waking…" : entry.action.words}
+      </button>
+      {outcome ? (
+        <span className="inline-flex items-start gap-1.5 text-xs" data-today-wake-outcome={outcome.state} role={outcome.state === "sent" ? "status" : "alert"}>
+          <OutcomeIcon aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+          {outcome.words}
+        </span>
+      ) : entry.action.note ? <span className="text-xs text-muted-foreground" data-today-action-note>{entry.action.note}</span> : null}
+    </span>
+  );
+}
+
+function AttentionItem({ entry, demo, onAcknowledge, onWakeOverdue }: { entry: TodayAttentionEntry; demo: boolean; onAcknowledge?: Acknowledge; onWakeOverdue?: WakeOverdue }) {
   if (entry.kind === "review") return <ReviewItem demo={demo} entry={entry} />;
   if (entry.kind === "overdue") {
     return (
@@ -215,13 +257,7 @@ function AttentionItem({ entry, demo, onAcknowledge }: { entry: TodayAttentionEn
           <p className="break-words font-semibold">{entry.record} {entry.id}</p>
           <p className="text-xs text-muted-foreground">was due {entry.dueLocal ?? entry.dueAt}{entry.waitingFor ? ` (${entry.waitingFor})` : ""} and nothing ran</p>
         </div>
-        <span className="flex flex-col items-start gap-1 sm:max-w-[16rem]">
-          <button className={ACTION} data-today-action="wake_now" disabled type="button">
-            <AlarmClockIcon aria-hidden="true" className="size-4 shrink-0" />
-            {entry.action.words}
-          </button>
-          {entry.action.note ? <span className="text-xs text-muted-foreground" data-today-action-note>{entry.action.note}</span> : null}
-        </span>
+        <WakeOverdueAction entry={entry} onWakeOverdue={onWakeOverdue} />
       </ItemCard>
     );
   }
@@ -281,7 +317,7 @@ function DidNotRunLine({ entry, demo }: { entry: TodayDidNotRun; demo: boolean }
   );
 }
 
-function Ready({ overview, demo, onAcknowledge }: { overview: TodayOverview; demo: boolean; onAcknowledge?: Acknowledge }) {
+function Ready({ overview, demo, onAcknowledge, onWakeOverdue }: { overview: TodayOverview; demo: boolean; onAcknowledge?: Acknowledge; onWakeOverdue?: WakeOverdue }) {
   return (
     <>
       {overview.timeZoneNote ? <p className="text-sm" data-today-zone-note>{overview.timeZoneNote}</p> : null}
@@ -294,7 +330,7 @@ function Ready({ overview, demo, onAcknowledge }: { overview: TodayOverview; dem
       <Heading count={overview.attention.length}>Needs attention</Heading>
       {overview.attention.length ? (
         <ul className="space-y-2" data-today-attention>
-          {overview.attention.map((entry) => <AttentionItem demo={demo} entry={entry} key={`${entry.kind}:${entry.id}`} onAcknowledge={onAcknowledge} />)}
+          {overview.attention.map((entry) => <AttentionItem demo={demo} entry={entry} key={`${entry.kind}:${entry.id}`} onAcknowledge={onAcknowledge} onWakeOverdue={onWakeOverdue} />)}
         </ul>
       ) : <p className="text-sm text-muted-foreground" data-today-nothing-attention>Nothing needs attention.</p>}
       <Heading count={overview.due.length}>Due today</Heading>
@@ -332,9 +368,9 @@ function Ready({ overview, demo, onAcknowledge }: { overview: TodayOverview; dem
   );
 }
 
-/** The Today section of the newsroom home: what only a person can move first, then what is due, then what ran. The panel around it refreshes it and
- *  acknowledges runs. */
-export function TodayView({ result, demo = false, onAcknowledge }: { result: TodayResult | null; demo?: boolean; onAcknowledge?: Acknowledge }) {
+/** The Today section of the newsroom home: what only a person can move first, then what is due, then what ran. The panel around it refreshes it,
+ *  acknowledges runs and wakes Overdue records now. */
+export function TodayView({ result, demo = false, onAcknowledge, onWakeOverdue }: { result: TodayResult | null; demo?: boolean; onAcknowledge?: Acknowledge; onWakeOverdue?: WakeOverdue }) {
   return (
     <section aria-label="Today" className="space-y-3" data-today>
       <h2 className="text-lg font-semibold">
@@ -348,7 +384,7 @@ export function TodayView({ result, demo = false, onAcknowledge }: { result: Tod
             : <Message kind="bad_request" title="Today could not be read">{result.message ?? "The request was not understood."}</Message>
         )
         : result.state === "unavailable" ? <Message kind="unavailable" title="Today could not be read right now">Nothing is wrong with what you see elsewhere on this page. It tries again by itself.</Message>
-        : <Ready demo={demo} onAcknowledge={onAcknowledge} overview={result} />}
+        : <Ready demo={demo} onAcknowledge={onAcknowledge} onWakeOverdue={onWakeOverdue} overview={result} />}
     </section>
   );
 }

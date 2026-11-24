@@ -315,6 +315,8 @@ _ENTRIES = dict([
      "[--input-file PATH]", "editor", "reads", ""),
   _e("agents wake", "Wake one agent now for one subject: its latest wake for that subject goes on the site's wake queue again and runs once, re-reading the subject. Editor or admin who is a person.",
      "--agent AGENT --subject SUBJECT --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
+  _e("agents wake-overdue", "Wake now one Overdue record that a follow-up timer wakes (a Delivery, or a soft review's deadline; Today lists them): its timer's wake goes on the site's wake queue again, with the same key, and runs once. Refused, sending nothing, when the record is not Overdue. Editor or admin who is a person.",
+     "--record Delivery|ReviewRequest --id ID --reason TEXT [--input-file PATH] [--dry-run]", "editor", _DRY, ""),
   # ---- guidelines (the operation table, src/papyrus_content/images/operations.py, is the source of the flags; a test keeps these in step) -------------
   _e("guidelines show", "Read a kind of guidelines (writing, image, video) for the site or one section: the stored document, its version, and the version id to pass to save.",
      "--kind KIND [--section KEY] [--language TAG] [--version N] [--input-file PATH]", "editor", "reads", "guidelines"),

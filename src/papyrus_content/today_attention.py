@@ -5,7 +5,8 @@ The top of Today is the list of things only a person can move, each with its one
 * **Waiting for you**: every open hard gate and soft review (a question for a person), hard gates first. Its action is Answer: the request opens
   in the Notification Center, where it is approved, rejected or answered with feedback.
 * **Needs attention**: runs whose outcome is unknown (action Settle) and failures nobody has acknowledged (action Acknowledge), both read from
-  the sparse attention index of `run_attention`; records that are Overdue (`overdue`, action Wake now); and open flags (action Open). A flag the
+  the sparse attention index of `run_attention`; records that are Overdue (`overdue`, action Wake now: `overdue.wake_now`, the operation
+  `agents_wake_overdue`); and open flags (action Open). A flag the
   overdue check raised for a record already listed as Overdue is not listed twice. Invariant alerts (slice J6) are raised as flags, so they show here.
 
 Then **Due today**: every time in the site's day that something will happen unless a person acts, in the site's time zone: a Delivery's lock,
@@ -41,7 +42,7 @@ ACTIONS = {
     "answer": "Answer", "settle": "Settle", "acknowledge": "Acknowledge", "wake_now": "Wake now", "open": "Open",
 }
 SETTLE_NOTE = "Look at what it wrote, then settle it: the run leaves this list and stays in the history as Outcome unknown."
-WAKE_NOW_NOTE = "Wake now is the agents wake operation. Until it is there, the operations check sends this wake again on its daily run."
+WAKE_NOW_NOTE = "Wake now sends this record's own timer wake again, with the same key, so it runs once."
 
 DUE_WORDS = {
     "lockAt": "Locks", "releaseAt": "Goes out", "nextAttemptAt": "Next attempt", "scheduledPublishAt": "Publishes",
@@ -139,9 +140,10 @@ def attention_run_line(run: Mapping[str, Any], time_zone: str, day: str) -> dict
 
 
 def overdue_line(entry: Mapping[str, Any], time_zone: str, day: str) -> dict[str, Any]:
-    """An Overdue record (`overdue.read`), with its due time in the site's zone. Its action is Wake now, which the agents wake operation provides."""
+    """An Overdue record (`overdue.read`), with its due time in the site's zone. Its action is Wake now: its own timer's wake sent again (`agents_wake_overdue`)."""
     return {**entry, "kind": "overdue", "record": entry["kind"], "dueLocal": local_time(entry["dueAt"], time_zone, day),
-            "action": {"kind": "wake_now", "words": ACTIONS["wake_now"], "record": entry["kind"], "recordId": entry["id"], "available": False, "note": WAKE_NOW_NOTE}}
+            "action": {"kind": "wake_now", "words": ACTIONS["wake_now"], "record": entry["kind"], "recordId": entry["id"], "available": True, "note": WAKE_NOW_NOTE,
+                       "command": f"papyrus agents wake-overdue --record {entry['kind']} --id {entry['id']} --reason TEXT"}}
 
 
 def needs_attention(attention_runs: Iterable[Mapping[str, Any]], overdue_entries: Iterable[Mapping[str, Any]], open_requests: Iterable[Mapping[str, Any]],

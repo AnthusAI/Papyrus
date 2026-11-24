@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FIXTURE_TODAY } from "../lib/today-fixture";
-import { REFRESH_MILLISECONDS, withoutAttentionRun, type AcknowledgeResult, type TodayResult } from "../lib/today-overview";
+import { REFRESH_MILLISECONDS, withoutAttentionRun, type AcknowledgeResult, type OverdueWakeOutcome, type TodayResult } from "../lib/today-overview";
 import { TodayView } from "./today-view";
 
 /** Why acknowledging did not happen, in words for the editor; null when the run is off the list. */
@@ -64,5 +64,14 @@ export function TodayPanel({ isDemo }: { isDemo: boolean }) {
     return null;
   }, [isDemo]);
 
-  return <TodayView demo={isDemo} onAcknowledge={acknowledge} result={result} />;
+  /** Wake now on an Overdue record. The demo sends nothing and says so. */
+  const wakeOverdue = useCallback(async (record: string, id: string, reason: string): Promise<OverdueWakeOutcome> => {
+    if (isDemo) return { state: "sent", words: `Demo: nothing was sent. On a site, the wake ${record} ${id}'s timer sends goes on the queue again, with the same key.` };
+    const { wakeOverdueRecord } = await import("../lib/today-client");
+    const outcome = await wakeOverdueRecord(record, id, reason);
+    if (outcome.state === "sent") void refreshRef.current();
+    return outcome;
+  }, [isDemo]);
+
+  return <TodayView demo={isDemo} onAcknowledge={acknowledge} onWakeOverdue={wakeOverdue} result={result} />;
 }

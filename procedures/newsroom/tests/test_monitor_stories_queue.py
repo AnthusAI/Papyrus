@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import test_monitoring_router as tr  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
+from monitor_stories_spend_fixture import monitor_stories_spend  # noqa: E402
 from test_monitor_stories import pages  # noqa: E402
 from test_monitoring_packs import PACKS_ON, FilingRecorder, RouterModel, pack_world  # noqa: E402
 from test_monitoring_stories import PUBLICATION, fake_idea_sink, iam_auth, quiet_gate, router  # noqa: E402,F401  (the autouse fixtures of the daily task's tests)
@@ -40,13 +41,14 @@ class FakeSqs:
         return {"Successful": [{"Id": entry["Id"]} for entry in Entries]}
 
 
-def plan(store, client, sqs, *, now=NOW, time_left=lambda: 1e9):
+def plan(store, client, sqs, *, now=NOW, time_left=lambda: 1e9, spend=None):
     """The daily task for the example publication, with the story queue; returns the log lines by name."""
     endpoints = {tr.ENDPOINT.replace("abc123", "api0"): client}
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=now.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint], deliver=tr.Delivery(),
-                            time_left=time_left, publication_id=PUBLICATION, story_queue=(sqs, QUEUE_URL), story_transport=None)
+                            time_left=time_left, publication_id=PUBLICATION, story_queue=(sqs, QUEUE_URL), story_transport=None,
+                            monitor_stories_spend=spend or monitor_stories_spend())
     lines = [json.loads(line) for line in out.getvalue().splitlines() if line.startswith('{"monitorStories"')]
     return result, {line["publicationId"]: line for line in lines}
 
@@ -56,13 +58,14 @@ def event_for(messages, *, receives=1):
                         for number, message in enumerate(messages)]}
 
 
-def work(store, client, model, sqs_messages, *, receives=1, fetch=None):
+def work(store, client, model, sqs_messages, *, receives=1, fetch=None, spend=None):
     """Hands the messages to the story worker one at a time (a FIFO queue with one group does the same); returns the log lines and the failures."""
     endpoints = {tr.ENDPOINT.replace("abc123", "api0"): client}
     out, failures = io.StringIO(), []
+    spend = spend or monitor_stories_spend()
     with redirect_stdout(out):
         for message in sqs_messages:
-            response = handle_story_queue(store, event_for([message], receives=receives), appsync=lambda endpoint: endpoints[endpoint], transport=model, explorer=None,
+            response = handle_story_queue(store, event_for([message], receives=receives), spend=spend, appsync=lambda endpoint: endpoints[endpoint], transport=model, explorer=None,
                                           fetch=fetch or pages(1, 2), gate_for=lambda client: __import__("test_idea_items").FakeGate())
             failures += response["batchItemFailures"]
     return [json.loads(line) for line in out.getvalue().splitlines() if line.startswith("{")], failures
@@ -215,7 +218,7 @@ def test_a_router_with_no_story_queue_still_drafts_in_process(world_of_two):
 
     with redirect_stdout(out):
         run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint], deliver=tr.Delivery(), publication_id=PUBLICATION,
-                   story_transport=RouterModel(), story_drafter=partial(run_publication, fetch=pages(1, 2), explorer=None))
+                   story_transport=RouterModel(), story_drafter=partial(run_publication, fetch=pages(1, 2), explorer=None), monitor_stories_spend=monitor_stories_spend())
     line = next(json.loads(l) for l in out.getvalue().splitlines() if l.startswith('{"monitorStories"'))
     assert line["drafted"] == 3 and line["status"] == "complete"
 

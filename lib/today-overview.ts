@@ -76,7 +76,7 @@ export type TodayOverdue = {
 
 export type TodayActionKind = "answer" | "open" | "settle" | "acknowledge" | "wake_now";
 
-/** The one action beside an item. `available: false` means the operation is not there yet; `note` says what does it meanwhile. */
+/** The one action beside an item. `available: false` means the operation is not there yet; `note` says what it does, or what does it meanwhile. */
 export type TodayAction = {
   kind: TodayActionKind;
   words: string;
@@ -251,4 +251,31 @@ export type AcknowledgeResult =
 /** The overview with one run taken off Needs attention: what the page shows once a run is acknowledged or settled, before the next read. */
 export function withoutAttentionRun(overview: TodayOverview, runId: string): TodayOverview {
   return { ...overview, attention: overview.attention.filter((entry) => !(entry.kind === "run" && entry.id === runId)) };
+}
+
+/** What Wake now on an Overdue record answered (the operation `agents_wake_overdue`, src/papyrus_content/overdue.py `wake_now`). */
+export type OverdueWakeResult = {
+  record: string;
+  id: string;
+  dueAt: string;
+  waitingFor: string | null;
+  /** The key of the record's own timer wake: the same key the timer used. */
+  wakeKey: string;
+  requestedBy: string;
+  reason: string;
+  shown: string;
+};
+
+/** What the page shows after Wake now, in words beside a mark: sent, or refused with why. Nothing was sent when it was refused. */
+export type OverdueWakeOutcome = { state: "sent"; words: string } | { state: "refused"; words: string };
+
+export function overdueWakeSentText(result: OverdueWakeResult): string {
+  return `Woken now by ${result.requestedBy}. The wake its timer sends went on the site's queue again, with the same key, so it runs once.`;
+}
+
+export function overdueWakeRefusedText(code: string, message?: string | null): string {
+  if (message) return message;
+  if (code === "forbidden" || code === "not_authorized") return "Only editors and admins wake a record now. Nothing was sent.";
+  if (code === "human_required") return "Wake now is a person's request. Nothing was sent.";
+  return "The wake could not be sent right now. Nothing was sent; try again in a minute.";
 }

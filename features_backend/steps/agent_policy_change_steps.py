@@ -259,3 +259,110 @@ def reads_review(context, approval):
 @then('the policy function refused the review as "{code}"')
 def review_refused(context, code):
     assert context.review_answer.get("ok") is False and context.review_answer["error"] == code, context.review_answer
+
+
+# --- the site documents' catalogue: the admin group reads it and writes none of it ------------------------------------------------------------------------
+
+SCHEMA_FILES = ("amplify/data/schema.ts", "amplify/data/resource.ts")
+WRITE_OPERATIONS = ("create", "update", "delete")
+
+
+def authorization_rules(source: str, model: str) -> list[str]:
+    """The ``allow.*`` rules of one model's ``.authorization((allow) => [...])``, as written."""
+    import re
+
+    start = re.search(rf"^\s+{model}: ", source, re.MULTILINE)
+    assert start, f"{model} is not a model of the schema"
+    block = source[start.end():]
+    opening = block.index(".authorization((allow) => [")
+    closing = re.compile(r"^\s*\]\),", re.MULTILINE).search(block, opening).start()   # the line that closes the list, not a rule's own ``.to([...]),``
+    rules = [line.strip().rstrip(",") for line in block[opening:closing].splitlines() if line.strip().startswith("allow.")]
+    assert rules, f"{model} has no authorization rules"
+    return rules
+
+
+@when('the data API\'s rules for "{first}" and "{second}" are read from the deployed schema and the typed schema')
+def read_catalogue_rules(context, first, second):
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    context.catalogue_rules = {(path, model): authorization_rules((root / path).read_text(encoding="utf-8"), model)
+                               for path in SCHEMA_FILES for model in (first, second)}
+
+
+@then("in both schemas the admin group may only read each of the two models")
+def admin_group_reads_only(context):
+    for where, rules in context.catalogue_rules.items():
+        admin = [rule for rule in rules if rule.startswith("allow.group(adminGroup)")]
+        assert admin == ['allow.group(adminGroup).to(["read"])'], (where, rules)
+
+
+@then("no rule of either model in either schema lets a group or an owner create, update or delete a row")
+def no_rule_writes(context):
+    for where, rules in context.catalogue_rules.items():
+        for rule in rules:
+            assert rule.endswith('.to(["read"])') and not any(operation in rule for operation in WRITE_OPERATIONS), (where, rule)
+
+
+class ListenerSite:
+    tenant_id = TENANT
+
+
+def run_listeners(context, lane: str, *, client_factory, site_store_factory) -> None:
+    import contextlib
+    import os
+    import tempfile
+    import unittest.mock
+
+    from papyrus_content.agent_definitions import definition
+
+    out = io.StringIO()
+    with tempfile.TemporaryDirectory() as root, unittest.mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": lane}), contextlib.redirect_stdout(io.StringIO()):
+        context.listeners_code = agents_cli.listeners_command(["--core", str(definition.CORE_DIRECTORY), "--root", root], out,
+                                                              client_factory=client_factory, site_store_factory=site_store_factory)
+    context.listeners_answer = json.loads(out.getvalue())
+
+
+@when('ada, signed in to the site, runs "papyrus agents listeners" to write the listener index')
+def person_writes_listeners(context):
+    context.listeners_reads = []
+
+    def client():
+        context.listeners_reads.append("site API")
+        return ListenerSite()
+
+    def store(client):
+        context.listeners_reads.append("site store")
+        return SiteStore(ObjectsAs(context.shared, None), BUCKET, CatalogueAs(context.shared, None))
+
+    run_listeners(context, "user", client_factory=client, site_store_factory=store)
+
+
+@then('the listeners command was refused as "{code}", naming the deploy\'s own role')
+def listeners_refused(context, code):
+    error = context.listeners_answer.get("error") or {}
+    assert context.listeners_code == 2 and error.get("code") == code, context.listeners_answer
+    assert "PAPYRUS_GRAPHQL_AUTH=iam papyrus agents listeners" in error["message"], error
+
+
+@then("the command read no site document and wrote no object and no catalogue row")
+def listeners_touched_nothing(context):
+    assert context.listeners_reads == [] and context.shared.writers == [], (context.listeners_reads, context.shared.writers)
+
+
+@when('the deploy runs "papyrus agents listeners" as its own role')
+def deploy_writes_listeners(context):
+    role = "deploy role"
+    run_listeners(context, "iam", client_factory=ListenerSite,
+                  site_store_factory=lambda client: SiteStore(ObjectsAs(context.shared, role), BUCKET, CatalogueAs(context.shared, role), now=lambda: SAVED_AT))
+
+
+@then("the listener index is at version {version:d}, and every object and catalogue row of it was written by the deploy's role")
+def listeners_written_by_deploy(context, version):
+    assert context.listeners_code == 0 and context.listeners_answer["result"]["index"] == {"action": "created", "version": version, "applied": True}, context.listeners_answer
+    reader = SiteStore(ObjectsAs(context.shared, None), BUCKET, CatalogueAs(context.shared, None))
+    assert reader.current_version(TENANT, "listeners") == version
+    writes = context.shared.writers
+    of_the_index = {"object": f"tenants/{TENANT}/site/listeners/", "row": f"{TENANT}#listeners"}
+    assert {kind for kind, _, _ in writes} == {"object", "row"}, writes
+    assert all(key.startswith(of_the_index[kind]) and writer == "deploy role" for kind, key, writer in writes), writes

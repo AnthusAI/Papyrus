@@ -114,7 +114,7 @@ def test_the_hand_written_usage_names_every_flag_the_generated_spec_has():
     from papyrus_content.images.cli_generated import COMMANDS
 
     entries = [entry for entry in COMMANDS if entry["group"] == "agents"]
-    assert sorted(entry["op"] for entry in entries) == ["agents_pause", "agents_pauses", "agents_resume", "agents_wake"]
+    assert sorted(entry["op"] for entry in entries) == ["agents_pause", "agents_pauses", "agents_resume", "agents_wake", "agents_wake_overdue"]
     for entry in entries:
         usage = usage_for_path(["agents", *entry["words"]])
         assert usage is not None, entry["words"]

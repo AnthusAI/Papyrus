@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import test_monitoring_router as tr  # noqa: E402
 from fake_idea_store import FakeIdeaStore  # noqa: E402
+from monitor_stories_spend_fixture import monitor_stories_spend  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
 from test_monitor_stories import MonitorClient, StoryModel, is_point_check, pages, provenance, with_editors_reasons, world  # noqa: E402
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient  # noqa: E402
@@ -66,7 +67,7 @@ def router(publications=(PUBLICATION,), settings=None):
     return table, store
 
 
-def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None, publication_id=None):
+def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None, publication_id=None, spend=None):
     """Runs the monitor-stories task; `clients` maps a publication id to its backend. Returns (result, log lines by publication)."""
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): client for n, client in enumerate(clients.values())}
     for client in clients.values():
@@ -76,7 +77,8 @@ def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_t
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint],
                             deliver=tr.Delivery(), time_left=time_left, publication_id=publication_id, story_transport=model,
-                            story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None, **({"gate": gate} if gate else {})))
+                            story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None, **({"gate": gate} if gate else {})),
+                            monitor_stories_spend=spend or monitor_stories_spend())
     lines = {line["publicationId"]: line for line in map(json.loads, (l for l in out.getvalue().splitlines() if l.startswith('{"monitorStories"')))}
     return result, lines
 
@@ -574,7 +576,8 @@ def test_a_run_naming_one_publication_drafts_only_that_one_and_takes_its_own_loc
     store.acquire_router_lock = lambda *a, **k: (seen.append(k.get("sk")), original(*a, **k))[1]
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): c for n, c in enumerate((first, second))}
     result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", publication_id="other-site", appsync=lambda e: endpoints[e],
-                        deliver=tr.Delivery(), story_transport=StoryModel(), story_drafter=partial(run_publication, fetch=pages(*range(1, 60)), explorer=None))
+                        deliver=tr.Delivery(), story_transport=StoryModel(), story_drafter=partial(run_publication, fetch=pages(*range(1, 60)), explorer=None),
+                        monitor_stories_spend=monitor_stories_spend())
     assert list(result["monitorStories"]) == ["other-site"] and len(second.filed) == 2 and not first.filed
     assert seen == ["LOCK#monitor-stories#other-site"]
     assert ("MONITOR#hn", "LOCK#router") not in table.items and ("MONITOR#hn", "LOCK#monitor-stories#other-site") not in table.items   # released

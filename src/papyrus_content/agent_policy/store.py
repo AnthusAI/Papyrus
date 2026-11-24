@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime, timezone
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Mapping
 
-from papyrus_content.images.handlers import Caller
+if TYPE_CHECKING:   # only named in annotations: reading a policy (the monitoring router's zip, PPY-45c2ef) must not import the signed-in handlers
+    from papyrus_content.images.handlers import Caller
 from papyrus_content.site_store import SiteSaveConflict, SiteStore
 
 from .document import PAUSE_DETAILS, PolicyError, check_rung, check_scope, fresh, scope_of, validate_agent, validate_document

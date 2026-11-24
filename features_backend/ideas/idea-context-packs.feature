@@ -17,7 +17,7 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
   The monitoring router runs all of this once a day for each publication. It reads the publication once, builds and ranks the packs, scores the
   single-item candidates from the same signals, and walks ONE queue in which packs and single items take turns by surprise. A pack goes to the
   idea agent, which proposes between one and three ideas about the theme; a single item goes to the single-item path. Both share one cost meter and
-  the same stops (the Lambda's time, the model-spend backstop and a filing error), every idea passes the same editorial gate, and one soft review
+  the same stops (the Lambda's time and a filing error; what they spend is one drafting run in the site's spend ledger), every idea passes the same editorial gate, and one soft review
   request covers the whole run. A publication sets `singleItem` and `contextPacks` (`enabled`, and optionally the `signals` to use) in its router
   entry; there is no numeric setting. Its log line reports the packs offered, the ideas they produced, the packs held back for want of new
   evidence, and for each pack the signal, the anchor and the corrected p-value.
@@ -177,11 +177,12 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     When the monitor-stories task runs
     Then the filing error is recorded, the publication is not stopped by it and the single item is still asked for
 
-  Scenario: Packs and single items spend from one budget
+  Scenario: Packs and single items share one cost meter, and no cost ceiling stops them
     Given a publication with a concept whose accepts jump and a monitored Reference with a lively thread
-    And a model-spend backstop that the pack's call nearly uses up
+    And a model whose pack call costs about thirteen cents
     When the monitor-stories task runs
-    Then the publication is stopped by cost after the pack and the single item is not asked for
+    Then the pack's ideas and the single item's idea are all filed
+    And the run's drafting is one run of the monitor_stories agent in the site's spend ledger, with the cost of the pack and the single item together
 
   Scenario: A dry run of the command prints the packs and writes nothing
     Given a publication with a concept whose accepts jump and a monitored Reference with a lively thread

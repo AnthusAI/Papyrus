@@ -690,7 +690,7 @@ def draft_monitor_stories(
     limit: int | None = DEFAULT_LIMIT,
     since: str | None = None,
     threshold: float | None = None,
-    maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
+    maximum_cost_usd: float | None = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
     fetch: SourceFetcher = fetch_source,
@@ -717,7 +717,8 @@ def draft_monitor_stories(
 
     ``limit=None`` drafts every candidate (the daily router task, docs/monitoring-cloud.md#monitor-stories): the run then stops only for a real
     constraint, and ``stoppedBy`` names it: ``time`` (``out_of_time()`` turned true between two items; the rest is picked up by the next run),
-    ``cost`` (``maximum_cost_usd``) or ``file_error`` (the same filing error twice in a row: systemic, so the run stops rather than spend on drafts that cannot be kept; a single failure is recorded in ``fileErrors`` and the run goes on).
+    ``cost`` (``maximum_cost_usd``, a person's ``--max-cost-usd``; None, the monitoring router's runs, sets no ceiling: their spend is counted in the spend
+    ledger against the site's budget and judged by the unusual-cost flag, monitor_stories_spend.py) or ``file_error`` (the same filing error twice in a row: systemic, so the run stops rather than spend on drafts that cannot be kept; a single failure is recorded in ``fileErrors`` and the run goes on).
     Each draft is filed as soon as it is kept, so a run that stops early loses nothing it paid for.
 
     ``ordered_candidates`` (lineage ids, best first, from the signal queue of ``ideas/item_signals.py``) replaces the Cyclotron-and-freshness ranking:
@@ -893,7 +894,7 @@ def draft_monitor_stories(
                 run["skipped"].append({"packId": subject.pack_id, "title": subject.anchor, "reason": retry_rules.ALREADY_REJECTED, "rejectedAt": pack_remembered.get("rejectedAt"), "earlierReasons": pack_remembered.get("reasons") or []})
                 continue
             estimate = synthesis.estimate_cost_usd(model, len(PACK_PROMPT) + subject.size(), PACK_OUTPUT_TOKENS + MAXIMUM_PACK_IDEAS * point_check.MAXIMUM_OUTPUT_TOKENS)
-            if estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
+            if maximum_cost_usd is not None and estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
                 run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${meter.spent_usd:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
                 run["stoppedBy"] = "cost"
                 break
@@ -960,7 +961,7 @@ def draft_monitor_stories(
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "input_too_large"})
             continue
         estimate = synthesis.estimate_cost_usd(model, size, MAXIMUM_OUTPUT_TOKENS + point_check.MAXIMUM_OUTPUT_TOKENS)
-        if estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
+        if maximum_cost_usd is not None and estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
             run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${meter.spent_usd:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
             run["stoppedBy"] = "cost"
             break

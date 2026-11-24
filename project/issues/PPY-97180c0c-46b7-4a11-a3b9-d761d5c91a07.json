@@ -3,7 +3,7 @@
   "title": "Today's Wake now re-sends one record's follow-up timer wake",
   "description": "Today's Overdue items (Deliveries, soft review deadlines) are woken by the engine's follow-up timers (deliver, review-deadline), not by an adopted agent, so agents wake cannot reach them and Today's Wake now button is disabled. Build the per-record form of overdue.recover: re-send that one record's timer wake with the same key (a duplicate is harmless), as an operation in the operation table usable from Today and the CLI, by editors and admins, recorded with who and why.\n\n**Acceptance criteria**\n- Wake now on an Overdue Delivery or review deadline sends its timer wake once, with the same key.\n- The button on Today is enabled and shows what happened in words and a mark.\n- Every behaviour change ships with narrative Gherkin specs.\n\n**Standing rules:** no fallbacks, no workarounds, no interim systems, no arbitrary caps; indexes over scans; nothing created by hand in AWS.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,9 +12,24 @@
     "always-on-agents"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d03af980-8f6f-4ec9-be3b-3c178eb63ace",
+      "author": "ryan",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1886 (branch feat/PPY-97180c-wake-now-timer): agents_wake_overdue operation, overdue.wake_now, Today Wake now enabled; spec features_backend/agents/overdue-wake-now.feature. Not merged, not released.",
+      "created_at": "2026-11-23T22:05:19.140895Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "94675923-67ad-4d10-b189-6d3e2559b1b3",
+      "author": "ryan",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1886 (branch feat/PPY-97180c-wake-now-timer): agents_wake_overdue operation, overdue.wake_now, Today Wake now enabled; spec features_backend/agents/overdue-wake-now.feature. Not merged, not released.",
+      "created_at": "2026-11-23T22:05:28.912322Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-23T17:08:25.124534Z",
-  "updated_at": "2026-11-23T17:08:25.124555Z",
+  "updated_at": "2026-11-23T22:05:28.913054Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",

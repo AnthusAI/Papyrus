@@ -80,3 +80,15 @@ Feature: Today says what the system did, what it decided to do nothing about, an
   Scenario: A day that does not exist is refused in words
     When Today is read for the day "2026-13-45"
     Then Today is refused with a message that says it is not a date
+
+  Scenario: Today on a site whose records carry a tenant lists its agents
+    A dedicated site whose records carry a tenant (its build sets PAPYRUS_TENANT_ID) gives Today's function that tenant, so the agents are read
+    through the Automation tenant index as the site's tenant, and Today does not answer that it is unavailable.
+    Given the site is a dedicated site whose records carry the tenant "machines-on-machines", and its function is built with that tenant
+    And the "rate" responsibility finished 2 runs that did the work
+    When Today is read for the day through the function's own client
+    Then Today is ready, not unavailable
+    And the agents were read through the tenant index for "machines-on-machines"
+    And "Weekly digest" is listed as "Did not run" because it is disabled
+    And "Announce releases" is listed as "Did not run" because nothing woke it today
+    And the "Rate and curate" line says "✓ Did it 2"
