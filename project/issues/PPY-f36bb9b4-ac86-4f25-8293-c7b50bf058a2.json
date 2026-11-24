@@ -59,10 +59,22 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "6710baab-a761-484a-b093-17a0a20c2f9c",
+      "author": "ryan",
+      "text": "2026-11-23: Today fix released (Papyrus 5.152.0, #1893; MoM #359, #360; Amplify job 162). `papyrus today` on MoM now answers: Waiting for you (13) and Needs attention (117). Exit test not yet passable: no X draft and no rating review are waiting right now (the one announcement sent at 22:40; no open rr-ratings-* review), and pausing and resuming announce are person-only. Needs Ryan on the iPad: a fresh five-star rating (or a rating suggestion) to put both in Waiting for you, then pause/resume announce. Also seen: four Announce runs for The Eternal October failed with procedure_error on 21 Nov.",
+      "created_at": "2026-11-24T03:21:03.746513Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-22T19:02:56.316327Z",
-  "updated_at": "2026-11-23T23:13:12.897375Z",
+  "updated_at": "2026-11-24T03:21:03.747750Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
