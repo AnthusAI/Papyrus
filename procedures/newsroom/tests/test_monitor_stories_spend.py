@@ -54,7 +54,14 @@ def test_the_policy_is_read_from_the_publications_site_bucket_and_a_site_with_no
     assert api.fields == {("Query", "getSiteDocument")}
 
 
-@pytest.mark.parametrize("entry, missing", [({}, "tenantId and no siteBucket"), ({"tenantId": "alpha"}, "siteBucket"), ({"siteBucket": "site-bucket"}, "tenantId")])
+def test_a_publication_on_a_site_with_no_tenant_is_counted_as_its_own_site_with_the_default_budget():
+    api = RecordingSiteApi()
+    site = site_policy_from_bucket(s3=object())({"publicationId": PUBLICATION}, api)
+    assert site.tenant_id == f"publication:{PUBLICATION}" and site.state.version == 0 and site.state.document["agents"] == {}
+    assert api.fields == set()   # no policy to read: nothing is asked of the site
+
+
+@pytest.mark.parametrize("entry, missing", [({"tenantId": "alpha"}, "siteBucket"), ({"siteBucket": "site-bucket"}, "tenantId")])
 def test_a_publication_that_does_not_say_where_its_site_is_cannot_be_counted(entry, missing):
     with pytest.raises(PolicyNotLocated, match=missing):
         site_policy_from_bucket(s3=object())({"publicationId": PUBLICATION, **entry}, RecordingSiteApi())
