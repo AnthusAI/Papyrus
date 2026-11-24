@@ -1,7 +1,7 @@
 Feature: The runner reads the site's agent policy before it starts a run
   The procedure runner is the one place every wake of an automation arrives. Before it loads anything it asks the site's agent policy
   whether the run may start. A run that may not start is not hidden: it has a run record that says "nothing to do", with a reason
-  code (not_adopted, rung_off or paused) and the words, and it names the policy version and the rung it was decided under.
+  code (not_adopted, disabled, rung_off or paused) and the words, and it names the policy version and the rung it was decided under.
 
   An automation that was running before the policy existed is not enforced until a person adopts it onto a responsibility with
   "papyrus automations adopt". The runner never guesses a responsibility, and a responsibility the policy has not named is "off"
@@ -20,6 +20,17 @@ Feature: The runner reads the site's agent policy before it starts a run
     And the run record says nothing to do with the reason "paused"
     And the run record says "accept is paused: Checking the acceptance rules"
     And the run record names policy version 2 and the rung "observe"
+
+  Scenario: A disabled automation's wake starts nothing, whatever woke it
+    The router is not the only thing that wakes an agent: a change feed, Wake now, a resume and a budget release all send wakes
+    straight to the runner. The runner honors the record's "enabled", so turning an automation off stops every one of them.
+    Given the automation is adopted as "accept"
+    And the policy sets "accept" to "draft"
+    And the automation is disabled
+    When a wake arrives for the automation
+    Then no procedure ran
+    And the run record says nothing to do with the reason "disabled"
+    And the run record says "Automation distinctive.ttab is disabled. Enable it with: papyrus automations update --id distinctive.ttab --enabled true."
 
   Scenario: A run records the policy version and the rung it ran at
     Given the automation is adopted as "accept"
