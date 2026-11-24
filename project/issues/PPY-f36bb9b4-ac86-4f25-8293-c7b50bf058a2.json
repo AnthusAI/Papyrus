@@ -71,10 +71,22 @@
         "model": "claude-opus-5-5",
         "name": "claude"
       }
+    },
+    {
+      "id": "c6640beb-b061-4bf5-8e32-09a2a6898543",
+      "author": "ryan",
+      "text": "2026-11-24: announce and rate are disabled on MoM, and that is why no X draft or rating review waits in Today. Announce still ran (it announced 'Explainable Journalism' on 2026-11-23 at 22:39Z, released by the soft override) because only the router and Run now checked Automation.enabled; change-feed, Wake now, resume and budget-release wakes did not. AnthusAI/Papyrus#1896 (merged to develop, not released) makes the run gate honor enabled for every wake. Before or with the release that ships it, a person must enable announce and rate on MoM, or both stop entirely. The exit test then needs: enable both, rate a story five stars, check that the X draft and the rating review appear in Today, then pause and resume announce. The four failed Eternal October runs on 21 Nov were the missing Caducus package and the agent's role, both fixed in #1797; they still need acknowledging in Today.",
+      "created_at": "2026-11-24T21:35:10.363131Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
     }
   ],
   "created_at": "2026-11-22T19:02:56.316327Z",
-  "updated_at": "2026-11-24T03:21:03.747750Z",
+  "updated_at": "2026-11-24T21:35:10.363926Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
