@@ -15,7 +15,9 @@ Feature: Monitor stories spend the site's money like any other agent work: count
   against it: an unusual cost raises one flag and stops nothing. There is no fixed cost ceiling any more; the site's budget is the one limit.
 
   The site is the router publication's tenant, and its budget and agent settings are read from its agent policy in its site bucket, as the runner reads
-  them. A publication whose router entry names neither cannot be counted, so its monitor stories do not start and say why.
+  them. A publication on a site with no tenant names neither: it has no agent policy, so it is counted as its own site, "publication:<id>", under the
+  default monthly budget, with the same halt switch and flags. A router entry that names one and not the other is a mistake, so its monitor stories do not
+  start and say why.
 
   The model, the pages, the backends, the ledger table and the queue are fakes in these scenarios and nothing touches production.
 
@@ -85,9 +87,25 @@ Feature: Monitor stories spend the site's money like any other agent work: count
     Then the "monitor_stories_index" agent's spend this month is 4 calls and 0.0004 dollars
     And the site's spend this month includes the vector pass
 
-  Scenario: A publication whose router entry names no tenant or site bucket starts no monitor stories, and says why
+  Scenario: A publication on a site with no tenant is counted as its own site, under the default budget
     Given 2 accepted References for the queued run
     And the router reads each publication's site and policy from its router entry, as the Lambda does
     When the router plans its daily monitor stories
+    And the story worker takes every step off the queue
+    Then 2 story drafts are filed by the workers, one per Reference
+    And the site "publication:example-site" has the spend of the 2 drafted steps this month
+
+  Scenario: A publication on a site with no tenant waits at the default budget
+    Given 2 accepted References for the queued run
+    And the router reads each publication's site and policy from its router entry, as the Lambda does
+    And the site "publication:example-site" has spent the default budget this month
+    When the router plans its daily monitor stories
     Then nothing is on the story queue and the model is not asked
-    And the log line for "example-site" names the missing "tenantId" and "siteBucket" as why monitor stories did not start, with the code "not_located"
+    And the log line for "example-site" says monitor stories wait with the code "budget_reached"
+
+  Scenario: A publication whose router entry names a tenant but no site bucket starts no monitor stories, and says why
+    Given 2 accepted References for the queued run
+    And the router reads each publication's site and policy from its router entry, which names the tenant "example-tenant" and no site bucket
+    When the router plans its daily monitor stories
+    Then nothing is on the story queue and the model is not asked
+    And the log line for "example-site" names the missing "siteBucket" as why monitor stories did not start, with the code "not_located"

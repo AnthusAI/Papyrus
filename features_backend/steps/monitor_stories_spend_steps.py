@@ -89,6 +89,19 @@ def step_lambda_site_policy(context):
     held(context).spend.site_policy = site_policy_from_bucket(NoBucketReads())
 
 
+@given('the router reads each publication\'s site and policy from its router entry, which names the tenant "{tenant}" and no site bucket')
+def step_lambda_site_policy_tenant_only(context, tenant):
+    read = site_policy_from_bucket(NoBucketReads())
+    held(context).spend.site_policy = lambda publication, client: read({**publication, "tenantId": tenant}, client)
+
+
+@given('the site "{site}" has spent the default budget this month')
+def step_default_budget_spent(context, site):
+    state = held(context)
+    spend_ledger.record_run(state.ledger, tenant_id=site, responsibility=None, run_id="other-paid-work", period="month",
+                            cost_usd=state.spend.brake.default_budget, calls=1, unpriced_calls=0, moment=state.clock[0])
+
+
 @when("the month turns and the router plans its daily monitor stories")
 def step_month_turns(context):
     state = held(context)
@@ -178,10 +191,24 @@ def step_not_started(context, publication, code):
     assert line["status"] == "not_started" and line["reasonCode"] == code, line
 
 
-@then('the log line for "{publication}" names the missing "{first}" and "{second}" as why monitor stories did not start, with the code "{code}"')
-def step_not_started_naming(context, publication, code, first, second):
+@then('the site "{site}" has the spend of the {count:d} drafted steps this month')
+def step_site_spend(context, site, count):
+    rows = [row for row in done_rows(context) if row.get("status") == "drafted"]
+    assert len(rows) == count, rows
+    spent = spend_ledger.spent(held(context).ledger, tenant_id=site, scope="ai", period="month", moment=held(context).clock[0])
+    assert spent.calls == sum(int(row["spend"]["calls"]) for row in rows) > 0, spent
+
+
+@then('the log line for "{publication}" says monitor stories wait with the code "{code}"')
+def step_waits_code(context, publication, code):
     line = held(context).lines[-1]
-    assert line["status"] == "not_started" and line["reasonCode"] == code and first in line["reason"] and second in line["reason"], line
+    assert line["status"] == "waiting" and line["reasonCode"] == code, line
+
+
+@then('the log line for "{publication}" names the missing "{field}" as why monitor stories did not start, with the code "{code}"')
+def step_not_started_naming_one(context, publication, field, code):
+    line = held(context).lines[-1]
+    assert line["status"] == "not_started" and line["reasonCode"] == code and field in line["reason"], line
 
 
 @then('the "{agent}" agent\'s spend this month is {calls:d} calls and {dollars} dollars')

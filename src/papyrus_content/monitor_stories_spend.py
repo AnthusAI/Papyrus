@@ -20,7 +20,9 @@ Two agents, because they are two kinds of work whose costs differ by orders of m
 * ``monitor_stories_index``: the vector pass of one daily plan (the embeddings of what changed since the last pass).
 
 The site and its policy come from the router publication: its ``tenantId`` (the ledger's site) and its ``siteBucket`` (where the agent policy lives, read as the
-runner reads it). A publication that names neither cannot be counted, so its monitor stories do not start and say why.
+runner reads it). A publication that names neither is a site with no tenant, which has no agent policy to read: it is counted in the ledger as its own site,
+``publication:<publicationId>``, with no policy, so it gets the default monthly budget (``spend_brake.DEFAULT_BUDGET_USD``), the halt switch and the unusual-cost
+flag like any site. A publication that names one and not the other is a mistake in its router entry: its monitor stories do not start and say why.
 """
 from __future__ import annotations
 
@@ -32,6 +34,8 @@ from typing import Any, Callable, Mapping
 from . import spend_brake, spend_stop, unusual_cost
 # The submodules, not the package: the router's zip leaves agent_policy/__init__ out (infra/monitoring/build.py, ROUTER_EXCLUDED).
 from .agent_policy.run_gate import PolicyNotLocated, PolicyUnreadable, RunDecision, SiteCatalogue
+from .agent_policy.resolve import PolicyState
+from .agent_policy.document import fresh as fresh_policy
 
 DRAFTING_RESPONSIBILITY = "monitor_stories"
 INDEX_RESPONSIBILITY = "monitor_stories_index"
@@ -96,6 +100,14 @@ def index_spend(run_id: str, vectors: Mapping[str, Any]) -> RunSpend:
     return RunSpend(run_id, INDEX_RESPONSIBILITY, float(vectors.get("costUsd") or 0.0), int(vectors.get("embeddingRequests") or 0), 0)
 
 
+UNTENANTED_SITE_PREFIX = "publication:"
+
+
+def untenanted_site(publication_id: str) -> SitePolicy:
+    """A publication on a site with no tenant: counted as its own site in the ledger, with no saved policy (the default budget, every agent setting unset)."""
+    return SitePolicy(f"{UNTENANTED_SITE_PREFIX}{publication_id}", PolicyState(0, fresh_policy()))
+
+
 def site_policy_from_bucket(s3: Any) -> Callable[[Mapping[str, Any], Any], SitePolicy]:
     """How the Lambda reads a publication's site and policy: the policy document in the publication's ``siteBucket``, through the site's own API, as the
     procedure runner reads it (``PolicyGate.for_site``)."""
@@ -104,6 +116,8 @@ def site_policy_from_bucket(s3: Any) -> Callable[[Mapping[str, Any], Any], SiteP
 
     def read(publication: Mapping[str, Any], client: Any) -> SitePolicy:
         missing = [name for name in ("tenantId", "siteBucket") if not publication.get(name)]
+        if len(missing) == 2 and publication.get("publicationId"):
+            return untenanted_site(str(publication["publicationId"]))
         if missing:
             raise PolicyNotLocated(f"The router publication {publication.get('publicationId')} names no {' and no '.join(missing)}, so its spend cannot be counted "
                                    "against its site's budget and its monitor stories do not start. Add them to its entry in infra/monitoring/router-config.")
