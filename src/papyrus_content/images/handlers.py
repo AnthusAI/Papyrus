@@ -225,3 +225,19 @@ def _agent_handler(name: str) -> Handler:
 
 
 HANDLERS.update({name: _agent_handler(name) for name in AGENT_OPERATIONS})
+
+
+# The guideline operations (PPY-8d41d7) are in the same table, so an agent reads the site's guidelines through this door and its gate (the rating agent's
+# guidelines_resolve). The guideline modules read guideline files the monitoring router never does, so they are imported by the call.
+GUIDELINE_OPERATIONS = tuple(item.name for item in OPERATIONS if item.group == "guidelines")
+
+
+def _guideline_handler(name: str) -> Handler:
+    def handler(arguments: dict, caller: Caller) -> Outcome:
+        from papyrus_content.guidelines.handlers import signed_in_handlers
+
+        return signed_in_handlers()[name](arguments, caller)
+    return handler
+
+
+HANDLERS.update({name: _guideline_handler(name) for name in GUIDELINE_OPERATIONS})
