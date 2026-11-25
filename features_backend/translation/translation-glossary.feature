@@ -119,6 +119,24 @@ Feature: A publication decides how its terms are translated
     When a block saying "OpenAI tested the agent." is translated as "Se probó al agente."
     Then the faithfulness check reports that the name "OpenAI" is missing
 
+  Scenario Outline: A name the translation has right does not hold it
+    Given the <glossary> starter glossary
+    When a block saying "<source>" is translated as "<target>"
+    Then the faithfulness check reports no lost name
+    And the faithfulness check reports no error
+
+    Examples:
+      | glossary               | source                                              | target                                                           |
+      | Latin American Spanish | Schools are buying AIs for tutoring.                | Las escuelas compran IA para dar tutorías.                       |
+      | Latin American Spanish | The bill was backed by Representative Nick LaLota.  | El proyecto contó con el apoyo del representante Nick LaLota.    |
+      | Latin American Spanish | The UN said the ID system failed on TV.             | La ONU dijo en televisión que el sistema de identificación falló. |
+      | Simplified Chinese     | By the 1970s, IDs were common.                      | 到了 70 年代，身份证件已很普遍。                                   |
+
+  Scenario: A name lost with its translated title still holds a translation
+    Given the Latin American Spanish starter glossary
+    When a block saying "The bill was backed by Representative Nick LaLota." is translated as "El proyecto contó con el apoyo del representante."
+    Then the faithfulness check reports that the name "Representative Nick LaLota" is missing
+
   Scenario: The starter glossaries carry the experiment's name findings
     Then the "es-419" starter glossary renders "AI" as "IA", "Paris" as "París", "Congress" as "Congreso", "Justice Department" as "Departamento de Justicia" and "North Carolina" as "Carolina del Norte"
     And the "zh-Hans" starter glossary renders "Paris" as "巴黎" and keeps "AI" and "abliteration" unchanged

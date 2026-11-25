@@ -4,6 +4,8 @@
 
 * **An automation is adopted before it is enforced.** Its ``Automation`` record names a ``responsibility``, set by a person with
   ``papyrus automations adopt``; nothing here infers one. An automation with none is ``not_adopted``: nothing starts.
+* **A disabled automation starts nothing**, whatever woke it: the router, a change feed, Wake now, a resume or a budget release. Every
+  agent wake arrives here, so this is the one place its ``enabled`` is honored. It is ``disabled``, recorded like a pause.
 * **A responsibility the site's policy does not name is ``off``** (E1), and an ``off`` or paused one starts nothing. There is no
   default that starts a run when the policy says nothing.
 * **The policy is read at the start of every run**, the live version only: one get of the catalogue row, one get of the version
@@ -27,7 +29,7 @@ from .store import AgentPolicyStore
 SITE_DOCUMENT_FIELDS = "id tenantId kind currentVersion s3Key sha256 schemaVersion updatedBy updatedAt"
 SITE_DOCUMENT_VERSION_FIELDS = "id tenantId documentId version s3Key sha256 createdBy createdAt note"
 
-NOT_ADOPTED, RUNG_OFF, PAUSED = "not_adopted", "rung_off", "paused"
+NOT_ADOPTED, RUNG_OFF, PAUSED, DISABLED = "not_adopted", "rung_off", "paused", "disabled"
 
 
 class PolicyUnreadable(Exception):
@@ -44,7 +46,7 @@ class RunDecision:
     responsibility: str | None = None
     rung: str | None = None
     policy_version: int | None = None
-    reason_code: str | None = None     # not_adopted, rung_off or paused when nothing starts
+    reason_code: str | None = None     # not_adopted, disabled, rung_off or paused when nothing starts
     reason: str | None = None          # the same in words, for the run record and the person reading it
     state: Any = field(default=None, compare=False, repr=False)   # the policy as read for this run: the run's gate answers come from it
     paid: bool | None = None           # the registered definition's `paid`; None when no definition says, which the spend brake counts as paid (PPY-9376f8)
@@ -122,6 +124,9 @@ class PolicyGate:
             return RunDecision(False, reason_code=NOT_ADOPTED, reason="This run names no automation, so no responsibility is adopted for it.")
         row = self._client.get_record("Automation", automation_id)
         responsibility = (row or {}).get("responsibility")
+        if row is not None and row.get("enabled") is False:
+            return RunDecision(False, responsibility, reason_code=DISABLED,
+                               reason=f"Automation {automation_id} is disabled. Enable it with: papyrus automations update --id {automation_id} --enabled true.")
         if not responsibility:
             what = "does not exist" if row is None else "has not been adopted onto a responsibility"
             return RunDecision(False, reason_code=NOT_ADOPTED, reason=f"Automation {automation_id} {what}. Adopt it with: papyrus automations adopt.")
