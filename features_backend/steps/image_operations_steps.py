@@ -215,3 +215,28 @@ def step_type_errors(context):
 @then("image_figure_add names image_type_unknown, source_not_allowed, checks_failed and not_found")
 def step_figure_errors(context):
     assert set(BY_NAME["image_figure_add"].errors) == {"image_type_unknown", "source_not_allowed", "checks_failed", "not_found"}
+
+
+@when("guidelines_resolve is run for the writing guidelines with the default handlers")
+def step_guidelines_default(context):
+    from papyrus_content.guidelines import handlers as guideline_handlers
+    from papyrus_content.images.handlers import execute
+
+    seen = []
+
+    def fake_signed_in_handlers(client_factory=None):
+        def resolve(arguments, caller):
+            seen.append(arguments)
+            return Outcome({"found": False}, "machines-on-machines")
+        return {"guidelines_resolve": resolve}
+
+    original = guideline_handlers.signed_in_handlers
+    guideline_handlers.signed_in_handlers = fake_signed_in_handlers
+    context.add_cleanup(setattr, guideline_handlers, "signed_in_handlers", original)
+    context.guideline_answer, context.guideline_seen = execute("guidelines_resolve", {"kind": "writing"}, Caller()), seen
+
+
+@then("the guideline handler answered, not not_implemented")
+def step_guidelines_answered(context):
+    assert context.guideline_answer["ok"] is True, context.guideline_answer
+    assert context.guideline_seen == [{"kind": "writing"}]

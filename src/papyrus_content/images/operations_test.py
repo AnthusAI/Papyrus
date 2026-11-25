@@ -310,3 +310,13 @@ def test_the_routes_and_their_usage_come_from_the_generated_spec():
 
 def test_the_generator_script_exists_where_the_docs_say():
     assert (Path(generate.REPO_ROOT) / "scripts" / "generate-image-operations.py").exists()
+
+
+def test_the_guideline_operations_run_the_guideline_code_through_the_default_handlers(monkeypatch):
+    from papyrus_content.guidelines import handlers as guideline_handlers
+
+    seen = []
+    monkeypatch.setattr(guideline_handlers, "signed_in_handlers",
+                        lambda client_factory=None: {"guidelines_resolve": lambda arguments, caller: seen.append(arguments) or Outcome({"found": False}, "machines-on-machines")})
+    envelope = execute("guidelines_resolve", {"kind": "writing"}, Caller())
+    assert envelope["ok"] is True and seen == [{"kind": "writing"}]
