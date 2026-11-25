@@ -99,3 +99,9 @@ Feature: One table of image operations that every front end is generated from
     When every operation that is not built is run with its example input and the default handlers
     Then each answers not_implemented and names its operation
     And the command exits with the error code
+
+  Scenario: An agent reads the site's guidelines through the default handlers
+    The rating agent reads the writing guidelines with guidelines_resolve through the one door and its default handlers. The guideline operations share the
+    table, so the default handlers must run the guideline code, not answer that it is not built.
+    When guidelines_resolve is run for the writing guidelines with the default handlers
+    Then the guideline handler answered, not not_implemented
