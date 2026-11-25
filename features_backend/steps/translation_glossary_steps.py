@@ -16,6 +16,7 @@ import humanus  # noqa: E402
 
 from papyrus_content.guidelines import GuidelineStore, validate_document  # noqa: E402
 from papyrus_content.guidelines.fakes import FakeBackend, FakeFiles  # noqa: E402
+from papyrus_content.localize.checks import reconsider_name_findings  # noqa: E402
 from papyrus_content.translation_glossary import Glossary, resolve_glossary, starter_glossary  # noqa: E402
 
 
@@ -25,7 +26,8 @@ def _faithfulness(glossary: Glossary, source: str, target: str) -> list[dict]:
                "glossary": glossary.humanus(glossary.entries_in([source])),
                "pack": humanus.builtin_pack("translation-faithfulness"),
                "options": {"lanes": {"classifier": False, "judge": False}}}
-    return humanus.check(request, decision_model=None)["findings"]
+    findings = humanus.check(request, decision_model=None)["findings"]
+    return reconsider_name_findings(findings, target=target, target_language=glossary.language, glossary=glossary)
 
 
 @given('a glossary of forty entries for "{language}"')
@@ -98,6 +100,11 @@ def step_unchanged(context, term):
 @then('the faithfulness check reports that the name "{name}" is missing')
 def step_name_missing(context, name):
     assert any(name in message for message in _messages(context, "names")), context.findings
+
+
+@then("the faithfulness check reports no lost name")
+def step_no_lost_name(context):
+    assert _messages(context, "names") == [], context.findings
 
 
 @when('an admin saves a glossary entry for "{term}" with neither translations nor doNotTranslate')

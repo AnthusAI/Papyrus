@@ -90,6 +90,92 @@ def faithfulness_worse(before: Iterable[Finding], after: Iterable[Finding]) -> b
     return bool(added) or errors(new) > errors(before)
 
 
+# Papyrus's own rules on top of Humanus's name findings (reconsider_name_findings). A change to them re-checks stored results.
+NAME_RULES_VERSION = "1"
+NAME_POLICIES = frozenset({"names", "names-adapted"})
+
+#: Initialisms that languages write their own way (TV is televisión and 电视, UN is ONU and 联合国, ID is identificación and 身份): Humanus's ``names`` check reads
+#: them as names that must stay as written, which holds a correct translation. A missing one is reported as ``names-adapted`` advice instead, which the bilingual
+#: judge and the glossary settle; a publication that keeps one as written puts it in the glossary as do-not-translate.
+INITIALISMS_WITH_LOCAL_FORMS = frozenset({"TV", "UN", "ID", "CEO", "GDP", "DNA", "NATO", "WHO", "IMF", "HIV", "AIDS", "UFO", "ATM", "IQ", "UV"})
+
+
+def reconsider_name_findings(raw_findings: Iterable[Mapping[str, Any]], *, target: str, target_language: str, glossary) -> list[dict[str, Any]]:
+    """Humanus's name findings, kept only where a real name was lost (2026-11-24 production review: 80 of 111 held translations cited a name the
+    translation had right). A name finding is dropped when the glossary's approved form of it is in the translation ("AIs" is "IA": the glossary
+    check owns glossary terms, and the names check never contradicts it), or when the name's core is (a leading title is translated:
+    "Representative Nick LaLota" is "el representante Nick LaLota"). A missing initialism that languages write their own way is the
+    ``names-adapted`` advice, not an error. Every other finding passes through unchanged."""
+    reader = humanus.resolve_language(target_language)
+    entries = tuple(getattr(glossary, "entries", ()) or ())
+    reconsidered: list[dict[str, Any]] = []
+    for raw in raw_findings:
+        raw = dict(raw)
+        name = ((raw.get("source") or {}).get("excerpt") or "").strip()
+        if raw.get("policyId") not in NAME_POLICIES or not name:
+            reconsidered.append(raw)
+            continue
+        target_unit = raw.get("excerptText") or raw.get("excerpt") or target
+        if _glossary_form_present(name, entries, target_unit, reader) or _core_name_present(name, target_unit, reader):
+            continue
+        if raw["policyId"] == "names" and _acronym_singular(name) in INITIALISMS_WITH_LOCAL_FORMS:
+            raw.update(policyId="names-adapted", detectorId="names-adapted", severity="warn",
+                       message=(f"The name “{name}” is missing from the translation as written. If {target_language} has an established form of it, that is "
+                                "right; if not, the name was lost. The glossary lists the approved forms."))
+        reconsidered.append(raw)
+    return reconsidered
+
+
+def _contains_phrase(text: str, forms: Iterable[str], reader, case_sensitive: bool = True) -> bool:
+    forms = tuple(form for form in forms if form)
+    return bool(forms) and reader.phrase_pattern(forms, case_sensitive).search(text) is not None
+
+
+def _acronym_singular(name: str) -> str:
+    """An acronym without its plural s ("IDs" is "ID"), which is how most languages write the plural; any other name as it is."""
+    if name.endswith("s") and len(name) > 2 and name[:-1].isalpha() and name[:-1].isupper():
+        return name[:-1]
+    return name
+
+
+def _glossary_form_present(name: str, entries: Sequence[Mapping[str, Any]], target_unit: str, reader) -> bool:
+    """Whether the glossary has an entry for this name (as written, without an acronym's plural s, or with the full stop a name loses before a
+    hyphen: "U.S" in "U.S-based") and the translation uses one of the entry's approved forms."""
+    spellings = {name, _acronym_singular(name), name + "."}
+    for entry in entries:
+        case_sensitive = bool(entry.get("caseSensitive"))
+        term = entry.get("term") or ""
+        if not (term in spellings if case_sensitive else term.lower() in {spelling.lower() for spelling in spellings}):
+            continue
+        approved = (term,) if entry.get("doNotTranslate") else (*(entry.get("translations") or ()), *(entry.get("variants") or ()))
+        if _contains_phrase(target_unit, approved, reader, case_sensitive):
+            return True
+    return False
+
+
+def _shaped_word(word: str) -> bool:
+    """A word whose shape says it is a name (Humanus's rule): an acronym (METR), a capital inside (LaLota, OpenAI), or letters with digits (GPT-6)."""
+    letters = [c for c in word if c.isalpha()]
+    if len(letters) >= 2 and all(c.isupper() for c in letters):
+        return True
+    if any(c.isupper() for c in word[1:]) and any(c.islower() for c in word):
+        return True
+    return any(c.isdigit() for c in word) and bool(letters)
+
+
+def _core_name_present(name: str, target_unit: str, reader) -> bool:
+    """Whether a name of several words is kept without its leading words, a title or descriptor the translation may translate ("Representative",
+    "Senator"): its last two words (its last word, for a two-word name) are in the translation as written. A leading word shaped like a name
+    ("OpenAI Codex") is part of the name, never a title."""
+    words = name.split()
+    if len(words) < 2:
+        return False
+    core = words[-1:] if len(words) == 2 else words[-2:]
+    if any(_shaped_word(word) for word in words[: len(words) - len(core)]):
+        return False
+    return _contains_phrase(target_unit, (" ".join(core),), reader)
+
+
 def category_map(pack_names: Iterable[str]) -> dict[str, str]:
     """policy id -> category, from the Humanus starter packs a site's language policies come from."""
     out: dict[str, str] = {}
@@ -148,6 +234,7 @@ class BlockChecker:
                 "glossary": self.glossary.version, "sourceLanguagePack": humanus.resolve_language(self.source_language).version,
                 "targetLanguagePack": humanus.resolve_language(self.target_language).version,
                 "lanes": ",".join(sorted(name for name, on in self.lanes.items() if on)),
+                "nameRules": NAME_RULES_VERSION,
                 **({"translationNotes": hashlib.sha256("\n".join(self.notes).encode("utf-8")).hexdigest()[:16]} if self.notes else {})}
 
     def faithfulness(self, source: str, target: str) -> tuple[list[Finding], dict[str, Any]]:
@@ -160,7 +247,7 @@ class BlockChecker:
         judge = result["lanes"].get("judge") or {}
         if judge.get("status") != "ran":
             raise JudgeUnavailable(f"the bilingual judge did not run: {judge.get('reason') or judge.get('status')}")
-        return [self._finding(f, "faithfulness") for f in result["findings"]], result["lanes"]
+        return [self._finding(f, "faithfulness") for f in self._reconsider_names(result["findings"], target)], result["lanes"]
 
     def parity(self, source: str, target: str) -> tuple[list[Finding], dict[str, Any]]:
         """The parity rules alone (numbers, links, citations, code, directives, structure and the glossary) of ``target`` against ``source``, with no
@@ -170,7 +257,10 @@ class BlockChecker:
                    "glossary": self.glossary.humanus(self.glossary.entries_in([source], self.source_language)),
                    "pack": self.faithfulness_pack, "options": {"lanes": {"rules": False, "classifier": False, "parity": True, "judge": False}}}
         result = humanus.check(request, decision_model=None)
-        return [self._finding(f, "faithfulness") for f in result["findings"]], result["lanes"]
+        return [self._finding(f, "faithfulness") for f in self._reconsider_names(result["findings"], target)], result["lanes"]
+
+    def _reconsider_names(self, raw_findings: Sequence[Mapping[str, Any]], target: str) -> list[dict[str, Any]]:
+        return reconsider_name_findings(raw_findings, target=target, target_language=self.target_language, glossary=self.glossary)
 
     def faithfulness_document(self, source: str, target: str) -> tuple[list[Finding], dict[str, Any]]:
         """The whole translated body against the whole source with the parity rules only (the judge has read every block already): the
