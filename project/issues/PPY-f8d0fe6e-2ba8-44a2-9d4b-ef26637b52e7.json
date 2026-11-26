@@ -10,9 +10,22 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f90ad6c2-9133-4f15-8187-3dffab29af43",
+      "author": "ryan",
+      "text": "Root cause found (2026-11-25): the refused call is not the loop-counter updateItem. The wake gate reads the live agent policy via SiteStore.read_version -> getSiteDocumentVersion, and ITEM_FEED_API_FIELDS lists only getSiteDocument, so AppSync's IAM check refuses (401 Permission denied) every wake that needs the policy: a paid wake's quiet window or an agent change's loop limit. Replaying the counter write in production with a recorder showed it calls only allowed fields (listItemsByLineageAndVersion, getItem, updateItem). Fix: AnthusAI/Papyrus#1910 adds the field and a scenario that checks every field the production gate calls is in the role's list.",
+      "created_at": "2026-11-26T04:20:57.296206Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
   "created_at": "2026-11-26T03:04:52.028762Z",
-  "updated_at": "2026-11-26T03:04:52.028838Z",
+  "updated_at": "2026-11-26T04:20:57.296714Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
