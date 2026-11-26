@@ -6,14 +6,14 @@ console's own app client issued), and the change runs through ``set_rung.apply``
 uses, never ``publish_auto`` while its floor stands, and a reason is kept with the new version.
 
 The definitions are the site's registered copies, the ones the deploy wrote on each Automation (``agents apply``): what the site actually runs, site agents
-included. A site the function cannot read them for falls back to the engine's core definitions.
+included. A caller with no registry to read (a test, the command line) uses the engine's core definitions.
 """
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
-from papyrus_content.agent_definitions.definition import CORE_DIRECTORY, Definition, load_sets
 from papyrus_content.agent_rungs import RUNGS
 from papyrus_content.images.handlers import Caller
 
@@ -23,12 +23,26 @@ from .store import AgentPolicyStore
 
 CONSOLE_RUNG_OPERATIONS = ("agents_rungs", "agents_set_rung")
 
-DefinitionsSource = Callable[[], Sequence[Definition]]
+
+@dataclass(frozen=True)
+class RegisteredDefinition:
+    """A definition as the deploy registered it on an Automation row: what ``set_rung`` reads (``id``, ``responsibility``, ``data``), with no YAML loader, so the
+    agent-policy function, which ships without dependencies, can build it."""
+
+    id: str
+    data: dict[str, Any]
+
+    @property
+    def responsibility(self) -> str:
+        return self.data["responsibility"]
 
 
-def registered_definitions(rows: Sequence[Mapping[str, Any]]) -> list[Definition]:
+DefinitionsSource = Callable[[], Sequence[Any]]
+
+
+def registered_definitions(rows: Sequence[Mapping[str, Any]]) -> list[RegisteredDefinition]:
     """The live definitions the deploy registered on the site's Automation rows. A retired one, or a row with no registered copy, is no agent."""
-    found: list[Definition] = []
+    found: list[RegisteredDefinition] = []
     for row in rows:
         data = row.get("definition")
         if isinstance(data, str):
@@ -40,11 +54,14 @@ def registered_definitions(rows: Sequence[Mapping[str, Any]]) -> list[Definition
             continue
         if not (data.get("id") and data.get("responsibility") and isinstance(data.get("operations"), dict) and data["operations"]):
             continue
-        found.append(Definition(id=str(data["id"]), data=data, source="registered"))
+        found.append(RegisteredDefinition(id=str(data["id"]), data=data))
     return sorted(found, key=lambda item: item.id)
 
 
-def core_definitions() -> list[Definition]:
+def core_definitions() -> list[Any]:
+    """The engine's own definitions, read from their YAML: for a caller with no registry to read (a test, the command line). The function always has one."""
+    from papyrus_content.agent_definitions.definition import CORE_DIRECTORY, load_sets
+
     return sorted(load_sets(CORE_DIRECTORY, CORE_DIRECTORY).definitions, key=lambda item: item.id)
 
 
@@ -53,7 +70,7 @@ def rung_choices(ceiling: str) -> list[str]:
     return [rung for rung in RUNGS[: RUNGS.index(ceiling) + 1] if rung != floors.PUBLISH_AUTO]
 
 
-def rung_board(store: AgentPolicyStore, tenant_id: str, definitions: Sequence[Definition]) -> dict[str, Any]:
+def rung_board(store: AgentPolicyStore, tenant_id: str, definitions: Sequence[Any]) -> dict[str, Any]:
     """Each agent with its rung (``off`` when the policy does not name it), the most its definition uses, and the rungs a person may choose."""
     state = store.read(tenant_id)
     agents = []
@@ -76,7 +93,7 @@ def handle_request(store: AgentPolicyStore, site_tenant_id: str, caller: Caller,
     given = request.get("tenantId")
     if given not in (None, "") and given != tenant_id:
         raise PolicyError("not_authorized", "That tenant is not this site's.")
-    known = list(definitions() if definitions is not None else []) or core_definitions()
+    known = list(definitions()) if definitions is not None else core_definitions()
     if request["op"] == "agents_rungs":
         return {"ok": True, "result": rung_board(store, tenant_id, known)}
     agent, rung, reason = request.get("agent"), request.get("rung"), request.get("reason")

@@ -25,10 +25,10 @@ export function RungControl({ responsibility, handlers, initialMessage = null }:
   const [reason, setReason] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [message, setMessage] = useState<string | null>(initialMessage);
-  if (rungs === null) return <p className="news-desk-delegation-note" data-agent-rung={responsibility} data-agent-rung-state="loading" role="status">Reading {responsibility}'s rung…</p>;
+  if (rungs === null) return <p className="news-desk-delegation-note" data-agent-rung={responsibility} data-agent-rung-state="loading" role="status">{`Reading ${responsibility}'s rung…`}</p>;
   if (rungs.state !== "loaded") return <p className="news-desk-delegation-note" data-agent-rung={responsibility} data-agent-rung-state={rungs.state}>{rungs.message}</p>;
   if (!shown) {
-    return <p className="news-desk-delegation-note" data-agent-rung={responsibility} data-agent-rung-state="unknown">{responsibility} is not one of this site's registered agents, so it has no rung to set here.</p>;
+    return <p className="news-desk-delegation-note" data-agent-rung={responsibility} data-agent-rung-state="unknown">{`${responsibility} is not one of this site's registered agents, so it has no rung to set here.`}</p>;
   }
   const selected = choice || shown.rung;
 
