@@ -415,3 +415,58 @@ def index_has_no_policy(context):
     text = json.dumps(context.store.read_current(TENANT, "listeners"))
     for word in ("rung", "paused", "budget", "model"):
         assert word not in text, word
+
+
+# --- the feed role's AppSync fields (PPY-f8d0fe) ------------------------------------------------------------------------------------
+
+def _feed_role_fields() -> set[str]:
+    source = (REPO_ROOT / "amplify/agents/item-change-feed.ts").read_text()
+    listed = re.search(r"ITEM_FEED_API_FIELDS = \[(.*?)\];", source, re.S).group(1)
+    return set(re.findall(r'"([^"]+)"', listed))
+
+
+def _recording_gate(context):
+    import importlib.util
+
+    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+    from papyrus_content.tenancy import tenant_scoped_record_id
+
+    spec = importlib.util.spec_from_file_location("item_change_feed_handler", REPO_ROOT / "amplify/functions/item-change-feed/handler.py")
+    handler = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(handler)
+    version_id = tenant_scoped_record_id("Item", TENANT, "story-1-v4")
+    story = {"id": version_id, "tenantId": TENANT, "lineageId": tenant_scoped_record_id("Item", TENANT, "story-1"), "versionNumber": 4,
+             "versionState": "current", "type": "story", "metadata": "{}"}
+    answers = {"getSiteDocument": {"id": "agents", "tenantId": TENANT, "kind": "agents", "currentVersion": 1}, "getSiteDocumentVersion": None,
+               "listItemsByLineageAndVersion": {"items": [story], "nextToken": None}, "getItem": story, "updateItem": {"id": version_id},
+               "getReviewRequest": None, "createReviewRequest": {"id": "review"}}
+    context.called_fields = []
+    client = PapyrusGraphQLAuthoringClient(endpoint=ENDPOINT, tenant_id=TENANT)
+
+    def recording_graphql(query, variables=None, *args, **kwargs):
+        field = re.search(r"[{]\s*(\w+)\s*[({]", query).group(1)
+        context.called_fields.append(("Mutation" if query.lstrip().startswith("mutation") else "Query") + f"/fields/{field}")
+        return {field: answers.get(field)}
+
+    client.graphql = recording_graphql
+    handler._CLIENT = client
+    site = SimpleNamespace(site_bucket=BUCKET, tenant_id=TENANT, publication_id="machines")
+    return handler.wake_gate(site, {"PAPYRUS_AWS_ACCOUNT_ID": "111111111111", "AWS_REGION": "us-east-1"})
+
+
+@when("the wake gate reads the policy, counts a Story and raises a loop review")
+def gate_calls_everything(context):
+    gate = _recording_gate(context)
+    for step in (lambda: gate.loop_limit("r-rate"), lambda: gate.chain.write("story-1", 1),
+                 lambda: gate.review(story="story-1", agent="rate", hops=3, limit=3, round=0)):
+        try:
+            step()
+        except Exception:   # noqa: BLE001 - the stand-in answers only enough to reach each call; what was called is what this checks
+            pass
+
+
+@then("every field it called is in the feed role's AppSync fields")
+def fields_allowed(context):
+    called = set(context.called_fields)
+    assert {"Query/fields/getSiteDocumentVersion", "Mutation/fields/updateItem", "Mutation/fields/createReviewRequest"} <= called, called
+    assert called <= _feed_role_fields(), f"the feed's role cannot call {sorted(called - _feed_role_fields())}"
