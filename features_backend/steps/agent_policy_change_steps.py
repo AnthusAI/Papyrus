@@ -366,3 +366,88 @@ def listeners_written_by_deploy(context, version):
     of_the_index = {"object": f"tenants/{TENANT}/site/listeners/", "row": f"{TENANT}#listeners"}
     assert {kind for kind, _, _ in writes} == {"object", "row"}, writes
     assert all(key.startswith(of_the_index[kind]) and writer == "deploy role" for kind, key, writer in writes), writes
+
+
+# --- the newsroom's rung board (console_rungs.py) ---------------------------------------------------------------------------------------
+
+def _registered_row(definition_id: str, *, retired: bool = False) -> dict:
+    from papyrus_content.agent_definitions.definition import core_definition
+
+    data = dict(core_definition(definition_id)) if definition_id in ("announce", "rate") else {**core_definition("rate"), "id": definition_id, "responsibility": definition_id}
+    return {"id": f"automation-{definition_id}", "definition": json.dumps(data), "definitionRetiredAt": "2026-11-01T00:00:00Z" if retired else None}
+
+
+@given('the site\'s registered agents are "{first}" and "{second}", and a retired "{retired}"')
+def registered_agents(context, first, second, retired):
+    context.registered_rows = [_registered_row(first), _registered_row(second), _registered_row(retired, retired=True)]
+
+
+def rung_board_request(context, who: str, request: dict) -> dict:
+    from papyrus_content.agent_policy.console_rungs import registered_definitions
+    from papyrus_content.agent_policy.function import PokeInServices
+
+    event = {"identity": {"groups": ["admin"], "claims": {"email": "ada@example.test", "aud": client_of(who)}, "username": "ada"},
+             "arguments": {"input": json.dumps(request)}}
+    services = PokeInServices(None, None, None, definitions=lambda: registered_definitions(context.registered_rows))
+    context.board_answer = handle(event, function_store(context), context.function_environment, TENANT, services)
+    return context.board_answer
+
+
+@when("ada, an admin signed in on the console's app client, opens the rung board")
+def open_board(context):
+    answer = rung_board_request(context, "console", {"op": "agents_rungs"})
+    assert answer["ok"] is True, answer
+    context.board = {agent["id"]: agent for agent in answer["result"]["agents"]}
+
+
+@when('ada, an admin signed in on the console\'s app client, sets "{agent}" to "{rung}" on the rung board because "{reason}"')
+def board_sets(context, agent, rung, reason):
+    rung_board_request(context, "console", {"op": "agents_set_rung", "agent": agent, "rung": rung, "reason": reason})
+
+
+@when('ada, an admin signed in on the console\'s app client, sets "{agent}" to "{rung}" on the rung board because ""')
+def board_sets_without_reason(context, agent, rung):
+    rung_board_request(context, "console", {"op": "agents_set_rung", "agent": agent, "rung": rung, "reason": ""})
+
+
+@when('an agent holding an admin token from another app client sets "{agent}" to "{rung}" on the rung board because "{reason}"')
+def board_sets_other_client(context, agent, rung, reason):
+    rung_board_request(context, "other", {"op": "agents_set_rung", "agent": agent, "rung": rung, "reason": reason})
+
+
+@when('an agent on the console\'s app client declares itself and sets "{agent}" to "{rung}" on the rung board because "{reason}"')
+def board_sets_declared_agent(context, agent, rung, reason):
+    rung_board_request(context, "console", {"op": "agents_set_rung", "agent": agent, "rung": rung, "reason": reason, "actorKind": "agent"})
+
+
+@then('the board lists the agents "{first}" and "{second}"')
+def board_lists(context, first, second):
+    assert sorted(context.board) == [first, second], sorted(context.board)
+
+
+@then('the board shows "{agent}" at the rung "{rung}", going no higher than "{ceiling}", with the choices "{choices}"')
+def board_shows_full(context, agent, rung, ceiling, choices):
+    shown = context.board[agent]
+    assert (shown["rung"], shown["ceiling"], ", ".join(shown["choices"])) == (rung, ceiling, choices), shown
+
+
+@then('the board shows "{agent}" at the rung "{rung}"')
+def board_shows(context, agent, rung):
+    assert context.board[agent]["rung"] == rung, context.board[agent]
+
+
+@then('the rung board change succeeded and saved version {version:d} with "{agent}" at the rung "{rung}"')
+def board_saved(context, version, agent, rung):
+    answer = context.board_answer
+    assert answer["ok"] is True, answer
+    result = answer["result"]
+    assert (result["applied"], result["after"]["policyVersion"], result["after"]["entry"]["rung"]) == (True, version, rung), result
+    assert next(item for item in result["board"]["agents"] if item["id"] == agent)["rung"] == rung, result["board"]
+    state = live_policy(context)
+    assert (state.version, state.document["agents"][agent]["rung"]) == (version, rung), state
+
+
+@then('the rung board refused the change as "{code}", saying "{words}"')
+def board_refused(context, code, words):
+    answer = context.board_answer
+    assert answer["ok"] is False and answer["error"] == code and words in answer["message"], answer

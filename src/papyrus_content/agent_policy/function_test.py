@@ -176,6 +176,7 @@ class Block:
 sys.meta_path.insert(0, Block())
 from papyrus_content.agent_policy.function import handle, PokeInServices
 from papyrus_content.agent_poke_in import RunLedger, resume, pause, pauses
+from papyrus_content.agent_policy.console_rungs import registered_definitions, handle_request
 from papyrus_content.agent_listeners import ListenerIndex
 from papyrus_content.agent_wakes import wake_sender
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
