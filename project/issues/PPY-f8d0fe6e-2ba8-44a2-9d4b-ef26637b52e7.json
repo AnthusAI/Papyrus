@@ -1,0 +1,38 @@
+{
+  "id": "PPY-f8d0fe6e-2ba8-44a2-9d4b-ef26637b52e7",
+  "title": "The item change feed cannot write the loop counter: updateItem answers 401, so every agent-made Story change fails and is retried",
+  "description": "Seen on Machines on Machines, 2026-11-25 22:00Z to 2026-11-26 02:02Z, while about 100 imported translations (es-419, zh-Hans) were published one at a time. The item change feed (amplify-d260vp72hqglnc ... itemChangeFeed) logged 'wakesSent 1, failed 1' on each record, then papyrus_item_change_feed_failed: GraphQLRequestError 401 UnauthorizedException 'Permission denied'. The stream retried each record 5 times (MaximumRetryAttempts 5, no on-failure destination, so the record is then dropped).\n\nPath: WakeGate.release for a counted (agent-actor) wake reads the chain (listItemsByLineageAndVersion, getItem: these succeed), sends the announce wake, then StoryChain.write -> story_triggers._write_metadata -> client.update_record('Item') -> updateItem, which fails. Consequences: the loop counter is never written for agent-made changes, so the loop limit cannot work; the next listener's wake (rate, paid) for the same change is never released; and each record's failure holds its shard for its retries.\n\nChecked: the feed role's inline policy allows appsync:GraphQL on Mutation/fields/updateItem of API lxyzo2l2pjftjdha7egy73wndu (iam simulate-principal-policy says allowed); the role has no boundary; its Deny statements cover only papyrus-shared-* resources. The updateItem pipeline's auth step admits an IAM caller with no identity pool. The 401 message is the IAM-level one, so the cause is still unknown. Next: reproduce the call with the feed role's identity (a test invocation on a staging site), log the GraphQL operation name in the feed's failure line, and decide whether a counter write that fails after the wake was sent should fail the record at all.\n\nNot a loop: each announce run was a different translation entering published (each ended story_is_translation). Who published the translations is not established: the publishedAt values are 2026-11-26, on versions imported via papyrus-cli under Ryan's name on 2026-11-22.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f90ad6c2-9133-4f15-8187-3dffab29af43",
+      "author": "ryan",
+      "text": "Root cause found (2026-11-25): the refused call is not the loop-counter updateItem. The wake gate reads the live agent policy via SiteStore.read_version -> getSiteDocumentVersion, and ITEM_FEED_API_FIELDS lists only getSiteDocument, so AppSync's IAM check refuses (401 Permission denied) every wake that needs the policy: a paid wake's quiet window or an agent change's loop limit. Replaying the counter write in production with a recorder showed it calls only allowed fields (listItemsByLineageAndVersion, getItem, updateItem). Fix: AnthusAI/Papyrus#1910 adds the field and a scenario that checks every field the production gate calls is in the role's list.",
+      "created_at": "2026-11-26T04:20:57.296206Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
+  "created_at": "2026-11-26T03:04:52.028762Z",
+  "updated_at": "2026-11-26T04:20:57.296714Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

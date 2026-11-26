@@ -123,6 +123,10 @@ Feature: Every change to a Story or its checklist wakes the agents that listen f
     And no table was listed or scanned
     And the feed's code has no list of the Automation table
 
+  Scenario: The feed's role may call every field its wake gate reads and writes
+    When the wake gate reads the policy, counts a Story and raises a loop review
+    Then every field it called is in the feed role's AppSync fields
+
   Scenario: The index is read again only when the deploy moves it
     When a person saves version 4 of the Story "story-1"
     And a person saves version 5 of the Story "story-1"
