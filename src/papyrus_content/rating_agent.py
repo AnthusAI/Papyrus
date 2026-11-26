@@ -40,6 +40,7 @@ from papyrus_content.agent_definitions.definition import core_definition
 from papyrus_content.agent_policy.tiers import model_for
 from papyrus_content.content_item_lifecycle import is_story_item_type
 from papyrus_content.images.handlers import Caller
+from papyrus_content.item_language import translation_original
 from papyrus_content.item_stars import item_stars
 
 RESPONSIBILITY = "rate"
@@ -138,7 +139,7 @@ def why_not_eligible(row: Mapping[str, Any]) -> str | None:
         return NOT_A_STORY
     if row.get("stage") != PUBLISHED:
         return NOT_PUBLISHED
-    if row.get("sourceLineageId"):
+    if row.get("sourceLineageId") or translation_original(dict(row), row.get("tenantId")):   # an imported translation names only its language group
         return TRANSLATION
     if item_stars(row) is not None:
         return ALREADY_RATED
