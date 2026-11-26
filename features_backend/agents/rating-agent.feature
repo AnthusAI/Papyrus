@@ -86,6 +86,16 @@ Feature: The rating agent looks at unrated published Stories each day and, at ob
     Then the run proposes 1 rating: "story-a" at 3 stars
     And the model was asked about 1 Story
 
+  Scenario: An imported translation, which names only its language group, is not listed on its own
+    Given the policy sets "rate" to "observe"
+    And the site has a published imported translation "story-a--zh-Hans" of the Story "story-a" in "zh-Hans"
+    And the site has these published Stories nobody has rated
+      | story   | title                  | model says |
+      | story-a | A routine release note | 3          |
+    When the daily wake arrives for the automation
+    Then the run proposes 1 rating: "story-a" at 3 stars
+    And the model was asked about 1 Story
+
   Scenario: A day with nothing unrated ends nothing, with the reason
     Given the policy sets "rate" to "observe"
     And the site has a published Story "story-e" a person rated 4 stars

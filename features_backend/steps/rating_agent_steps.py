@@ -188,6 +188,13 @@ def translation(context, lineage, source):
     context.store[lineage] = {}
 
 
+@given('the site has a published imported translation "{lineage}" of the Story "{source}" in "{language}"')
+def imported_translation(context, lineage, source, language):
+    _begin(context)   # as `stories import-translation` stores it: a tenant-prefixed language group and no sourceLineageId
+    context.index_rows.append(_row(lineage, "一则发布说明", tenantId="alpha", language=language, languageGroupId=f"alpha#{source}"))
+    context.store[lineage] = {}
+
+
 @given('the site\'s writing guidelines say "{words}"')
 def guidelines(context, words):
     _begin(context)
