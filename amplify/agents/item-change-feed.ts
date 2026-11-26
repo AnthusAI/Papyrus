@@ -31,6 +31,7 @@ export const ITEM_STREAM_VIEW = dynamodb.StreamViewType.NEW_AND_OLD_IMAGES;
 /** `getSiteDocument`: the listener index and the agent policy. The gate (PPY-67e3cd, PPY-4e7e8b) reads a Story's versions and keeps its loop count on the current one, and raises the hard gate once. */
 export const ITEM_FEED_API_FIELDS = [
   "Query/fields/getSiteDocument",
+  "Query/fields/getSiteDocumentVersion",
   "Query/fields/listItemsByLineageAndVersion",
   "Query/fields/getItem",
   "Mutation/fields/updateItem",
