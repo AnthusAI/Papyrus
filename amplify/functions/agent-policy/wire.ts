@@ -9,8 +9,9 @@ import { connectToSiteApi } from "../../site-api-access";
 /** The listener index (`tenants/<tenant>/site/listeners/<version>.json`): which agents listen for changes, so a resume knows whose stopped wakes to send again. Read only. */
 export const LISTENER_INDEX_KEY_PATTERN = "tenants/*/site/listeners/*";
 
-/** A resume reads one agent's runs, with the wake each kept, through the run index by automation (agent_poke_in.py). Nothing else of the site's API. */
-export const AGENT_POLICY_FUNCTION_FIELDS = ["Query/fields/listProcedureRunsByAutomationAndRequestedAt"];
+/** A resume reads one agent's runs, with the wake each kept, through the run index by automation (agent_poke_in.py); the rung board reads the site's registered agent
+ * definitions through the Automation tenantId index (console_rungs.py). Nothing else of the site's API. */
+export const AGENT_POLICY_FUNCTION_FIELDS = ["Query/fields/listProcedureRunsByAutomationAndRequestedAt", "Query/fields/listAutomationsByTenant"];
 
 /**
  * Environment and least-privilege IAM for the agent-policy function: read and write on the two site document tables and query on their indexes, get and put on the agent policy objects of the

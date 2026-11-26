@@ -3,7 +3,7 @@
 The caller must be an admin whose token was issued to a person-only app client (``actor_identity.credential_is_person``). Answers ``{"ok": true, "version", "document"}``
 or ``{"ok": false, "error": code, "message": words}``.
 
-It is also the newsroom console's door to the announcement review (``announcements_review_show`` and ``announcements_review_set``, PPY-e2829f): the review is the ``announce``
+It is also the newsroom console's door to the rung board (``agents_rungs``, ``agents_set_rung``: ``console_rungs``) and to the announcement review (``announcements_review_show`` and ``announcements_review_set``, PPY-e2829f): the review is the ``announce``
 rung of this same document, so the console reads and sets it here, behind the same two checks, with the same code the command line runs
 (``announcements.review_handlers.show_review`` and ``set_review_by_person``). Those two answer ``{"ok": true, "result": {...}}``; their tenant is the caller's own.
 """
@@ -16,6 +16,8 @@ from papyrus_content.actor_identity import credential_is_person
 from papyrus_content.images.handlers import Caller
 from papyrus_content.tenancy import TenantError, validate_tenant_id
 
+from . import console_rungs
+from .console_rungs import CONSOLE_RUNG_OPERATIONS
 from .document import PolicyError
 from .remote import apply_request
 from .store import AgentPolicyStore
@@ -37,8 +39,9 @@ class PokeInServices:
     """What a resume needs beyond the policy: the listener index (which agents listen for changes), the run index (the wakes a pause stopped) and the site's
     wake queue. The function's handler builds them from its own role; a test passes fakes."""
 
-    def __init__(self, listeners, ledger, send):
+    def __init__(self, listeners, ledger, send, definitions=None):
         self.listeners, self.ledger, self.send = listeners, ledger, send
+        self.definitions = definitions   # the site's registered agent definitions, for the rung board (console_rungs); None: the engine's core ones
 
 
 def handle(event: dict[str, Any], store: AgentPolicyStore, environ: Mapping[str, str], site_tenant_id: str,
@@ -60,6 +63,8 @@ def handle(event: dict[str, Any], store: AgentPolicyStore, environ: Mapping[str,
             return announcement_review(store, site_tenant_id, caller, request)
         if request.get("op") in POKE_IN_OPERATIONS:
             return poke_in(store, site_tenant_id, caller, request, services)
+        if request.get("op") in CONSOLE_RUNG_OPERATIONS:
+            return console_rungs.handle_request(store, site_tenant_id, caller, request, services.definitions if services is not None else None)
         tenant_id = validate_tenant_id(str(request.get("tenantId") or ""))
         if tenant_id != site_tenant_id:
             return refusal("not_authorized", "That tenant is not this site's.")

@@ -35,10 +35,12 @@ const policies = Object.values(template.findResources("AWS::IAM::Policy"));
 const statements = policies.flatMap((policy) => policy.Properties.PolicyDocument.Statement as { Action: string | string[]; Resource: unknown }[]);
 const allowing = (action: string) => statements.filter((statement) => ([] as string[]).concat(statement.Action).includes(action));
 
-assert.deepEqual(AGENT_POLICY_FUNCTION_FIELDS, ["Query/fields/listProcedureRunsByAutomationAndRequestedAt"], "one read of the site's API: the run index by automation");
+assert.deepEqual(AGENT_POLICY_FUNCTION_FIELDS, ["Query/fields/listProcedureRunsByAutomationAndRequestedAt", "Query/fields/listAutomationsByTenant"],
+  "two reads of the site's API: the run index by automation (a resume) and the Automation tenantId index (the rung board's registered definitions)");
 const appsync = allowing("appsync:GraphQL");
 assert.equal(appsync.length, 1, "one appsync statement");
 assert.match(JSON.stringify(appsync[0].Resource), /apis\/api123\/types\/Query\/fields\/listProcedureRunsByAutomationAndRequestedAt/);
+assert.match(JSON.stringify(appsync[0].Resource), /apis\/api123\/types\/Query\/fields\/listAutomationsByTenant/);
 
 const sqs = allowing("sqs:SendMessage");
 assert.equal(sqs.length, 1, "one statement puts wakes on a queue");
