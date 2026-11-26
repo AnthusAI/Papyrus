@@ -27,14 +27,17 @@ def _policy_store() -> AgentPolicyStore:
 
 
 def _poke_in_services(store: AgentPolicyStore, tenant_id: str) -> PokeInServices:
-    """What a resume reads and sends with the function's own role: the listener index, one agent's runs through the run index, and the site's wake queue."""
+    """What a resume reads and sends with the function's own role: the listener index, one agent's runs through the run index, and the site's wake queue; and, for
+    the rung board, the site's registered agent definitions through the Automation tenantId index."""
     from papyrus_content.agent_listeners import ListenerIndex
     from papyrus_content.agent_poke_in import RunLedger
     from papyrus_content.agent_wakes import wake_sender
-    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+    from papyrus_content.agent_policy.console_rungs import registered_definitions
+    from papyrus_content.graphql_authoring import AUTOMATION_FIELDS, PapyrusGraphQLAuthoringClient
 
     client = PapyrusGraphQLAuthoringClient(endpoint=os.environ["PAPYRUS_GRAPHQL_ENDPOINT"], tenant_id=tenant_id)
-    return PokeInServices(ListenerIndex(store.site_store, tenant_id).document, RunLedger(client, tenant_id), wake_sender())
+    return PokeInServices(ListenerIndex(store.site_store, tenant_id).document, RunLedger(client, tenant_id), wake_sender(),
+                          definitions=lambda: registered_definitions(client.list_tenant_rows("Automation", AUTOMATION_FIELDS)))
 
 
 def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:

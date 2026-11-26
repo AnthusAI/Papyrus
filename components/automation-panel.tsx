@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import { agentPokeInApi, createDemoPokeInApi, type AgentPokeInApi } from "../lib/agent-poke-in";
+import { agentRungsApi, createDemoRungsApi, type AgentRungsApi } from "../lib/agent-rungs";
 import { loadAutomationOverview, runAutomationNow } from "../lib/automation-client";
 import { FIXTURE_AUTOMATION_OVERVIEW } from "../lib/automation-fixture";
 import type { AutomationResult } from "../lib/automation-overview";
 import type { PausesState, PokeInHandlers } from "./agent-poke-in-control";
+import type { RungHandlers, RungsState } from "./agent-rung-control";
 import { AutomationView } from "./automation-view";
 
 const REFRESH_MILLISECONDS = 60_000;
 
-/** Administration, Automation: loads the records and their recent runs, and refreshes each minute. Pause, resume and wake now go through the poke-in doors. */
+/** Administration, Automation: loads the records and their recent runs, and refreshes each minute. Pause, resume and wake now go through the poke-in doors; each agent's rung through the rung board. */
 export function AutomationPanel({ isDemo }: { isDemo: boolean }) {
   const [result, setResult] = useState<AutomationResult | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -21,6 +23,27 @@ export function AutomationPanel({ isDemo }: { isDemo: boolean }) {
     const client = generateClient({ authMode: "userPool" });
     return agentPokeInApi((request) => client.graphql(request) as Promise<unknown>);
   }, [isDemo]);
+
+  const [rungs, setRungs] = useState<RungsState>(null);
+  const rungsApi = useMemo<AgentRungsApi>(() => {
+    if (isDemo) return createDemoRungsApi();
+    const client = generateClient({ authMode: "userPool" });
+    return agentRungsApi((request) => client.graphql(request) as Promise<unknown>);
+  }, [isDemo]);
+
+  const readRungs = useCallback(async () => {
+    try {
+      const read = await rungsApi.board();
+      setRungs({ state: "loaded", agents: read.agents });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The rungs could not be read.";
+      setRungs({ state: /admins|signed in/i.test(message) ? "forbidden" : "unavailable", message });
+    }
+  }, [rungsApi]);
+
+  useEffect(() => {
+    void readRungs();
+  }, [readRungs]);
 
   const readPauses = useCallback(async () => {
     try {
@@ -89,5 +112,14 @@ export function AutomationPanel({ isDemo }: { isDemo: boolean }) {
     onWake: (agent, subject, reason) => pokeInApi.wake(agent, subject, reason),
   };
 
-  return <AutomationView result={result} selectedId={selectedId} onSelect={setSelectedId} demo={isDemo} onRunNow={runNow} pokeIn={pokeIn} />;
+  const rungHandlers: RungHandlers = {
+    rungs,
+    onSetRung: async (agent, rung, reason) => {
+      const answer = await rungsApi.setRung(agent, rung, reason);
+      setRungs({ state: "loaded", agents: answer.board.agents });
+      return answer;
+    },
+  };
+
+  return <AutomationView result={result} selectedId={selectedId} onSelect={setSelectedId} demo={isDemo} onRunNow={runNow} pokeIn={pokeIn} rungs={rungHandlers} />;
 }
