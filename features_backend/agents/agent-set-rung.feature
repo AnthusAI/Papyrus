@@ -130,6 +130,25 @@ Feature: An admin sets an agent's rung with papyrus agents set-rung
     Then the command is refused as blocked
     And the site's policy is still version 0
 
+  Scenario: An agent holding the operator's credentials may set a rung up to prepare on a named person's instruction
+    Given a site with no agent policy saved yet
+    When an agent with the operator's credentials sets "rate" to "propose" on the instruction of "ryan" who said "set it yourself"
+    Then the command succeeds and applied the change
+    And the policy version 1 says it was saved by "ryan via operator credentials (Claude)" and its reason holds "entered by Claude on the instruction of ryan"
+    And the policy version 1 says it was saved by "ryan via operator credentials (Claude)" and its reason holds "set it yourself"
+
+  Scenario: An agent holding the operator's credentials that names no one is blocked
+    Given a site with no agent policy saved yet
+    When an agent with the operator's credentials sets "rate" to "propose" without naming anyone
+    Then the command is refused as blocked
+    And the site's policy is still version 0
+
+  Scenario: An agent holding the operator's credentials may not raise a rung above prepare
+    Given a site with no agent policy saved yet
+    When an agent with the operator's credentials sets "announce" to "publish_soft" on the instruction of "ryan" who said "go all the way"
+    Then the command is refused as blocked
+    And the site's policy is still version 0
+
   Scenario: A change made while another admin saved is refused, not overwritten
     Given a site with no agent policy saved yet
     And another admin saves the policy while the change is being made
