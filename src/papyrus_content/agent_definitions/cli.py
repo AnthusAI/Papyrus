@@ -347,7 +347,8 @@ def _lists_for_site(client, site_store_for=None) -> dict:
     return list_schedule.wanted(ListSettingsStore((site_store_for or _site_store_for)(client)).read(tenant_id).document)
 
 
-def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, policy_factory=None, caller_factory=None) -> int:
+def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_factory=None, policy_factory=None, caller_factory=None,
+                     operator_lane: bool | None = None) -> int:
     out = stdout or sys.stdout
     if argv in (["--help"], ["-h"]):
         out.write(SET_RUNG_USAGE + "\n")
@@ -396,8 +397,10 @@ def set_rung_command(argv: list[str], stdout: TextIO | None = None, client_facto
         if caller.kind == "agent":
             from papyrus_content.agent_policy.delegation import delegated_caller
 
+            from papyrus_content.user_auth_mode import iam_requested
+
             caller, delegated = delegated_caller(caller, person=values.get("--on-instruction-of", ""), quote=values.get("--quote", ""), agent=values.get("--agent", ""),
-                                                 rung=values.get("--rung", ""))
+                                                 rung=values.get("--rung", ""), operator=iam_requested() if operator_lane is None else operator_lane)
             values["--reason"] = f"{values['--reason'].strip()} {delegated}"
         tenant_id = getattr(client, "tenant_id", None)
         if not tenant_id:

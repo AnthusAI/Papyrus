@@ -1,6 +1,6 @@
 """An agent changing the agent policy on a named person's instruction (the way ``stories set-stars --agent`` rates for the signed-in person).
 
-The signed-in session is that person's (an admin, read from the token), the agent is named and recorded, and the person's own words are kept in the reason. The agent
+The signed-in session is that person's (an admin, read from the token), or the agent holds the site's operator credentials (``--auth iam``), the agent is named and recorded, and the person's own words are kept in the reason. The agent
 must name the person the session belongs to and quote them, and may not raise a rung above ``DELEGATED_RUNG_CEILING``: anything higher is the person's own change.
 Nothing can verify that the person said the words; they are a record, not proof, and the ceiling and the admin-session rule limit what a wrong claim can do.
 """
@@ -29,9 +29,21 @@ def on_instruction_of(caller: Any, *, person: str, quote: str, agent: str) -> tu
     return replace(caller, kind="person", subject=f"{caller.subject} via cli ({agent})"), f"(entered by {agent} on the instruction of {person}: \"{quote}\")"
 
 
-def delegated_caller(caller: Any, *, person: str, quote: str, agent: str, rung: str) -> tuple[Any, str]:
-    """``(the caller to change the policy as, the words to add to the reason)``. Raises ``PolicyError`` when it may not."""
-    acting, words = on_instruction_of(caller, person=person, quote=quote, agent=agent)
+def on_instruction_with_operator_credentials(caller: Any, *, person: str, quote: str, agent: str) -> tuple[Any, str]:
+    """The same as ``on_instruction_of`` for an agent holding the site's operator credentials (``--auth iam``): the AWS credentials that already write the
+    policy directly, as the deploy does. There is no person's session to match, so the person is the one named, and the record says it came through the
+    operator's credentials. Raises ``PolicyError`` when the person, their words or the agent's name is missing."""
+    person, quote, agent = (person or "").strip(), (quote or "").strip(), (agent or "").strip()
+    if not (person and quote and agent):
+        raise PolicyError("blocked", "An agent acts here only on a named person's instruction: give the person, their words and your name.")
+    return replace(caller, kind="person", subject=f"{person} via operator credentials ({agent})", is_admin=True), f"(entered by {agent} on the instruction of {person}: \"{quote}\")"
+
+
+def delegated_caller(caller: Any, *, person: str, quote: str, agent: str, rung: str, operator: bool = False) -> tuple[Any, str]:
+    """``(the caller to change the policy as, the words to add to the reason)``. ``operator``: the agent holds the site's operator credentials rather than a
+    person's session. Raises ``PolicyError`` when it may not."""
+    instructed = on_instruction_with_operator_credentials if operator else on_instruction_of
+    acting, words = instructed(caller, person=person, quote=quote, agent=agent)
     if rung not in RUNGS:
         raise PolicyError("invalid_input", f"rung is one of: {', '.join(RUNGS)}.")
     if RUNGS.index(rung) > RUNGS.index(DELEGATED_RUNG_CEILING):
