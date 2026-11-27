@@ -26,7 +26,9 @@ TENANT, BUCKET = "alpha", "site-bucket"
 PEOPLE = {"admin": Caller(kind="person", subject="ada", is_admin=True), "editor": Caller(kind="person", subject="ed"),
           "agent": Caller(kind="agent", subject="rating-agent"),
           # An agent running in a person's signed-in session: identify() gives it the session's label and whether the token is an admin's.
-          "agent in ada's session": Caller(kind="agent", subject="ada", is_admin=True), "agent in ed's session": Caller(kind="agent", subject="ed")}
+          "agent in ada's session": Caller(kind="agent", subject="ada", is_admin=True), "agent in ed's session": Caller(kind="agent", subject="ed"),
+          # An agent on the operator lane (--auth iam): no person's token, so not an admin by itself.
+          "agent with operator credentials": Caller(kind="agent", subject="")}
 SITE_DEFINITIONS = REPO_ROOT / "src" / "papyrus_content" / "agent_definitions" / "core"
 
 
@@ -90,7 +92,7 @@ def _fresh(context):
     context.exit_code = None
 
 
-def _run(context, who, agent, rung, *, reason, apply=False, scope=None, extra=()):
+def _run(context, who, agent, rung, *, reason, apply=False, scope=None, extra=(), operator_lane=False):
     argv = ["--id", agent, "--rung", rung, *extra]
     if reason is not None:
         argv += ["--reason", reason]
@@ -102,7 +104,8 @@ def _run(context, who, agent, rung, *, reason, apply=False, scope=None, extra=()
         argv += ["--dir", str(context.definitions_dir)]
     out = io.StringIO()
     context.exit_code = agents_cli.set_rung_command(
-        argv, out, client_factory=lambda: Client(context.api), policy_factory=lambda client: context.store, caller_factory=lambda client, caller: PEOPLE[who])
+        argv, out, client_factory=lambda: Client(context.api), policy_factory=lambda client: context.store, caller_factory=lambda client, caller: PEOPLE[who],
+        operator_lane=operator_lane)
     context.envelope = json.loads(out.getvalue())
 
 
@@ -343,3 +346,14 @@ def saved_by(context, version, by, words):
     record = context.store.version_record(TENANT, version)
     assert record["by"] == by and words in record["reason"], record
 
+
+
+@when('an agent with the operator\'s credentials sets "{agent}" to "{rung}" on the instruction of "{person}" who said "{quote}"')
+def delegated_operator(context, agent, rung, person, quote):
+    _run(context, "agent with operator credentials", agent, rung, reason="Test", apply=True, extra=["--on-instruction-of", person, "--quote", quote, "--agent", "Claude"],
+         operator_lane=True)
+
+
+@when('an agent with the operator\'s credentials sets "{agent}" to "{rung}" without naming anyone')
+def operator_nobody(context, agent, rung):
+    _run(context, "agent with operator credentials", agent, rung, reason="Test", apply=True, operator_lane=True)
