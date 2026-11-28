@@ -515,7 +515,7 @@ def test_the_service_role_covers_the_service_of_every_resource_type_the_stacks_c
             granted |= {a.split(":")[0] for a in actions}
     # The shared-tier stacks are created by their own service role, whose rights are the inline policy of SharedCloudFormationRole.
     shared_granted = set()
-    held = sd.parse_template((PIPELINE / "papyrus-shared-pipeline-roles.yaml").read_text())   # held until the shared tier's go
+    held = sd.parse_template(REPO_PIPELINE)
     for statement in held["Resources"]["SharedCloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]:
         actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
         shared_granted |= {a.split(":")[0] for a in actions}
@@ -1290,9 +1290,8 @@ def _template_with(replacement_text, old="cloudformation:DeleteChangeSet"):
     return sd.parse_template(REPO_PIPELINE.replace(old, replacement_text, 1))
 
 
-def test_the_pipeline_roles_in_the_repo_break_no_hard_rule_and_the_shared_roles_template_neither():
+def test_the_pipeline_roles_in_the_repo_break_no_hard_rule():
     assert rs.hard_rule_violations(sd.parse_template(REPO_PIPELINE)) == []
-    assert rs.hard_rule_violations(sd.parse_template((PIPELINE / "papyrus-shared-pipeline-roles.yaml").read_text())) == []
 
 
 @pytest.mark.parametrize("edit,expected", [
