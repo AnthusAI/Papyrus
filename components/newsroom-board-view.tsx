@@ -46,6 +46,7 @@ import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reade
 
 /** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
 const SELECTED_ISSUE_PARAMETER = "open";
+const UNSAVED_STORY_CHANGES_CONFIRMATION = "This story has unsaved changes. Close it and discard them?";
 const STATIC_MOTION = { mode: "static" } as const;
 
 async function loadEveryNewsroomAssignment() {
@@ -74,12 +75,19 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selected = searchParams.get(SELECTED_ISSUE_PARAMETER);
+  const openStoryHasUnsavedChangesRef = useRef(false);
+  const rememberWhetherOpenStoryHasUnsavedChanges = useCallback((hasUnsavedChanges: boolean) => {
+    openStoryHasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, []);
   const setSelected = useCallback((issueId: string | null) => {
+    if (issueId === selected) return;
+    if (openStoryHasUnsavedChangesRef.current && !window.confirm(UNSAVED_STORY_CHANGES_CONFIRMATION)) return;
+    openStoryHasUnsavedChangesRef.current = false;
     const next = new URLSearchParams(searchParams.toString());
     if (issueId) next.set(SELECTED_ISSUE_PARAMETER, issueId); else next.delete(SELECTED_ISSUE_PARAMETER);
     const query = next.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [pathname, router, searchParams, selected]);
   const [supportingRecordsLoading, setSupportingRecordsLoading] = useState(false);
   const [supportingRecordsError, setSupportingRecordsError] = useState<string | null>(null);
   const generation = useRef(0);
@@ -197,7 +205,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           {issue.kind === "contentItem"
             ? <>
-              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} onScheduleChanged={() => refreshBoardNowRef.current()} />
+              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} onScheduleChanged={() => refreshBoardNowRef.current()} onUnsavedChangesChange={rememberWhetherOpenStoryHasUnsavedChanges} />
               <StoryChecklistPanel key={`checklist-${issue.id}`} lineageId={issue.nativeId} storyIssueId={issue.id} onChanged={() => refreshBoardNowRef.current()} />
               <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
             </>

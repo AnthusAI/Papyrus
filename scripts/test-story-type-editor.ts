@@ -113,17 +113,17 @@ const scenarios: Record<string, () => Promise<void>> = {
     } finally { await browser.close(); }
   },
 
-  /** A live Story keeps its address until a new version is published: saving in place is off, a new version carries the type, Publish moves it with a notice. */
+  /** A live Story keeps its address until a new version is published: Save makes a new version that carries the type, Publish moves it with a notice. */
   async live_story() {
     const { browser, page, errors } = await setup(PUBLISHED_ID);
     try {
       assert.deepEqual(await pressed(page), ["article"]);
       await typeButton(page, "post").click();
-      assert.match(await page.locator("[data-newsroom-article-type-needs-version]").innerText(), /live\. Use Save as new version/);
-      assert.equal(await page.locator("[data-newsroom-article-save]").isDisabled(), true, "Save draft would republish at once, so it is off");
+      assert.match(await page.locator("[data-newsroom-article-type-needs-version]").innerText(), /live\. Saving makes a new version with the new type/);
+      assert.equal(await page.locator("[data-newsroom-article-save]").isDisabled(), false, "Save makes a new version, so it never republishes in place");
       assert.equal(await page.locator("[data-newsroom-article-publish]").isDisabled(), true, "and so is Publish");
       assert.match(await page.locator("[data-newsroom-article-type-move]").innerText(), /Live as the type Article under \/articles\/\. Publishing it as the type Post moves it under \/posts\/; the old address redirects/);
-      await page.locator("[data-newsroom-article-save-version]").click();
+      await page.locator("[data-newsroom-article-save]").click();
       await page.getByText(/Saved as version/).waitFor();
       assert.deepEqual(await pressed(page), ["post"], "the new version is a post");
       assert.match(await page.locator("[data-newsroom-article-type-move]").innerText(), /Live as the type Article/, "the live page is still the article");
@@ -140,7 +140,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup(PUBLISHED_ID);
     try {
       await typeButton(page, "guide").click();
-      await page.locator("[data-newsroom-article-save-version]").click();
+      await page.locator("[data-newsroom-article-save]").click();
       await page.getByText(/Saved as version/).waitFor();
       assert.equal(await page.locator("[data-newsroom-article-publish]").isDisabled(), true);
       assert.match(await page.locator("[data-newsroom-article-type-move]").innerText(), /would remove the live page, so Publish is off/);

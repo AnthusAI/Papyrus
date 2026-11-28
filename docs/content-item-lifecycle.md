@@ -122,10 +122,9 @@ form, but the draft Item gets the site's default type or none, like any Story. N
 **Create Story is one action**: it makes a Story of the default type (or no type) and opens it, and the **Type** field in the Story editor (buttons, one per offered type, plus
 the page) sets or changes it. The type is not locked after creation; it follows versioning:
 
-- **Save as new version** carries the type: the new version has the new type, and the published version keeps the type it was published with, so the live address
-  does not move.
-- **Save draft** saves in place; on a published Story that republishes at once, so the engine refuses to change the type that way (`type-locked`) and the editor turns
-  Save draft and Publish off and points at Save as new version.
+- The editor has one **Save**. On a draft it saves in place. On a published Story it saves a new draft version, which carries the type: the published version
+  keeps the type it was published with, so the live address does not move until the new version is published. The engine still refuses an in-place save
+  that changes a live Story's type (`type-locked`); the editor never sends one.
 - **Publishing** a version of another type moves the live page to the address of the new type (`urls.types`); the projection leaves a redirect from the old address
   (the redirect store of the site), and the publish result says `typeChangedFrom`. The editor shows both addresses before that happens. Publishing a version whose
   type has no page would remove the live page, so the editor turns Publish off in that case (unpublish is the explicit way).

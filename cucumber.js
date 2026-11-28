@@ -296,6 +296,11 @@ module.exports = {
     require: ["features/step_definitions/story-stars.steps.js"],
     format: ["summary"],
   },
+  storyUnsavedChanges: {
+    paths: ["features/newsroom-story-unsaved-changes.feature"],
+    require: ["features/step_definitions/story-unsaved-changes.steps.js"],
+    format: ["summary"],
+  },
   storySchedule: {
     paths: ["features/newsroom-story-schedule.feature"],
     require: ["features/step_definitions/story-schedule.steps.js"],
