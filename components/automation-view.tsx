@@ -80,7 +80,7 @@ function OutsideRunLine({ run, demo }: { run: AutomationOutsideRun; demo: boolea
 function AgentControls({ record, pokeIn, rungs }: { record: AutomationRecord; pokeIn: PokeInHandlers; rungs?: RungHandlers }) {
   return (
     <section data-automation-agent-controls={record.id} aria-label={`Rung, pause, resume or wake ${record.title}`}>
-      {rungs && record.responsibility ? <><h4>Rung</h4><RungControl key={record.responsibility} responsibility={record.responsibility} handlers={rungs} /></> : null}
+      {rungs && record.responsibility ? <><h4>How far it may go</h4><RungControl key={record.responsibility} responsibility={record.responsibility} handlers={rungs} /></> : null}
       <h4>Pause, resume, wake now</h4>
       {record.responsibility ? <PauseControl agent={record.responsibility} name={record.responsibility} handlers={pokeIn} />
         : <p className="news-desk-delegation-note" data-agent-pause-unadopted>Not adopted onto a responsibility, so the agent policy does not govern it and there is nothing to pause. An admin adopts it with <code>papyrus automations adopt</code>.</p>}

@@ -38,3 +38,11 @@ Feature: An admin sets an agent's rung in the newsroom, with no command line
   Scenario: A change without a reason is refused
     When ada, an admin signed in on the console's app client, sets "rate" to "propose" on the rung board because ""
     Then the rung board refused the change as "invalid_input", saying "needs a reason"
+
+  Scenario: An agent the deploy registered from its definition shows its rung on the Automation page without being adopted
+    Given an automation row the deploy registered from the "rate" definition, never adopted
+    Then the Automation page reads it with the responsibility "rate"
+
+  Scenario: A retired definition gives its automation no rung
+    Given an automation row the deploy registered from the "rate" definition, retired since "2026-11-20T00:00:00Z"
+    Then the Automation page reads it with no responsibility

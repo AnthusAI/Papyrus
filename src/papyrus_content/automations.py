@@ -281,7 +281,7 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "supported": supported,
         "supportNote": None if supported else NOT_SUPPORTED,
         "procedureKey": row.get("procedureKey"),
-        "responsibility": row.get("responsibility"),
+        "responsibility": row.get("responsibility") or registered_responsibility(row),
         "definitionId": row.get("definitionId"), "definitionVersion": row.get("definitionVersion"), "definitionDigest": row.get("definitionDigest"), "definitionRetiredAt": row.get("definitionRetiredAt"),
         "definition": _parse(row.get("definition"), None),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
@@ -293,6 +293,16 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "createdBy": row.get("createdBy"), "createdAt": row.get("createdAt"),
         "updatedBy": row.get("updatedBy"), "updatedAt": row.get("updatedAt"),
     }
+
+
+def registered_responsibility(row: dict[str, Any]) -> str | None:
+    """The agent-policy name of an automation the deploy registered from an agent definition (``agents apply``), which never adopts it: the definition's
+    responsibility, so the console offers its rung and pause like an adopted one. None for a retired definition or a row with none."""
+    if row.get("definitionRetiredAt"):
+        return None
+    definition = _parse(row.get("definition"), None)
+    value = definition.get("responsibility") if isinstance(definition, dict) else None
+    return value if isinstance(value, str) and value.strip() else None
 
 
 def run_now_availability(info: dict[str, Any]) -> dict[str, Any]:
