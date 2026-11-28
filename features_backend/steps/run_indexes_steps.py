@@ -30,8 +30,16 @@ class RunTable:
         return {"updateProcedureRun": row}
 
     def get_record(self, model, record_id):
+        """Only the model's fixed get fields, as the real client reads them: that list has no attention fields."""
+        return self.get_record_with_fields(model, record_id, "")
+
+    def get_record_with_fields(self, model, record_id, extra_fields):
+        from papyrus_content.graphql_authoring import GET_DEFINITIONS
         self.reads.append(("get", model))
-        return dict(self.rows[record_id]) if record_id in self.rows else None
+        if record_id not in self.rows:
+            return None
+        wanted = set(f"{GET_DEFINITIONS[model]['fields']} {extra_fields}".split())
+        return {key: value for key, value in self.rows[record_id].items() if key in wanted}
 
     def update_record(self, model, payload):
         self.reads.append(("update", model))
@@ -118,7 +126,7 @@ def who(context):
 
 @then("the run is still in the history as failed")
 def still_failed(context):
-    row = context.run_table.get_record("ProcedureRun", context.run_id)
+    row = context.run_table.rows[context.run_id]
     assert (row["runStatus"], row["outcome"]) == ("failed", "failed"), row
 
 
