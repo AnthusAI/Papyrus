@@ -262,7 +262,7 @@ def step_adopted_kept(context, automation_id, responsibility):
 
 @then('the automation "{automation_id}" has no adopted responsibility')
 def step_not_adopted(context, automation_id):
-    assert _row(context, automation_id)["responsibility"] is None
+    assert not context.site.rows[automation_id].get("responsibility")   # the stored row: the view shows the definition's responsibility, which is not an adoption
 
 
 @then('the deploy reports "{definition_id}" as {status}')
