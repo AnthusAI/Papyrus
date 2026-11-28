@@ -674,13 +674,14 @@ def operator_story_show(client, lineage_id: str, bucket: str | None = None) -> d
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
     result = {"lineageId": lineage_id, "title": latest.get("headline") or latest.get("title"), "type": latest.get("type"), "stage": latest.get("stage"),
               "currentVersion": latest.get("versionNumber"), "versionCount": len(versions), "hasVersions": bool(versions),
-              "consoleRows": [], "signals": None, "claims": [], "schedule": [], "moves": list(metadata.get(STAGE_MOVES_KEY) or []),
+              "consoleRows": [], "signals": None, "suggestion": None, "claims": [], "schedule": [], "moves": list(metadata.get(STAGE_MOVES_KEY) or []),
               "references": story_references(client, lineage_id), "related": [], "relatedReferences": [], "unofficialRelations": [],
               "messages": story_messages(client, lineage_id), "agentNotes": []}
     if not versions:
         return result
     result["consoleRows"] = console_row_lines("stories", "show", lambda base: story_links(base, lineage_id, latest["id"], f"editor page of the current version (version {latest.get('versionNumber')})"))
     result["signals"] = signals(latest, bucket or DEFAULT_STORY_BUCKET, utc_today())
+    result["suggestion"] = _pending_suggestion(client, latest)
     result["claims"] = list(claim_lines(latest))
     for row in scheduled_versions(client, lineage_id):
         state = effective_state(row, datetime.now(timezone.utc))
@@ -691,6 +692,18 @@ def operator_story_show(client, lineage_id: str, bucket: str | None = None) -> d
     result["unofficialRelations"] = unofficial_item_relations(client, lineage_id)
     result["agentNotes"] = story_agent_notes(client, lineage_id)
     return result
+
+
+def _pending_suggestion(client, latest: dict) -> dict | None:
+    """The rating agent's suggested stars waiting beside the rating (``starSuggestion`` on the working record), or None. Read by its own query, so a backend
+    deployed before the suggestion fields still shows the rest of the Story."""
+    from .rating_suggestions import pending_suggestion, read_suggestion_row
+
+    try:
+        row = read_suggestion_row(client, latest["id"])
+    except Exception:  # noqa: BLE001 - an older backend without the fields, or a fake without the query: the Story shows without a suggestion line
+        return None
+    return pending_suggestion(row)
 
 
 SIGNED_IN_CLIENT_FACTORY = create_authoring_client
@@ -712,6 +725,11 @@ def story_show_rows(result: dict) -> list[str]:
                                f"stars {signal['stars']}", f"source {signal['source']}", f"votes {signal['votes']}", f"words {signal['words']}", f"published {signal['published']}"]))
         if signal["source"] == "editor":
             rows.append("\t".join(["stories", "show", "rating", f"ratedBy {signal['ratedBy']}", f"ratedAt {signal['ratedAt']}"]))
+    suggestion = result.get("suggestion")
+    if suggestion:
+        stars = "five-star candidate" if suggestion["candidate"] else f"{suggestion['stars']} stars"
+        rows.append("\t".join(["stories", "show", "suggestion", f"suggested {stars}", f"by {suggestion['by']}", f"at {suggestion['at']}", f"run {suggestion['run'] or '-'}",
+                                f"confirm with: papyrus ratings confirm {result['lineageId']}"]))
     rows += ["\t".join(["stories", "show", "claim", line]) for line in result["claims"]]
     for row in result["schedule"]:
         rows.append("\t".join(["stories", "show", "schedule", row["state"], f"version {row['versionNumber']}", f"publish at {row['scheduledPublishAt']} (UTC)", f"by {row['scheduledBy']}", row["note"]]))

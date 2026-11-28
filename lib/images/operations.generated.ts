@@ -1795,12 +1795,14 @@ export type RatingsConfirmResult = {
 export type RatingsSuggestionsReviewInput = {
   /** The day, YYYY-MM-DD, in the site's time zone. */
   day: string;
-  /** The Stories suggested, with their stars. */
+  /** The Stories suggested, with their stars and the reason for each. */
   suggestions: {
     /** The lineage id of the Story. */
     story: string;
     title?: string;
     stars: number;
+    /** The agent's one-line reason for these stars. */
+    reason?: string;
   }[];
 };
 

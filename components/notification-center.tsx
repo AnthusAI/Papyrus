@@ -9,6 +9,7 @@ import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecid
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranking";
 import { buildNeedsMeItems, type LinkDecision } from "../lib/needs-me-items";
+import { isRatingsReview, ratingDismissUpdate, ratingRowUpdate, type RatingRow, type RatingRowChoice } from "../lib/rating-review";
 import type { LinkSuggestion, LinkSuggestionPage } from "../lib/link-suggestions";
 import { captureStatusesByLineage } from "../lib/reference-capture";
 import { captureNeededSourceFromRecords, readCaptureNeeded } from "../lib/capture-needed";
@@ -43,11 +44,15 @@ const NO_ATTACHMENTS: ReferenceAttachmentRecord[] = [];
 export type NotificationApi = {
   loadReviews: () => Promise<ReviewLoad>;
   /** Titles and current stages of the stories and ideas the requests name, by lineage id. */
-  loadStoryTitles: (ids: string[]) => Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string> }>;
+  loadStoryTitles: (ids: string[]) => Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string>; itemIds?: Record<string, string> }>;
   answerReviewRequest: (request: ReviewRequest, input: AnswerInput, by: string) => Promise<ReviewRequest>;
   /** Changes only the note of a request that is already answered (`answerReasonUpdate`). Returns the saved request. */
   saveReviewReason: (request: ReviewRequest, update: Record<string, unknown>) => Promise<ReviewRequest>;
   markReviewRead: (userKey: string, requestId: string) => Promise<void>;
+  /** A person's star rating of a Story through the editors' own `setItemStars` (any record id of the Story). Only a person rates. */
+  setStoryStars: (itemId: string, stars: number) => Promise<void>;
+  /** Saves a row answer or the dismissal of the rating agent's daily review (`ratingRowUpdate`, `ratingDismissUpdate`). Returns the saved request. */
+  saveRatingReview: (request: ReviewRequest, update: Record<string, unknown>) => Promise<ReviewRequest>;
   /** Email submissions held for review (Monitoring's own read). Optional: a site without monitoring has none. */
   loadHeldEmails?: () => Promise<MonitoringEmailSummary[]>;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
@@ -68,6 +73,8 @@ const liveApi: NotificationApi = {
   answerReviewRequest: async (request, input, by) => (await import("../lib/review-client")).answerReviewRequest(request, input, by),
   saveReviewReason: async (request, update) => (await import("../lib/review-client")).saveReviewReason(request, update),
   markReviewRead: async (userKey, requestId) => (await import("../lib/review-client")).markReviewRead(userKey, requestId),
+  setStoryStars: async (itemId, stars) => (await import("../lib/newsroom-articles")).setItemStars(itemId, stars),
+  saveRatingReview: async (request, update) => (await import("../lib/review-client")).saveRatingReview(request, update),
   loadHeldEmails: async () => {
     const { loadMonitoringPage } = await import("../lib/monitoring-client");
     const rows: MonitoringEmailSummary[] = [];
@@ -105,6 +112,8 @@ const demoApi: NotificationApi = {
   },
   saveReviewReason: async (request, update) => applyReviewUpdate(request, update),
   markReviewRead: async () => undefined,
+  setStoryStars: async () => undefined,
+  saveRatingReview: async (request, update) => applyReviewUpdate(request, update),
   loadHeldEmails: async () => FIXTURE_HELD_EMAILS,
   loadEmail: async (receiptId) => FIXTURE_EMAIL_DETAILS[receiptId] ?? { state: "unavailable" },
   decideEmail: async (_receiptId, decision) => ({ ok: true, already: false, quarantine: { state: decision === "accept" ? "released" : "discarded", decision: null, failure: null } }),
@@ -174,6 +183,7 @@ export function NotificationCenter({
   const [userKey, setUserKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [storyTitles, setStoryTitles] = useState<Record<string, string>>({});
+  const [storyItemIds, setStoryItemIds] = useState<Record<string, string>>({});
   const [storyExcerpts, setStoryExcerpts] = useState<Record<string, string>>({});
   const [deletedStories, setDeletedStories] = useState<ReadonlySet<string>>(new Set());
   const [ideaStages, setIdeaStages] = useState<Record<string, string>>({});
@@ -295,9 +305,11 @@ export function NotificationCenter({
   /** The titles and stages of the stories that open requests are about, and of the ideas the open batches name. */
   const loadStoriesFor = useCallback(async (list: ReviewRequest[]) => {
     const open = list.filter((request) => request.state === "open");
-    const ids = [...open.filter((request) => request.subject.type === "story").map((request) => request.subject.id), ...open.filter(isIdeaBatch).flatMap(ideaIdsOf)];
-    const stories = await api.loadStoryTitles(ids).catch(() => ({ titles: {}, deleted: [] as string[], excerpts: {}, stages: {} }));
+    const ids = [...open.filter((request) => request.subject.type === "story").map((request) => request.subject.id), ...open.filter(isIdeaBatch).flatMap(ideaIdsOf),
+      ...open.filter(isRatingsReview).flatMap(ideaIdsOf)];
+    const stories = await api.loadStoryTitles(ids).catch(() => ({ titles: {}, deleted: [] as string[], excerpts: {}, stages: {}, itemIds: {} }));
     setStoryTitles(stories.titles);
+    setStoryItemIds(stories.itemIds ?? {});
     setStoryExcerpts(stories.excerpts ?? {});
     setIdeaStages(stories.stages ?? {});
     setDeletedStories(new Set(stories.deleted));
@@ -355,6 +367,40 @@ export function NotificationCenter({
   const answer = useCallback(async (request: ReviewRequest, input: AnswerInput) => {
     setError(null);
     const saved = await api.answerReviewRequest(request, input, actorLabel);
+    keep(request.id);
+    setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    await markRead(request.id);
+  }, [actorLabel, api, keep, markRead]);
+
+  /**
+   * One row of the rating agent's daily review. A rating is the person's own, written first through `setItemStars` (the path `papyrus ratings confirm`
+   * takes); then the row records the choice, and the last row answered answers the review. Leaving it writes no rating.
+   */
+  const answerRatingRow = useCallback(async (item: NeedsMeEntry, row: RatingRow, choice: RatingRowChoice, stars: number | null) => {
+    const { payload } = item;
+    if (payload.kind !== "ratings") return;
+    setError(null);
+    const request = latest.current.requests.find((entry) => entry.id === payload.request.id) ?? payload.request;
+    const update = ratingRowUpdate(request, row.story, choice, stars, actorLabel, new Date());   // refuses a closed review before anything is rated
+    if (choice !== "left" && stars !== null) {
+      const itemId = payload.itemIds[row.story];
+      if (!itemId && !demo) throw new Error("This Story's record has not been read yet. Wait a moment and try again.");
+      await api.setStoryStars(itemId ?? row.story, stars);
+    }
+    const saved = await api.saveRatingReview(request, update);
+    latest.current.requests = latest.current.requests.map((entry) => (entry.id === saved.id ? saved : entry));
+    keep(request.id);
+    setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    await markRead(request.id);
+  }, [actorLabel, api, demo, keep, markRead]);
+
+  const dismissRatings = useCallback(async (item: NeedsMeEntry) => {
+    const { payload } = item;
+    if (payload.kind !== "ratings") return;
+    setError(null);
+    const request = latest.current.requests.find((entry) => entry.id === payload.request.id) ?? payload.request;
+    const saved = await api.saveRatingReview(request, ratingDismissUpdate(request, actorLabel, new Date()));
+    latest.current.requests = latest.current.requests.map((entry) => (entry.id === saved.id ? saved : entry));
     keep(request.id);
     setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
     await markRead(request.id);
@@ -445,10 +491,10 @@ export function NotificationCenter({
   const entries = useMemo(
     () => buildNeedsMeItems({
       references: shownReferences, decisions, previews: capturePreviews, captures, visitRated, requests, stay, demo, ideaStages,
-      storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided,
+      storyTitles, storyItemIds, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided,
       captureNeeded: captureNeeded.references, capturedNow,
     }),
-    [shownReferences, decisions, capturePreviews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided, captureNeeded.references, capturedNow],
+    [shownReferences, decisions, capturePreviews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyItemIds, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided, captureNeeded.references, capturedNow],
   );
   const threshold = useMemo(() => learnConfidenceThreshold(shownReferences, decisions, visitRated), [shownReferences, decisions, visitRated]);
   const recent = useMemo(() => recentDecisions(requests, references, demo), [requests, references, demo]);
@@ -466,7 +512,7 @@ export function NotificationCenter({
   return (
     <NeedsMeView
       below={below} captureTeaserLine={teaserLine} cyclotron={cyclotron} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
-      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={correctCapture} onDecide={decide} onEditReason={editReason} onSetStars={onSetReferenceStars}
+      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={correctCapture} onDecide={decide} onEditReason={editReason} onRatingDismiss={dismissRatings} onRatingRow={answerRatingRow} onSetStars={onSetReferenceStars}
       moreLinks={linksCursor !== null} loadingMoreLinks={linksLoadingMore} onLoadMoreLinks={loadMoreLinks}
       predictionLoading={predictionLoading} recent={recent} referenceAttachments={everyAttachment}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}

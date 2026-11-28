@@ -1041,14 +1041,16 @@ RATING_OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "ratings_suggestions_review", ("suggestions-review",), "Raise the day's one review of suggested ratings, or add Stories to it while it is open.", "write",
         obj({"day": text("The day, YYYY-MM-DD, in the site's time zone."),
-             "suggestions": many(record({"story": STORY_LINEAGE, "title": text(), "stars": whole()}, ("story", "stars")), "The Stories suggested, with their stars.")},
+             "suggestions": many(record({"story": STORY_LINEAGE, "title": text(), "stars": whole(), "reason": text("The agent's one-line reason for these stars.")}, ("story", "stars")),
+                                 "The Stories suggested, with their stars and the reason for each.")},
             ("day", "suggestions")),
         record({"request": text(), "reason": text(), "state": text(), "stories": many(text(), "Every Story the request links.")}, ("request", "reason", "state", "stories")),
         ("invalid_input",),
-        (Example({"day": "2026-11-21", "suggestions": [{"story": "story-1", "title": "Slow water", "stars": 4}]},
+        (Example({"day": "2026-11-21", "suggestions": [{"story": "story-1", "title": "Slow water", "stars": 4, "reason": "Better sourced than the usual Story."}]},
                  {"request": "rr-ratings-2026-11-21", "reason": "1 rating suggested, 0 five-star candidates", "state": "open", "stories": ["story-1"]}),),
         group="ratings",
-        notes="One soft review per day: a second call that day adds its Stories to the open request and recounts it; an answered request is left as it is.",
+        notes="One soft review per day: a second call that day adds its Stories to the open request and recounts it; an answered request is left as it is. "
+              "Each Story's link carries its title, suggested stars, five-star-candidate flag and reason, and later the person's answer to that row.",
         agent_rung="propose",
     ),
 )

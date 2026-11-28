@@ -264,7 +264,8 @@ def _read_guidelines(services: Services, caller: Caller) -> str:
 def _suggest(services: Services, caller: Caller, proposal: dict[str, Any], tally: Tally) -> None:
     answer = services.execute(WRITE_OPERATION, {"story": proposal["story"], "stars": proposal["stars"]}, caller, services.handlers)
     if answer.get("ok"):
-        tally.written.append({"story": proposal["story"], "title": proposal["title"], "stars": proposal["stars"], "suggestedBy": answer["result"]["suggestedBy"]})
+        tally.written.append({"story": proposal["story"], "title": proposal["title"], "stars": proposal["stars"], "reason": proposal.get("reason") or "",
+                              "suggestedBy": answer["result"]["suggestedBy"]})
     elif answer["error"]["code"] == "constraint_conflict":   # a person rated it while the run was working: theirs stands
         tally.left_alone.append({"story": proposal["story"], "reason": "already_rated"})
     else:
@@ -279,12 +280,13 @@ def site_day(time_zone: str, now: float) -> str:
 
 
 def _raise_review(services: Services, caller: Caller, tally: Tally) -> None:
-    """The day's one soft review of every suggestion this run wrote."""
+    """The day's one soft review of every suggestion this run wrote: each Story with its title, its suggested stars and the model's one-line reason, so a
+    person can answer it from the review itself."""
     if services.today is not None:
         day = services.today()
     else:
         day = site_day(core_definition(RESPONSIBILITY)["wakes"]["schedule"]["timeZone"], time.time())
-    suggestions = [{"story": entry["story"], "title": entry["title"], "stars": entry["stars"]} for entry in tally.written]
+    suggestions = [{"story": entry["story"], "title": entry["title"], "stars": entry["stars"], "reason": entry.get("reason") or ""} for entry in tally.written]
     answer = services.execute(REVIEW_OPERATION, {"day": day, "suggestions": suggestions}, caller, services.handlers)
     if not answer.get("ok"):
         raise RatingError(f"The suggestions were written but the day's review could not be raised: {answer['error']['code']}: {answer['error']['message']}")

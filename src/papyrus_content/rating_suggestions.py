@@ -8,7 +8,8 @@ so the rating is the person's, not the machine's; changing it is rating it with 
 rating always wins: nothing here writes ``starRating``, and a Story somebody rated is never given a suggestion.
 
 Every suggestion a run makes is gathered into one soft review per day, "N ratings suggested, M five-star candidates", which links each
-Story. A second run on the same day adds its Stories to that request while it is open; it never raises a second one.
+Story with its title, suggested stars and the agent's reason, so a person answers each row in the console (use the stars, choose others,
+or leave it); the review is answered when every row is, or when the person dismisses it. A second run on the same day adds its Stories to that request while it is open; it never raises a second one.
 
 The suggestion fields are read with their own query rather than through ``ITEM_FIELDS``, so a reader that never needs them keeps working
 on a backend deployed before they existed.
@@ -82,18 +83,29 @@ def _reason(entries: list[Mapping[str, Any]]) -> str:
             f"{candidates} five-star {'candidate' if candidates == 1 else 'candidates'}")
 
 
-def _link(entry: Mapping[str, Any]) -> dict[str, str]:
+def _link(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """One Story's row of the review: the link the console opens, and under ``rating`` what a person needs to answer it there (title, suggested
+    stars, whether it is a five-star candidate, the agent's one-line reason). The person's answer to the row is added to ``rating`` later."""
     stars = int(entry["stars"])
+    title = str(entry.get("title") or entry["story"])
     label = CANDIDATE_LABEL if stars == FIVE else f"{stars} stars suggested"
-    return {"type": "story", "id": str(entry["story"]), "label": f"{entry.get('title') or entry['story']}: {label}"}
+    return {"type": "story", "id": str(entry["story"]), "label": f"{title}: {label}",
+            "rating": {"title": title, "stars": stars, "candidate": stars == FIVE, "reason": str(entry.get("reason") or "").strip()}}
 
 
-ASK = ("Open each Story and confirm the suggested stars, choose other stars, or leave it. A five-star candidate is never a rating until a person "
+def _stars_of(link: Mapping[str, Any]) -> int:
+    rating = link.get("rating")
+    if isinstance(rating, Mapping) and rating.get("stars") in SUGGESTED_STARS:
+        return int(rating["stars"])
+    return FIVE if str(link.get("label")).endswith(CANDIDATE_LABEL) else 3
+
+
+ASK = ("For each Story, use the suggested stars, choose other stars, or leave it. A five-star candidate is never a rating until a person "
        "gives five stars. Your rating always wins and the agent never changes it.")
 
 
 def raise_daily_review(client: Any, *, day: str, entries: list[Mapping[str, Any]], raised_by: str, now: datetime | None = None) -> dict[str, Any]:
-    """The day's one soft review of suggested ratings. ``entries`` are ``{story, title, stars}``. Raised once per day; a later run that day adds
+    """The day's one soft review of suggested ratings. ``entries`` are ``{story, title, stars, reason}``. Raised once per day; a later run that day adds
     its Stories to it while it is open, and leaves an answered one as it is (the suggestions stay on the Stories in any case)."""
     if not entries:
         raise SuggestionError("A review of suggested ratings needs at least one suggestion.")
@@ -108,7 +120,7 @@ def raise_daily_review(client: Any, *, day: str, entries: list[Mapping[str, Any]
     if request["state"] != "open" or not added:
         return request
     links = [*request["links"], *(_link(entry) for entry in added)]
-    every = [{"stars": FIVE if str(link.get("label")).endswith(CANDIDATE_LABEL) else 3} for link in links if link.get("type") == "story"]
+    every = [{"stars": _stars_of(link)} for link in links if link.get("type") == "story"]
     at = review_requests.now_iso(now or datetime.now(timezone.utc))
     client.update_record("ReviewRequest", {
         "id": request_id, "links": json.dumps(links), "reason": _reason(every), "updatedAt": at,

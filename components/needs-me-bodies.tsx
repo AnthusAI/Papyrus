@@ -20,6 +20,7 @@ import type { RatingController } from "./use-reference-ratings";
 import { FlagFooter, decidedChoiceOf, recordedAnswer } from "./needs-me-shared";
 
 import type { CorrectCaptureAction } from "./reference-capture-client";
+import type { RatingDismissAction, RatingRowAction } from "./needs-me-ratings-detail";
 /** What the editor chose before deciding an item that is not a Reference: the one steering chip. (The Why lives in the rating store, so it can be typed before or after.) */
 export type DecisionExtras = { notThisKind: boolean };
 
@@ -38,6 +39,9 @@ export type DetailProps = {
   predictionLoading: boolean;
   onCorrectCapture?: CorrectCaptureAction;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
+  /** The rating agent's daily review: answer one Story's row, or dismiss the review. */
+  onRatingRow?: RatingRowAction;
+  onRatingDismiss?: RatingDismissAction;
 };
 
 export function Heading({ item }: { item: NeedsMeEntry }) {

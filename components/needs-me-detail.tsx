@@ -2,6 +2,7 @@
 
 import { ConceptBody, EmailBody, Heading, IdeaBatchBody, LinkSuggestionBody, RequestBody, type DetailProps } from "./needs-me-bodies";
 import { ReferenceBody } from "./needs-me-reference-detail";
+import { RatingsBody } from "./needs-me-ratings-detail";
 import { isReferenceLike } from "./needs-me-shared";
 
 export type { DecisionExtras } from "./needs-me-bodies";
@@ -17,6 +18,7 @@ export function NeedsMeDetail(props: DetailProps) {
       {payload.kind === "reference" && isReferenceLike(item) ? <ReferenceBody {...props} payload={payload} /> : null}
       {payload.kind === "ideas" ? <IdeaBatchBody {...props} payload={payload} /> : null}
       {payload.kind === "request" ? <RequestBody {...props} payload={payload} /> : null}
+      {payload.kind === "ratings" ? <RatingsBody demo={props.demo} disabledReason={props.disabledReason} item={item} onRatingDismiss={props.onRatingDismiss} onRatingRow={props.onRatingRow} payload={payload} /> : null}
       {payload.kind === "email" ? <EmailBody {...props} payload={payload} /> : null}
       {payload.kind === "link" ? <LinkSuggestionBody {...props} payload={payload} /> : null}
       {payload.kind === "concept" ? <ConceptBody item={item} /> : null}

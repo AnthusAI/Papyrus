@@ -143,9 +143,11 @@ def _links(links: Any) -> list[dict[str, str]]:
     for link in links:
         if not isinstance(link, dict):
             raise ReviewError("each link must be an object.")
-        entry = {key: str(link[key]) for key in ("label", "url", "type", "id") if link.get(key)}
+        entry: dict[str, Any] = {key: str(link[key]) for key in ("label", "url", "type", "id") if link.get(key)}
         if not entry.get("url") and not entry.get("id"):
             raise ReviewError("each link needs a url, or a type and an id.")
+        if isinstance(link.get("rating"), dict):   # a suggested rating's row: its stars, reason and, once given, the person's answer (rating_suggestions.py)
+            entry["rating"] = dict(link["rating"])
         cleaned.append(entry)
     return cleaned
 
@@ -579,6 +581,13 @@ def review_lines(request: dict[str, Any]) -> list[str]:
         lines.append(f"answer\t{answer['decision']}\t{answer.get('steer') or '-'}\t{answer.get('feedback') or '-'}\t{answer['by']} at {answer['at']}")
     if request["appliedIn"]:
         lines.append(f"applied\trun {request['appliedIn']['runId']} at {request['appliedIn']['at']}")
+    for link in request["links"]:
+        rating = link.get("rating") if isinstance(link, dict) else None
+        if isinstance(rating, dict):
+            stars = "five-star candidate" if rating.get("candidate") else f"{rating.get('stars')} stars suggested"
+            answer = rating.get("answer") or {}
+            answered = f"{answer.get('choice')} {answer.get('stars') or ''}".strip() + f" by {answer.get('by')}" if answer else "waiting"
+            lines.append("\t".join(["story", str(link.get("id")), str(rating.get("title") or link.get("label") or ""), stars, str(rating.get("reason") or "-"), answered]))
     for entry in request["history"]:
         lines.append(f"history\t{entry['at']}\t{entry['event']}\t{entry.get('by', '')}\t{entry.get('note', '')}")
     return lines

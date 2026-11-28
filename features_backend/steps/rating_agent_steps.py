@@ -707,3 +707,47 @@ def relations_read(context, reference):
 def review_links_two(context, first, second):
     links = json.loads(_only_review(context)["links"])
     assert [link["id"] for link in links if link["type"] == "story"] == [first, second], links
+
+
+# --- the review a person answers (rating-suggestions.feature) ------------------------------------------------------------------
+
+
+def _row_of(context, lineage):
+    links = json.loads(_only_review(context)["links"])
+    return next(link for link in links if link.get("type") == "story" and link["id"] == lineage)
+
+
+@then('the review\'s row for "{lineage}" is "{title}" with {stars:d} stars suggested, because "{reason}"')
+def review_row(context, lineage, title, stars, reason):
+    rating = _row_of(context, lineage)["rating"]
+    assert rating == {"title": title, "stars": stars, "candidate": False, "reason": reason}, rating
+
+
+@then('the review\'s row for "{lineage}" is "{title}", a five-star candidate, because "{reason}"')
+def review_row_candidate(context, lineage, title, reason):
+    rating = _row_of(context, lineage)["rating"]
+    assert rating == {"title": title, "stars": 5, "candidate": True, "reason": reason}, rating
+
+
+@then("no row of the review has an answer yet")
+def review_rows_unanswered(context):
+    links = json.loads(_only_review(context)["links"])
+    assert links and all("answer" not in link["rating"] for link in links if link.get("type") == "story"), links
+
+
+@then('showing the review prints a line for "{lineage}" with "{stars}" and its reason')
+def review_show_line(context, lineage, stars):
+    from papyrus_content.review_requests import read_review, review_lines
+
+    rating = _row_of(context, lineage)["rating"]
+    lines = [line.split("\t") for line in review_lines(read_review(_only_review(context)))]
+    assert ["story", lineage, rating["title"], stars, rating["reason"], "waiting"] in lines, lines
+
+
+@then('Today lists the review as about "{words}"')
+def today_review_words(context, words):
+    from papyrus_content import today_attention
+    from papyrus_content.review_requests import read_review
+
+    line = today_attention.review_line(read_review(_only_review(context)), "UTC", "2026-11-21")
+    assert line["subjectWords"] == words, line["subjectWords"]

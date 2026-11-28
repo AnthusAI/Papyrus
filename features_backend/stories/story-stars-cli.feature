@@ -34,6 +34,12 @@ Feature: Editors find Stories by star rating and change it from the command line
     When an editor shows the Story "b"
     Then the shown signals say 5 stars from the source "editor" and the rating names "An Editor"
 
+  Scenario: Showing an unrated Story with a suggestion waiting prints the suggested stars
+    Given the rating agent suggested 4 stars for the Story "c"
+    When an editor shows the Story "c"
+    Then the shown Story has a suggestion line "suggested 4 stars" by "agent:rate" and how to confirm it
+    And the shown signals say 0 stars from the source "none" and there is no rating line
+
   Scenario: Showing an unrated Story prints 0 stars and no rating line
     When an editor shows the Story "c"
     Then the shown signals say 0 stars from the source "none" and there is no rating line

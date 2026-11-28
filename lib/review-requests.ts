@@ -11,6 +11,7 @@ import { referenceDisplayTitle, referenceLineageId } from "./newsroom-references
 import { normalizeReferenceCurationStatus } from "./reference-policy";
 import type { RelevanceDecisionView } from "./relevance-decisions";
 import { globalKey } from "./tenant-knowledge-keys";
+import type { RatingLinkData } from "./rating-review";
 
 export type ReviewMode = "flag" | "soft_review" | "hard_gate";
 export type ReviewState = "open" | "answered" | "timed_out" | "withdrawn";
@@ -23,7 +24,8 @@ export type ReviewSteer = "adjust" | "not_this_kind";
 export type DraftDecision = { choice: "accept" | "reject"; title?: string; why?: string | null; notThisKind?: boolean; by: string; at: string };
 export type ReviewAnswer = { decision: ReviewDecision; feedback: string | null; steer: ReviewSteer | null; by: string; at: string; drafts?: (DraftDecision & { id: string })[] };
 export type ReviewHistoryEntry = { at: string; event: string; by?: string; note?: string };
-export type ReviewLink = { label?: string; url?: string; type?: string; id?: string; decision?: DraftDecision };
+/** `rating` is a row of the rating agent's daily review: the suggested stars, the reason and the person's answer (lib/rating-review.ts). */
+export type ReviewLink = { label?: string; url?: string; type?: string; id?: string; decision?: DraftDecision; rating?: RatingLinkData };
 
 export type ReviewRequest = {
   id: string;

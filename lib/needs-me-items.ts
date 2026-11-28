@@ -11,6 +11,8 @@
  *                      with an idea still in the Idea column         the ideas are decided on the Stories board, not here
  *   stage_review       an open hard gate or soft review that is      reads the review request (reason, ask, deadline, subject) and the
  *                      not about ideas                               subject story's title and excerpt
+ *   stage_review       the rating agent's daily review of suggested  reads the review request's rows (title, suggested stars, reason,
+ *   (payload ratings)  ratings                                        answer) and each Story's record id; answered row by row, never Accept/Reject
  *   flag               an open flag                                  reads the review request
  *   held_email         an email submission held for review           reads the monitoring email summary (subject, sender, verdicts)
  *   link_suggestion    a vector-suggested link between two          reads the suggested relation (its two ends and close match);
@@ -32,12 +34,15 @@ import type { RelevanceDecisionView } from "./relevance-decisions";
 import { closeMatchText, type RelatedItem } from "./reference-links";
 import type { LinkSuggestion } from "./link-suggestions";
 import { ideaIdsOf, ideasBoardHref, nextText, type ReviewRequest } from "./review-requests";
+import { isRatingsReview, ratingRows, ratingRowsSummary, type RatingRow } from "./rating-review";
 import { predictionOf, uncertaintyOf, type NeedsMeCounts, type NeedsMeDecisionState, type NeedsMeItem } from "./needs-me-ranking";
 
 export type NeedsMePayload =
   | { kind: "reference"; reference: ReferenceRecord; lineageId: string; decision: RelevanceDecisionView | undefined; preview: ReferencePreview | undefined; capture: CaptureStatus | undefined; displayTime: number | null }
   | { kind: "ideas"; request: ReviewRequest; ideas: IdeaListing[]; boardHref: string }
   | { kind: "request"; request: ReviewRequest; storyTitle: string | null; excerpt: string | null; storyDeleted: boolean }
+  /** The rating agent's daily review: one row per Story. `itemIds` holds a record id of each Story once read (what `setItemStars` takes). */
+  | { kind: "ratings"; request: ReviewRequest; rows: RatingRow[]; itemIds: Readonly<Record<string, string>> }
   | { kind: "email"; summary: MonitoringEmailSummary }
   | { kind: "concept"; row: ConceptProposalRow }
   | { kind: "link"; suggestion: LinkSuggestion; note: string | null };
@@ -208,9 +213,10 @@ function requestDecisionState(request: ReviewRequest): NeedsMeDecisionState {
 
 export function requestItem(
   item: RequestItem,
-  context: { titles: Readonly<Record<string, string>>; excerpts: Readonly<Record<string, string>>; deleted: ReadonlySet<string> },
+  context: { titles: Readonly<Record<string, string>>; excerpts: Readonly<Record<string, string>>; deleted: ReadonlySet<string>; itemIds?: Readonly<Record<string, string>> },
 ): NeedsMeEntry {
   const { request } = item;
+  if (isRatingsReview(request)) return ratingsItem(request, context.itemIds ?? {});
   const storyId = request.subject.type === "story" ? request.subject.id : null;
   const flag = request.mode === "flag";
   return {
@@ -235,6 +241,27 @@ export function requestItem(
       excerpt: storyId ? context.excerpts[storyId] ?? null : null,
       storyDeleted: storyId ? context.deleted.has(storyId) : false,
     },
+  };
+}
+
+/** The rating agent's daily review: the card names the Stories still waiting, and the detail answers each one. */
+export function ratingsItem(request: ReviewRequest, itemIds: Readonly<Record<string, string>>): NeedsMeEntry {
+  return {
+    type: "stage_review",
+    id: request.id,
+    title: request.reason,
+    dek: ratingRowsSummary(request),
+    image: null,
+    source: requestSource(request),
+    host: null,
+    createdAt: timeOf(request.raisedAt),
+    importance: 1,
+    uncertainty: uncertaintyOf(undefined),
+    decisionState: requestDecisionState(request),
+    defaultOutcome: "If you leave it, the suggestions stay on the Stories and nothing is rated.",
+    hardGate: false,
+    askedForReview: true,
+    payload: { kind: "ratings", request, rows: ratingRows(request), itemIds },
   };
 }
 
@@ -343,6 +370,8 @@ export type NeedsMeSources = ReferenceSources & {
   /** The stage of each idea named by an open batch, by lineage id, once read. */
   ideaStages?: Readonly<Record<string, string>>;
   storyTitles: Readonly<Record<string, string>>;
+  /** A record id of each Story, by lineage id, once read: a rating review's rows rate through it. */
+  storyItemIds?: Readonly<Record<string, string>>;
   storyExcerpts: Readonly<Record<string, string>>;
   deletedStories: ReadonlySet<string>;
   emails: readonly MonitoringEmailSummary[];
@@ -356,7 +385,7 @@ export type NeedsMeSources = ReferenceSources & {
 /** Every source, as one list of items (unordered: `rankNeedsMe` orders it). */
 export function buildNeedsMeItems(sources: NeedsMeSources): NeedsMeEntry[] {
   const fromRequests = buildNotificationItems({ requests: sources.requests, ideaStages: sources.ideaStages, stay: sources.stay });
-  const context = { titles: sources.storyTitles, excerpts: sources.storyExcerpts, deleted: sources.deletedStories };
+  const context = { titles: sources.storyTitles, excerpts: sources.storyExcerpts, deleted: sources.deletedStories, itemIds: sources.storyItemIds };
   const ideaContext = { titles: sources.storyTitles, stages: sources.ideaStages ?? {}, demo: Boolean(sources.demo) };
   return [
     ...referenceItems(sources),
