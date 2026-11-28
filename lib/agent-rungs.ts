@@ -29,19 +29,34 @@ export type RungsTransport = (request: { query: string; variables: { input: stri
 
 type GraphQLResult = { data?: Record<string, unknown>; errors?: { message?: string; errorType?: string }[] };
 
+/** Each rung's name in the console, in plain words; the stored value (off, observe, propose, ...) stays the policy's and the command line's. */
+export const RUNG_LABELS: Record<string, string> = {
+  off: "Off",
+  observe: "Watch only",
+  propose: "Suggest",
+  draft: "Write drafts",
+  prepare: "Prepare for approval",
+  publish_soft: "Publish, with undo",
+  publish_auto: "Publish on its own",
+};
+
 /** What each rung lets an agent do, in a person's words. */
 export const RUNG_WORDS: Record<string, string> = {
   off: "does not run",
-  observe: "runs and records what it would do; writes nothing",
+  observe: "runs and records what it would do; changes nothing",
   propose: "writes suggestions for a person to accept or ignore",
   draft: "saves drafts a person reviews",
   prepare: "gets work ready for a person to approve",
-  publish_soft: "publishes, with a person able to undo it",
-  publish_auto: "publishes on its own",
+  publish_soft: "publishes, and a person can undo it",
+  publish_auto: "publishes with no person involved",
 };
 
+export function rungLabel(rung: string): string {
+  return RUNG_LABELS[rung] ?? rung;
+}
+
 export function rungText(rung: string): string {
-  return RUNG_WORDS[rung] ? `${rung}: ${RUNG_WORDS[rung]}` : rung;
+  return RUNG_WORDS[rung] ? `${rungLabel(rung)}: ${RUNG_WORDS[rung]}` : rungLabel(rung);
 }
 
 /** A refusal in words a person reads; the function's own sentence when it gave one. */
@@ -53,9 +68,9 @@ export function rungRefusalText(code: string, message?: string): string {
 }
 
 export function rungChangeText(change: RungChange): string {
-  if (!change.changed) return `${change.responsibility} is already at ${change.rung}. Nothing was saved.`;
+  if (!change.changed) return `${change.responsibility} is already set to ${rungLabel(change.rung)}. Nothing was saved.`;
   const before = change.before.entry?.rung ?? "off";
-  return `${change.responsibility} moved from ${before} to ${change.rung} (agent policy version ${change.after.policyVersion}). Its next run uses it.`;
+  return `${change.responsibility} changed from ${rungLabel(before)} to ${rungLabel(change.rung)} (agent policy version ${change.after.policyVersion}). Its next run uses it.`;
 }
 
 export function agentRungsApi(transport: RungsTransport): AgentRungsApi {

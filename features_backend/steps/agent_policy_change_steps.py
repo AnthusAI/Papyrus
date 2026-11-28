@@ -451,3 +451,27 @@ def board_saved(context, version, agent, rung):
 def board_refused(context, code, words):
     answer = context.board_answer
     assert answer["ok"] is False and answer["error"] == code and words in answer["message"], answer
+
+
+@given('an automation row the deploy registered from the "{definition_id}" definition, never adopted')
+def step_registered_unadopted_automation(context, definition_id):
+    context.automation_row = {"id": definition_id, "trigger": json.dumps({"kind": "schedule", "config": {}}), "definitionId": definition_id,
+                              "definition": json.dumps({"id": definition_id, "responsibility": definition_id, "operations": {"ratings_suggest": "propose"}})}
+
+
+@given('an automation row the deploy registered from the "{definition_id}" definition, retired since "{retired_at}"')
+def step_registered_retired_automation(context, definition_id, retired_at):
+    step_registered_unadopted_automation(context, definition_id)
+    context.automation_row["definitionRetiredAt"] = retired_at
+
+
+@then('the Automation page reads it with the responsibility "{responsibility}"')
+def step_automation_page_responsibility(context, responsibility):
+    from papyrus_content.automations import read_record
+    assert read_record(context.automation_row)["responsibility"] == responsibility
+
+
+@then("the Automation page reads it with no responsibility")
+def step_automation_page_no_responsibility(context):
+    from papyrus_content.automations import read_record
+    assert read_record(context.automation_row)["responsibility"] is None

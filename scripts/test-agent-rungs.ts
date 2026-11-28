@@ -31,7 +31,7 @@ async function main() {
     return { data: { agentPolicyChange: JSON.stringify({ ok: true, result: answers[String(input.op)] }) } };
   });
   assert.deepEqual(await api.board(), board);
-  assert.equal(rungChangeText(await api.setRung("rate", "propose", " Let it suggest ")), "rate moved from observe to propose (agent policy version 4). Its next run uses it.");
+  assert.equal(rungChangeText(await api.setRung("rate", "propose", " Let it suggest ")), "rate changed from Watch only to Suggest (agent policy version 4). Its next run uses it.");
   assert.deepEqual(sent, [
     { query: AGENT_POLICY_CHANGE, input: { op: "agents_rungs" } },
     { query: AGENT_POLICY_CHANGE, input: { op: "agents_set_rung", agent: "rate", rung: "propose", reason: "Let it suggest" } },
@@ -46,7 +46,7 @@ async function main() {
   // The control: the rung in words, the choices the definition allows, never above its ceiling.
   const handlers: RungHandlers = { rungs: { state: "loaded", agents: board.agents }, onSetRung: async () => change };
   const html = renderToStaticMarkup(createElement(RungControl, { responsibility: "rate", handlers }));
-  assert.match(text(html), /rate is at observe: runs and records what it would do; writes nothing\. Its definition goes no higher than propose\./);
+  assert.match(text(html), /rate: Watch only: runs and records what it would do; changes nothing\. The most it can be set to is Suggest\./);
   assert.match(html, /data-agent-rung-current="observe"/);
   assert.match(html, /class="lucide lucide-gauge/);
   const options = [...html.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]);
@@ -62,7 +62,7 @@ async function main() {
   const unknown = renderToStaticMarkup(createElement(RungControl, { responsibility: "illustrate", handlers }));
   assert.match(text(unknown), /illustrate is not one of this site's registered agents/);
 
-  assert.equal(rungText("propose"), "propose: writes suggestions for a person to accept or ignore");
+  assert.equal(rungText("propose"), "Suggest: writes suggestions for a person to accept or ignore");
 
   // The demo workspace answers the same way and refuses a rung above the ceiling.
   const demo = createDemoRungsApi();
