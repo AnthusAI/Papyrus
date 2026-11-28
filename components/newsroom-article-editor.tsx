@@ -33,7 +33,7 @@ import { headlineImageState, readHeadlineImage, type MediaIndex } from "../lib/s
 import { accessTokenFromAmplify, createLiveStockImageClient } from "../lib/stock-images/client";
 import { createDemoStockImageClient } from "../lib/stock-images/demo-client";
 import { bodyWithCover, coverDirective, coverRecord, creditLine, frontMatterWithCover, replaceableCoverSources } from "../lib/stock-images/cover";
-import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
+import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, frontMatterCanBeEditedAsFields, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
 import { newsroomHref } from "../lib/newsroom-base-path";
@@ -92,6 +92,13 @@ type ValidationState =
   | { status: "unavailable"; message: string };
 
 type Notice = { tone: "ok" | "error" | "info"; text: string };
+
+/** The fields an editor changes and Cancel puts back; the record's id, status, version and hash are the backend's and stay as they are. */
+type SavedArticleContent = Pick<NewsroomArticleEditorState, "type" | "section" | "slug" | "frontMatterYaml" | "bodyMarkus">;
+
+function savedContentFromEditorState(state: NewsroomArticleEditorState): SavedArticleContent {
+  return { type: state.type, section: state.section, slug: state.slug, frontMatterYaml: state.frontMatterYaml, bodyMarkus: state.bodyMarkus };
+}
 type MobileTab = "edit" | "preview" | "trail" | "references";
 
 function lineStartIndex(text: string, line: number): number {
@@ -126,7 +133,7 @@ function failureMessage(error: unknown): string {
 
 const NO_DESK_VALUE = "__no-desk__";
 
-export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController, onScheduleChanged }: {
+export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController, onScheduleChanged, onUnsavedChangesChange }: {
   articleId: string;
   demo: boolean;
   embedded?: boolean;
@@ -134,6 +141,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   starsController?: StoryStarsController;
   /** Called after the editor set, changed or cleared this Story's schedule, so a board can show it on the card. */
   onScheduleChanged?: () => void;
+  /** Told whenever the editor gains or loses unsaved changes, so a board can ask before closing the drawer throws them away. */
+  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void;
 }) {
   const session = useOptionalNewsDeskClient();
   const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
@@ -146,6 +155,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const isNew = articleId === "new";
 
   const [editor, setEditor] = useState<NewsroomArticleEditorState | null>(isNew ? emptyArticle() : null);
+  const [lastSavedContent, setLastSavedContent] = useState<SavedArticleContent | null>(isNew ? savedContentFromEditorState(emptyArticle()) : null);
   const [slugEdited, setSlugEdited] = useState(!isNew);
   const [everPublished, setEverPublished] = useState(false);
   /** The type this version had when it was loaded, and the type of the live published version of the lineage (they differ after a new version changed the type). */
@@ -201,7 +211,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       .loadArticle(activeArticleId)
       .then((article) => {
         if (cancelled) return;
-        setEditor(stateFromArticle(article));
+        const loadedEditorState = stateFromArticle(article);
+        setEditor(loadedEditorState);
+        setLastSavedContent(savedContentFromEditorState(loadedEditorState));
         setBodyIr(null);   // the Preview never carries another version's body over while this one is checked
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
@@ -316,6 +328,12 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
+  useEffect(() => {
+    if (!dirty || !onUnsavedChangesChange) return;
+    onUnsavedChangesChange(true);
+    return () => onUnsavedChangesChange(false);
+  }, [dirty, onUnsavedChangesChange]);
+
   const patchEditor = useCallback((patch: Partial<NewsroomArticleEditorState>) => {
     setEditor((current) => (current ? { ...current, ...patch, dirty: true } : current));
     setNotice(null);
@@ -328,7 +346,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   };
 
   const changeFrontMatterField = (key: string, value: string) => {
-    if (editor) changeFrontMatter(writeFrontMatterText(editor.frontMatterYaml, key, value));
+    if (!editor) return;
+    const nextFrontMatterYaml = writeFrontMatterText(editor.frontMatterYaml, key, value);
+    if (nextFrontMatterYaml !== editor.frontMatterYaml) changeFrontMatter(nextFrontMatterYaml);
   };
 
   const goToLine = (location: ErrorLocation) => {
@@ -400,8 +420,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     return () => { cancelled = true; };
   }, [activeArticleId, isNew, lineageId, reloadToken]);
 
-  const saveNewVersion = useCallback(async () => {
-    if (!editor || editor.id === null) return;
+  const saveNewVersion = useCallback(async (): Promise<string | null> => {
+    if (!editor || editor.id === null) return null;
     setBusy("save");
     try {
       const result = await backend.actions.saveItemDraft({
@@ -417,11 +437,15 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
         changeReason: changeReason.trim() || null,
       });
       setChangeReason("");
+      setEditor((current) => (current ? { ...current, dirty: false } : current));
+      setLastSavedContent(savedContentFromEditorState(editor));
       setActiveArticleId(result.item.id);
-      setNotice({ tone: "ok", text: `Saved as version ${result.item.versionNumber ?? ""}.` });
+      setNotice({ tone: "ok", text: `Saved as version ${result.item.versionNumber ?? ""}. Readers see it once you publish it.` });
       afterEditorialSave(result.item.id);
+      return result.item.id;
     } catch (error) {
       setNotice({ tone: "error", text: failureMessage(error) });
+      return null;
     } finally {
       setBusy(null);
     }
@@ -441,6 +465,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       expectedContentHash: editor.contentHash,
     });
     setEditor((current) => (current ? { ...current, frontMatterYaml, contentHash: result.item.contentHash, versionNumber: result.item.versionNumber } : current));
+    setLastSavedContent({ ...savedContentFromEditorState(editor), frontMatterYaml });
     if (!lineageId) return;
     const stage = stageForIdeaDecision(record.decision, getContentItemStageDefinitions().map(definition => definition.key));
     if (!stage) return;
@@ -479,6 +504,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
           : current,
       );
       setSavedType(editor.type);
+      setLastSavedContent(savedContentFromEditorState(editor));
       if (editor.id === null) {
         window.history.replaceState(
           null,
@@ -502,6 +528,18 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       setBusy(null);
     }
   }, [aliases, backend, demo, editor, afterEditorialSave]);
+
+  /** One way to save: a draft is saved in place; a live Story is saved as a new draft version, so readers see nothing until it is published. */
+  const saveChanges = (): Promise<string | null> =>
+    editor?.status === "published" && editor.id !== null ? saveNewVersion() : saveDraft();
+
+  const discardUnsavedChanges = () => {
+    if (!lastSavedContent) return;
+    setEditor((current) => (current ? { ...current, ...lastSavedContent, dirty: false } : current));
+    setChangeReason("");
+    setNotice(null);
+    if (isNew) setSlugEdited(false);
+  };
 
   const requestPublish = () => {
     if (editorial.openWarnings.length > 0) {
@@ -545,7 +583,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     if (!editor) return;
     let id = editor.id;
     if (editor.dirty || id === null) {
-      id = await saveDraft();
+      id = await saveChanges();
       if (id === null) return;
     }
     setBusy("publish");
@@ -645,7 +683,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     const invalid = validation.status === "invalid" || validation.status === "unavailable";
     const isOlderVersion = latestVersionNumber !== null && editor.versionNumber !== null && editor.versionNumber < latestVersionNumber;
     const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim() || typeNeedsNewVersion || publishWouldRemoveLivePage || typeNotSet;
-    const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null) || typeNeedsNewVersion;
+    const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null);
+    const saveBlockedReason = isOlderVersion
+      ? "This is an older version, so it cannot be saved. Open the latest version to edit."
+      : validation.status === "invalid"
+        ? "Fix the errors shown in the editor before saving."
+        : validation.status === "unavailable"
+          ? "The markup could not be checked, so saving is off for now."
+          : !editor.slug.trim()
+            ? "Add a slug before saving."
+            : null;
+    const fieldsAreEditable = !isOlderVersion && frontMatterCanBeEditedAsFields(editor.frontMatterYaml);
     const stagingUrl = stagingPreviewUrl(
       process.env.NEXT_PUBLIC_PAPYRUS_STAGING_URL,
       editor.type,
@@ -660,7 +708,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
       <Input
         aria-label="Slug"
         data-newsroom-article-slug
-        disabled={slugLocked}
+        disabled={slugLocked || isOlderVersion}
         onChange={(event) => {
           setSlugEdited(true);
           patchEditor({ slug: event.target.value });
@@ -700,7 +748,6 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                     ? "Validation unavailable"
                     : "Checking…"}
             </Badge>
-            {editor.dirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {stagingUrl ? (
                 <a
@@ -717,23 +764,14 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               <Button
                 data-newsroom-article-save
                 disabled={saveBlocked}
-                onClick={() => void saveDraft()}
+                onClick={() => void saveChanges()}
                 size="sm"
+                title={editor.status === "published" ? "Saves a new draft version. Readers see it once you publish it." : undefined}
                 type="button"
                 variant="outline"
               >
                 {busy === "save" ? <Spinner /> : null}
-                Save draft
-              </Button>
-              <Button
-                data-newsroom-article-save-version
-                disabled={isOlderVersion || invalid || busy !== null || editor.id === null || !editor.dirty}
-                onClick={() => void saveNewVersion()}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Save as new version
+                Save
               </Button>
               <Button
                 data-newsroom-article-publish
@@ -868,7 +906,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                 ) : null}
                 {typeNeedsNewVersion ? (
                   <p className="rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-type-needs-version role="status">
-                    This Story is live. Use Save as new version to change its type: saving it in place would republish it at once.
+                    This Story is live. Saving makes a new version with the new type; the live address moves only when that version is published.
                   </p>
                 ) : null}
               </div>
@@ -935,12 +973,19 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
             </div>
               {(mobileTab === "trail" || mobileTab === "references") && editor.id ? <StoryReportingTrailView assign={{ sectionKey: deskOptions.some(option => option.value === editor.section.trim()) ? editor.section.trim() : null, storyTitle: readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY) || editor.slug }} focusedReferenceId={focusedReferenceId} onShowReference={(referenceId) => { setFocusedReferenceId(referenceId); setMobileTab("references"); }} view={mobileTab === "references" ? "references" : "messages"} citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
               <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
+              {!isOlderVersion && !fieldsAreEditable ? (
+                <p className="newsroom-article-older-version" data-newsroom-article-fields-unreadable role="status">
+                  The front matter has a YAML mistake, so Title, Subtitle and Blurb cannot be edited here. Fix it under Front matter (YAML) below.
+                </p>
+              ) : null}
               <div className="newsroom-article-front-matter-fields" data-newsroom-article-fields>
-                <label><span>Title</span><Input data-newsroom-article-field="title" onChange={(event) => changeFrontMatterField(FRONT_MATTER_TITLE_KEY, event.target.value)} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY)} /></label>
-                <label><span>Subtitle</span><Input data-newsroom-article-field="subtitle" onChange={(event) => changeFrontMatterField(FRONT_MATTER_SUBTITLE_KEY, event.target.value)} placeholder="A line under the headline" value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)} /></label>
-                <label><span>Blurb</span><Textarea data-newsroom-article-field="blurb" onChange={(event) => changeFrontMatterField(FRONT_MATTER_BLURB_KEY, event.target.value)} placeholder="Two or three lines that describe the story on the board and in listings" rows={3} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)} /></label>
+                <label><span>Title</span><Input data-newsroom-article-field="title" disabled={!fieldsAreEditable} onChange={(event) => changeFrontMatterField(FRONT_MATTER_TITLE_KEY, event.target.value)} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY)} /></label>
+                <label><span>Subtitle</span><Input data-newsroom-article-field="subtitle" disabled={!fieldsAreEditable} onChange={(event) => changeFrontMatterField(FRONT_MATTER_SUBTITLE_KEY, event.target.value)} placeholder="A line under the headline" value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)} /></label>
+                <label><span>Blurb</span><Textarea data-newsroom-article-field="blurb" disabled={!fieldsAreEditable} onChange={(event) => changeFrontMatterField(FRONT_MATTER_BLURB_KEY, event.target.value)} placeholder="Two or three lines that describe the story on the board and in listings" rows={3} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)} /></label>
               </div>
-              <Input aria-label="What changed in this version" className="max-w-xl" onChange={(event) => setChangeReason(event.target.value)} placeholder="What changed? Recorded when you save as a new version." value={changeReason} />
+              {editor.status === "published" ? (
+                <Input aria-label="What changed in this version" className="max-w-xl" disabled={isOlderVersion} onChange={(event) => setChangeReason(event.target.value)} placeholder="What changed? Recorded with the new version when you save." value={changeReason} />
+              ) : null}
               <details className="newsroom-article-front-matter" data-newsroom-article-front-matter-details>
                 <summary>Front matter (YAML)</summary>
               <label className="block space-y-1 text-sm font-medium">
@@ -949,6 +994,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                   className={TEXTAREA_CLASS}
                   data-newsroom-article-front-matter
                   onChange={(event) => changeFrontMatter(event.target.value)}
+                  readOnly={isOlderVersion}
                   ref={frontMatterRef}
                   rows={8}
                   spellCheck={false}
@@ -1029,6 +1075,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                   onChange={(value) => patchEditor({ bodyMarkus: value })}
                   onFindingClick={editorial.setActiveFindingId}
                   onSelectionChange={editorial.setSelection}
+                  readOnly={isOlderVersion}
                   ref={bodyRef}
                   value={editor.bodyMarkus}
                 />
@@ -1126,6 +1173,41 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
               </div>
             </div>
           </div>
+
+          {editor.dirty ? (
+            <div aria-label="Unsaved changes" className="newsroom-article-unsaved-bar" data-newsroom-article-unsaved-bar role="region">
+              <div className="newsroom-article-unsaved-bar-words">
+                <span className="newsroom-article-unsaved-bar-label">Unsaved changes</span>
+                <span className="newsroom-article-unsaved-bar-detail" data-newsroom-article-unsaved-detail>
+                  {saveBlockedReason ?? (editor.status === "published"
+                    ? "This story is live. Saving makes a new draft version; readers see it once you publish it."
+                    : "Save to keep them, or Cancel to go back to the saved text.")}
+                </span>
+              </div>
+              <div className="newsroom-article-unsaved-bar-actions">
+                <Button
+                  data-newsroom-article-cancel
+                  disabled={busy !== null || lastSavedContent === null}
+                  onClick={discardUnsavedChanges}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  data-newsroom-article-unsaved-save
+                  disabled={saveBlocked}
+                  onClick={() => void saveChanges()}
+                  size="sm"
+                  type="button"
+                >
+                  {busy === "save" ? <Spinner /> : null}
+                  Save
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <Dialog onOpenChange={setConflictOpen} open={conflictOpen}>

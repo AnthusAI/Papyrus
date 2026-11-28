@@ -15,6 +15,12 @@ export function readFrontMatterText(frontMatterYaml: string | null | undefined, 
   return typeof value === "string" ? value : "";
 }
 
+/** Whether the Title, Subtitle and Blurb fields can read and write this front matter: empty, or YAML that parses. */
+export function frontMatterCanBeEditedAsFields(frontMatterYaml: string | null | undefined): boolean {
+  if (!frontMatterYaml?.trim()) return true;
+  return parseDocument(frontMatterYaml).errors.length === 0;
+}
+
 /** Sets or removes one text field in front matter YAML, keeping every other line and comment as written. */
 export function writeFrontMatterText(frontMatterYaml: string | null | undefined, key: string, value: string): string {
   const document = parseDocument(frontMatterYaml?.trim() ? frontMatterYaml : "{}\n");

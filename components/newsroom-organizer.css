@@ -211,6 +211,13 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-desk-group-heading small{font:400 11px var(--kb-theme-ui-font);text-transform:none;letter-spacing:0;color:var(--org-muted);margin-left:8px}
 .newsroom-desk-legacy-value{display:block;font-size:11px;color:var(--org-muted);overflow-wrap:anywhere}
 .newsroom-article-view-toggle{display:inline-flex}
+/* While a story has unsaved changes, Save and Cancel stay pinned to the bottom of whatever scrolls (the board drawer or the page),
+   so an editor deep in the fields never has to scroll back to the toolbar to keep or drop an edit. */
+.newsroom-article-unsaved-bar{position:sticky;bottom:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin-top:16px;padding:10px 12px max(10px,env(safe-area-inset-bottom));background:var(--org-paper);border-top:2px solid var(--org-ink);box-shadow:0 32px 0 0 var(--org-paper)}
+.newsroom-article-unsaved-bar-words{display:grid;gap:2px;min-width:0}
+.newsroom-article-unsaved-bar-label{font-size:13px;font-weight:700}
+.newsroom-article-unsaved-bar-detail{font-size:12px;color:var(--org-muted)}
+.newsroom-article-unsaved-bar-actions{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
 .newsroom-article-front-matter>summary{cursor:pointer;font-size:14px;font-weight:600;padding:6px 0;list-style-position:inside}
 .newsroom-article-front-matter[open]>summary{margin-bottom:6px}
 .story-trail{container-type:inline-size;display:grid;gap:20px}

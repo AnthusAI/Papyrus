@@ -211,8 +211,9 @@ papyrus stories repair-versions --story <lineage>             # renumbers 1..n b
 
 Content is not changed. The live record stays current if the story is published; otherwise the newest record is.
 
-A human editing in the story editor presses "Save draft" to correct the current draft in place, or "Save as new version"
-to keep the previous text.
+A human editing in the story editor presses **Save**: a draft is corrected in place, and a live story is saved as a new
+draft version, so readers see nothing until it is published. While there are unsaved changes a bar pinned to the bottom
+of the editor offers Save and Cancel (Cancel puts back the saved text).
 
 ### Retiring a story and redirecting its address (`stories retire`)
 

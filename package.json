@@ -115,6 +115,7 @@
     "test:story-reference-role": "tsx --test scripts/test-story-reference-role.ts && poetry run behave features_backend/stories/story-reference-role.feature && poetry run pytest -q procedures/newsroom/tests/test_story_reference_role.py",
     "test:story-notes": "tsx --test scripts/test-story-reporting-trail.ts && cucumber-js --profile storyAgentNotes && poetry run behave features_backend/stories/story-notes.feature features_backend/stories/messages-only-from-people-writers.feature && poetry run pytest -q procedures/newsroom/tests/test_story_notes.py procedures/newsroom/tests/test_story_reporting.py",
     "test:story-schedule": "tsx scripts/test-story-schedule.ts && tsx scripts/test-story-schedule-ui.ts && cucumber-js --profile storySchedule",
+    "test:story-unsaved-changes": "tsx scripts/test-story-unsaved-changes-ui.ts && cucumber-js --profile storyUnsavedChanges",
     "test:story-stars": "tsx scripts/test-story-stars-api.ts && tsx scripts/test-story-stars-ui.ts && cucumber-js --profile storyStars && poetry run behave features_backend/stories/story-stars.feature && poetry run pytest -q src/papyrus_content/item_stars_test.py",
     "test:auto-accepted-list": "tsx scripts/test-auto-accepted-list.ts && tsx scripts/test-auto-accepted-list-ui.ts && cucumber-js --profile autoAcceptedList",
     "test:messages-page": "tsx --test scripts/test-conversation-feed.ts && tsx scripts/test-messages-page.ts && cucumber-js --profile messagesPage",

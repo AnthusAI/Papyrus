@@ -3,7 +3,7 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorState, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { Compartment, EditorState, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
@@ -29,7 +29,13 @@ type Props = {
   onSelectionChange?: (selection: { start: number; end: number }) => void;
   placeholder?: string;
   ariaLabel?: string;
+  /** Shown but not editable, as for an older version of a Story. */
+  readOnly?: boolean;
 };
+
+function readOnlyExtensions(readOnly: boolean) {
+  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
+}
 
 type MarkedFinding = Pick<EditorialFinding, "id" | "span" | "severity" | "status" | "message">;
 
@@ -112,11 +118,12 @@ export function minimalChange(before: string, after: string): { from: number; to
 }
 
 export const MarkusBodyEditor = forwardRef<MarkusBodyEditorHandle, Props>(function MarkusBodyEditor(
-  { value, onChange, findings = [], activeFindingId = null, onFindingClick, onSelectionChange, placeholder, ariaLabel = "Body" },
+  { value, onChange, findings = [], activeFindingId = null, onFindingClick, onSelectionChange, placeholder, ariaLabel = "Body", readOnly = false },
   ref,
 ) {
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<EditorView | null>(null);
+  const readOnlyCompartment = useRef(new Compartment());
   const callbacks = useRef({ onChange, onFindingClick, onSelectionChange });
   callbacks.current = { onChange, onFindingClick, onSelectionChange };
 
@@ -128,6 +135,7 @@ export const MarkusBodyEditor = forwardRef<MarkusBodyEditorHandle, Props>(functi
         doc: value,
         extensions: [
           history(),
+          readOnlyCompartment.current.of(readOnlyExtensions(readOnly)),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           markdown(),
           syntaxHighlighting(markusHighlight),
@@ -177,6 +185,10 @@ export const MarkusBodyEditor = forwardRef<MarkusBodyEditorHandle, Props>(functi
     const current = editor.state.doc.toString();
     if (current !== value) editor.dispatch({ changes: minimalChange(current, value) });
   }, [value]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: readOnlyCompartment.current.reconfigure(readOnlyExtensions(readOnly)) });
+  }, [readOnly]);
 
   useEffect(() => {
     view.current?.dispatch({ effects: setFindings.of({ findings, activeId: activeFindingId }) });

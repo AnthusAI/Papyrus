@@ -16,9 +16,9 @@ If the change is not visible after about a minute, see "If something looks stale
 
 ## Drafts, publishing and unpublishing
 
-- **Draft.** A new article starts as a draft. A draft is private. It is not on the website and nobody outside the newsroom can read it. The buttons are **Save draft** and **Publish**.
+- **Draft.** A new article starts as a draft. A draft is private. It is not on the website and nobody outside the newsroom can read it. The buttons are **Save** and **Publish**. Nothing saves by itself: while you have unsaved changes, a bar at the bottom of the editor offers **Save** and **Cancel**.
 - **Publish.** Publish makes the article live. The page appears on the site and in the lists, tag pages and sitemap.
-- **Save on a live article.** The main button becomes **Save**. It stores your edit and updates the live page in one step.
+- **Save on a live article.** **Save** stores your edit as a new draft version. The live page does not change until you publish that version.
 - **Unpublish.** The page leaves the website and the lists, and its address stops working (visitors see the "not found" page). The article and all its versions stay in the newsroom, and you can publish it again.
 - **Changing the address (slug).** The old address redirects to the new one.
 
