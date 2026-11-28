@@ -88,6 +88,17 @@ def _subject_words(subject: Mapping[str, Any]) -> str:
     return f"{kind} {ident}" if ident else kind
 
 
+def _rating_rows_words(request: Mapping[str, Any]) -> str | None:
+    """A review of suggested ratings names each Story still waiting with its suggested stars, so the card says what it is about. None for any other review."""
+    rows = [link for link in request.get("links") or [] if isinstance(link, Mapping) and isinstance(link.get("rating"), Mapping)]
+    if not rows:
+        return None
+    waiting = [link for link in rows if not link["rating"].get("answer")]
+    words = "; ".join(f"{link['rating'].get('title') or link.get('id')} ({'five-star candidate' if link['rating'].get('candidate') else str(link['rating'].get('stars')) + ' stars suggested'})"
+                      for link in waiting)
+    return words or "every Story answered"
+
+
 def review_line(request: Mapping[str, Any], time_zone: str, day: str) -> dict[str, Any]:
     """One open review request as Today lists it, with its mark, its words and its one action."""
     mode = request.get("mode")
@@ -95,7 +106,7 @@ def review_line(request: Mapping[str, Any], time_zone: str, day: str) -> dict[st
     return {
         "kind": "review", "id": request["id"], "mode": mode, "modeWords": MODE_WORDS.get(str(mode), str(mode)),
         "mark": FLAG_MARK if mode == "flag" else QUESTION_MARK, "reason": request.get("reason") or "", "ask": request.get("ask") or None,
-        "subject": dict(request.get("subject") or {}), "subjectWords": _subject_words(request.get("subject") or {}),
+        "subject": dict(request.get("subject") or {}), "subjectWords": _rating_rows_words(request) or _subject_words(request.get("subject") or {}),
         "raisedBy": request.get("raisedBy"), "raisedAt": request.get("raisedAt"),
         "deadline": request.get("deadline") or None, "deadlineLocal": local_time(request.get("deadline"), time_zone, day),
         "action": {"kind": action, "words": ACTIONS[action], "requestId": request["id"],

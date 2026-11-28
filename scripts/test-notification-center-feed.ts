@@ -63,7 +63,14 @@ const batch = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr
 if (params.has("no-deadline")) batch.deadline = null;
 const hard = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr-hard-1"));
 const flag = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr-flag-1"));
-let requests = params.has("only-batch") ? [batch] : params.has("flag") ? [flag] : [hard, batch];
+// The rating agent's daily review (?ratings=1): one row per Story with its suggested stars and reason, answered row by row.
+const ratingRow = (story, title, stars, reason) => ({ type: "story", id: story, label: title + ": " + (stars === 5 ? "five-star candidate" : stars + " stars suggested"), rating: { title, stars, candidate: stars === 5, reason } });
+const ratingsReview = { id: "rr-ratings-2026-11-27", subject: { type: "batch", id: "ratings-2026-11-27" }, mode: "soft_review", reason: "2 ratings suggested, 1 five-star candidate",
+  ask: "For each Story, use the suggested stars, choose other stars, or leave it.", raisedBy: "agent:rate", raisedAt: "2026-11-27T08:30:00Z", deadline: null, state: "open", answer: null,
+  links: [ratingRow("story-a", "Slow water", 4, "Better sourced than the usual Story."), ratingRow("story-b", "A routine release note", 3, "A sound, ordinary note."),
+    ratingRow("story-c", "A landmark investigation", 5, "Months of reporting and new documents.")],
+  history: [], appliedIn: null, updatedAt: "2026-11-27T08:30:00Z" };
+let requests = params.has("ratings") ? [ratingsReview] : params.has("only-batch") ? [batch] : params.has("flag") ? [flag] : [hard, batch];
 const stages = Object.fromEntries(FIXTURE_IDEAS.map((idea) => [idea.id, idea.stage]));
 if (params.has("one-left")) { stages["idea-2"] = "writing"; }
 if (params.has("all-moved")) { stages["idea-1"] = "writing"; stages["idea-2"] = "spiked"; }
@@ -72,7 +79,15 @@ window.calls = [];
 let failReasons = params.has("fail-reason") ? 1 : 0;
 const api = {
   loadReviews: async () => ({ state: "ready", requests: clone(requests), readIds: [], userKey: "u1" }),
-  loadStoryTitles: async (ids) => ({ titles: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.title])), deleted: [], stages: Object.fromEntries(Object.entries(stages).filter(([id]) => ids.includes(id))) }),
+  loadStoryTitles: async (ids) => ({ titles: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.title])), deleted: [], stages: Object.fromEntries(Object.entries(stages).filter(([id]) => ids.includes(id))),
+    itemIds: Object.fromEntries(ids.map((id) => [id, id + "-v3"])) }),
+  setStoryStars: async (itemId, stars) => { window.calls.push({ type: "stars", id: itemId, stars }); },
+  saveRatingReview: async (request, update) => {
+    window.calls.push({ type: "ratingReview", requestId: request.id, update: clone(update) });
+    const saved = applyReviewUpdate(request, update);
+    requests = requests.map((entry) => entry.id === saved.id ? saved : entry);
+    return saved;
+  },
   answerReviewRequest: async (request, input, by) => {
     const update = answerUpdate(request, input, by, new Date("2026-10-24T09:00:00Z"));
     window.calls.push({ type: "answer", requestId: request.id, by, answer: JSON.parse(update.answer) });
@@ -307,6 +322,56 @@ const scenarios: Record<string, () => Promise<void>> = {
     await run("?only-batch=1&legacy=1", [1440], async (page) => {
       await page.locator("[data-notification-caught-up]").waitFor();
       assert.equal(await page.locator('[data-needs-me-card="idea_batch"]').count(), 0, "a batch raised when ideas were Proposals names no story, so it has no card; migrate-proposals turns those into ideas");
+    });
+  },
+
+  /**
+   * The rating agent's daily review names each Story, its suggested stars and the reason; each row is answered with the suggested stars, other stars or
+   * Leave it, a rating goes through setItemStars, the generic Accept and Reject are never offered, and the review is answered when the last row is.
+   */
+  async ratings() {
+    await run("?ratings=1", [375, 1440], async (page) => {
+      const review = card(page, "rr-ratings-2026-11-27");
+      await review.waitFor();
+      const text = await review.innerText();
+      for (const expected of ["2 ratings suggested, 1 five-star candidate", "Slow water (4 stars suggested)", "A landmark investigation (five-star candidate)", "Rate 3 of 3"]) {
+        assert.ok(text.includes(expected), `the card shows: ${expected}`);
+      }
+      assert.equal(await review.locator("[data-review-choice]").count(), 0, "the card has no Accept or Reject");
+      const pane = await openDetail(page, review);
+      assert.equal(await pane.locator("[data-review-choice]").count(), 0, "neither has the detail");
+      assert.equal(await pane.locator("[data-rating-row]").count(), 3);
+      const slow = pane.locator('[data-rating-row="story-a"]');
+      assert.equal(await slow.locator("[data-rating-row-title]").getAttribute("href"), "/newsroom/articles/story-a", "the title opens the Story");
+      for (const expected of ["4 stars suggested", "Why: Better sourced than the usual Story.", "Use 4 stars", "Other stars", "Leave it"]) assert.ok((await slow.innerText()).includes(expected), `the row shows: ${expected}`);
+      assert.ok((await pane.locator('[data-rating-row="story-c"]').innerText()).includes("Five-star candidate"), "a five-star candidate says so");
+
+      await slow.locator("[data-rating-use]").click();
+      await slow.locator("[data-rating-row-answer]").waitFor();
+      await pane.locator('[data-rating-row="story-b"] [data-rating-other]').click();
+      await pane.locator('[data-rating-row="story-b"] [data-rating-choice="2"]').click();
+      await pane.locator('[data-rating-row="story-b"] [data-rating-row-answer]').waitFor();
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "stars").map((call) => [call.id, call.stars]), [["story-a-v3", 4], ["story-b-v3", 2]], "each rating is the person's own, through setItemStars");
+      assert.ok((await pane.innerText()).includes("1 of 3 still to answer"));
+
+      await pane.locator('[data-rating-row="story-c"] [data-rating-leave]').click();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string; update?: { state?: string } }[] }).calls.some((call) => call.type === "ratingReview" && call.update?.state === "answered"));
+      const saves = (await calls(page)).filter((call) => call.type === "ratingReview");
+      assert.equal(saves.length, 3, "one save per row");
+      assert.equal((await calls(page)).filter((call) => call.type === "stars").length, 2, "leaving a Story writes no rating");
+      const links = JSON.parse(String(saves[2].update?.links)) as { id: string; rating: { answer: { choice: string; stars: number | null; by: string } } }[];
+      assert.deepEqual(links.map((link) => [link.id, link.rating.answer.choice, link.rating.answer.stars, link.rating.answer.by]),
+        [["story-a", "used", 4, "Ed Itor"], ["story-b", "rated", 2, "Ed Itor"], ["story-c", "left", null, "Ed Itor"]], "every row records what the person chose");
+      assert.equal((await calls(page)).filter((call) => call.type === "answer").length, 0, "the generic answer is never used");
+    });
+    await run("?ratings=1", [1440], async (page) => {
+      const pane = await openDetail(page, card(page, "rr-ratings-2026-11-27"));
+      await pane.locator("[data-ratings-dismiss]").click();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "ratingReview"));
+      const save = (await calls(page)).find((call) => call.type === "ratingReview");
+      assert.equal(save?.update?.state, "answered", "dismissing answers the review");
+      assert.match(String(JSON.parse(String(save?.update?.answer)).feedback), /3 suggestions stay on the Stories/);
+      assert.equal((await calls(page)).filter((call) => call.type === "stars").length, 0, "and rates nothing");
     });
   },
 
@@ -623,7 +688,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   },
 };
 
-type Call = { type: string; action?: string; update?: Record<string, unknown>; note?: string; by?: string; id?: string; path?: string[]; requestId?: string; answer?: Record<string, unknown>; draftId?: string; decision?: Record<string, unknown>; receiptId?: string; reason?: string };
+type Call = { type: string; stars?: number; action?: string; update?: Record<string, unknown>; note?: string; by?: string; id?: string; path?: string[]; requestId?: string; answer?: Record<string, unknown>; draftId?: string; decision?: Record<string, unknown>; receiptId?: string; reason?: string };
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { calls: Call[] }).calls);
 
 export async function runNotificationCenterScenario(name: string) {

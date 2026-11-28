@@ -44,6 +44,19 @@ Feature: At propose the rating agent suggests stars beside a Story's rating, and
     Then the site has one review request, a soft review "2 ratings suggested, 1 five-star candidate"
     And the review links "story-a", "story-b" and "story-c"
 
+  Scenario: The day's review names each Story with its suggested stars and the agent's reason, so a person can answer it
+    Given the policy sets "rate" to "propose"
+    And the site has these published Stories nobody has rated
+      | story   | title                    | model says |
+      | story-b | A measured look at evals | 4          |
+      | story-c | A landmark investigation | 5          |
+    When the daily wake arrives for the automation
+    Then the review's row for "story-b" is "A measured look at evals" with 4 stars suggested, because "One plain sentence about A measured look at evals."
+    And the review's row for "story-c" is "A landmark investigation", a five-star candidate, because "One plain sentence about A landmark investigation."
+    And no row of the review has an answer yet
+    And showing the review prints a line for "story-b" with "4 stars suggested" and its reason
+    And Today lists the review as about "A measured look at evals (4 stars suggested); A landmark investigation (five-star candidate)"
+
   Scenario: A second run on the same day adds to the day's review instead of raising another
     Given the day's review already lists "story-z" with 4 stars suggested
     When the agent raises the day's review for "story-a" at 3 stars and "story-c" at 5 stars

@@ -4,7 +4,7 @@ import { CardSuggestions } from "./card-suggestions";
 import type { ReferenceRecord } from "../lib/category-repository";
 import {
   CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileUpIcon, FileWarningIcon, FlagIcon, InfoIcon, LayoutPanelLeftIcon, LightbulbIcon,
-  LinkIcon, Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
+  LinkIcon, Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, StarIcon, Undo2Icon, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { CAPTURE_NEEDED_FEED_PATH } from "../lib/reference-feed-view";
@@ -30,6 +30,7 @@ import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
 import { HomeCyclotronPanel } from "./home-cyclotron-panel";
 import type { HomeCyclotronState } from "../lib/hosted-cyclotron-status";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
+import type { RatingDismissAction, RatingRowAction } from "./needs-me-ratings-detail";
 import { FlagFooter, decidedChoiceOf, isReferenceLike, recordedAnswer } from "./needs-me-shared";
 import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
 import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SELECTED_RING, SourceMark } from "./reference-feed";
@@ -125,7 +126,8 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
   const time = item.payload.kind === "reference" ? item.payload.displayTime ?? item.createdAt : item.createdAt;
   const age = formatFeedAge(time, now);
   const picture = item.image || item.host ? <FeedImage host={item.host} lead={false} name={item.source} src={item.image} /> : <TypeTile type={item.type} />;
-  const requestId = item.payload.kind === "ideas" || item.payload.kind === "request" ? item.payload.request.id : undefined;
+  const requestId = item.payload.kind === "ideas" || item.payload.kind === "request" || item.payload.kind === "ratings" ? item.payload.request.id : undefined;
+  const ratingsReview = item.payload.kind === "ratings" ? item.payload : null;
   const flag = item.type === "flag";
   const ideaBatch = item.payload.kind === "ideas" ? item.payload : null;
   const captureNeeded = item.type === "capture_needed";
@@ -189,6 +191,17 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
             type="button"
           >
             <FileUpIcon aria-hidden="true" className="size-4" />Upload a PDF or paste the text
+          </button>
+        ) : ratingsReview ? (
+          // Answered row by row in the detail: no Accept or Reject here.
+          <button
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[var(--feed-control)] px-3 text-sm font-semibold text-foreground outline-none transition-colors hover:bg-[var(--feed-control)]/70 focus-visible:ring-2 focus-visible:ring-ring"
+            data-ratings-open
+            onClick={onOpen}
+            type="button"
+          >
+            <StarIcon aria-hidden="true" className="size-4" />
+            {item.decisionState === "open" ? `Rate ${ratingsReview.rows.filter((row) => !row.answer).length} of ${ratingsReview.rows.length}` : "Answered: see the Stories"}
           </button>
         ) : ideaBatch ? (
           <IdeaBatchFooter boardHref={ideaBatch.boardHref} count={ideaBatch.ideas.filter((idea) => idea.stage === null || idea.stage === IDEA_STAGE).length} total={ideaBatch.ideas.length} />
@@ -306,6 +319,9 @@ export type NeedsMeViewProps = {
   loadingMoreLinks?: boolean;
   onLoadMoreLinks?: () => Promise<void> | void;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
+  /** The rating agent's daily review: answer one Story's row, or dismiss the review. */
+  onRatingRow?: RatingRowAction;
+  onRatingDismiss?: RatingDismissAction;
   /** Other sections of the page (open assignments, sections). They scroll inside the feed, below the cards, so the feed and the detail keep the viewport's full height. */
   below?: ReactNode;
 };
@@ -318,7 +334,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 export function NeedsMeView({
   loadState, entries, threshold, now, shaping, recent, legacyAuto = [], cyclotron, settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
   referenceDisabledReason = null, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onSetStars, onOpened, loadEmail, below,
-  moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks,
+  moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks, onRatingRow, onRatingDismiss,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
@@ -445,7 +461,7 @@ export function NeedsMeView({
   const detailBody = (item: NeedsMeEntry) => (
     <NeedsMeDetail
       attachments={referenceAttachments} captureTeaserLine={captureTeaserLine} demo={demo} disabledReason={disabledFor(item, session, referenceDisabledReason)} extras={extras[item.id] ?? NO_EXTRAS}
-      item={item} loadEmail={loadEmail} onCorrectCapture={onCorrectCapture} onExtras={(next) => setExtras((current) => ({ ...current, [item.id]: next }))}
+      item={item} loadEmail={loadEmail} onCorrectCapture={onCorrectCapture} onRatingDismiss={onRatingDismiss} onRatingRow={onRatingRow} onExtras={(next) => setExtras((current) => ({ ...current, [item.id]: next }))}
       predictionLoading={predictionLoading} ratings={ratings}
     />
   );

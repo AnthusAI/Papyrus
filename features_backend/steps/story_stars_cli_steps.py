@@ -123,3 +123,23 @@ def _refused(context):
 @then("the newsroom was not asked")
 def _not_asked(context):
     assert context.client.sent == []
+
+
+@given('the rating agent suggested {stars:d} stars for the Story "{lineage}"')
+def _suggested(context, lineage, stars):
+    row = next(row for row in context.client.tables["Item"].values() if row.get("lineageId") == lineage)
+    suggestion = {"starSuggestion": stars, "starSuggestedBy": "agent:rate", "starSuggestedAt": "2026-11-27T08:30:00.000Z", "starSuggestionRun": "run-7"}
+    answer = context.client.graphql
+
+    def graphql(query, variables=None):
+        if "StorySuggestion" in query:
+            return {"getItem": {"id": variables["id"], "lineageId": lineage, "starRating": None, **suggestion}} if variables["id"] == row["id"] else {"getItem": None}
+        return answer(query, variables)
+
+    context.client.graphql = graphql
+
+
+@then('the shown Story has a suggestion line "{words}" by "{by}" and how to confirm it')
+def _shown_suggestion(context, words, by):
+    line = next(row for row in context.rows if row[2] == "suggestion")
+    assert words in line and f"by {by}" in line and any("papyrus ratings confirm" in cell for cell in line), line

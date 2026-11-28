@@ -1,0 +1,25 @@
+{
+  "id": "PPY-5d3abd04-419b-4668-ba32-2a882a98669e",
+  "title": "The rating agent's daily review names each Story and is answered row by row",
+  "description": "Live review rr-ratings-2026-11-27 on machines-on-machines said only '1 rating suggested, 0 five-star candidates' with generic Accept/Reject: no Story, stars or reason. Fix: the review's story links carry title, suggested stars, five-star flag and the agent's reason; the console lists each Story with Use N stars / other stars / Leave it (rating via setItemStars as the person), the review resolves when every row is answered or dismissed; reviews show and stories show print them; Today names the Stories.",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-24b2acd6-5718-411c-aeb1-953fd7db1b56",
+  "labels": [
+    "always-on-agents"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-28T04:03:34.511664Z",
+  "updated_at": "2026-11-28T04:03:38.307755Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

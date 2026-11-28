@@ -117,28 +117,46 @@ export function storyExcerpt(deck: string | null | undefined, body: readonly (st
  * that no longer exist (no version of the lineage remains). A story that cannot be read simply has no entry (the card falls back to the id).
  * One read per story, a few at a time: a batch can name any number of ideas.
  */
-export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string> }> {
+export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string>; itemIds?: Record<string, string> }> {
   const titles: Record<string, string> = {};
+  const itemIds: Record<string, string> = {};
   const excerpts: Record<string, string> = {};
   const stages: Record<string, string> = {};
   const deleted: string[] = [];
   const unique = [...new Set(ids)];
   for (let start = 0; start < unique.length; start += LOOKUPS_AT_A_TIME) await Promise.all(unique.slice(start, start + LOOKUPS_AT_A_TIME).map(async (id) => {
     const result = await run(
-      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title deck body stage } } }`,
+      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { id versionNumber headline title deck body stage } } }`,
       { lineageId: id },
     );
     // Only a clean, empty answer means the story is gone; a failed lookup says nothing.
     if (!result.errors?.length && result.data?.listItemsByLineageAndVersion && !(result.data.listItemsByLineageAndVersion.items ?? []).filter(Boolean).length) deleted.push(id);
-    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { versionNumber?: number; headline?: string; title?: string; deck?: string | null; body?: (string | null)[] | null; stage?: string | null }[];
+    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { id?: string; versionNumber?: number; headline?: string; title?: string; deck?: string | null; body?: (string | null)[] | null; stage?: string | null }[];
     const newest = items.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
     const title = newest?.headline || newest?.title;
     if (title) titles[id] = title;
     const excerpt = storyExcerpt(newest?.deck, newest?.body);
     if (excerpt) excerpts[id] = excerpt;
     if (newest?.stage) stages[id] = newest.stage;
+    if (newest?.id) itemIds[id] = newest.id;   // any record of the lineage: setItemStars rates the lineage's working record
   }));
-  return { titles, deleted, excerpts, stages };
+  return { titles, deleted, excerpts, stages, itemIds };
+}
+
+/**
+ * Saves a row of the rating agent's daily review (`ratingRowUpdate`, `ratingDismissUpdate`). The condition is that the request is still open and
+ * unchanged since it was read, so a second answer, or the agent adding Stories meanwhile, is never overwritten.
+ */
+export async function saveRatingReview(request: ReviewRequest, update: Record<string, unknown>): Promise<ReviewRequest> {
+  const result = await run(
+    `mutation RatingRow($input: UpdateReviewRequestInput!, $condition: ModelReviewRequestConditionInput) { updateReviewRequest(input: $input, condition: $condition) { ${FIELDS} } }`,
+    { input: update, condition: { and: [{ state: { eq: "open" } }, { updatedAt: { eq: request.updatedAt } }] } },
+  );
+  if (result.errors?.some((entry) => /conditional/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`))) {
+    throw new Error("This review changed since you opened it. Refresh, then answer again.");
+  }
+  if (result.errors?.length || !result.data?.updateReviewRequest) throw new Error("Your answer could not be saved. Nothing was changed on the review.");
+  return normalizeReviewRow(result.data.updateReviewRequest);
 }
 
 /**

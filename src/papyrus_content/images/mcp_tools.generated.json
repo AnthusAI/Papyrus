@@ -6449,6 +6449,11 @@
                 "stars": {
                   "type": "integer",
                   "minimum": 1
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The agent's one-line reason for these stars."
                 }
               },
               "required": [
@@ -6456,7 +6461,7 @@
                 "stars"
               ]
             },
-            "description": "The Stories suggested, with their stars."
+            "description": "The Stories suggested, with their stars and the reason for each."
           }
         },
         "required": [
