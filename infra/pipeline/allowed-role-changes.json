@@ -1,3 +1,84 @@
 {
-  "allowed": []
+  "allowed": [
+    {
+      "fingerprint": "31efd44b4031",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "83493233e7b6",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "3d10b2bc0983",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "21f63572dec4",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "67556c53dcb2",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "864b209bfa7c",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "9eb4d23d2f99",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "6a509f5c0948",
+      "reason": "PPY-daf673: SharedCloudFormationRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "db1552457897",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "3d8688d26042",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "f9d0db04817a",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "bc990d230ba9",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "7865b0895b9c",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "37e22e7c4bb6",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "592c91eb4262",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "606867e7f097",
+      "reason": "PPY-daf673: SharedDeployRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "fa1796457394",
+      "reason": "PPY-daf673: SharedPlanRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "5372fa6cfac3",
+      "reason": "PPY-daf673: SharedPlanRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "212b89772497",
+      "reason": "PPY-daf673: SharedPlanRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    },
+    {
+      "fingerprint": "27dae9cc3e47",
+      "reason": "PPY-daf673: SharedPlanRole returns from the held papyrus-shared-pipeline-roles.yaml for the shared staging foundation; approver already names it."
+    }
+  ]
 }
