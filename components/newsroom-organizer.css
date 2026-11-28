@@ -81,8 +81,11 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 [data-skeleton-schedule]{height:92px}[data-skeleton-announcements]{height:57px}[data-skeleton-toolbar]{height:44px}[data-skeleton-stars]{height:59px}[data-skeleton-fields]{height:262px}[data-skeleton-preview]{height:min(28rem,55dvh)}
 /* The headline image block is one fixed height in every state (loading, none, processing, missing, loaded), and the skeleton reserves it. */
 [data-story-headline-frame],[data-skeleton-headline]{height:11rem}
-@container (max-width:719px){[data-skeleton-toolbar]{height:80px}[data-skeleton-fields]{height:282px}[data-skeleton-schedule]{height:113px}}
-@container (max-width:399px){[data-skeleton-toolbar]{height:116px}[data-skeleton-schedule]{height:134px}}
+@container (max-width:719px){[data-skeleton-fields]{height:282px}[data-skeleton-schedule]{height:113px}}
+@container (max-width:399px){[data-skeleton-schedule]{height:134px}}
+/* The toolbar (back link, badges, Save, Publish) is one row down to about 410px wide, two rows to about 270px, three below. */
+@container (max-width:409px){[data-skeleton-toolbar]{height:80px}}
+@container (max-width:269px){[data-skeleton-toolbar]{height:116px}}
 .organizer-board-body .kb-issue-detail a:not(.organizer-header-button){display:block;min-height:44px;text-decoration:underline;padding:12px 0}
 .organizer-menu{height:min(85dvh,760px);max-height:85dvh;display:flex;flex-direction:column;padding:16px;border-radius:24px 24px 0 0;gap:20px}
 .organizer-menu .organizer-destinations{overflow-y:auto}.organizer-menu .organizer-destinations section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.organizer-menu .organizer-destinations h3{grid-column:1/-1;font-size:12px;text-transform:none;margin:0 0 4px}
